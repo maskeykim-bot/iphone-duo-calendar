@@ -202,8 +202,6 @@ input[type=checkbox]{display:inline-block;width:20px;min-height:20px;vertical-al
 .primary{background:var(--green);color:#fff;padding:8px 28px}.primary:hover{background:#386351}
 .danger{color:var(--danger)}
 .error{color:var(--danger);font-size:13px;min-height:20px;margin:8px 0 0}
-body[data-layout=spread] dialog#editor{inset:68px 24px 12px auto;margin:0;width:401px;max-width:calc(50% - 44px)}
-body[data-layout=desk] dialog#editor{max-height:calc(100% - 16px)}
 #status{position:absolute;top:0;left:0;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 
 @media (max-width:520px){
@@ -262,3 +260,102 @@ body[data-layout=desk] dialog#editor{max-height:calc(100% - 16px)}
 .vlist .weekrow .event strong{grid-column:2;font-size:16px;line-height:24px;white-space:normal;overflow-wrap:anywhere}
 .vlist .empty-row{padding:0;min-height:44px;display:flex;align-items:center}
 .shell.browse>.calendar{flex:1 1 auto}
+
+/* ===== 第6版: 繰り返し・検索・バックアップ ===== */
+.iconbtn{flex:none;width:44px;min-width:44px;height:44px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:22px;line-height:1;border-radius:12px}
+.rep{display:inline-block;width:14px;margin-right:4px;font:400 14px/1 sans-serif;text-align:center;vertical-align:baseline}
+.chip .rep,.bar .rep,.strip .rep,.weekview.cols .rep{width:14px;margin-right:0;font-size:12px}
+.next .nd{display:block;font:13px/1.4 -apple-system,sans-serif;color:#d7e3d9}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+mark{background:#E7EBDD;color:inherit;font-weight:inherit;border-radius:2px}
+@media (max-width:520px){
+ .top{flex-wrap:wrap;row-gap:8px}
+ .toolbar{order:3;flex:1 0 100%;justify-content:space-between}
+}
+
+/* パネル共通（編集・検索・バックアップ）: ヘッダー56・本文可変・フッター60 */
+dialog.panel{padding:0;overflow:hidden}
+dialog.panel[open]{display:flex;flex-direction:column}
+#form{display:flex;flex-direction:column;min-height:0;flex:1}
+.formhead,.phead{display:flex;align-items:center;justify-content:space-between;gap:8px;height:56px;min-height:56px;flex:none;padding:0 12px 0 20px;border-bottom:1px solid var(--line)}
+.phead h2,.formhead h2{font-size:22px}
+.fbody{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:0 20px 12px}
+.factions{flex:none;padding:8px 20px;border-top:1px solid var(--line)}
+.factions .actions{margin-top:0}
+.factions .error{margin:0 0 4px;min-height:0}
+.error:empty{display:none}
+textarea{display:block;width:100%;min-height:80px;padding:8px 10px;background:#f5f3ec;border:1px solid var(--line);border-radius:10px;font:inherit;line-height:24px;resize:vertical}
+.repeat{margin-top:12px;border-top:1px solid var(--line)}
+.rtoggle{display:flex;align-items:center;gap:6px;width:100%;text-align:left;border-radius:0;padding:6px 0}
+.lbl{display:block;margin-top:12px;font-size:13px}
+.days{display:flex;gap:4px;margin-top:4px}
+.dow{width:44px;min-width:44px;padding:0;border:1px solid var(--line);background:var(--card)}
+#rdesc{margin:6px 0 0}
+#rpanel .error{margin:8px 0 0}
+
+/* 範囲シート・メニュー */
+dialog#scope{z-index:11;inset:auto 8px 12px;margin:0 auto;width:460px;max-height:calc(100% - 24px)}
+#sc-target{margin:6px 0 0;overflow-wrap:anywhere}
+.rows{margin-top:4px}
+.row{display:block;width:100%;min-height:52px;padding:8px 16px;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:12px;margin-top:8px}
+.row small{display:block;font-size:12px;line-height:18px;color:var(--muted);overflow-wrap:anywhere}
+.row.cancel{margin-top:12px;text-align:center}
+.row.danger{color:var(--danger)}
+.row:disabled{opacity:.45;cursor:default}
+#sc-note{margin:8px 0 0}
+dialog#menu{z-index:12;inset:56px 16px auto auto;margin:0;width:240px;max-width:calc(100% - 32px);padding:8px;border-radius:16px;box-shadow:0 12px 30px #132c3340}
+.menurows button{display:block;width:100%;text-align:left;min-height:44px}
+
+/* 検索 */
+.sbar{flex:none;padding:8px 16px;border-bottom:1px solid var(--line)}
+.sfield{position:relative}
+.sfield input{padding-right:48px}
+#sr-clear{position:absolute;right:0;top:0;width:44px;padding:0;font-size:22px;line-height:1}
+#sr-range{margin:6px 0 0}
+.pbody{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:8px 16px 16px}
+.smsg{color:var(--muted);padding:16px 4px;margin:0}
+.hcount{margin:8px 0 0}
+.hgroup h3{font-size:16px;font-weight:500;margin:16px 0 4px}
+.hit{display:block;width:100%;min-height:88px;padding:12px 12px 12px 16px;text-align:left;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--cat);border-radius:12px;margin-top:8px}
+.hit:hover{background:#f4f1e8}
+.hit>*{display:block}
+.hmeta{font-size:14px;line-height:20px;color:var(--cat)}
+.hit strong{font-weight:400;font-size:16px;line-height:24px;overflow-wrap:anywhere}
+.hplace{font-size:14px;line-height:20px;color:var(--muted);overflow-wrap:anywhere}
+.hnote{font-size:13px;line-height:20px;color:var(--muted);overflow-wrap:anywhere}
+
+/* バックアップ */
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
+.card h3{margin:0 0 8px;font-size:18px;font-weight:500;line-height:1.4}
+.card p{margin:0 0 12px}
+.card .small{font-size:14px}
+.card>button:not(.row){display:block;width:100%;border:1px solid var(--line);background:var(--card);margin-bottom:12px}
+.card>button.solid{background:var(--green);color:#fff;border-color:var(--green)}
+.berr{color:var(--danger)}
+.bmsg{color:var(--green)}
+.facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;margin:0 0 8px;font-size:14px}
+.facts dt{color:var(--muted)}.facts dd{margin:0;overflow-wrap:anywhere}
+.pair2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dangerfill{background:#873B35;color:#fff}.dangerfill:hover{background:#963E38}
+.pbody>.row{margin-top:0;margin-bottom:8px}
+.pbody>.row.cancel{margin-top:12px}
+
+/* 配置: 閉じた縦横は検索・バックアップが全画面、編集は外余白12px（横は中央幅480） */
+body[data-layout=home] dialog.panel,body[data-layout=browse] dialog.panel{inset:12px;margin:0;width:auto;max-width:none;max-height:calc(100% - 24px)}
+body[data-layout=home] dialog.full,body[data-layout=browse] dialog.full{inset:0;width:100%;height:100%;max-height:none;border-radius:0;border:0;box-shadow:none}
+@media (orientation:landscape){
+ body[data-layout=home] dialog#editor,body[data-layout=browse] dialog#editor{inset:12px 0;margin:0 auto;width:480px}
+}
+/* 開いた縦 626×890: 中央幅520・高さ最大858 */
+body[data-posture=portrait] dialog.panel{width:520px;max-height:calc(100% - 32px)}
+body[data-posture=portrait] dialog.full{height:calc(100% - 32px)}
+/* 開いた横 890×626: 右ページ x=465–864・幅399・y=24–602。ガターに影を描かない */
+body[data-layout=spread] dialog.panel{inset:24px 26px auto auto;margin:0;width:399px;max-width:399px;max-height:578px;box-shadow:none}
+body[data-layout=spread] dialog.full{height:578px}
+body[data-layout=spread] dialog#scope,body[data-layout=spread] dialog#confirm{inset:auto 26px 24px auto;margin:0;width:399px;max-width:399px;box-shadow:none}
+body[data-layout=spread] dialog#menu{inset:56px auto auto 24px;box-shadow:0 12px 30px #132c3340}
+/* ハーフフォールド: 下ペインのみ（保護帯24pxを避ける） */
+body[data-layout=desk] dialog.panel{inset:calc(50% + 20px) 16px 8px 16px;margin:0;width:auto;max-width:none;height:auto;max-height:calc(50% - 28px)}
+body[data-layout=desk] dialog.full{height:calc(50% - 28px)}
+body[data-layout=desk] .formhead,body[data-layout=desk] .phead{height:44px;min-height:44px}
+body[data-layout=desk] dialog#scope,body[data-layout=desk] dialog#confirm{inset:auto 16px 8px;width:auto;max-width:none;max-height:calc(50% - 28px);overflow:auto}

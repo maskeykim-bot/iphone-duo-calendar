@@ -1,5 +1,7 @@
 // IndexedDB データ層。schema を変えるときは SCHEMA_VERSION を上げ、MIGRATIONS に追記する。
-export const SCHEMA_VERSION = 1;
+import { withDefaults } from './util.js';
+
+export const SCHEMA_VERSION = 2;
 const BASE_NAME = 'duo-calendar';
 
 const MIGRATIONS = {
@@ -7,6 +9,16 @@ const MIGRATIONS = {
     const events = db.createObjectStore('events', { keyPath: 'id' });
     events.createIndex('start', 'start');
     db.createObjectStore('meta', { keyPath: 'key' });
+  },
+  // v2: 繰り返し・メモ。既存の予定は一切消さず、versionchange トランザクション内で既定値を補う（ストアは再作成しない）。
+  2(db, tx) {
+    const store = tx.objectStore('events');
+    store.openCursor().onsuccess = (ev) => {
+      const cur = ev.target.result;
+      if (!cur) return;
+      cur.update(withDefaults(cur.value));
+      cur.continue();
+    };
   },
 };
 
@@ -44,7 +56,12 @@ async function run(mode, fn) {
     tx.oncomplete = () => resolve(result);
     tx.onerror = () => reject(tx.error);
     tx.onabort = () => reject(tx.error || new Error('aborted'));
-    result = fn(tx.objectStore('events'), (v) => { result = v; });
+    try {
+      result = fn(tx.objectStore('events'), (v) => { result = v; });
+    } catch (e) {
+      try { tx.abort(); } catch { /* 既に終了 */ }
+      reject(e);
+    }
   });
 }
 
@@ -52,9 +69,13 @@ const wrap = (req) => new Promise((resolve, reject) => { req.onsuccess = () => r
 
 export async function listEvents() {
   const db = await open();
-  return wrap(db.transaction('events').objectStore('events').getAll());
+  return (await wrap(db.transaction('events').objectStore('events').getAll())).map(withDefaults);
 }
 export const putEvent = (e) => run('readwrite', (s) => { s.put(e); });
 export const putMany = (list) => run('readwrite', (s) => { list.forEach((e) => s.put(e)); });
 export const deleteEvent = (id) => run('readwrite', (s) => { s.delete(id); });
 export const clearEvents = () => run('readwrite', (s) => { s.clear(); });
+// 単一トランザクションで put と delete をまとめて適用（途中失敗で全体ロールバック）。
+export const applyChanges = ({ puts = [], dels = [] }) => run('readwrite', (s) => { puts.forEach((e) => s.put(e)); dels.forEach((id) => s.delete(id)); });
+// 全置換: clear と put を1トランザクションで。失敗時は abort され元データが残る。
+export const replaceAll = (list) => run('readwrite', (s) => { s.clear(); list.forEach((e) => s.put(e)); });

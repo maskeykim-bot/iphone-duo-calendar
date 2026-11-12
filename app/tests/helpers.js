@@ -80,6 +80,7 @@ export async function findTextOverlaps(page, { ignoreApp = false } = {}) {
       const el = n.parentElement;
       if (!text || !el || el.closest('script,style,[hidden],#status')) continue;
       if (el.closest('dialog:not([open])')) continue;
+      if (el.closest('[inert]')) continue; // 全画面パネルの背面（操作・読み上げ対象外）
       if (ignoreApp && el.closest('#app')) continue;
       const cs = getComputedStyle(el);
       if (cs.visibility === 'hidden' || cs.display === 'none') continue;
@@ -114,4 +115,74 @@ export async function findTextOverlaps(page, { ignoreApp = false } = {}) {
     }
     return bad;
   }, ignoreApp);
+}
+
+// ---- 第6版 ----
+// アプリ自身の db.js（同一モジュール）で IndexedDB を直接読み書きする。シード後は再読込して反映。
+export async function seed(page, events) {
+  await page.evaluate(async (list) => { const db = await import('/js/db.js'); await db.putMany(list); }, events);
+  await page.reload();
+  await page.waitForSelector('html[data-ready]');
+}
+export const dbEvents = (page) => page.evaluate(async () => (await (await import('/js/db.js')).listEvents()).sort((a, b) => String(a.id).localeCompare(String(b.id))));
+export const ev = (id, title, start, end, extra = {}) => ({ id, title, cat: 'work', all: false, start, end, place: '', notes: '', recurrence: null, exdates: [], overrides: {}, ...extra });
+
+// 編集ダイアログの繰り返し設定。f: { rfreq, days:[0..6], rend, rcount, runtil }
+export async function fillRepeat(page, f) {
+  const dlg = page.locator('#editor');
+  if (await dlg.locator('#rpanel').isHidden()) await dlg.locator('#rtoggle').click();
+  if (f.rfreq) await dlg.locator('#f-rfreq').selectOption(f.rfreq);
+  if (f.days) {
+    for (const d of [0, 1, 2, 3, 4, 5, 6]) {
+      const b = dlg.locator(`.dow[data-dow="${d}"]`);
+      const on = (await b.getAttribute('aria-pressed')) === 'true';
+      if (on !== f.days.includes(d)) await b.click();
+    }
+  }
+  if (f.rend) await dlg.locator('#f-rend').selectOption(f.rend);
+  if (f.rcount !== undefined) await dlg.locator('#f-rcount').fill(String(f.rcount));
+  if (f.runtil !== undefined) await dlg.locator('#f-runtil').fill(f.runtil);
+}
+export async function addRepeat(page, f) {
+  await page.locator('[data-act="add"]:visible').first().click();
+  await expect(page.locator('#editor')).toBeVisible();
+  await fillEditor(page, f);
+  await fillRepeat(page, f);
+  await page.locator('#editor').getByRole('button', { name: '保存' }).click();
+  await expect(page.locator('#editor')).toBeHidden();
+}
+// 月表示（閉じた縦）から日付を選び、その日の最初の予定カードで編集を開く。
+export async function openOccurrence(page, key, nth = 0) {
+  await tab(page, '月').click();
+  await pickDay(page, key);
+  await page.locator('.daylist .event').nth(nth).click();
+  await expect(page.locator('#editor')).toBeVisible();
+}
+export const chip = (page, key) => page.locator(`[data-date="${key}"] .chip`);
+
+// 見えている文字のうち、ガター（x=425〜465）にかかるものを返す。
+export async function textInGutter(page, l = 425, r = 465) {
+  return page.evaluate(([l, r]) => {
+    const bad = [];
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const t = n.nodeValue.trim(), el = n.parentElement;
+      if (!t || !el || el.closest('script,style,[hidden],#status,.vh') || el.closest('dialog:not([open])')) continue;
+      const cs = getComputedStyle(el);
+      if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      for (const rc of range.getClientRects()) {
+        if (rc.width < 1 || rc.height < 1) continue;
+        let vis = { l: rc.left, r: rc.right, t: rc.top, b: rc.bottom };
+        for (let a = el; a && a !== document.documentElement; a = a.parentElement) {
+          const s = getComputedStyle(a);
+          if (s.overflowX !== 'visible' || s.overflowY !== 'visible') { const ar = a.getBoundingClientRect(); vis = { l: Math.max(vis.l, ar.left), r: Math.min(vis.r, ar.right), t: Math.max(vis.t, ar.top), b: Math.min(vis.b, ar.bottom) }; }
+        }
+        if (vis.r - vis.l < 1 || vis.b - vis.t < 1) continue;
+        if (vis.l < r - 1 && vis.r > l + 1) bad.push(`${t} [${vis.l.toFixed(0)}–${vis.r.toFixed(0)}]`);
+      }
+    }
+    return bad;
+  }, [l, r]);
 }

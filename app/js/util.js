@@ -66,7 +66,26 @@ export function parseInput(text, all) {
   return `${dkey(date)}T${pad(hh)}:${pad(mi)}`;
 }
 
-// ドラフト → 保存用の予定。失敗時は { error } を返す。
+// 古い（v1）レコードに既定値を補う。
+export const withDefaults = (e) => ({ ...e, notes: e.notes ?? '', recurrence: e.recurrence ?? null, exdates: e.exdates ?? [], overrides: e.overrides ?? {} });
+
+export const FREQS = { daily: '毎日', weekly: '毎週', monthly: '毎月', yearly: '毎年' };
+export const LIMITS = { title: 80, place: 200, notes: 4000, count: 9999 };
+
+// 繰り返しの要約（例: 毎週 月・木／10回）。start は開始日時（毎月・毎年の説明用）。
+export function ruleSummary(rule, start) {
+  if (!rule) return 'なし';
+  const d = parseKey(dayOf(start));
+  let s = FREQS[rule.freq] || '';
+  if (rule.freq === 'weekly') s += ` ${(rule.byDay || []).map((i) => DOW[i]).join('・')}`;
+  if (rule.freq === 'monthly') s = `毎月${d.getDate()}日`;
+  if (rule.freq === 'yearly') s = `毎年${d.getMonth() + 1}月${d.getDate()}日`;
+  if (rule.count != null) s += `／${rule.count}回`;
+  else if (rule.until) s += `／${rule.until.replaceAll('-', '/')}まで`;
+  return s;
+}
+
+// ドラフト → 保存用の予定。失敗時は { error, where } を返す。
 export function validateDraft(f) {
   const title = (f.title || '').trim();
   if (!title) return { error: '予定名を入力してください。' };
@@ -82,7 +101,28 @@ export function validateDraft(f) {
   }
   if (end < start) return { error: '終了は開始以降にしてください。' };
   if (!Object.hasOwn(CATS, f.cat)) return { error: 'カテゴリを選んでください。' };
-  return { event: { title, cat: f.cat, all, start, end, place: (f.place || '').trim() } };
+  let recurrence = null;
+  const freq = f.rfreq || 'none';
+  if (freq !== 'none') {
+    if (!Object.hasOwn(FREQS, freq)) return { error: '繰り返しの種類を選んでください。', where: 'repeat' };
+    recurrence = { freq, interval: 1, byDay: null, count: null, until: null };
+    if (freq === 'weekly') {
+      const by = [...new Set((f.rbyday || []).map(Number))].filter((n) => n >= 0 && n <= 6).sort((a, b) => a - b);
+      if (!by.length) return { error: '曜日を1つ以上選んでください。', where: 'repeat' };
+      recurrence.byDay = by;
+    }
+    if (f.rend === 'count') {
+      const t = String(f.rcount ?? '').trim();
+      const n = /^\d+$/.test(t) ? Number(t) : NaN;
+      if (!(n >= 1 && n <= LIMITS.count)) return { error: '回数は1〜9999の整数で入力してください。', where: 'repeat' };
+      recurrence.count = n;
+    } else if (f.rend === 'until') {
+      const u = parseInput(f.runtil, true);
+      if (!u || dayOf(u) < dayOf(start)) return { error: '開始日以降の日付を選んでください。', where: 'repeat' };
+      recurrence.until = dayOf(u);
+    }
+  }
+  return { event: { title, cat: f.cat, all, start, end, place: (f.place || '').trim().slice(0, LIMITS.place), notes: String(f.notes || '').slice(0, LIMITS.notes), recurrence } };
 }
 
 // 月グリッド: 週ごとの日付配列

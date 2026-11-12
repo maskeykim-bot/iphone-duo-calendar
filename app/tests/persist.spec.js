@@ -12,7 +12,7 @@ test.describe('永続化', () => {
       const r = indexedDB.open('duo-calendar');
       r.onsuccess = () => res({ version: r.result.version, stores: [...r.result.objectStoreNames] });
     }));
-    expect(meta.version).toBe(1);
+    expect(meta.version).toBe(2);
     expect(meta.stores).toContain('events');
   });
 
