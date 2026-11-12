@@ -117,6 +117,35 @@ export function assignLanes(events, days, maxLanes = 2) {
   return { bars, hidden, used: Math.min(lanes.length, maxLanes) };
 }
 
+// 開いた縦の月: 複数日帯と単日短冊で共通の2レーンを使う。
+// 複数日を先に（開始日時順）、単日は残ったレーンに時刻順。収まらない分は日ごとの hidden に数える。
+export function assignSharedLanes(events, days, maxLanes = 2) {
+  const occ = Array.from({ length: maxLanes }, () => Array(7).fill(false));
+  const items = [];
+  const hidden = Array(7).fill(0);
+  const multis = events
+    .filter((e) => isMulti(e) && dayOf(e.start) <= days[6] && dayOf(e.end) >= days[0])
+    .sort((a, b) => a.start.localeCompare(b.start) || dayOf(b.end).localeCompare(dayOf(a.end)) || a.title.localeCompare(b.title, 'ja'));
+  for (const e of multis) {
+    const sc = Math.max(0, days.findIndex((k) => k >= dayOf(e.start)));
+    let ec = 6;
+    for (let i = 6; i >= 0; i--) if (days[i] <= dayOf(e.end)) { ec = i; break; }
+    const lane = occ.findIndex((row) => row.slice(sc, ec + 1).every((v) => !v));
+    if (lane < 0) { for (let i = sc; i <= ec; i++) hidden[i]++; continue; }
+    for (let i = sc; i <= ec; i++) occ[lane][i] = true;
+    items.push({ e, sc, ec, lane, multi: true, fromPrev: dayOf(e.start) < days[0], toNext: dayOf(e.end) > days[6] });
+  }
+  days.forEach((k, col) => {
+    for (const e of eventsOnDay(events, k).filter((x) => !isMulti(x))) {
+      const lane = occ.findIndex((row) => !row[col]);
+      if (lane < 0) { hidden[col]++; continue; }
+      occ[lane][col] = true;
+      items.push({ e, sc: col, ec: col, lane, multi: false });
+    }
+  });
+  return { items, hidden };
+}
+
 export function newId() {
   return globalThis.crypto?.randomUUID ? crypto.randomUUID() : `e${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }

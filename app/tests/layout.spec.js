@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, loadSample, addEvent, tab, layout, findTextOverlaps, SIZES } from './helpers.js';
+import { openApp, loadSample, addEvent, tab, layout, findTextOverlaps, setStyle, SIZES } from './helpers.js';
 
 const box = (loc) => loc.boundingBox();
 const inside = (inner, outer, tol = 1) => inner.y >= outer.y - tol && inner.y + inner.height <= outer.y + outer.height + tol && inner.x >= outer.x - tol && inner.x + inner.width <= outer.x + outer.width + tol;
@@ -85,35 +85,31 @@ test.describe('レイアウト（4サイズ）', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 
-  test('626×890 開いた縦: 月＋選択日の5件目まで切れない', async ({ page }) => {
+  test('626×890 開いた縦: 月・アジェンダは追加ボタンに覆われず、5件目までリスト内スクロールで届く', async ({ page }) => {
     await openApp(page, SIZES.openPortrait);
     await loadSample(page);
     expect(await layout(page)).toBe('open');
-    for (const style of ['手帳', '予定名']) {
-      await page.getByRole('button', { name: style }).click();
-      const list = await box(page.locator('.agenda .list'));
-      const evs = page.locator('.agenda .event');
-      await expect(evs).toHaveCount(5);
-      for (const ev of await evs.all()) expect(inside(await box(ev), list)).toBe(true);
-      const add = await box(page.getByRole('button', { name: '予定を追加' }));
-      expect(list.y + list.height).toBeLessThanOrEqual(add.y + 1);
-      const sc = await box(page.locator('.calendar .scroll'));
-      expect(sc.y + sc.height).toBeLessThanOrEqual(add.y + 1);
-    }
-    // 6週目まで内部スクロールで到達できる（追加が覆わない）
-    await page.getByRole('button', { name: '次の月' }).click();
-    const last = page.locator('.week').last();
-    await page.locator('.calendar .scroll').evaluate((el) => { el.scrollTop = el.scrollHeight; });
+    const list = await box(page.locator('.agenda .list'));
+    const evs = page.locator('.agenda .event');
+    await expect(evs).toHaveCount(5);
     const add = await box(page.getByRole('button', { name: '予定を追加' }));
-    const lb = await box(last);
-    expect(lb.y + lb.height).toBeLessThanOrEqual(add.y + 1);
+    expect(list.y + list.height).toBeLessThanOrEqual(add.y + 1);
+    const sc = await box(page.locator('.calendar .scroll'));
+    expect(sc.y + sc.height).toBeLessThanOrEqual(add.y + 1);
+    await page.locator('.agenda .list').evaluate((el) => { el.scrollTop = el.scrollHeight; });
+    expect(inside(await box(evs.last()), list)).toBe(true);
+    // 6週月でも週行は縮まず、全週がスクロールなしで見える（詳細は open-portrait.spec.js）
+    await page.getByRole('button', { name: '次の月' }).click();
+    const last = await box(page.locator('.week').last());
+    expect(last.y + last.height).toBeLessThanOrEqual(add.y + 1);
   });
 
-  test('626×890 開いた縦: 週は7列', async ({ page }) => {
+  test('626×890 開いた縦: 週は日別の縦リスト（7列ではない）', async ({ page }) => {
     await openApp(page, SIZES.openPortrait);
     await tab(page, '週').click();
     const xs = await page.locator('.weekrow').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().left)));
-    expect(new Set(xs).size).toBe(7);
+    expect(xs).toHaveLength(7);
+    expect(new Set(xs).size).toBe(1);
   });
 
   test('890×626 開いた横: 見開き（ヘッダー1行・折り目ガター無描画・5件がスクロールなし）', async ({ page }) => {
@@ -171,13 +167,13 @@ test.describe('可視テキストの重なり', () => {
       for (const v of ['日', '週', '月']) {
         await tab(page, v).click();
         if (v === '月') {
-          for (const s of ['手帳', '予定名']) { await page.getByRole('button', { name: s }).click(); await scan(`月/${s}`); }
+          for (const s of ['手帳', '予定名']) { await setStyle(page, s); await scan(`月/${s}`); }
         } else await scan(v);
       }
       if (size.width >= 600 && size.height >= 600) {
         await tab(page, '月').click();
-        await page.getByRole('button', { name: '予定名' }).click();
         await page.getByRole('button', { name: '卓上' }).click();
+        await page.getByRole('button', { name: '予定名' }).click();
         await scan('卓上/予定名');
         await page.getByRole('button', { name: '手帳' }).click();
         await scan('卓上/手帳');
@@ -223,11 +219,12 @@ test.describe('見開きの折り目 (x=425〜465)', () => {
 });
 
 test.describe('複数日の帯', () => {
+  // 開いた縦は共通2レーン（単日も数える）で別仕様のため、この旧仕様の検証は見開きで行う。
   test('予定名表示で同時に2本の帯が重ならず並び、3本目は +N', async ({ page }) => {
-    await openApp(page, SIZES.openPortrait);
+    await openApp(page, SIZES.openLandscape);
     await addEvent(page, { title: '出張A', all: true, start: '2026/11/16', end: '2026/11/18', cat: 'work' });
     await addEvent(page, { title: '合宿B', all: true, start: '2026/11/17', end: '2026/11/19', cat: 'golf' });
-    await page.getByRole('button', { name: '予定名' }).click();
+    await setStyle(page, '予定名');
     const bars = page.locator('.bar');
     await expect(bars).toHaveCount(2);
     const [a, b] = await Promise.all([bars.nth(0).boundingBox(), bars.nth(1).boundingBox()]);
@@ -253,7 +250,7 @@ test.describe('複数日の帯', () => {
       await addEvent(page, { title: '合宿B', all: true, start: '2026/11/17', end: '2026/11/19', cat: 'golf' });
       await addEvent(page, { title: '長期出張', all: true, start: '2026/11/19', end: '2026/11/23' });
       if (size.startsWith('closed')) await tab(page, '月').click();
-      await page.getByRole('button', { name: '予定名' }).click();
+      await setStyle(page, '予定名');
       const info = await page.evaluate(() => {
         const r = (el) => { const b = el.getBoundingClientRect(); return { top: b.top, bottom: b.bottom }; };
         const weeks = [...document.querySelectorAll('.week.named')];
@@ -277,7 +274,7 @@ test.describe('複数日の帯', () => {
   test('週をまたぐ帯は継続矢印つきで各週に表示', async ({ page }) => {
     await openApp(page, SIZES.openPortrait);
     await addEvent(page, { title: '長期出張', all: true, start: '2026/11/19', end: '2026/11/23' });
-    await page.getByRole('button', { name: '予定名' }).click();
+    await setStyle(page, '予定名');
     const bars = page.locator('.bar');
     await expect(bars).toHaveCount(2);
     await expect(bars.nth(0)).toContainText('→');

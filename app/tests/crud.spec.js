@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, loadSample, addEvent, fillEditor, tab, SIZES } from './helpers.js';
+import { openApp, loadSample, addEvent, fillEditor, tab, pickDay, SIZES } from './helpers.js';
 
 test.describe('予定の追加・編集・削除', () => {
   test('初期は空で、サンプルを入れられる', async ({ page }) => {
@@ -69,11 +69,11 @@ test.describe('予定の追加・編集・削除', () => {
     await fillEditor(page, { end: '2026/11/14' });
     await page.locator('#editor').getByRole('button', { name: '保存' }).click();
     for (const d of ['12', '13', '14']) {
-      await page.locator(`[data-date="2026-11-${d}"]`).click();
+      await pickDay(page, `2026-11-${d}`);
       await expect(page.locator('.agenda .event')).toContainText('社員旅行');
       await expect(page.locator('.agenda .event .clock')).toHaveText('終日');
     }
-    await page.locator('[data-date="2026-11-15"]').click();
+    await pickDay(page, '2026-11-15');
     await expect(page.locator('.agenda .event')).toHaveCount(0);
   });
 

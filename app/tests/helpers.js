@@ -38,6 +38,37 @@ export async function addEvent(page, f) {
   await expect(page.locator('#editor')).toBeHidden();
 }
 
+// 「手帳／予定名」は開いた縦では隠れる。見えている時だけ切り替える。
+export async function setStyle(page, name) {
+  const b = page.getByRole('button', { name, exact: true });
+  if (await b.isVisible()) await b.click();
+}
+// 日セルは日付の位置を押す（予定名の帯・短冊が中央に重なるため）。
+export const pickDay = (page, key) => page.locator(`[data-date="${key}"]`).click({ position: { x: 12, y: 10 } });
+
+// 期間見出し（#ctitle / .stitle）。ダイアログ中（inert）でも読めるよう textContent。
+export const period = (page) => page.evaluate(() => document.querySelector('#ctitle, .stitle')?.textContent.trim() ?? '');
+export const settle = (page) => page.waitForFunction(() => !document.documentElement.dataset.swiping);
+
+// Pointer Events を直接送る。target を省くと開始点の要素に送る。
+export async function swipe(page, { x0, y0, dx, dy = 0, type = 'touch', steps = 6, target = null, finish = 'up', second = false }) {
+  await page.evaluate(({ x0, y0, dx, dy, type, steps, target, finish, second }) => {
+    const first = target ? document.querySelector(target) : document.elementFromPoint(x0, y0);
+    const fire = (name, x, y, o = {}) => first.dispatchEvent(new PointerEvent(name, {
+      bubbles: true, cancelable: true, composed: true, pointerId: 1, pointerType: type, isPrimary: true,
+      clientX: x, clientY: y, button: 0, buttons: name === 'pointerup' ? 0 : 1, ...o,
+    }));
+    fire('pointerdown', x0, y0);
+    for (let i = 1; i <= steps; i++) {
+      fire('pointermove', x0 + (dx * i) / steps, y0 + (dy * i) / steps);
+      if (second && i === 2) fire('pointerdown', x0 + 30, y0, { pointerId: 2, isPrimary: false });
+    }
+    if (finish === 'cancel') fire('pointercancel', x0 + dx, y0 + dy);
+    fire('pointerup', x0 + dx, y0 + dy);
+  }, { x0, y0, dx, dy, type, steps, target, finish, second });
+  await settle(page);
+}
+
 // 画面内の「見えている文字」の矩形を集め、重なりを返す。
 export async function findTextOverlaps(page, { ignoreApp = false } = {}) {
   return page.evaluate((ignoreApp) => {

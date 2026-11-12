@@ -1,7 +1,8 @@
 import * as db from './db.js';
 import { SAMPLE } from './sample.js';
+import { initSwipe } from './swipe.js';
 import {
-  CATS, DOW, addDays, addMonths, assignLanes, dayLabel, dayOf, dkey, eventsOnDay, isKey, isMulti,
+  CATS, DOW, addDays, addMonths, assignLanes, assignSharedLanes, dayLabel, dayOf, dkey, eventsOnDay, isKey, isMulti,
   monthWeeks, newId, nowStamp, parseKey, timeLabel, toInput, todayKey, validateDraft, weekStart,
 } from './util.js';
 
@@ -46,6 +47,8 @@ function layoutKind() {
   if (w >= 800 && h < 700) return 'spread';
   return 'open';
 }
+// 開いた縦（幅600–799・高さ800以上の通常の開いた状態）。月は全幅＋下部アジェンダ、週は日別の縦リスト。
+const isPortrait = () => layoutKind() === 'open' && window.innerWidth < 800 && window.innerHeight >= 800;
 
 // ---------- テンプレート ----------
 const TABS = [['day', '日'], ['week', '週'], ['month', '月']];
@@ -68,7 +71,7 @@ function periodTitle() {
 const unit = () => ({ month: '月', week: '週', day: '日' }[state.view]);
 const arrows = () => `<div class="arrows"><button type="button" data-act="prev" aria-label="前の${unit()}">‹</button><button type="button" data-act="next" aria-label="次の${unit()}">›</button></div>`;
 const variant = () => `<div class="variant" role="group" aria-label="月の表現">${[['simple', '手帳'], ['named', '予定名']].map(([v, l]) => `<button type="button" data-style="${v}" aria-pressed="${state.style === v}">${l}</button>`).join('')}</div>`;
-const chead = (withTitle = true) => `<div class="chead">${withTitle ? `<h2 id="ctitle">${periodTitle()}</h2>${arrows()}` : ''}${state.view === 'month' ? variant() : ''}</div>`;
+const chead = (withTitle = true, kind = '') => `<div class="chead">${withTitle ? `<h2 id="ctitle">${periodTitle()}</h2>${arrows()}` : ''}${state.view === 'month' && kind !== 'portrait' ? variant() : ''}</div>`;
 
 function card(e) {
   const sub = [e.place ? esc(e.place) : '', isMulti(e) ? `${e.start.slice(5, 10).replace('-', '/')} 〜 ${e.end.slice(5, 10).replace('-', '/')}` : ''].filter(Boolean).join(' · ');
@@ -88,6 +91,7 @@ function agenda(k) {
 // 月グリッド
 const ROW_H = 88, BAR_H = 16, BAR_GAP = 2, CHIP_H = 13;
 function monthGrid(kind) {
+  if (kind === 'portrait') return monthGridPortrait();
   const sel = state.selected, today = todayKey(), cur = parseKey(sel).getMonth(), named = state.style === 'named';
   let html = `<div class="weekdays">${DOW.map((x, i) => `<span class="${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${x}</span>`).join('')}</div>`;
   for (const days of monthWeeks(sel)) {
@@ -117,15 +121,42 @@ function monthGrid(kind) {
   return html;
 }
 
+// 開いた縦の月: 常に予定名表示。週行64px = 日付20 + 2レーン×18 + 残件8。帯と短冊は共通の2レーン。
+const LANE_TOP = 20, LANE_H = 18;
+function monthGridPortrait() {
+  const sel = state.selected, today = todayKey(), cur = parseKey(sel).getMonth();
+  let html = `<div class="weekdays">${DOW.map((x, i) => `<span class="${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${x}</span>`).join('')}</div>`;
+  for (const days of monthWeeks(sel)) {
+    const { items, hidden } = assignSharedLanes(state.events, days);
+    html += '<div class="week named pm">';
+    days.forEach((k, col) => {
+      const n = eventsOnDay(state.events, k).length, d = parseKey(k);
+      const plus = hidden[col] ? `<span class="plus" aria-hidden="true">+${hidden[col]}</span>` : '';
+      html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}" data-date="${k}" aria-label="${dayLabel(k)}、予定${n}件" aria-pressed="${k === sel}"><span class="dhead"><span class="num">${d.getDate()}</span></span>${plus}</button>`;
+    });
+    for (const b of items) {
+      const pos = `left:calc(${b.sc} * 100% / 7 + 2px);width:calc(${b.ec - b.sc + 1} * 100% / 7 - 4px);top:${LANE_TOP + b.lane * LANE_H}px`;
+      if (b.multi) {
+        html += `<button type="button" class="bar ${b.e.cat}" data-event="${esc(b.e.id)}" style="${pos}" aria-label="${esc(b.e.title)} ${dayOf(b.e.start)}から${dayOf(b.e.end)}">${b.fromPrev ? '← ' : ''}${esc(b.e.title)}${b.toNext ? ' →' : ''}</button>`;
+      } else {
+        html += `<button type="button" class="strip ${b.e.cat}" data-event="${esc(b.e.id)}" style="${pos}" aria-label="${esc(`${dayLabel(days[b.sc])} ${timeLabel(b.e)} ${b.e.title}`)}">${esc(b.e.title)}</button>`;
+      }
+    }
+    html += '</div>';
+  }
+  return html;
+}
+
 // 週・日
 const weekKeys = () => Array.from({ length: 7 }, (_, i) => addDays(weekStart(state.selected), i));
-function weekEvent(e, k) {
-  return `<button type="button" class="event week-event ${e.cat}" data-event="${esc(e.id)}" aria-label="${esc(`${dayLabel(k)} ${timeLabel(e)} ${e.title}`)}"><span class="clock">${e.all ? '終日' : e.start.slice(11)}</span><strong>${esc(e.title)}</strong></button>`;
+function weekEvent(e, k, vlist = false) {
+  return `<button type="button" class="event week-event ${e.cat}" data-event="${esc(e.id)}" aria-label="${esc(`${dayLabel(k)} ${timeLabel(e)} ${e.title}`)}"><span class="clock">${e.all || (vlist && isMulti(e)) ? '終日' : e.start.slice(11)}</span><strong>${esc(e.title)}</strong></button>`;
 }
-function weekRow(k, short) {
+function weekRow(k, short, vlist = false) {
   const list = eventsOnDay(state.events, k), d = parseKey(k);
   const head = short ? `${d.getDate()}（${DOW[d.getDay()]}）` : dayLabel(k);
-  return `<section class="weekrow${k === todayKey() ? ' today' : ''}${k === state.selected ? ' selected' : ''}"><button type="button" class="wd" data-jump="${k}" aria-label="${dayLabel(k)}を日表示で開く">${head}</button>${list.map((e) => weekEvent(e, k)).join('') || '<div class="empty-row">予定なし</div>'}</section>`;
+  const body = list.map((e) => weekEvent(e, k, vlist)).join('') || '<div class="empty-row">予定なし</div>';
+  return `<section class="weekrow${k === todayKey() ? ' today' : ''}${k === state.selected ? ' selected' : ''}"><button type="button" class="wd" data-jump="${k}" aria-label="${dayLabel(k)}を日表示で開く">${head}</button>${vlist ? `<div class="wevents">${body}</div>` : body}</section>`;
 }
 const weekNotes = '<div class="weeknotes"><div class="eyebrow">今週の余白</div>日付から一日の詳細へ。予定を選ぶと全文を確認できます。</div>';
 
@@ -133,11 +164,12 @@ function calendarBody(kind) {
   if (state.view === 'month') return `<div class="scroll" data-scroll="cal">${monthGrid(kind)}</div>${legend}`;
   if (state.view === 'week') {
     const cols = kind === 'open' || kind === 'desk';
-    return `<div class="scroll" data-scroll="cal"><div class="weekview${cols ? ' cols' : ''}">${weekKeys().map((k) => weekRow(k, cols)).join('')}</div></div>`;
+    const vlist = kind === 'portrait';
+    return `<div class="scroll" data-scroll="cal"><div class="weekview${cols ? ' cols' : ''}${vlist ? ' vlist' : ''}">${weekKeys().map((k) => weekRow(k, cols || vlist, vlist)).join('')}</div></div>`;
   }
   return `<div class="scroll" data-scroll="cal"><div class="daylist">${dayList(state.selected)}</div></div>`;
 }
-const calendar = (kind) => `<section class="calendar" aria-label="カレンダー">${chead()}${calendarBody(kind)}</section>`;
+const calendar = (kind) => `<section class="calendar" aria-label="カレンダー">${chead(true, kind)}${calendarBody(kind)}</section>`;
 
 function home() {
   const now = nowStamp(), k = todayKey(), d = parseKey(k);
@@ -158,8 +190,9 @@ function browse() {
 }
 function open() {
   const single = state.view !== 'month';
-  return `<div class="shell open"><header class="top">${brand}<div class="toolbar">${segment(state.view)}${deskBtn()}${todayBtn}</div></header>
-    <div class="layout${single ? ' single' : ''}">${calendar('open')}${single ? '' : agenda(state.selected)}</div>${addBtn}</div>`;
+  const portrait = isPortrait();
+  return `<div class="shell open${portrait ? ' portrait' : ''}"><header class="top">${brand}<div class="toolbar">${segment(state.view)}${deskBtn()}${todayBtn}</div></header>
+    <div class="layout${single ? ' single' : ''}">${calendar(portrait ? 'portrait' : 'open')}${single ? '' : agenda(state.selected)}</div>${addBtn}</div>`;
 }
 function desk() {
   return `<div class="shell desk"><div class="desktop"><header class="top">${brand}<div class="toolbar">${segment(state.view)}${deskBtn()}${todayBtn}</div></header>${calendar('desk')}</div>
@@ -199,6 +232,7 @@ function render() {
   const f = document.activeElement;
   const focusKey = f && root.contains(f) ? f.dataset.act ? `act:${f.dataset.act}` : f.dataset.view ? `view:${f.dataset.view}` : f.dataset.style ? `style:${f.dataset.style}` : f.dataset.date ? `date:${f.dataset.date}` : '' : '';
   document.body.dataset.layout = kind;
+  document.body.dataset.posture = kind === 'open' && isPortrait() ? 'portrait' : '';
   root.innerHTML = { home, browse, open, desk, spread }[kind]();
   lastKind = kind;
   root.querySelectorAll('[data-scroll]').forEach((el) => { el.scrollTop = scrolls[`${kind}:${el.dataset.scroll}`] || 0; });
@@ -343,6 +377,41 @@ document.addEventListener('keydown', (ev) => {
   if (ev.key !== 'Escape') return;
   if (confirmDlg.open) confirmDlg.close();
   else if (dlg.open) closeEditor();
+});
+
+// ---------- スワイプ（左＝次、右＝前） ----------
+const SWIPE_ZONE = '.scroll, .agenda, .remaining, .hero, .page, .list';
+const SWIPE_EXCLUDE = '.top, .spreadhead, .chead, .foot, .add, .foldband, .gutter, input, select, textarea, label, dialog';
+let swiping = false;
+const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const paneContent = () => [...root.querySelectorAll('.scroll > *, .agenda > *, .hero > *, .remaining > *, .margin > *')];
+
+function swipeMove(dir) {
+  if (layoutKind() === 'home') set({ home: false, view: 'month', selected: addMonths(state.selected, dir) });
+  else move(dir);
+  say(`${periodTitle()}。選択日は${dayLabel(state.selected)}。`);
+}
+async function swipeTo(dir) {
+  if (swiping) return;
+  if (reduced()) { swipeMove(dir); return; }
+  swiping = true;
+  document.documentElement.dataset.swiping = '1';
+  try {
+    const out = paneContent().map((el) => el.animate(
+      [{ transform: 'translateX(0)', opacity: 1 }, { transform: `translateX(${-dir * 32}px)`, opacity: 0 }],
+      { duration: 100, easing: 'ease-in', fill: 'forwards' }));
+    await Promise.all(out.map((a) => a.finished));
+    swipeMove(dir);
+    const back = paneContent().map((el) => el.animate(
+      [{ transform: `translateX(${dir * 32}px)`, opacity: 0 }, { transform: 'translateX(0)', opacity: 1 }],
+      { duration: 100, easing: 'ease-out' }));
+    await Promise.all(back.map((a) => a.finished));
+  } catch { /* アニメーションが中断されても状態は保つ */ } finally { swiping = false; delete document.documentElement.dataset.swiping; }
+}
+initSwipe({
+  root,
+  canStart: (t) => !dlg.open && !confirmDlg.open && !swiping && t instanceof Element && !!t.closest(SWIPE_ZONE) && !t.closest(SWIPE_EXCLUDE),
+  onSwipe: swipeTo,
 });
 
 // ---------- 起動 ----------

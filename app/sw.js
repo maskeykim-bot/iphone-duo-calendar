@@ -1,8 +1,8 @@
 // 静的アセットのみをキャッシュ。同一オリジン以外には一切アクセスしない。
-const CACHE = 'duo-static-v1';
+const CACHE = 'duo-static-v2';
 const ASSETS = [
   './', './index.html', './manifest.json', './css/app.css',
-  './js/app.js', './js/db.js', './js/util.js', './js/sample.js',
+  './js/app.js', './js/db.js', './js/util.js', './js/sample.js', './js/swipe.js',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
 ];
 self.addEventListener('install', (e) => {
