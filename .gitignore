@@ -1,0 +1,8 @@
+node_modules/
+app/node_modules/
+app/test-results/
+app/screenshots/
+design/screenshots/
+*.log
+codex-*.txt
+*_BRIEF*.md

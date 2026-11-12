@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Duo — ひらく、毎日。</title>
+<meta name="description" content="紙の手帳の静けさで、予定にすぐ届くカレンダー。">
+<meta name="theme-color" content="#f7f4ed">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Duo">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app"></div>
+
+<dialog id="editor" aria-labelledby="edtitle">
+  <form id="form" novalidate autocomplete="off">
+    <div class="formhead"><h2 id="edtitle">予定を追加</h2><button type="button" id="close" aria-label="閉じる">✕</button></div>
+    <label>予定名<input id="f-title" name="title" maxlength="80" placeholder="例：プロジェクト定例" required></label>
+    <label>カテゴリ<select id="f-cat" name="cat"><option value="work">仕事</option><option value="private">プライベート</option><option value="golf">ゴルフ</option><option value="economy">経済指標</option></select></label>
+    <label class="check"><input id="f-all" name="all" type="checkbox">終日</label>
+    <div class="pair">
+      <label>開始<input id="f-start" name="start" class="date-text" inputmode="numeric" placeholder="2026/11/12 10:00"></label>
+      <label>終了<input id="f-end" name="end" class="date-text" inputmode="numeric" placeholder="2026/11/12 11:00"></label>
+    </div>
+    <label>場所<input id="f-place" name="place" placeholder="場所を追加"></label>
+    <p id="error" class="error" role="alert"></p>
+    <div class="actions"><button type="button" id="delete" class="danger">予定を削除</button><button class="primary" type="submit">保存</button></div>
+  </form>
+</dialog>
+<dialog id="confirm" aria-labelledby="confirmtitle">
+  <h2 id="confirmtitle">この予定を削除しますか？</h2>
+  <p id="deletetitle"></p>
+  <div class="actions"><button type="button" id="canceldelete">キャンセル</button><button type="button" class="danger" id="dodelete">削除する</button></div>
+</dialog>
+<div id="status" role="status" aria-live="polite"></div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

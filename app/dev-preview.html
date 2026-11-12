@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><title>Duo 開発用プレビュー</title>
+<style>
+body{margin:0;padding:16px;background:#d9dbd2;font:14px/1.5 sans-serif;color:#293b35}
+h1{font-size:16px;margin:0 0 12px}
+.row{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+figure{margin:0}figcaption{font-size:12px;margin-bottom:4px}
+iframe{border:1px solid #9aa39a;border-radius:12px;background:#f7f4ed;display:block}
+</style></head><body>
+<h1>開発用ハーネス（製品画面ではありません）— 各 iframe は独立した保存領域 (?ns=) を使います</h1>
+<div class="row" id="row"></div>
+<script>
+const sizes=[['閉じた縦',466,678,''],['閉じた横',678,466,''],['開いた縦',626,890,''],['開いた横',890,626,''],['卓上 縦',626,890,'&desk=1'],['卓上 横',890,626,'&desk=1']];
+document.getElementById('row').innerHTML=sizes.map(([n,w,h,q],i)=>`<figure><figcaption>${n} ${w}×${h}</figcaption><iframe title="${n}" width="${w}" height="${h}" src="index.html?ns=dev${i}&nosw=1${q}"></iframe></figure>`).join('');
+</script></body></html>

@@ -1,0 +1,15 @@
+{
+  "name": "duo-calendar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "iPhone Duo 向け 静的カレンダー PWA",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "icons": "node scripts/make-icons.mjs",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}
