@@ -220,3 +220,119 @@ schema v2への原子的移行で既存項目を維持し `notes:""`, `recurrenc
 既存の可変プレビューはそのまま残す。末尾の第6版ギャラリーは固定寸法、狭いレビュー画面では外側を横スクロール。各sectionを要素指定して撮影できる。`m-editor-repeat`、`m-repeat-scope`、`m-search-closed`、`m-search-spread`、`m-backup`、`m-import-confirm`、`m-replace-confirm`、`m-day-repeat`。入力・選択値は表示見本であり実機能は接続しない。編集は本文を下へスクロールすると場所とメモを確認できる。検索見開きは右面だけに結果、中央40pxは空白。既存プレビューへのCSS干渉を避けるため新規規則はv6接頭辞に限定する。
 
 第6版の確認：HTMLのID重複なし、8モックの存在、外部アセットなし、JavaScript構文を確認。第5版の既存JavaScriptが完全一致することを確認した。固定見開きは外余白24＋399＋40＋399＋24＝890px、右パネルx=465開始でガターへ文字を置かない。新規編集は外余白12px相当の654px枠内で本文のみスクロール。Chromeのheadless起動はユーザーデータ領域エラー、/tmp指定でも起動失敗のため実描画確認は未実施。既存5姿勢の視覚回帰は上記レビュー手順で実ブラウザ確認が必要。
+
+## 第7版：iPhone ネイティブ版の修正とカレンダー連携（決定仕様）
+
+本節は第6版のパネル寸法・キーボード・バックアップ共有に優先する。対象は Capacitor 8 / WKWebView、`ios.contentInset:"never"`、`viewport-fit=cover`。app/index.html、app/css/app.css、app/js/app.js・backup.js・search.js、capacitor.config.json を参照した設計であり、app/ は変更しない。紙色・本文16px・4カテゴリ・既存5姿勢、月の共通2レーン／継続帯／+N、スワイプ閾値、繰り返し・検索・復元の既存動作は維持する。既存モックは残す。
+
+### 1. レイアウト寸法とキーボードを分離する
+
+実装者が検証する原因仮説：innerHeight の縮小による layoutKind / isPortrait の切替と再描画、入力フォーカスによる文書スクロール、dialog の safe area 未対応。原因を断定せず、次の規則で全てに対処する。
+
+- レイアウト用寸法 L=(幅,高さ) はキーボード非表示時の WKWebView の全領域（CSS px、safe area を引く前）を保持する。ネイティブ `getViewport` の keyboard による inset を除く webView.bounds を正とする。ホーム／browse、open、spread、desk と portrait の全判定・ガター・背景配置に L を使う。innerHeight、100dvh、visualViewport.height の短縮で判定を変えない。Web は入力開始前の documentElement.clientWidth/Height を保持し、実際の回転・ウィンドウサイズ変更時だけ更新する。
+- キーボード表示だけではカレンダーやフォームDOMを再生成しない。ドラフト・入力選択範囲・繰り返し開閉・本文スクロール・検索語・確認段階を維持。実回転／開閉は新しい L で再配置し状態を保持する。フォーカスが残った回転でも getViewport で新寸法を得る。
+- 可視矩形 V は visualViewport の offsetLeft/offsetTop/width/height。未提供時はネイティブの keyboard と全領域から算出（Web は可視 client 領域）。visualViewport の resize/scroll とネイティブ通知を requestAnimationFrame でまとめ、位置・寸法だけ更新する。ピンチで V が変わっても姿勢を変えない。
+- 文書 html/body と背景はスクロールさせず、パネルを非transformの最上位オーバーレイに置く。V をレイアウト座標へ変換し、fixed座標との offset を二重加算しない。focus({preventScroll:true}) を使用し、OSの可視化でVが移動しても追従する。入力文字は16px以上。見えていない入力は本文だけを最小距離スクロール（上下8pxのscroll-padding）、window.scrollTo/scrollIntoViewで文書全体を動かさない。
+- 見出し56px（44pxの×）、フッター60px（44pxの保存）、本文 min-height:0; overflow:auto の3段flex。formも同じく min-height:0。エラーは本文先頭のライブ通知＋対象項目直下に置き、フッターを押し下げない。背景はinert、フォーカストラップ、Escで一段戻る、起点へフォーカス復帰、全スワイプ停止。
+
+### 2. safe area と全パネルの配置
+
+S=(top,right,bottom,left) は `env(safe-area-inset-*)` をCSSの計測要素で取得する。安全矩形 A=[S.left,L.width−S.right]×[S.top,L.height−S.bottom]。**R=V∩A** を使用する。キーボード上端にはbottomのsafe insetをもう一度引かない（元の画面下端だけを保護）。角丸シートの各辺はRから最低12px、開いた縦16px、見開きは既存ページ枠からさらに外へ出ない。safe area が12pxなら加算して24pxではなく、画面端から S+12px を確保する。操作のヒット領域全体を安全側へ入れる。
+
+| レイアウト | キーボードなしの編集シート（S=0の上限） | キーボードあり／safe areaあり |
+| --- | --- | --- |
+| 閉じた縦466×678 | x=12、幅442、高さ最大654、上下中央 | Rを12px内縮、幅は最大442、上寄せ、高さはR.height−24以内 |
+| 閉じた横678×466 | 幅480、中央、高さ最大442 | Rを12px内縮、幅min(480,R.width−24)、上寄せ、高さR.height−24以内 |
+| 開いた縦626×890 | 幅520、中央、高さ最大858 | Rを16px内縮、幅min(520,R.width−32)、上寄せ、高さR.height−32以内。portraitのまま |
+| 開いた横890×626 | 右ページx=465–864、y=24–602、幅399、高さ578以内 | ページ矩形P=[465,864]×[24,602]とRの12px内縮との交差内。幅／高さを縮め上寄せ、左端を465より左へ動かさない |
+| ハーフフォールド | 下半分の折り目保護帯（中央±12px）より下、左右16、下12以内 | 下ペインとRの交差を左右16・上下12px内縮。上ペインへ移さず、保護帯も覆わない |
+
+シートは内容が少なければ高さfit-content、上限だけを表の値にする。キーボードなしは中央（卓上は下ペイン内中央）、ありは上寄せ。見開きのスクリーン／影／罫線／背景スクリーンも左右別々にクリップし、x=425–465には何も描かない。メニューは左ページの…にアンカー、その他のパネルは右ページ、×もそのページ内。ページの可用幅が減ったら項目を折り返し、ガターを使わない。
+
+**可視高が極端に小さい場合**：見出し56＋本文44＋フッター60=160pxを確保できないとき（特に卓上横＋キーボード）は入力をblurしキーボードを閉じ、ドラフト保持で同じ下ペインに戻す。「入力欄を表示するためキーボードを閉じました。」と通知する。操作を縮小・隠蔽したり上ペインへ越境させない。
+
+検索・バックアップ・連携設定など `dialog.full` は閉じた画面でV全体に紙色背景を敷くが、操作コンテンツはR内に置く。見出しの上余白は可視上端から **max(0,S.top−V.top)+12px**、左右は安全矩形から16px、見出し行56px。フッターは安全下端から8px（背景は下端まで）、本文だけスクロール。×は44×44px、右端は安全右端−16px、タイトルとの間12px、長いタイトルは折り返して必要高を増やす。見出し・フッターの実高を本文から引く。見開き・開いた縦・卓上のfullは表のページ内パネルで全画面化しない。検索入力・クリア×は見出し下の独立44px行、キーボード時も残す。
+
+編集・読み取り詳細・確認／範囲シート・メニューにも同じR規則を適用。メニュー幅240px以内、起点直下8pxで安全矩形にクランプ、収まらなければ起点上方へ、本文だけスクロール。確認は見出し／キャンセル／確定を固定して選択本文をスクロールする。上端12px、左右12px、下端12pxを最低とし、見開き／卓上のページ制約を優先。通常ヘッダーや追加ボタンもA内、ホームインジケータを含む危険領域にヒット領域を置かない。safe areaがある場合、基準寸法に詰め込むため文字や44px操作を縮小せず、既存の可変本文／月ペインの内部スクロールで吸収する。
+
+### 3. 入口・権限・連携設定
+
+iOSネイティブ版のみ、…メニューの「バックアップ」の直前に「iPhone カレンダー連携」を追加する。Webには入口も追加チェックも出さず、ブリッジを呼ばない。Google OAuth／直接API／アプリ内アカウント登録は実装しない。
+
+設定見出し「iPhone カレンダー連携」、44px×「閉じる」。冒頭「iPhoneのカレンダーの予定をDuoに表示します。Duoから追加した予定も、iPhoneのカレンダーに残せます。」。スイッチ「連携」、初期オフ。オン操作でcheckPermission。notDeterminedは次の説明を出し、ユーザーの「アクセスを許可」操作でのみrequestPermissionする。説明「iPhone のカレンダーへのアクセスを許可してください」「予定の表示と追加に、カレンダーへのフルアクセスが必要です。iPhone側の予定をDuoから編集・削除することはありません。」。OS用途文 `NSCalendarsFullAccessUsageDescription` は「iPhoneのカレンダーの予定をDuoに表示し、選んだ予定をカレンダーに追加します。」。読み取りにfullAccessが必要なためwriteOnlyは未充足扱い。
+
+- granted：連携オンを確定、listCalendars後に取得開始。初回は全カレンダーを選択（読取専用も可）。後から追加されたカレンダーは未選択。0個選択も可、「表示するカレンダーを選んでください。」。
+- denied：「カレンダーへのアクセスが許可されていません。設定 ＞ プライバシーとセキュリティ ＞ カレンダー ＞ Duo で『フルアクセス』を許可してください。」＋「設定を開く」。自動で再要求しない。
+- restricted：「この端末ではカレンダーへのアクセスが制限されています。端末の管理者に確認してください。」。設定で解除できると断言しない。
+- writeOnly：「予定を表示するにはフルアクセスが必要です。」＋上記設定手順＋「フルアクセスを許可」（requestPermissionで昇格要求）。キャンセル・未許可なら連携オンは確定しない。
+- オフで取得停止、キャッシュを即破棄、アプリ予定を残す。選択IDは次回用に保持。復帰時に権限取消を検出したら同じ扱いでオフ、「カレンダーへのアクセスを確認してください。」。
+
+許可後はソース別（sourceIdでグループ、見出しはsource、同名ならsourceTypeも併記）に、各行44px以上でチェック・8px色丸・カレンダー名、読取専用なら「読み取り専用」を表示する。文字は折り返し。下に「Google カレンダーを表示するには、iPhoneの『設定 ＞ カレンダー ＞ アカウント』でGoogleを追加してください。iOSのバージョンによっては『設定 ＞ アプリ ＞ カレンダー ＞ カレンダーアカウント』にあります。」。選択は即時保存・取得。削除済みIDは一覧取得成功時に除去。
+
+最下部「最終読み込み：2026/11/13 09:41」「再読み込み」。初回は「まだ読み込んでいません」、通信待ちは「読み込み中…」（連打無効）、0件は「この期間の予定はありません。」、失敗は「読み込めませんでした。もう一度お試しください。」＋再読み込み。失敗時に前回成功キャッシュは「前回読み込み分を表示中」として保持、初回失敗を0件扱いしない。オフ／権限取消時には保持しない。
+
+### 4. 混在表示・読み取り詳細
+
+iPhone予定をDBのアプリ予定へ複製せず、表示用モデル `origin:'iphone'` として結合する。終日を先頭、時間付きは開始昇順、同時刻はアプリ→iPhone→表示IDの順。日・週・月・選択日アジェンダ・閉じた今日／次の予定の全てで共通化。終日と複数日の既存並び、週境界分割、共通2レーン、+Nを維持し、表示件数にも含める。次の予定の探索は読込済み期間内、期間外に「予定なし」と断定せず「読み込み済みの期間に次の予定はありません。」。
+
+色はEventKitのカレンダー色で左罫3px／月の帯・短冊／手帳の点を描く。本文はインク色、淡背景は紙色、低コントラスト色でも本文の可読性を保つ。日・週・アジェンダ・検索・閉じたカードは「iPhone · 家族」の補助表記、月短冊／帯は小さなカレンダー記号「▦」（幅14px予約）＋タイトル、アクセシブル名に「iPhone、カレンダー名」を含める。繰り返しはさらに既存↻。手帳の点は色のみ、日セルの読み上げと選択日の一覧で出所を補う。4カテゴリ凡例は変更せず、その下に「▦ iPhoneの予定（カレンダーの色）」を別行で追加。外部カレンダーをカテゴリに追加しない。選択中カレンダーと色の対応は連携設定で確認できる。
+
+iPhone予定タップは「iPhoneの予定」の読み取り専用詳細シート。上部見出しと×、本文はタイトル全文、カレンダー色丸＋「iPhone · 家族」、開始／終了、終日なら「終日」＋含む最終日、場所、メモ（改行維持）の順。未設定は「場所なし」「メモなし」、無題は「（無題）」、HTMLは文字として表示する。編集・削除・繰り返し範囲ボタンは出さない。下部固定「カレンダーで開く」、補助「iPhoneのカレンダーで、この予定の日付を開きます。」。特定イベント詳細へ必ず飛べるとは表示しない。開けなければ「カレンダーを開けませんでした。」、シートは保持。復帰後再取得し、消えた予定は「この予定は見つかりません。カレンダーで確認してください。」として開く／閉じるだけ残す。
+
+### 5. 新規保存・部分失敗・二重表示
+
+連携オンかつgrantedの**新規通常予定だけ**、メモの後に「iPhone のカレンダーにも追加」（初期オフ）を表示。オンで「追加先カレンダー」selectを開き、allowsModify=trueのみソース名と共に表示する。表示用未選択カレンダーも選べる。前回の有効な追加先、なければ一覧順の最初を初期値。0件ならチェック無効＋「追加できるカレンダーがありません。」。繰り返しありはオフへ戻し無効＋「繰り返し予定はiPhoneのカレンダーに追加できません。」。なしに戻しても自動オンにしない。
+
+保存は既存バリデーション後、まずアプリDBへ通常予定＋`nativeLink:{state:'pending',requestId,calendarId}`を確定し、次にcreateEventを1回呼ぶ。二重タップ禁止。成功で同じレコードに`nativeLink:{state:'linked',requestId,eventId,calendarId}`を保存し再取得。「予定を保存し、iPhoneのカレンダーにも追加しました。」。DB保存失敗ならネイティブ作成は呼ばない。ネイティブ失敗ならアプリ予定は残し「Duoに保存しました。iPhoneのカレンダーには追加できませんでした。」＋「追加を再試行」「閉じる」。タイムアウト／中断は同じrequestIdで再試行し、別予定を作らない。再起動時pendingも同じ操作で回収。権限・追加先消失は設定／追加先の再選択へ戻し、自動で別カレンダーへ作成しない。アプリ側保存成功と外部作成を原子的と偽らない。
+
+二重表示は linked.eventId とiPhone.eventId（必要時requestId識別）一致の外部レコードを**表示・検索・件数から除外**し、アプリ予定を1つ表示。「iPhoneにも追加済み」と表示する。タイトル・時刻一致による推測除外はしない。コピー後は同期しない。編集にはチェックの代わり「iPhoneにも追加済み。以後の変更・削除はDuoだけに反映されます。」＋「カレンダーで開く」。リンクのない既存予定にも後付け追加機能は出さない。アプリ予定を削除したら外部予定は残り、次回取得から読み取り予定として表示される。iPhone側だけ削除されてもアプリ予定は残す。連携オフでもリンクを消さない。
+
+### 6. 読み込み範囲・検索・バックアップ・保存先
+
+表示日／選択日を含む月の前月1日00:00〜翌々月1日00:00（上端含む／下端含まない）の3か月を基本とし、表示中の週・月グリッドのはみ出しも含める。例：2026年11月は10/1〜2027/1/1。閉じたホームは今日が基準。開始前から続く複数日も重なりで取得。起動時オン、期間移動、アプリ復帰、カレンダー選択変更、EventKitストア変更通知、追加成功、手動再読み込みで更新。同じ範囲の連続要求は統合、世代番号で古い応答を捨てる。復帰時は権限→カレンダー一覧→イベントの順。Googleのクラウド同期をDuoから強制せず、EventKitに届いた予定を表示する。
+
+外部キャッシュはメモリだけ、選択IDと範囲をキーに成功した集合を原子的に置換。検索開始時はその時点の成功キャッシュと範囲を固定し、既存アプリ検索範囲（前1年〜後2年）と交差する外部予定を同じ正規化・AND・200件上限に含める。文言「iPhoneの検索範囲：2026/10/01–2026/12/31（読み込み済み）」を別途表示。検索のために3年分を取りに行かない。範囲が未読込なら「iPhoneの予定はまだ読み込まれていません。」。再読み込みは明示操作で検索スナップショットも更新。結果にiPhone印、選択→日表示→再タップで読み取り詳細という既存導線を維持する。
+
+バックアップはアプリ予定・繰り返し親／例外・既存表示設定のみ。外部予定、権限、連携設定、キャッシュ、nativeLink／requestIdは含めない。現行実装のJSON識別子 `{app:'duo-calendar',version:2}` を維持する（第6版のformat例に優先）。連携設定は復元の追加／置き換えで変更しない。置き換えでリンクは失われるため確認に「iPhoneの予定と連携設定は変更しません。復元後、以前iPhoneにも追加した予定が重複して表示されることがあります。」を追記。内容一致で勝手に削除しない。追加復元で同じアプリIDが残る場合は既存リンクを保持、比較からnativeLinkを除く。
+
+ネイティブ書き出しはshareFileのみ、a[download]／navigator.shareへフォールバックしない。completed:trueは「書き出しファイルを共有しました。」、falseはキャンセルで無通知・その場に留まる。エラーは「書き出せませんでした。もう一度お試しください。」。共有ポップオーバーは安全領域内の書き出しボタンにアンカー。Webの従来共有／ダウンロードは維持する。
+
+localStorageキー `duo-native-cal`（現行nsがあれば `duo-native-cal.${NS}`）の値は `{version:1,enabled:false,calendarIds:[],selectionInitialized:false,defaultCalendarId:null}`。初回一覧の全選択後selectionInitialized=true。空選択と未初期化を区別。権限・最終読込時刻は永続化せず都度確認、読込時刻はメモリ内。壊れた値は初期値へ、保存不能は「連携設定を保存できませんでした。」と表示しセッション内のみ有効。外部予定をIndexedDB・下書き・バックアップへ入れない。
+
+### 7. DuoNative：Swift / JS 間の契約
+
+利用可能判定は `window.Capacitor?.isNativePlatform?.() && window.Capacitor?.getPlatform?.()==='ios'` と `isPluginAvailable('DuoNative')`。不足時は入口を隠す。呼び出しは次の形で統一し、@capacitor/coreを読み込まない。
+
+```js
+const result = await window.Capacitor.nativePromise('DuoNative', 'listEvents', {
+  from:'2026-10-01T00:00', to:'2027-01-01T00:00', calendarIds:['cal-1']
+});
+```
+
+全メソッドはPromise。空引数は `{}`。失敗はrejectの `{code,message}`、codeはPERMISSION_DENIED / RESTRICTED / INVALID_ARGUMENT / CALENDAR_NOT_FOUND / READ_ONLY / NOT_FOUND / UNAVAILABLE / IO_ERROR。JSはmessageを直接UIに出さず上記日本語へ対応させる。予定・メモ等をログへ出さない。アクセス要求以外は勝手にOS許可ダイアログを出さない。
+
+| method / options | resolve / ネイティブの責務 |
+| --- | --- |
+| checkPermission / {} | `{status:'granted'|'denied'|'restricted'|'notDetermined'|'writeOnly'}`。fullAccess（旧authorized）はgrantedへ対応 |
+| requestPermission / {} | 同じstatus。iOS17以降requestFullAccessToEvents、完了後に実statusを再確認。denied/restrictedで無限再要求しない |
+| openSettings / {} | `{opened:boolean}`。UIApplication.openSettingsURLStringでDuo設定を開く |
+| listCalendars / {} | `{calendars:[{id,title,color:'#rrggbb',sourceId,source,sourceType,allowsModify}]}`。EKEntityType.eventのみ、sourceTypeはlocal/exchange/caldav/mobileme/subscribed/birthdays/unknown、sourceはOSの名称、色不明は#68716a。sourceId→title→id順で安定ソート。allowsContentModifications→allowsModify |
+| listEvents / {from,to,calendarIds} | `{events:[{id,eventId,calendarId,title,start,end,all,place,notes,recurring,requestId:null}]}`。from/toは端末ローカルYYYY-MM-DDTHH:MM、[from,to)、from<to。空ID配列は0件（全取得にしない）、無効IDはCALENDAR_NOT_FOUND。EventKitが展開した発生回を返す。複数日重なりを含め、同じidは1件。id=`eventIdentifier+'@'+start`、eventId=eventIdentifier、recurringは規則有無、空文字列を許容。requestIdはDuo生成イベントのみの識別値 |
+| createEvent / {requestId,calendarId,title,start,end,all,place,notes} | `{eventId}`。requestIdはアプリ予定作成時のUUIDで再試行でも固定。書込可とfullAccessを再検証、EKEventを通常1件として保存（recurrenceRulesなし）、commit成功後identifierを返す。requestId→eventIdをネイティブローカルに記録。同一requestIdは既存IDを返し再作成しない。EKEvent.urlに`duo-calendar://created/<UUID>`の識別を保存し、保存直後クラッシュで辞書未記録の場合も対象範囲から回収して再作成を防ぐ。ユーザーのnotesは変更しない。同じrequestIdで異なる内容はINVALID_ARGUMENT |
+| openInCalendar / {start} | `{opened:boolean}`。指定ローカル日時をDateにしcalshow:へUIApplication.open。特定イベントの詳細を開く保証はしない。対応しないOSはfalseを返し上記エラー文を表示。非公開イベントID用URLには依存しない |
+| shareFile / {name,text,mime} | `{completed:boolean}`。nameはパス区切り禁止のbasename、textはUTF-8のJSON、mime='application/json'、最大10MiB。アプリ一時領域に書いてUIActivityViewControllerで共有、completionWithItemsHandlerのcompletedを返す。キャンセルfalse、失敗reject。一時ファイルは共有終了後削除 |
+| getViewport / {} | `{width,height,safeArea:{top,right,bottom,left},keyboard:{visible,top,height}}`。全てCSS px、WKWebView boundsとkeyboard交差を返す。width/heightはkeyboardによる縮小前の全領域、safeAreaはwebView座標、keyboard.topは非表示ならheight。JSはCSS envを優先しsafeAreaはfallback、二重適用しない |
+
+日時契約：全て端末ローカル、Swiftは固定書式・Gregorian・現在のTimeZoneで厳密parse。実在しないDST時刻はINVALID_ARGUMENT、重複時刻は早い方。イベントは端末ローカルに変換して返す。**endはJS契約では終日も最終日を含む既存形式**（00:00）。Swiftは終日保存時にendの翌日00:00をEventKitの排他的endへ変換、読込時は排他的endの前日00:00へ戻す。時間付きendは排他的、開始と同時刻も許容し点イベントとして当日表示。EventKit抽出後もこの区間規則で重なりを検証。タイムゾーン変更時は全キャッシュ破棄・再取得する。
+
+Swiftは同じEKEventStoreを使い、要求を直列化、UIKit処理はmain thread。`EKEventStoreChanged`で`notifyListeners('calendarChanged',{})`、全領域／keyboard／safe area変更で`notifyListeners('viewportChanged',getViewportと同形)`。JS購読は `Capacitor.Plugins.DuoNative.addListener(name, callback)`、返るハンドルのremoveで解除（core import不要）。イベントが利用できない場合も復帰時・手動更新は必須。通知に予定本文を載せない。
+
+Appleの[EventKitアクセス仕様](https://developer.apple.com/documentation/eventkit/accessing-the-event-store)、[iOS17移行指針](https://developer.apple.com/documentation/technotes/tn3153-adopting-api-changes-for-eventkit-in-ios-macos-and-watchos)に基づきfullAccessを採用。[eventIdentifier](https://developer.apple.com/documentation/EventKit/EKEvent/eventIdentifier)はカレンダー移動で変化し得るため恒久IDと見なさない。Duo作成予定はrequestId URLを補助識別に使用する。外部操作でURLもIDも失われた場合は推測統合せず別表示とする。calshowによる日付表示は本製品のOS依存実装判断であり、実機でopenedと遷移先を必ず検証する。
+
+### 8. 第7版モック・受け入れ確認
+
+末尾v7ギャラリーは静的見本（通信・許可・保存なし）。ID：`m-v7-permission`、`m-v7-calendars`、`m-v7-day-closed`、`m-v7-month-closed`、`m-v7-day-spread`、`m-v7-month-spread`、`m-v7-detail`、`m-v7-editor-link`、`m-v7-keyboard-closed`、`m-v7-keyboard-portrait`、`m-v7-safe-landscape`。安全領域とキーボードは説明用の仮寸法であり実機値の断定ではない。
+
+実装受け入れ：5姿勢の全パネル、初回入力・日本語変換・次の入力への移動・キーボード閉じる・回転・アプリ復帰で下書きと姿勢が保持されること。×／保存／キャンセルがsafe areaとガター外で44px以上、本文終端までスクロール可能なこと。permission全5状態、0カレンダー・0選択・書込不可・削除済ID、更新失敗と古い応答、日跨ぎ／終日／DST／繰り返し／検索上限、二重タップ・保存直後中断・再試行・アプリ側だけ編集削除・共有キャンセル・復元を確認する。閉じた今日／次の予定、開いた縦の月と週、見開きの5件・無描画ガター、卓上保護帯、スワイプ、繰り返しの既存回帰項目を省略しない。
+
+第7版の設計検証：HTMLのID重複なし、11モックの存在、既存第6版までのHTML/CSS/JavaScriptと設計本文の保持を確認（追記境界の空行を除き一致）。既存JavaScriptの構文チェック成功。寸法計算では閉じた縦のキーボード例はV.height=388、S.top=47、y=59〜376で高さ317px、見出し56＋本文201＋操作60。開いた縦はV.height=560、y=63〜544で高さ481px、見出し56＋本文365＋操作60。見開きは24+399+40+399+24=890、ガター425–465を空白に保つ。Chrome headlessは環境のsocket権限制約（Operation not permitted / SIGTRAP）で起動できず、実描画・実機キーボード・EventKitは未検証。上記受け入れ確認を実装時に行う。

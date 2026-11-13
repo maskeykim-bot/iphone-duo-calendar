@@ -4,6 +4,8 @@ import { initSwipe } from './swipe.js';
 import { expand, occurrenceAt, parseOccId, planDelete, planEdit, editInfo } from './recur.js';
 import { LIMIT, groupByDay, highlight, excerpt, searchEvents } from './search.js';
 import { backupName, buildBackup, countStats, localIso, planAppend, validateBackup, MAX_BYTES } from './backup.js';
+import { call, errCode, errText, listen, nativeAvailable } from './native.js';
+import { covers, dedupe, extIn, extRange, fmtLoaded, groupBySource, lastDay, normSettings, rangeKey, searchExt, stampOf, subLabel, toDisplay, writable, ymdSlash } from './iphone.js';
 import {
   CATS, DOW, addDays, addMonths, assignLanes, assignSharedLanes, dayLabel, dayOf, dkey, eventsOnDay, isKey, isMulti,
   monthWeeks, newId, nowStamp, parseInput, parseKey, ruleSummary, timeLabel, toInput, todayKey, validateDraft, weekStart,
@@ -42,16 +44,108 @@ function saveUi() {
 }
 function set(patch) { Object.assign(state, patch); saveUi(); render(); }
 
-// ---------- レイアウト判定（幅・高さ・卓上トグル） ----------
+// ---------- レイアウト寸法 L（キーボードで変わらない寸法）と可視範囲 V ----------
+// L = キーボード非表示時の文書領域。テキスト入力中（とその直後）は幅が変わらない限り高さの縮小を無視する。
+const de = document.documentElement;
+const L = { w: de.clientWidth, h: de.clientHeight };
+const maxH = new Map([[L.w, L.h]]);
+let kbHold = false, kbTimer = 0;
+const isTextEl = (a) => !!a && !!a.matches?.('textarea, select, input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=button]):not([type=submit])');
+const keyboardLikely = () => kbHold || isTextEl(document.activeElement);
+function measureL() {
+  const w = de.clientWidth, h = de.clientHeight;
+  let nh = h;
+  if (keyboardLikely()) nh = w === L.w ? Math.max(L.h, h) : Math.max(maxH.get(w) || 0, h);
+  const changed = w !== L.w || nh !== L.h;
+  L.w = w; L.h = nh;
+  maxH.set(w, keyboardLikely() ? Math.max(maxH.get(w) || 0, nh) : nh);
+  return changed;
+}
+// safe area の計測（CSS の --sat 等を実寸に解決）。
+let probe = null;
+function safe() {
+  if (!probe) {
+    probe = document.createElement('div');
+    probe.setAttribute('aria-hidden', 'true');
+    probe.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding:var(--sat) var(--sar) var(--sab) var(--sal)';
+    document.body.append(probe);
+  }
+  const c = getComputedStyle(probe);
+  return { top: parseFloat(c.paddingTop) || 0, right: parseFloat(c.paddingRight) || 0, bottom: parseFloat(c.paddingBottom) || 0, left: parseFloat(c.paddingLeft) || 0 };
+}
+function updateVars() {
+  const vv = window.visualViewport, H = de.clientHeight;
+  const zoomed = (vv?.scale || 1) > 1.01;
+  const vy = vv && !zoomed ? Math.max(0, vv.offsetTop) : 0;
+  const vh = vv && !zoomed ? vv.height : H;
+  const gap = Math.max(0, Math.round(H - (vy + vh)));
+  de.style.setProperty('--vy', `${Math.round(vy)}px`);
+  de.style.setProperty('--vb', `${gap}px`);
+  const kb = !zoomed && (H < L.h - 80 || vy + vh < L.h - 80);
+  if (kb) de.dataset.kb = '1'; else delete de.dataset.kb;
+  return { kb, vh };
+}
+// フォーカス中の入力が本文の可視範囲に入るよう、本文だけを最小距離スクロールする（文書は動かさない）。
+function reveal(el) {
+  const sc = el?.closest?.('.fbody, .pbody');
+  if (!sc) return;
+  const a = el.getBoundingClientRect(), b = sc.getBoundingClientRect(), pad = 8;
+  if (a.top < b.top + pad) sc.scrollTop -= b.top + pad - a.top;
+  else if (a.bottom > b.bottom - pad) sc.scrollTop += a.bottom - (b.bottom - pad);
+}
+let vpRaf = 0;
+function vpSchedule() { cancelAnimationFrame(vpRaf); vpRaf = requestAnimationFrame(vpTick); }
+function vpTick() {
+  const changed = measureL();
+  const { kb } = updateVars();
+  if (changed) render();
+  const a = document.activeElement;
+  if (kb && isTextEl(a)) {
+    const d = a.closest('dialog');
+    const mh = d ? parseFloat(getComputedStyle(d).maxHeight) : NaN;
+    if (d && Number.isFinite(mh) && mh < 160) { a.blur(); say('入力欄を表示するためキーボードを閉じました。'); } else reveal(a);
+  }
+}
+
+// ---------- レイアウト判定（L・卓上トグル） ----------
 function layoutKind() {
-  const w = window.innerWidth, h = window.innerHeight;
+  const w = L.w, h = L.h;
   if (w < 600 || h < 600) return state.home ? 'home' : 'browse';
   if (state.desk) return 'desk';
   if (w >= 800 && h < 700) return 'spread';
   return 'open';
 }
 // 開いた縦（幅600–799・高さ800以上の通常の開いた状態）。月は全幅＋下部アジェンダ、週は日別の縦リスト。
-const isPortrait = () => layoutKind() === 'open' && window.innerWidth < 800 && window.innerHeight >= 800;
+const isPortrait = () => layoutKind() === 'open' && L.w < 800 && L.h >= 800;
+
+// ---------- iPhone カレンダー連携の状態（ネイティブ版のみ） ----------
+const NATIVE = nativeAvailable();
+const LINK_KEY = `duo-native-cal${suffix}`;
+let linkSaveFailed = false;
+function loadLink() {
+  try { return normSettings(JSON.parse(localStorage.getItem(LINK_KEY) || 'null')); } catch { return normSettings(null); }
+}
+let link = loadLink();
+function setLink(patch) {
+  link = { ...link, ...patch };
+  try { localStorage.setItem(LINK_KEY, JSON.stringify(link)); linkSaveFailed = false; } catch { linkSaveFailed = true; }
+}
+// perm: null（未確認）| granted | denied | restricted | notDetermined | writeOnly
+const X = { avail: NATIVE, perm: null, calendars: [], cache: null, status: 'idle', stale: false, gen: 0, inflight: null, inflightKey: '', failKey: '', vis: null, visFor: null };
+const extActive = () => NATIVE && X.avail && link.enabled && X.perm === 'granted';
+// 表示用の外部予定（アプリ予定のリンクと一致するものは除外）。入力が変わるまで使い回す。
+function visExt() {
+  if (!extActive() || !X.cache) return [];
+  if (X.visFor?.[0] !== X.cache || X.visFor?.[1] !== state.events) { X.vis = dedupe(X.cache.events, state.events); X.visFor = [X.cache, state.events]; }
+  return X.vis;
+}
+const isX = (e) => e.origin === 'iphone';
+const catCls = (e) => (isX(e) ? 'ext' : e.cat);
+const catVar = (e) => (isX(e) ? `--cat:${e.color};` : '');
+const catSty = (e) => (isX(e) ? ` style="${catVar(e)}"` : '');
+const tagText = (e) => (isX(e) ? subLabel(e) : CATS[e.cat]);
+const xi = (e) => (isX(e) ? '<span class="xi" aria-hidden="true">▦</span>' : '');
+const xname = (e) => (isX(e) ? `iPhone、${e.calName}、` : '');
 
 // ---------- テンプレート ----------
 const TABS = [['day', '日'], ['week', '週'], ['month', '月']];
@@ -60,11 +154,15 @@ const todayBtn = '<button type="button" class="today" data-act="today">今日に
 const deskBtn = () => `<button type="button" class="deskbtn" data-act="desk" aria-pressed="${state.desk}">卓上</button>`;
 const hdr = '<button type="button" class="iconbtn" data-act="search" aria-label="予定を検索"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15 15l5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><button type="button" class="iconbtn" data-act="menu" aria-label="その他" aria-haspopup="dialog">…</button>';
 const brand = `<div class="brand"><span class="logo">Duo.</span><span class="small">私の手帳</span></div>${hdr}`;
-const occIn = (a, b) => expand(state.events, a, b);
+const occIn = (a, b) => {
+  const base = expand(state.events, a, b), x = visExt();
+  return x.length ? base.concat(extIn(x, a, b)) : base;
+};
 const rep = (e) => (e.recurring ? '<span class="rep" aria-hidden="true">↻</span>' : '');
-const repLabel = (e, t) => (e.recurring ? ` aria-label="${esc(`${t} 繰り返し`)}"` : '');
+const repLabel = (e, t) => (e.recurring || isX(e) ? ` aria-label="${esc(`${xname(e)}${t}${e.recurring ? ' 繰り返し' : ''}`)}"` : '');
 const addBtn = '<footer class="foot"><button type="button" class="add" data-act="add">＋ 予定を追加</button></footer>';
 const legend = `<div class="legend" aria-label="カテゴリ凡例">${Object.entries(CATS).map(([k, l]) => `<span class="${k}">${l}</span>`).join('')}</div>`;
+const xlegend = () => (extActive() ? '<div class="xlegend small">▦ iPhoneの予定（カレンダーの色）</div>' : '');
 
 function periodTitle() {
   const d = parseKey(state.selected);
@@ -81,8 +179,8 @@ const variant = () => `<div class="variant" role="group" aria-label="月の表�
 const chead = (withTitle = true, kind = '') => `<div class="chead">${withTitle ? `<h2 id="ctitle">${periodTitle()}</h2>${arrows()}` : ''}${state.view === 'month' && kind !== 'portrait' ? variant() : ''}</div>`;
 
 function card(e) {
-  const sub = [e.place ? esc(e.place) : '', isMulti(e) ? `${e.start.slice(5, 10).replace('-', '/')} 〜 ${e.end.slice(5, 10).replace('-', '/')}` : ''].filter(Boolean).join(' · ');
-  return `<button type="button" class="event ${e.cat}" data-event="${esc(e.id)}"${repLabel(e, `${timeLabel(e)} ${e.title}`)}><span class="clock">${timeLabel(e)}</span><span class="tag">${CATS[e.cat]}</span><strong>${rep(e)}${esc(e.title)}</strong>${sub ? `<span class="sub">${sub}</span>` : ''}</button>`;
+  const sub = [e.place ? esc(e.place) : '', isMulti(e) ? `${e.start.slice(5, 10).replace('-', '/')} 〜 ${e.end.slice(5, 10).replace('-', '/')}` : '', e.nativeLink?.state === 'linked' ? 'iPhoneにも追加済み' : ''].filter(Boolean).join(' · ');
+  return `<button type="button" class="event ${catCls(e)}"${catSty(e)} data-event="${esc(e.id)}"${repLabel(e, `${timeLabel(e)} ${e.title}`)}><span class="clock">${timeLabel(e)}</span><span class="tag">${esc(tagText(e))}</span><strong>${rep(e)}${esc(e.title)}</strong>${sub ? `<span class="sub">${sub}</span>` : ''}</button>`;
 }
 const sampleBtn = () => (state.loaded && state.events.length === 0 ? '<button type="button" class="ghost" data-act="sample">サンプルを入れる</button>' : '');
 function dayList(k) {
@@ -96,6 +194,7 @@ function agenda(k) {
 }
 
 // 月グリッド
+const xCount = (es) => { const n = es.filter(isX).length; return n ? `（うちiPhone ${n}件）` : ''; };
 const ROW_H = 88, BAR_H = 16, BAR_GAP = 2, CHIP_H = 13;
 function monthGrid(kind) {
   if (kind === 'portrait') return monthGridPortrait();
@@ -114,15 +213,15 @@ function monthGrid(kind) {
         const singles = es.filter((e) => !isMulti(e));
         const cap = Math.max(1, Math.floor((ROW_H - 2 - 22 - reserve) / CHIP_H));
         const shown = singles.length <= cap ? singles : singles.slice(0, Math.max(0, cap - 1));
-        body = `<span class="chips">${shown.map((e) => `<span class="chip ${e.cat}">${rep(e)}${esc(e.title)}</span>`).join('')}${singles.length > shown.length ? `<span class="more">ほか${singles.length - shown.length}件</span>` : ''}</span>`;
+        body = `<span class="chips">${shown.map((e) => `<span class="chip ${catCls(e)}"${catSty(e)}>${xi(e)}${rep(e)}${esc(e.title)}</span>`).join('')}${singles.length > shown.length ? `<span class="more">ほか${singles.length - shown.length}件</span>` : ''}</span>`;
       } else {
-        body = `<span class="dots">${es.slice(0, 4).map((e) => `<i class="dot ${e.cat}"></i>`).join('')}</span>`;
+        body = `<span class="dots">${es.slice(0, 4).map((e) => `<i class="dot ${catCls(e)}"${catSty(e)}></i>`).join('')}</span>`;
       }
       const plus = lane.hidden[col] ? `<span class="plus" aria-hidden="true">+${lane.hidden[col]}</span>` : '';
-      html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}" data-date="${k}" aria-label="${dayLabel(k)}、予定${es.length}件" aria-pressed="${k === sel}"><span class="dhead"><span class="num">${d.getDate()}</span>${plus}</span>${body}</button>`;
+      html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}" data-date="${k}" aria-label="${dayLabel(k)}、予定${es.length}件${xCount(es)}" aria-pressed="${k === sel}"><span class="dhead"><span class="num">${d.getDate()}</span>${plus}</span>${body}</button>`;
     });
     for (const b of lane.bars) {
-      html += `<button type="button" class="bar ${b.e.cat}" data-event="${esc(b.e.id)}" style="left:calc(${b.sc} * 100% / 7 + 2px);width:calc(${b.ec - b.sc + 1} * 100% / 7 - 4px);top:${24 + b.lane * (BAR_H + BAR_GAP)}px" aria-label="${esc(b.e.title)} ${dayOf(b.e.start)}から${dayOf(b.e.end)}${b.e.recurring ? ' 繰り返し' : ''}">${b.fromPrev ? '← ' : ''}${rep(b.e)}${esc(b.e.title)}${b.toNext ? ' →' : ''}</button>`;
+      html += `<button type="button" class="bar ${catCls(b.e)}" data-event="${esc(b.e.id)}" style="${catVar(b.e)}left:calc(${b.sc} * 100% / 7 + 2px);width:calc(${b.ec - b.sc + 1} * 100% / 7 - 4px);top:${24 + b.lane * (BAR_H + BAR_GAP)}px" aria-label="${esc(xname(b.e) + b.e.title)} ${dayOf(b.e.start)}から${dayOf(b.e.end)}${b.e.recurring ? ' 繰り返し' : ''}">${b.fromPrev ? '← ' : ''}${xi(b.e)}${rep(b.e)}${esc(b.e.title)}${b.toNext ? ' →' : ''}</button>`;
     }
     html += '</div>';
   }
@@ -141,14 +240,14 @@ function monthGridPortrait() {
     days.forEach((k, col) => {
       const n = eventsOnDay(wev, k).length, d = parseKey(k);
       const plus = hidden[col] ? `<span class="plus" aria-hidden="true">+${hidden[col]}</span>` : '';
-      html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}" data-date="${k}" aria-label="${dayLabel(k)}、予定${n}件" aria-pressed="${k === sel}"><span class="dhead"><span class="num">${d.getDate()}</span></span>${plus}</button>`;
+      html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}" data-date="${k}" aria-label="${dayLabel(k)}、予定${n}件${xCount(eventsOnDay(wev, k))}" aria-pressed="${k === sel}"><span class="dhead"><span class="num">${d.getDate()}</span></span>${plus}</button>`;
     });
     for (const b of items) {
-      const pos = `left:calc(${b.sc} * 100% / 7 + 2px);width:calc(${b.ec - b.sc + 1} * 100% / 7 - 4px);top:${LANE_TOP + b.lane * LANE_H}px`;
+      const pos = `${catVar(b.e)}left:calc(${b.sc} * 100% / 7 + 2px);width:calc(${b.ec - b.sc + 1} * 100% / 7 - 4px);top:${LANE_TOP + b.lane * LANE_H}px`;
       if (b.multi) {
-        html += `<button type="button" class="bar ${b.e.cat}" data-event="${esc(b.e.id)}" style="${pos}" aria-label="${esc(b.e.title)} ${dayOf(b.e.start)}から${dayOf(b.e.end)}${b.e.recurring ? ' 繰り返し' : ''}">${b.fromPrev ? '← ' : ''}${rep(b.e)}${esc(b.e.title)}${b.toNext ? ' →' : ''}</button>`;
+        html += `<button type="button" class="bar ${catCls(b.e)}" data-event="${esc(b.e.id)}" style="${pos}" aria-label="${esc(xname(b.e) + b.e.title)} ${dayOf(b.e.start)}から${dayOf(b.e.end)}${b.e.recurring ? ' 繰り返し' : ''}">${b.fromPrev ? '← ' : ''}${xi(b.e)}${rep(b.e)}${esc(b.e.title)}${b.toNext ? ' →' : ''}</button>`;
       } else {
-        html += `<button type="button" class="strip ${b.e.cat}" data-event="${esc(b.e.id)}" style="${pos}" aria-label="${esc(`${dayLabel(days[b.sc])} ${timeLabel(b.e)} ${b.e.title}${b.e.recurring ? ' 繰り返し' : ''}`)}">${rep(b.e)}${esc(b.e.title)}</button>`;
+        html += `<button type="button" class="strip ${catCls(b.e)}" data-event="${esc(b.e.id)}" style="${pos}" aria-label="${esc(`${xname(b.e)}${dayLabel(days[b.sc])} ${timeLabel(b.e)} ${b.e.title}${b.e.recurring ? ' 繰り返し' : ''}`)}">${xi(b.e)}${rep(b.e)}${esc(b.e.title)}</button>`;
       }
     }
     html += '</div>';
@@ -159,7 +258,7 @@ function monthGridPortrait() {
 // 週・日
 const weekKeys = () => Array.from({ length: 7 }, (_, i) => addDays(weekStart(state.selected), i));
 function weekEvent(e, k, vlist = false) {
-  return `<button type="button" class="event week-event ${e.cat}" data-event="${esc(e.id)}" aria-label="${esc(`${dayLabel(k)} ${timeLabel(e)} ${e.title}${e.recurring ? ' 繰り返し' : ''}`)}"><span class="clock">${e.all || (vlist && isMulti(e)) ? '終日' : e.start.slice(11)}</span><strong>${rep(e)}${esc(e.title)}</strong></button>`;
+  return `<button type="button" class="event week-event ${catCls(e)}"${catSty(e)} data-event="${esc(e.id)}" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${e.title}${e.recurring ? ' 繰り返し' : ''}`)}"><span class="clock">${e.all || (vlist && isMulti(e)) ? '終日' : e.start.slice(11)}</span><strong>${xi(e)}${rep(e)}${esc(e.title)}</strong></button>`;
 }
 function weekRow(k, short, vlist = false) {
   const list = eventsOnDay(occIn(k, k), k), d = parseKey(k);
@@ -170,7 +269,7 @@ function weekRow(k, short, vlist = false) {
 const weekNotes = '<div class="weeknotes"><div class="eyebrow">今週の余白</div>日付から一日の詳細へ。予定を選ぶと全文を確認できます。</div>';
 
 function calendarBody(kind) {
-  if (state.view === 'month') return `<div class="scroll" data-scroll="cal">${monthGrid(kind)}</div>${legend}`;
+  if (state.view === 'month') return `<div class="scroll" data-scroll="cal">${monthGrid(kind)}</div>${legend}${xlegend()}`;
   if (state.view === 'week') {
     const cols = kind === 'open' || kind === 'desk';
     const vlist = kind === 'portrait';
@@ -189,8 +288,8 @@ function home() {
   if (!next) next = occIn(addDays(k, 1), addDays(k, 400)).sort((a, b) => a.start.localeCompare(b.start) || String(a.id).localeCompare(String(b.id)))[0];
   const nextDay = next && dayOf(next.start) !== k ? `<small class="nd">${dayLabel(dayOf(next.start))}</small> ` : '';
   const nextHtml = next
-    ? `<button type="button" class="next ${next.cat}" data-event="${esc(next.id)}"${repLabel(next, `次の予定 ${next.title}`)}><small>次の予定 · ${CATS[next.cat]}</small><strong>${rep(next)}${esc(next.title)}</strong><span class="when"><span class="time">${nextDay}${next.all ? '終日' : next.start.slice(11)}</span>${next.all || dayOf(next.start) !== dayOf(next.end) ? '' : ` — ${next.end.slice(11)}`}${next.place ? ` <small>${esc(next.place)}</small>` : ''}</span></button>`
-    : `<div class="next none"><small>次の予定</small><strong>${state.events.length ? 'この後の予定はありません' : '予定はまだありません'}</strong>${sampleBtn()}</div>`;
+    ? `<button type="button" class="next ${catCls(next)}"${catSty(next)} data-event="${esc(next.id)}"${repLabel(next, `次の予定 ${next.title}`)}><small>次の予定 · ${esc(tagText(next))}</small><strong>${xi(next)}${rep(next)}${esc(next.title)}</strong><span class="when"><span class="time">${nextDay}${next.all ? '終日' : next.start.slice(11)}</span>${next.all || dayOf(next.start) !== dayOf(next.end) ? '' : ` — ${next.end.slice(11)}`}${next.place ? ` <small>${esc(next.place)}</small>` : ''}</span></button>`
+    : `<div class="next none"><small>次の予定</small><strong>${extActive() ? '読み込み済みの期間に次の予定はありません。' : state.events.length ? 'この後の予定はありません' : '予定はまだありません'}</strong>${sampleBtn()}</div>`;
   return `<div class="shell home">
     <header class="top">${brand}<div class="toolbar">${segment('month')}</div></header>
     <section class="hero"><div class="date-block"><div class="eyebrow">今日 / ${d.getFullYear()}年${d.getMonth() + 1}月</div><div class="date">${d.getDate()}<span>${DOW[d.getDay()]}曜日</span></div></div>${nextHtml}</section>
@@ -253,6 +352,7 @@ function render() {
     const sel = { act: `[data-act="${v}"]`, view: `[data-view="${v}"]`, style: `[data-style="${v}"]`, date: `[data-date="${v}"]` }[t];
     root.querySelector(sel)?.focus({ preventScroll: true });
   }
+  syncExt();
 }
 
 // ---------- 操作 ----------
@@ -296,7 +396,8 @@ async function loadSample() {
 
 // ---------- パネル共通（編集・範囲・確認・メニュー・検索・バックアップ） ----------
 const dlg = $('#editor'), confirmDlg = $('#confirm'), scopeDlg = $('#scope'), menuDlg = $('#menu'), searchDlg = $('#search'), backupDlg = $('#backup'), form = $('#form');
-const panels = [dlg, confirmDlg, scopeDlg, menuDlg, searchDlg, backupDlg];
+const linkDlg = $('#link'), xdDlg = $('#xdetail'), xrDlg = $('#xretry');
+const panels = [dlg, confirmDlg, scopeDlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, xrDlg];
 const anyPanel = () => panels.some((d) => d.open);
 const syncInert = () => { root.inert = anyPanel(); };
 const origins = new Map();
@@ -310,7 +411,7 @@ function closePanel(d, restore = true) {
   if (d.open) d.close();
   syncInert();
 }
-for (const d of [dlg, menuDlg, searchDlg, backupDlg]) {
+for (const d of [dlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg]) {
   d.addEventListener('close', () => {
     syncInert();
     if (d._restore !== false) {
@@ -325,7 +426,7 @@ for (const d of [dlg, menuDlg, searchDlg, backupDlg]) {
 let editing = null; // 描画ID（通常予定は id、繰り返しの回は parentId@occurrenceKey）
 const F = {
   title: $('#f-title'), cat: $('#f-cat'), all: $('#f-all'), start: $('#f-start'), end: $('#f-end'), place: $('#f-place'), notes: $('#f-notes'),
-  rfreq: $('#f-rfreq'), rend: $('#f-rend'), rcount: $('#f-rcount'), runtil: $('#f-runtil'),
+  rfreq: $('#f-rfreq'), rend: $('#f-rend'), rcount: $('#f-rcount'), runtil: $('#f-runtil'), xadd: $('#f-xadd'), xcal: $('#f-xcal'),
 };
 const R = { toggle: $('#rtoggle'), panel: $('#rpanel'), sum: $('#rsum'), desc: $('#rdesc'), days: $('#rdays-wrap'), end: $('#rend-wrap'), countL: $('#rcount-l'), untilL: $('#runtil-l'), err: $('#rerror') };
 let rsel = [], autoDays = true;
@@ -346,6 +447,7 @@ function readForm() {
   return {
     title: F.title.value, cat: F.cat.value, all: F.all.checked, start: F.start.value, end: F.end.value, place: F.place.value, notes: F.notes.value,
     rfreq: F.rfreq.value, rbyday: [...rsel], rend: F.rend.value, rcount: F.rcount.value, runtil: F.runtil.value, ropen: !R.panel.hidden, autoDays,
+    xadd: F.xadd.checked, xcal: F.xcal.value,
   };
 }
 function saveDraft() {
@@ -381,6 +483,7 @@ function updateRepeatUi() {
     rule = { freq, byDay: [...rsel].sort((a, b) => a - b), count: F.rend.value === 'count' ? n : null, until: F.rend.value === 'until' && u ? dayOf(u) : null };
   }
   R.sum.textContent = ruleSummary(rule, `${k}T00:00`);
+  updateXUi();
 }
 function showEditor(values, id, focus = true) {
   editing = id;
@@ -398,11 +501,43 @@ function showEditor(values, id, focus = true) {
   R.err.textContent = '';
   applyAllDayUi();
   setRepeatOpen(!!values.ropen);
+  F.xadd.checked = !!values.xadd;
+  xSel = values.xcal || '';
   updateRepeatUi();
   dlg.show();
   syncInert();
-  if (focus) F.title.focus();
+  if (focus) F.title.focus({ preventScroll: true });
 }
+// 新規通常予定だけに出す「iPhone のカレンダーにも追加」。編集中のリンク済み予定には案内を出す。
+let xSel = '', xSig = '';
+function updateXUi() {
+  const eligible = extActive();
+  const cur = editing ? resolve(editing) : null;
+  const linked = !!(editing && cur && !cur.occKey && cur.p.nativeLink?.state === 'linked');
+  $('#xlinked').hidden = !linked;
+  $('#xadd').hidden = !(eligible && !editing);
+  if ($('#xadd').hidden) return;
+  const cals = writable(X.calendars), repeating = F.rfreq.value !== 'none';
+  const sig = cals.map((c) => c.id).join('|');
+  if (sig !== xSig) {
+    xSig = sig;
+    F.xcal.innerHTML = cals.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}（${esc(c.source)}）</option>`).join('');
+  }
+  if (F.xcal.value) xSel = F.xcal.value;
+  const want = [xSel, link.defaultCalendarId].find((id) => id && cals.some((c) => c.id === id)) || cals[0]?.id || '';
+  F.xcal.value = want; xSel = want;
+  if (!cals.length || repeating) F.xadd.checked = false;
+  F.xadd.disabled = !cals.length || repeating;
+  $('#xnote').textContent = !cals.length ? '追加できるカレンダーがありません。' : repeating ? '繰り返し予定はiPhoneのカレンダーに追加できません。' : '';
+  $('#xcal-l').hidden = !F.xadd.checked || F.xadd.disabled;
+}
+F.xadd.addEventListener('change', () => { updateXUi(); saveDraft(); });
+F.xcal.addEventListener('change', () => { xSel = F.xcal.value; saveDraft(); });
+$('#xlinked-open').addEventListener('click', async () => {
+  const cur = editing ? resolve(editing) : null;
+  if (!cur) return;
+  try { const r = await call('openInCalendar', { start: cur.p.start }); if (!r?.opened) throw new Error('x'); } catch { $('#error').textContent = 'カレンダーを開けませんでした。'; }
+});
 function valuesFrom(cur) {
   const o = cur.occ, r = cur.p.recurrence;
   return {
@@ -412,6 +547,7 @@ function valuesFrom(cur) {
   };
 }
 function openEditor(id, from, day = state.selected) {
+  if (id && isXId(id)) { openExtDetail(id, from); return; }
   origins.set(dlg, from || document.activeElement);
   const cur = id ? resolve(id) : null;
   const values = cur
@@ -464,8 +600,10 @@ async function commit(plan) {
 }
 const SAVE_FAIL = '保存できませんでした。もう一度お試しください。';
 
+let saving = false;
 form.addEventListener('submit', async (ev) => {
   ev.preventDefault();
+  if (saving) return;
   const r = validateDraft(readForm());
   $('#error').textContent = ''; R.err.textContent = '';
   if (r.error) {
@@ -477,16 +615,22 @@ form.addEventListener('submit', async (ev) => {
   const prev = cur?.p;
   const item = { ...prev, ...r.event, id: prev ? prev.id : newId(), exdates: prev?.exdates ?? [], overrides: prev?.overrides ?? {}, updatedAt: Date.now() };
   if (!item.recurrence) { item.exdates = []; item.overrides = {}; }
+  // 新規の通常予定だけ: アプリDBへ pending で確定してから、iPhone 側の作成を1回だけ呼ぶ。
+  const xwant = !editing && !item.recurrence && extActive() && F.xadd.checked && !F.xadd.disabled && !!F.xcal.value;
+  if (xwant) item.nativeLink = { state: 'pending', requestId: newId(), calendarId: F.xcal.value };
+  saving = true;
   try {
     await commit({ puts: [item], dels: [] });
   } catch {
     $('#error').textContent = SAVE_FAIL;
+    saving = false;
     return;
   }
+  saving = false;
   clearDraft();
   closePanel(dlg);
   set({ selected: dayOf(item.start) });
-  say('予定を保存しました。');
+  if (xwant) createNative(item.id); else say('予定を保存しました。');
 });
 
 // ---------- 範囲シート（この予定のみ／これ以降すべて／すべて） ----------
@@ -511,10 +655,10 @@ function openScope(kind, cur, ev) {
   dlg.inert = true;
   scopeDlg.show();
   syncInert();
-  (scopeDlg.querySelector('[data-scope]:not(:disabled)'))?.focus();
+  (scopeDlg.querySelector('[data-scope]:not(:disabled)'))?.focus({ preventScroll: true });
 }
 scopeDlg.addEventListener('close', () => {
-  if (!confirmDlg.open && !scopeDlg.open) { dlg.inert = false; if (dlg.open) (scopeCtx?.kind === 'delete' ? $('#delete') : form.querySelector('[type=submit]')).focus(); }
+  if (!confirmDlg.open && !scopeDlg.open) { dlg.inert = false; if (dlg.open) (scopeCtx?.kind === 'delete' ? $('#delete') : form.querySelector('[type=submit]')).focus({ preventScroll: true }); }
 });
 function cancelScope() { scopeDlg.close(); }
 $('#sc-cancel').addEventListener('click', cancelScope);
@@ -549,7 +693,7 @@ function askDelete(scope, cur) {
   dlg.inert = true;
   confirmDlg.show();
   syncInert();
-  $('#canceldelete').focus();
+  $('#canceldelete').focus({ preventScroll: true });
 }
 $('#delete').addEventListener('click', () => {
   const cur = editing ? resolve(editing) : null;
@@ -560,10 +704,10 @@ $('#delete').addEventListener('click', () => {
   confirmDlg.show();
   dlg.inert = true;
   syncInert();
-  $('#canceldelete').focus();
+  $('#canceldelete').focus({ preventScroll: true });
 });
 confirmDlg.addEventListener('close', () => {
-  if (!scopeDlg.open) { dlg.inert = false; if (dlg.open) $('#delete').focus(); }
+  if (!scopeDlg.open) { dlg.inert = false; if (dlg.open) $('#delete').focus({ preventScroll: true }); }
 });
 function cancelConfirm() {
   const pd = pendingDelete;
@@ -588,17 +732,33 @@ $('#dodelete').addEventListener('click', async () => {
 
 // ---------- その他メニュー ----------
 function openMenu(from) {
-  $('#m-desk').hidden = window.innerWidth < 600 || window.innerHeight < 600;
+  $('#m-desk').hidden = L.w < 600 || L.h < 600;
+  $('#m-link').hidden = !(NATIVE && X.avail);
   $('#m-desk').textContent = state.desk ? '卓上表示をやめる' : '卓上表示';
   $('#m-sample').hidden = !(state.loaded && state.events.length === 0);
   openPanel(menuDlg, from);
-  menuDlg.querySelector('button:not([hidden])').focus();
+  placeMenu(from);
+  menuDlg.querySelector('button:not([hidden])').focus({ preventScroll: true });
+}
+// メニューは起点の直下8pxに置き、安全矩形（可視範囲）の内側にクランプ。収まらなければ起点の上へ。
+function placeMenu(from) {
+  const S = safe(), w = Math.min(240, L.w - 24), r = from?.getBoundingClientRect?.();
+  let maxL = L.w - S.right - 12 - w;
+  if (layoutKind() === 'spread') maxL = Math.min(maxL, L.w / 2 - 20 - w);
+  const left = Math.max(S.left + 12, Math.min(r ? r.right - w : maxL, maxL));
+  const vy = parseFloat(de.style.getPropertyValue('--vy')) || 0, vb = parseFloat(de.style.getPropertyValue('--vb')) || 0;
+  const topMin = Math.max(vy, S.top) + 12, botMax = de.clientHeight - Math.max(vb, S.bottom) - 12;
+  const mh = Math.min(menuDlg.scrollHeight, botMax - topMin);
+  let top = r ? r.bottom + 8 : topMin;
+  if (top + mh > botMax) top = Math.max(topMin, r && r.top - 8 - mh >= topMin ? r.top - 8 - mh : botMax - mh);
+  Object.assign(menuDlg.style, { left: `${left}px`, top: `${top}px`, right: 'auto', bottom: 'auto', width: `${w}px`, maxHeight: `${Math.max(88, botMax - top)}px` });
 }
 menuDlg.addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-m]');
   if (!b) return;
   const m = b.dataset.m, from = origins.get(menuDlg);
   if (m === 'backup') { closePanel(menuDlg, false); openBackup(from); }
+  else if (m === 'link') { closePanel(menuDlg, false); openLink(from); }
   else if (m === 'desk') { closePanel(menuDlg); set({ desk: !state.desk }); }
   else if (m === 'sample') { closePanel(menuDlg); loadSample(); }
   else closePanel(menuDlg);
@@ -608,15 +768,17 @@ document.addEventListener('click', (ev) => {
 });
 
 // ---------- 検索 ----------
-const SR = { q: $('#sr-q'), clear: $('#sr-clear'), range: $('#sr-range'), body: $('#sr-body') };
-let srSeq = 0, srTimer = 0, srToday = todayKey(), srItems = [];
+const SR = { q: $('#sr-q'), clear: $('#sr-clear'), range: $('#sr-range'), xrange: $('#sr-xrange'), body: $('#sr-body') };
+let srSeq = 0, srTimer = 0, srToday = todayKey(), srItems = [], srSnap = null;
 const ymd = (k) => k.replaceAll('-', '/');
 function openSearch(from) {
   srToday = todayKey();
+  // 検索開始時点の成功キャッシュと範囲を固定する（検索のために3年分を取りに行かない）。
+  srSnap = extActive() ? { events: [...visExt()], range: X.cache?.range || null } : null;
   SR.q.value = '';
   renderSearch(true);
   openPanel(searchDlg, from);
-  SR.q.focus();
+  SR.q.focus({ preventScroll: true });
 }
 function hitHtml(e, ts) {
   const multi = isMulti(e);
@@ -624,12 +786,14 @@ function hitHtml(e, ts) {
   const hl = (s) => highlight(s, ts, esc);
   const inTP = ts.every((t) => highlight(`${e.title}\n${e.place}`, [t], esc).includes('<mark>'));
   const ex = !inTP && e.notes ? excerpt(e.notes, ts) : '';
-  return `<button type="button" class="hit ${e.cat}" data-hit="${esc(e.id)}"${repLabel(e, `${dayLabel(dayOf(e.start))} ${time} ${e.title}`)}><span class="hmeta">${esc(time)} · ${CATS[e.cat]}</span><strong>${rep(e)}${hl(e.title)}</strong>${e.place ? `<span class="hplace">${hl(e.place)}</span>` : ''}${ex ? `<span class="hnote">${hl(ex)}</span>` : ''}</button>`;
+  return `<button type="button" class="hit ${catCls(e)}"${catSty(e)} data-hit="${esc(e.id)}"${repLabel(e, `${dayLabel(dayOf(e.start))} ${time} ${e.title}`)}><span class="hmeta">${esc(time)} · ${esc(tagText(e))}</span><strong>${xi(e)}${rep(e)}${hl(e.title)}</strong>${e.place ? `<span class="hplace">${hl(e.place)}</span>` : ''}${ex ? `<span class="hnote">${hl(ex)}</span>` : ''}</button>`;
 }
 function renderSearch(initial = false) {
-  const res = searchEvents(state.events, SR.q.value, srToday);
+  const res = searchEvents(state.events, SR.q.value, srToday, srSnap ? searchExt(srSnap.events, SR.q.value, srToday) : []);
   SR.clear.hidden = !SR.q.value;
   SR.range.textContent = `検索範囲：${ymd(res.range.from)}–${ymd(res.range.to)}・最大${LIMIT}件`;
+  SR.xrange.hidden = !srSnap;
+  if (srSnap) SR.xrange.textContent = srSnap.range ? `iPhoneの検索範囲：${ymdSlash(srSnap.range.from)}–${ymdSlash(lastDay(srSnap.range.to))}（読み込み済み）` : 'iPhoneの予定はまだ読み込まれていません。';
   srItems = res.items;
   const yr = Number(srToday.slice(0, 4));
   if (!res.ts.length) { SR.body.innerHTML = '<p class="smsg">探したい予定の言葉を入力してください。予定名・メモ・場所から探せます。</p>'; if (!initial) say('検索語を消しました。'); return; }
@@ -649,7 +813,7 @@ SR.q.addEventListener('input', () => {
   SR.body.innerHTML = '<p class="smsg" role="status">検索しています…</p>';
   srTimer = setTimeout(() => { if (seq === srSeq) renderSearch(); }, 250); // 古い応答は破棄
 });
-SR.clear.addEventListener('click', () => { clearTimeout(srTimer); srSeq++; SR.q.value = ''; renderSearch(); SR.q.focus(); });
+SR.clear.addEventListener('click', () => { clearTimeout(srTimer); srSeq++; SR.q.value = ''; renderSearch(); SR.q.focus({ preventScroll: true }); });
 $('#sr-close').addEventListener('click', () => closePanel(searchDlg));
 SR.body.addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-hit]');
@@ -659,7 +823,7 @@ SR.body.addEventListener('click', (ev) => {
   const k = dayOf(e.start);
   closePanel(searchDlg, false);
   set({ selected: k, view: 'day', home: false });
-  [...root.querySelectorAll('[data-event]')].find((el) => el.dataset.event === String(e.id))?.focus({ preventScroll: false });
+  [...root.querySelectorAll('[data-event]')].find((el) => el.dataset.event === String(e.id))?.focus({ preventScroll: true });
   say(`${dayLabel(k)}へ移動しました。`);
 });
 
@@ -674,7 +838,7 @@ function openBackup(from) {
   bk = { stage: 'main', busy: false, msg: '', err: '' };
   renderBackup();
   openPanel(backupDlg, from);
-  BK.body.querySelector('button')?.focus();
+  BK.body.querySelector('button')?.focus({ preventScroll: true });
 }
 function renderBackup() {
   const dis = bk.busy ? ' disabled' : '';
@@ -695,7 +859,7 @@ function renderBackup() {
       <button type="button" class="row" id="bk-replace"${dis}>置き換え<small>今の予定はすべて消えて、このファイルの内容になります。設定も置き換わります</small></button>
       <button type="button" class="row cancel" id="bk-cancel"${dis}>キャンセル</button>${bk.err ? `<p class="berr" role="alert">${esc(bk.err)}</p>` : ''}`;
   } else {
-    BK.body.innerHTML = `<section class="card"><h3>今の予定${st.total}件を削除して、${bk.data.events.length}件に置き換えますか？</h3><p>元に戻せません。必要なら先に書き出してください。</p>
+    BK.body.innerHTML = `<section class="card"><h3>今の予定${st.total}件を削除して、${bk.data.events.length}件に置き換えますか？</h3><p>元に戻せません。必要なら先に書き出してください。</p>${NATIVE ? '<p class="small">iPhoneの予定と連携設定は変更しません。復元後、以前iPhoneにも追加した予定が重複して表示されることがあります。</p>' : ''}
       <div class="pair2"><button type="button" id="bk-rcancel"${dis}>キャンセル</button><button type="button" class="dangerfill" id="bk-rdo"${dis}>すべて置き換える</button></div>${bk.err ? `<p class="berr" role="alert">${esc(bk.err)}</p>` : ''}</section>`;
   }
 }
@@ -713,6 +877,16 @@ async function doExport() {
   try {
     const text = JSON.stringify(buildBackup(state.events, state), null, 2);
     const file = new File([text], backupName(), { type: 'application/json' });
+    if (NATIVE) {
+      // ネイティブは共有シート（shareFile）を優先。失敗したときだけ従来の共有／ダウンロードへ。
+      try {
+        const b = document.querySelector('#bk-export')?.getBoundingClientRect();
+        const r = await call('shareFile', { name: file.name, text, mime: 'application/json', ...(b ? { anchor: { x: b.left, y: b.top, width: b.width, height: b.height } } : {}) });
+        if (r?.completed) { bk.msg = '書き出しファイルを共有しました。'; say(bk.msg); }
+        renderBackup();
+        return;
+      } catch { /* 従来の方法へ */ }
+    }
     let shared = false;
     if (navigator.canShare?.({ files: [file] })) {
       try { await navigator.share({ files: [file] }); shared = true; bk.msg = '書き出しファイルを共有しました。'; } catch (e) { if (e?.name === 'AbortError') { renderBackup(); return; } }
@@ -733,7 +907,7 @@ async function onPicked(file) {
   if (!res.ok) bk = { stage: 'invalid', busy: false, name: file.name, reason: res.reason };
   else bk = { stage: 'confirm', busy: false, name: file.name, data: res.data, plan: planAppend(state.events, res.data.events), err: '' };
   renderBackup();
-  BK.body.querySelector('button')?.focus();
+  BK.body.querySelector('button')?.focus({ preventScroll: true });
 }
 BK.file.addEventListener('change', () => {
   const f = BK.file.files[0];
@@ -777,17 +951,268 @@ BK.body.addEventListener('click', (ev) => {
   if (b.id === 'bk-export') doExport();
   else if (b.id === 'bk-pick') BK.file.click();
   else if (b.id === 'bk-add') finishImport('add');
-  else if (b.id === 'bk-replace') { bk = { ...bk, stage: 'replace', err: '' }; renderBackup(); BK.body.querySelector('#bk-rcancel')?.focus(); }
+  else if (b.id === 'bk-replace') { bk = { ...bk, stage: 'replace', err: '' }; renderBackup(); BK.body.querySelector('#bk-rcancel')?.focus({ preventScroll: true }); }
   else if (b.id === 'bk-rdo') finishImport('replace');
   else if (b.id === 'bk-rcancel' || b.id === 'bk-cancel' || b.id === 'bk-back') backBackup();
 });
 $('#bk-close').addEventListener('click', () => { if (!bk.busy) closePanel(backupDlg); });
 
+// ---------- iPhone カレンダー連携（読み取り専用の混在表示・追加・設定） ----------
+const isXId = (id) => String(id).startsWith('ip:') && visExt().some((x) => x.id === id);
+const idsKey = (ids) => [...ids].sort().join(',');
+const safeColor = (c) => (/^#[0-9a-fA-F]{6}$/.test(c || '') ? c : '#68716a');
+const extNeed = () => extRange(layoutKind() === 'home' ? todayKey() : state.selected);
+let lk = { busy: false, err: '', want: false };
+let firstCheck = true, extTimer = 0, xBusy = false;
+const LK = { body: $('#lk-body') };
+
+async function checkPerm() {
+  try {
+    const r = await call('checkPermission');
+    X.perm = r?.status || 'denied';
+    firstCheck = false;
+    return X.perm;
+  } catch {
+    if (firstCheck) X.avail = false; // プラグインが使えない: 入口を隠す
+    firstCheck = false;
+    return null;
+  }
+}
+async function refreshCalendars() {
+  const r = await call('listCalendars');
+  const cals = (Array.isArray(r?.calendars) ? r.calendars : []).map((c) => ({ ...c, color: safeColor(c.color) }));
+  X.calendars = cals;
+  const known = new Set(cals.map((c) => c.id));
+  const patch = { calendarIds: link.calendarIds.filter((id) => known.has(id)) };
+  if (!link.selectionInitialized) { patch.calendarIds = cals.map((c) => c.id); patch.selectionInitialized = true; } // 初回は全選択
+  if (link.defaultCalendarId && !cals.some((c) => c.id === link.defaultCalendarId && c.allowsModify)) patch.defaultCalendarId = null;
+  setLink(patch);
+}
+// 必要な範囲が取得済みでなければ取得する（同じ範囲の連続要求は統合、失敗した範囲は自動では再試行しない）。
+function syncExt() {
+  if (!extActive()) return;
+  const need = extNeed(), c = X.cache;
+  if (c && c.ids === idsKey(link.calendarIds) && covers(c.range, need)) return;
+  if (X.failKey === rangeKey(need, link.calendarIds)) return;
+  loadExt();
+}
+function loadExt(force = false) {
+  if (!extActive()) return Promise.resolve();
+  const key0 = rangeKey(extNeed(), link.calendarIds);
+  if (X.inflight && X.inflightKey === key0 && !force) return X.inflight;
+  const gen = ++X.gen;
+  X.status = 'loading'; X.inflightKey = key0;
+  const p = (async () => {
+    try {
+      if (!X.calendars.length) await refreshCalendars();
+      const need = extNeed(), cmap = new Map(X.calendars.map((c) => [c.id, c]));
+      const ids = link.calendarIds.filter((id) => cmap.has(id));
+      let events = [];
+      if (ids.length) {
+        const r = await call('listEvents', { from: stampOf(need.from), to: stampOf(need.to), calendarIds: ids });
+        events = (Array.isArray(r?.events) ? r.events : []).map((raw) => toDisplay(raw, cmap.get(raw.calendarId)));
+      }
+      if (gen !== X.gen) return; // 古い応答は捨てる
+      X.cache = { range: need, ids: idsKey(link.calendarIds), events, loadedAt: new Date(), tz: new Date().getTimezoneOffset() };
+      X.status = 'ok'; X.failKey = '';
+    } catch (e) {
+      if (gen !== X.gen) return;
+      X.status = 'error'; X.failKey = key0;
+      if (['PERMISSION_DENIED', 'RESTRICTED'].includes(errCode(e))) dropLink('カレンダーへのアクセスを確認してください。');
+    } finally {
+      if (gen === X.gen) { X.inflight = null; X.inflightKey = ''; afterExt(); }
+    }
+  })();
+  X.inflight = p;
+  return p;
+}
+function afterExt() {
+  render();
+  if (linkDlg.open) renderLink();
+  if (xdDlg.open && xdCur && !visExt().some((x) => x.id === xdCur.id)) $('#xd-err').textContent = 'この予定は見つかりません。カレンダーで確認してください。';
+  if (dlg.open) updateXUi();
+}
+function dropLink(msg) {
+  setLink({ enabled: false });
+  X.gen++; X.cache = null; X.status = 'idle'; X.inflight = null; X.inflightKey = ''; X.failKey = '';
+  lk.err = msg; lk.want = false;
+  say(msg);
+  render();
+  if (linkDlg.open) renderLink();
+}
+async function resumeExt() {
+  if (!NATIVE || !X.avail) return;
+  const p = await checkPerm();
+  if (!link.enabled) { if (linkDlg.open) renderLink(); return; }
+  if (p !== 'granted') { if (p) dropLink('カレンダーへのアクセスを確認してください。'); return; }
+  try { await refreshCalendars(); } catch { /* 取得できなくても直前の一覧で続ける */ }
+  if (X.cache && X.cache.tz !== new Date().getTimezoneOffset()) X.cache = null; // タイムゾーン変更: キャッシュ破棄
+  await loadExt(true);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) resumeExt(); });
+
+// 設定パネル
+function openLink(from) {
+  lk = { busy: false, err: '', want: false };
+  renderLink();
+  openPanel(linkDlg, from);
+  LK.body.querySelector('button')?.focus({ preventScroll: true });
+  resumeExt();
+}
+function renderLink() {
+  const on = extActive(), dis = lk.busy ? ' disabled' : '';
+  let h = `<p class="lkintro">iPhoneのカレンダーの予定をDuoに表示します。Duoから追加した予定も、iPhoneのカレンダーに残せます。</p>
+    <div class="swrow"><span id="lk-swl">連携</span><button type="button" role="switch" id="lk-sw" class="sw" aria-checked="${on}" aria-labelledby="lk-swl"${dis}><span class="knob" aria-hidden="true"></span><span class="swt">${on ? 'オン' : 'オフ'}</span></button></div>`;
+  if (linkSaveFailed) h += '<p class="berr" role="alert">連携設定を保存できませんでした。</p>';
+  if (lk.err) h += `<p class="berr" role="alert">${esc(lk.err)}</p>`;
+  if (!on && lk.want) {
+    const steps = '設定 ＞ プライバシーとセキュリティ ＞ カレンダー ＞ Duo で『フルアクセス』を許可してください。';
+    if (X.perm === 'notDetermined') h += `<section class="card"><h3>iPhone のカレンダーへのアクセスを許可してください</h3><p>予定の表示と追加に、カレンダーへのフルアクセスが必要です。iPhone側の予定をDuoから編集・削除することはありません。</p><button type="button" class="solid" id="lk-req"${dis}>アクセスを許可</button></section>`;
+    else if (X.perm === 'denied') h += `<section class="card"><p class="berr" role="alert">カレンダーへのアクセスが許可されていません。${steps}</p><button type="button" id="lk-settings">設定を開く</button></section>`;
+    else if (X.perm === 'restricted') h += '<section class="card"><p class="berr" role="alert">この端末ではカレンダーへのアクセスが制限されています。端末の管理者に確認してください。</p></section>';
+    else if (X.perm === 'writeOnly') h += `<section class="card"><p class="berr" role="alert">予定を表示するにはフルアクセスが必要です。${steps}</p><button type="button" class="solid" id="lk-req"${dis}>フルアクセスを許可</button><button type="button" id="lk-settings">設定を開く</button></section>`;
+  }
+  if (on) {
+    if (!link.calendarIds.length) h += '<p class="smsg" role="status">表示するカレンダーを選んでください。</p>';
+    for (const g of groupBySource(X.calendars)) {
+      h += `<section class="card calgroup"><h3>${esc(g.heading)}</h3>${g.items.map((c) => `<label class="calrow"><input type="checkbox" data-cal="${esc(c.id)}"${link.calendarIds.includes(c.id) ? ' checked' : ''}><i class="cdot" style="background:${c.color}" aria-hidden="true"></i><span class="cname">${esc(c.title)}</span>${c.allowsModify ? '' : '<small>読み取り専用</small>'}</label>`).join('')}</section>`;
+    }
+    h += '<p class="small">Google カレンダーを表示するには、iPhoneの『設定 ＞ カレンダー ＞ アカウント』でGoogleを追加してください。iOSのバージョンによっては『設定 ＞ アプリ ＞ カレンダー ＞ カレンダーアカウント』にあります。</p>';
+    const loading = X.status === 'loading';
+    let st = 'まだ読み込んでいません';
+    if (loading) st = '読み込み中…';
+    else if (X.status === 'error') st = `読み込めませんでした。もう一度お試しください。${X.cache ? '前回読み込み分を表示中' : ''}`;
+    else if (X.cache) st = `最終読み込み：${fmtLoaded(X.cache.loadedAt)}`;
+    if (X.status === 'ok' && X.cache && !X.cache.events.length && link.calendarIds.length) st += '　この期間の予定はありません。';
+    h += `<div class="lkfoot"><span id="lk-status" role="status">${esc(st)}</span><button type="button" id="lk-reload"${loading ? ' disabled' : ''}>再読み込み</button></div>`;
+  }
+  LK.body.innerHTML = h;
+}
+async function lkToggle() {
+  if (lk.busy) return;
+  lk.err = '';
+  if (link.enabled) { setLink({ enabled: false }); X.gen++; X.cache = null; X.status = 'idle'; X.inflight = null; X.inflightKey = ''; X.failKey = ''; lk.want = false; render(); renderLink(); return; }
+  lk.busy = true; lk.want = true; renderLink();
+  const p = await checkPerm();
+  lk.busy = false;
+  if (p === 'granted') await enableLink();
+  else if (p === null) lk.err = 'カレンダーの状態を確認できませんでした。もう一度お試しください。';
+  renderLink();
+  LK.body.querySelector('#lk-req, #lk-settings, #lk-sw')?.focus({ preventScroll: true });
+}
+async function enableLink() {
+  try { await refreshCalendars(); } catch { lk.err = 'カレンダーの一覧を読み込めませんでした。もう一度お試しください。'; return; }
+  setLink({ enabled: true });
+  lk.want = false;
+  loadExt(true);
+  render();
+}
+async function lkRequest() {
+  if (lk.busy) return;
+  lk.busy = true; lk.err = ''; renderLink();
+  try { const r = await call('requestPermission'); X.perm = r?.status || X.perm; } catch (e) { lk.err = errText(e, 'アクセスの確認に失敗しました。もう一度お試しください。'); }
+  lk.busy = false;
+  if (X.perm === 'granted') await enableLink();
+  renderLink();
+}
+LK.body.addEventListener('click', async (ev) => {
+  const b = ev.target.closest('button');
+  if (!b || b.disabled) return;
+  if (b.id === 'lk-sw') lkToggle();
+  else if (b.id === 'lk-req') lkRequest();
+  else if (b.id === 'lk-settings') { try { await call('openSettings'); } catch { /* 開けなくても案内は残る */ } }
+  else if (b.id === 'lk-reload') { X.failKey = ''; loadExt(true); renderLink(); }
+});
+LK.body.addEventListener('change', (ev) => {
+  const cb = ev.target.closest('[data-cal]');
+  if (!cb) return;
+  const ids = new Set(link.calendarIds);
+  if (cb.checked) ids.add(cb.dataset.cal); else ids.delete(cb.dataset.cal);
+  setLink({ calendarIds: [...ids] });
+  X.failKey = '';
+  loadExt(true);
+  renderLink();
+  render();
+});
+$('#lk-close').addEventListener('click', () => closePanel(linkDlg));
+
+// 読み取り専用の詳細シート
+let xdCur = null;
+function openExtDetail(id, from) {
+  const e = visExt().find((x) => x.id === id);
+  if (!e) return;
+  xdCur = e;
+  $('#xd-err').textContent = '';
+  const t = (k) => `${ymdSlash(dayOf(k))} ${k.slice(11)}`;
+  const when = e.all
+    ? `<dt>開始</dt><dd>${ymdSlash(dayOf(e.start))}（終日）</dd><dt>終了</dt><dd>${ymdSlash(dayOf(e.end))}（含む最終日）</dd>`
+    : `<dt>開始</dt><dd>${esc(t(e.start))}</dd><dt>終了</dt><dd>${esc(t(e.rawEnd && e.rawEnd >= e.start ? e.rawEnd : e.end))}</dd>`;
+  $('#xd-body').innerHTML = `<h3 class="xdt">${esc(e.title)}</h3><p class="xdcal"><i class="cdot" style="background:${e.color}" aria-hidden="true"></i>${esc(subLabel(e))}${e.recurring ? ' <span class="rep" aria-hidden="true">↻</span>' : ''}</p>
+    <dl class="facts">${when}<dt>場所</dt><dd>${e.place ? esc(e.place) : '場所なし'}</dd><dt>メモ</dt><dd class="notes">${e.notes ? esc(e.notes) : 'メモなし'}</dd></dl>`;
+  openPanel(xdDlg, from);
+  $('#xd-close').focus({ preventScroll: true });
+}
+$('#xd-close').addEventListener('click', () => closePanel(xdDlg));
+$('#xd-open').addEventListener('click', async () => {
+  if (!xdCur) return;
+  $('#xd-err').textContent = '';
+  try { const r = await call('openInCalendar', { start: xdCur.start }); if (!r?.opened) throw new Error('not opened'); } catch { $('#xd-err').textContent = 'カレンダーを開けませんでした。'; }
+});
+
+// iPhone への追加（再試行は同じ requestId。別の予定を作らない）
+function openRetry(id, msg, canRetry) {
+  xrId = id;
+  $('#xr-msg').textContent = msg;
+  $('#xr-retry').hidden = !canRetry;
+  openPanel(xrDlg, document.activeElement);
+  (canRetry ? $('#xr-retry') : $('#xr-close')).focus({ preventScroll: true });
+}
+let xrId = null;
+async function createNative(id) {
+  const e = state.events.find((x) => x.id === id), l = e?.nativeLink;
+  if (!e || l?.state !== 'pending' || xBusy) return;
+  xBusy = true;
+  try {
+    const r = await call('createEvent', { requestId: l.requestId, calendarId: l.calendarId, title: e.title, start: e.start, end: e.all ? `${dayOf(e.end)}T00:00` : e.end, all: !!e.all, place: e.place || '', notes: e.notes || '' });
+    if (!r?.eventId) throw new Error('no event id');
+    await commit({ puts: [{ ...e, nativeLink: { state: 'linked', requestId: l.requestId, eventId: String(r.eventId), calendarId: l.calendarId } }], dels: [] });
+    setLink({ defaultCalendarId: l.calendarId });
+    render();
+    say('予定を保存し、iPhoneのカレンダーにも追加しました。');
+    loadExt(true);
+  } catch (err) {
+    const msg = 'Duoに保存しました。iPhoneのカレンダーには追加できませんでした。';
+    const hard = ['PERMISSION_DENIED', 'CALENDAR_NOT_FOUND', 'RESTRICTED', 'READ_ONLY'].includes(errCode(err));
+    openRetry(id, hard ? `${msg}${errText(err, '')}メニューの『iPhone カレンダー連携』と追加先を確認してください。` : msg, !hard);
+    say(msg);
+  } finally { xBusy = false; }
+}
+$('#xr-close').addEventListener('click', () => closePanel(xrDlg));
+$('#xr-retry').addEventListener('click', () => { closePanel(xrDlg); createNative(xrId); });
+
+async function initNative() {
+  if (!NATIVE) return;
+  const p = await checkPerm();
+  if (p === null) return;
+  listen('calendarChanged', () => { clearTimeout(extTimer); extTimer = setTimeout(() => { if (extActive()) loadExt(true); }, 300); });
+  if (link.enabled) {
+    if (p === 'granted') { try { await refreshCalendars(); } catch { /* 一覧は後で再取得 */ } loadExt(true); } else dropLink('カレンダーへのアクセスを確認してください。');
+  }
+  if (extActive() && !dlg.open) {
+    const pend = state.events.find((e) => e.nativeLink?.state === 'pending');
+    if (pend) openRetry(pend.id, 'iPhoneのカレンダーへの追加が完了していない予定があります。', true);
+  }
+  if (dlg.open) updateXUi();
+}
+
 document.addEventListener('keydown', (ev) => {
   if (ev.key !== 'Escape') return;
   if (scopeDlg.open) cancelScope();
+  else if (xrDlg.open) closePanel(xrDlg);
   else if (confirmDlg.open) cancelConfirm();
   else if (menuDlg.open) closePanel(menuDlg);
+  else if (xdDlg.open) closePanel(xdDlg);
+  else if (linkDlg.open) closePanel(linkDlg);
   else if (backupDlg.open) backBackup();
   else if (searchDlg.open) closePanel(searchDlg);
   else if (dlg.open) closeEditor();
@@ -829,13 +1254,21 @@ initSwipe({
 });
 
 // ---------- 起動 ----------
-let rt = 0;
-const rerender = () => { cancelAnimationFrame(rt); rt = requestAnimationFrame(render); };
-window.addEventListener('resize', rerender);
-window.addEventListener('orientationchange', rerender);
+// 寸法 L が変わった時だけ再描画する。キーボードの出入りは位置・寸法の変数更新だけ。
+window.addEventListener('resize', vpSchedule);
+window.addEventListener('orientationchange', vpSchedule);
+window.visualViewport?.addEventListener('resize', vpSchedule);
+window.visualViewport?.addEventListener('scroll', vpSchedule);
+document.addEventListener('focusin', (ev) => { if (isTextEl(ev.target)) { clearTimeout(kbTimer); kbHold = false; vpSchedule(); setTimeout(() => reveal(ev.target), 50); } });
+document.addEventListener('focusout', (ev) => {
+  if (!isTextEl(ev.target)) return;
+  kbHold = true; clearTimeout(kbTimer);
+  kbTimer = setTimeout(() => { kbHold = false; vpSchedule(); }, 700);
+});
 setInterval(() => { if (!anyPanel() && layoutKind() === 'home') render(); }, 60000);
 
 async function boot() {
+  updateVars();
   render();
   try { state.events = await db.listEvents(); } catch { say('保存領域を開けませんでした。'); }
   state.loaded = true;
@@ -850,6 +1283,7 @@ async function boot() {
       rfreq: draft.rfreq, rbyday: Array.isArray(draft.rbyday) ? draft.rbyday : [], rend: draft.rend, rcount: draft.rcount, runtil: draft.runtil, ropen: !!draft.ropen, autoDays: draft.autoDays,
     }, id, false);
   }
+  await Promise.race([initNative(), new Promise((r) => setTimeout(r, 2500))]);
   document.documentElement.dataset.ready = '1';
 }
 boot();

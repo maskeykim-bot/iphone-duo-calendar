@@ -67,7 +67,7 @@ export function searchRange(today) {
 }
 
 // 戻り値: { items（開始日時昇順・同時刻はID順・最大LIMIT件）, total, capped, range }
-export function searchEvents(events, query, today) {
+export function searchEvents(events, query, today, extra = []) {
   const ts = terms(query);
   const range = searchRange(today);
   if (!ts.length) return { items: [], total: 0, capped: false, range, ts };
@@ -75,6 +75,7 @@ export function searchEvents(events, query, today) {
     const fields = [normalize(e.title), normalize(e.notes), normalize(e.place)];
     return ts.every((t) => fields.some((f) => f.includes(t)));
   });
+  hits.push(...extra); // 外部（iPhone）予定: 呼び出し側で同じ正規化・AND・範囲で絞り済み
   hits.sort((a, b) => a.start.localeCompare(b.start) || String(a.id).localeCompare(String(b.id)));
   return { items: hits.slice(0, LIMIT), total: hits.length, capped: hits.length > LIMIT, range, ts };
 }

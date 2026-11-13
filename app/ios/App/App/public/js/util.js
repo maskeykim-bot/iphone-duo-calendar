@@ -40,7 +40,7 @@ export const isMulti = (e) => dayOf(e.start) !== dayOf(e.end);
 export function eventsOnDay(events, k) {
   return events
     .filter((e) => dayOf(e.start) <= k && dayOf(e.end) >= k)
-    .sort((a, b) => Number(!!b.all) - Number(!!a.all) || a.start.localeCompare(b.start) || a.title.localeCompare(b.title, 'ja'));
+    .sort((a, b) => Number(!!b.all) - Number(!!a.all) || a.start.localeCompare(b.start) || Number(a.origin === 'iphone') - Number(b.origin === 'iphone') || a.title.localeCompare(b.title, 'ja') || String(a.id).localeCompare(String(b.id)));
 }
 export function timeLabel(e) {
   if (e.all) return '終日';

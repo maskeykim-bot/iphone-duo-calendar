@@ -24,6 +24,12 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>iPhone のカレンダーの予定を Duo カレンダーに表示し、Duo で作った予定を iPhone のカレンダーにも追加するために使います。</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>iPhone のカレンダーの予定を Duo カレンダーに表示し、Duo で作った予定を iPhone のカレンダーにも追加するために使います。</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>Duo で作った予定を iPhone のカレンダーにも追加するために使います。予定の表示にはフルアクセスが必要です。</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

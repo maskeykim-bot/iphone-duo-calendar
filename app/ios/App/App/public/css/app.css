@@ -1,10 +1,13 @@
 :root{--paper:#f7f4ed;--card:#fffdfa;--ink:#293b35;--muted:#68716a;--line:#dddcd3;--green:#294e42;--focus:#a77538;
+ --sat:env(safe-area-inset-top,0px);--sar:env(safe-area-inset-right,0px);--sab:env(safe-area-inset-bottom,0px);--sal:env(safe-area-inset-left,0px);--vy:0px;--vb:0px;
+ --rt:max(var(--vy),var(--sat));--rb:max(var(--vb),var(--sab));--rl:var(--sal);--rr:var(--sar);
  --work:#375a7f;--work-t:#eaf0f7;--private:#885265;--private-t:#f7eaf0;--golf:#396b49;--golf-t:#eaf3e9;--economy:#825a23;--economy-t:#f7eedc;--danger:#963e38}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-html,body{height:100%;margin:0;background:var(--paper);color:var(--ink);overflow:hidden;
+html,body{width:100%;max-width:100%;height:100%;margin:0;overscroll-behavior:none;background:var(--paper);color:var(--ink);overflow:hidden;
  font:16px/1.5 -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN','Hiragino Sans',sans-serif;-webkit-text-size-adjust:100%}
-button,input,select{font:inherit;color:inherit}
+button,input,select,textarea{font:inherit;color:inherit}
+input,select,textarea{font-size:16px} /* 16px 未満だと iOS がフォーカス時に自動ズームする */
 button{cursor:pointer;border:0;background:transparent;min-height:44px;border-radius:10px;padding:6px 12px;touch-action:manipulation}
 button:hover{background:#e6e9df}
 :focus-visible{outline:3px solid var(--focus);outline-offset:2px}
@@ -14,7 +17,7 @@ button[aria-pressed=true]{background:var(--green);color:#fff}
 .small{font-size:12px;color:var(--muted)}.eyebrow{font-size:11px;letter-spacing:.12em;color:var(--muted)}
 .pad{padding:8px 0}
 
-#app{height:100vh;height:100dvh;display:flex;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+#app{height:100vh;height:100dvh;display:flex;padding:var(--sat) var(--sar) var(--sab) var(--sal);
  background:radial-gradient(ellipse at top left,#ffffff80,transparent 60%),var(--paper)}
 #app[inert]{opacity:.55}
 .shell{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;gap:8px;padding:12px 16px}
@@ -188,13 +191,19 @@ button[aria-pressed=true]{background:var(--green);color:#fff}
 .spread .legend{padding:6px 0 0;gap:4px 10px}
 
 /* 編集シート（非モーダル） */
-dialog{position:fixed;inset:8px;margin:auto;width:460px;max-width:calc(100% - 16px);height:fit-content;max-height:calc(100% - 16px);overflow:auto;z-index:10;
+/* パネルは R = 可視範囲 ∩ 安全矩形 の内側に置く。--m は R からの最小余白、--pw は最大幅。
+   キーボードなし: 上下中央、あり（html[data-kb]）: 上寄せ。 */
+dialog{--m:12px;--pw:460px;position:fixed;box-sizing:border-box;min-width:0;
+ top:calc(var(--rt) + var(--m));bottom:calc(var(--rb) + var(--m));left:calc(var(--rl) + var(--m));right:calc(var(--rr) + var(--m));
+ margin:auto;width:auto;max-width:var(--pw);height:fit-content;max-height:calc(100% - var(--rt) - var(--rb) - 2 * var(--m));overflow:auto;z-index:10;
  padding:18px 20px;border:1px solid var(--line);border-radius:22px;background:var(--card);color:var(--ink);box-shadow:0 0 0 100vmax #1a302d55,0 25px 70px #132c3340}
-dialog#confirm{z-index:11;inset:auto 8px 12px;margin:0 auto}
+html[data-kb] dialog{margin-top:0;margin-bottom:auto}
+dialog#confirm{z-index:11}
 dialog h2{font:24px/1.3 Georgia,'Hiragino Mincho ProN',serif;margin:0}
 .formhead,.actions{display:flex;align-items:center;justify-content:space-between;gap:8px}
 form label{display:block;margin-top:12px;font-size:13px}
-.pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.pair>label,.fbody>*,.fbody label{min-width:0}
 input,select{display:block;width:100%;min-height:44px;padding:8px 10px;background:#f5f3ec;border:1px solid var(--line);border-radius:10px}
 input[type=checkbox]{display:inline-block;width:20px;min-height:20px;vertical-align:middle;margin:0 8px 0 0}
 .check{min-height:32px}
@@ -294,7 +303,8 @@ textarea{display:block;width:100%;min-height:80px;padding:8px 10px;background:#f
 #rpanel .error{margin:8px 0 0}
 
 /* 範囲シート・メニュー */
-dialog#scope{z-index:11;inset:auto 8px 12px;margin:0 auto;width:460px;max-height:calc(100% - 24px)}
+dialog#scope{z-index:11}
+dialog#confirm,dialog#scope,dialog#xretry{top:auto;bottom:calc(var(--rb) + 12px);margin:0 auto;z-index:11}
 #sc-target{margin:6px 0 0;overflow-wrap:anywhere}
 .rows{margin-top:4px}
 .row{display:block;width:100%;min-height:52px;padding:8px 16px;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:12px;margin-top:8px}
@@ -303,7 +313,7 @@ dialog#scope{z-index:11;inset:auto 8px 12px;margin:0 auto;width:460px;max-height
 .row.danger{color:var(--danger)}
 .row:disabled{opacity:.45;cursor:default}
 #sc-note{margin:8px 0 0}
-dialog#menu{z-index:12;inset:56px 16px auto auto;margin:0;width:240px;max-width:calc(100% - 32px);padding:8px;border-radius:16px;box-shadow:0 12px 30px #132c3340}
+dialog#menu{z-index:12;inset:56px 16px auto auto;margin:0;width:240px;--pw:240px;max-width:calc(100% - 32px);max-height:none;padding:8px;border-radius:16px;box-shadow:0 12px 30px #132c3340}
 .menurows button{display:block;width:100%;text-align:left;min-height:44px}
 
 /* 検索 */
@@ -340,22 +350,65 @@ dialog#menu{z-index:12;inset:56px 16px auto auto;margin:0;width:240px;max-width:
 .pbody>.row{margin-top:0;margin-bottom:8px}
 .pbody>.row.cancel{margin-top:12px}
 
-/* 配置: 閉じた縦横は検索・バックアップが全画面、編集は外余白12px（横は中央幅480） */
-body[data-layout=home] dialog.panel,body[data-layout=browse] dialog.panel{inset:12px;margin:0;width:auto;max-width:none;max-height:calc(100% - 24px)}
-body[data-layout=home] dialog.full,body[data-layout=browse] dialog.full{inset:0;width:100%;height:100%;max-height:none;border-radius:0;border:0;box-shadow:none}
-@media (orientation:landscape){
- body[data-layout=home] dialog#editor,body[data-layout=browse] dialog#editor{inset:12px 0;margin:0 auto;width:480px}
-}
-/* 開いた縦 626×890: 中央幅520・高さ最大858 */
-body[data-posture=portrait] dialog.panel{width:520px;max-height:calc(100% - 32px)}
-body[data-posture=portrait] dialog.full{height:calc(100% - 32px)}
-/* 開いた横 890×626: 右ページ x=465–864・幅399・y=24–602。ガターに影を描かない */
-body[data-layout=spread] dialog.panel{inset:24px 26px auto auto;margin:0;width:399px;max-width:399px;max-height:578px;box-shadow:none}
-body[data-layout=spread] dialog.full{height:578px}
-body[data-layout=spread] dialog#scope,body[data-layout=spread] dialog#confirm{inset:auto 26px 24px auto;margin:0;width:399px;max-width:399px;box-shadow:none}
-body[data-layout=spread] dialog#menu{inset:56px auto auto 24px;box-shadow:0 12px 30px #132c3340}
-/* ハーフフォールド: 下ペインのみ（保護帯24pxを避ける） */
-body[data-layout=desk] dialog.panel{inset:calc(50% + 20px) 16px 8px 16px;margin:0;width:auto;max-width:none;height:auto;max-height:calc(50% - 28px)}
-body[data-layout=desk] dialog.full{height:calc(50% - 28px)}
+/* 配置（R = 可視範囲 ∩ 安全矩形）。閉じた縦: 幅最大442・横: 幅480。開いた縦: 幅520・余白16。 */
+@media (orientation:portrait){ dialog{--pw:442px} }
+@media (orientation:landscape){ dialog{--pw:480px} }
+dialog#confirm,dialog#scope,dialog#xretry{--pw:460px;left:calc(var(--rl) + 12px);right:calc(var(--rr) + 12px);max-height:calc(100% - var(--rt) - var(--rb) - 24px)}
+/* 検索・バックアップ・連携設定（dialog.full）: 閉じた画面では可視範囲 V 全体に紙色、操作は R の内側 */
+body[data-layout=home] dialog.full,body[data-layout=browse] dialog.full{top:var(--vy);bottom:var(--vb);left:0;right:0;margin:0;width:100%;max-width:none;height:auto;max-height:none;border-radius:0;border:0;box-shadow:none;
+ padding:max(0px,calc(var(--sat) - var(--vy))) var(--sar) max(0px,calc(var(--sab) - var(--vb))) var(--sal)}
+body[data-layout=home] dialog.full .phead,body[data-layout=browse] dialog.full .phead{margin-top:12px;padding:0 16px}
+/* 開いた縦 626×890: 中央幅520・余白16。全画面にはしない */
+body[data-posture=portrait] dialog{--pw:520px;--m:16px}
+body[data-posture=portrait] dialog#confirm,body[data-posture=portrait] dialog#scope,body[data-posture=portrait] dialog#xretry{--pw:520px}
+body[data-posture=portrait] dialog.full{height:calc(100% - var(--rt) - var(--rb) - 2 * var(--m))}
+/* 開いた横 890×626: 右ページ x=465–864（左端は 50%+20px）・y=24–602。ガターに影を描かない */
+body[data-layout=spread] dialog{--pt:max(24px,calc(var(--rt) + 12px));--pb:max(24px,calc(var(--rb) + 12px));--pr:max(26px,calc(var(--rr) + 12px));
+ top:var(--pt);bottom:var(--pb);left:calc(50% + 20px);right:var(--pr);margin:0;width:auto;--pw:399px;max-width:399px;max-height:min(578px,calc(100% - var(--pt) - var(--pb)));box-shadow:none}
+body[data-layout=spread] dialog.full{height:min(578px,calc(100% - var(--pt) - var(--pb)))}
+body[data-layout=spread] dialog#scope,body[data-layout=spread] dialog#confirm,body[data-layout=spread] dialog#xretry{top:auto;bottom:var(--pb);max-height:min(578px,calc(100% - var(--pt) - var(--pb)))}
+body[data-layout=spread] dialog#menu{inset:56px auto auto 24px;width:240px;max-width:240px;max-height:none;box-shadow:0 12px 30px #132c3340}
+/* ハーフフォールド: 下ペインのみ（保護帯の下、左右16、下12） */
+body[data-layout=desk] dialog{--dt:max(calc(50% + 20px),calc(var(--rt) + 12px));--db:calc(var(--rb) + 12px);
+ top:var(--dt);bottom:var(--db);left:calc(var(--rl) + 16px);right:calc(var(--rr) + 16px);margin:0;width:auto;max-width:none;max-height:calc(100% - var(--dt) - var(--db))}
+body[data-layout=desk] dialog.full{height:calc(100% - var(--dt) - var(--db))}
+body[data-layout=desk] dialog#scope,body[data-layout=desk] dialog#confirm,body[data-layout=desk] dialog#xretry{top:auto;overflow:auto}
+body[data-layout=desk] dialog#menu{inset:56px 16px auto auto;width:240px;max-width:240px;max-height:none}
 body[data-layout=desk] .formhead,body[data-layout=desk] .phead{height:44px;min-height:44px}
-body[data-layout=desk] dialog#scope,body[data-layout=desk] dialog#confirm{inset:auto 16px 8px;width:auto;max-width:none;max-height:calc(50% - 28px);overflow:auto}
+html[data-kb] body[data-layout=spread] dialog,html[data-kb] body[data-layout=desk] dialog{margin:0}
+
+/* 44px 以上の操作 */
+.formhead button,.phead button{min-width:44px;min-height:44px}
+
+/* ===== 第7版: iPhone カレンダー連携 ===== */
+.ext{--cat:#68716a;--tint:var(--paper)}
+.chip.ext,.bar.ext,.strip.ext{color:var(--ink);background:var(--paper);border-left:3px solid var(--cat)}
+.chip.ext{padding-left:2px}
+.xi{display:inline-block;width:14px;margin-right:0;font-size:10px;line-height:inherit;text-align:center;color:var(--muted)}
+.event.ext .tag,.hit.ext .hmeta{color:var(--muted)}
+.xlegend{flex:none;padding:0 0 2px;font-size:11px}
+.sfield+.small,#sr-xrange{margin:2px 0 0}
+.lkintro{margin:8px 0}
+.swrow{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;font-size:18px}
+.sw{display:inline-flex;align-items:center;gap:8px;min-width:96px;min-height:44px;padding:4px 12px 4px 6px;border:1px solid var(--line);border-radius:22px;background:var(--card)}
+.sw .knob{width:28px;height:28px;border-radius:50%;background:#b9bdb3}
+.sw[aria-checked=true]{background:var(--green);color:#fff}.sw[aria-checked=true] .knob{background:#fff;order:2}
+.calgroup h3{font-size:15px;color:var(--muted)}
+.calrow{display:flex;align-items:center;gap:10px;min-height:44px;margin:0;font-size:16px}
+.calrow input{width:22px;min-height:22px;flex:none;margin:0}
+.cdot{display:inline-block;width:8px;height:8px;border-radius:50%;flex:none}
+.cname{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.calrow small{flex:none;color:var(--muted);font-size:12px}
+.lkfoot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;font-size:14px}
+.lkfoot button{border:1px solid var(--line);background:var(--card);flex:none}
+.xdt{font-size:20px;font-weight:500;margin:4px 0;overflow-wrap:anywhere}
+.xdcal{margin:0 0 8px;display:flex;align-items:center;gap:8px;color:var(--muted)}
+.notes{white-space:pre-wrap}
+.pfoot{flex:none;padding:8px 16px;border-top:1px solid var(--line)}
+.pfoot .error{margin:0 0 4px;min-height:0}
+.pfoot .small{margin:6px 0 0}
+.wide{width:100%}
+.xadd{margin-top:12px}.xadd .small{margin:4px 0 0}
+dialog#xretry p{overflow-wrap:anywhere}
+/* 入力文字は 16px 以上（textarea などの font ショートハンドで戻らないよう最後に指定） */
+input,select,textarea,.date-text{font-size:16px}
