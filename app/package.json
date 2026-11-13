@@ -7,9 +7,16 @@
   "scripts": {
     "start": "node server.mjs",
     "icons": "node scripts/make-icons.mjs",
-    "test": "playwright test"
+    "test": "playwright test",
+    "build:www": "node scripts/build-www.mjs",
+    "ios": "npm run build:www && npx cap sync ios"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0"
+  },
+  "dependencies": {
+    "@capacitor/cli": "^8.6.2",
+    "@capacitor/core": "^8.6.2",
+    "@capacitor/ios": "^8.6.2"
   }
 }

@@ -1,0 +1,361 @@
+:root{--paper:#f7f4ed;--card:#fffdfa;--ink:#293b35;--muted:#68716a;--line:#dddcd3;--green:#294e42;--focus:#a77538;
+ --work:#375a7f;--work-t:#eaf0f7;--private:#885265;--private-t:#f7eaf0;--golf:#396b49;--golf-t:#eaf3e9;--economy:#825a23;--economy-t:#f7eedc;--danger:#963e38}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;background:var(--paper);color:var(--ink);overflow:hidden;
+ font:16px/1.5 -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN','Hiragino Sans',sans-serif;-webkit-text-size-adjust:100%}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:transparent;min-height:44px;border-radius:10px;padding:6px 12px;touch-action:manipulation}
+button:hover{background:#e6e9df}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+button[aria-pressed=true]{background:var(--green);color:#fff}
+.work{--cat:var(--work);--tint:var(--work-t)}.private{--cat:var(--private);--tint:var(--private-t)}
+.golf{--cat:var(--golf);--tint:var(--golf-t)}.economy{--cat:var(--economy);--tint:var(--economy-t)}
+.small{font-size:12px;color:var(--muted)}.eyebrow{font-size:11px;letter-spacing:.12em;color:var(--muted)}
+.pad{padding:8px 0}
+
+#app{height:100vh;height:100dvh;display:flex;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+ background:radial-gradient(ellipse at top left,#ffffff80,transparent 60%),var(--paper)}
+#app[inert]{opacity:.55}
+.shell{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;gap:8px;padding:12px 16px}
+
+/* 共通ヘッダー（1行） */
+.top{display:flex;align-items:center;gap:8px;min-height:44px;flex:none}
+.brand{display:flex;align-items:baseline;gap:8px;margin-right:auto;white-space:nowrap}
+.logo{font:italic 28px/1 Georgia,'Hiragino Mincho ProN',serif;letter-spacing:-1px}
+.toolbar{display:flex;align-items:center;gap:6px}
+.segment{display:flex;padding:3px;background:#e9e9e1;border-radius:13px}
+.segment button{min-width:44px;padding:4px 10px}
+.today,.deskbtn{border:1px solid var(--line);background:var(--card);white-space:nowrap;padding:4px 12px}
+.deskbtn[aria-pressed=true]{background:var(--green)}
+.foot{flex:none}
+.add{width:100%;min-height:48px;background:var(--green);color:#fff;border-radius:15px}
+.add:hover{background:#386351}
+.ghost{border:1px solid var(--line);background:var(--card);margin-top:8px}
+
+/* カレンダー領域 */
+.calendar{display:flex;flex-direction:column;min-width:0;min-height:0}
+.chead{display:flex;align-items:center;gap:6px;flex:none;min-height:44px}
+.chead h2{font:24px/1.2 Georgia,'Hiragino Mincho ProN',serif;margin:0;white-space:nowrap}
+.arrows{display:flex}.arrows button{min-width:44px;padding:4px 8px;font-size:20px}
+.variant{display:flex;gap:4px;margin-left:auto}.variant button{font-size:12px;padding:4px 12px;min-height:36px}
+.scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
+.legend{display:flex;gap:4px 12px;flex-wrap:wrap;flex:none;padding:6px 0 2px;font-size:11px}
+.legend span:before{content:'';display:inline-block;background:var(--cat);width:6px;height:6px;border-radius:50%;margin-right:5px;vertical-align:middle}
+
+.weekdays{position:sticky;top:0;z-index:3;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));background:var(--paper);color:var(--muted);font-size:11px;text-align:center;padding-bottom:4px}
+.weekdays .sun{color:#9a4a45}.weekdays .sat{color:#3f6a8a}
+.week{position:relative;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--line)}
+.day{min-width:0;min-height:0;border-radius:0;padding:2px 1px;text-align:center;overflow:hidden;display:flex;flex-direction:column;align-items:center}
+.day.out{color:#9a9d96}
+.dhead{display:flex;align-items:center;justify-content:center;gap:2px;width:100%;flex:none}
+.num{display:inline-flex;width:30px;height:30px;border-radius:50%;align-items:center;justify-content:center;font-variant-numeric:tabular-nums}
+.day.today .num{box-shadow:inset 0 0 0 1px var(--green)}
+.day.selected .num{color:#fff;background:var(--green)}
+.week.simple{height:60px}
+.dots{display:flex;gap:3px;justify-content:center;height:8px;margin-top:2px}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--cat)}
+.week.named{height:88px}
+.named .day{padding:2px 1px 2px;align-items:stretch;border-right:1px solid #e5e3db}
+.named .day:last-child{border-right:0}
+.named .chips{margin-top:var(--reserve)}
+.named .dhead{justify-content:space-between;height:20px;padding:0 1px}
+.named .num{width:22px;height:20px;border-radius:10px;font-size:13px}
+.plus{font-size:10px;color:var(--muted);line-height:1}
+.chips{display:flex;flex-direction:column;min-height:0;overflow:hidden;gap:0}
+.chip{display:block;height:13px;background:var(--tint);color:var(--cat);font-size:10px;line-height:13px;border-radius:3px;padding:0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+.more{display:block;height:13px;font-size:10px;line-height:13px;color:var(--muted);text-align:left;padding:0 3px;white-space:nowrap;overflow:hidden}
+.bar{position:absolute;z-index:2;height:16px;min-height:16px;padding:0 4px;border-radius:4px;background:var(--tint);color:var(--cat);border-left:3px solid var(--cat);
+ font-size:10px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+
+/* 予定カード */
+.event{position:relative;display:grid;grid-template-columns:1fr auto;column-gap:8px;align-items:center;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 12px 8px 14px;margin-top:8px;min-height:60px}
+.event:hover{background:#f4f1e8}
+.event:before{content:'';position:absolute;left:0;top:12px;bottom:12px;width:3px;background:var(--cat);border-radius:2px}
+.event .clock{font-size:14px;line-height:20px;font-variant-numeric:tabular-nums}
+.event .tag{font-size:12px;color:var(--cat);text-align:right;line-height:20px}
+.event strong{grid-column:1/-1;font-size:16px;font-weight:500;line-height:22px;overflow-wrap:anywhere}
+.event .sub{grid-column:1/-1;font-size:12px;color:var(--muted);line-height:18px}
+.empty{padding:16px 4px;color:var(--muted)}.empty p{margin:0}
+.empty-row{font-size:12px;color:var(--muted);padding:6px 4px}
+
+/* 週・日 */
+.weekview{display:grid;gap:8px;padding-bottom:4px}
+.weekrow{border:1px solid var(--line);border-radius:12px;padding:6px 10px 10px;background:var(--card);min-width:0}
+.weekrow.today{box-shadow:inset 0 0 0 1px var(--green)}
+.weekrow.selected .wd{color:var(--green);font-weight:700}
+.wd{text-align:left;font-weight:600;width:100%;padding:4px 0}
+.weekrow .event{margin-top:4px;min-height:44px;grid-template-columns:auto 1fr;padding:6px 10px 6px 12px}
+.weekrow .event .clock{font-size:14px}.weekrow .event strong{grid-column:2;font-size:15px;line-height:22px}
+.weekview.cols{grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;align-items:start}
+.weekview.cols .weekrow{padding:2px 3px 6px}
+.weekview.cols .wd{font-size:12px;text-align:center;padding:2px 0;min-height:32px}
+.weekview.cols .event{display:block;padding:5px 4px 5px 7px;min-height:50px}
+.weekview.cols .event .clock{display:block;font-size:12px;line-height:18px;white-space:nowrap}
+.weekview.cols .event strong{display:block;font-size:12px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.weekview.cols .event:before{top:8px;bottom:8px}
+.weekview.cols .empty-row{text-align:center;padding:4px 0}
+.daylist{padding-bottom:4px}.daylist .event:first-child{margin-top:0}
+
+/* ホーム（閉じた初期） */
+.home .hero{flex:none;display:flex;flex-direction:column;gap:6px}
+.date{font:48px/1.1 Georgia,'Hiragino Mincho ProN',serif;letter-spacing:-2px}
+.date span{font:16px sans-serif;letter-spacing:0;margin-left:12px}
+.next{display:block;width:100%;text-align:left;background:var(--green);color:#fff;border-radius:16px;padding:10px 16px;min-height:0}
+.next:hover{background:#355f50}.next small{color:#d7e3d9;font-size:12px}
+.next strong{display:block;font-size:20px;line-height:1.3;font-weight:500}
+.next .time{font:26px Georgia,serif}.next .when{display:block}
+.next.none{cursor:default}.next.none:hover{background:var(--green)}
+.next.none .ghost{background:transparent;color:#fff;border-color:#ffffff66;margin-top:4px;min-height:40px}
+.remaining{flex:1;min-height:0;display:flex;flex-direction:column}
+.remaining h3{font-size:14px;margin:0 0 2px;flex:none;font-weight:600}
+.list{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding-bottom:4px}
+.remaining .event{margin-top:6px;min-height:44px;grid-template-columns:auto 1fr auto;padding:6px 12px 6px 14px}
+.remaining .event strong{grid-column:2;font-size:15px;grid-row:1;margin:0}.remaining .event .tag{grid-column:3;grid-row:1}
+.remaining .event .sub{display:none}
+.remaining .event:first-child{margin-top:2px}
+@media (orientation:landscape){
+ .home .hero{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:12px;align-items:center}
+ .date{font-size:40px}.date span{font-size:14px;margin-left:8px}
+ .shell{padding:8px 16px}
+ .add{min-height:44px}
+ .remaining .event{margin-top:4px}
+}
+
+/* 開いた縦 */
+.layout{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:16px}
+.layout.single{grid-template-columns:minmax(0,1fr)}
+.agenda{display:flex;flex-direction:column;min-height:0;min-width:0;border-left:1px solid var(--line);padding-left:14px}
+.agenda h3{font-size:20px;font-weight:500;margin:2px 0 0;line-height:1.5}
+.agenda .count{margin-bottom:2px}
+.agenda .event{margin-top:6px;min-height:0;padding:7px 10px 7px 14px}
+.agenda .event .sub{display:block}
+.open .week.simple{height:64px}
+
+/* ハーフフォールド（卓上） */
+.shell.desk{display:grid;grid-template-rows:calc(50% - 12px) 24px minmax(0,1fr);gap:0;padding:0}
+.desktop{display:flex;flex-direction:column;gap:4px;min-height:0;padding:8px 16px 0}
+.desktop .calendar{flex:1}
+.foldband{background:#e5e7dd;text-align:center;font-size:12px;line-height:24px;padding:0 12px;white-space:nowrap;overflow:hidden;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.deskbottom{display:flex;flex-direction:column;min-height:0;padding:4px 16px 8px;gap:6px}
+.deskbottom .agenda{flex:1;border:0;padding:0}
+.deskbottom .agenda .eyebrow{display:none}
+.deskbottom .agenda h3{font-size:18px}
+.deskbottom .agenda .event{display:grid;grid-template-columns:auto 1fr auto;min-height:44px;padding:6px 12px 6px 14px}
+.deskbottom .agenda .event strong{grid-column:2;grid-row:1}.deskbottom .agenda .event .tag{grid-column:3;grid-row:1}.deskbottom .agenda .event .sub{display:none}
+.deskbottom .add{min-height:44px}
+.desk .week.simple{height:44px}
+.desk .num{width:26px;height:26px;font-size:14px}
+.desk .named .num{width:22px;height:20px;font-size:13px}
+.desk .chead{min-height:36px}.desk .chead h2{font-size:20px}
+.desk .legend{padding:2px 0}
+.desk .variant button{min-height:32px}
+
+/* 見開き手帳（開いた横）: 中央 x=425〜465 は無描画ガター */
+.shell.spread{padding:12px 24px 16px;gap:12px}
+.spreadhead{display:grid;grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr);flex:none;min-height:44px}
+.spreadhead .half{display:flex;align-items:center;gap:4px;min-width:0}
+.spreadhead .half:first-child{gap:8px}
+.spreadhead .brand{margin-right:auto;gap:0}.spreadhead .brand .small{display:none}
+.spreadhead .segment button{padding:4px 8px;min-width:40px}
+.spreadhead .deskbtn{padding:4px 8px;font-size:13px}
+.stitle{font:18px/1.2 Georgia,'Hiragino Mincho ProN',serif;margin:0 auto 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.spreadhead .arrows button{min-width:32px;padding:4px 2px}
+.spreadhead .today{padding:4px 8px;font-size:13px}
+.add.mini{width:44px;min-height:44px;flex:none;border-radius:12px;font-size:24px;padding:0;margin-left:2px}
+.pages{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr)}
+.page{min-width:0;min-height:0;display:flex;flex-direction:column}
+.page.calendar{display:flex}
+.spread .agenda{border:0;padding:0}
+.spread .agenda .eyebrow{margin-bottom:0}
+.spread .agenda h3{font-size:18px}
+.spread .agenda .event{height:76px;min-height:76px;margin-top:8px;padding:6px 12px 6px 14px;align-content:center}
+.spread .agenda .event .sub{display:none}
+.spread .agenda .event .clock{font-size:14px}.spread .agenda .event strong{font-size:16px;line-height:24px}
+.spread .agenda .list{padding-bottom:0}
+.spread .agenda .event:first-child{margin-top:6px}
+.spread .variant{margin:0 0 6px;height:36px}
+.spread .week.simple{height:62px}
+.spread .weekpage{display:flex;flex-direction:column;gap:6px}
+.spread .weekrow{padding:2px 8px 6px}
+.spread .weekrow .wd{font-size:14px;min-height:28px;padding:0}
+.spread .weekrow .event{display:flex;gap:8px;align-items:baseline;min-height:32px;margin-top:3px;padding:2px 6px 2px 10px}
+.spread .weekrow .event .clock{font-size:12px;flex:none}
+.spread .weekrow .event strong{font-size:16px;line-height:22px}
+.spread .weekrow .event:before{top:6px;bottom:6px}
+.weeknotes{padding:8px 12px;border-top:1px solid var(--line);font-size:14px;color:var(--muted)}
+.margin{padding-top:8px}.margin h3{font:26px Georgia,'Hiragino Mincho ProN',serif;margin:4px 0}.margin p{color:var(--muted);margin:6px 0}
+.spread .legend{padding:6px 0 0;gap:4px 10px}
+
+/* 編集シート（非モーダル） */
+dialog{position:fixed;inset:8px;margin:auto;width:460px;max-width:calc(100% - 16px);height:fit-content;max-height:calc(100% - 16px);overflow:auto;z-index:10;
+ padding:18px 20px;border:1px solid var(--line);border-radius:22px;background:var(--card);color:var(--ink);box-shadow:0 0 0 100vmax #1a302d55,0 25px 70px #132c3340}
+dialog#confirm{z-index:11;inset:auto 8px 12px;margin:0 auto}
+dialog h2{font:24px/1.3 Georgia,'Hiragino Mincho ProN',serif;margin:0}
+.formhead,.actions{display:flex;align-items:center;justify-content:space-between;gap:8px}
+form label{display:block;margin-top:12px;font-size:13px}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+input,select{display:block;width:100%;min-height:44px;padding:8px 10px;background:#f5f3ec;border:1px solid var(--line);border-radius:10px}
+input[type=checkbox]{display:inline-block;width:20px;min-height:20px;vertical-align:middle;margin:0 8px 0 0}
+.check{min-height:32px}
+.actions{margin-top:12px}
+.primary{background:var(--green);color:#fff;padding:8px 28px}.primary:hover{background:#386351}
+.danger{color:var(--danger)}
+.error{color:var(--danger);font-size:13px;min-height:20px;margin:8px 0 0}
+#status{position:absolute;top:0;left:0;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+
+@media (max-width:520px){
+ .brand .small{display:none}
+ .segment button{padding:4px 8px}
+}
+.day[aria-pressed=true]{background:transparent;color:inherit}
+.day[aria-pressed=true]:hover,.day:hover{background:#ecebe2}
+.day.out[aria-pressed=true]{color:#9a9d96}
+.day.selected.out .num{color:#fff}
+.open .week.simple{height:76px}
+.date{line-height:1.3}
+.date-block .eyebrow{margin-bottom:4px}
+.spreadhead .segment button{min-height:38px}
+
+/* スワイプ面: 縦スクロールとピンチは許可し、横はスクリプトで判定。ガター・ヘッダー・追加は対象外 */
+.scroll,.scroll button,.agenda,.agenda button,.list,.list button,.remaining,.hero,.hero button,.page,.page button{touch-action:pan-y pinch-zoom}
+.agenda,.remaining,.hero,.page{overflow-x:clip}
+
+/* 開いた縦（626×890）: 上に全幅の月、下に選択日アジェンダ */
+.shell.portrait .layout,.shell.portrait .layout.single{display:flex;flex-direction:column;gap:8px}
+.portrait .calendar{flex:0 1 482px;min-height:0}
+.portrait .layout.single .calendar{flex:1 1 auto}
+.portrait .chead{height:44px;min-height:44px}
+.portrait .weekdays{height:26px;padding:0;line-height:26px}
+.portrait .legend{height:28px;padding:0;align-items:center;flex-wrap:nowrap;overflow:hidden}
+.portrait .week.pm{height:64px;border-top:0;box-shadow:inset 0 1px 0 var(--line)}
+.portrait .pm .day{position:relative;padding:0;align-items:stretch;border-right:1px solid #e5e3db}
+.portrait .pm .day:last-child{border-right:0}
+.portrait .pm .dhead{justify-content:flex-start;height:20px;padding:0 3px}
+.portrait .pm .num{width:22px;height:20px;border-radius:10px;font-size:13px}
+.portrait .pm .plus{position:absolute;right:4px;bottom:0;height:8px;font-size:9px;line-height:8px}
+.pm .bar,.strip{position:absolute;z-index:2;height:16px;min-height:16px;padding:0 4px;border-radius:4px;background:var(--tint);color:var(--cat);
+ font-size:12px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+.pm .bar{border-left:3px solid var(--cat)}
+.pm .bar:hover,.strip:hover{background:var(--tint);filter:brightness(.95)}
+.portrait .agenda{flex:1 0 226px;border-left:0;border-top:1px solid var(--line);padding:8px 0 0;display:grid;grid-template-columns:minmax(0,1fr) auto;
+ grid-template-rows:36px minmax(0,1fr);column-gap:8px;align-items:center}
+.portrait .agenda .eyebrow{display:none}
+.portrait .agenda h3{margin:0;font-size:20px;line-height:36px}
+.portrait .agenda .count{margin:0}
+.portrait .agenda .list{grid-column:1/-1;align-self:stretch;min-height:0}
+.portrait .agenda .event{margin-top:0;margin-bottom:6px;min-height:54px;padding:6px 12px 6px 14px}
+.portrait .agenda .event .clock,.portrait .agenda .event .tag{line-height:18px}
+.portrait .agenda .event .sub{display:none}
+.portrait .foot{display:flex;justify-content:flex-end;padding:0 4px}
+.portrait .add{width:auto;min-height:44px;padding:0 20px}
+
+/* 開いた縦の週: 1日1ブロックの縦リスト（左に日付、右に時刻＋全文タイトル） */
+.vlist .weekrow{display:grid;grid-template-columns:100px minmax(0,1fr);column-gap:12px;padding:8px 12px;align-items:start}
+.vlist .wd{font-size:15px;min-height:44px;padding:0;display:flex;align-items:center}
+.vlist .wevents{display:flex;flex-direction:column;gap:8px;min-width:0}
+.vlist .weekrow .event{margin-top:0;min-height:44px;padding:8px 12px 8px 14px;grid-template-columns:46px minmax(0,1fr);column-gap:12px}
+.vlist .weekrow .event:before{top:8px;bottom:8px}
+.vlist .weekrow .event .clock{font-size:14px;line-height:24px;white-space:nowrap}
+.vlist .weekrow .event strong{grid-column:2;font-size:16px;line-height:24px;white-space:normal;overflow-wrap:anywhere}
+.vlist .empty-row{padding:0;min-height:44px;display:flex;align-items:center}
+.shell.browse>.calendar{flex:1 1 auto}
+
+/* ===== 第6版: 繰り返し・検索・バックアップ ===== */
+.iconbtn{flex:none;width:44px;min-width:44px;height:44px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:22px;line-height:1;border-radius:12px}
+.rep{display:inline-block;width:14px;margin-right:4px;font:400 14px/1 sans-serif;text-align:center;vertical-align:baseline}
+.chip .rep,.bar .rep,.strip .rep,.weekview.cols .rep{width:14px;margin-right:0;font-size:12px}
+.next .nd{display:block;font:13px/1.4 -apple-system,sans-serif;color:#d7e3d9}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+mark{background:#E7EBDD;color:inherit;font-weight:inherit;border-radius:2px}
+@media (max-width:520px){
+ .top{flex-wrap:wrap;row-gap:8px}
+ .toolbar{order:3;flex:1 0 100%;justify-content:space-between}
+}
+
+/* パネル共通（編集・検索・バックアップ）: ヘッダー56・本文可変・フッター60 */
+dialog.panel{padding:0;overflow:hidden}
+dialog.panel[open]{display:flex;flex-direction:column}
+#form{display:flex;flex-direction:column;min-height:0;flex:1}
+.formhead,.phead{display:flex;align-items:center;justify-content:space-between;gap:8px;height:56px;min-height:56px;flex:none;padding:0 12px 0 20px;border-bottom:1px solid var(--line)}
+.phead h2,.formhead h2{font-size:22px}
+.fbody{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:0 20px 12px}
+.factions{flex:none;padding:8px 20px;border-top:1px solid var(--line)}
+.factions .actions{margin-top:0}
+.factions .error{margin:0 0 4px;min-height:0}
+.error:empty{display:none}
+textarea{display:block;width:100%;min-height:80px;padding:8px 10px;background:#f5f3ec;border:1px solid var(--line);border-radius:10px;font:inherit;line-height:24px;resize:vertical}
+.repeat{margin-top:12px;border-top:1px solid var(--line)}
+.rtoggle{display:flex;align-items:center;gap:6px;width:100%;text-align:left;border-radius:0;padding:6px 0}
+.lbl{display:block;margin-top:12px;font-size:13px}
+.days{display:flex;gap:4px;margin-top:4px}
+.dow{width:44px;min-width:44px;padding:0;border:1px solid var(--line);background:var(--card)}
+#rdesc{margin:6px 0 0}
+#rpanel .error{margin:8px 0 0}
+
+/* 範囲シート・メニュー */
+dialog#scope{z-index:11;inset:auto 8px 12px;margin:0 auto;width:460px;max-height:calc(100% - 24px)}
+#sc-target{margin:6px 0 0;overflow-wrap:anywhere}
+.rows{margin-top:4px}
+.row{display:block;width:100%;min-height:52px;padding:8px 16px;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:12px;margin-top:8px}
+.row small{display:block;font-size:12px;line-height:18px;color:var(--muted);overflow-wrap:anywhere}
+.row.cancel{margin-top:12px;text-align:center}
+.row.danger{color:var(--danger)}
+.row:disabled{opacity:.45;cursor:default}
+#sc-note{margin:8px 0 0}
+dialog#menu{z-index:12;inset:56px 16px auto auto;margin:0;width:240px;max-width:calc(100% - 32px);padding:8px;border-radius:16px;box-shadow:0 12px 30px #132c3340}
+.menurows button{display:block;width:100%;text-align:left;min-height:44px}
+
+/* 検索 */
+.sbar{flex:none;padding:8px 16px;border-bottom:1px solid var(--line)}
+.sfield{position:relative}
+.sfield input{padding-right:48px}
+#sr-clear{position:absolute;right:0;top:0;width:44px;padding:0;font-size:22px;line-height:1}
+#sr-range{margin:6px 0 0}
+.pbody{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:8px 16px 16px}
+.smsg{color:var(--muted);padding:16px 4px;margin:0}
+.hcount{margin:8px 0 0}
+.hgroup h3{font-size:16px;font-weight:500;margin:16px 0 4px}
+.hit{display:block;width:100%;min-height:88px;padding:12px 12px 12px 16px;text-align:left;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--cat);border-radius:12px;margin-top:8px}
+.hit:hover{background:#f4f1e8}
+.hit>*{display:block}
+.hmeta{font-size:14px;line-height:20px;color:var(--cat)}
+.hit strong{font-weight:400;font-size:16px;line-height:24px;overflow-wrap:anywhere}
+.hplace{font-size:14px;line-height:20px;color:var(--muted);overflow-wrap:anywhere}
+.hnote{font-size:13px;line-height:20px;color:var(--muted);overflow-wrap:anywhere}
+
+/* バックアップ */
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
+.card h3{margin:0 0 8px;font-size:18px;font-weight:500;line-height:1.4}
+.card p{margin:0 0 12px}
+.card .small{font-size:14px}
+.card>button:not(.row){display:block;width:100%;border:1px solid var(--line);background:var(--card);margin-bottom:12px}
+.card>button.solid{background:var(--green);color:#fff;border-color:var(--green)}
+.berr{color:var(--danger)}
+.bmsg{color:var(--green)}
+.facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;margin:0 0 8px;font-size:14px}
+.facts dt{color:var(--muted)}.facts dd{margin:0;overflow-wrap:anywhere}
+.pair2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dangerfill{background:#873B35;color:#fff}.dangerfill:hover{background:#963E38}
+.pbody>.row{margin-top:0;margin-bottom:8px}
+.pbody>.row.cancel{margin-top:12px}
+
+/* 配置: 閉じた縦横は検索・バックアップが全画面、編集は外余白12px（横は中央幅480） */
+body[data-layout=home] dialog.panel,body[data-layout=browse] dialog.panel{inset:12px;margin:0;width:auto;max-width:none;max-height:calc(100% - 24px)}
+body[data-layout=home] dialog.full,body[data-layout=browse] dialog.full{inset:0;width:100%;height:100%;max-height:none;border-radius:0;border:0;box-shadow:none}
+@media (orientation:landscape){
+ body[data-layout=home] dialog#editor,body[data-layout=browse] dialog#editor{inset:12px 0;margin:0 auto;width:480px}
+}
+/* 開いた縦 626×890: 中央幅520・高さ最大858 */
+body[data-posture=portrait] dialog.panel{width:520px;max-height:calc(100% - 32px)}
+body[data-posture=portrait] dialog.full{height:calc(100% - 32px)}
+/* 開いた横 890×626: 右ページ x=465–864・幅399・y=24–602。ガターに影を描かない */
+body[data-layout=spread] dialog.panel{inset:24px 26px auto auto;margin:0;width:399px;max-width:399px;max-height:578px;box-shadow:none}
+body[data-layout=spread] dialog.full{height:578px}
+body[data-layout=spread] dialog#scope,body[data-layout=spread] dialog#confirm{inset:auto 26px 24px auto;margin:0;width:399px;max-width:399px;box-shadow:none}
+body[data-layout=spread] dialog#menu{inset:56px auto auto 24px;box-shadow:0 12px 30px #132c3340}
+/* ハーフフォールド: 下ペインのみ（保護帯24pxを避ける） */
+body[data-layout=desk] dialog.panel{inset:calc(50% + 20px) 16px 8px 16px;margin:0;width:auto;max-width:none;height:auto;max-height:calc(50% - 28px)}
+body[data-layout=desk] dialog.full{height:calc(50% - 28px)}
+body[data-layout=desk] .formhead,body[data-layout=desk] .phead{height:44px;min-height:44px}
+body[data-layout=desk] dialog#scope,body[data-layout=desk] dialog#confirm{inset:auto 16px 8px;width:auto;max-width:none;max-height:calc(50% - 28px);overflow:auto}

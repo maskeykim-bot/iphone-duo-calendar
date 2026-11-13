@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Duo — ひらく、毎日。</title>
+<meta name="description" content="紙の手帳の静けさで、予定にすぐ届くカレンダー。">
+<meta name="theme-color" content="#f7f4ed">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Duo">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app"></div>
+
+<dialog id="editor" class="panel" aria-labelledby="edtitle">
+  <form id="form" novalidate autocomplete="off">
+    <div class="formhead"><h2 id="edtitle">予定を追加</h2><button type="button" id="close" aria-label="閉じる">✕</button></div>
+    <div class="fbody">
+      <label>予定名<input id="f-title" name="title" maxlength="80" placeholder="例：プロジェクト定例" required></label>
+      <label>カテゴリ<select id="f-cat" name="cat"><option value="work">仕事</option><option value="private">プライベート</option><option value="golf">ゴルフ</option><option value="economy">経済指標</option></select></label>
+      <label class="check"><input id="f-all" name="all" type="checkbox">終日</label>
+      <div class="pair">
+        <label>開始<input id="f-start" name="start" class="date-text" inputmode="numeric" placeholder="2026/11/12 10:00"></label>
+        <label>終了<input id="f-end" name="end" class="date-text" inputmode="numeric" placeholder="2026/11/12 11:00"></label>
+      </div>
+      <div class="repeat">
+        <button type="button" id="rtoggle" class="rtoggle" aria-expanded="false" aria-controls="rpanel"><span class="tri" aria-hidden="true">▸</span> 繰り返し · <span id="rsum">なし</span></button>
+        <div id="rpanel" hidden>
+          <label>頻度<select id="f-rfreq"><option value="none">なし</option><option value="daily">毎日</option><option value="weekly">毎週</option><option value="monthly">毎月</option><option value="yearly">毎年</option></select></label>
+          <p id="rdesc" class="small"></p>
+          <div id="rdays-wrap" hidden>
+            <span id="rdays-l" class="lbl">曜日（複数選択）</span>
+            <div class="days" role="group" aria-labelledby="rdays-l">
+              <button type="button" class="dow" data-dow="0" aria-pressed="false">日</button><button type="button" class="dow" data-dow="1" aria-pressed="false">月</button><button type="button" class="dow" data-dow="2" aria-pressed="false">火</button><button type="button" class="dow" data-dow="3" aria-pressed="false">水</button><button type="button" class="dow" data-dow="4" aria-pressed="false">木</button><button type="button" class="dow" data-dow="5" aria-pressed="false">金</button><button type="button" class="dow" data-dow="6" aria-pressed="false">土</button>
+            </div>
+          </div>
+          <div id="rend-wrap" hidden>
+            <label>終了<select id="f-rend"><option value="none">なし</option><option value="count">回数</option><option value="until">終了日</option></select></label>
+            <label id="rcount-l" hidden>回数（1〜9999）<input id="f-rcount" inputmode="numeric" value="10"></label>
+            <label id="runtil-l" hidden>終了日<input id="f-runtil" class="date-text" inputmode="numeric" placeholder="2026/12/31"></label>
+          </div>
+          <p id="rerror" class="error" role="alert"></p>
+        </div>
+      </div>
+      <label>場所<input id="f-place" name="place" maxlength="200" placeholder="場所を追加"></label>
+      <label>メモ<textarea id="f-notes" name="notes" maxlength="4000" rows="3" placeholder="メモを追加"></textarea></label>
+    </div>
+    <div class="factions">
+      <p id="error" class="error" role="alert"></p>
+      <div class="actions"><button type="button" id="delete" class="danger">予定を削除</button><button class="primary" type="submit">保存</button></div>
+    </div>
+  </form>
+</dialog>
+<dialog id="confirm" aria-labelledby="confirmtitle">
+  <h2 id="confirmtitle">この予定を削除しますか？</h2>
+  <p id="deletetitle"></p>
+  <div class="actions"><button type="button" id="canceldelete">キャンセル</button><button type="button" class="danger" id="dodelete">削除する</button></div>
+</dialog>
+<dialog id="scope" aria-labelledby="sc-title">
+  <h2 id="sc-title">変更する範囲</h2>
+  <p id="sc-target" class="small"></p>
+  <div class="rows">
+    <button type="button" class="row" data-scope="only">この予定のみ</button>
+    <button type="button" class="row" data-scope="following">これ以降すべて</button>
+    <button type="button" class="row" data-scope="all">すべて</button>
+  </div>
+  <p id="sc-note" class="small"></p>
+  <button type="button" id="sc-cancel" class="row cancel">キャンセル</button>
+</dialog>
+<dialog id="menu" aria-label="その他のメニュー">
+  <div class="menurows">
+    <button type="button" data-m="backup">バックアップ</button>
+    <button type="button" data-m="desk" id="m-desk">卓上表示</button>
+    <button type="button" data-m="sample" id="m-sample">サンプルを入れる</button>
+    <button type="button" data-m="close">閉じる</button>
+  </div>
+</dialog>
+<dialog id="search" class="panel full" aria-labelledby="sr-title">
+  <div class="phead"><h2 id="sr-title">予定を検索</h2><button type="button" id="sr-close">閉じる</button></div>
+  <div class="sbar">
+    <div class="sfield"><label for="sr-q" class="vh">検索語</label><input id="sr-q" type="text" enterkeyhint="search" placeholder="予定名・メモ・場所" autocomplete="off"><button type="button" id="sr-clear" aria-label="検索語をクリア" hidden>×</button></div>
+    <p id="sr-range" class="small"></p>
+  </div>
+  <div id="sr-body" class="pbody"></div>
+</dialog>
+<dialog id="backup" class="panel full" aria-labelledby="bk-title">
+  <div class="phead"><h2 id="bk-title">バックアップ</h2><button type="button" id="bk-close">閉じる</button></div>
+  <div id="bk-body" class="pbody"></div>
+  <input id="bk-file" type="file" accept="application/json,.json" hidden>
+</dialog>
+<div id="status" role="status" aria-live="polite"></div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

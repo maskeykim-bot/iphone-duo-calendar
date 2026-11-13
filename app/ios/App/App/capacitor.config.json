@@ -1,0 +1,10 @@
+{
+	"appId": "com.maskeykim.duocalendar",
+	"appName": "Duo カレンダー",
+	"webDir": "www",
+	"ios": {
+		"contentInset": "never",
+		"backgroundColor": "#f7f4ed"
+	},
+	"packageClassList": []
+}

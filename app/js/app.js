@@ -853,6 +853,6 @@ async function boot() {
   document.documentElement.dataset.ready = '1';
 }
 boot();
-if ('serviceWorker' in navigator && location.protocol !== 'file:' && !params.has('nosw')) {
+if ('serviceWorker' in navigator && location.protocol !== 'file:' && location.protocol !== 'capacitor:' && !(window.Capacitor?.isNativePlatform?.()) && !params.has('nosw')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
