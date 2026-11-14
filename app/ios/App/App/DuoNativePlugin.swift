@@ -2,11 +2,12 @@ import Foundation
 import Capacitor
 import EventKit
 import UIKit
+import UserNotifications
 
 /// iPhone のカレンダー（EventKit）と共有シートを JS へ橋渡しするプラグイン。
 /// 契約は design/DESIGN.md 第7版 §7。予定のタイトル・メモなどはログへ出さない。
 @objc(DuoNativePlugin)
-public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin {
+public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerProtocol {
     public let identifier = "DuoNativePlugin"
     public let jsName = "DuoNative"
     public let pluginMethods: [CAPPluginMethod] = [
@@ -17,13 +18,24 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "listEvents", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "createEvent", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "openInCalendar", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "shareFile", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "shareFile", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "notifyStatus", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "requestNotifyPermission", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "notifySync", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "notifyClear", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "notifyTest", returnType: CAPPluginReturnPromise)
     ]
 
     private let store = EKEventStore()
     // EventKit の処理は直列化する（UIKit の処理は main）。
     private let queue = DispatchQueue(label: "app.duo.calendar.eventkit")
     private var storeObserver: NSObjectProtocol?
+    // 通知の予約は専用の直列キューで、完了まで次の処理を進めない。
+    private let notifyQueue = DispatchQueue(label: "app.duo.calendar.notify")
+    private var timeObservers: [NSObjectProtocol] = []
+    private static let notifyPrefix = "duo."
+    private static let notifyTestId = "duo.test"
+    private static let notifyMax = 60
 
     private static let createdKey = "duo.native.created.v1"
     private static let urlPrefix = "duo-calendar://created/"
@@ -39,11 +51,26 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin {
             // 通知に予定の内容は載せない。
             self?.notifyListeners("calendarChanged", data: [:])
         }
+        // ローカル通知のタップ・前面表示は Capacitor の router 経由で受ける（delegate は増やさない）。
+        bridge?.notificationRouter.localNotificationHandler = self
+        let nc = NotificationCenter.default
+        timeObservers = [
+            nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil) { [weak self] _ in
+                self?.notifyListeners("timeChanged", data: ["reason": "timeZone"])
+            },
+            nc.addObserver(forName: UIApplication.significantTimeChangeNotification, object: nil, queue: nil) { [weak self] _ in
+                self?.notifyListeners("timeChanged", data: ["reason": "significant"])
+            }
+        ]
     }
 
     deinit {
         if let observer = storeObserver {
             NotificationCenter.default.removeObserver(observer)
+        }
+        for o in timeObservers { NotificationCenter.default.removeObserver(o) }
+        if bridge?.notificationRouter.localNotificationHandler === self {
+            bridge?.notificationRouter.localNotificationHandler = nil
         }
     }
 
@@ -385,6 +412,183 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin {
                 call.resolve(["opened": ok])
             }
         }
+    }
+
+    // MARK: - ローカル通知（本文はログ・保存へ出さない）
+
+    private func notifyStatusString(_ s: UNAuthorizationStatus) -> String {
+        switch s {
+        case .notDetermined: return "notDetermined"
+        case .authorized: return "granted"
+        case .provisional: return "provisional"
+        case .ephemeral: return "ephemeral"
+        default: return "denied"
+        }
+    }
+
+    private func notifyAllowed(_ s: UNAuthorizationStatus) -> Bool {
+        return s == .authorized || s == .provisional || s == .ephemeral
+    }
+
+    @objc func notifyStatus(_ call: CAPPluginCall) {
+        UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
+            guard let self = self else { return }
+            call.resolve(["status": self.notifyStatusString(settings.authorizationStatus)])
+        }
+    }
+
+    @objc func requestNotifyPermission(_ call: CAPPluginCall) {
+        let center = UNUserNotificationCenter.current()
+        center.getNotificationSettings { [weak self] settings in
+            guard let self = self else { return }
+            guard settings.authorizationStatus == .notDetermined else {
+                call.resolve(["status": self.notifyStatusString(settings.authorizationStatus)])
+                return
+            }
+            center.requestAuthorization(options: [.alert, .sound]) { _, _ in
+                center.getNotificationSettings { after in
+                    call.resolve(["status": self.notifyStatusString(after.authorizationStatus)])
+                }
+            }
+        }
+    }
+
+    /// duo. で始まる id（keepTest が false なら duo.test も）の pending を集める。
+    private func duoPendingIds(_ center: UNUserNotificationCenter, includeTest: Bool, _ done: @escaping ([String]) -> Void) {
+        center.getPendingNotificationRequests { reqs in
+            done(reqs.map { $0.identifier }.filter {
+                $0.hasPrefix(DuoNativePlugin.notifyPrefix) && (includeTest || $0 != DuoNativePlugin.notifyTestId)
+            })
+        }
+    }
+
+    @objc func notifySync(_ call: CAPPluginCall) {
+        // 全件を先に検証する。1件でも不正なら何も変えない。
+        guard let raw = call.getArray("items") as? [[String: Any]], raw.count <= DuoNativePlugin.notifyMax else {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        struct Item { let id: String; let title: String; let body: String; let fire: String; let thread: String; let day: String; let eventId: String }
+        var items: [Item] = []
+        var seen = Set<String>()
+        for o in raw {
+            guard let id = o["id"] as? String, id.hasPrefix(DuoNativePlugin.notifyPrefix), id != DuoNativePlugin.notifyTestId, !seen.contains(id),
+                  let title = o["title"] as? String, let body = o["body"] as? String,
+                  let fire = o["fireDate"] as? String,
+                  let thread = o["thread"] as? String, let day = o["day"] as? String,
+                  let eventId = o["eventId"] as? String else {
+                call.reject("invalid arguments", "INVALID_ARGUMENT")
+                return
+            }
+            seen.insert(id)
+            items.append(Item(id: id, title: title, body: body, fire: fire, thread: thread, day: day, eventId: eventId))
+        }
+        notifyQueue.async { [weak self] in
+            guard let self = self else { return }
+            // add / remove は非同期なので、セマフォで完了を待ってからキューを進める。
+            let finished = DispatchSemaphore(value: 0)
+            let center = UNUserNotificationCenter.current()
+            center.getNotificationSettings { settings in
+                guard self.notifyAllowed(settings.authorizationStatus) else {
+                    call.reject("notification permission is not granted", "PERMISSION_DENIED")
+                    finished.signal()
+                    return
+                }
+                self.duoPendingIds(center, includeTest: false) { old in
+                    center.removePendingNotificationRequests(withIdentifiers: old)
+                    let f = self.makeFormatter()
+                    let cal = self.makeCalendar()
+                    let now = Date()
+                    var skipped = 0
+                    var scheduled = 0
+                    let group = DispatchGroup()
+                    let lock = NSLock()
+                    for it in items {
+                        guard let date = self.parse(it.fire, f), date > now else { skipped += 1; continue }
+                        let content = UNMutableNotificationContent()
+                        content.title = it.title
+                        content.body = it.body
+                        content.sound = .default
+                        content.threadIdentifier = it.thread
+                        content.userInfo = ["day": it.day, "eventId": it.eventId]
+                        let comps = cal.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+                        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+                        let req = UNNotificationRequest(identifier: it.id, content: content, trigger: trigger)
+                        group.enter()
+                        center.add(req) { error in
+                            lock.lock()
+                            if error == nil { scheduled += 1 } else { skipped += 1 }
+                            lock.unlock()
+                            group.leave()
+                        }
+                    }
+                    group.notify(queue: DispatchQueue.global()) {
+                        call.resolve(["scheduled": scheduled, "removed": old.count, "skipped": skipped])
+                        finished.signal()
+                    }
+                }
+            }
+            finished.wait()
+        }
+    }
+
+    @objc func notifyClear(_ call: CAPPluginCall) {
+        notifyQueue.async {
+            let finished = DispatchSemaphore(value: 0)
+            let center = UNUserNotificationCenter.current()
+            self.duoPendingIds(center, includeTest: true) { pending in
+                center.removePendingNotificationRequests(withIdentifiers: pending)
+                center.getDeliveredNotifications { delivered in
+                    let ids = delivered.map { $0.request.identifier }.filter { $0.hasPrefix(DuoNativePlugin.notifyPrefix) }
+                    center.removeDeliveredNotifications(withIdentifiers: ids)
+                    call.resolve(["removed": pending.count + ids.count])
+                    finished.signal()
+                }
+            }
+            finished.wait()
+        }
+    }
+
+    @objc func notifyTest(_ call: CAPPluginCall) {
+        notifyQueue.async { [weak self] in
+            guard let self = self else { return }
+            let finished = DispatchSemaphore(value: 0)
+            let center = UNUserNotificationCenter.current()
+            center.getNotificationSettings { settings in
+                guard self.notifyAllowed(settings.authorizationStatus) else {
+                    call.reject("notification permission is not granted", "PERMISSION_DENIED")
+                    finished.signal()
+                    return
+                }
+                let content = UNMutableNotificationContent()
+                content.title = "Duo のテスト通知"
+                content.body = "通知は正しく届きます。"
+                content.sound = .default
+                let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 60, repeats: false)
+                let req = UNNotificationRequest(identifier: DuoNativePlugin.notifyTestId, content: content, trigger: trigger)
+                center.add(req) { error in
+                    if error == nil {
+                        call.resolve(["scheduled": true])
+                    } else {
+                        call.reject("could not schedule", "UNAVAILABLE", error)
+                    }
+                    finished.signal()
+                }
+            }
+            finished.wait()
+        }
+    }
+
+    // MARK: NotificationHandlerProtocol
+
+    public func willPresent(notification: UNNotification) -> UNNotificationPresentationOptions {
+        return [.banner, .list, .sound]
+    }
+
+    public func didReceive(response: UNNotificationResponse) {
+        let info = response.notification.request.content.userInfo
+        guard let day = info["day"] as? String, let eventId = info["eventId"] as? String else { return }
+        notifyListeners("notificationTapped", data: ["day": day, "eventId": eventId], retainUntilConsumed: true)
     }
 
     // MARK: - 共有シート

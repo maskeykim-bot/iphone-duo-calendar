@@ -15,7 +15,7 @@ const EVENTS = [
 
 async function mock(page, cfg = {}) {
   await page.addInitScript((c) => {
-    const M = window.__mock = { perm: c.perm ?? 'granted', afterRequest: c.afterRequest ?? 'granted', calls: [], cals: c.cals, events: c.events, createFail: 0, opened: true, share: { completed: true }, created: {}, listeners: {} };
+    const M = window.__mock = { perm: c.perm ?? 'granted', afterRequest: c.afterRequest ?? 'granted', calls: [], cals: c.cals, events: c.events, createFail: 0, opened: true, share: { completed: true }, created: {}, listeners: {}, notif: c.notif ?? 'notDetermined', notifAfter: c.notifAfter ?? 'granted', pending: [] };
     const clone = (o) => JSON.parse(JSON.stringify(o ?? {}));
     window.Capacitor = {
       isNativePlatform: () => true,
@@ -35,6 +35,19 @@ async function mock(page, cfg = {}) {
             return { eventId: M.created[opts.requestId] };
           case 'openInCalendar': return { opened: M.opened };
           case 'shareFile': return M.share;
+          case 'notifyStatus': return { status: M.notif };
+          case 'requestNotifyPermission': if (M.notif === 'notDetermined') M.notif = M.notifAfter; return { status: M.notif };
+          case 'notifySync': {
+            const ok = ['granted', 'provisional', 'ephemeral'].includes(M.notif);
+            const items = opts.items;
+            if (!Array.isArray(items) || items.length > 60 || items.some((i) => !i || !String(i.id).startsWith('duo.') || typeof i.fireDate !== 'string')) throw { code: 'INVALID_ARGUMENT', message: 'x' };
+            if (!ok) throw { code: 'PERMISSION_DENIED', message: 'x' };
+            const removed = M.pending.length; let skipped = 0;
+            M.pending = items.filter((i) => { const keep = i.fireDate > '2026-11-14T00:00'; if (!keep) skipped++; return keep; });
+            return { scheduled: M.pending.length, removed, skipped };
+          }
+          case 'notifyClear': { const n = M.pending.length; M.pending = []; return { removed: n }; }
+          case 'notifyTest': if (!['granted', 'provisional', 'ephemeral'].includes(M.notif)) throw { code: 'PERMISSION_DENIED', message: 'x' }; return { scheduled: true };
           default: throw { code: 'UNAVAILABLE', message: method };
         }
       },
@@ -64,6 +77,55 @@ test.describe('Web 版（Capacitor なし）', () => {
     await page.keyboard.press('Escape');
     await page.locator('[data-act="add"]:visible').first().click();
     await expect(page.locator('#xadd')).toBeHidden();
+  });
+});
+
+test.describe('通知ブリッジ契約（偽装。Swift 実動作の証明ではない）', () => {
+  const item = (n, fireDate = '2026-12-01T09:00') => ({ id: `duo.e${n}@2026-12-01T09:30#0`, title: 't', body: 'b', fireDate, thread: 'duo.2026-12-01', day: '2026-12-01', eventId: `e${n}` });
+
+  test('状態・許可要求は notDetermined のときだけ要求し、5メソッドが応答する', async ({ page }) => {
+    await mock(page, { notif: 'notDetermined', notifAfter: 'denied' });
+    await openApp(page);
+    const r = await page.evaluate(async () => {
+      const { call } = await import('/js/native.js');
+      const a = await call('notifyStatus'); const b = await call('requestNotifyPermission'); const c = await call('requestNotifyPermission');
+      return [a.status, b.status, c.status];
+    });
+    expect(r).toEqual(['notDetermined', 'denied', 'denied']);
+  });
+
+  test('notifySync: 件数・skipped・removed、61件と構造不正は INVALID_ARGUMENT、未許可は PERMISSION_DENIED', async ({ page }) => {
+    await mock(page, { notif: 'granted' });
+    await openApp(page);
+    const out = await page.evaluate(async ([it]) => {
+      const { call, errCode } = await import('/js/native.js');
+      const mk = (n, f = '2026-12-01T09:00') => ({ ...it, id: `duo.e${n}@x#0`, eventId: `e${n}`, fireDate: f });
+      const o = {};
+      o.a = await call('notifySync', { items: [mk(1), mk(2, '2020-01-01T09:00')] });
+      o.b = await call('notifySync', { items: [mk(3)] });
+      o.c = await call('notifySync', { items: Array.from({ length: 61 }, (_, i) => mk(i)) }).catch(errCode);
+      o.d = await call('notifySync', { items: [{ id: 'x' }] }).catch(errCode);
+      o.e = await call('notifyClear');
+      o.t = await call('notifyTest');
+      window.__mock.notif = 'denied';
+      o.f = await call('notifySync', { items: [mk(1)] }).catch(errCode);
+      o.g = await call('notifyTest').catch(errCode);
+      return o;
+    }, [item(0)]);
+    expect(out).toEqual({ a: { scheduled: 1, removed: 0, skipped: 1 }, b: { scheduled: 1, removed: 1, skipped: 0 }, c: 'INVALID_ARGUMENT', d: 'INVALID_ARGUMENT', e: { removed: 1 }, t: { scheduled: true }, f: 'PERMISSION_DENIED', g: 'PERMISSION_DENIED' });
+  });
+
+  test('notificationTapped / timeChanged を listen で受けられる', async ({ page }) => {
+    await mock(page);
+    await openApp(page);
+    const got = await page.evaluate(async () => {
+      const { listen } = await import('/js/native.js');
+      const seen = [];
+      listen('notificationTapped', (e) => seen.push(e));
+      window.__mock.listeners.notificationTapped?.({ day: '2026-12-01', eventId: 'e1' });
+      return seen;
+    });
+    expect(got).toEqual([{ day: '2026-12-01', eventId: 'e1' }]);
   });
 });
 
