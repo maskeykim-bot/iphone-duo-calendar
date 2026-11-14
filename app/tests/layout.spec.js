@@ -74,24 +74,24 @@ test.describe('レイアウト（4サイズ）', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 
-  test('626×890 開いた縦: 月・アジェンダは追加ボタンに覆われず、5件目までリスト内スクロールで届く', async ({ page }) => {
-    await openApp(page, SIZES.openPortrait);
-    await loadSample(page);
-    expect(await layout(page)).toBe('open');
-    const list = await box(page.locator('.agenda .list'));
-    const evs = page.locator('.agenda .event');
-    await expect(evs).toHaveCount(5);
-    const add = await box(page.getByRole('button', { name: '予定を追加' }));
-    expect(list.y + list.height).toBeLessThanOrEqual(add.y + 1);
-    const sc = await box(page.locator('.calendar .scroll'));
-    expect(sc.y + sc.height).toBeLessThanOrEqual(add.y + 1);
-    await page.locator('.agenda .list').evaluate((el) => { el.scrollTop = el.scrollHeight; });
-    expect(inside(await box(evs.last()), list)).toBe(true);
-    // 6週月でも週行は縮まず、全週がスクロールなしで見える（詳細は open-portrait.spec.js）
-    await page.getByRole('button', { name: '次の月' }).click();
-    const last = await box(page.locator('.week').last());
-    expect(last.y + last.height).toBeLessThanOrEqual(add.y + 1);
-  });
+  for (const size of [SIZES.openPortrait, SIZES.openPortrait669]) {
+    test(`開いた縦 ${size.width}×${size.height}: 月は下段（今日・タブ・＋）に覆われず、6週月でも最後の週まで届く。下部アジェンダなし`, async ({ page }) => {
+      await openApp(page, size);
+      await loadSample(page);
+      expect(await layout(page)).toBe('open');
+      await expect(page.locator('.agenda')).toHaveCount(0);
+      const add = await box(page.getByRole('button', { name: '予定を追加' }));
+      const sc = await box(page.locator('.calendar .scroll'));
+      expect(sc.y + sc.height).toBeLessThanOrEqual(add.y + 1);
+      // 6週月でも週行は縮まず、全週がスクロールなしで見える（詳細は open-portrait.spec.js）
+      await page.getByRole('button', { name: '前の月' }).click();
+      await page.getByRole('button', { name: '前の月' }).click();
+      await page.getByRole('button', { name: '前の月' }).click(); // 2026年8月（6週）
+      await expect(page.locator('.week')).toHaveCount(6);
+      const last = await box(page.locator('.week').last());
+      expect(last.y + last.height).toBeLessThanOrEqual(add.y + 1);
+    });
+  }
 
   test('626×890 開いた縦: 週は日別の縦リスト（7列ではない）', async ({ page }) => {
     await openApp(page, SIZES.openPortrait);

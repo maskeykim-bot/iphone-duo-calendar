@@ -36,7 +36,8 @@ test.describe('永続化', () => {
     // 開いた縦では「手帳」が出ないため、卓上へ移ってから選ぶ（選択状態は姿勢をまたいで保持される）
     expect(await modeStates(page)).toEqual({ 予定名: true, 全部: false });
     await page.getByRole('button', { name: '次の月' }).click();
-    await page.locator('[data-date="2026-12-10"]').click({ position: { x: 12, y: 10 } });
+    await page.locator('[data-date="2026-12-10"]').click({ position: { x: 12, y: 10 } }); // 開いた縦は日表示へ進む
+    await tab(page, '月').click();
     await toggleDesk(page);
     expect(await layout(page)).toBe('desk');
     await setStyle(page, '予定名');

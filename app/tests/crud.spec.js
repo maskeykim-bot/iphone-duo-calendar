@@ -68,13 +68,16 @@ test.describe('予定の追加・編集・削除', () => {
     await expect(page.locator('#f-start')).toHaveValue('2026/11/12');
     await fillEditor(page, { end: '2026/11/14' });
     await page.locator('#editor').getByRole('button', { name: '保存' }).click();
+    // 開いた縦は下に一覧がないので、日セルを押すとその日の日表示（予定一覧）へ進む
     for (const d of ['12', '13', '14']) {
+      await tab(page, '月').click();
       await pickDay(page, `2026-11-${d}`);
-      await expect(page.locator('.agenda .event')).toContainText('社員旅行');
-      await expect(page.locator('.agenda .event .clock')).toHaveText('終日');
+      await expect(page.locator('.daylist .event')).toContainText('社員旅行');
+      await expect(page.locator('.daylist .event .clock')).toHaveText('終日');
     }
+    await tab(page, '月').click();
     await pickDay(page, '2026-11-15');
-    await expect(page.locator('.agenda .event')).toHaveCount(0);
+    await expect(page.locator('.daylist .event')).toHaveCount(0);
   });
 
   test('Esc でシートを閉じ、変更は反映されない', async ({ page }) => {

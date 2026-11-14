@@ -167,6 +167,9 @@ function updateLayoutMetrics() {
     railW = 76; left = x0 + 8; right = W / 2 - 10; c = (right - left) / 7; gridTop = y0 + 96 * ry; G = 573 * ry; tabsY = y0 + 611 * ry; ctrlY = y0 + 600 * ry; headH = 76 * ry; tlTop = y0 + 108 * ry; rightStart = W / 2 + 10;
   }
   tabsCx = (left + right) / 2;
+  // 開いた縦の操作: 上=設定(x0+20rx)・検索(x0+480rx)（y0+24ry・44角）、下=今日(x0+20rx)・＋(右端−20rx−48)
+  Object.assign(v, { 'set-x': x0 + 20 * rx, 'set-y': y0 + 24 * ry, 'search-x': x0 + 480 * rx, 'today-x': x0 + 20 * rx, 'add-x': W - S.right - 20 * rx - 48 });
+  de.style.setProperty('--rx', String(r2(rx)));
   const tabsW = Math.min(270, Math.max(176, right - left));
   const maxY = H - S.bottom - (post === 'closed' ? 26 * ry : 0); // ボタン・タブの下端が安全矩形を越えない（閉じた画面は下から26ry以上内側）
   Object.assign(v, {
@@ -184,7 +187,7 @@ function updateLayoutMetrics() {
 }
 // 描画後: 今の画面枠の月ペインの利用高から、グリッド高・基準週高を実測して渡す（新レイアウト完成までの暫定）。
 function measureMonthPane() {
-  if (['home', 'browse'].includes(layoutKind())) return; // 閉じた画面は §1.2 の寸法をそのまま使う
+  if (['home', 'browse'].includes(layoutKind()) || isPortrait()) return; // 閉じた画面・開いた縦は §1.2 の寸法をそのまま使う
   const pane = root.querySelector('.scroll.msc, .scroll.all');
   if (!pane) return;
   const n = root.querySelectorAll('.week').length || monthWeeks(state.selected).length;
@@ -247,6 +250,12 @@ function rail() {
   const d = parseKey(todayKey());
   return `<div class="rail" aria-label="操作"><div class="rtop"><button type="button" class="rbtn" data-act="menu" aria-label="その他" aria-haspopup="dialog"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg></button><button type="button" class="rbtn" data-act="search" aria-label="予定を検索">${ICON_SEARCH}</button></div>
     <div class="rbot"><button type="button" class="rbtn rtoday" data-act="today" aria-label="今日に戻る"><span aria-hidden="true">${DOW[d.getDay()]}${d.getDate()}</span></button><button type="button" class="rbtn radd" data-act="add" aria-label="予定を追加"><span aria-hidden="true">＋</span></button></div></div>`;
+}
+// 開いた縦の操作（浮動）: 上に設定・検索（44）、下に今日・＋（48）。
+function pctl() {
+  const d = parseKey(todayKey());
+  return `<div class="pctl" aria-label="操作"><button type="button" class="rbtn pbtn psettings" data-act="menu" aria-label="その他" aria-haspopup="dialog"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg></button><button type="button" class="rbtn pbtn psearch" data-act="search" aria-label="予定を検索">${ICON_SEARCH}</button>
+    <button type="button" class="rbtn pbtn ptoday" data-act="today" aria-label="今日に戻る"><span aria-hidden="true">${DOW[d.getDay()]}${d.getDate()}</span></button><button type="button" class="rbtn radd pbtn padd" data-act="add" aria-label="予定を追加"><span aria-hidden="true">＋</span></button></div>`;
 }
 const occIn = (a, b) => {
   let base = occBetween(state.events, a, b);
@@ -458,12 +467,9 @@ const listView = () => `<div class="home listview" aria-label="一覧">${listHtm
 function closed(kind) {
   return `<div class="shell closed ${kind}"><div class="mpane">${kind === 'home' ? listView() : calendar('browse')}</div>${rail()}${tabs()}</div>`;
 }
+// 開いた縦: 全幅の月（下に予定一覧は置かない）＋上の設定・検索＋下の今日・タブ・＋。日・週・一覧も同じ枠でスクロール。
 function open() {
-  const single = state.view !== 'month';
-  const portrait = isPortrait();
-  const list = listShown();
-  return `<div class="shell open${portrait ? ' portrait' : ''}"><header class="top">${brand}<div class="toolbar">${todayBtn}</div></header>
-    <div class="layout${single || list ? ' single' : ''}">${list ? listView() : calendar(portrait ? 'portrait' : 'open')}${single || list ? '' : agenda(state.selected)}</div>${addBtn}${tabs()}</div>`;
+  return `<div class="shell open portrait"><div class="pcol">${listShown() ? listView() : calendar('portrait')}</div>${pctl()}${tabs()}</div>`;
 }
 function desk() {
   return `<div class="shell desk"><div class="desktop"><header class="top">${brand}<div class="toolbar">${todayBtn}</div></header>${listShown() ? listView() : calendar('desk')}${tabs()}</div>
@@ -536,8 +542,8 @@ root.addEventListener('click', (ev) => {
   if (d.view) set({ view: d.view, home: false });
   else if (d.act === 'list') set({ home: true });
   else if (d.date) {
-    const compact = ['home', 'browse'].includes(layoutKind());
-    // 閉じた状態では選択日サイドが無いので、日付選択でその日の日表示へ進む。
+    const compact = ['home', 'browse'].includes(layoutKind()) || isPortrait();
+    // 閉じた画面・開いた縦では選択日サイド（一覧）が無いので、日付選択でその日の日表示へ進む。
     set(compact && state.view === 'month' ? { selected: d.date, view: 'day' } : { selected: d.date });
   } else if (d.jump) set({ selected: d.jump, view: 'day' });
   else if (d.event) openEditor(d.event, b);
@@ -1642,7 +1648,7 @@ document.addEventListener('keydown', (ev) => {
 
 // ---------- スワイプ（左＝次、右＝前） ----------
 const SWIPE_ZONE = '.scroll, .agenda, .remaining, .hero, .page, .list';
-const SWIPE_EXCLUDE = '.top, .spreadhead, .chead, .foot, .add, .tabs, .rail, .foldband, .gutter, input, select, textarea, label, dialog';
+const SWIPE_EXCLUDE = '.top, .spreadhead, .chead, .foot, .add, .tabs, .rail, .pctl, .foldband, .gutter, input, select, textarea, label, dialog';
 let swiping = false;
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const paneContent = () => [...root.querySelectorAll('.scroll > *, .agenda > *, .hero > *, .remaining > *, .margin > *')];

@@ -205,25 +205,21 @@ input[type=checkbox]{display:inline-block;width:20px;min-height:20px;vertical-al
 .scroll,.scroll button,.agenda,.agenda button,.list,.list button,.remaining,.hero,.hero button,.page,.page button{touch-action:pan-y pinch-zoom}
 .agenda,.remaining,.hero,.page{overflow-x:clip}
 
-/* 開いた縦（626×890）: 上に全幅の月、下に選択日アジェンダ */
-.shell.portrait .layout,.shell.portrait .layout.single{display:flex;flex-direction:column;gap:8px}
-.portrait .calendar{flex:0 1 482px;min-height:0}
-.portrait .layout.single .calendar{flex:1 1 auto}
-.portrait .chead{height:44px;min-height:44px}
-.portrait .weekdays{height:26px;padding:0;line-height:26px}
-.portrait .legend{height:28px;padding:0;align-items:center;flex-wrap:nowrap;overflow:hidden}
-.portrait .agenda{flex:1 0 226px;border-left:0;border-top:1px solid var(--line);padding:8px 0 0;display:grid;grid-template-columns:minmax(0,1fr) auto;
- grid-template-rows:36px minmax(0,1fr);column-gap:8px;align-items:center}
-.portrait .agenda .eyebrow{display:none}
-.portrait .agenda h3{margin:0;font-size:20px;line-height:36px}
-.portrait .agenda .count{margin:0}
-.portrait .agenda .list{grid-column:1/-1;align-self:stretch;min-height:0;padding-bottom:72px}
-.portrait .agenda .event{margin-top:0;margin-bottom:6px;min-height:54px;padding:6px 12px 6px 14px}
-.portrait .agenda .event .clock,.portrait .agenda .event .tag{line-height:18px}
-.portrait .agenda .event .sub{display:none}
-.portrait .foot{display:flex;justify-content:flex-end;padding:0 4px}
-.portrait .add{width:auto;min-height:44px;padding:0 20px}
-
+/* 開いた縦: 全幅の月。寸法は JS の --head-h/--wd-h/--grid-h（safe と画面から計算）。操作は画面座標で浮かせる */
+.shell.portrait{display:block;padding:0;gap:0}
+.pcol{display:flex;flex-direction:column;height:calc(var(--grid-top) - var(--content-y) + var(--grid-h));min-height:0}
+.portrait .calendar{flex:1 1 auto;min-height:0}
+.portrait .chead{height:var(--head-h);min-height:0;flex:none;align-items:flex-start;padding-top:calc(24px * var(--ry,1))}
+.portrait .chead h2{flex:0 1 auto;padding:0 4px;line-height:44px;white-space:nowrap}
+.portrait .weekdays{height:var(--wd-h);padding:0;align-items:center}
+.portrait .week.named,.portrait .week.simple{flex:0 0 max(var(--week-h),var(--need,101px))}
+.portrait .week.all{height:max(var(--week-h),var(--need,0px))}
+.portrait .listview{padding:var(--head-h) 16px 0;min-height:0}
+.portrait .scroll:not(.msc):not(.all)>.daylist,.portrait .weekview{padding:0 12px 4px}
+.pbtn{position:fixed;z-index:6}
+.pbtn.psettings,.pbtn.psearch{width:44px;height:44px;min-width:44px;min-height:44px;border-radius:22px;top:var(--set-y)}
+.pbtn.psettings{left:var(--set-x)}.pbtn.psearch{left:var(--search-x)}
+.pbtn.ptoday{left:var(--today-x);top:var(--controls-y)}.pbtn.padd{left:var(--add-x);top:var(--controls-y)}
 /* 開いた縦の週: 1日1ブロックの縦リスト（左に日付、右に時刻＋全文タイトル） */
 .vlist .weekrow{display:grid;grid-template-columns:100px minmax(0,1fr);column-gap:12px;padding:8px 12px;align-items:start}
 .vlist .wd{font-size:15px;min-height:44px;padding:0;display:flex;align-items:center}
@@ -404,7 +400,6 @@ input,select,textarea,.date-text{font-size:16px}
 .scroll.all{position:relative;container-type:size;scrollbar-gutter:stable;display:block}
 .scroll.all::-webkit-scrollbar{width:3px}
 .scroll.all::-webkit-scrollbar-thumb{background:#9aa39c;border-radius:2px}
-.portrait .weekdays.all{height:26px;line-height:26px}
 .toastbar{position:fixed;left:12px;right:12px;bottom:max(calc(16px + var(--sab,0px)),calc(var(--layout-h,0px) - var(--tabs-y,0px) + 8px)); /* 浮動タブの上 */z-index:50;margin:0 auto;max-width:480px}
 
 /* ===== 第10版 ①: 月の共通描画（手帳｜予定名｜全部）。寸法は JS の --chip-fs 等と同値 ===== */

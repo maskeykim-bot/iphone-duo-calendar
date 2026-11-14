@@ -38,7 +38,7 @@ test('スワイプ後は選択日・見出し・アジェンダが更新され�
   await loadSample(page);
   await swipe(page, next(SIZES.openPortrait)); // 月: 12/12（土）
   await expect(page.locator('[data-date="2026-12-12"]')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('.agenda h3')).toHaveText('12月12日（土）');
+  await expect(page.locator('.agenda')).toHaveCount(0); // 開いた縦に下部一覧はない
   await expect(page.getByRole('status')).toHaveText('2026年 12月。選択日は12月12日（土）。');
 });
 
@@ -85,7 +85,7 @@ test.describe('判定', () => {
     await unchanged(page, s, { x0: 10, dx: -150 });
     await unchanged(page, s, { x0: s.width - 10, dx: -150 });
     await unchanged(page, s, { y0: 25 }); // ヘッダー（ロゴ・タブの段）
-    await unchanged(page, s, { target: '.add', dx: -150 }); // 追加ボタン
+    await unchanged(page, s, { target: '.padd', dx: -150 }); // 追加ボタン
   });
   test('編集ダイアログ表示中のスワイプは無効', async ({ page }) => {
     const s = SIZES.openPortrait;
@@ -116,20 +116,21 @@ test.describe('click の扱い（実マウス操作）', () => {
     await openApp(page, SIZES.openPortrait);
     await loadSample(page);
     await page.locator('[data-date="2026-11-20"]').click({ position: { x: 12, y: 10 } });
-    await expect(page.locator('[data-date="2026-11-20"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(() => period(page)).toBe('11月20日（金）'); // 開いた縦は日表示へ進む
   });
 
   test('確定スワイプ後に予定の編集ダイアログが開かない', async ({ page }) => {
     await openApp(page, SIZES.openPortrait);
     await loadSample(page);
-    const card = await page.locator('.agenda .event').first().boundingBox();
+    await tab(page, '日').click();
+    const card = await page.locator('.daylist .event').first().boundingBox();
     const y = card.y + card.height / 2;
     await page.mouse.move(card.x + card.width * 0.8, y);
     await page.mouse.down();
     await page.mouse.move(card.x + card.width * 0.3, y, { steps: 8 });
     await page.mouse.up();
     await settle(page);
-    await expect.poll(() => period(page)).toBe('2026年 12月');
+    await expect.poll(() => period(page)).toBe('11月13日（金）');
     await expect(page.locator('#editor')).toBeHidden();
   });
 
@@ -146,6 +147,6 @@ test.describe('click の扱い（実マウス操作）', () => {
     await expect(page.locator('[data-date="2026-11-12"]')).toHaveAttribute('aria-pressed', 'true');
     await page.waitForTimeout(450);
     await page.locator('[data-date="2026-11-20"]').click({ position: { x: 12, y: 10 } });
-    await expect(page.locator('[data-date="2026-11-20"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(() => period(page)).toBe('11月20日（金）');
   });
 });

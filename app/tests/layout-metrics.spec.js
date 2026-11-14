@@ -292,7 +292,9 @@ test.describe('月の日付・配色・前後月', () => {
     expect(await page.locator('[data-date="2026-11-15"] .num').evaluate((e) => getComputedStyle(e).color)).toBe('rgb(192, 57, 43)');
     // 選択日 = 今日（11/12）。選択は 2px 枠 #294E42
     expect(await page.locator('[data-date="2026-11-12"]').evaluate((e) => getComputedStyle(e).boxShadow)).toContain('rgb(41, 78, 66) 0px 0px 0px 2px inset');
-    await page.locator('[data-date="2026-11-18"]').click({ position: { x: 10, y: 10 } });
+    await page.locator('[data-date="2026-11-18"]').click({ position: { x: 10, y: 10 } }); // 開いた縦は日表示へ進む
+    await expect(page.locator('#ctitle')).toHaveText('11月18日（水）');
+    await page.getByRole('button', { name: '月', exact: true }).click();
     expect(await page.locator('[data-date="2026-11-18"]').evaluate((e) => getComputedStyle(e).boxShadow)).toContain('2px');
     expect(await page.locator('[data-date="2026-11-18"] .num').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
     expect(await page.locator('[data-date="2026-11-12"] .num').evaluate((e) => getComputedStyle(e).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');

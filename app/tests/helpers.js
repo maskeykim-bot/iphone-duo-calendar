@@ -23,7 +23,12 @@ export async function openApp(page, size = SIZES.closedPortrait, query = '') {
   await page.waitForSelector('html[data-ready]');
 }
 export async function loadSample(page) {
-  await page.getByRole('button', { name: 'サンプルを入れる' }).first().click();
+  const b = page.getByRole('button', { name: 'サンプルを入れる' }).first();
+  if (await b.isVisible()) await b.click();
+  else { // 月だけの画面（開いた縦など）は設定メニューから入れる
+    await openMenu(page);
+    await page.locator('#menu').getByRole('button', { name: 'サンプルを入れる' }).click();
+  }
   await expect(page.getByRole('status')).toHaveText('サンプルの予定を入れました。');
 }
 export const tab = (page, name) => page.getByRole('button', { name, exact: true });
