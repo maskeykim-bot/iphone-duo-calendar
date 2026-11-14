@@ -54,3 +54,49 @@ test.describe('スクリーンショット', () => {
     await shot(page, 'search-open-landscape');
   });
 });
+
+// ---- 第10版 ⑤: 月表示（閉じた／開いた縦／開いた横）。11月・selected=14日・menu閉・フォント読込後2RAF ----
+const V10 = [
+  ['closed', SIZES.closedPortrait], ['open-portrait', SIZES.openPortrait], ['open-portrait', SIZES.openPortrait669],
+  ['open-landscape', SIZES.openLandscape], ['open-landscape', SIZES.openLandscape951],
+];
+const V10SEED = [
+  ...Array.from({ length: 5 }, (_, i) => ev(`s${i}`, ['米 耐久財受注・速報', 'FOMC 政策', '歯医者', '打ち合わせ', 'ジム'][i], `2026-11-27T${String(9 + i).padStart(2, '0')}:00`, `2026-11-27T${String(9 + i).padStart(2, '0')}:30`)),
+  ev('pay', '給与振込み', '2026-11-13T00:00', '2026-11-14T23:59', { all: true, categoryId: CAT_IDS.family }),
+  ...SEED,
+];
+for (const [posture, size] of V10) {
+  for (const theme of ['light', 'dark']) {
+    test(`v10 ${posture} ${size.width}x${size.height} month named ${theme}`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: theme });
+      await openApp(page, size);
+      await seed(page, V10SEED);
+      if (posture === 'closed') await tab(page, '月').click();
+      await setStyle(page, '予定名');
+      await page.locator('[data-date="2026-11-14"]').first().click({ position: { x: 12, y: 10 } }).catch(() => {});
+      await page.evaluate(async () => { await document.fonts.ready; await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); });
+      await shot(page, `v10-${posture}-${size.width}x${size.height}-month-named-${theme}`);
+    });
+  }
+  if (posture === 'closed' || posture === 'open-landscape') {
+    test(`v10 ${posture} ${size.width}x${size.height} month simple light`, async ({ page }) => {
+      await openApp(page, size);
+      await seed(page, V10SEED);
+      if (posture === 'closed') await tab(page, '月').click();
+      await setStyle(page, '手帳');
+      await page.evaluate(async () => { await document.fonts.ready; await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); });
+      await shot(page, `v10-${posture}-${size.width}x${size.height}-month-simple-light`);
+    });
+  }
+  test(`v10 ${posture} ${size.width}x${size.height} month all light（先頭／末尾）`, async ({ page }) => {
+    await openApp(page, size);
+    await seed(page, V10SEED);
+    if (posture === 'closed') await tab(page, '月').click();
+    await page.locator('.allbtn').click();
+    await page.evaluate(async () => { await document.fonts.ready; await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); });
+    await shot(page, `v10-${posture}-${size.width}x${size.height}-month-all-light`);
+    await page.locator('.scroll.all').evaluate((e) => { e.scrollTop = e.scrollHeight; });
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    await shot(page, `v10-${posture}-${size.width}x${size.height}-month-all-light-scroll-end`);
+  });
+}

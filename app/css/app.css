@@ -545,3 +545,11 @@ input,select,textarea,.date-text{font-size:16px}
 .srail .cap button{flex:none;width:48px;height:48px;min-height:48px;padding:0;border-radius:0;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center}
 body[data-layout=spread] .toastbar{left:var(--left-start);right:auto;width:calc(var(--left-end) - var(--left-start));margin:0}
 .menurows .tlz{display:flex;gap:4px;margin:2px 0 6px}.menurows .tlz button{flex:1;min-width:0;font-size:13px;padding:4px 6px}
+
+/* 月見出し横の「全部」ボタン（押せる範囲 44pt 角、見た目は小さな札） */
+.chsp{flex:none;width:44px}
+.allbtn{border-radius:0;flex:none;position:relative;width:44px;min-width:44px;height:44px;padding:0;border:0;background:none;color:inherit;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.allbtn span{display:block;min-width:26px;height:22px;line-height:20px;text-align:center;border:1px solid currentColor;border-radius:6px}
+.allbtn[aria-pressed="true"]{color:#fff}
+.allbtn[aria-pressed="true"] span{background:#2F6B4F;border-color:#2F6B4F;color:#fff}
+.chead .allbtn,.sctl .allbtn{font-size:12px}

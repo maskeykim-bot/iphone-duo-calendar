@@ -292,7 +292,11 @@ const arrows = () => `<div class="arrows">${navBtn(-1)}${navBtn(1)}</div>`;
 const monthMode = (kind) => (state.monthExpand ? 'all' : kind === 'portrait' ? 'named' : state.style);
 const variantBtns = (kind) => [['simple', '手帳'], ['named', '予定名'], ['all', '全部']].filter(([v]) => !(kind === 'portrait' && v === 'simple')).map(([v, l]) => `<button type="button" data-mode="${v}" aria-pressed="${monthMode(kind) === v}">${l}</button>`).join('');
 // 期間の見出し（前の期間｜見出し｜次の期間）
-const chead = () => `<div class="chead">${navBtn(-1)}<h2 id="ctitle">${periodTitle()}</h2>${navBtn(1)}</div>`;
+// 月見出し付近の「全部」ボタン: 1タップで 全部 ⇔ 通常（直前の手帳／予定名）。押せる範囲は 44pt 角（見た目は小さい）。
+const allBtn = () => `<button type="button" class="allbtn" data-act="allmonth" aria-pressed="${state.monthExpand}" aria-label="全部の予定を表示"><span aria-hidden="true">全</span></button>`;
+const chead = () => (state.view === 'month'
+  ? `<div class="chead"><span class="chsp" aria-hidden="true"></span>${navBtn(-1)}<h2 id="ctitle">${periodTitle()}</h2>${navBtn(1)}${allBtn()}</div>`
+  : `<div class="chead">${navBtn(-1)}<h2 id="ctitle">${periodTitle()}</h2>${navBtn(1)}</div>`);
 
 function card(e) {
   const sub = [e.place ? esc(e.place) : '', isMulti(e) ? `${e.start.slice(5, 10).replace('-', '/')} 〜 ${e.end.slice(5, 10).replace('-', '/')}` : '', e.nativeLink?.state === 'linked' ? 'iPhoneにも追加済み' : ''].filter(Boolean).join(' · ');
@@ -496,7 +500,7 @@ function sheadTitle() {
   return `<span class="yr">${d.getFullYear()}年</span> ${d.getMonth() + 1}月`;
 }
 // 左ページ見出し: 年（薄色）月 ｜ 前・次（44角）｜ 設定（44角）。
-const shead = () => `<div class="shead"><h2 id="ctitle">${sheadTitle()}</h2><div class="sctl">${navBtn(-1)}${navBtn(1)}<button type="button" class="sset" data-act="menu" aria-label="その他" aria-haspopup="dialog"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg></button></div></div>`;
+const shead = () => `<div class="shead"><h2 id="ctitle">${sheadTitle()}</h2><div class="sctl">${state.view === 'month' && !listShown() ? allBtn() : ''}${navBtn(-1)}${navBtn(1)}<button type="button" class="sset" data-act="menu" aria-label="その他" aria-haspopup="dialog"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg></button></div></div>`;
 // 右端の操作列（76px）: 今日・（月／一覧／検索）・＋。縦位置は下から詰める（JS の --sr-*-y）。
 function srail() {
   const d = parseKey(todayKey());
@@ -694,6 +698,7 @@ root.addEventListener('click', (ev) => {
   else if (d.event) openEditor(d.event, b);
   else if (d.new) openEditor(null, b, d.new);
   else if (d.act === 'add') openEditor(null, b);
+  else if (d.act === 'allmonth') set({ monthExpand: !state.monthExpand });
   else if (d.act === 'today') set({ selected: todayKey() }); // 今日へ戻るのは選択日だけ。表示（一覧・日・週・月）は保つ
   else if (d.act === 'prev') move(-1);
   else if (d.act === 'next') move(1);
