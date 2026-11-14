@@ -1,0 +1,14 @@
+{
+  "app": "duo-calendar",
+  "version": 2,
+  "exportedAt": "2026-11-12T09:41:00+09:00",
+  "events": [
+    { "id": "v2-a", "title": "旧・会議", "cat": "work", "all": false, "start": "2026-12-01T10:00", "end": "2026-12-01T11:00", "place": "本社", "notes": "", "recurrence": null, "exdates": [], "overrides": {}, "updatedAt": 1762900000000 },
+    { "id": "v2-b", "title": "旧・指標発表", "cat": "economy", "all": false, "start": "2026-12-02T21:30", "end": "2026-12-02T22:00", "place": "", "notes": "", "recurrence": null, "exdates": [], "overrides": {} },
+    { "id": "v2-c", "title": "旧・ゴルフ練習", "cat": "golf", "all": true, "start": "2026-12-05T00:00", "end": "2026-12-05T23:59", "place": "", "notes": "", "recurrence": null, "exdates": [], "overrides": {} },
+    { "id": "v2-d", "title": "旧・未知の種類", "cat": "mystery", "all": false, "start": "2026-12-06T10:00", "end": "2026-12-06T11:00", "place": "", "notes": "", "recurrence": null, "exdates": [], "overrides": {} },
+    { "id": "v2-e", "title": "旧・毎週", "cat": "private", "all": false, "start": "2026-12-07T08:00", "end": "2026-12-07T09:00", "place": "", "notes": "", "recurrence": { "freq": "weekly", "interval": 1, "byDay": [1], "count": 4, "until": null }, "exdates": ["2026-12-14T08:00"],
+      "overrides": { "2026-12-21T08:00": { "title": "旧・毎週(変更)", "cat": "work", "all": false, "start": "2026-12-21T09:00", "end": "2026-12-21T10:00", "place": "", "notes": "" } } }
+  ],
+  "settings": { "view": "week", "style": "named", "desk": false }
+}

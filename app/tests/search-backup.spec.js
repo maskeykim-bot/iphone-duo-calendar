@@ -189,10 +189,12 @@ test.describe('バックアップ', () => {
     await dl.saveAs(p);
     const j = JSON.parse(readFileSync(p, 'utf8'));
     expect(j.app).toBe('duo-calendar');
-    expect(j.version).toBe(2);
+    expect(j.version).toBe(3);
+    expect(j.schema).toBe(3);
+    expect(j.categories.length).toBeGreaterThanOrEqual(5);
     expect(j.exportedAt).toMatch(/^2026-11-12T09:41:00\+09:00$/);
     expect(j.events).toHaveLength(7);
-    expect(j.settings).toEqual({ view: 'month', style: 'simple', desk: false });
+    expect(j.settings).toEqual({ view: 'month', style: 'simple', desk: false, monthExpand: false });
   });
 
   test('往復: 書き出して別の DB へ置き換え読み込み → 同一内容', async ({ page }, info) => {
@@ -281,15 +283,107 @@ test.describe('バックアップ', () => {
     expect(await dbEvents(page)).toEqual(before);
   });
 
+  const dbCats = (page) => page.evaluate(async () => (await import('/js/db.js')).listCategories());
+  const LINK = { v: 2, state: 'linked', requestId: 'req-1', itemId: 'I1', externalId: 'X1', ekIdentifier: 'X1@2026-11-20T10:00', calendarId: 'C1', eventId: 'E1', syncedAt: 1763000000000, warn: null };
+
+  test('v3 往復: 全項目（nativeLink・alarms・未知の項目）・カテゴリ・設定（monthExpand・notify）が別の DB で一致', async ({ page }, info) => {
+    await openApp(page, SIZES.closedPortrait, '?ns=v3src&nosw');
+    const rich = ev('full', '全項目', '2026-11-20T10:00', '2026-11-20T11:00', {
+      categoryId: 'my-cat', alarms: [{ before: 30 }], nativeLink: LINK, strokes: { placeholder: true }, updatedAt: 1763000000123,
+      recurrence: { freq: 'weekly', interval: 1, byDay: [5], count: null, until: '2027-01-31' }, exdates: ['2026-11-27T10:00'],
+      overrides: { '2026-12-04T10:00': { title: '変更', categoryId: 'my-cat', all: false, start: '2026-12-04T12:00', end: '2026-12-04T13:00', place: '', notes: '', alarms: [{ before: 5 }] } },
+    });
+    await seed(page, [rich]);
+    await page.evaluate(async () => {
+      const db = await import('/js/db.js');
+      await db.putCategory({ id: 'my-cat', name: '自作カテゴリ', color: '#5e4c8e', order: 9, hidden: true, createdAt: 1, updatedAt: 2 });
+      localStorage.setItem('duo.ui.v1.v3src', JSON.stringify({ view: 'week', style: 'named', desk: true, monthExpand: true, home: true }));
+      localStorage.setItem('duo-notify.v3src', JSON.stringify({ version: 1, enabled: true, showTitle: false, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '07:30' } }));
+    });
+    await page.reload();
+    const p = info.outputPath('v3.json');
+    await exportFile(page, p);
+    const j = JSON.parse(readFileSync(p, 'utf8'));
+    expect(j.settings).toEqual({ view: 'week', style: 'named', desk: true, monthExpand: true, notify: { enabled: true, showTitle: false, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '07:30' } } });
+    expect(j.categories.find((c) => c.id === 'my-cat')).toMatchObject({ name: '自作カテゴリ', color: '#5e4c8e', hidden: true });
+    const src = await dbEvents(page);
+    expect(src[0].nativeLink).toEqual(LINK);
+    await openApp(page, SIZES.closedPortrait, '?ns=v3dst&nosw');
+    await openBackup(page);
+    await page.setInputFiles('#bk-file', p);
+    await page.locator('#bk-replace').click();
+    await page.locator('#bk-rdo').click();
+    await expect(page.locator('#backup')).toBeHidden();
+    expect(await dbEvents(page)).toEqual(src);
+    expect((await dbCats(page)).find((c) => c.id === 'my-cat')).toMatchObject({ name: '自作カテゴリ', color: '#5e4c8e', hidden: true });
+    const st = await page.evaluate(() => ({ ui: JSON.parse(localStorage.getItem('duo.ui.v1.v3dst')), notify: JSON.parse(localStorage.getItem('duo-notify.v3dst')) }));
+    expect(st.ui).toMatchObject({ view: 'week', style: 'named', desk: true, monthExpand: true });
+    expect(st.notify).toEqual({ version: 1, enabled: true, showTitle: false, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '07:30' } });
+  });
+
+  test('同じファイルを2回読み込んでも二重にならない（追加。連携あり）', async ({ page }, info) => {
+    await openApp(page, SIZES.closedPortrait, '?ns=twice&nosw');
+    await seed(page, [ev('L1', 'iPhone にも追加', '2026-11-20T10:00', '2026-11-20T11:00', { nativeLink: LINK, alarms: [{ before: 30 }] }), ...SEED]);
+    const p = info.outputPath('twice.json');
+    await exportFile(page, p);
+    await page.locator('#bk-close').click();
+    const before = await dbEvents(page);
+    for (let i = 0; i < 2; i++) {
+      await openBackup(page);
+      await page.setInputFiles('#bk-file', p);
+      await page.locator('#bk-add').click();
+      await expect(page.getByRole('status')).toHaveText(`0件を追加しました（重複${before.length}件を除外）。`);
+    }
+    expect(await dbEvents(page)).toEqual(before);
+    // id が変わった同じ iPhone の予定（requestId 一致）も重複扱い
+    await openBackup(page);
+    await pick(page, 'renamed.json', { app: 'duo-calendar', version: 3, exportedAt: '2026-11-13T00:00:00Z', categories: [], events: [{ ...before.find((e) => e.id === 'L1'), id: 'L1-other-id', title: '名前を変えた' }] });
+    await page.locator('#bk-add').click();
+    await expect(page.getByRole('status')).toHaveText('0件を追加しました（重複1件を除外）。');
+    expect(await dbEvents(page)).toEqual(before);
+  });
+
+  test('v2 ファイルの読み込み: cat → カテゴリ id、経済指標・ゴルフが追加され、未知は未分類。既存データは消えない', async ({ page }) => {
+    await openApp(page, SIZES.closedPortrait, '?ns=v2in&nosw');
+    await seed(page, [ev('keep', '残る予定', '2026-11-30T10:00', '2026-11-30T11:00')]);
+    await page.evaluate(async () => { const db = await import('/js/db.js'); const cs = await db.listCategories(); for (const c of cs) if ([ 'd0c47a10-0000-4000-8000-000000000003', 'd0c47a10-0000-4000-8000-000000000004'].includes(c.id)) await db.applyCategoryChanges({ catDels: [c.id] }); });
+    await openBackup(page);
+    await page.setInputFiles('#bk-file', 'tests/fixtures/backup-v2.json');
+    await expect(page.locator('#bk-body')).toContainText('カテゴリ：追加');
+    await expect(page.locator('#bk-body')).toContainText('未分類へ1件');
+    await page.locator('#bk-add').click();
+    await expect(page.getByRole('status')).toHaveText('5件を追加しました（重複0件を除外）。');
+    const list = await dbEvents(page);
+    expect(list.map((e) => e.id).sort()).toEqual(['keep', 'v2-a', 'v2-b', 'v2-c', 'v2-d', 'v2-e']);
+    const byId = Object.fromEntries(list.map((e) => [e.id, e]));
+    expect(byId['v2-a'].categoryId).toBe(CAT_IDS.work);
+    expect(byId['v2-b'].categoryId).toBe(CAT_IDS.economy);
+    expect(byId['v2-c'].categoryId).toBe(CAT_IDS.golf);
+    expect(byId['v2-d'].categoryId).toBe(CAT_IDS.none);
+    expect(byId['v2-e'].overrides['2026-12-21T08:00'].categoryId).toBe(CAT_IDS.work);
+    expect(list.some((e) => 'cat' in e)).toBe(false);
+    const names = (await dbCats(page)).map((c) => c.name);
+    expect(names).toEqual(expect.arrayContaining(['経済指標', 'ゴルフ', '未分類']));
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1.v2in')).view)).toBe('month'); // 追加では設定を変えない
+    // 置き換えなら設定も v2 のとおり
+    await openBackup(page);
+    await page.setInputFiles('#bk-file', 'tests/fixtures/backup-v2.json');
+    await page.locator('#bk-replace').click();
+    await page.locator('#bk-rdo').click();
+    await expect(page.locator('#backup')).toBeHidden();
+    expect((await dbEvents(page)).map((e) => e.id).sort()).toEqual(['v2-a', 'v2-b', 'v2-c', 'v2-d', 'v2-e']);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1.v2in')))).toMatchObject({ view: 'week', style: 'named', monthExpand: false });
+  });
+
   const BAD = [
     ['壊れた JSON', '{"app": "duo-calendar", "events": [', '壊れた'],
     ['形式違い', { hello: 'world' }, '未対応の形式'],
     ['別アプリ', { app: 'other', version: 2, events: [] }, '未対応の形式'],
-    ['将来版', { app: 'duo-calendar', version: 3, exportedAt: '2026-11-13T00:00:00Z', events: [] }, '未対応のバージョン'],
+    ['将来版', { app: 'duo-calendar', version: 4, exportedAt: '2026-11-13T00:00:00Z', events: [] }, '未対応のバージョン'],
     ['events が配列でない', { app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T00:00:00Z', events: {} }, 'events'],
     ['不正な日時', { app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T00:00:00Z', events: [{ ...SEED[0], start: '2026-13-40T10:00' }] }, '不正な日時'],
     ['必須欠落', { app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T00:00:00Z', events: [{ id: 'x', start: '2026-11-12T10:00', end: '2026-11-12T11:00' }] }, '予定名'],
-    ['2件目だけ不正でも一部取り込まない', { app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T00:00:00Z', events: [ev('good', 'OK', '2026-12-01T10:00', '2026-12-01T11:00'), { ...SEED[1], categoryId: undefined, cat: 'nope' }] }, 'カテゴリ'],
+    ['2件目だけ不正でも一部取り込まない', { app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T00:00:00Z', events: [ev('good', 'OK', '2026-12-01T10:00', '2026-12-01T11:00'), { ...SEED[1], categoryId: undefined, cat: undefined }] }, 'カテゴリ'],
   ];
   for (const [name, content, reason] of BAD) {
     test(`不正ファイル: ${name} → エラー表示のみで DB は変わらない`, async ({ page }) => {

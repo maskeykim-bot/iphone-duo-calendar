@@ -2,7 +2,9 @@
 import { addDays, daysInMonth, dayOf, pad, parseKey, weekStart } from './util.js';
 
 const dayDiff = (a, b) => Math.round((parseKey(a) - parseKey(b)) / 864e5);
-const BODY = ['title', 'categoryId', 'place', 'notes'];
+const BODY = ['title', 'categoryId', 'place', 'notes', 'alarms'];
+// alarms は配列なので JSON で比べる（null・未定義は同じ扱い）。
+const bodyEq = (a, b) => JSON.stringify(a ?? '') === JSON.stringify(b ?? '');
 
 export const normRule = (r) => (r
   ? { freq: r.freq, interval: 1, byDay: r.freq === 'weekly' ? [...new Set(r.byDay || [])].sort((a, b) => a - b) : null, count: r.count ?? null, until: r.until ?? null }
@@ -48,6 +50,9 @@ function make(p, key) {
   const base = o
     ? { title: o.title, categoryId: o.categoryId ?? p.categoryId, all: !!o.all, start: o.start, end: o.end, place: o.place || '', notes: o.notes || '' }
     : { title: p.title, categoryId: p.categoryId, all: !!p.all, start: key, end: `${addDays(k, dd)}T${p.end.slice(11)}`, place: p.place || '', notes: p.notes || '' };
+  // 通知（alarms）は個別変更 → 親の順に継承。どちらにも無ければ項目を作らない。
+  const alarms = o?.alarms !== undefined && o.alarms !== null ? o.alarms : p.alarms;
+  if (alarms !== undefined) base.alarms = alarms;
   return { ...base, id: `${p.id}@${key}`, parentId: p.id, occKey: key, recurring: true, moved: !!o };
 }
 export const occurrenceAt = make;
@@ -99,7 +104,8 @@ export function countBefore(p, boundaryKey) {
 }
 export const isFirstOccurrence = (p, occKey) => occKey <= p.start;
 
-const pick = (o) => ({ title: o.title, categoryId: o.categoryId, all: !!o.all, start: o.start, end: o.end, place: o.place || '', notes: o.notes || '' });
+// alarms は入力側（フォーム）が持っているときだけ載せる（持っていない形を null で上書きしない）。
+const pick = (o) => ({ title: o.title, categoryId: o.categoryId, all: !!o.all, start: o.start, end: o.end, place: o.place || '', notes: o.notes || '', ...(o.alarms !== undefined ? { alarms: o.alarms } : {}) });
 const filterKeys = (obj, fn) => Object.fromEntries(Object.entries(obj || {}).filter(([k]) => fn(k)));
 const hasExceptions = (p, fn = () => true) => (p.exdates || []).some(fn) || Object.keys(p.overrides || {}).some(fn);
 
@@ -114,7 +120,7 @@ export function editInfo(p, occKey, form) {
   const occ = make(p, occKey);
   const ruleChanged = !ruleEq(form.recurrence, p.recurrence);
   const timeChanged = form.start !== occ.start || form.end !== occ.end || !!form.all !== !!occ.all;
-  const changedBody = BODY.filter((f) => (form[f] ?? '') !== (occ[f] ?? ''));
+  const changedBody = BODY.filter((f) => !bodyEq(form[f], occ[f]) && (f !== 'alarms' || form.alarms !== undefined));
   return {
     occ, ruleChanged, timeChanged, changedBody,
     clears: (scope) => (ruleChanged || timeChanged) && (scope === 'only' ? false : hasExceptions(p, scope === 'following' ? (k) => k >= occKey : () => true)),
@@ -143,7 +149,7 @@ export function planEdit(p, occKey, scope, form, newId) {
       }
     }
     const np = {
-      id: newId(), ...formVals, recurrence: rule, notes: formVals.notes,
+      id: newId(), ...(p.alarms !== undefined ? { alarms: p.alarms } : {}), ...formVals, recurrence: rule, notes: formVals.notes,
       exdates: keep ? (p.exdates || []).filter((k) => k > occKey) : [], overrides: ov, updatedAt: now,
     };
     return { puts: [cutParent(p, occKey), np], dels: [] };

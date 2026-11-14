@@ -293,7 +293,7 @@ test.describe('ネイティブ（偽装）', () => {
     await expect(page.locator('#xdetail')).toBeVisible();
   });
 
-  test('バックアップ: shareFile を優先し、外部予定・nativeLink は含めない。キャンセルは無通知', async ({ page }) => {
+  test('バックアップ: shareFile を優先し、外部予定は含めず nativeLink は保持する。キャンセルは無通知', async ({ page }) => {
     await mock(page);
     await openApp(page);
     await seed(page, [ev('a1', 'Duo予定', '2026-11-12T18:00', '2026-11-12T19:00', { nativeLink: { state: 'linked', requestId: 'r1', eventId: 'zzz', calendarId: 'cal-1' } })]);
@@ -307,8 +307,9 @@ test.describe('ネイティブ（偽装）', () => {
     expect(s[0].opts.mime).toBe('application/json');
     expect(s[0].opts.name).toMatch(/^duo-calendar-backup-\d{4}-\d{2}-\d{2}\.json$/);
     const json = JSON.parse(s[0].opts.text);
-    expect(json).toMatchObject({ app: 'duo-calendar', version: 2 });
-    expect(JSON.stringify(json)).not.toMatch(/nativeLink|requestId|歯医者/);
+    expect(json).toMatchObject({ app: 'duo-calendar', version: 3 });
+    expect(JSON.stringify(json)).not.toMatch(/歯医者/);
+    expect(json.events[0].nativeLink).toEqual({ state: 'linked', requestId: 'r1', eventId: 'zzz', calendarId: 'cal-1' });
     // キャンセル（completed:false）は通知しない
     await page.evaluate(() => { window.__mock.share = { completed: false }; });
     await page.locator('#bk-export').click();

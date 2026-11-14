@@ -52,3 +52,23 @@ test('「これ以降」編集（回数指定）: 旧系列は until で切り�
   assert.equal(pe.puts[1].recurrence.count, 6);
   assert.deepEqual(pe.puts.map(n), [4, 6]);
 });
+
+test('alarms: 各回は個別変更→親の順に継承し、「この予定のみ」の編集で categoryId・alarms が個別変更に残る', async () => {
+  const { occurrenceAt, planEdit } = await import('../js/recur.js');
+  const p = ev('al', '2026-11-02T10:00', '2026-11-02T11:00', R('weekly', { byDay: [1] }), { alarms: [{ before: 30 }] });
+  assert.deepEqual(occurrenceAt(p, '2026-11-09T10:00').alarms, [{ before: 30 }]);
+  const form = { ...occurrenceAt(p, '2026-11-09T10:00'), categoryId: 'c-fam', alarms: [{ before: 5 }] };
+  const { puts } = planEdit(p, '2026-11-09T10:00', 'only', form, () => 'n');
+  const o = puts[0].overrides['2026-11-09T10:00'];
+  assert.equal(o.categoryId, 'c-fam'); assert.deepEqual(o.alarms, [{ before: 5 }]);
+  assert.deepEqual(occurrenceAt(puts[0], '2026-11-09T10:00').alarms, [{ before: 5 }]);
+  assert.deepEqual(occurrenceAt(puts[0], '2026-11-16T10:00').alarms, [{ before: 30 }]);
+  // alarms を持たないフォームで編集しても親の alarms を落とさない
+  const { alarms, ...noAl } = occurrenceAt(p, '2026-11-09T10:00'); void alarms;
+  const all = planEdit(p, '2026-11-09T10:00', 'all', { ...noAl, title: '改' }, () => 'n').puts[0];
+  assert.deepEqual(all.alarms, [{ before: 30 }]); assert.equal(all.title, '改');
+  // alarms の変更だけも変更として検出（配列は JSON で比較）
+  assert.deepEqual(await editInfoOf(p, { ...occurrenceAt(p, '2026-11-09T10:00'), alarms: [{ before: 5 }] }), ['alarms']);
+  assert.deepEqual(await editInfoOf(p, { ...occurrenceAt(p, '2026-11-09T10:00'), alarms: [{ before: 30 }] }), []);
+  async function editInfoOf(par, f) { const { editInfo } = await import('../js/recur.js'); return editInfo(par, '2026-11-09T10:00', f).changedBody; }
+});

@@ -35,6 +35,7 @@ function loadUi() {
     style: STYLES.includes(s.style) ? s.style : 'simple',
     desk: s.desk === true,
     home: s.home !== false,
+    monthExpand: s.monthExpand === true,
   };
 }
 const state = { ...loadUi(), events: [], categories: [], loaded: false };
@@ -44,9 +45,17 @@ function setCategories(list) {
   hiddenCats = new Set(state.categories.filter((c) => c.hidden).map((c) => c.id));
 }
 if (params.has('desk')) state.desk = params.get('desk') === '1';
+// 通知の既定（形式だけ。UI は今回なし）。localStorage['duo-notify' + suffix]、バックアップの settings.notify に出し入れする。
+const NOTIFY_KEY = `duo-notify${suffix}`;
+function loadNotify() {
+  try { const { version, ...n } = JSON.parse(localStorage.getItem(NOTIFY_KEY) || 'null') || {}; void version; return Object.keys(n).length ? n : undefined; } catch { return undefined; }
+}
+function saveNotify(n) {
+  try { localStorage.setItem(NOTIFY_KEY, JSON.stringify({ version: 1, ...(loadNotify() || {}), ...n })); } catch { /* 保存不可でも続ける */ }
+}
 function saveUi() {
-  const { selected, view, style, desk, home } = state;
-  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home })); } catch { /* 保存不可でも動作は続ける */ }
+  const { selected, view, style, desk, home, monthExpand } = state;
+  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand })); } catch { /* 保存不可でも動作は続ける */ }
 }
 function set(patch) { Object.assign(state, patch); saveUi(); render(); }
 
@@ -1045,7 +1054,7 @@ function renderBackup() {
       <dl class="facts"><dt>ファイル</dt><dd>${esc(bk.name)}</dd><dt>書き出し日時</dt><dd>${esc(fmtStamp(bk.data.exportedAt))}</dd>
       <dt>ファイルの予定</dt><dd>${f.total}件（繰り返し${f.recurring}件・個別変更／削除指定${f.exceptions}件）</dd>
       <dt>現在の予定</dt><dd>${st.total}件</dd><dt>追加見込み</dt><dd>${p.add.length}件（重複${p.dup}件・競合${p.conflict}件）</dd></dl>
-      ${p.conflict ? `<p class="small">競合${p.conflict}件は現在の予定を残します</p>` : ''}</section>
+      ${p.conflict ? `<p class="small">競合${p.conflict}件は現在の予定を残します</p>` : ''}${catLine()}</section>
       <button type="button" class="row" id="bk-add"${dis}>追加（同じ予定は重複させない）<small>今の予定と設定を残します</small></button>
       <button type="button" class="row" id="bk-replace"${dis}>置き換え<small>今の予定はすべて消えて、このファイルの内容になります。設定も置き換わります</small></button>
       <button type="button" class="row cancel" id="bk-cancel"${dis}>キャンセル</button>${bk.err ? `<p class="berr" role="alert">${esc(bk.err)}</p>` : ''}`;
@@ -1063,10 +1072,16 @@ function download(file) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
+// 確認画面のカテゴリ行: 追加 n／同じ id で名前・色が違う n／未分類へ n 件。
+function catLine() {
+  const m = mergeCategories(state.categories, bk.data.categories.map((c) => ({ ...c })), 'add'), fb = bk.report?.fallbackCount || 0;
+  if (!m.added && !m.conflicts && !fb) return '';
+  return `<p class="small">カテゴリ：追加${m.added}件／同じidで名前・色が違う${m.conflicts}件（今のものを残します）／未分類へ${fb}件</p>`;
+}
 async function doExport() {
   bk.err = ''; bk.msg = '';
   try {
-    const text = JSON.stringify(buildBackup(state.events, state, new Date(), state.categories), null, 2);
+    const text = JSON.stringify(buildBackup(state.events, { ...state, notify: loadNotify() }, new Date(), state.categories), null, 2);
     const file = new File([text], backupName(), { type: 'application/json' });
     if (NATIVE) {
       // ネイティブは共有シート（shareFile）を優先。失敗したときだけ従来の共有／ダウンロードへ。
@@ -1093,10 +1108,10 @@ async function onPicked(file) {
   let res;
   try {
     if (file.size > MAX_BYTES) res = { ok: false, reason: 'ファイルが大きすぎます（上限10MiB）' };
-    else res = validateBackup(await file.text());
+    else res = validateBackup(await file.text(), { categories: state.categories });
   } catch { res = { ok: false, reason: 'ファイルを読み取れません' }; }
   if (!res.ok) bk = { stage: 'invalid', busy: false, name: file.name, reason: res.reason };
-  else bk = { stage: 'confirm', busy: false, name: file.name, data: res.data, plan: planAppend(state.events, res.data.events), err: '' };
+  else bk = { stage: 'confirm', busy: false, name: file.name, data: res.data, report: res.report, plan: planAppend(state.events, res.data.events), err: '' };
   renderBackup();
   BK.body.querySelector('button')?.focus({ preventScroll: true });
 }
@@ -1135,7 +1150,7 @@ async function finishImport(kind) {
   if (kind === 'add') msg = `${plan.add.length}件を追加しました（重複${plan.skipped}件を除外）。`;
   else {
     msg = `${data.events.length}件の予定${data.settings ? 'と設定' : ''}に置き換えました。`;
-    if (data.settings) Object.assign(state, data.settings);
+    if (data.settings) { const { notify, ...ui } = data.settings; Object.assign(state, ui); if (notify) saveNotify(notify); }
   }
   closePanel(backupDlg);
   set({});
