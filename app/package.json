@@ -8,6 +8,8 @@
     "start": "node server.mjs",
     "icons": "node scripts/make-icons.mjs",
     "test": "playwright test",
+    "test:unit": "TZ=Asia/Tokyo node --test \"test-unit/*.test.mjs\" && TZ=America/New_York node --test \"test-unit/*.test.mjs\"",
+    "perf": "node scripts/perf-report.mjs",
     "build:www": "node scripts/build-www.mjs",
     "ios": "npm run build:www && npx cap sync ios"
   },
