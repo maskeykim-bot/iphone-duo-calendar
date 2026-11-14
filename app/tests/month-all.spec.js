@@ -1,17 +1,16 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { openApp, seed, ev, tab, layout, SIZES, textInGutter, findTextOverlaps } from './helpers.js';
+import { openApp, seed, ev, tab, layout, SIZES, textInGutter, findTextOverlaps, setStyle, modeStates, openMenu } from './helpers.js';
 
 const day = (n) => `2026-11-${String(n).padStart(2, '0')}`;
 // 1日に n 件（10:00 から30分刻み）。
 const many = (key, n, pre = 'm') => Array.from({ length: n }, (_, i) => ev(`${pre}${key}-${i}`, `${pre}${key.slice(8)}-${i + 1}`, `${key}T${String(8 + Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`, `${key}T${String(8 + Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '45' : '15'}`));
-const modeBtn = (page, name) => page.getByRole('button', { name, exact: true });
 const weekH = (page) => page.locator('.week.all').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height * 10) / 10));
 const scrollTop = (page) => page.locator('.scroll.all').evaluate((el) => el.scrollTop);
 async function showAll(page, size = SIZES.closedPortrait) {
   await tab(page, '月').click();
-  await modeBtn(page, '全部').click();
-  await expect(modeBtn(page, '全部')).toHaveAttribute('aria-pressed', 'true');
+  await setStyle(page, '全部');
+  expect((await modeStates(page))['全部']).toBe(true);
   await expect(page.locator('.scroll.all')).toBeVisible();
   void size;
 }
@@ -26,17 +25,17 @@ const SEED = [
 ];
 
 test.describe('月「全部」表示', () => {
-  test('ヘッダーは「手帳｜予定名｜全部」。手帳・予定名は既存の style に、全部は monthExpand に対応する', async ({ page }) => {
+  test('設定の「月の表現」は「手帳｜予定名｜全部」。手帳・予定名は既存の style に、全部は monthExpand に対応する', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await tab(page, '月').click();
-    for (const n of ['手帳', '予定名', '全部']) await expect(modeBtn(page, n)).toBeVisible();
-    await expect(modeBtn(page, '手帳')).toHaveAttribute('aria-pressed', 'true');
-    await modeBtn(page, '予定名').click();
+    expect(Object.keys(await modeStates(page))).toEqual(['手帳', '予定名', '全部']); // 入口は設定の「月の表現」
+    expect((await modeStates(page))['手帳']).toBe(true);
+    await setStyle(page, '予定名');
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')))).toMatchObject({ style: 'named', monthExpand: false });
-    await modeBtn(page, '全部').click();
+    await setStyle(page, '全部');
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')))).toMatchObject({ style: 'named', monthExpand: true });
-    await expect(modeBtn(page, '予定名')).toHaveAttribute('aria-pressed', 'false');
-    await modeBtn(page, '手帳').click(); // 全部をやめて手帳へ
+    expect((await modeStates(page))['予定名']).toBe(false);
+    await setStyle(page, '手帳'); // 全部をやめて手帳へ
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')))).toMatchObject({ style: 'simple', monthExpand: false });
     await expect(page.locator('.scroll.all')).toHaveCount(0);
   });
@@ -93,12 +92,12 @@ test.describe('月「全部」表示', () => {
     const sc = page.locator('.scroll.all');
     expect(await sc.evaluate((e) => e.scrollHeight > e.clientHeight)).toBe(true);
     const head0 = await page.locator('.weekdays').boundingBox();
-    const leg0 = await page.locator('.legend').boundingBox();
+    const leg0 = await page.locator('.tabs').boundingBox();
     const title = await page.locator('#ctitle').textContent();
     await sc.evaluate((e) => { e.scrollTop = e.scrollHeight; });
-    await expect.poll(() => scrollTop(page)).toBeGreaterThan(100);
+    await expect.poll(() => scrollTop(page)).toBeGreaterThan(40);
     expect(await page.locator('.weekdays').boundingBox()).toEqual(head0);
-    expect(await page.locator('.legend').boundingBox()).toEqual(leg0);
+    expect(await page.locator('.tabs').boundingBox()).toEqual(leg0);
     expect(await page.locator('#ctitle').textContent()).toBe(title);
     // 最後の週が見える（スクロール領域の内側）
     const last = await page.locator('.week.all').last().boundingBox();
@@ -143,14 +142,17 @@ test.describe('月「全部」表示', () => {
       for (const w of sc.children) if (w.getBoundingClientRect().bottom > r.top + 2) return w.dataset.wk;
       return '';
     });
-    await page.locator('.scroll.all').evaluate((e) => { e.scrollTop = e.querySelector('[data-wk="2026-11-09"]').offsetTop + 40; });
-    await expect.poll(firstWeek).toBe('2026-11-09');
+    // 閉じた画面は月の高さが基準寸法に固定され、スクロールできる量は少ない。末尾までスクロールして、その時に見えている先頭の週を基準にする。
+    await page.locator('.scroll.all').evaluate((e) => { e.scrollTop = e.scrollHeight; });
+    await expect.poll(() => scrollTop(page)).toBeGreaterThan(20);
+    await expect.poll(async () => { const a = await firstWeek(); await page.waitForTimeout(100); return a === (await firstWeek()); }).toBe(true);
+    const WK = await firstWeek();
     // 位置はスクロールイベント（フレームごと）で記録されるので、実際の操作と同じく1フレーム待ってから開閉する
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
     // 開いた縦（予定名｜全部）
     await page.setViewportSize(SIZES.openPortrait);
     await expect.poll(() => layout(page)).toBe('open');
-    await expect(modeBtn(page, '全部')).toHaveAttribute('aria-pressed', 'true');
+    expect((await modeStates(page))['全部']).toBe(true);
     await expect(page.locator('.scroll.all')).toBeVisible();
     // 週の高さは必要高（19+段×16+2）まで縮むので、小さい月では先頭までスクロールできない（保持可能な範囲で維持）。
     // そのため「見えていた週が引き続き見えている」ことを確かめる。
@@ -158,32 +160,32 @@ test.describe('月「全部」表示', () => {
       const r = sc.getBoundingClientRect(), b = sc.querySelector(`[data-wk="${k}"]`).getBoundingClientRect();
       return b.bottom > r.top + 2 && b.top < r.bottom - 2;
     }, wk);
-    { const w = await firstWeek(); expect(w).toBe('2026-11-09'); }
+    await expect.poll(() => visible(WK)).toBe(true);
     // 開いた横（見開き）
     await page.setViewportSize(SIZES.openLandscape);
     await expect.poll(() => layout(page)).toBe('spread');
-    await expect(modeBtn(page, '全部')).toHaveAttribute('aria-pressed', 'true');
-    await expect.poll(() => visible('2026-11-09')).toBe(true);
+    expect((await modeStates(page))['全部']).toBe(true);
+    await expect.poll(() => visible(WK)).toBe(true);
     // 閉じた横
     await page.setViewportSize(SIZES.closedLandscape);
     await expect.poll(() => layout(page)).toBe('browse');
-    await expect(modeBtn(page, '全部')).toHaveAttribute('aria-pressed', 'true');
-    await expect.poll(() => visible('2026-11-09')).toBe(true);
+    expect((await modeStates(page))['全部']).toBe(true);
+    await expect.poll(() => visible(WK)).toBe(true);
     // 閉じた縦へ戻す
     await page.setViewportSize(SIZES.closedPortrait);
     await expect.poll(() => layout(page)).toBe('browse');
-    await expect.poll(() => visible('2026-11-09')).toBe(true);
+    await expect.poll(() => visible(WK)).toBe(true);
     // 再読み込み（モードは保たれる）
     await page.reload();
     await page.waitForSelector('html[data-ready]');
-    await expect(modeBtn(page, '全部')).toHaveAttribute('aria-pressed', 'true');
+    expect((await modeStates(page))['全部']).toBe(true);
     await expect(page.locator('.scroll.all')).toBeVisible();
   });
 
   test('バックアップの往復でモード（monthExpand）と週の始まりが保たれる', async ({ page }, info) => {
     await openApp(page, SIZES.closedPortrait, '?ns=mall&nosw');
     await tab(page, '月').click();
-    await modeBtn(page, '全部').click();
+    await setStyle(page, '全部');
     await page.getByRole('button', { name: 'その他' }).click();
     await page.getByRole('button', { name: /^週の始まり/ }).click(); // 日曜へ
     const open = async () => { await page.getByRole('button', { name: 'その他' }).click(); await page.getByRole('button', { name: 'バックアップ' }).click(); };
@@ -195,14 +197,14 @@ test.describe('月「全部」表示', () => {
     // 別の保存領域（既定の月曜・手帳）へ置き換え読み込み
     await openApp(page, SIZES.closedPortrait, '?ns=mall2&nosw');
     await tab(page, '月').click();
-    await expect(modeBtn(page, '手帳')).toHaveAttribute('aria-pressed', 'true');
+    expect((await modeStates(page))['手帳']).toBe(true);
     await expect(page.locator('.weekdays span').first()).toHaveText('月');
     await open();
     await page.setInputFiles('#bk-file', p);
     await page.locator('#bk-replace').click();
     await page.locator('#bk-rdo').click();
     await expect(page.locator('#backup')).toBeHidden();
-    await expect(modeBtn(page, '全部')).toHaveAttribute('aria-pressed', 'true');
+    expect((await modeStates(page))['全部']).toBe(true);
     await expect(page.locator('.weekdays span').first()).toHaveText('日');
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1.mall2')))).toMatchObject({ monthExpand: true, weekStart: 0 });
   });
@@ -244,9 +246,11 @@ test.describe('月「全部」表示', () => {
     list.push(...many('2026-11-30', 10, 'z'));
     await seed(page, list.map((e, i) => ({ ...e, id: `perf${i}` })));
     await tab(page, '月').click();
+    await openMenu(page);
+    await page.locator('#menu').getByRole('button', { name: '月の表現', exact: true }).click();
     // 全部へ切り替える1回の描画（クリックの同期処理）を計測。中央値で判定。
     const ms = await page.evaluate(() => {
-      const click = (n) => [...document.querySelectorAll('.variant button')].find((b) => b.textContent === n).click();
+      const click = (n) => [...document.querySelectorAll('#m-variant button')].find((b) => b.textContent === n).click();
       const out = [];
       for (let i = 0; i < 5; i++) { click('予定名'); const t = performance.now(); click('全部'); out.push(performance.now() - t); }
       return out.sort((a, b) => a - b);
@@ -261,7 +265,7 @@ test.describe('月「全部」表示', () => {
     await openApp(page, SIZES.openLandscape);
     await seed(page, [...SEED, ...many(day(13), 8, 'w')]);
     expect(await layout(page)).toBe('spread');
-    await modeBtn(page, '全部').click();
+    await setStyle(page, '全部');
     await expect(page.locator('.scroll.all')).toBeVisible();
     expect(await textInGutter(page)).toEqual([]);
     const pg = await page.locator('.page.calendar').boundingBox();
@@ -284,17 +288,17 @@ test.describe('週の始まり（月曜が既定）', () => {
         await tab(page, '月').click();
         for (let i = 0; i < y; i++) await page.getByRole('button', { name: '次の月' }).click();
         void m;
-        await modeBtn(page, mode).click();
+        await setStyle(page, mode);
         await expect(page.locator('.weekdays span')).toHaveText(['月', '火', '水', '木', '金', '土', '日']);
         const weeks = page.locator('.week');
         await expect(weeks).toHaveCount(y ? 4 : 6);
         const first = await page.locator('.week').first().locator('.day').first().getAttribute('data-date');
         expect(first).toBe(y ? '2027-02-01' : '2026-10-26');
-        const sc = await page.locator('.calendar .scroll').boundingBox();
+        // 閉じた画面の月グリッドは基準の高さ G（--grid-h）を週数で等分する。末尾の週の下端が曜日の下 + G に届く（4週でも埋める）。
+        const G = await page.evaluate(() => parseFloat(document.documentElement.style.getPropertyValue('--grid-h')));
+        const top = (await weeks.first().boundingBox()).y;
         const last = await weeks.last().boundingBox();
-        const bottom = last.y + last.height;
-        // 末尾の週がスクロール領域の下端に届く（4週で余るときは行が伸びて埋める）。あふれるときはスクロール。
-        expect(bottom).toBeGreaterThanOrEqual(sc.y + sc.height - 1);
+        expect(last.y + last.height).toBeGreaterThanOrEqual(top + G - 1);
       });
     }
   }
@@ -303,7 +307,7 @@ test.describe('週の始まり（月曜が既定）', () => {
     await openApp(page, SIZES.openPortrait);
     for (let i = 0; i < 3; i++) await page.getByRole('button', { name: '次の月' }).click(); // 2027年2月
     for (const mode of ['予定名', '全部']) {
-      await modeBtn(page, mode).click();
+      await setStyle(page, mode);
       await expect(page.locator('#ctitle')).toHaveText('2027年 2月');
       await expect(page.locator('.week')).toHaveCount(4);
       const sc = await page.locator('.calendar .scroll').boundingBox();

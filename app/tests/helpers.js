@@ -46,10 +46,15 @@ export async function addEvent(page, f) {
   await expect(page.locator('#editor')).toBeHidden();
 }
 
-// 「手帳／予定名」は開いた縦では隠れる。見えている時だけ切り替える。
+// 月の表現（手帳／予定名／全部）は設定メニューの「月の表現」から選ぶ。開いた縦には「手帳」がない。選ぶとメニューは閉じる。
 export async function setStyle(page, name) {
-  const b = page.getByRole('button', { name, exact: true });
-  if (await b.isVisible()) await b.click();
+  await page.getByRole('button', { name: 'その他' }).first().click();
+  const mode = page.locator('#menu').getByRole('button', { name: '月の表現', exact: true });
+  if (!(await mode.isVisible())) { await page.keyboard.press('Escape'); return; }
+  await mode.click();
+  const b = page.locator('#m-variant').getByRole('button', { name, exact: true });
+  if (await b.count()) await b.click(); else await page.keyboard.press('Escape');
+  await expect(page.locator('#menu')).toBeHidden();
 }
 // 日セルは日付の位置を押す（予定名の帯・短冊が中央に重なるため）。
 export const pickDay = (page, key) => page.locator(`[data-date="${key}"]`).click({ position: { x: 12, y: 10 } });
@@ -94,7 +99,10 @@ export async function findTextOverlaps(page, { ignoreApp = false } = {}) {
       if (cs.visibility === 'hidden' || cs.display === 'none') continue;
       const range = document.createRange();
       range.selectNodeContents(n);
+      const inFloat = !!el.closest('.tabs, .rail');
       for (const r0 of range.getClientRects()) {
+        // 浮動タブ・操作列は月の下に重ねて浮かせる設計。その下に隠れた文字（中心がタブ内）は見えないので対象外。
+        if (!inFloat) { const hit = document.elementFromPoint(Math.min(Math.max((r0.left + r0.right) / 2, 0), vw - 1), Math.min(Math.max((r0.top + r0.bottom) / 2, 0), vh - 1)); if (hit?.closest('.tabs, .rail')) continue; }
         let r = { l: Math.max(r0.left, 0), t: Math.max(r0.top, 0), r: Math.min(r0.right, vw), b: Math.min(r0.bottom, vh) };
         for (let a = el; a && a !== document.documentElement; a = a.parentElement) {
           const s = getComputedStyle(a);
@@ -195,4 +203,29 @@ export async function textInGutter(page, l, r) {
     }
     return bad;
   }, [l ?? null, r ?? null]);
+}
+
+// ---- 第10版 ② ----
+// 設定メニュー（その他）を開く／閉じる。月の表現・卓上・凡例の入口はここ。
+export async function openMenu(page) {
+  await page.getByRole('button', { name: 'その他' }).first().click();
+  await expect(page.locator('#menu')).toBeVisible();
+}
+// メニューの「月の表現」を開いて、各ボタンの状態（aria-pressed）を返してメニューを閉じる。無いときは null。
+export async function modeStates(page) {
+  await openMenu(page);
+  const mode = page.locator('#menu').getByRole('button', { name: '月の表現', exact: true });
+  let out = null;
+  if (await mode.isVisible()) {
+    await mode.click();
+    out = await page.locator('#m-variant button').evaluateAll((bs) => Object.fromEntries(bs.map((b) => [b.textContent, b.getAttribute('aria-pressed') === 'true'])));
+  }
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#menu')).toBeHidden();
+  return out;
+}
+// 卓上表示の入／切（メニューから）。
+export async function toggleDesk(page) {
+  await openMenu(page);
+  await page.locator('#menu').getByRole('button', { name: /^卓上表示/ }).click();
 }

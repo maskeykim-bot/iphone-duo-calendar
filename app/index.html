@@ -90,11 +90,14 @@
     <button type="button" data-m="backup">バックアップ</button>
     <button type="button" data-m="desk" id="m-desk">卓上表示</button>
     <button type="button" data-m="week" id="m-week">週の始まり</button>
+    <button type="button" data-m="mode" id="m-mode" aria-expanded="false" aria-controls="m-variant">月の表現</button>
+    <div class="variant" id="m-variant" role="group" aria-label="月の表現" hidden></div>
     <button type="button" data-m="mtime" id="m-mtime" aria-pressed="false">月表示に時刻を出す</button>
     <button type="button" data-m="msize" id="m-msize" aria-pressed="false">月の文字</button>
     <button type="button" data-m="sample" id="m-sample">サンプルを入れる</button>
     <button type="button" data-m="close">閉じる</button>
   </div>
+  <div id="m-legend" class="mlegend" hidden></div>
   <p id="layout-diagnostics" class="diag" aria-label="画面の寸法の診断"></p>
 </dialog>
 <dialog id="search" class="panel full" aria-labelledby="sr-title">

@@ -1,6 +1,6 @@
 // 第7版: iPhone カレンダー連携。window.Capacitor を偽装して、DuoNative の契約どおりに呼ばれ表示されることを確認する。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, tab, seed, ev, dbEvents } from './helpers.js';
+import { openApp, SIZES, tab, seed, ev, dbEvents, setStyle, openMenu } from './helpers.js';
 
 const CALS = [
   { id: 'cal-1', title: '家族', color: '#d93025', sourceId: 's-g', source: 'Google', sourceType: 'caldav', allowsModify: true },
@@ -149,15 +149,18 @@ test.describe('ネイティブ（偽装）', () => {
     // 並び: 終日→時間付き（アプリ予定がなくても iPhone 内で開始昇順）
     // 月（予定名）
     await tab(page, '月').click();
-    await page.getByRole('button', { name: '予定名' }).click();
+    await setStyle(page, '予定名');
     // 月のチップ・帯は出所アイコンを出さず（aria-label に「iPhone、カレンダー名」を残す）、塗りはカレンダーの元色
     const dent = page.locator('.calendar .strip[data-sday="2026-11-12"]', { hasText: '歯医者' });
     await expect(dent).not.toContainText('▦');
     await expect(dent).toHaveAttribute('aria-label', /^iPhone、/);
     expect(await dent.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(217, 48, 37)'); // カレンダーの色 #d93025
     await expect(page.locator('.bar', { hasText: '<b>旅行</b>' })).toHaveCount(1); // 11/14(土)〜15(日)は月曜始まりでは同じ週なので1本（週境界の分割は month-all.spec.js で確認）。HTML は文字として表示
-    await expect(page.locator('.xlegend')).toHaveText('▦ iPhoneの予定（カレンダーの色）');
-    await expect(page.locator('.legend span')).toHaveCount(5); // 新規の既定カテゴリ5つ（仕事・プライベート・家族・外出・その他）
+    // 凡例は設定メニューの中
+    await openMenu(page);
+    await expect(page.locator('#menu .xlegend')).toHaveText('▦ iPhoneの予定（カレンダーの色）');
+    await expect(page.locator('#menu .legend span')).toHaveCount(5); // 新規の既定カテゴリ5つ（仕事・プライベート・家族・外出・その他）
+    await page.keyboard.press('Escape');
     await expect(page.locator('[data-date="2026-11-12"]')).toHaveAttribute('aria-label', /うちiPhone 2件/);
   });
 

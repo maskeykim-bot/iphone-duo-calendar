@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, loadSample, addEvent, tab, layout, findTextOverlaps, pickDay, SIZES } from './helpers.js';
+import { openApp, loadSample, addEvent, tab, layout, findTextOverlaps, pickDay, modeStates, SIZES } from './helpers.js';
 
 const box = (loc) => loc.boundingBox();
 const inside = (a, o, tol = 1) => a.y >= o.y - tol && a.y + a.height <= o.y + o.height + tol && a.x >= o.x - tol && a.x + a.width <= o.x + o.width + tol;
@@ -13,9 +13,7 @@ test.describe('開いた縦 626×890: 月', () => {
     await expect(page.locator('body')).toHaveAttribute('data-posture', 'portrait');
     // 手帳／予定名の切替は隠れ、左右分割ではない
     // 開いた縦の月は常に予定名なので「手帳」は出さず、「予定名｜全部」の2つ
-    await expect(page.getByRole('button', { name: '手帳', exact: true })).toBeHidden();
-    await expect(page.getByRole('button', { name: '予定名', exact: true })).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.getByRole('button', { name: '全部', exact: true })).toHaveAttribute('aria-pressed', 'false');
+    expect(await modeStates(page)).toEqual({ 予定名: true, 全部: false }); // 入口は設定の「月の表現」
     const cal = await box(page.locator('.calendar'));
     const ag = await box(page.locator('.agenda'));
     expect(cal.width).toBeGreaterThanOrEqual(590);

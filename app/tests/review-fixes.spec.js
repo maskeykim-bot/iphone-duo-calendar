@@ -1,7 +1,7 @@
 // 第1弾レビュー対応（小さな修正版）: 非表示カテゴリの既定・通知、同名カテゴリ、読み込みの上限と件数、開いた画面の「今日に戻る」、手帳→予定名の往復。
 import { test, expect } from '@playwright/test';
 import { CAT_IDS } from '../js/categories.js';
-import { openApp, seed, dbEvents, ev, tab, SIZES, addEvent } from './helpers.js';
+import { openApp, seed, dbEvents, ev, tab, SIZES, addEvent, setStyle, modeStates } from './helpers.js';
 
 const dbCats = (page) => page.evaluate(async () => (await import('/js/db.js')).listCategories());
 const hideCat = async (page, id) => {
@@ -166,12 +166,11 @@ test.describe('開いた画面の「今日に戻る」', () => {
 test('閉じた画面の「手帳」→ 開いた縦は「予定名」→ 閉じ直すと「手帳」', async ({ page }) => {
   await openApp(page);
   await tab(page, '月').click();
-  await page.getByRole('button', { name: '手帳', exact: true }).click();
-  await expect(page.getByRole('button', { name: '手帳', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await setStyle(page, '手帳');
+  expect((await modeStates(page))['手帳']).toBe(true);
   await page.setViewportSize(SIZES.openPortrait);
-  await expect(page.getByRole('button', { name: '手帳', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '予定名', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  expect(await modeStates(page)).toEqual({ 予定名: true, 全部: false });
   await page.setViewportSize(SIZES.closedPortrait);
-  await expect(page.getByRole('button', { name: '手帳', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  expect((await modeStates(page))['手帳']).toBe(true);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith('duo.ui.v1')))).style)).toBe('simple');
 });

@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { CAT_IDS, LEGACY, DEFAULTS_NEW } from '../js/categories.js';
-import { openApp, seed, dbEvents, ev, tab, catId, SIZES } from './helpers.js';
+import { openApp, seed, dbEvents, ev, tab, catId, SIZES, openMenu } from './helpers.js';
+// カテゴリの凡例は設定メニューの中（月には常設しない）
+const legendCheck = async (page, fn) => { await openMenu(page); await fn(page.locator('#menu .legend')); await page.keyboard.press('Escape'); };
 
 const dbCats = (page) => page.evaluate(async () => (await import('/js/db.js')).listCategories());
 const openCats = async (page) => {
@@ -149,7 +151,7 @@ test.describe('カテゴリ編集パネル', () => {
     await tab(page, '日').click();
     await expect(page.locator('.daylist .event', { hasText: '予定A' }).locator('.tag')).toHaveText('ファミリー');
     await tab(page, '月').click();
-    await expect(page.locator('.legend')).toContainText('ヨガ');
+    await legendCheck(page, (l) => expect(l).toContainText('ヨガ'));
   });
 
   test('名前の検証: 空・重複・21文字以上は保存できない', async ({ page }) => {
@@ -177,7 +179,7 @@ test.describe('カテゴリ編集パネル', () => {
     expect((await dbCats(page)).map((c) => [c.name, c.order])).toEqual([['家族', 0], ['仕事', 1], ['プライベート', 2], ['外出', 3], ['その他', 4]]);
     await page.reload(); await page.waitForSelector('html[data-ready]');
     await tab(page, '月').click();
-    await expect(page.locator('.legend span')).toHaveText(['家族', '仕事', 'プライベート', '外出', 'その他']);
+    await legendCheck(page, (l) => expect(l.locator('span')).toHaveText(['家族', '仕事', 'プライベート', '外出', 'その他']));
     await page.getByRole('button', { name: '予定を追加' }).click();
     await expect(page.locator('#f-cat')).toHaveValue(CAT_IDS.family); // 新規の既定は先頭
   });
@@ -195,7 +197,7 @@ test.describe('カテゴリ編集パネル', () => {
     await expect(page.locator('.daylist .event')).toHaveCount(1);
     await expect(page.locator('.daylist .event')).toContainText('仕事A');
     await tab(page, '月').click();
-    await expect(page.locator('.legend')).not.toContainText('家族');
+    await legendCheck(page, (l) => expect(l).not.toContainText('家族'));
     expect(await dbEvents(page)).toHaveLength(2);
     await openCats(page);
     await rowOf(page, '家族').locator('[role=switch]').click();

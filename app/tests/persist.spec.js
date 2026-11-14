@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, loadSample, addEvent, tab, layout, SIZES, catId } from './helpers.js';
+import { openApp, loadSample, addEvent, tab, layout, SIZES, catId, setStyle, modeStates, toggleDesk } from './helpers.js';
 
 test.describe('永続化', () => {
   test('再読込後も予定が残る（IndexedDB）', async ({ page }) => {
@@ -34,25 +34,25 @@ test.describe('永続化', () => {
     await openApp(page, SIZES.openPortrait);
     await tab(page, '月').click();
     // 開いた縦では「手帳」が出ないため、卓上へ移ってから選ぶ（選択状態は姿勢をまたいで保持される）
-    await expect(page.getByRole('button', { name: '手帳', exact: true })).toBeHidden();
+    expect(await modeStates(page)).toEqual({ 予定名: true, 全部: false });
     await page.getByRole('button', { name: '次の月' }).click();
     await page.locator('[data-date="2026-12-10"]').click({ position: { x: 12, y: 10 } });
-    await page.getByRole('button', { name: '卓上' }).click();
+    await toggleDesk(page);
     expect(await layout(page)).toBe('desk');
-    await page.getByRole('button', { name: '予定名' }).click();
+    await setStyle(page, '予定名');
 
     await page.setViewportSize(SIZES.openLandscape);
     await expect.poll(() => layout(page)).toBe('desk');
     await expect(page.locator('[data-date="2026-12-10"]')).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.getByRole('button', { name: '予定名' })).toHaveAttribute('aria-pressed', 'true');
+    expect((await modeStates(page))['予定名']).toBe(true);
 
     await page.reload();
     await page.waitForSelector('html[data-ready]');
     expect(await layout(page)).toBe('desk');
     await expect(page.locator('[data-date="2026-12-10"]')).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.getByRole('button', { name: '卓上' })).toHaveAttribute('aria-pressed', 'true');
+    await toggleDesk(page); // 卓上表示をやめる
 
-    await page.getByRole('button', { name: '卓上' }).click();
+
     await tab(page, '週').click();
     await page.setViewportSize(SIZES.closedPortrait);
     await expect.poll(() => layout(page)).toBe('browse');

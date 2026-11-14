@@ -87,13 +87,15 @@ test.describe('予定の追加・編集・削除', () => {
     await expect(page.locator('.next')).toContainText('元の名前');
   });
 
-  test('今日に戻る: 日付・view・ホームをリセット', async ({ page }) => {
+  test('今日に戻る: 選択日だけ今日へ。表示（日・週・月・一覧）は保つ', async ({ page }) => {
     await openApp(page);
     await tab(page, '週').click();
     await page.getByRole('button', { name: '次の週' }).click();
     await tab(page, '日').click();
     await page.getByRole('button', { name: '今日に戻る' }).click();
-    await expect(page.locator('.shell.home')).toBeVisible();
+    await expect(page.locator('.shell.browse')).toBeVisible(); // 一覧（ホーム）へは飛ばない
+    await expect(tab(page, '日')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#ctitle')).toHaveText('11月12日（木）');
     await tab(page, '月').click();
     await expect(page.locator('h2#ctitle')).toHaveText('2026年 11月');
     await expect(page.locator('[data-date="2026-11-12"]')).toHaveAttribute('aria-pressed', 'true');

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, loadSample, addEvent, tab, layout, findTextOverlaps, setStyle, SIZES } from './helpers.js';
+import { openApp, loadSample, addEvent, tab, layout, findTextOverlaps, setStyle, toggleDesk, SIZES } from './helpers.js';
 
 const box = (loc) => loc.boundingBox();
 const inside = (inner, outer, tol = 1) => inner.y >= outer.y - tol && inner.y + inner.height <= outer.y + outer.height + tol && inner.x >= outer.x - tol && inner.x + inner.width <= outer.x + outer.width + tol;
@@ -15,23 +15,21 @@ test.describe('レイアウト（4サイズ）', () => {
     for (const t of ['日', '週', '月']) await expect(tab(page, t)).toHaveAttribute('aria-pressed', 'false');
     const add = await box(page.getByRole('button', { name: '予定を追加' }));
     expect(add.y + add.height).toBeLessThanOrEqual(678);
-    // 残り4件が内部スクロールなしで見える
+    expect(add.x).toBeGreaterThanOrEqual(382); // ＋ は右の操作列
+    // 残り4件が内部スクロールなしで見える（下はタブの上まで）
     const list = await box(page.locator('.remaining .list'));
-    for (const ev of await page.locator('.remaining .event').all()) expect(inside(await box(ev), list)).toBe(true);
-    expect(list.y + list.height).toBeLessThanOrEqual(add.y + 1);
+    const tabs = await box(page.locator('.tabs'));
+    for (const ev of await page.locator('.remaining .event').all()) { const b = await box(ev); expect(inside(b, list)).toBe(true); expect(b.y + b.height).toBeLessThanOrEqual(tabs.y + 1); }
   });
 
-  test('残り予定が増えたらリスト内でスクロールし、追加を覆わない', async ({ page }) => {
+  test('残り予定が増えたらリスト内でスクロールし、最後の予定をタブの上へ出せる', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     for (let i = 0; i < 9; i++) await addEvent(page, { title: `追加予定${i}`, start: `2026/11/12 ${String(14 + (i % 8)).padStart(2, '0')}:00`, end: `2026/11/12 ${String(14 + (i % 8)).padStart(2, '0')}:30` });
     const list = page.locator('.remaining .list');
     expect(await list.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
-    const add = await box(page.getByRole('button', { name: '予定を追加' }));
-    const lb = await box(list);
-    expect(lb.y + lb.height).toBeLessThanOrEqual(add.y + 1);
     await list.evaluate((el) => { el.scrollTop = el.scrollHeight; });
     const last = await box(page.locator('.remaining .event').last());
-    expect(last.y + last.height).toBeLessThanOrEqual(add.y + 1);
+    expect(last.y + last.height).toBeLessThanOrEqual((await box(page.locator('.tabs'))).y + 1);
   });
 
   test('466×678 閉じた日表示: 5件前後が見える', async ({ page }) => {
@@ -48,24 +46,16 @@ test.describe('レイアウト（4サイズ）', () => {
     await expect(page.locator('.agenda')).toHaveCount(0);
   });
 
-  test('閉じた月: 凡例が追加ボタンで切れず、本文は内部スクロール', async ({ page }) => {
+  test('閉じた月: 常設の凡例はなく、本文は内部スクロールで最終週がタブの上へ出る', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await loadSample(page);
     await tab(page, '月').click();
-    await page.getByRole('button', { name: '予定名' }).click();
-    const legend = await box(page.locator('.legend'));
-    const add = await box(page.getByRole('button', { name: '予定を追加' }));
-    expect(legend.y + legend.height).toBeLessThanOrEqual(add.y);
-    for (const sp of await page.locator('.legend span').all()) {
-      const b = await box(sp);
-      expect(b.y + b.height).toBeLessThanOrEqual(add.y);
-    }
+    await setStyle(page, '予定名');
+    await expect(page.locator('.calendar .legend')).toHaveCount(0);
     const sc = page.locator('.scroll');
-    const sb = await box(sc);
-    expect(sb.y + sb.height).toBeLessThanOrEqual(legend.y + 1);
     await sc.evaluate((el) => { el.scrollTop = el.scrollHeight; });
     const lastWeek = await box(page.locator('.week').last());
-    expect(lastWeek.y + lastWeek.height).toBeLessThanOrEqual(sb.y + sb.height + 1);
+    expect(lastWeek.y + lastWeek.height).toBeLessThanOrEqual((await box(page.locator('.tabs'))).y + 1);
   });
 
   test('678×466 閉じた横: 1列でホームの操作が使える', async ({ page }) => {
@@ -78,7 +68,6 @@ test.describe('レイアウト（4サイズ）', () => {
     const list = await box(page.locator('.remaining .list'));
     const add = await box(page.getByRole('button', { name: '予定を追加' }));
     expect(add.y + add.height).toBeLessThanOrEqual(466);
-    expect(list.y + list.height).toBeLessThanOrEqual(add.y + 1);
     for (const ev of await page.locator('.remaining .event').all()) expect(inside(await box(ev), list)).toBe(true);
     await tab(page, '週').click();
     await expect(page.locator('.weekview')).toBeVisible();
@@ -137,7 +126,7 @@ test.describe('レイアウト（4サイズ）', () => {
     for (const size of [SIZES.openPortrait, SIZES.openLandscape]) {
       await openApp(page, size);
       if (size === SIZES.openPortrait) await loadSample(page);
-      await page.getByRole('button', { name: '卓上' }).click();
+      await toggleDesk(page);
       expect(await layout(page)).toBe('desk');
       const band = page.locator('.foldband');
       await expect(band).toHaveText('折り目の保護領域');
@@ -150,7 +139,7 @@ test.describe('レイアウト（4サイズ）', () => {
       expect(bottom.y + bottom.height).toBeLessThanOrEqual(add.y + 1);
       const top = await box(page.locator('.desktop .scroll'));
       expect(top.y + top.height).toBeLessThanOrEqual(bb.y + 1);
-      await page.getByRole('button', { name: '卓上' }).click();
+      await toggleDesk(page);
     }
   });
 });
@@ -172,10 +161,10 @@ test.describe('可視テキストの重なり', () => {
       }
       if (size.width >= 600 && size.height >= 600) {
         await tab(page, '月').click();
-        await page.getByRole('button', { name: '卓上' }).click();
-        await page.getByRole('button', { name: '予定名' }).click();
+        await toggleDesk(page);
+        await setStyle(page, '予定名');
         await scan('卓上/予定名');
-        await page.getByRole('button', { name: '手帳' }).click();
+        await setStyle(page, '手帳');
         await scan('卓上/手帳');
       }
       expect(probs).toEqual([]);
@@ -216,7 +205,7 @@ test.describe('見開きの折り目 (x=425〜465)', () => {
     const probs = [];
     for (const v of ['月', '週', '日']) {
       await tab(page, v).click();
-      if (v === '月') for (const s of ['手帳', '予定名']) { await page.getByRole('button', { name: s }).click(); probs.push(...(await collect()).map((h) => `${v}/${s} ${h}`)); }
+      if (v === '月') for (const s of ['手帳', '予定名']) { await setStyle(page, s); probs.push(...(await collect()).map((h) => `${v}/${s} ${h}`)); }
       else probs.push(...(await collect()).map((h) => `${v} ${h}`));
     }
     expect(probs).toEqual([]);
