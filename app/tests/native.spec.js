@@ -35,6 +35,12 @@ async function mock(page, cfg = {}) {
             if (M.createErr) throw { code: M.createErr, message: 'x' };
             if (c.v2) { const n = M.created[opts.requestId]; return { itemId: `item-${n}`, externalId: `ext-${n}`, eventId: n, modifiedAt: 1763100000000, calendarId: opts.calendarId, occurrenceDate: null }; }
             return { eventId: M.created[opts.requestId] };
+          case 'updateEvent': case 'deleteEvent': {
+            if (M.opErr) throw { code: M.opErr, message: 'x' };
+            if (!opts.requestId || !['this', 'future', 'all'].includes(opts.span)) throw { code: 'INVALID_ARGUMENT', message: 'x' };
+            if (method === 'deleteEvent') return opts.missing ? { deleted: true, missing: true } : { deleted: true };
+            return { itemId: opts.itemId, externalId: opts.externalId ?? '', eventId: opts.eventId ?? 'x', modifiedAt: 1763100001000, calendarId: opts.calendarId, occurrenceDate: opts.occurrenceStart ?? null };
+          }
           case 'openInCalendar': return { opened: M.opened };
           case 'shareFile': return M.share;
           case 'notifyStatus': return { status: M.notif };
@@ -438,5 +444,45 @@ test.describe('ネイティブ（偽装）', () => {
     expect(ls.calendarIds).toEqual(['cal-2']); // 選択IDは次回用に保持
     await page.locator('#lk-close').click();
     await expect(page.locator('.daylist .event')).toHaveCount(1);
+  });
+});
+
+test.describe('第11版 PR6: updateEvent / deleteEvent の JS↔Swift 契約（呼び出し側は PR7）', () => {
+  const call = (page, method, opts) => page.evaluate(async ([m, o]) => {
+    try { return { ok: await window.Capacitor.nativePromise('DuoNative', m, o) }; } catch (e) { return { err: e.code }; }
+  }, [method, opts]);
+  const base = { itemId: 'i1', externalId: 'x1', eventId: 'e1', requestId: 'r1', calendarId: 'cal-1' };
+
+  test('差分・空配列・null・各 span・新 requestId がそのまま渡り、戻りは識別子つき', async ({ page }) => {
+    await mock(page);
+    await openApp(page);
+    for (const o of [
+      { ...base, span: 'this', title: 'a' },
+      { ...base, span: 'this', occurrenceStart: '2026-11-20T10:00', alarms: [] },
+      { ...base, span: 'future', occurrenceStart: '2026-11-20T10:00', recurrence: null, newRequestId: 'r2', expectModified: 1763100000000 },
+      { ...base, span: 'all', occurrenceStart: '2026-11-01T10:00', recurrence: { freq: 'weekly', interval: 1, byDay: [0, 3], count: 5, until: null }, force: true },
+    ]) {
+      const r = await call(page, 'updateEvent', o);
+      expect(r.ok).toMatchObject({ itemId: 'i1', calendarId: 'cal-1' });
+    }
+    const c = await calls(page, 'updateEvent');
+    expect(c).toHaveLength(4);
+    expect(c[1].opts.alarms).toEqual([]);
+    expect(c[2].opts).toMatchObject({ span: 'future', recurrence: null, newRequestId: 'r2' });
+    expect(c[3].opts.recurrence.byDay).toEqual([0, 3]);
+    expect(c[0].opts).not.toHaveProperty('alarms');
+  });
+
+  test('deleteEvent: 成功・missing・全失敗コード', async ({ page }) => {
+    await mock(page);
+    await openApp(page);
+    expect((await call(page, 'deleteEvent', { ...base, span: 'this' })).ok).toEqual({ deleted: true });
+    expect((await call(page, 'deleteEvent', { ...base, span: 'all', missing: true })).ok).toEqual({ deleted: true, missing: true });
+    expect((await call(page, 'deleteEvent', { ...base, span: 'bad' })).err).toBe('INVALID_ARGUMENT');
+    for (const code of ['NOT_FOUND', 'CONFLICT', 'WRITE_ONLY', 'PERMISSION_DENIED', 'RESTRICTED', 'READ_ONLY', 'CALENDAR_NOT_FOUND', 'INVALID_ARGUMENT', 'UNAVAILABLE']) {
+      await page.evaluate((c) => { window.__mock.opErr = c; }, code);
+      expect((await call(page, 'updateEvent', { ...base, span: 'this' })).err).toBe(code);
+      expect((await call(page, 'deleteEvent', { ...base, span: 'this' })).err).toBe(code);
+    }
   });
 });

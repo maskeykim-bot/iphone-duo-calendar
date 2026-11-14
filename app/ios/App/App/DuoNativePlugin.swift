@@ -18,6 +18,8 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         CAPPluginMethod(name: "listCalendars", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "listEvents", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "createEvent", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "updateEvent", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "deleteEvent", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "openInCalendar", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "shareFile", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "notifyStatus", returnType: CAPPluginReturnPromise),
@@ -513,6 +515,366 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             }
             self.saveCreated(requestId, itemId: event.calendarItemIdentifier, eventId: newId, fp: fp)
             call.resolve(self.createdReply(event, itemId: event.calendarItemIdentifier, eventId: newId, calendarId: calendarId, f))
+        }
+    }
+
+    // MARK: - 更新・削除（手順書 §3.1〜3.4）
+
+    private enum Found {
+        case found(EKEvent)
+        case notFound
+        case ambiguous
+    }
+
+    /// 予定の特定。itemId → externalId（複数は URL、次に開始）→ eventId → 開始±1日の URL 検索。
+    /// occurrenceStart があれば同じ系列の回を occurrenceDate で選ぶ。曖昧なら選ばない。
+    /// anchor は URL 検索と externalId 複数時の開始照合に使う日時（occurrenceStart、無ければ新しい start）。
+    /// 呼ぶのは EventKit の直列 queue 上。
+    private func findTarget(itemId: String, externalId: String, eventId: String, requestId: String,
+                            occurrenceStart: String?, anchor: Date?, allowHeadFallback: Bool,
+                            _ f: DateFormatter) -> Found {
+        let marker = DuoNativePlugin.urlPrefix + requestId
+        func window(_ d: Date) -> [EKEvent] {
+            let p = store.predicateForEvents(withStart: d.addingTimeInterval(-86400), end: d.addingTimeInterval(86400 * 2), calendars: nil)
+            return store.events(matching: p)
+        }
+        var base: EKEvent? = nil
+        if !itemId.isEmpty, let it = store.calendarItem(withIdentifier: itemId) as? EKEvent {
+            base = it
+        } else if !externalId.isEmpty {
+            let items = store.calendarItems(withExternalIdentifier: externalId).compactMap { $0 as? EKEvent }
+            if items.count == 1 {
+                base = items[0]
+            } else if items.count > 1 {
+                let byUrl = items.filter { $0.url?.absoluteString == marker }
+                if byUrl.count == 1 {
+                    base = byUrl[0]
+                } else if let a = anchor {
+                    let pool = byUrl.isEmpty ? items : byUrl
+                    let byStart = pool.filter { $0.startDate == a }
+                    if byStart.count == 1 { base = byStart[0] } else { return .ambiguous }
+                } else {
+                    return .ambiguous
+                }
+            }
+        }
+        if base == nil, !eventId.isEmpty, let e = store.event(withIdentifier: eventId) {
+            base = e
+        }
+        if base == nil, let a = anchor {
+            var seen = Set<String>()
+            var hits: [EKEvent] = []
+            for e in window(a) where e.url?.absoluteString == marker {
+                if seen.insert(e.calendarItemIdentifier).inserted { hits.append(e) }
+            }
+            if hits.count > 1 { return .ambiguous }
+            base = hits.first
+        }
+        guard let b = base else { return .notFound }
+        guard let occ = occurrenceStart, let occDate = parse(occ, f) else { return .found(b) }
+        // 同じ系列（itemId・externalId・URL の印のどれかが一致）で、回の開始が一致するもの。
+        let ext = b.calendarItemExternalIdentifier ?? ""
+        var matches: [EKEvent] = []
+        for e in window(occDate) {
+            let same = e.calendarItemIdentifier == b.calendarItemIdentifier
+                || (!ext.isEmpty && e.calendarItemExternalIdentifier == ext)
+                || e.url?.absoluteString == marker
+            guard same, let od = e.occurrenceDate ?? e.startDate else { continue }
+            let stamp = f.string(from: od)
+            if stamp == occ || (e.isAllDay && stamp.prefix(10) == occ.prefix(10)) { matches.append(e) }
+        }
+        if matches.count == 1 { return .found(matches[0]) }
+        if matches.count > 1 { return .ambiguous }
+        // 回が見つからない: 繰り返しのない予定、または全体（先頭）の操作なら元の予定自体を使う。
+        if !b.hasRecurrenceRules || allowHeadFallback { return .found(b) }
+        return .notFound
+    }
+
+    private func isConflict(_ ev: EKEvent, expect: Double?) -> Bool {
+        guard let e = expect, let m = ev.lastModifiedDate else { return false }
+        return m.timeIntervalSince1970 * 1000 >= e + 1000
+    }
+
+    private func has(_ call: CAPPluginCall, _ key: String) -> Bool {
+        if let v = call.options[key] { return !(v is NSNull) }
+        return false
+    }
+
+    /// Duo の規則 {freq, byDay(0=日), count, until(YYYY-MM-DD)} → EKRecurrenceRule。anchor は規則の基準日（予定の開始）。
+    private func makeRule(_ d: [String: Any], anchor: Date, cal: Calendar) -> EKRecurrenceRule? {
+        guard let freqStr = d["freq"] as? String else { return nil }
+        var end: EKRecurrenceEnd? = nil
+        if let c = (d["count"] as? NSNumber)?.intValue, c > 0 {
+            end = EKRecurrenceEnd(occurrenceCount: c)
+        } else if let u = d["until"] as? String, u.count == 10 {
+            let df = DateFormatter()
+            df.calendar = Calendar(identifier: .gregorian)
+            df.locale = Locale(identifier: "en_US_POSIX")
+            df.timeZone = TimeZone.current
+            df.dateFormat = "yyyy-MM-dd"
+            guard let day = df.date(from: u) else { return nil }
+            // until は含む最終日。その日の終わりまでを範囲にする。
+            end = EKRecurrenceEnd(end: (cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: day)) ?? day).addingTimeInterval(-1))
+        }
+        let comps = cal.dateComponents([.month, .day], from: anchor)
+        switch freqStr {
+        case "daily":
+            return EKRecurrenceRule(recurrenceWith: .daily, interval: 1, end: end)
+        case "weekly":
+            var days: [EKRecurrenceDayOfWeek]? = nil
+            if let by = d["byDay"] as? [Any], !by.isEmpty {
+                var out: [EKRecurrenceDayOfWeek] = []
+                for v in by {
+                    guard let n = (v as? NSNumber)?.intValue, n >= 0, n <= 6, let wd = EKWeekday(rawValue: n + 1) else { return nil }
+                    out.append(EKRecurrenceDayOfWeek(wd))
+                }
+                days = out
+            }
+            return EKRecurrenceRule(recurrenceWith: .weekly, interval: 1, daysOfTheWeek: days, daysOfTheMonth: nil,
+                                    monthsOfTheYear: nil, weeksOfTheYear: nil, daysOfTheYear: nil, setPositions: nil, end: end)
+        case "monthly":
+            // 31 日などは月末に寄せず、その日がない月は飛ばす（Duo と同じ）。日付を明示する。
+            guard let dom = comps.day else { return nil }
+            return EKRecurrenceRule(recurrenceWith: .monthly, interval: 1, daysOfTheWeek: nil, daysOfTheMonth: [NSNumber(value: dom)],
+                                    monthsOfTheYear: nil, weeksOfTheYear: nil, daysOfTheYear: nil, setPositions: nil, end: end)
+        case "yearly":
+            guard let dom = comps.day, let mon = comps.month else { return nil }
+            return EKRecurrenceRule(recurrenceWith: .yearly, interval: 1, daysOfTheWeek: nil, daysOfTheMonth: [NSNumber(value: dom)],
+                                    monthsOfTheYear: [NSNumber(value: mon)], weeksOfTheYear: nil, daysOfTheYear: nil, setPositions: nil, end: end)
+        default:
+            return nil
+        }
+    }
+
+    @objc func updateEvent(_ call: CAPPluginCall) {
+        guard ensureAccess(call) else { return }
+        let f = makeFormatter()
+        guard let requestId = call.getString("requestId"), !requestId.isEmpty, requestId.count <= 100,
+              let span = call.getString("span"), ["this", "future", "all"].contains(span) else {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        let itemId = call.getString("itemId") ?? ""
+        let externalId = call.getString("externalId") ?? ""
+        let eventId = call.getString("eventId") ?? ""
+        let calendarId = call.getString("calendarId") ?? ""
+        let occStr: String? = has(call, "occurrenceStart") ? call.getString("occurrenceStart") : nil
+        if let o = occStr, parse(o, f) == nil {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        let newStart: Date? = has(call, "start") ? parse(call.getString("start"), f) : nil
+        let newEnd: Date? = has(call, "end") ? parse(call.getString("end"), f) : nil
+        if (has(call, "start") && newStart == nil) || (has(call, "end") && newEnd == nil) {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        let givenAll: Bool? = has(call, "all") ? call.getBool("all") : nil
+        let newTitle: String? = has(call, "title") ? call.getString("title") : nil
+        let newPlace: String? = has(call, "place") ? call.getString("place") : nil
+        let newNotes: String? = has(call, "notes") ? call.getString("notes") : nil
+        let alarmsGiven = has(call, "alarms")
+        if alarmsGiven && call.getArray("alarms") == nil {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        let rawAlarms = call.getArray("alarms")
+        // recurrence: キーなし/undefined は変更なし、null は規則解除、オブジェクトは置換。
+        let recurrenceKeyed = call.options["recurrence"] != nil && call.options["recurrence"] is NSNull == false
+        let recurrenceClear = call.options["recurrence"] is NSNull
+        let recurrenceObj = call.options["recurrence"] as? [String: Any]
+        if recurrenceKeyed && recurrenceObj == nil {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        let newRequestId = call.getString("newRequestId")
+        let expect = (call.options["expectModified"] as? NSNumber)?.doubleValue
+        let force = call.getBool("force") ?? false
+
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            let cal = self.makeCalendar()
+            let anchor = occStr.flatMap { self.parse($0, f) } ?? newStart
+            let found = self.findTarget(itemId: itemId, externalId: externalId, eventId: eventId, requestId: requestId,
+                                        occurrenceStart: occStr, anchor: anchor, allowHeadFallback: span == "all", f)
+            let ev: EKEvent
+            switch found {
+            case .ambiguous:
+                call.reject("target is ambiguous", "UNAVAILABLE")
+                return
+            case .notFound:
+                if !calendarId.isEmpty && self.store.calendar(withIdentifier: calendarId) == nil {
+                    call.reject("calendar not found", "CALENDAR_NOT_FOUND")
+                } else {
+                    call.reject("event not found", "NOT_FOUND")
+                }
+                return
+            case .found(let e):
+                ev = e
+            }
+            guard ev.calendar?.allowsContentModifications ?? false else {
+                call.reject("calendar is read only", "READ_ONLY")
+                return
+            }
+            if !force && self.isConflict(ev, expect: expect) {
+                call.reject("event was modified on the device", "CONFLICT")
+                return
+            }
+            let wasRecurring = ev.hasRecurrenceRules
+            if span == "this" && wasRecurring && (recurrenceKeyed || recurrenceClear) {
+                call.reject("cannot change the rule of one occurrence", "INVALID_ARGUMENT")
+                return
+            }
+
+            // 本文
+            if let t = newTitle { ev.title = t }
+            if let p = newPlace { ev.location = p.isEmpty ? nil : p }
+            if let n = newNotes { ev.notes = n.isEmpty ? nil : n }
+
+            // 日時（終日は createEvent と同じ変換。end の入力は含む最終日 00:00）
+            let targetAll = givenAll ?? ev.isAllDay
+            if newStart != nil || newEnd != nil || givenAll != nil {
+                let curStart = ev.startDate ?? Date()
+                let curRawEnd = ev.endDate ?? curStart
+                var curLast = curRawEnd
+                if ev.isAllDay {
+                    let sod = cal.startOfDay(for: curRawEnd)
+                    curLast = (curRawEnd == sod && curRawEnd > curStart) ? (cal.date(byAdding: .day, value: -1, to: sod) ?? sod) : sod
+                }
+                let s = newStart ?? curStart
+                var e: Date
+                if let ne = newEnd {
+                    e = ne
+                } else if targetAll {
+                    if ev.isAllDay {
+                        let days = cal.dateComponents([.day], from: cal.startOfDay(for: curStart), to: cal.startOfDay(for: curLast)).day ?? 0
+                        e = cal.date(byAdding: .day, value: days, to: cal.startOfDay(for: s)) ?? s
+                    } else {
+                        e = max(cal.startOfDay(for: curRawEnd), cal.startOfDay(for: s))
+                    }
+                } else if ev.isAllDay {
+                    e = s.addingTimeInterval(3600)
+                } else {
+                    e = newStart != nil ? s.addingTimeInterval(curRawEnd.timeIntervalSince(curStart)) : curRawEnd
+                }
+                if targetAll {
+                    let startDate = cal.startOfDay(for: s)
+                    let lastDay = cal.startOfDay(for: e)
+                    let next = cal.date(byAdding: .day, value: 1, to: lastDay) ?? lastDay.addingTimeInterval(86400)
+                    ev.isAllDay = true
+                    ev.startDate = startDate
+                    ev.endDate = max(next.addingTimeInterval(-1), startDate)
+                } else {
+                    guard e >= s else {
+                        call.reject("invalid arguments", "INVALID_ARGUMENT")
+                        return
+                    }
+                    ev.isAllDay = false
+                    ev.startDate = s
+                    ev.endDate = e
+                }
+            }
+
+            // alarms: 渡されたときだけ差し替え（[] は全解除）。
+            if alarmsGiven {
+                let parsed = self.parseAlarms(rawAlarms, allDay: targetAll)
+                guard !parsed.invalid, let offs = parsed.offsets else {
+                    call.reject("invalid arguments", "INVALID_ARGUMENT")
+                    return
+                }
+                ev.alarms = offs.isEmpty ? nil : offs.map { EKAlarm(relativeOffset: $0) }
+            }
+
+            // 繰り返し規則
+            if recurrenceClear {
+                for r in ev.recurrenceRules ?? [] { ev.removeRecurrenceRule(r) }
+            } else if let obj = recurrenceObj {
+                guard let rule = self.makeRule(obj, anchor: ev.startDate ?? Date(), cal: cal) else {
+                    call.reject("invalid arguments", "INVALID_ARGUMENT")
+                    return
+                }
+                for r in ev.recurrenceRules ?? [] { ev.removeRecurrenceRule(r) }
+                ev.addRecurrenceRule(rule)
+            }
+
+            // これ以降で系列が分かれるとき、新しい系列に新しい URL の印を付ける（保存の前）。
+            let splitting = span == "future" && wasRecurring && newRequestId != nil && !(newRequestId ?? "").isEmpty
+            if splitting, let nr = newRequestId {
+                ev.url = URL(string: DuoNativePlugin.urlPrefix + nr)
+            }
+
+            let ekSpan: EKSpan = (span == "this" || !wasRecurring) ? .thisEvent : .futureEvents
+            do {
+                try self.store.save(ev, span: ekSpan, commit: true)
+            } catch {
+                call.reject("could not save the event", "UNAVAILABLE", error)
+                return
+            }
+            var result: EKEvent = ev
+            if splitting, let nr = newRequestId {
+                // 新しい系列の id が保存後の event で取れない場合に備え、URL の印で取り直す。
+                let marker = DuoNativePlugin.urlPrefix + nr
+                let around = ev.startDate ?? Date()
+                let p = self.store.predicateForEvents(withStart: around.addingTimeInterval(-86400), end: around.addingTimeInterval(86400 * 2), calendars: nil)
+                if let hit = self.store.events(matching: p).first(where: { $0.url?.absoluteString == marker }) { result = hit }
+            }
+            _ = result.refresh()
+            call.resolve(self.createdReply(result, itemId: result.calendarItemIdentifier, eventId: result.eventIdentifier ?? eventId,
+                                           calendarId: calendarId, f))
+        }
+    }
+
+    @objc func deleteEvent(_ call: CAPPluginCall) {
+        guard ensureAccess(call) else { return }
+        let f = makeFormatter()
+        guard let requestId = call.getString("requestId"), !requestId.isEmpty, requestId.count <= 100,
+              let span = call.getString("span"), ["this", "future", "all"].contains(span) else {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        let itemId = call.getString("itemId") ?? ""
+        let externalId = call.getString("externalId") ?? ""
+        let eventId = call.getString("eventId") ?? ""
+        let occStr: String? = has(call, "occurrenceStart") ? call.getString("occurrenceStart") : nil
+        if let o = occStr, parse(o, f) == nil {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        let expect = (call.options["expectModified"] as? NSNumber)?.doubleValue
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            let found = self.findTarget(itemId: itemId, externalId: externalId, eventId: eventId, requestId: requestId,
+                                        occurrenceStart: occStr, anchor: occStr.flatMap { self.parse($0, f) },
+                                        allowHeadFallback: span == "all", f)
+            let ev: EKEvent
+            switch found {
+            case .ambiguous:
+                call.reject("target is ambiguous", "UNAVAILABLE")
+                return
+            case .notFound:
+                // すでに消えている。削除は成功扱い。
+                call.resolve(["deleted": true, "missing": true])
+                return
+            case .found(let e):
+                ev = e
+            }
+            guard ev.calendar?.allowsContentModifications ?? false else {
+                call.reject("calendar is read only", "READ_ONLY")
+                return
+            }
+            // 削除には force を設けない。iPhone 側で変更されていたら消さない。
+            if self.isConflict(ev, expect: expect) {
+                call.reject("event was modified on the device", "CONFLICT")
+                return
+            }
+            let ekSpan: EKSpan = (span == "this" || !ev.hasRecurrenceRules) ? .thisEvent : .futureEvents
+            do {
+                try self.store.remove(ev, span: ekSpan, commit: true)
+            } catch {
+                call.reject("could not delete the event", "UNAVAILABLE", error)
+                return
+            }
+            call.resolve(["deleted": true])
         }
     }
 
