@@ -50,26 +50,9 @@ button[aria-pressed=true]{background:var(--green);color:#fff}
 .weekdays .sun{color:#9a4a45}.weekdays .sat{color:#3f6a8a}
 .week{position:relative;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--line)}
 .day{min-width:0;min-height:0;border-radius:0;padding:2px 1px;text-align:center;overflow:hidden;display:flex;flex-direction:column;align-items:center}
-.day.out{color:#9a9d96}
 .dhead{display:flex;align-items:center;justify-content:center;gap:2px;width:100%;flex:none}
-.num{display:inline-flex;width:30px;height:30px;border-radius:50%;align-items:center;justify-content:center;font-variant-numeric:tabular-nums}
-.day.today .num{box-shadow:inset 0 0 0 1px var(--green)}
-.day.selected .num{color:#fff;background:var(--green)}
-.week.simple{flex:1 0 60px}
 .dots{display:flex;gap:3px;justify-content:center;height:8px;margin-top:2px}
 .dot{width:5px;height:5px;border-radius:50%;background:var(--cat)}
-.week.named{flex:1 0 88px}
-.named .day{padding:2px 1px 2px;align-items:stretch;border-right:1px solid #e5e3db}
-.named .day:last-child{border-right:0}
-.named .chips{margin-top:var(--reserve)}
-.named .dhead{justify-content:space-between;height:20px;padding:0 1px}
-.named .num{width:22px;height:20px;border-radius:10px;font-size:13px}
-.plus{font-size:11px;color:var(--muted);line-height:1}
-.chips{display:flex;flex-direction:column;min-height:0;overflow:hidden;gap:0}
-.chip{display:block;height:16px;background:var(--tint);color:var(--cat);font-size:12px;line-height:16px;border-radius:3px;padding:0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
-.more{display:block;height:16px;font-size:12px;line-height:16px;color:var(--muted);text-align:left;padding:0 3px;white-space:nowrap;overflow:hidden}
-.bar{position:absolute;z-index:2;height:16px;min-height:16px;padding:0 4px;border-radius:4px;background:var(--tint);color:var(--cat);border-left:3px solid var(--cat);
-font-size:12px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
 
 /* 予定カード */
 .event{position:relative;display:grid;grid-template-columns:1fr auto;column-gap:8px;align-items:center;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 12px 8px 14px;margin-top:8px;min-height:60px}
@@ -133,7 +116,6 @@ font-size:12px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow
 .agenda .count{margin-bottom:2px}
 .agenda .event{margin-top:6px;min-height:0;padding:7px 10px 7px 14px}
 .agenda .event .sub{display:block}
-.open .week.simple{flex:1 0 64px}
 
 /* ハーフフォールド（卓上） */
 .shell.desk{display:grid;grid-template-rows:calc(50% - 12px) 24px minmax(0,1fr);gap:0;padding:0}
@@ -147,28 +129,12 @@ font-size:12px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow
 .deskbottom .agenda .event{display:grid;grid-template-columns:auto 1fr auto;min-height:44px;padding:6px 12px 6px 14px}
 .deskbottom .agenda .event strong{grid-column:2;grid-row:1}.deskbottom .agenda .event .tag{grid-column:3;grid-row:1}.deskbottom .agenda .event .sub{display:none}
 .deskbottom .add{min-height:44px}
-.desk .week.simple{flex:1 0 44px}
-.desk .num{width:26px;height:26px;font-size:14px}
-.desk .named .num{width:22px;height:20px;font-size:13px}
 .desk .chead{min-height:36px}.desk .chead h2{font-size:20px}
 .desk .legend{padding:2px 0}
 .desk .variant button{min-height:32px}
 
-/* 見開き手帳（開いた横）: 中央 x=425〜465 は無描画ガター */
-.shell.spread{padding:12px 24px 16px;gap:12px}
-.spreadhead{display:grid;grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr);flex:none;min-height:44px}
-.spreadhead .half{display:flex;align-items:center;gap:4px;min-width:0}
-.spreadhead .half:first-child{gap:8px}
-.spreadhead .brand{margin-right:auto;gap:0}.spreadhead .brand .small{display:none}
-.spreadhead .segment button{padding:4px 8px;min-width:40px}
-.spreadhead .deskbtn{padding:4px 8px;font-size:13px}
-.stitle{font:18px/1.2 Georgia,'Hiragino Mincho ProN',serif;margin:0 auto 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.spreadhead .arrows button{min-width:32px;padding:4px 2px}
-.spreadhead .today{padding:4px 8px;font-size:13px}
-.add.mini{width:44px;min-height:44px;flex:none;border-radius:12px;font-size:24px;padding:0;margin-left:2px}
-.pages{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr)}
+/* 見開き手帳（開いた横）: 折り目（ビューポート中心 ±10px）は無描画。左右ページは JS の --left-start/--left-end/--right-start/--right-end で絶対配置 */
 .page{min-width:0;min-height:0;display:flex;flex-direction:column}
-.page.calendar{display:flex}
 .spread .agenda{border:0;padding:0}
 .spread .agenda .eyebrow{margin-bottom:0}
 .spread .agenda h3{font-size:18px}
@@ -178,7 +144,6 @@ font-size:12px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow
 .spread .agenda .list{padding-bottom:0}
 .spread .agenda .event:first-child{margin-top:6px}
 .spread .variant{margin:0 0 6px;height:36px}
-.spread .week.simple{flex:1 0 62px}
 .spread .weekpage{display:flex;flex-direction:column;gap:6px}
 .spread .weekrow{padding:2px 8px 6px}
 .spread .weekrow .wd{font-size:14px;min-height:28px;padding:0}
@@ -219,46 +184,28 @@ input[type=checkbox]{display:inline-block;width:20px;min-height:20px;vertical-al
 }
 .day[aria-pressed=true]{background:transparent;color:inherit}
 .day[aria-pressed=true]:hover,.day:hover{background:#ecebe2}
-.day.out[aria-pressed=true]{color:#9a9d96}
-.day.selected.out .num{color:#fff}
-.open .week.simple{flex:1 0 76px}
 .date{line-height:1.3}
 .date-block .eyebrow{margin-bottom:4px}
-.spreadhead .segment button{min-height:38px}
 
 /* スワイプ面: 縦スクロールとピンチは許可し、横はスクリプトで判定。ガター・ヘッダー・追加は対象外 */
 .scroll,.scroll button,.agenda,.agenda button,.list,.list button,.remaining,.hero,.hero button,.page,.page button{touch-action:pan-y pinch-zoom}
 .agenda,.remaining,.hero,.page{overflow-x:clip}
 
-/* 開いた縦（626×890）: 上に全幅の月、下に選択日アジェンダ */
-.shell.portrait .layout,.shell.portrait .layout.single{display:flex;flex-direction:column;gap:8px}
-.portrait .calendar{flex:0 1 482px;min-height:0}
-.portrait .layout.single .calendar{flex:1 1 auto}
-.portrait .chead{height:44px;min-height:44px}
-.portrait .weekdays{height:26px;padding:0;line-height:26px}
-.portrait .legend{height:28px;padding:0;align-items:center;flex-wrap:nowrap;overflow:hidden}
-.portrait .week.pm{flex:1 0 64px;border-top:0;box-shadow:inset 0 1px 0 var(--line)}
-.portrait .pm .day{position:relative;padding:0;align-items:stretch;border-right:1px solid #e5e3db}
-.portrait .pm .day:last-child{border-right:0}
-.portrait .pm .dhead{justify-content:flex-start;height:20px;padding:0 3px}
-.portrait .pm .num{width:22px;height:20px;border-radius:10px;font-size:13px}
-.portrait .pm .plus{position:absolute;right:4px;top:0;height:20px;font-size:11px;line-height:20px}
-.pm .bar,.all .bar,.strip{position:absolute;z-index:2;height:16px;min-height:16px;padding:0 4px;border-radius:4px;background:var(--tint);color:var(--cat);
- font-size:12px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
-.pm .bar,.all .bar{border-left:3px solid var(--cat)}
-.pm .bar:hover,.all .bar:hover,.strip:hover{background:var(--tint);filter:brightness(.95)}
-.portrait .agenda{flex:1 0 226px;border-left:0;border-top:1px solid var(--line);padding:8px 0 0;display:grid;grid-template-columns:minmax(0,1fr) auto;
- grid-template-rows:36px minmax(0,1fr);column-gap:8px;align-items:center}
-.portrait .agenda .eyebrow{display:none}
-.portrait .agenda h3{margin:0;font-size:20px;line-height:36px}
-.portrait .agenda .count{margin:0}
-.portrait .agenda .list{grid-column:1/-1;align-self:stretch;min-height:0;padding-bottom:72px}
-.portrait .agenda .event{margin-top:0;margin-bottom:6px;min-height:54px;padding:6px 12px 6px 14px}
-.portrait .agenda .event .clock,.portrait .agenda .event .tag{line-height:18px}
-.portrait .agenda .event .sub{display:none}
-.portrait .foot{display:flex;justify-content:flex-end;padding:0 4px}
-.portrait .add{width:auto;min-height:44px;padding:0 20px}
-
+/* 開いた縦: 全幅の月。寸法は JS の --head-h/--wd-h/--grid-h（safe と画面から計算）。操作は画面座標で浮かせる */
+.shell.portrait{display:block;padding:0;gap:0}
+.pcol{display:flex;flex-direction:column;height:calc(var(--grid-top) - var(--content-y) + var(--grid-h));min-height:0}
+.portrait .calendar{flex:1 1 auto;min-height:0}
+.portrait .chead{height:var(--head-h);min-height:0;flex:none;align-items:flex-start;padding-top:calc(24px * var(--ry,1))}
+.portrait .chead h2{flex:0 1 auto;padding:0 4px;line-height:44px;white-space:nowrap}
+.portrait .weekdays{height:var(--wd-h);padding:0;align-items:center}
+.portrait .week.named,.portrait .week.simple{flex:0 0 max(var(--week-h),var(--need,101px))}
+.portrait .week.all{height:max(var(--week-h),var(--need,0px))}
+.portrait .listview{padding:var(--head-h) 16px 0;min-height:0}
+.portrait .scroll:not(.msc):not(.all)>.daylist,.portrait .weekview{padding:0 12px 4px}
+.pbtn{position:fixed;z-index:6}
+.pbtn.psettings,.pbtn.psearch{width:44px;height:44px;min-width:44px;min-height:44px;border-radius:22px;top:var(--set-y)}
+.pbtn.psettings{left:var(--set-x)}.pbtn.psearch{left:var(--search-x)}
+.pbtn.ptoday{left:var(--today-x);top:var(--controls-y)}.pbtn.padd{left:var(--add-x);top:var(--controls-y)}
 /* 開いた縦の週: 1日1ブロックの縦リスト（左に日付、右に時刻＋全文タイトル） */
 .vlist .weekrow{display:grid;grid-template-columns:100px minmax(0,1fr);column-gap:12px;padding:8px 12px;align-items:start}
 .vlist .wd{font-size:15px;min-height:44px;padding:0;display:flex;align-items:center}
@@ -273,7 +220,6 @@ input[type=checkbox]{display:inline-block;width:20px;min-height:20px;vertical-al
 /* ===== 第6版: 繰り返し・検索・バックアップ ===== */
 .iconbtn{flex:none;width:44px;min-width:44px;height:44px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:22px;line-height:1;border-radius:12px}
 .rep{display:inline-block;width:14px;margin-right:4px;font:400 14px/1 sans-serif;text-align:center;vertical-align:baseline}
-.chip .rep,.bar .rep,.strip .rep,.weekview.cols .rep{width:14px;margin-right:0;font-size:12px}
 .next .nd{display:block;font:13px/1.4 -apple-system,sans-serif;color:#d7e3d9}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 mark{background:#E7EBDD;color:inherit;font-weight:inherit;border-radius:2px}
@@ -362,12 +308,12 @@ body[data-layout=home] dialog.full .phead,body[data-layout=browse] dialog.full .
 body[data-posture=portrait] dialog{--pw:520px;--m:16px}
 body[data-posture=portrait] dialog#confirm,body[data-posture=portrait] dialog#scope,body[data-posture=portrait] dialog#xretry{--pw:520px}
 body[data-posture=portrait] dialog.full{height:calc(100% - var(--rt) - var(--rb) - 2 * var(--m))}
-/* 開いた横 890×626: 右ページ x=465–864（左端は 50%+20px）・y=24–602。ガターに影を描かない */
-body[data-layout=spread] dialog{--pt:max(24px,calc(var(--rt) + 12px));--pb:max(24px,calc(var(--rb) + 12px));--pr:max(26px,calc(var(--rr) + 12px));
- top:var(--pt);bottom:var(--pb);left:calc(50% + 20px);right:var(--pr);margin:0;width:auto;--pw:399px;max-width:399px;max-height:min(578px,calc(100% - var(--pt) - var(--pb)));box-shadow:none}
-body[data-layout=spread] dialog.full{height:min(578px,calc(100% - var(--pt) - var(--pb)))}
-body[data-layout=spread] dialog#scope,body[data-layout=spread] dialog#confirm,body[data-layout=spread] dialog#xretry{top:auto;bottom:var(--pb);max-height:min(578px,calc(100% - var(--pt) - var(--pb)))}
-body[data-layout=spread] dialog#menu{inset:56px auto auto 24px;width:240px;max-width:240px;max-height:none;box-shadow:0 12px 30px #132c3340}
+/* 開いた横: パネルは右ページ（--right-start〜--right-end）の内側。折り目の保護域(中心±10)へは影も枠も出さない */
+body[data-layout=spread] dialog{--pt:max(24px,calc(var(--rt) + 12px));--pb:max(24px,calc(var(--rb) + 12px));
+ top:var(--pt);bottom:var(--pb);left:var(--right-start);right:calc(var(--layout-w) - var(--right-end));margin:0;width:auto;max-width:none;max-height:calc(100% - var(--pt) - var(--pb));box-shadow:none}
+body[data-layout=spread] dialog.full{height:calc(100% - var(--pt) - var(--pb))}
+body[data-layout=spread] dialog#scope,body[data-layout=spread] dialog#confirm,body[data-layout=spread] dialog#xretry{top:auto;bottom:var(--pb);left:var(--right-start);right:calc(var(--layout-w) - var(--right-end));max-height:calc(100% - var(--pt) - var(--pb))}
+body[data-layout=spread] dialog#menu{inset:56px auto auto var(--left-start);width:240px;max-width:240px;max-height:none;border:1px solid #c9c6ba;box-shadow:none}
 /* ハーフフォールド: 下ペインのみ（保護帯の下、左右16、下12） */
 body[data-layout=desk] dialog{--dt:max(calc(50% + 20px),calc(var(--rt) + 12px));--db:calc(var(--rb) + 12px);
  top:var(--dt);bottom:var(--db);left:calc(var(--rl) + 16px);right:calc(var(--rr) + 16px);margin:0;width:auto;max-width:none;max-height:calc(100% - var(--dt) - var(--db))}
@@ -382,8 +328,6 @@ html[data-kb] body[data-layout=spread] dialog,html[data-kb] body[data-layout=des
 
 /* ===== 第7版: iPhone カレンダー連携 ===== */
 .ext{--cat:#68716a;--tint:var(--paper)}
-.chip.ext,.bar.ext,.strip.ext{color:var(--ink);background:var(--paper);border-left:3px solid var(--cat)}
-.chip.ext{padding-left:2px}
 .xi{display:inline-block;width:14px;margin-right:0;font-size:10px;line-height:inherit;text-align:center;color:var(--muted)}
 .event.ext .tag,.hit.ext .hmeta{color:var(--muted)}
 .xlegend{flex:none;padding:0 0 2px;font-size:11px}
@@ -432,8 +376,6 @@ input,select,textarea,.date-text{font-size:16px}
 .swatch:hover{filter:brightness(1.1)}
 .swatch[aria-pressed=true]{background-clip:padding-box;box-shadow:0 0 0 3px var(--card),0 0 0 6px var(--ink)}
 .catpre{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 8px}
-.catpre .chip{max-width:100%;padding:0 6px}
-.catpre .bar-like{border-left:3px solid var(--cat);border-radius:4px}
 .delbox{margin-top:12px}
 .delbox select{width:100%}
 #cat-err:empty{display:none}
@@ -444,11 +386,170 @@ input,select,textarea,.date-text{font-size:16px}
 .scroll.all{position:relative;container-type:size;scrollbar-gutter:stable;display:block}
 .scroll.all::-webkit-scrollbar{width:3px}
 .scroll.all::-webkit-scrollbar-thumb{background:#9aa39c;border-radius:2px}
-.week.all{position:relative;display:grid;flex:none;height:max(calc(100cqh / var(--n)),var(--need,0px),64px);border-top:0;box-shadow:inset 0 1px 0 var(--line)}
-.all .day{position:relative;padding:0;align-items:stretch;border-right:1px solid #e5e3db;min-height:0}
-.all .day:last-child{border-right:0}
-.all .dhead{justify-content:flex-start;height:24px;padding:0 3px}
-.all .num{width:22px;height:20px;border-radius:10px;font-size:13px;margin-top:2px}
-.week.all button.plus{position:absolute;z-index:3;top:0;height:24px;min-height:0;min-width:26px;padding:0 4px;border-radius:6px;font-size:11px;line-height:24px;color:var(--muted)}
-.portrait .weekdays.all{height:26px;line-height:26px}
-.toastbar{position:fixed;left:12px;right:12px;bottom:calc(16px + var(--sab,0px));z-index:50;margin:0 auto;max-width:480px}
+.toastbar{position:fixed;left:12px;right:12px;bottom:max(calc(16px + var(--sab,0px)),calc(var(--layout-h,0px) - var(--tabs-y,0px) + 8px)); /* 浮動タブの上 */z-index:50;margin:0 auto;max-width:480px}
+
+/* ===== 第10版 ①: 月の共通描画（手帳｜予定名｜全部）。寸法は JS の --chip-fs 等と同値 ===== */
+:root{--chip-h:14px;--chip-gap:2px;--lane-step:16px;--date-h:18px;--lane-top:19px;--fold-keepout:10px;--chip-fs:9px}
+.week .day{position:relative;min-height:0;padding:0;border-right:1px solid #e5e3db;align-items:center}
+.week .day:last-child{border-right:0}
+.week .day.sat{background:#EEF1F4}
+.week .day.sat:hover{background:#e3e8ee}
+.week .num{width:auto;min-width:18px;height:var(--date-h);padding:0 4px;margin-top:0;border-radius:9px;font-size:11px;line-height:var(--date-h);flex:none}
+.week .day.sun .num{color:#c0392b}
+.week .day.out .num{color:#A8ABA4}
+.week .day.selected{box-shadow:inset 0 0 0 2px #294E42}
+.week .day.today .num{background:var(--green);color:#fff}
+.week.named,.week.simple{flex:1 0 var(--need,85px)}
+.week.all{position:relative;display:grid;flex:none;height:max(calc(100cqh / var(--n)),var(--need,0px));border-top:0;box-shadow:inset 0 1px 0 var(--line)}
+.dots{display:flex;gap:3px;justify-content:center;height:8px;margin-top:2px}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--cat)}
+/* +N: 見た目は9px・日付行の右端。押せる範囲は日セル右上の44×44（兄弟 button）。 */
+.week .plus{position:absolute;top:0;z-index:4;display:flex;align-items:flex-start;justify-content:flex-end;width:44px;height:44px;min-width:44px;min-height:44px;padding:0 3px 0 0;border-radius:0;background:transparent;
+ font-size:9px;font-weight:600;line-height:var(--date-h);text-align:right;color:var(--muted)}
+.week .plus:hover{background:transparent;color:var(--ink)}
+/* 時刻つき単日: 本色の塗り＋白文字・太字。切って省略記号は付けない。 */
+.strip{position:absolute;z-index:2;height:var(--chip-h);min-height:var(--chip-h);padding:0 0 0 1.5px;border:0;border-radius:3.5px;background:var(--cat);color:#fff;
+ font-size:var(--chip-fs);font-weight:700;line-height:var(--chip-h);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:clip}
+.strip:hover{background:var(--cat);filter:brightness(.92)}
+/* 終日・複数日: 塗らず「線＋中央の題名」。線は題名の下（レーン上端から12.5px・太さ2px・列境界から内1px）。 */
+.bar{position:absolute;z-index:2;height:16px;min-height:16px;padding:0;border:0;border-radius:0;background:transparent;color:var(--cat);
+ font-size:var(--chip-fs);font-weight:700;line-height:12px;text-align:center;white-space:nowrap;overflow:hidden}
+.bar:hover{background:transparent;filter:brightness(.9)}
+.bar:after{content:'';position:absolute;left:1px;right:1px;top:12.5px;height:2px;border-radius:1px;background:var(--cat)}
+.bar .bt{display:inline-block;max-width:100%;overflow:hidden;vertical-align:top;text-overflow:clip}
+.weekdays.all{padding-right:3px}
+/* カテゴリ編集の見本（月と同じ見た目） */
+.catpre .chip{display:inline-block;height:var(--chip-h);max-width:100%;padding:0 6px 0 1.5px;border-radius:3.5px;background:var(--cat);color:#fff;font-size:10px;font-weight:700;line-height:var(--chip-h);white-space:nowrap;overflow:hidden}
+.catpre .bar-like{position:relative;display:inline-block;height:16px;max-width:100%;padding:0 6px;color:var(--cat);font-size:10px;font-weight:700;line-height:12px;white-space:nowrap;overflow:hidden}
+.catpre .bar-like:after{content:'';position:absolute;left:1px;right:1px;top:12.5px;height:2px;border-radius:1px;background:var(--cat)}
+.diag{margin:6px 4px 2px;padding:6px 8px;border-top:1px solid var(--line);font-size:11px;line-height:1.4;color:var(--muted);overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
+.menurows button[aria-pressed=true]{background:var(--green);color:#fff}
+
+/* ===== 第10版 ②: 閉じた画面（月領域＋操作列84px）・浮動タブ・メニュー内の月表現 ===== */
+.weekdays{position:static;flex:none;padding-right:3px}
+.scroll.msc{scrollbar-gutter:stable}
+.scroll.msc::-webkit-scrollbar{width:3px}
+.scroll.msc::-webkit-scrollbar-thumb{background:#9aa39c;border-radius:2px}
+/* 最後の週をタブの上へスクロールで出せるように、末尾に余白（疑似要素なので仮想化の週には数えない） */
+.scroll::after{content:'';display:block;flex:none;height:var(--end-pad,0px)}
+.shell.closed,.shell.spread,.shell.desk{--end-pad:56px}
+.shell.closed{--end-pad:max(56px,var(--end-pad-closed,56px))}
+
+/* 期間の見出し: 前｜見出し（中央）｜次。44px の操作枠は見出しと別 */
+.chead{justify-content:center;gap:0}
+.chead h2{flex:1;min-width:0;margin:0;text-align:center;font-size:20px;line-height:1.3}
+.chead button{flex:none;min-width:44px;padding:0;font-size:22px}
+.listview{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
+
+.shell.closed{display:grid;grid-template-columns:minmax(0,1fr) var(--rail-w,84px);grid-template-rows:minmax(0,1fr);gap:0;padding:0}
+.mpane{display:flex;flex-direction:column;min-width:0;min-height:0;margin:0 2px 0 4px}
+.closed .calendar{flex:1}
+.closed .chead{height:var(--head-h);min-height:0;align-items:flex-end;padding-bottom:6px;flex:none}
+.closed .weekdays{height:var(--wd-h);padding-bottom:0;align-items:center}
+.closed .week.named,.closed .week.simple{flex:0 0 max(var(--week-h),var(--need,85px))}
+.closed .week.all{height:max(var(--week-h),var(--need,0px))}
+.closed.home .mpane{padding:40px 8px 0 8px}
+.closed .remaining .list{padding-bottom:calc(var(--end-pad-closed,56px) + 4px)}
+.closed .scroll:not(.msc):not(.all)>.daylist,.closed .weekview{padding:0 4px}
+
+.rail{display:flex;flex-direction:column;align-items:center;justify-content:space-between;min-height:0;overflow:auto;gap:12px;
+ padding:calc(176px * var(--ry,1)) 0 calc(32px * var(--ry,1));background:#F0EDE5;touch-action:manipulation}
+.rtop,.rbot{display:flex;flex-direction:column;align-items:center;flex:none}
+.rtop{gap:10px}.rbot{gap:max(12px,calc(14px * var(--ry,1)))}
+.rbtn{display:flex;align-items:center;justify-content:center;flex:none;width:48px;height:48px;min-width:48px;min-height:48px;padding:0;border-radius:24px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);font-size:14px;font-weight:700;line-height:1}
+.rbtn:hover{background:#ecebe2}
+.rbtn.radd{background:var(--green);color:#fff;font-size:26px;font-weight:400;box-shadow:none}
+.rbtn.radd:hover{background:#386351}
+
+/* 浮動タブ: 紙の半透明＋ぼかし。座標は JS の --tabs-x/-y/-w（画面座標） */
+.tabs{position:fixed;z-index:6;left:var(--tabs-x);top:var(--tabs-y);width:var(--tabs-w);height:46px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-radius:23px;
+ background:#fffdfab8;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:inset 0 0 0 1px #d6d3c8,0 2px 10px #1a302d1f;touch-action:manipulation}
+.tabs button{display:flex;align-items:center;justify-content:center;height:46px;min-height:46px;min-width:0;padding:0;border-radius:23px;background:transparent;color:var(--ink)}
+.tabs button:hover,.tabs button[aria-pressed=true]{background:transparent;color:var(--ink)}
+.tabs .pill{display:flex;align-items:center;justify-content:center;width:min(56px,calc(100% - 2px));height:36px;border-radius:18px;font-size:15px;font-weight:600}
+.tabs button[aria-pressed=true] .pill{background:var(--green);color:#fff}
+.desktop{position:relative}
+.desk .tabs{position:absolute;left:0;right:0;top:auto;bottom:8px;margin:0 auto;width:min(270px,calc(100% - 32px))}
+
+/* メニュー: 月の表現・カテゴリの色 */
+.menurows .variant{display:flex;gap:4px;margin:2px 0 6px}
+.menurows .variant button{display:block;flex:1;width:auto;min-width:0;min-height:44px;font-size:14px;padding:4px 6px;text-align:center}
+.mlegend{margin:6px 4px 2px;padding-top:6px;border-top:1px solid var(--line)}
+.mlegend .legend{padding:4px 0 2px}
+
+/* ===== 第10版 ④: 見開き（左ページ＝月・一覧など／右ページ＝時間軸 60px/時／右端 76px の操作列）===== */
+.shell.spread{position:fixed;inset:0;display:block;padding:0;gap:0;background:linear-gradient(90deg,#F0EDE5 var(--fold-x),#FFFDFA var(--fold-x));overflow:hidden}
+.spread .page{position:fixed;top:var(--content-y);height:var(--content-h);display:flex;flex-direction:column;min-width:0;min-height:0;overflow:clip}
+.spread .lp{left:var(--left-start);width:calc(var(--left-end) - var(--left-start))}
+.spread .rp{left:var(--right-start);width:calc(var(--right-end) - var(--right-start))}
+.spread .page :focus-visible{outline-offset:-3px}
+/* 左の見出し: 年（薄色）月 ｜ 前・次・設定（各44角） */
+.shead{display:flex;align-items:flex-start;flex:none;height:var(--head-h);padding-top:calc(24px * var(--ry,1));min-height:0}
+.shead h2{flex:1;min-width:0;margin:0;font:20px/44px Georgia,'Hiragino Mincho ProN',serif;font-weight:700;white-space:nowrap;overflow:hidden;text-align:left}
+.shead h2 .yr{font-weight:400;color:#9a9d96}
+.sctl{display:flex;flex:none}
+.sctl button{min-width:44px;width:44px;height:44px;padding:0;font-size:22px;display:flex;align-items:center;justify-content:center}
+.spread .calendar{display:flex}
+.spread .weekdays{height:var(--wd-h);padding-bottom:0;align-items:center;background:transparent}
+.spread .week.named,.spread .week.simple{flex:0 0 max(var(--week-h),var(--need,85px))}
+.spread .week.all{height:max(var(--week-h),var(--need,0px))}
+.spread .scroll:not(.msc):not(.all)>.daylist,.spread .weekpage{padding:0 4px}
+.spread .listview{padding:0 4px;min-height:0;overflow:auto}
+.spread .agenda{border:0;padding:0 8px}
+.spread .agenda .list{padding-bottom:0}
+.spread .rpad{flex:none;height:var(--head-h)}
+.spread .weekpage{flex:1}
+/* 右の日見出し・1日/3日 */
+.rhead{display:flex;align-items:flex-start;flex:none;height:var(--head-h);padding-top:calc(24px * var(--ry,1));min-height:0}
+.rhead h2{flex:1;min-width:0;margin:0;font:20px/44px -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:clip}
+.spanbtn{flex:none;min-width:44px;height:44px;padding:0 2px;background:transparent}
+.spanbtn:hover{background:transparent}
+.spanbtn span{display:flex;align-items:center;justify-content:center;min-width:88px;height:32px;padding:0 12px;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);font-size:14px}
+/* 終日段（28px）: 月の線帯とは別 CSS。カテゴリの淡色地＋本色の太字 */
+.allday{display:flex;align-items:center;flex:none;height:28px;margin-bottom:max(4px,calc(32px * var(--ry,1) - 28px));min-width:0}
+.adl{flex:none;width:50px;font-size:11px;color:var(--muted)}
+.adcols{display:flex;flex:1;min-width:0}
+.adcol{display:flex;flex:1;gap:6px;min-width:0;overflow:hidden}
+.adpill,.adplus{height:28px;min-height:28px;padding:0 12px;border-radius:14px;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
+.adpill{background:var(--tint);color:var(--cat)}
+.adpill:hover{background:var(--tint);filter:brightness(.95)}
+.adplus{flex:none;padding:0 8px;color:var(--muted);background:transparent}
+.tlheads{display:flex;flex:none;height:44px}
+.tlh0{flex:none;width:50px}
+.tlhd{flex:1;min-width:0;height:44px;padding:0;font-size:13px;font-weight:700;border-radius:8px}
+.tlhd.today{color:var(--green)}
+.tlhd[aria-pressed=true]{background:var(--green);color:#fff}
+/* 時間軸: 1時間 --hh（既定60px）。時刻列 44px・線は +50 から右端まで。内部スクロール（文書は動かさない） */
+.tl{flex:1;min-height:0;overflow-y:auto;overflow-x:clip;overscroll-behavior:contain;position:relative;touch-action:pan-y}
+.tl *{touch-action:pan-y}
+.tlin{position:relative;height:calc(24 * var(--hh) + 2 * 12px)}
+.hl{position:absolute;left:50px;right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:0;border-top:1px solid #dcd9cf}
+.hl.half{border-top:1px dotted #dcd9cf}
+.hlab{position:absolute;left:0;width:44px;top:calc(12px + var(--m) * var(--hh) / 60 - 9px);height:18px;font-size:12px;line-height:18px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.tlcols{position:absolute;left:50px;right:0;top:0;bottom:0;display:flex}
+.tlcol{position:relative;flex:1;min-width:0}
+.tlcol+.tlcol{border-left:1px solid #e8e5dc}
+.tlev{position:absolute;z-index:2;top:calc(12px + var(--m) * var(--hh) / 60);height:max(20px,calc(var(--d) * var(--hh) / 60 - 1px));min-height:20px;padding:1px 4px 1px 8px;border-radius:4px;background:var(--tint);color:var(--ink);box-shadow:inset 4px 0 0 var(--cat);
+ font-size:12px;line-height:17px;text-align:left;white-space:nowrap;overflow:hidden}
+.tlev:hover{background:var(--tint);filter:brightness(.95)}
+.tlev .tt{margin-right:5px;font-weight:700;color:var(--cat)}
+.nowl{position:absolute;z-index:3;left:0;right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:0;pointer-events:none}
+.nowl:before{content:'';position:absolute;left:calc(50px + var(--i) * (100% - 50px) / var(--n));width:calc((100% - 50px) / var(--n));top:-.75px;height:1.5px;background:#D64541}
+.nowt{position:absolute;left:0;top:-11px;width:46px;height:22px;border-radius:11px;background:#D64541;color:#fff;font-size:11px;font-weight:700;line-height:22px;text-align:center;font-variant-numeric:tabular-nums}
+/* 右端 76px の操作列（背景は左ページ色。操作は JS の --sr-*-y） */
+.spread .rail.srail{position:fixed;z-index:5;top:0;bottom:0;left:var(--right-end);right:0;display:block;padding:0;overflow:visible;background:#F0EDE5}
+.srail .rbtn,.srail .cap{position:absolute;left:14px}
+.srail .rtoday{top:var(--sr-today-y)}
+.srail .radd{top:var(--sr-add-y)}
+.srail .cap{top:var(--sr-cap-y);width:48px;height:144px;border-radius:24px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);display:flex;flex-direction:column;overflow:hidden}
+.srail .cap button{flex:none;width:48px;height:48px;min-height:48px;padding:0;border-radius:0;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center}
+body[data-layout=spread] .toastbar{left:var(--left-start);right:auto;width:calc(var(--left-end) - var(--left-start));margin:0}
+.menurows .tlz{display:flex;gap:4px;margin:2px 0 6px}.menurows .tlz button{flex:1;min-width:0;font-size:13px;padding:4px 6px}
+
+/* 月見出し横の「全部」ボタン（押せる範囲 44pt 角、見た目は小さな札） */
+.chsp{flex:none;width:44px}
+.allbtn{border-radius:0;flex:none;position:relative;width:44px;min-width:44px;height:44px;padding:0;border:0;background:none;color:inherit;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.allbtn span{display:block;min-width:26px;height:22px;line-height:20px;text-align:center;border:1px solid currentColor;border-radius:6px}
+.allbtn[aria-pressed="true"]{color:#fff}
+.allbtn[aria-pressed="true"] span{background:#2F6B4F;border-color:#2F6B4F;color:#fff}
+.chead .allbtn,.sctl .allbtn{font-size:12px}

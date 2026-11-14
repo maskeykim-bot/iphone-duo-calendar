@@ -9,8 +9,8 @@ import { CAT_IDS, LIMITS as CAT_LIMITS, PALETTE, UNCATEGORIZED, countByCategory,
 import { call, errCode, errText, listen, nativeAvailable } from './native.js';
 import { covers, dedupe, extIn, extRange, fmtLoaded, groupBySource, lastDay, normSettings, rangeKey, searchExt, stampOf, subLabel, toDisplay, writable, ymdSlash } from './iphone.js';
 import {
-  DOW, addDays, addMonths, assignLanes, assignSharedLanes, dayLabel, dayOf, dkey, eventsOnDay, isKey, isMulti,
-  monthWeeks, newId, nowStamp, parseInput, parseKey, ruleSummary, setFirstDay, timeLabel, toInput, todayKey, validateDraft, weekStart, weekdayHeads,
+  DOW, addDays, addMonths, assignSharedLanes, dayLabel, dayOf, dkey, eventsOnDay, isKey, isMulti,
+  monthWeeks, newId, nowStamp, pad, parseInput, parseKey, ruleSummary, setFirstDay, timeLabel, toInput, todayKey, validateDraft, weekStart, weekdayHeads,
 } from './util.js';
 
 const params = new URLSearchParams(location.search);
@@ -35,9 +35,12 @@ function loadUi() {
     view: VIEWS.includes(s.view) ? s.view : 'month',
     style: STYLES.includes(s.style) ? s.style : 'simple',
     desk: s.desk === true,
-    home: s.home !== false,
+    home: s.home === true ? true : s.home === false ? false : null, // null=未選択（閉じた画面では一覧、開いた画面では月などの本文）。true=「一覧」を選んだ
     monthExpand: s.monthExpand === true,
     weekStart: s.weekStart === 0 ? 0 : 1, // 週の始まり: 0=日曜 / 1=月曜（既定）
+    monthTimeClosed: s.monthTimeClosed === true, // 月表示に時刻を出す（閉じた画面。既定は切）
+    monthTimeOpen: s.monthTimeOpen !== false, // 同（開いた画面・見開き・卓上。既定は入）
+    monthTextSize: s.monthTextSize === 'large' ? 'large' : 'normal', // 月の文字: 標準 / 大
   };
 }
 const state = { ...loadUi(), events: [], categories: [], loaded: false };
@@ -57,21 +60,21 @@ function saveNotify(n) {
   try { localStorage.setItem(NOTIFY_KEY, JSON.stringify({ version: 1, ...(loadNotify() || {}), ...n })); } catch { /* 保存不可でも続ける */ }
 }
 function saveUi() {
-  const { selected, view, style, desk, home, monthExpand, weekStart: ws } = state;
-  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, weekStart: ws })); } catch { /* 保存不可でも動作は続ける */ }
+  const { selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize } = state;
+  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize })); } catch { /* 保存不可でも動作は続ける */ }
 }
 function set(patch) { Object.assign(state, patch); if ('weekStart' in patch) setFirstDay(state.weekStart); saveUi(); render(); }
 
 // ---------- レイアウト寸法 L（キーボードで変わらない寸法）と可視範囲 V ----------
 // L = キーボード非表示時の文書領域。テキスト入力中（とその直後）は幅が変わらない限り高さの縮小を無視する。
 const de = document.documentElement;
-const L = { w: de.clientWidth, h: de.clientHeight };
+const L = { w: window.innerWidth, h: window.innerHeight };
 const maxH = new Map([[L.w, L.h]]);
 let kbHold = false, kbTimer = 0;
 const isTextEl = (a) => !!a && !!a.matches?.('textarea, select, input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=button]):not([type=submit])');
 const keyboardLikely = () => kbHold || isTextEl(document.activeElement);
 function measureL() {
-  const w = de.clientWidth, h = de.clientHeight;
+  const w = window.innerWidth, h = window.innerHeight;
   let nh = h;
   if (keyboardLikely()) nh = w === L.w ? Math.max(L.h, h) : Math.max(maxH.get(w) || 0, h);
   const changed = w !== L.w || nh !== L.h;
@@ -92,7 +95,7 @@ function safe() {
   return { top: parseFloat(c.paddingTop) || 0, right: parseFloat(c.paddingRight) || 0, bottom: parseFloat(c.paddingBottom) || 0, left: parseFloat(c.paddingLeft) || 0 };
 }
 function updateVars() {
-  const vv = window.visualViewport, H = de.clientHeight;
+  const vv = window.visualViewport, H = window.innerHeight;
   const zoomed = (vv?.scale || 1) > 1.01;
   const vy = vv && !zoomed ? Math.max(0, vv.offsetTop) : 0;
   const vh = vv && !zoomed ? vv.height : H;
@@ -116,7 +119,9 @@ function vpSchedule() { cancelAnimationFrame(vpRaf); vpRaf = requestAnimationFra
 function vpTick() {
   const changed = measureL();
   const { kb } = updateVars();
-  if (changed) render();
+  const sc = safeChanged();
+  updateDiagnostics();
+  if (changed || sc) render();
   const a = document.activeElement;
   if (kb && isTextEl(a)) {
     const d = a.closest('dialog');
@@ -126,15 +131,82 @@ function vpTick() {
 }
 
 // ---------- レイアウト判定（L・卓上トグル） ----------
+// 機種の寸法は決め打ちしない。600 はコンパクト（閉じた）判定のブレークポイント。
 function layoutKind() {
   const w = L.w, h = L.h;
-  if (w < 600 || h < 600) return state.home ? 'home' : 'browse';
+  if (Math.min(w, h) < 600) return state.home !== false ? 'home' : 'browse';
   if (state.desk) return 'desk';
-  if (w >= 800 && h < 700) return 'spread';
-  return 'open';
+  return w > h ? 'spread' : 'open';
 }
-// 開いた縦（幅600–799・高さ800以上の通常の開いた状態）。月は全幅＋下部アジェンダ、週は日別の縦リスト。
-const isPortrait = () => layoutKind() === 'open' && L.w < 800 && L.h >= 800;
+// 開いた縦（通常の開いた状態で縦長）。月は全幅、週は日別の縦リスト。
+const isPortrait = () => layoutKind() === 'open' && L.h >= L.w;
+// 「一覧」（今日と次の予定のリスト）を本文に出しているか。閉じた画面は home、開いた画面は「一覧」を選んだとき。
+function listShown() { const k = layoutKind(); return k === 'home' || (state.home === true && k !== 'browse'); }
+
+// ---------- 寸法の唯一の入力 → CSS 変数（座標はすべて画面座標 CSS px） ----------
+// 入力: 安定寸法 L（innerWidth/innerHeight）・safe area・週数。折り目は常にビューポート中心 L.w/2。
+let lastSafe = null;
+const safeKey = (S) => `${S.top}/${S.right}/${S.bottom}/${S.left}`;
+function safeChanged() { const k = safeKey(safe()); const c = k !== lastSafe; lastSafe = k; return c; }
+const REF = { closed: [466, 678], portrait: [669, 951], landscape: [951, 669] }; // 比率の基準分母（画面サイズ・折り目の固定値ではない）
+const r2 = (n) => Math.round(n * 100) / 100;
+function updateLayoutMetrics() {
+  const S = safe(); lastSafe = safeKey(S);
+  const kind = layoutKind(), W = L.w, H = L.h;
+  const x0 = S.left, y0 = S.top, U = W - S.left - S.right, V = H - S.top - S.bottom;
+  const post = kind === 'home' || kind === 'browse' ? 'closed' : kind === 'open' && isPortrait() ? 'portrait' : 'landscape';
+  const [bw, bh] = REF[post], rx = U / bw, ry = V / bh;
+  const n = monthWeeks(state.selected).length;
+  const v = { 'layout-w': W, 'layout-h': H, 'content-x': x0, 'content-y': y0, 'content-w': U, 'content-h': V, 'fold-x': W / 2 };
+  let left, right, railW = 0, c, headH, gridTop, G, tabsCx, tabsY, ctrlY, tlTop = 0, rightStart = 0;
+  if (post === 'closed') {
+    railW = 84; left = x0 + 4; right = x0 + U - railW - 2; c = (U - 90) / 7; gridTop = y0 + 102 * ry; G = 510 * ry; tabsY = y0 + 606 * ry; ctrlY = y0 + 598 * ry; headH = 82 * ry;
+  } else if (post === 'portrait') {
+    left = x0; right = W - S.right; c = U / 7; gridTop = y0 + 100 * ry; G = 780 * ry; tabsY = y0 + 881 * ry; ctrlY = y0 + 881 * ry; headH = 72 * ry;
+  } else {
+    railW = 76; left = x0 + 8; right = W / 2 - 10; c = (right - left) / 7; gridTop = y0 + 96 * ry; G = 573 * ry; tabsY = y0 + 611 * ry; ctrlY = y0 + 600 * ry; headH = 76 * ry; tlTop = y0 + 108 * ry; rightStart = W / 2 + 10;
+  }
+  tabsCx = (left + right) / 2;
+  // 開いた縦の操作: 上=設定(x0+20rx)・検索(x0+480rx)（y0+24ry・44角）、下=今日(x0+20rx)・＋(右端−20rx−48)
+  Object.assign(v, { 'set-x': x0 + 20 * rx, 'set-y': y0 + 24 * ry, 'search-x': x0 + 480 * rx, 'today-x': x0 + 20 * rx, 'add-x': W - S.right - 20 * rx - 48 });
+  de.style.setProperty('--rx', String(r2(rx)));
+  const tabsW = Math.min(270, Math.max(176, right - left));
+  const maxY = H - S.bottom - (post === 'closed' ? 26 * ry : 0); // ボタン・タブの下端が安全矩形を越えない（閉じた画面は下から26ry以上内側）
+  Object.assign(v, {
+    'left-end': right, 'right-start': rightStart, 'rail-w': railW, 'grid-top': gridTop, 'grid-h': G, 'week-h': G / n, 'month-col-w': c,
+    'tabs-x': tabsCx - tabsW / 2, 'tabs-y': Math.min(tabsY, maxY - 46), 'tabs-w': tabsW, 'controls-y': Math.min(ctrlY, maxY - 48), 'timeline-top': tlTop,
+    'head-h': headH, 'wd-h': gridTop - y0 - headH,
+  });
+  if (post === 'landscape') {
+    // 見開き: 左ページ x0+8〜W/2-10、右ページ W/2+10〜(右端-76)、右端76の操作列。右の操作は下から詰め、重ならないようにする。
+    const bottom = H - S.bottom, addY = Math.min(600 * ry + y0, bottom - 48), capY = Math.min(446 * ry + y0, addY - 10 - 144), todayY = Math.min(386 * ry + y0, capY - 12 - 48);
+    const sv = { 'left-start': left, 'right-end': W - S.right - railW, 'sr-today-y': todayY, 'sr-cap-y': capY, 'sr-add-y': addY };
+    for (const [k, val] of Object.entries(sv)) de.style.setProperty(`--${k}`, `${r2(val)}px`);
+  }
+  // 閉じた画面: 月のスクロール末尾は、最終週をタブの上へ出せるだけ（安全矩形の下端 − タブ上端）、最低56
+  de.style.setProperty('--end-pad-closed', `${r2(Math.max(56, y0 + V - (v['tabs-y'] ?? 0)))}px`);
+  de.style.setProperty('--ry', String(r2(ry))); // 閉じた画面の操作列の縦位置（基準比率）
+  for (const [k, val] of Object.entries(v)) de.style.setProperty(`--${k}`, `${r2(val)}px`);
+  // 月の字: 閉9／縦10／横9.5。「月の文字: 大」は 11px。
+  de.style.setProperty('--chip-fs', `${state.monthTextSize === 'large' ? 11 : post === 'closed' ? 9 : post === 'portrait' ? 10 : 9.5}px`);
+  return { post, n };
+}
+// 描画後: 今の画面枠の月ペインの利用高から、グリッド高・基準週高を実測して渡す（新レイアウト完成までの暫定）。
+function measureMonthPane() {
+  if (layoutKind() !== 'desk') return; // 閉じた画面・開いた縦・見開きは §1.2 の寸法をそのまま使う（卓上だけ暫定の実測）
+  const pane = root.querySelector('.scroll.msc, .scroll.all');
+  if (!pane) return;
+  const n = root.querySelectorAll('.week').length || monthWeeks(state.selected).length;
+  de.style.setProperty('--grid-h', `${r2(pane.clientHeight)}px`);
+  de.style.setProperty('--week-h', `${r2(pane.clientHeight / n)}px`);
+}
+// 診断行: 生の innerWidth×innerHeight・DPR・safe（コピー可。外へ送らず保存もしない）。
+const num = (n) => String(Math.round(n * 100) / 100);
+function diagText() {
+  const S = safe();
+  return `${window.innerWidth}×${window.innerHeight} px · DPR ${num(window.devicePixelRatio || 1)} · safe 上${num(S.top)} 右${num(S.right)} 下${num(S.bottom)} 左${num(S.left)} px`;
+}
+function updateDiagnostics() { const el = $('#layout-diagnostics'); if (el) el.textContent = diagText(); }
 
 // ---------- iPhone カレンダー連携の状態（ネイティブ版のみ） ----------
 const NATIVE = nativeAvailable();
@@ -169,12 +241,28 @@ const xi = (e) => (isX(e) ? '<span class="xi" aria-hidden="true">▦</span>' : '
 const xname = (e) => (isX(e) ? `iPhone、${e.calName}、` : '');
 
 // ---------- テンプレート ----------
-const TABS = [['day', '日'], ['week', '週'], ['month', '月']];
-const segment = (active) => `<div class="segment" role="group" aria-label="表示期間">${TABS.map(([v, l]) => `<button type="button" data-view="${v}" aria-pressed="${v === active}">${l}</button>`).join('')}</div>`;
+// 浮動タブ: 一覧／日／週／月（今日はボタンへ移った）。native button + aria-pressed。一覧のみ data-act=list。
+const TABS = [['list', '一覧'], ['day', '日'], ['week', '週'], ['month', '月']];
+function tabs() {
+  const act = listShown() ? 'list' : state.view;
+  return `<div class="tabs" role="group" aria-label="表示期間">${TABS.map(([v, l], i) => `<button type="button" ${v === 'list' ? 'data-act="list"' : `data-view="${v}"`} aria-pressed="${v === act}" aria-description="4個中${i + 1}番目"><span class="pill">${l}</span></button>`).join('')}</div>`;
+}
 const todayBtn = '<button type="button" class="today" data-act="today">今日に戻る</button>';
-const deskBtn = () => `<button type="button" class="deskbtn" data-act="desk" aria-pressed="${state.desk}">卓上</button>`;
-const hdr = '<button type="button" class="iconbtn" data-act="search" aria-label="予定を検索"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15 15l5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><button type="button" class="iconbtn" data-act="menu" aria-label="その他" aria-haspopup="dialog">…</button>';
+const ICON_SEARCH = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15 15l5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+const hdr = `<button type="button" class="iconbtn" data-act="search" aria-label="予定を検索">${ICON_SEARCH}</button><button type="button" class="iconbtn" data-act="menu" aria-label="その他" aria-haspopup="dialog">…</button>`;
 const brand = `<div class="brand"><span class="logo">Duo.</span><span class="small">私の手帳</span></div>${hdr}`;
+// 閉じた画面の右の操作列: 上に設定・検索、下に今日（曜日＋日付）・＋。各48px。
+function rail() {
+  const d = parseKey(todayKey());
+  return `<div class="rail" aria-label="操作"><div class="rtop"><button type="button" class="rbtn" data-act="menu" aria-label="その他" aria-haspopup="dialog"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg></button><button type="button" class="rbtn" data-act="search" aria-label="予定を検索">${ICON_SEARCH}</button></div>
+    <div class="rbot"><button type="button" class="rbtn rtoday" data-act="today" aria-label="今日に戻る"><span aria-hidden="true">${DOW[d.getDay()]}${d.getDate()}</span></button><button type="button" class="rbtn radd" data-act="add" aria-label="予定を追加"><span aria-hidden="true">＋</span></button></div></div>`;
+}
+// 開いた縦の操作（浮動）: 上に設定・検索（44）、下に今日・＋（48）。
+function pctl() {
+  const d = parseKey(todayKey());
+  return `<div class="pctl" aria-label="操作"><button type="button" class="rbtn pbtn psettings" data-act="menu" aria-label="その他" aria-haspopup="dialog"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg></button><button type="button" class="rbtn pbtn psearch" data-act="search" aria-label="予定を検索">${ICON_SEARCH}</button>
+    <button type="button" class="rbtn pbtn ptoday" data-act="today" aria-label="今日に戻る"><span aria-hidden="true">${DOW[d.getDay()]}${d.getDate()}</span></button><button type="button" class="rbtn radd pbtn padd" data-act="add" aria-label="予定を追加"><span aria-hidden="true">＋</span></button></div>`;
+}
 const occIn = (a, b) => {
   let base = occBetween(state.events, a, b);
   if (hiddenCats.size) base = base.filter((e) => !hiddenCats.has(e.categoryId)); // 非表示のカテゴリは表示から隠す（予定は消さない）
@@ -197,12 +285,18 @@ function periodTitle() {
   return dayLabel(state.selected);
 }
 const unit = () => ({ month: '月', week: '週', day: '日' }[state.view]);
-const arrows = () => `<div class="arrows"><button type="button" data-act="prev" aria-label="前の${unit()}">‹</button><button type="button" data-act="next" aria-label="次の${unit()}">›</button></div>`;
-// 月の表現: 手帳（点）｜予定名｜全部。「全部」は monthExpand、手帳・予定名は style に対応する。
+const navBtn = (dir) => `<button type="button" data-act="${dir > 0 ? 'next' : 'prev'}" aria-label="${dir > 0 ? '次' : '前'}の${unit()}">${dir > 0 ? '›' : '‹'}</button>`;
+const arrows = () => `<div class="arrows">${navBtn(-1)}${navBtn(1)}</div>`;
+// 月の表現: 手帳（点）｜予定名｜全部。「全部」は monthExpand、手帳・予定名は style に対応する。入口は設定メニューの「月の表現」。
 // 開いた縦の月は常に予定名の表示なので、「手帳」は出さない（予定名｜全部）。
 const monthMode = (kind) => (state.monthExpand ? 'all' : kind === 'portrait' ? 'named' : state.style);
-const variant = (kind) => `<div class="variant" role="group" aria-label="月の表現">${[['simple', '手帳'], ['named', '予定名'], ['all', '全部']].filter(([v]) => !(kind === 'portrait' && v === 'simple')).map(([v, l]) => `<button type="button" data-mode="${v}" aria-pressed="${monthMode(kind) === v}">${l}</button>`).join('')}</div>`;
-const chead = (withTitle = true, kind = '') => `<div class="chead">${withTitle ? `<h2 id="ctitle">${periodTitle()}</h2>${arrows()}` : ''}${state.view === 'month' ? variant(kind) : ''}</div>`;
+const variantBtns = (kind) => [['simple', '手帳'], ['named', '予定名'], ['all', '全部']].filter(([v]) => !(kind === 'portrait' && v === 'simple')).map(([v, l]) => `<button type="button" data-mode="${v}" aria-pressed="${monthMode(kind) === v}">${l}</button>`).join('');
+// 期間の見出し（前の期間｜見出し｜次の期間）
+// 月見出し付近の「全部」ボタン: 1タップで 全部 ⇔ 通常（直前の手帳／予定名）。押せる範囲は 44pt 角（見た目は小さい）。
+const allBtn = () => `<button type="button" class="allbtn" data-act="allmonth" aria-pressed="${state.monthExpand}" aria-label="全部の予定を表示"><span aria-hidden="true">全</span></button>`;
+const chead = () => (state.view === 'month'
+  ? `<div class="chead"><span class="chsp" aria-hidden="true"></span>${navBtn(-1)}<h2 id="ctitle">${periodTitle()}</h2>${navBtn(1)}${allBtn()}</div>`
+  : `<div class="chead">${navBtn(-1)}<h2 id="ctitle">${periodTitle()}</h2>${navBtn(1)}</div>`);
 
 function card(e) {
   const sub = [e.place ? esc(e.place) : '', isMulti(e) ? `${e.start.slice(5, 10).replace('-', '/')} 〜 ${e.end.slice(5, 10).replace('-', '/')}` : '', e.nativeLink?.state === 'linked' ? 'iPhoneにも追加済み' : ''].filter(Boolean).join(' · ');
@@ -219,103 +313,76 @@ function agenda(k) {
   return `<section class="agenda" aria-label="選択日の予定"><div class="eyebrow">選択日の予定</div><h3>${dayLabel(k)}</h3><div class="count small">${n}件の予定</div><div class="list" data-scroll="agenda">${dayList(k)}</div></section>`;
 }
 
-// 月グリッド
+// ---------- 月（手帳｜予定名｜全部 共通の週描画） ----------
+// 日付行18・最初のレーン19・16px刻み・チップ14px・下余白2（CSS の --date-h/--lane-top/--lane-step/--chip-h と同値）。
+const LANE_TOP = 19, LANE_STEP = 16, LANE_PAD = 2;
 const xCount = (es) => { const n = es.filter(isX).length; return n ? `（うちiPhone ${n}件）` : ''; };
-const ROW_H = 88, BAR_H = 16, BAR_GAP = 2, CHIP_H = 16;
 const weekdaysHtml = (cls = '') => `<div class="weekdays${cls}">${weekdayHeads().map(({ i, label }) => `<span class="${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${label}</span>`).join('')}</div>`;
-function monthGrid(kind) {
-  if (kind === 'portrait') return monthGridPortrait();
-  const sel = state.selected, today = todayKey(), cur = parseKey(sel).getMonth(), named = state.style === 'named';
-  let html = weekdaysHtml();
-  for (const days of monthWeeks(sel)) {
-    const wev = occIn(days[0], days[6]);
-    const lane = named ? assignLanes(wev, days) : { bars: [], hidden: Array(7).fill(0), used: 0 };
-    const reserve = lane.used ? lane.used * (BAR_H + BAR_GAP) + 2 : 0;
-    html += `<div class="week ${named ? 'named' : 'simple'}" style="--reserve:${reserve}px">`;
-    days.forEach((k, col) => {
-      const es = eventsOnDay(wev, k);
-      const d = parseKey(k);
-      let body = '';
-      if (named) {
-        const singles = es.filter((e) => !isMulti(e));
-        const cap = Math.max(1, Math.floor((ROW_H - 2 - 22 - reserve) / CHIP_H));
-        const shown = singles.length <= cap ? singles : singles.slice(0, Math.max(0, cap - 1));
-        body = `<span class="chips">${shown.map((e) => `<span class="chip ${catCls(e)}"${catSty(e)}>${xi(e)}${rep(e)}${esc(e.title)}</span>`).join('')}${singles.length > shown.length ? `<span class="more">ほか${singles.length - shown.length}件</span>` : ''}</span>`;
-      } else {
-        body = `<span class="dots">${es.slice(0, 4).map((e) => `<i class="dot ${catCls(e)}"${catSty(e)}></i>`).join('')}</span>`;
-      }
-      const plus = lane.hidden[col] ? `<span class="plus" aria-hidden="true">+${lane.hidden[col]}</span>` : '';
-      html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}" data-date="${k}" aria-label="${dayLabel(k)}、予定${es.length}件${xCount(es)}" aria-pressed="${k === sel}"><span class="dhead"><span class="num">${d.getDate()}</span>${plus}</span>${body}</button>`;
-    });
-    for (const b of lane.bars) {
-      html += `<button type="button" class="bar ${catCls(b.e)}" data-event="${esc(b.e.id)}" style="${catVar(b.e)}left:calc(${b.sc} * 100% / 7 + 2px);width:calc(${b.ec - b.sc + 1} * 100% / 7 - 4px);top:${24 + b.lane * (BAR_H + BAR_GAP)}px" aria-label="${esc(xname(b.e) + b.e.title)} ${dayOf(b.e.start)}から${dayOf(b.e.end)}${b.e.recurring ? ' 繰り返し' : ''}">${b.fromPrev ? '← ' : ''}${xi(b.e)}${rep(b.e)}${esc(b.e.title)}${b.toNext ? ' →' : ''}</button>`;
-    }
-    html += '</div>';
-  }
-  return html;
+// 姿勢ごとの月の設定。kind は calendar(kind) の姿勢名（browse=閉じた／portrait=開いた縦／spread・desk・open=横）。
+// 通常の段数: 閉4／開5（大文字は1件減）。「全部」は全姿勢5段（大文字は4段）。時刻は姿勢ごとの設定。
+function monthCfg(kind) {
+  const closed = kind === 'browse' || kind === 'home', large = state.monthTextSize === 'large';
+  return { cap: (closed ? 4 : 5) - (large ? 1 : 0), allCap: large ? 4 : 5, time: closed ? state.monthTimeClosed : state.monthTimeOpen };
 }
-
-// 開いた縦の月: 常に予定名表示。週行64px = 日付20 + 2レーン×18（+N は日付行の右端）。帯と短冊は共通の2レーン。
-const LANE_TOP = 20, LANE_H = 18;
-function monthGridPortrait() {
-  const sel = state.selected, today = todayKey(), cur = parseKey(sel).getMonth();
-  let html = weekdaysHtml();
-  for (const days of monthWeeks(sel)) {
-    const wev = occIn(days[0], days[6]);
-    const { items, hidden } = assignSharedLanes(wev, days);
-    html += '<div class="week named pm">';
-    days.forEach((k, col) => {
-      const n = eventsOnDay(wev, k).length, d = parseKey(k);
-      const plus = hidden[col] ? `<span class="plus" aria-hidden="true">+${hidden[col]}</span>` : '';
-      html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}" data-date="${k}" aria-label="${dayLabel(k)}、予定${n}件${xCount(eventsOnDay(wev, k))}" aria-pressed="${k === sel}"><span class="dhead"><span class="num">${d.getDate()}</span></span>${plus}</button>`;
-    });
-    for (const b of items) {
-      const pos = `${catVar(b.e)}left:calc(${b.sc} * 100% / 7 + 2px);width:calc(${b.ec - b.sc + 1} * 100% / 7 - 4px);top:${LANE_TOP + b.lane * LANE_H}px`;
-      if (b.multi) {
-        html += `<button type="button" class="bar ${catCls(b.e)}" data-event="${esc(b.e.id)}" style="${pos}" aria-label="${esc(xname(b.e) + b.e.title)} ${dayOf(b.e.start)}から${dayOf(b.e.end)}${b.e.recurring ? ' 繰り返し' : ''}">${b.fromPrev ? '← ' : ''}${xi(b.e)}${rep(b.e)}${esc(b.e.title)}${b.toNext ? ' →' : ''}</button>`;
-      } else {
-        html += `<button type="button" class="strip ${catCls(b.e)}" data-event="${esc(b.e.id)}" style="${pos}" aria-label="${esc(`${xname(b.e)}${dayLabel(days[b.sc])} ${timeLabel(b.e)} ${b.e.title}${b.e.recurring ? ' 繰り返し' : ''}`)}">${xi(b.e)}${rep(b.e)}${esc(b.e.title)}</button>`;
-      }
-    }
-    html += '</div>';
-  }
-  return html;
-}
-
-// 「全部」: 1日5件まで。週ごとの行の高さ = max(いつもの高さ, 日付24 + その週の最大段数×18 + 下余白6)。+N は日付行の右端。
-// 帯と短冊は共通の5レーン。見えている週と前後1週だけ中身を描き、それ以外は高さだけ確保した空の行にする。
-const ALL_MAX = 5, ALL_HEAD = 24, ALL_LANE = 18, ALL_PAD = 6;
-let allYm = ''; // 直前に描いた「全部」の月（月が変わったらスクロール位置を引き継がない）
-let allWeeks = new Map(); // 週の先頭の日付 → { days, wev, items, hidden, need }（描画のたびに作り直す）
-function allWeekData(days) {
+// 月の週の元データ（イベント・レーン配置）。cap 段まで置き、あふれは hidden（+N）。
+function weekData(days, cap) {
   const wev = occIn(days[0], days[6]);
-  const { items, hidden } = assignSharedLanes(wev, days, ALL_MAX);
-  const used = items.reduce((m, b) => Math.max(m, b.lane + 1), 0);
-  return { days, wev, items, hidden, need: ALL_HEAD + used * ALL_LANE + ALL_PAD };
+  const { items, hidden, used } = assignSharedLanes(wev, days, cap);
+  return { days, wev, items, hidden, used };
 }
-function allWeekHtml(w, cur, sel, today) {
+const needOf = (used) => LANE_TOP + used * LANE_STEP + LANE_PAD;
+const colPos = (sc, ec) => `left:calc(${sc} * 100% / 7 + 1.5px);width:calc(${ec - sc + 1} * 100% / 7 - 3px)`;
+// 週の中身: 日セル（button）・+N（兄弟 button）・帯／チップ（兄弟 button）。ボタンの入れ子は作らない。
+// mode: simple（点）| named | all。
+function weekInner(w, { mode, cur, sel, today, cap, time }) {
   const { days, wev, items, hidden } = w;
   let html = '';
   days.forEach((k, col) => {
-    const es = eventsOnDay(wev, k), d = parseKey(k);
-    html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}" data-date="${k}" aria-label="${dayLabel(k)}、予定${es.length}件${xCount(es)}" aria-pressed="${k === sel}"><span class="dhead"><span class="num">${d.getDate()}</span></span></button>`;
-    if (hidden[col]) html += `<button type="button" class="plus" data-jump="${k}" style="right:calc(${6 - col} * 100% / 7 + 3px)" aria-label="${dayLabel(k)}の予定をすべて見る（ほか${hidden[col]}件）">+${hidden[col]}</button>`;
+    const es = eventsOnDay(wev, k), d = parseKey(k), dow = d.getDay();
+    const label = d.getDate() === 1 ? `${d.getMonth() + 1}月1日` : d.getDate();
+    const dots = mode === 'simple' ? `<span class="dots">${es.slice(0, cap).map((e) => `<i class="dot ${catCls(e)}"${catSty(e)}></i>`).join('')}</span>` : '';
+    html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}${dow === 6 ? ' sat' : dow === 0 ? ' sun' : ''}" data-date="${k}" aria-label="${dayLabel(k)}、予定${es.length}件${xCount(es)}" aria-pressed="${k === sel}"><span class="num">${label}</span>${dots}</button>`;
+    const extra = mode === 'simple' ? es.length - cap : hidden[col];
+    if (extra > 0) html += `<button type="button" class="plus" data-jump="${k}" style="right:calc(${6 - col} * 100% / 7)" aria-label="${dayLabel(k)}の予定をすべて見る（ほか${extra}件）">+${extra}</button>`;
   });
+  if (mode === 'simple') return html;
   for (const b of items) {
-    const pos = `${catVar(b.e)}left:calc(${b.sc} * 100% / 7 + 2px);width:calc(${b.ec - b.sc + 1} * 100% / 7 - 4px);top:${ALL_HEAD + b.lane * ALL_LANE}px`;
-    if (b.multi) html += `<button type="button" class="bar ${catCls(b.e)}" data-event="${esc(b.e.id)}" style="${pos}" aria-label="${esc(xname(b.e) + b.e.title)} ${dayOf(b.e.start)}から${dayOf(b.e.end)}${b.e.recurring ? ' 繰り返し' : ''}">${b.fromPrev ? '← ' : ''}${xi(b.e)}${rep(b.e)}${esc(b.e.title)}${b.toNext ? ' →' : ''}</button>`;
-    else html += `<button type="button" class="strip ${catCls(b.e)}" data-event="${esc(b.e.id)}" style="${pos}" aria-label="${esc(`${xname(b.e)}${dayLabel(days[b.sc])} ${timeLabel(b.e)} ${b.e.title}${b.e.recurring ? ' 繰り返し' : ''}`)}">${xi(b.e)}${rep(b.e)}${esc(b.e.title)}</button>`;
+    const { e } = b, top = `top:${LANE_TOP + b.lane * LANE_STEP}px`;
+    if (b.band) {
+      const when = dayOf(e.start) === dayOf(e.end) ? `${dayLabel(dayOf(e.start))} 終日` : `${dayOf(e.start)}から${dayOf(e.end)}`;
+      html += `<button type="button" class="bar ${catCls(e)}" data-event="${esc(e.id)}" style="${catVar(e)}left:calc(${b.sc} * 100% / 7);width:calc(${b.ec - b.sc + 1} * 100% / 7);${top}" aria-label="${esc(`${xname(e)}${e.title} ${when}${e.recurring ? ' 繰り返し' : ''}`)}"><span class="bt">${esc(e.title)}</span></button>`;
+    } else {
+      const k = days[b.sc];
+      html += `<button type="button" class="strip ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}${colPos(b.sc, b.ec)};${top}" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${e.title}${e.recurring ? ' 繰り返し' : ''}`)}">${time ? `${e.start.slice(11)} ` : ''}${esc(e.title)}</button>`;
+    }
   }
   return html;
 }
-function monthGridAll() {
-  const weeks = monthWeeks(state.selected);
+function monthGrid(kind) {
+  const sel = state.selected, today = todayKey(), cur = parseKey(sel).getMonth();
+  const mode = kind === 'portrait' ? 'named' : state.style, cfg = monthCfg(kind);
+  let html = '';
+  for (const days of monthWeeks(sel)) {
+    const w = mode === 'simple' ? { days, wev: occIn(days[0], days[6]), items: [], hidden: [] } : weekData(days, cfg.cap);
+    html += `<div class="week ${mode}" style="--need:${mode === 'simple' ? 56 : needOf(cfg.cap)}px">${weekInner(w, { mode, cur, sel, today, cap: cfg.cap, time: cfg.time })}</div>`;
+  }
+  return html;
+}
+
+// 「全部」: 1日5件まで。週の高さ = max(グリッド÷週数, 19 + その週の使用段数×16 + 2)。
+// 見えている週と前後1週だけ中身を描き、それ以外は高さだけ確保した空の行にする。
+let allYm = ''; // 直前に描いた「全部」の月（月が変わったらスクロール位置を引き継がない）
+let allWeeks = new Map(); // 週の先頭の日付 → { days, wev, items, hidden, used }（描画のたびに作り直す）
+let allCtx = null;
+function monthGridAll(kind) {
+  const weeks = monthWeeks(state.selected), cfg = monthCfg(kind);
   allWeeks = new Map();
+  allCtx = { mode: 'all', cap: cfg.allCap, time: cfg.time };
   let rows = '';
   for (const days of weeks) {
-    const w = allWeekData(days);
+    const w = weekData(days, cfg.allCap);
     allWeeks.set(days[0], w);
-    rows += `<div class="week all" data-wk="${days[0]}" style="--need:${w.need}px"></div>`;
+    rows += `<div class="week all" data-wk="${days[0]}" style="--need:${needOf(w.used)}px"></div>`;
   }
   return `${weekdaysHtml(' all')}<div class="scroll all" data-scroll="cal" style="--n:${weeks.length}">${rows}</div>`;
 }
@@ -329,7 +396,7 @@ function syncAllWeeks() {
   const cur = parseKey(state.selected).getMonth(), sel = state.selected, today = todayKey();
   rows.forEach((r, i) => {
     const want = i >= a - 1 && i <= z + 1;
-    if (want && !r.dataset.drawn) { r.innerHTML = allWeekHtml(allWeeks.get(r.dataset.wk), cur, sel, today); r.dataset.drawn = '1'; }
+    if (want && !r.dataset.drawn) { r.innerHTML = weekInner(allWeeks.get(r.dataset.wk), { ...allCtx, cur, sel, today }); r.dataset.drawn = '1'; }
     else if (!want && r.dataset.drawn) { r.textContent = ''; delete r.dataset.drawn; }
   });
 }
@@ -380,7 +447,7 @@ function weekRow(k, short, vlist = false) {
 const weekNotes = '<div class="weeknotes"><div class="eyebrow">今週の余白</div>日付から一日の詳細へ。予定を選ぶと全文を確認できます。</div>';
 
 function calendarBody(kind) {
-  if (state.view === 'month') return `${state.monthExpand ? monthGridAll() : `<div class="scroll msc" data-scroll="cal">${monthGrid(kind)}</div>`}${legend()}${xlegend()}`;
+  if (state.view === 'month') return state.monthExpand ? monthGridAll(kind) : `${weekdaysHtml()}<div class="scroll msc" data-scroll="cal">${monthGrid(kind)}</div>`;
   if (state.view === 'week') {
     const cols = kind === 'open' || kind === 'desk';
     const vlist = kind === 'portrait';
@@ -388,9 +455,10 @@ function calendarBody(kind) {
   }
   return `<div class="scroll" data-scroll="cal"><div class="daylist">${dayList(state.selected)}</div></div>`;
 }
-const calendar = (kind) => `<section class="calendar" aria-label="カレンダー">${chead(true, kind)}${calendarBody(kind)}</section>`;
+const calendar = (kind) => `<section class="calendar" aria-label="カレンダー">${chead()}${calendarBody(kind)}</section>`;
 
-function home() {
+// 一覧（今日と次の予定・今日の残り）。閉じた画面の本文、開いた画面では「一覧」タブの本文。
+function listHtml() {
   const now = nowStamp(), k = todayKey(), d = parseKey(k);
   const list = eventsOnDay(occIn(k, k), k).filter((e) => e.end > now);
   let next = list.find((e) => !e.all) || list[0];
@@ -401,54 +469,191 @@ function home() {
   const nextHtml = next
     ? `<button type="button" class="next ${catCls(next)}"${catSty(next)} data-event="${esc(next.id)}"${repLabel(next, `次の予定 ${next.title}`)}><small>次の予定 · ${esc(tagText(next))}</small><strong>${xi(next)}${rep(next)}${esc(next.title)}</strong><span class="when"><span class="time">${nextDay}${next.all ? '終日' : next.start.slice(11)}</span>${next.all || dayOf(next.start) !== dayOf(next.end) ? '' : ` — ${next.end.slice(11)}`}${next.place ? ` <small>${esc(next.place)}</small>` : ''}</span></button>`
     : `<div class="next none"><small>次の予定</small><strong>${extActive() ? '読み込み済みの期間に次の予定はありません。' : state.events.length ? 'この後の予定はありません' : '予定はまだありません'}</strong>${sampleBtn()}</div>`;
-  return `<div class="shell home">
-    <header class="top">${brand}<div class="toolbar">${segment(null)}</div></header>
-    <section class="hero"><div class="date-block"><div class="eyebrow">今日 / ${d.getFullYear()}年${d.getMonth() + 1}月</div><div class="date">${d.getDate()}<span>${DOW[d.getDay()]}曜日</span></div></div>${nextHtml}</section>
-    <section class="remaining" aria-label="今日の残り予定"><h3>今日の残り予定</h3><div class="list" data-scroll="rest">${rest.map(card).join('') || '<p class="small pad">この後の予定はありません。</p>'}</div></section>
-    ${addBtn}</div>`;
+  return `<section class="hero"><div class="date-block"><div class="eyebrow">今日 / ${d.getFullYear()}年${d.getMonth() + 1}月</div><div class="date">${d.getDate()}<span>${DOW[d.getDay()]}曜日</span></div></div>${nextHtml}</section>
+    <section class="remaining" aria-label="今日の残り予定"><h3>今日の残り予定</h3><div class="list" data-scroll="rest">${rest.map(card).join('') || '<p class="small pad">この後の予定はありません。</p>'}</div></section>`;
 }
-function browse() {
-  return `<div class="shell browse"><header class="top">${brand}<div class="toolbar">${segment(state.view)}${todayBtn}</div></header>${calendar('browse')}${addBtn}</div>`;
+const listView = () => `<div class="home listview" aria-label="一覧">${listHtml()}</div>`;
+// 閉じた画面（一覧 = home / 日・週・月 = browse）: 月領域（左）＋ 操作列 84px（右）＋ 浮動タブ。
+function closed(kind) {
+  return `<div class="shell closed ${kind}"><div class="mpane">${kind === 'home' ? listView() : calendar('browse')}</div>${rail()}${tabs()}</div>`;
 }
+// 開いた縦: 全幅の月（下に予定一覧は置かない）＋上の設定・検索＋下の今日・タブ・＋。日・週・一覧も同じ枠でスクロール。
 function open() {
-  const single = state.view !== 'month';
-  const portrait = isPortrait();
-  return `<div class="shell open${portrait ? ' portrait' : ''}"><header class="top">${brand}<div class="toolbar">${segment(state.view)}${deskBtn()}${todayBtn}</div></header>
-    <div class="layout${single ? ' single' : ''}">${calendar(portrait ? 'portrait' : 'open')}${single ? '' : agenda(state.selected)}</div>${addBtn}</div>`;
+  return `<div class="shell open portrait"><div class="pcol">${listShown() ? listView() : calendar('portrait')}</div>${pctl()}${tabs()}</div>`;
 }
 function desk() {
-  return `<div class="shell desk"><div class="desktop"><header class="top">${brand}<div class="toolbar">${segment(state.view)}${deskBtn()}${todayBtn}</div></header>${calendar('desk')}</div>
+  return `<div class="shell desk"><div class="desktop"><header class="top">${brand}<div class="toolbar">${todayBtn}</div></header>${listShown() ? listView() : calendar('desk')}${tabs()}</div>
     <div class="foldband" role="separator" aria-label="折り目の保護領域">折り目の保護領域</div>
     <div class="deskbottom">${agenda(state.selected)}${addBtn}</div></div>`;
 }
-function spread() {
-  const left = { month: `<section class="page calendar" aria-label="カレンダー">${chead(false)}${calendarBody('spread')}</section>`, week: '', day: '' };
-  let pages;
-  if (state.view === 'month') {
-    pages = [left.month, `<section class="page">${agenda(state.selected)}</section>`];
-  } else if (state.view === 'week') {
-    const ks = weekKeys();
-    pages = [
-      `<section class="page"><div class="scroll weekpage" data-scroll="pl">${ks.slice(0, 4).map((k) => weekRow(k, false)).join('')}</div></section>`,
-      `<section class="page"><div class="scroll weekpage" data-scroll="pr">${ks.slice(4).map((k) => weekRow(k, false)).join('')}${weekNotes}</div></section>`,
-    ];
-  } else {
-    const n = eventsOnDay(occIn(state.selected, state.selected), state.selected).length;
-    pages = [
-      `<section class="page"><div class="scroll" data-scroll="pl"><div class="daylist">${dayList(state.selected)}</div></div></section>`,
-      `<section class="page margin"><div class="eyebrow">一日の余白</div><h3>${dayLabel(state.selected)}</h3><p>予定は左ページに時刻順で表示。</p><p class="small">${n}件の予定 · 右上の＋から追加</p></section>`,
-    ];
+// ---------- 見開き（開いた横）: 左ページ＝月／一覧／日の時間軸／週の前半、右ページ＝時間軸／日の詳細／週の後半 ----------
+// 折り目（ビューポート中心 ±10px）には何も置かない。左右ページは中心±10 で clip し、背景は中心で直接接続する。
+const TL = { hh: 60, days: 1, key: '', quiet: 0 }; // 時間軸: 1時間の高さ(px)・1日/3日・初期スクロールの判定キー
+const HH_MIN = 31, HH_MAX = 80, TL_PAD = 12;
+const clampHh = (n) => Math.min(HH_MAX, Math.max(HH_MIN, n));
+const minOf = (s) => Number(s.slice(11, 13)) * 60 + Number(s.slice(14, 16));
+const hhmm = (m) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+const tlKeys = (days) => Array.from({ length: days }, (_, i) => addDays(state.selected, i));
+function sheadTitle() {
+  if (state.view !== 'month' || listShown()) return periodTitle();
+  const d = parseKey(state.selected);
+  return `<span class="yr">${d.getFullYear()}年</span> ${d.getMonth() + 1}月`;
+}
+// 左ページ見出し: 年（薄色）月 ｜ 前・次（44角）｜ 設定（44角）。
+const shead = () => `<div class="shead"><h2 id="ctitle">${sheadTitle()}</h2><div class="sctl">${state.view === 'month' && !listShown() ? allBtn() : ''}${navBtn(-1)}${navBtn(1)}<button type="button" class="sset" data-act="menu" aria-label="その他" aria-haspopup="dialog"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg></button></div></div>`;
+// 右端の操作列（76px）: 今日・（月／一覧／検索）・＋。縦位置は下から詰める（JS の --sr-*-y）。
+function srail() {
+  const d = parseKey(todayKey());
+  return `<div class="rail srail" aria-label="操作"><button type="button" class="rbtn rtoday" data-act="today" aria-label="今日に戻る"><span aria-hidden="true">${DOW[d.getDay()]}${d.getDate()}</span></button>
+    <div class="cap" role="group" aria-label="表示と検索"><button type="button" data-view="month" aria-label="月を開く"><span aria-hidden="true">月</span></button><button type="button" data-act="list" aria-label="一覧を開く"><span aria-hidden="true">一覧</span></button><button type="button" data-act="search" aria-label="予定を検索"><span aria-hidden="true">検索</span></button></div>
+    <button type="button" class="rbtn radd" data-act="add" aria-label="予定を追加"><span aria-hidden="true">＋</span></button></div>`;
+}
+// 時間軸 1 日分のブロック: 開始〜終了（分）。日をまたぐ予定は当日 0〜24 時へ clip。重なりは等幅の列に分ける。
+function dayBlocks(k) {
+  const items = eventsOnDay(occIn(k, k), k).filter((e) => !e.all).map((e) => {
+    const s = dayOf(e.start) < k ? 0 : minOf(e.start);
+    let en = dayOf(e.end) > k ? 1440 : minOf(e.end);
+    if (en <= s) en = Math.min(1440, s + 20);
+    return { e, s, en, ee: Math.max(en, s + 20) }; // ee: 重なり判定用（最小ブロック高 20px ≒ 20分）
+  }).sort((a, b) => a.s - b.s || b.en - a.en);
+  let cluster = [], colEnds = [], clusterEnd = 0;
+  const flush = () => { const n = colEnds.length || 1; cluster.forEach((x) => { x.n = n; }); cluster = []; colEnds = []; clusterEnd = 0; };
+  for (const it of items) {
+    if (cluster.length && it.s >= clusterEnd) flush();
+    let c = colEnds.findIndex((t) => t <= it.s);
+    if (c < 0) { c = colEnds.length; colEnds.push(0); }
+    colEnds[c] = it.ee; it.col = c; cluster.push(it); clusterEnd = Math.max(clusterEnd, it.ee);
   }
-  return `<div class="shell spread"><header class="spreadhead">
-      <div class="half">${brand}${segment(state.view)}${deskBtn()}</div><div class="gutter"></div>
-      <div class="half"><h2 class="stitle">${periodTitle()}</h2>${arrows()}${todayBtn}<button type="button" class="add mini" data-act="add" aria-label="予定を追加">＋</button></div></header>
-    <div class="pages">${pages[0]}<div class="gutter"></div>${pages[1]}</div></div>`;
+  flush();
+  return items;
+}
+function tlBlock({ e, s, en, col, n }, k) {
+  const t = e.title, sub = hhmm(s);
+  return `<button type="button" class="tlev ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}--m:${s};--d:${en - s};left:calc(${col} * 100% / ${n} + 1px);width:calc(100% / ${n} - 2px)" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${t}${e.recurring ? ' 繰り返し' : ''}`)}"><span class="tt">${sub}</span>${esc(t)}</button>`;
+}
+// 終日段: 11px「終日」＋カテゴリの淡色地・本色12px太字のピル。最大3件（3日表示は各日1件）、幅不足なら減らして +N（その日の一覧へ）。
+function allDayRow(ks, avail) {
+  const cap = ks.length === 1 ? 3 : 1, colW = avail / ks.length;
+  const cols = ks.map((k) => {
+    const list = eventsOnDay(occIn(k, k), k).filter((e) => e.all);
+    let shown = Math.min(cap, list.length);
+    const est = (es) => es.reduce((a, e) => a + Math.min(colW, e.title.length * 12 + 26) + 6, 0) + (list.length > es.length ? 40 : 0);
+    while (shown > 1 && est(list.slice(0, shown)) > colW) shown--;
+    const pills = list.slice(0, shown).map((e) => `<button type="button" class="adpill ${catCls(e)}" data-event="${esc(e.id)}" style="${catVar(e)}" aria-label="${esc(`${xname(e)}${dayLabel(k)} 終日 ${e.title}${e.recurring ? ' 繰り返し' : ''}`)}">${esc(e.title)}</button>`).join('');
+    const extra = list.length - shown;
+    return `<div class="adcol" data-day="${k}">${pills}${extra > 0 ? `<button type="button" class="adplus" data-jump="${k}" aria-label="${dayLabel(k)}の終日の予定をすべて見る（ほか${extra}件）">+${extra}</button>` : ''}</div>`;
+  }).join('');
+  return `<div class="allday" aria-label="終日の予定"><span class="adl">終日</span><div class="adcols">${cols}</div></div>`;
+}
+function timelineHtml(ks, avail) {
+  const heads = ks.length > 1 ? `<div class="tlheads"><span class="tlh0"></span>${ks.map((k) => { const d = parseKey(k); return `<button type="button" class="tlhd${k === state.selected ? ' sel' : ''}${k === todayKey() ? ' today' : ''}" data-tlday="${k}" aria-pressed="${k === state.selected}" aria-label="${dayLabel(k)}を選ぶ">${d.getDate()}（${DOW[d.getDay()]}）</button>`; }).join('')}</div>` : '';
+  let lines = '';
+  for (let h = 0; h <= 24; h++) {
+    lines += `<i class="hl" style="--m:${h * 60}"></i>`;
+    if (h < 24) lines += `<span class="hlab" style="--m:${h * 60}">${h}:00</span><i class="hl half" style="--m:${h * 60 + 30}"></i>`;
+  }
+  const cols = ks.map((k) => `<div class="tlcol" data-day="${k}">${dayBlocks(k).map((b) => tlBlock(b, k)).join('')}</div>`).join('');
+  return `${allDayRow(ks, avail)}${heads}<div class="tl" data-scroll="tl" style="--hh:${TL.hh}px"><div class="tlin" data-days="${ks.join(',')}">${lines}<div class="tlcols">${cols}</div><div class="nowl" hidden><span class="nowt"></span></div></div></div>`;
+}
+// 右ページの日見出し（11月14日（土））＋ 1日／3日の切替（32px のカプセル・押せる範囲 44px）
+function rightHead() {
+  return `<div class="rhead"><h2 class="rdate">${dayLabel(state.selected)}</h2><button type="button" class="spanbtn" data-act="tl3" aria-label="表示する日数: ${TL.days}日。${TL.days === 1 ? '3日' : '1日'}にする"><span aria-hidden="true">${TL.days}日 ▾</span></button></div>`;
+}
+const rightWidth = () => Math.max(0, L.w - safe().right - 76 - (L.w / 2 + 10));
+function spread() {
+  const k = listShown() ? 'list' : state.view;
+  const rw = rightWidth(), lw = L.w / 2 - 10 - (safe().left + 8);
+  let left, right;
+  if (k === 'list') {
+    left = `<section class="page lp">${shead()}${listView()}</section>`;
+    right = `<section class="page rp">${rightHead()}${timelineHtml(tlKeys(TL.days), rw - 50)}</section>`;
+  } else if (k === 'month') {
+    left = `<section class="page lp calendar" aria-label="カレンダー">${shead()}${calendarBody('spread')}</section>`;
+    right = `<section class="page rp">${rightHead()}${timelineHtml(tlKeys(TL.days), rw - 50)}</section>`;
+  } else if (k === 'week') {
+    const ks = weekKeys();
+    left = `<section class="page lp">${shead()}<div class="scroll weekpage" data-scroll="pl">${ks.slice(0, 4).map((x) => weekRow(x, false)).join('')}</div></section>`;
+    right = `<section class="page rp"><div class="rpad"></div><div class="scroll weekpage" data-scroll="pr">${ks.slice(4).map((x) => weekRow(x, false)).join('')}${weekNotes}</div></section>`;
+  } else {
+    left = `<section class="page lp">${shead()}${timelineHtml([state.selected], lw - 50)}</section>`;
+    right = `<section class="page rp"><div class="rpad"></div>${agenda(state.selected)}</section>`;
+  }
+  return `<div class="shell spread">${left}${right}${srail()}${tabs()}</div>`;
+}
+// 時間軸: 初回／選択日の変更で「今の1時間前」へ。現在時刻の線は毎分更新。
+const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+function updateNow() {
+  const inner = root.querySelector('.tlin');
+  if (!inner) return;
+  const ks = inner.dataset.days.split(','), i = ks.indexOf(todayKey()), el = inner.querySelector('.nowl');
+  if (i < 0) { el.hidden = true; return; }
+  el.hidden = false;
+  el.style.setProperty('--m', String(nowMin()));
+  el.style.setProperty('--i', String(i));
+  el.style.setProperty('--n', String(ks.length));
+  el.querySelector('.nowt').textContent = hhmm(nowMin());
+}
+function initTimeline() {
+  const tl = root.querySelector('.tl');
+  if (!tl) { TL.key = ''; return; }
+  const key = `${layoutKind()}|${state.view}|${state.home}|${state.selected}|${TL.days}`;
+  if (key !== TL.key) { TL.key = key; tl.scrollTop = Math.max(0, nowMin() - 60) * TL.hh / 60; }
+  updateNow();
+}
+// 倍率の変更。中心の時刻（画面上の位置 cy）を固定する。
+function setHh(next, cy) {
+  const tl = root.querySelector('.tl');
+  const hh = clampHh(next);
+  if (!tl || hh === TL.hh) return;
+  const c = cy ?? tl.clientHeight / 2;
+  const centerMin = (tl.scrollTop + c - TL_PAD) / TL.hh * 60;
+  TL.hh = hh;
+  tl.style.setProperty('--hh', `${hh}px`);
+  tl.scrollTop = TL_PAD + centerMin * hh / 60 - c;
+}
+// ピンチ（時間軸の内側だけ）。2本目の指が付いたら倍率、ドラッグ・ピンチの後は空きタップで予定を追加しない。
+const tlPtr = new Map();
+let tlPinch = null;
+root.addEventListener('pointerdown', (ev) => {
+  const tl = ev.target.closest?.('.tl');
+  if (!tl) return;
+  tlPtr.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  if (tlPtr.size === 2) {
+    const [a, b] = [...tlPtr.values()];
+    tlPinch = { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, hh0: TL.hh, tl };
+    TL.quiet = performance.now() + 500;
+  }
+});
+window.addEventListener('pointermove', (ev) => {
+  const p = tlPtr.get(ev.pointerId);
+  if (!p) return;
+  if (Math.hypot(ev.clientX - p.x, ev.clientY - p.y) > 8) TL.quiet = performance.now() + 400;
+  p.cx = ev.clientX; p.cy = ev.clientY; p.moved = true;
+  if (tlPinch && tlPtr.size >= 2) {
+    const [a, b] = [...tlPtr.values()];
+    const d = Math.hypot((a.cx ?? a.x) - (b.cx ?? b.x), (a.cy ?? a.y) - (b.cy ?? b.y));
+    const r = tlPinch.tl.getBoundingClientRect();
+    setHh(tlPinch.hh0 * d / tlPinch.d0, ((a.cy ?? a.y) + (b.cy ?? b.y)) / 2 - r.top);
+    TL.quiet = performance.now() + 500;
+  }
+});
+const tlEnd = (ev) => { if (tlPtr.delete(ev.pointerId) && tlPtr.size < 2) tlPinch = null; };
+window.addEventListener('pointerup', tlEnd);
+window.addEventListener('pointercancel', tlEnd);
+// 空きタップ → その時刻（30分刻み・切り捨て）から1時間の予定を追加。
+function tlTap(ev, col) {
+  if (performance.now() < TL.quiet) return;
+  const rect = col.getBoundingClientRect();
+  const m = Math.min(1380, Math.max(0, Math.floor(((ev.clientY - rect.top - TL_PAD) / TL.hh * 60) / 30) * 30));
+  openEditor(null, root.querySelector('[data-act="add"]'), col.dataset.day, m);
 }
 
 // ---------- 描画（スクロール位置とフォーカスを保つ） ----------
 let lastKind = '';
 function render() {
   const kind = layoutKind();
+  updateLayoutMetrics();
+  updateDiagnostics();
   const scrolls = {};
   const anchor = root.querySelector('.scroll.all') ? anchorRec : null;
   root.querySelectorAll('[data-scroll]').forEach((el) => { scrolls[`${lastKind}:${el.dataset.scroll}`] = el.scrollTop; });
@@ -456,10 +661,12 @@ function render() {
   const focusKey = f && root.contains(f) ? f.dataset.act ? `act:${f.dataset.act}` : f.dataset.view ? `view:${f.dataset.view}` : f.dataset.mode ? `mode:${f.dataset.mode}` : f.dataset.date ? `date:${f.dataset.date}` : '' : '';
   document.body.dataset.layout = kind;
   document.body.dataset.posture = kind === 'open' && isPortrait() ? 'portrait' : '';
-  root.innerHTML = { home, browse, open, desk, spread }[kind]();
+  root.innerHTML = { home: () => closed('home'), browse: () => closed('browse'), open, desk, spread }[kind]();
   lastKind = kind;
   root.querySelectorAll('[data-scroll]').forEach((el) => { el.scrollTop = scrolls[`${kind}:${el.dataset.scroll}`] || 0; });
   restoreAll(anchor);
+  measureMonthPane();
+  initTimeline();
   if (focusKey) {
     const [t, v] = focusKey.split(/:(.*)/);
     const sel = { act: `[data-act="${v}"]`, view: `[data-view="${v}"]`, mode: `[data-mode="${v}"]`, date: `[data-date="${v}"]` }[t];
@@ -476,26 +683,30 @@ function move(n) {
 function say(msg) { $('#status').textContent = ''; requestAnimationFrame(() => { $('#status').textContent = msg; }); }
 
 root.addEventListener('click', (ev) => {
+  const col = ev.target.closest('.tlcol');
+  if (col && !ev.target.closest('button')) { tlTap(ev, col); return; }
   const b = ev.target.closest('button');
   if (!b || !root.contains(b)) return;
   const d = b.dataset;
   if (d.view) set({ view: d.view, home: false });
-  else if (d.mode) set(d.mode === 'all' ? { monthExpand: true } : { style: d.mode, monthExpand: false });
+  else if (d.act === 'list') set({ home: true });
   else if (d.date) {
-    const compact = ['home', 'browse'].includes(layoutKind());
-    // 閉じた状態では選択日サイドが無いので、日付選択でその日の日表示へ進む。
+    const compact = ['home', 'browse'].includes(layoutKind()) || isPortrait();
+    // 閉じた画面・開いた縦では選択日サイド（一覧）が無いので、日付選択でその日の日表示へ進む。
     set(compact && state.view === 'month' ? { selected: d.date, view: 'day' } : { selected: d.date });
   } else if (d.jump) set({ selected: d.jump, view: 'day' });
   else if (d.event) openEditor(d.event, b);
   else if (d.new) openEditor(null, b, d.new);
   else if (d.act === 'add') openEditor(null, b);
-  else if (d.act === 'today') set(['home', 'browse'].includes(layoutKind()) ? { selected: todayKey(), view: 'month', home: true } : { selected: todayKey() }); // 開いた画面では日・週・月のビューを保つ
+  else if (d.act === 'allmonth') set({ monthExpand: !state.monthExpand });
+  else if (d.act === 'today') set({ selected: todayKey() }); // 今日へ戻るのは選択日だけ。表示（一覧・日・週・月）は保つ
   else if (d.act === 'prev') move(-1);
   else if (d.act === 'next') move(1);
-  else if (d.act === 'desk') set({ desk: !state.desk });
   else if (d.act === 'sample') loadSample();
   else if (d.act === 'search') openSearch(b);
   else if (d.act === 'menu') openMenu(b);
+  else if (d.act === 'tl3') { TL.days = TL.days === 1 ? 3 : 1; render(); say(`時間軸を${TL.days}日表示にしました。`); }
+  else if (d.tlday) set({ selected: d.tlday });
 });
 
 async function loadSample() {
@@ -694,13 +905,14 @@ function valuesFrom(cur) {
     rcount: String(r?.count ?? 10), runtil: r?.until ? r.until.replaceAll('-', '/') : '', ropen: false, autoDays: false,
   };
 }
-function openEditor(id, from, day = state.selected) {
+function openEditor(id, from, day = state.selected, startMin = null) {
   if (id && isXId(id)) { openExtDetail(id, from); return; }
   origins.set(dlg, from || document.activeElement);
   const cur = id ? resolve(id) : null;
+  const t0 = startMin == null ? '10:00' : hhmm(startMin), t1 = startMin == null ? '11:00' : startMin + 60 > 1439 ? '23:59' : hhmm(startMin + 60);
   const values = cur
     ? valuesFrom(cur)
-    : { title: '', categoryId: defaultCatId(), all: false, start: `${day.replaceAll('-', '/')} 10:00`, end: `${day.replaceAll('-', '/')} 11:00`, place: '', notes: '', rfreq: 'none', rbyday: [], rend: 'none', rcount: '10', runtil: '', ropen: false };
+    : { title: '', categoryId: defaultCatId(), all: false, start: `${day.replaceAll('-', '/')} ${t0}`, end: `${day.replaceAll('-', '/')} ${t1}`, place: '', notes: '', rfreq: 'none', rbyday: [], rend: 'none', rcount: '10', runtil: '', ropen: false };
   showEditor(values, cur ? id : null);
   saveDraft();
 }
@@ -906,6 +1118,13 @@ function openMenu(from) {
   $('#m-desk').textContent = state.desk ? '卓上表示をやめる' : '卓上表示';
   $('#m-week').textContent = `週の始まり: ${state.weekStart === 1 ? '月曜（日曜にする）' : '日曜（月曜にする）'}`;
   $('#m-sample').hidden = !(state.loaded && state.events.length === 0);
+  syncMonthMenu();
+  syncModeMenu();
+  $('#m-tlz').hidden = !root.querySelector('.tl');
+  const cats = state.categories.filter((c) => !c.hidden);
+  $('#m-legend').hidden = !cats.length;
+  $('#m-legend').innerHTML = cats.length ? `<div class="eyebrow">カテゴリの色</div>${legend()}${xlegend()}` : '';
+  updateDiagnostics();
   openPanel(menuDlg, from);
   placeMenu(from);
   menuDlg.querySelector('button:not([hidden])').focus({ preventScroll: true });
@@ -914,16 +1133,34 @@ function openMenu(from) {
 function placeMenu(from) {
   const S = safe(), w = Math.min(240, L.w - 24), r = from?.getBoundingClientRect?.();
   let maxL = L.w - S.right - 12 - w;
-  if (layoutKind() === 'spread') maxL = Math.min(maxL, L.w / 2 - 20 - w);
-  const left = Math.max(S.left + 12, Math.min(r ? r.right - w : maxL, maxL));
+  if (layoutKind() === 'spread') maxL = Math.min(maxL, L.w / 2 - 10 - w); // 見開きのメニューは左ページ（折り目の保護域の外）に収める
+  const left = Math.max(S.left + (layoutKind() === 'spread' ? 8 : 12), Math.min(r ? r.right - w : maxL, maxL));
   const vy = parseFloat(de.style.getPropertyValue('--vy')) || 0, vb = parseFloat(de.style.getPropertyValue('--vb')) || 0;
-  const topMin = Math.max(vy, S.top) + 12, botMax = de.clientHeight - Math.max(vb, S.bottom) - 12;
+  const topMin = Math.max(vy, S.top) + 12, botMax = window.innerHeight - Math.max(vb, S.bottom) - 12;
   const mh = Math.min(menuDlg.scrollHeight, botMax - topMin);
   let top = r ? r.bottom + 8 : topMin;
   if (top + mh > botMax) top = Math.max(topMin, r && r.top - 8 - mh >= topMin ? r.top - 8 - mh : botMax - mh);
   Object.assign(menuDlg.style, { left: `${left}px`, top: `${top}px`, right: 'auto', bottom: 'auto', width: `${w}px`, maxHeight: `${Math.max(88, botMax - top)}px` });
 }
+// 月の時刻は現在の姿勢用（閉じた／それ以外）。文字の大きさは全姿勢共通。
+const timeKey = () => (['home', 'browse'].includes(layoutKind()) ? 'monthTimeClosed' : 'monthTimeOpen');
+function syncMonthMenu() {
+  const t = $('#m-mtime'), z = $('#m-msize');
+  t.setAttribute('aria-pressed', String(state[timeKey()]));
+  z.setAttribute('aria-pressed', String(state.monthTextSize === 'large'));
+  z.textContent = `月の文字: ${state.monthTextSize === 'large' ? '大（標準にする）' : '標準（大にする）'}`;
+}
+// 月の表現（手帳｜予定名｜全部）。月表示のときだけ。1回選ぶと閉じる。
+function syncModeMenu() {
+  const on = state.view === 'month' && !listShown();
+  $('#m-mode').hidden = !on;
+  $('#m-mode').setAttribute('aria-expanded', 'false');
+  $('#m-variant').hidden = true;
+  $('#m-variant').innerHTML = on ? variantBtns(isPortrait() ? 'portrait' : layoutKind()) : '';
+}
 menuDlg.addEventListener('click', (ev) => {
+  const mb = ev.target.closest('[data-mode]');
+  if (mb) { closePanel(menuDlg); const m = mb.dataset.mode; set(m === 'all' ? { monthExpand: true } : { style: m, monthExpand: false }); return; }
   const b = ev.target.closest('[data-m]');
   if (!b) return;
   const m = b.dataset.m, from = origins.get(menuDlg);
@@ -933,6 +1170,10 @@ menuDlg.addEventListener('click', (ev) => {
   else if (m === 'desk') { closePanel(menuDlg); set({ desk: !state.desk }); }
   else if (m === 'week') { closePanel(menuDlg); set({ weekStart: state.weekStart === 1 ? 0 : 1 }); say(`週の始まりを${state.weekStart === 1 ? '月曜' : '日曜'}にしました。`); }
   else if (m === 'sample') { closePanel(menuDlg); loadSample(); }
+  else if (m === 'mode') { const v = $('#m-variant'); v.hidden = !v.hidden; b.setAttribute('aria-expanded', String(!v.hidden)); if (!v.hidden) v.querySelector('button')?.focus({ preventScroll: true }); }
+  else if (m === 'mtime') { set({ [timeKey()]: !state[timeKey()] }); syncMonthMenu(); say(`月表示の時刻を${state[timeKey()] ? '出します' : '出しません'}。`); }
+  else if (m === 'msize') { set({ monthTextSize: state.monthTextSize === 'large' ? 'normal' : 'large' }); syncMonthMenu(); say(`月の文字を${state.monthTextSize === 'large' ? '大' : '標準'}にしました。`); }
+  else if (m === 'tlin' || m === 'tlout') { setHh(TL.hh * (m === 'tlin' ? 1.25 : 0.8)); say(`時間軸を${m === 'tlin' ? '拡大' : '縮小'}しました（1時間 ${Math.round(TL.hh)}px）。`); }
   else closePanel(menuDlg);
 });
 document.addEventListener('click', (ev) => {
@@ -961,7 +1202,7 @@ async function commitCats({ catPuts = [], catDels = [], eventPuts = [] }) {
 const catColorName = (c) => paletteName(c) || '色';
 function previewHtml(name, color) {
   const n = esc(name.trim() || 'カテゴリ名');
-  return `<div class="catpre" style="${colorVars(color)}"><span class="chip">${n}</span><span class="chip bar-like">${n}</span></div>`;
+  return `<div class="catpre" style="${colorVars(color)}"><span class="chip">${n}</span><span class="bar-like">${n}</span></div>`;
 }
 function renderCats() {
   const list = state.categories, counts = countByCategory(state.events), dis = cs.busy ? ' disabled' : '';
@@ -1302,7 +1543,7 @@ $('#bk-close').addEventListener('click', () => { if (!bk.busy) closePanel(backup
 const isXId = (id) => String(id).startsWith('ip:') && visExt().some((x) => x.id === id);
 const idsKey = (ids) => [...ids].sort().join(',');
 const safeColor = (c) => (/^#[0-9a-fA-F]{6}$/.test(c || '') ? c : '#68716a');
-const extNeed = () => extRange(layoutKind() === 'home' ? todayKey() : state.selected);
+const extNeed = () => extRange(listShown() && layoutKind() === 'home' ? todayKey() : state.selected);
 let lk = { busy: false, err: '', want: false };
 let firstCheck = true, extTimer = 0, xBusy = false;
 const LK = { body: $('#lk-body') };
@@ -1562,13 +1803,13 @@ document.addEventListener('keydown', (ev) => {
 
 // ---------- スワイプ（左＝次、右＝前） ----------
 const SWIPE_ZONE = '.scroll, .agenda, .remaining, .hero, .page, .list';
-const SWIPE_EXCLUDE = '.top, .spreadhead, .chead, .foot, .add, .foldband, .gutter, input, select, textarea, label, dialog';
+const SWIPE_EXCLUDE = '.top, .shead, .rhead, .allday, .tl, .tlheads, .chead, .foot, .add, .tabs, .rail, .pctl, .foldband, .gutter, input, select, textarea, label, dialog';
 let swiping = false;
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const paneContent = () => [...root.querySelectorAll('.scroll > *, .agenda > *, .hero > *, .remaining > *, .margin > *')];
 
 function swipeMove(dir) {
-  if (layoutKind() === 'home') set({ home: false, view: 'month', selected: addMonths(state.selected, dir) });
+  if (listShown()) set({ home: false, view: 'month', selected: addMonths(state.selected, dir) });
   else move(dir);
   say(`${periodTitle()}。選択日は${dayLabel(state.selected)}。`);
 }
@@ -1601,13 +1842,15 @@ window.addEventListener('resize', vpSchedule);
 window.addEventListener('orientationchange', vpSchedule);
 window.visualViewport?.addEventListener('resize', vpSchedule);
 window.visualViewport?.addEventListener('scroll', vpSchedule);
+// safe area だけが変わった場合（回転を伴わない変化・検証用の注入）も再配置する。自分が書く --vy/--vb では再入しない。
+new MutationObserver(() => { if (safeKey(safe()) !== lastSafe) vpSchedule(); }).observe(de, { attributes: true, attributeFilter: ['style', 'class'] });
 document.addEventListener('focusin', (ev) => { if (isTextEl(ev.target)) { clearTimeout(kbTimer); kbHold = false; vpSchedule(); setTimeout(() => reveal(ev.target), 50); } });
 document.addEventListener('focusout', (ev) => {
   if (!isTextEl(ev.target)) return;
   kbHold = true; clearTimeout(kbTimer);
   kbTimer = setTimeout(() => { kbHold = false; vpSchedule(); }, 700);
 });
-setInterval(() => { if (!anyPanel() && layoutKind() === 'home') render(); }, 60000);
+setInterval(() => { if (!anyPanel() && listShown()) render(); else updateNow(); }, 60000);
 
 async function boot() {
   updateVars();
