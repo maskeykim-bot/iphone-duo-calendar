@@ -252,7 +252,7 @@ input[type=checkbox]{display:inline-block;width:20px;min-height:20px;vertical-al
 .portrait .agenda .eyebrow{display:none}
 .portrait .agenda h3{margin:0;font-size:20px;line-height:36px}
 .portrait .agenda .count{margin:0}
-.portrait .agenda .list{grid-column:1/-1;align-self:stretch;min-height:0;padding-bottom:calc(72px + var(--sab, env(safe-area-inset-bottom, 0px)))}
+.portrait .agenda .list{grid-column:1/-1;align-self:stretch;min-height:0;padding-bottom:72px}
 .portrait .agenda .event{margin-top:0;margin-bottom:6px;min-height:54px;padding:6px 12px 6px 14px}
 .portrait .agenda .event .clock,.portrait .agenda .event .tag{line-height:18px}
 .portrait .agenda .event .sub{display:none}
