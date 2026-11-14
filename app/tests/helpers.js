@@ -9,7 +9,11 @@ export const SIZES = {
   closedLandscape: { width: 678, height: 466 },
   openPortrait: { width: 626, height: 890 },
   openLandscape: { width: 890, height: 626 },
+  // 第10版（見本 ref の画素から）。画面サイズ・折り目は固定せず、どちらの組でも同じ検査を通す。
+  openPortrait669: { width: 669, height: 951 },
+  openLandscape951: { width: 951, height: 669 },
 };
+export const OPEN_SIZES = [SIZES.openPortrait, SIZES.openPortrait669, SIZES.openLandscape, SIZES.openLandscape951];
 
 // 2026-11-12 9:41 JST に固定して起動する。
 export async function openApp(page, size = SIZES.closedPortrait, query = '') {
@@ -162,11 +166,13 @@ export async function openOccurrence(page, key, nth = 0) {
   await page.locator('.daylist .event').nth(nth).click();
   await expect(page.locator('#editor')).toBeVisible();
 }
-export const chip = (page, key) => page.locator(`[data-date="${key}"] .chip`);
+// 月の時刻つき単日チップ（日セルの兄弟 button.strip。data-sday が日付）。
+export const chip = (page, key) => page.locator(`.calendar .strip[data-sday="${key}"]`);
 
-// 見えている文字のうち、ガター（x=425〜465）にかかるものを返す。
-export async function textInGutter(page, l = 425, r = 465) {
-  return page.evaluate(([l, r]) => {
+// 見えている文字のうち、折り目（ビューポート中心 ±10px。既定）にかかるものを返す。
+export async function textInGutter(page, l, r) {
+  return page.evaluate(([l0, r0]) => {
+    const l = l0 ?? window.innerWidth / 2 - 10, r = r0 ?? window.innerWidth / 2 + 10;
     const bad = [];
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
@@ -188,5 +194,5 @@ export async function textInGutter(page, l = 425, r = 465) {
       }
     }
     return bad;
-  }, [l, r]);
+  }, [l ?? null, r ?? null]);
 }

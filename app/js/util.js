@@ -139,54 +139,40 @@ export function monthWeeks(selected) {
   return Array.from({ length: n }, (_, w) => Array.from({ length: 7 }, (_, i) => addDays(start, w * 7 + i)));
 }
 
-// 週内の複数日予定にレーンを割り当てる。lane 0 が最下段。
-export function assignLanes(events, days, maxLanes = 2) {
-  const multis = events
-    .filter((e) => isMulti(e) && dayOf(e.start) <= days[6] && dayOf(e.end) >= days[0])
-    .sort((a, b) => a.start.localeCompare(b.start) || dayOf(b.end).localeCompare(dayOf(a.end)) || a.title.localeCompare(b.title, 'ja'));
-  const lanes = [];
-  const bars = [];
-  const hidden = Array(7).fill(0);
-  for (const e of multis) {
-    const sc = Math.max(0, days.findIndex((k) => k >= dayOf(e.start)));
-    let ec = 6;
-    for (let i = 6; i >= 0; i--) if (days[i] <= dayOf(e.end)) { ec = i; break; }
-    let lane = lanes.findIndex((list) => list.every(([s, t]) => t < sc || s > ec));
-    if (lane < 0) { lane = lanes.length; lanes.push([]); }
-    lanes[lane].push([sc, ec]);
-    if (lane < maxLanes) bars.push({ e, sc, ec, lane, fromPrev: dayOf(e.start) < days[0], toNext: dayOf(e.end) > days[6] });
-    else for (let i = sc; i <= ec; i++) hidden[i]++;
-  }
-  return { bars, hidden, used: Math.min(lanes.length, maxLanes) };
-}
+// 月の帯（線＋題名）にする予定: 終日（1日だけも）と複数日。時刻付き単日は塗りチップ。isMulti は日付・編集・時間軸用で意味を変えない。
+export const isMonthBand = (e) => !!e.all || isMulti(e);
 
-// 開いた縦の月: 複数日帯と単日短冊で共通の2レーンを使う。
-// 複数日を先に（開始日時順）、単日は残ったレーンに時刻順。収まらない分は日ごとの hidden に数える。
+// 月の週に帯とチップへ共通のレーンを割り当てる。帯を先に（長い順・開始・題名・id の安定順）、時刻単日は残った段へ時刻順。
+// 収まらない分は日ごとの hidden に数える（同じ予定を同じ日に二重計数しない）。
 export function assignSharedLanes(events, days, maxLanes = 2) {
   const occ = Array.from({ length: maxLanes }, () => Array(7).fill(false));
   const items = [];
   const hidden = Array(7).fill(0);
-  const multis = events
-    .filter((e) => isMulti(e) && dayOf(e.start) <= days[6] && dayOf(e.end) >= days[0])
-    .sort((a, b) => a.start.localeCompare(b.start) || dayOf(b.end).localeCompare(dayOf(a.end)) || a.title.localeCompare(b.title, 'ja'));
-  for (const e of multis) {
+  const span = (e) => {
     const sc = Math.max(0, days.findIndex((k) => k >= dayOf(e.start)));
     let ec = 6;
     for (let i = 6; i >= 0; i--) if (days[i] <= dayOf(e.end)) { ec = i; break; }
+    return [sc, ec];
+  };
+  const bands = events
+    .filter((e) => isMonthBand(e) && dayOf(e.start) <= days[6] && dayOf(e.end) >= days[0])
+    .map((e) => ({ e, span: span(e) }))
+    .sort((a, b) => (b.span[1] - b.span[0]) - (a.span[1] - a.span[0]) || a.e.start.localeCompare(b.e.start) || a.e.title.localeCompare(b.e.title, 'ja') || String(a.e.id).localeCompare(String(b.e.id)));
+  for (const { e, span: [sc, ec] } of bands) {
     const lane = occ.findIndex((row) => row.slice(sc, ec + 1).every((v) => !v));
     if (lane < 0) { for (let i = sc; i <= ec; i++) hidden[i]++; continue; }
     for (let i = sc; i <= ec; i++) occ[lane][i] = true;
-    items.push({ e, sc, ec, lane, multi: true, fromPrev: dayOf(e.start) < days[0], toNext: dayOf(e.end) > days[6] });
+    items.push({ e, sc, ec, lane, band: true, fromPrev: dayOf(e.start) < days[0], toNext: dayOf(e.end) > days[6] });
   }
   days.forEach((k, col) => {
-    for (const e of eventsOnDay(events, k).filter((x) => !isMulti(x))) {
+    for (const e of eventsOnDay(events, k).filter((x) => !isMonthBand(x))) {
       const lane = occ.findIndex((row) => !row[col]);
       if (lane < 0) { hidden[col]++; continue; }
       occ[lane][col] = true;
-      items.push({ e, sc: col, ec: col, lane, multi: false });
+      items.push({ e, sc: col, ec: col, lane, band: false });
     }
   });
-  return { items, hidden };
+  return { items, hidden, used: items.reduce((m, b) => Math.max(m, b.lane + 1), 0) };
 }
 
 export function newId() {

@@ -28,7 +28,7 @@ test.describe('開いた縦 626×890: 月', () => {
     const strip = page.locator('.calendar .strip', { hasText: 'プロジェクト' }).first();
     await expect(strip).toBeVisible();
     expect(inside(await box(strip), cal)).toBe(true);
-    expect((await strip.innerText()).startsWith('プロジェクト')).toBe(true);
+    expect(await strip.innerText()).toMatch(/^(\d\d:\d\d )?プロジェクト/); // 開いた画面は既定で時刻を出す
     // 帯（複数日）も予定名つき
     await expect(page.locator('.calendar .bar', { hasText: '秋のゴルフ合宿' }).first()).toBeVisible();
 
@@ -56,7 +56,7 @@ test.describe('開いた縦 626×890: 月', () => {
 
   // 月曜始まりで6週になる月
   for (const [name, back] of [['2026年8月', 3], ['2027年5月', -6]]) {
-    test(`6週ある月（${name}）でも月とアジェンダは重ならず、週行は縮まない`, async ({ page }) => {
+    test(`6週ある月（${name}）でも月とアジェンダは重ならず、週行は必要高（19+5×16+2=101）を下回らない`, async ({ page }) => {
       await openApp(page, SIZES.openPortrait);
       await loadSample(page);
       const btn = page.getByRole('button', { name: back > 0 ? '前の月' : '次の月' });
@@ -64,15 +64,20 @@ test.describe('開いた縦 626×890: 月', () => {
       await expect(page.locator('#ctitle')).toHaveText(name.replace('年', '年 '));
       const weeks = page.locator('.week');
       await expect(weeks).toHaveCount(6);
-      for (const h of await weeks.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))) expect(h).toBe(64);
+      for (const h of await weeks.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))) expect(h).toBeGreaterThanOrEqual(101);
       const cal = await box(page.locator('.calendar'));
       const ag = await box(page.locator('.agenda'));
       const last = await box(weeks.last());
       expect(Math.round(cal.height)).toBe(482);
-      expect(last.y + last.height).toBeLessThanOrEqual(cal.y + cal.height + 1);
       expect(noOverlap(cal, ag)).toBe(true);
-      expect(await page.locator('.calendar .scroll').evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
       expect(await findTextOverlaps(page)).toEqual([]);
+      // 月ペインに収まらないぶんは内部スクロール（文書は動かない）。最後の週までスクロールで届く。
+      const sc = page.locator('.calendar .scroll');
+      await sc.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+      const scb = await box(sc);
+      const lastEnd = await box(weeks.last());
+      expect(lastEnd.y + lastEnd.height).toBeLessThanOrEqual(scb.y + scb.height + 1);
+      void last;
     });
   }
 
@@ -85,22 +90,26 @@ test.describe('開いた縦 626×890: 月', () => {
     expect(Math.abs((await box(page.locator('.agenda'))).y - y5)).toBeLessThanOrEqual(1);
   });
 
-  test('共通2レーン: 帯＋短冊は2段まで、収まらない分は +N（複数日も数える）', async ({ page }) => {
+  test('共通5レーン: 帯＋チップは5段まで、収まらない分は +N（帯も1件に数える）', async ({ page }) => {
     await openApp(page, SIZES.openPortrait);
     await addEvent(page, { title: '出張A', all: true, start: '2026/11/16', end: '2026/11/18', cat: 'work' });
     await addEvent(page, { title: '合宿B', all: true, start: '2026/11/17', end: '2026/11/19', cat: 'family' });
     await addEvent(page, { title: '研修C', all: true, start: '2026/11/17', end: '2026/11/17', cat: 'private' });
     const bars = page.locator('.bar');
-    await expect(bars).toHaveCount(2);
-    // 11/17: 出張A・合宿Bが2レーンを占有、研修Cは +1
-    const cell = page.locator('[data-date="2026-11-17"] .plus');
-    await expect(cell).toHaveText('+1');
-    await expect(page.locator('.strip', { hasText: '研修C' })).toHaveCount(0);
-    const [a, b] = await Promise.all([bars.nth(0).boundingBox(), bars.nth(1).boundingBox()]);
-    expect(a.y).not.toBe(b.y);
+    await expect(bars).toHaveCount(3); // 単日の終日も同形の帯
+    await expect(page.locator('.plus[data-jump="2026-11-17"]')).toHaveCount(0);
+    for (const t of ['終日D', '終日E', '終日F']) await addEvent(page, { title: t, all: true, start: '2026/11/17', end: '2026/11/17', cat: 'work' });
+    // 11/17: 6件のうち5段まで置き、ほか1件は +1
+    await expect(bars).toHaveCount(5);
+    await expect(page.locator('[data-date="2026-11-17"] ~ .plus[data-jump="2026-11-17"]')).toHaveText('+1');
+    const boxes = await bars.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()));
+    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+      const p = boxes[i], q = boxes[j];
+      expect(p.x < q.right - 0.5 && q.x < p.right - 0.5 && p.y < q.bottom - 0.5 && q.y < p.bottom - 0.5).toBe(false);
+    }
     expect(await findTextOverlaps(page)).toEqual([]);
-    // 帯のタップで編集へ
-    await bars.first().click();
+    // 帯のタップで編集へ（+N に覆われない位置の帯）
+    await page.locator('.bar', { hasText: '出張A' }).click({ position: { x: 4, y: 8 } });
     await expect(page.locator('#editor')).toBeVisible();
   });
 });

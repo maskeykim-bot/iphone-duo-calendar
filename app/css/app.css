@@ -50,26 +50,9 @@ button[aria-pressed=true]{background:var(--green);color:#fff}
 .weekdays .sun{color:#9a4a45}.weekdays .sat{color:#3f6a8a}
 .week{position:relative;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--line)}
 .day{min-width:0;min-height:0;border-radius:0;padding:2px 1px;text-align:center;overflow:hidden;display:flex;flex-direction:column;align-items:center}
-.day.out{color:#9a9d96}
 .dhead{display:flex;align-items:center;justify-content:center;gap:2px;width:100%;flex:none}
-.num{display:inline-flex;width:30px;height:30px;border-radius:50%;align-items:center;justify-content:center;font-variant-numeric:tabular-nums}
-.day.today .num{box-shadow:inset 0 0 0 1px var(--green)}
-.day.selected .num{color:#fff;background:var(--green)}
-.week.simple{flex:1 0 60px}
 .dots{display:flex;gap:3px;justify-content:center;height:8px;margin-top:2px}
 .dot{width:5px;height:5px;border-radius:50%;background:var(--cat)}
-.week.named{flex:1 0 88px}
-.named .day{padding:2px 1px 2px;align-items:stretch;border-right:1px solid #e5e3db}
-.named .day:last-child{border-right:0}
-.named .chips{margin-top:var(--reserve)}
-.named .dhead{justify-content:space-between;height:20px;padding:0 1px}
-.named .num{width:22px;height:20px;border-radius:10px;font-size:13px}
-.plus{font-size:11px;color:var(--muted);line-height:1}
-.chips{display:flex;flex-direction:column;min-height:0;overflow:hidden;gap:0}
-.chip{display:block;height:16px;background:var(--tint);color:var(--cat);font-size:12px;line-height:16px;border-radius:3px;padding:0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
-.more{display:block;height:16px;font-size:12px;line-height:16px;color:var(--muted);text-align:left;padding:0 3px;white-space:nowrap;overflow:hidden}
-.bar{position:absolute;z-index:2;height:16px;min-height:16px;padding:0 4px;border-radius:4px;background:var(--tint);color:var(--cat);border-left:3px solid var(--cat);
-font-size:12px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
 
 /* 予定カード */
 .event{position:relative;display:grid;grid-template-columns:1fr auto;column-gap:8px;align-items:center;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 12px 8px 14px;margin-top:8px;min-height:60px}
@@ -133,7 +116,6 @@ font-size:12px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow
 .agenda .count{margin-bottom:2px}
 .agenda .event{margin-top:6px;min-height:0;padding:7px 10px 7px 14px}
 .agenda .event .sub{display:block}
-.open .week.simple{flex:1 0 64px}
 
 /* ハーフフォールド（卓上） */
 .shell.desk{display:grid;grid-template-rows:calc(50% - 12px) 24px minmax(0,1fr);gap:0;padding:0}
@@ -147,9 +129,6 @@ font-size:12px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow
 .deskbottom .agenda .event{display:grid;grid-template-columns:auto 1fr auto;min-height:44px;padding:6px 12px 6px 14px}
 .deskbottom .agenda .event strong{grid-column:2;grid-row:1}.deskbottom .agenda .event .tag{grid-column:3;grid-row:1}.deskbottom .agenda .event .sub{display:none}
 .deskbottom .add{min-height:44px}
-.desk .week.simple{flex:1 0 44px}
-.desk .num{width:26px;height:26px;font-size:14px}
-.desk .named .num{width:22px;height:20px;font-size:13px}
 .desk .chead{min-height:36px}.desk .chead h2{font-size:20px}
 .desk .legend{padding:2px 0}
 .desk .variant button{min-height:32px}
@@ -178,7 +157,6 @@ font-size:12px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow
 .spread .agenda .list{padding-bottom:0}
 .spread .agenda .event:first-child{margin-top:6px}
 .spread .variant{margin:0 0 6px;height:36px}
-.spread .week.simple{flex:1 0 62px}
 .spread .weekpage{display:flex;flex-direction:column;gap:6px}
 .spread .weekrow{padding:2px 8px 6px}
 .spread .weekrow .wd{font-size:14px;min-height:28px;padding:0}
@@ -219,9 +197,6 @@ input[type=checkbox]{display:inline-block;width:20px;min-height:20px;vertical-al
 }
 .day[aria-pressed=true]{background:transparent;color:inherit}
 .day[aria-pressed=true]:hover,.day:hover{background:#ecebe2}
-.day.out[aria-pressed=true]{color:#9a9d96}
-.day.selected.out .num{color:#fff}
-.open .week.simple{flex:1 0 76px}
 .date{line-height:1.3}
 .date-block .eyebrow{margin-bottom:4px}
 .spreadhead .segment button{min-height:38px}
@@ -237,16 +212,6 @@ input[type=checkbox]{display:inline-block;width:20px;min-height:20px;vertical-al
 .portrait .chead{height:44px;min-height:44px}
 .portrait .weekdays{height:26px;padding:0;line-height:26px}
 .portrait .legend{height:28px;padding:0;align-items:center;flex-wrap:nowrap;overflow:hidden}
-.portrait .week.pm{flex:1 0 64px;border-top:0;box-shadow:inset 0 1px 0 var(--line)}
-.portrait .pm .day{position:relative;padding:0;align-items:stretch;border-right:1px solid #e5e3db}
-.portrait .pm .day:last-child{border-right:0}
-.portrait .pm .dhead{justify-content:flex-start;height:20px;padding:0 3px}
-.portrait .pm .num{width:22px;height:20px;border-radius:10px;font-size:13px}
-.portrait .pm .plus{position:absolute;right:4px;top:0;height:20px;font-size:11px;line-height:20px}
-.pm .bar,.all .bar,.strip{position:absolute;z-index:2;height:16px;min-height:16px;padding:0 4px;border-radius:4px;background:var(--tint);color:var(--cat);
- font-size:12px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
-.pm .bar,.all .bar{border-left:3px solid var(--cat)}
-.pm .bar:hover,.all .bar:hover,.strip:hover{background:var(--tint);filter:brightness(.95)}
 .portrait .agenda{flex:1 0 226px;border-left:0;border-top:1px solid var(--line);padding:8px 0 0;display:grid;grid-template-columns:minmax(0,1fr) auto;
  grid-template-rows:36px minmax(0,1fr);column-gap:8px;align-items:center}
 .portrait .agenda .eyebrow{display:none}
@@ -273,7 +238,6 @@ input[type=checkbox]{display:inline-block;width:20px;min-height:20px;vertical-al
 /* ===== 第6版: 繰り返し・検索・バックアップ ===== */
 .iconbtn{flex:none;width:44px;min-width:44px;height:44px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:22px;line-height:1;border-radius:12px}
 .rep{display:inline-block;width:14px;margin-right:4px;font:400 14px/1 sans-serif;text-align:center;vertical-align:baseline}
-.chip .rep,.bar .rep,.strip .rep,.weekview.cols .rep{width:14px;margin-right:0;font-size:12px}
 .next .nd{display:block;font:13px/1.4 -apple-system,sans-serif;color:#d7e3d9}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 mark{background:#E7EBDD;color:inherit;font-weight:inherit;border-radius:2px}
@@ -382,8 +346,6 @@ html[data-kb] body[data-layout=spread] dialog,html[data-kb] body[data-layout=des
 
 /* ===== 第7版: iPhone カレンダー連携 ===== */
 .ext{--cat:#68716a;--tint:var(--paper)}
-.chip.ext,.bar.ext,.strip.ext{color:var(--ink);background:var(--paper);border-left:3px solid var(--cat)}
-.chip.ext{padding-left:2px}
 .xi{display:inline-block;width:14px;margin-right:0;font-size:10px;line-height:inherit;text-align:center;color:var(--muted)}
 .event.ext .tag,.hit.ext .hmeta{color:var(--muted)}
 .xlegend{flex:none;padding:0 0 2px;font-size:11px}
@@ -432,8 +394,6 @@ input,select,textarea,.date-text{font-size:16px}
 .swatch:hover{filter:brightness(1.1)}
 .swatch[aria-pressed=true]{background-clip:padding-box;box-shadow:0 0 0 3px var(--card),0 0 0 6px var(--ink)}
 .catpre{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 8px}
-.catpre .chip{max-width:100%;padding:0 6px}
-.catpre .bar-like{border-left:3px solid var(--cat);border-radius:4px}
 .delbox{margin-top:12px}
 .delbox select{width:100%}
 #cat-err:empty{display:none}
@@ -444,11 +404,42 @@ input,select,textarea,.date-text{font-size:16px}
 .scroll.all{position:relative;container-type:size;scrollbar-gutter:stable;display:block}
 .scroll.all::-webkit-scrollbar{width:3px}
 .scroll.all::-webkit-scrollbar-thumb{background:#9aa39c;border-radius:2px}
-.week.all{position:relative;display:grid;flex:none;height:max(calc(100cqh / var(--n)),var(--need,0px),64px);border-top:0;box-shadow:inset 0 1px 0 var(--line)}
-.all .day{position:relative;padding:0;align-items:stretch;border-right:1px solid #e5e3db;min-height:0}
-.all .day:last-child{border-right:0}
-.all .dhead{justify-content:flex-start;height:24px;padding:0 3px}
-.all .num{width:22px;height:20px;border-radius:10px;font-size:13px;margin-top:2px}
-.week.all button.plus{position:absolute;z-index:3;top:0;height:24px;min-height:0;min-width:26px;padding:0 4px;border-radius:6px;font-size:11px;line-height:24px;color:var(--muted)}
 .portrait .weekdays.all{height:26px;line-height:26px}
 .toastbar{position:fixed;left:12px;right:12px;bottom:calc(16px + var(--sab,0px));z-index:50;margin:0 auto;max-width:480px}
+
+/* ===== 第10版 ①: 月の共通描画（手帳｜予定名｜全部）。寸法は JS の --chip-fs 等と同値 ===== */
+:root{--chip-h:14px;--chip-gap:2px;--lane-step:16px;--date-h:18px;--lane-top:19px;--fold-keepout:10px;--chip-fs:9px}
+.week .day{position:relative;min-height:0;padding:0;border-right:1px solid #e5e3db;align-items:center}
+.week .day:last-child{border-right:0}
+.week .day.sat{background:#EEF1F4}
+.week .day.sat:hover{background:#e3e8ee}
+.week .num{width:auto;min-width:18px;height:var(--date-h);padding:0 4px;margin-top:0;border-radius:9px;font-size:11px;line-height:var(--date-h);flex:none}
+.week .day.sun .num{color:#c0392b}
+.week .day.out .num{color:#A8ABA4}
+.week .day.selected{box-shadow:inset 0 0 0 2px #294E42}
+.week .day.today .num{background:var(--green);color:#fff}
+.week.named,.week.simple{flex:1 0 var(--need,85px)}
+.week.all{position:relative;display:grid;flex:none;height:max(calc(100cqh / var(--n)),var(--need,0px));border-top:0;box-shadow:inset 0 1px 0 var(--line)}
+.dots{display:flex;gap:3px;justify-content:center;height:8px;margin-top:2px}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--cat)}
+/* +N: 見た目は9px・日付行の右端。押せる範囲は日セル右上の44×44（兄弟 button）。 */
+.week .plus{position:absolute;top:0;z-index:4;display:flex;align-items:flex-start;justify-content:flex-end;width:44px;height:44px;min-width:44px;min-height:44px;padding:0 3px 0 0;border-radius:0;background:transparent;
+ font-size:9px;font-weight:600;line-height:var(--date-h);text-align:right;color:var(--muted)}
+.week .plus:hover{background:transparent;color:var(--ink)}
+/* 時刻つき単日: 本色の塗り＋白文字・太字。切って省略記号は付けない。 */
+.strip{position:absolute;z-index:2;height:var(--chip-h);min-height:var(--chip-h);padding:0 0 0 1.5px;border:0;border-radius:3.5px;background:var(--cat);color:#fff;
+ font-size:var(--chip-fs);font-weight:700;line-height:var(--chip-h);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:clip}
+.strip:hover{background:var(--cat);filter:brightness(.92)}
+/* 終日・複数日: 塗らず「線＋中央の題名」。線は題名の下（レーン上端から12.5px・太さ2px・列境界から内1px）。 */
+.bar{position:absolute;z-index:2;height:16px;min-height:16px;padding:0;border:0;border-radius:0;background:transparent;color:var(--cat);
+ font-size:var(--chip-fs);font-weight:700;line-height:12px;text-align:center;white-space:nowrap;overflow:hidden}
+.bar:hover{background:transparent;filter:brightness(.9)}
+.bar:after{content:'';position:absolute;left:1px;right:1px;top:12.5px;height:2px;border-radius:1px;background:var(--cat)}
+.bar .bt{display:inline-block;max-width:100%;overflow:hidden;vertical-align:top;text-overflow:clip}
+.weekdays.all{padding-right:3px}
+/* カテゴリ編集の見本（月と同じ見た目） */
+.catpre .chip{display:inline-block;height:var(--chip-h);max-width:100%;padding:0 6px 0 1.5px;border-radius:3.5px;background:var(--cat);color:#fff;font-size:10px;font-weight:700;line-height:var(--chip-h);white-space:nowrap;overflow:hidden}
+.catpre .bar-like{position:relative;display:inline-block;height:16px;max-width:100%;padding:0 6px;color:var(--cat);font-size:10px;font-weight:700;line-height:12px;white-space:nowrap;overflow:hidden}
+.catpre .bar-like:after{content:'';position:absolute;left:1px;right:1px;top:12.5px;height:2px;border-radius:1px;background:var(--cat)}
+.diag{margin:6px 4px 2px;padding:6px 8px;border-top:1px solid var(--line);font-size:11px;line-height:1.4;color:var(--muted);overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
+.menurows button[aria-pressed=true]{background:var(--green);color:#fff}

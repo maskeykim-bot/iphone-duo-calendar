@@ -50,13 +50,16 @@ test.describe('月「全部」表示', () => {
     await expect(strips.filter({ hasText: 'm12-6' })).toHaveCount(0);
     const plus = page.locator('.plus[data-jump="2026-11-12"]');
     await expect(plus).toHaveText('+1');
-    // 日付の行（上端24pt以内）の右端
+    // 日付の行（上端18px）の右端に 9px の数字。押せる範囲は日セル右上の 44×44（兄弟 button）
     const dayBox = await page.locator('[data-date="2026-11-12"]').boundingBox();
     const pb = await plus.boundingBox();
-    expect(pb.y).toBeGreaterThanOrEqual(dayBox.y - 1);
-    expect(pb.y + pb.height).toBeLessThanOrEqual(dayBox.y + 25);
-    expect(dayBox.x + dayBox.width - (pb.x + pb.width)).toBeLessThanOrEqual(6);
-    expect(await plus.evaluate((e) => parseFloat(getComputedStyle(e).fontSize))).toBeGreaterThanOrEqual(11);
+    expect(Math.abs(pb.y - dayBox.y)).toBeLessThanOrEqual(1);
+    expect(pb.width).toBeGreaterThanOrEqual(44);
+    expect(pb.height).toBeGreaterThanOrEqual(44);
+    expect(Math.abs(dayBox.x + dayBox.width - (pb.x + pb.width))).toBeLessThanOrEqual(1);
+    expect(await plus.evaluate((e) => parseFloat(getComputedStyle(e).fontSize))).toBe(9);
+    const glyph = await plus.evaluate((e) => { const r = document.createRange(); r.selectNodeContents(e); const b = r.getBoundingClientRect(); return { top: b.top, bottom: b.bottom }; });
+    expect(glyph.bottom - dayBox.y).toBeLessThanOrEqual(19);
     await plus.click();
     await expect(page.locator('#ctitle')).toHaveText('11月12日（木）');
     await expect(page.getByRole('button', { name: '日', exact: true })).toHaveAttribute('aria-pressed', 'true');
@@ -66,21 +69,21 @@ test.describe('月「全部」表示', () => {
     await expect(page.locator('.plus[data-jump="2026-11-26"]')).toHaveCount(0);
   });
 
-  test('行の高さは週ごとの最大件数で決まる（5件の週は 24+5×18+6=120pt）', async ({ page }) => {
+  test('行の高さは週ごとの最大件数で決まる（5件の週は 19+5×16+2=101pt）', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await seed(page, [...many(day(12), 6), ...many(day(18), 3, 'r')]);
     await showAll(page);
     const hs = await weekH(page); // 10/26〜 の6週（月曜始まり）: 11/9週=5件, 11/16週=3件
     const weeks = await page.locator('.week.all').evaluateAll((els) => els.map((e) => e.dataset.wk));
     expect(weeks).toEqual(['2026-10-26', '2026-11-02', '2026-11-09', '2026-11-16', '2026-11-23', '2026-11-30']);
-    expect(hs[2]).toBeGreaterThanOrEqual(120);
+    expect(hs[2]).toBeGreaterThanOrEqual(101);
     expect(hs[2]).toBeGreaterThan(hs[3]);
-    expect(hs[3]).toBeGreaterThanOrEqual(24 + 3 * 18 + 6);
+    expect(hs[3]).toBeGreaterThanOrEqual(19 + 3 * 16 + 2);
     // 予定の少ない週は「いつもの高さ」（同じ値）のまま
     expect(hs[0]).toBe(hs[1]);
     expect(hs[1]).toBe(hs[4]);
-    expect(hs[2]).toBe(120);
-    expect(await page.locator('.week.all').nth(2).evaluate((e) => e.style.getPropertyValue('--need'))).toBe('120px');
+    expect(hs[2]).toBe(101);
+    expect(await page.locator('.week.all').nth(2).evaluate((e) => e.style.getPropertyValue('--need'))).toBe('101px');
   });
 
   test('曜日見出しと下部は固定で、月の部分だけ上下にスクロールする。月は変わらない', async ({ page }) => {
@@ -110,16 +113,23 @@ test.describe('月「全部」表示', () => {
     await seed(page, [...many(day(12), 5), ...many(day(18), 5, 'r'), ...many(day(25), 5, 's'), ...many(day(2), 5, 't'), ...many(day(4), 5, 'u'), ...many(day(30), 5, 'v')]);
     await showAll(page);
     const drawn = () => page.locator('.week.all').evaluateAll((els) => els.map((e) => (e.dataset.drawn ? 1 : 0)).join(''));
+    // 期待: 見えている週と前後1週（小さい月では全週が描かれることもある）
+    const expected = () => page.locator('.scroll.all').evaluate((sc) => {
+      const r = sc.getBoundingClientRect(), rows = [...sc.children];
+      const vis = rows.map((w) => { const b = w.getBoundingClientRect(); return b.bottom > r.top && b.top < r.bottom; });
+      const a = vis.indexOf(true), z = vis.lastIndexOf(true);
+      return rows.map((_, i) => (i >= a - 1 && i <= z + 1 ? 1 : 0)).join('');
+    });
     const d0 = await drawn();
     expect(d0.length).toBe(6);
-    expect(d0.split('').filter((x) => x === '1').length).toBeLessThan(6);
+    expect(d0).toBe(await expected());
     expect(d0.startsWith('1')).toBe(true);
     // 高さは描画の有無に関係なく同じ（空の行も確保済み）
     const h0 = await weekH(page);
-    expect(h0.filter((h) => h >= 120).length).toBeGreaterThanOrEqual(4);
+    expect(h0.filter((h) => h >= 101).length).toBeGreaterThanOrEqual(4);
     await page.locator('.scroll.all').evaluate((e) => { e.scrollTop = e.scrollHeight; });
     await expect.poll(drawn).toMatch(/1$/);
-    expect(await drawn()).not.toBe(d0);
+    await expect.poll(async () => (await drawn()) === (await expected())).toBe(true); // 描画はスクロール後のフレームで追随する
     expect(await weekH(page)).toEqual(h0);
   });
 
@@ -142,21 +152,27 @@ test.describe('月「全部」表示', () => {
     await expect.poll(() => layout(page)).toBe('open');
     await expect(modeBtn(page, '全部')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.scroll.all')).toBeVisible();
+    // 週の高さは必要高（19+段×16+2）まで縮むので、小さい月では先頭までスクロールできない（保持可能な範囲で維持）。
+    // そのため「見えていた週が引き続き見えている」ことを確かめる。
+    const visible = (wk) => page.locator('.scroll.all').evaluate((sc, k) => {
+      const r = sc.getBoundingClientRect(), b = sc.querySelector(`[data-wk="${k}"]`).getBoundingClientRect();
+      return b.bottom > r.top + 2 && b.top < r.bottom - 2;
+    }, wk);
     { const w = await firstWeek(); expect(w).toBe('2026-11-09'); }
     // 開いた横（見開き）
     await page.setViewportSize(SIZES.openLandscape);
     await expect.poll(() => layout(page)).toBe('spread');
     await expect(modeBtn(page, '全部')).toHaveAttribute('aria-pressed', 'true');
-    expect(await firstWeek()).toBe('2026-11-09');
+    await expect.poll(() => visible('2026-11-09')).toBe(true);
     // 閉じた横
     await page.setViewportSize(SIZES.closedLandscape);
     await expect.poll(() => layout(page)).toBe('browse');
     await expect(modeBtn(page, '全部')).toHaveAttribute('aria-pressed', 'true');
-    expect(await firstWeek()).toBe('2026-11-09');
+    await expect.poll(() => visible('2026-11-09')).toBe(true);
     // 閉じた縦へ戻す
     await page.setViewportSize(SIZES.closedPortrait);
     await expect.poll(() => layout(page)).toBe('browse');
-    expect(await firstWeek()).toBe('2026-11-09');
+    await expect.poll(() => visible('2026-11-09')).toBe(true);
     // 再読み込み（モードは保たれる）
     await page.reload();
     await page.waitForSelector('html[data-ready]');
@@ -200,11 +216,10 @@ test.describe('月「全部」表示', () => {
     const wrapA = bars.filter((b) => b.t.includes('週またぎ'));
     expect(trip).toBeTruthy();
     expect(wrapA.length).toBe(2); // 11/15(日)〜11/17: 月曜始まりでは週の境目で2本
-    expect(wrapA[0].t).toContain('→');
-    expect(wrapA[1].t).toContain('←');
-    // 帯は週の上端から 24 + lane*18 のレーン位置
+    for (const b of wrapA) expect(b.t).toBe('週またぎ'); // 矢印なし。週ごとに分割して各週で題名を中央に置く
+    // 帯は週の上端から 19 + lane*16 のレーン位置
     const wkTop = async (wk) => (await page.locator(`.week.all[data-wk="${wk}"]`).boundingBox()).y;
-    for (const b of [trip, ...wrapA]) expect(((b.y - (await wkTop(b.wk)) - 24) % 18 + 18) % 18).toBeLessThan(1.01);
+    for (const b of [trip, ...wrapA]) expect(((b.y - (await wkTop(b.wk)) - 19) % 16 + 16) % 16).toBeLessThan(1.01);
     // 同じ週の中で、帯と短冊が重ならない
     const items = await page.locator('.week.all .bar, .week.all .strip').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { wk: e.closest('.week').dataset.wk, l: r.left, r: r.right, t: r.top, b: r.bottom, n: e.textContent.trim() }; }));
     for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
@@ -213,10 +228,10 @@ test.describe('月「全部」表示', () => {
       const overlap = Math.min(a.r, c.r) - Math.max(a.l, c.l) > 1 && Math.min(a.b, c.b) - Math.max(a.t, c.t) > 1;
       expect(overlap, `${a.n} と ${c.n}`).toBe(false);
     }
-    // 帯の左右端は列の境目（セル幅の整数倍 + 2px）に合う
+    // 帯のボタンは列の境目に合う（線は内側1px）
     const grid = await page.locator('.week.all').first().boundingBox();
     const cw = grid.width / 7;
-    expect(Math.abs((trip.x - grid.x - 2) / cw - Math.round((trip.x - grid.x - 2) / cw))).toBeLessThan(0.02);
+    expect(Math.abs((trip.x - grid.x) / cw - Math.round((trip.x - grid.x) / cw))).toBeLessThan(0.02);
     expect(Math.abs(trip.w / cw - 4)).toBeLessThan(0.1); // 19(木)〜22(日) の4日。23(月)は次の週の帯
     expect(bars.filter((b) => b.t.includes('出張帯')).length).toBe(2);
     expect(await findTextOverlaps(page)).toEqual([]);
@@ -293,7 +308,8 @@ test.describe('週の始まり（月曜が既定）', () => {
       await expect(page.locator('.week')).toHaveCount(4);
       const sc = await page.locator('.calendar .scroll').boundingBox();
       const last = await page.locator('.week').last().boundingBox();
-      expect(Math.abs(last.y + last.height - (sc.y + sc.height))).toBeLessThanOrEqual(1);
+      // 末尾の週がスクロール領域の下端に届く（余るときは行が伸びて埋める。必要高が上回るときは内部スクロール）
+      expect(last.y + last.height).toBeGreaterThanOrEqual(sc.y + sc.height - 1);
     }
   });
 

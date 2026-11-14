@@ -228,8 +228,8 @@ test.describe('見開きの折り目 (x=425〜465)', () => {
 });
 
 test.describe('複数日の帯', () => {
-  // 開いた縦は共通2レーン（単日も数える）で別仕様のため、この旧仕様の検証は見開きで行う。
-  test('予定名表示で同時に2本の帯が重ならず並び、3本目は +N', async ({ page }) => {
+  // 第10版: 帯（終日・複数日）と時刻チップは共通レーン。通常は開いた姿勢で5段、収まらない分は +N。
+  test('予定名表示で帯が重ならず並び、5段を超えた分は +N（帯も1件に数える）', async ({ page }) => {
     await openApp(page, SIZES.openLandscape);
     await addEvent(page, { title: '出張A', all: true, start: '2026/11/16', end: '2026/11/18', cat: 'work' });
     await addEvent(page, { title: '合宿B', all: true, start: '2026/11/17', end: '2026/11/19', cat: 'family' });
@@ -243,8 +243,18 @@ test.describe('複数日の帯', () => {
     expect((await Promise.all([bars.nth(0).innerText(), bars.nth(1).innerText()])).join()).toMatch(/出張A.*合宿B|合宿B.*出張A/);
     await addEvent(page, { title: '研修C', all: true, start: '2026/11/17', end: '2026/11/17', cat: 'private' });
     await addEvent(page, { title: '集中D', all: true, start: '2026/11/16', end: '2026/11/18', cat: 'out' });
-    await expect(bars).toHaveCount(2);
-    await expect(page.locator('.plus').first()).toHaveText('+1');
+    await expect(bars).toHaveCount(4); // 5段に収まる
+    await expect(page.locator('.plus')).toHaveCount(0);
+    await addEvent(page, { title: '終日E', all: true, start: '2026/11/17', end: '2026/11/17', cat: 'work' });
+    await addEvent(page, { title: '終日F', all: true, start: '2026/11/17', end: '2026/11/17', cat: 'work' });
+    await expect(bars).toHaveCount(5); // 11/17 の6件のうち5件だけ置く
+    await expect(page.locator('.plus[data-jump="2026-11-17"]')).toHaveText('+1');
+    await expect(page.locator('.plus')).toHaveCount(1);
+    const boxes = await bars.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()));
+    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+      const p = boxes[i], q = boxes[j];
+      expect(p.x < q.right - 0.5 && q.x < p.right - 0.5 && p.y < q.bottom - 0.5 && q.y < p.bottom - 0.5).toBe(false);
+    }
     expect(await findTextOverlaps(page)).toEqual([]);
   });
 
@@ -274,19 +284,23 @@ test.describe('複数日の帯', () => {
         expect(b.bar.top).toBeGreaterThanOrEqual(b.week.top);
         expect(b.bar.bottom).toBeLessThanOrEqual(b.week.bottom);
         expect(b.bar.top).toBeGreaterThanOrEqual(b.num.bottom - 1);
-        expect(b.bar.top - b.num.bottom).toBeLessThanOrEqual(6 + 18); // 2本目のレーンは +18px
+        expect(b.bar.top - b.num.bottom).toBeLessThanOrEqual(6 + 16); // 2本目のレーンは +16px
         if (b.nextNum) expect(b.nextNum.top - b.bar.bottom).toBeGreaterThanOrEqual(8);
       }
     });
   }
 
-  test('週をまたぐ帯は継続矢印つきで各週に表示', async ({ page }) => {
+  test('週をまたぐ帯は週ごとに分割し、矢印なしで各週に題名を中央に置く', async ({ page }) => {
     await openApp(page, SIZES.openPortrait);
     await addEvent(page, { title: '長期出張', all: true, start: '2026/11/19', end: '2026/11/23' });
     await setStyle(page, '予定名');
     const bars = page.locator('.bar');
     await expect(bars).toHaveCount(2);
-    await expect(bars.nth(0)).toContainText('→');
-    await expect(bars.nth(1)).toContainText('←');
+    for (const i of [0, 1]) {
+      await expect(bars.nth(i)).toHaveText('長期出張');
+      expect(await bars.nth(i).evaluate((el) => !/[→←]/.test(el.textContent))).toBe(true);
+    }
+    const wk = await bars.evaluateAll((els) => els.map((e) => e.closest('.week').dataset.wk ?? e.closest('.week').querySelector('.day').dataset.date));
+    expect(new Set(wk).size).toBe(2);
   });
 });
