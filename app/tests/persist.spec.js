@@ -33,8 +33,8 @@ test.describe('永続化', () => {
   test('選択日・view・月表現・卓上がリサイズと再読込をまたいで残る', async ({ page }) => {
     await openApp(page, SIZES.openPortrait);
     await tab(page, '月').click();
-    // 開いた縦では「手帳／予定名」が隠れるため、卓上へ移ってから選ぶ（選択状態は姿勢をまたいで保持される）
-    await expect(page.getByRole('button', { name: '予定名' })).toBeHidden();
+    // 開いた縦では「手帳」が出ないため、卓上へ移ってから選ぶ（選択状態は姿勢をまたいで保持される）
+    await expect(page.getByRole('button', { name: '手帳', exact: true })).toBeHidden();
     await page.getByRole('button', { name: '次の月' }).click();
     await page.locator('[data-date="2026-12-10"]').click({ position: { x: 12, y: 10 } });
     await page.getByRole('button', { name: '卓上' }).click();

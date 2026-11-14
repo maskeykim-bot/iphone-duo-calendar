@@ -1,5 +1,7 @@
 // 繰り返し予定の展開・編集計画。DOM に依存しない純粋関数。日付キーは YYYY-MM-DD、日時は YYYY-MM-DDTHH:MM（端末ローカル）。
-import { addDays, daysInMonth, dayOf, pad, parseKey, weekStart } from './util.js';
+import { addDays, daysInMonth, dayOf, pad, parseKey, weekStartOf } from './util.js';
+// 繰り返しの週は曜日番号（0=日曜）基準。表示の週の始まり設定には影響されない。
+const weekStart = (k) => weekStartOf(k, 0);
 
 const dayDiff = (a, b) => Math.round((parseKey(a) - parseKey(b)) / 864e5);
 const BODY = ['title', 'categoryId', 'place', 'notes', 'alarms'];

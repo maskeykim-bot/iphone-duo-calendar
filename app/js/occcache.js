@@ -2,7 +2,7 @@
 // 無効化: データが変わる操作（追加・編集・削除・個別変更・バックアップ読み込み・カテゴリ削除・iPhone 連携による書き込み）で bumpRevision() を呼ぶ。
 // 保険として、キャッシュは展開に使った events 配列の同一性も確認する（state.events は変更のたびに新しい配列に置き換わる）。
 import { expand } from './recur.js';
-import { monthWeeks } from './util.js';
+import { getFirstDay, monthWeeks } from './util.js';
 
 const MAX_MONTHS = 6;
 let rev = 0;
@@ -19,7 +19,7 @@ export function monthRange(ym) {
 
 // 月の表示範囲に重なる全予定・各回（expand と同じ順序）。
 export function monthOcc(events, ym) {
-  const key = `${ym}|${rev}|${tzKey()}`;
+  const key = `${ym}|${rev}|${tzKey()}|${getFirstDay()}`;
   const hit = cache.get(key);
   if (hit && hit.events === events) { cache.delete(key); cache.set(key, hit); return hit.occ; } // LRU: 最近使った順に並べ直す
   const { from, to } = monthRange(ym);
@@ -40,7 +40,7 @@ export function occBetween(events, a, b) {
 // 日ごとの索引（日付キー → その日に重なる予定。月内の全日）。
 export function monthByDay(events, ym) {
   const occ = monthOcc(events, ym), { from, to } = monthRange(ym), out = new Map();
-  const ent = cache.get(`${ym}|${rev}|${tzKey()}`);
+  const ent = cache.get(`${ym}|${rev}|${tzKey()}|${getFirstDay()}`);
   if (ent?.byDay) return ent.byDay;
   for (const e of occ) {
     const s = e.start.slice(0, 10) > from ? e.start.slice(0, 10) : from, f = e.end.slice(0, 10) < to ? e.end.slice(0, 10) : to;

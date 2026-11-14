@@ -22,7 +22,14 @@ export const addMonths = (k, n) => {
   t.setDate(Math.min(day, daysInMonth(t.getFullYear(), t.getMonth())));
   return dkey(t);
 };
-export const weekStart = (k) => addDays(k, -parseKey(k).getDay());
+// 週の始まり（0=日曜, 1=月曜）。既定は月曜。app.js が設定から setFirstDay で切り替える。
+let FIRST = 1;
+export const setFirstDay = (n) => { FIRST = n === 0 ? 0 : 1; };
+export const getFirstDay = () => FIRST;
+export const weekStartOf = (k, first) => addDays(k, -((parseKey(k).getDay() - first + 7) % 7));
+export const weekStart = (k) => weekStartOf(k, FIRST);
+// 曜日見出し（週の始まりから）。{ i: 曜日番号(0=日), label }
+export const weekdayHeads = () => Array.from({ length: 7 }, (_, j) => { const i = (FIRST + j) % 7; return { i, label: DOW[i] }; });
 export const dayLabel = (k) => {
   const d = parseKey(k);
   return `${d.getMonth() + 1}月${d.getDate()}日（${DOW[d.getDay()]}）`;
@@ -127,7 +134,7 @@ export function monthWeeks(selected) {
   const y = d.getFullYear();
   const m = d.getMonth();
   const first = new Date(y, m, 1, 12);
-  const n = Math.ceil((first.getDay() + daysInMonth(y, m)) / 7);
+  const n = Math.ceil((((first.getDay() - FIRST + 7) % 7) + daysInMonth(y, m)) / 7);
   const start = weekStart(dkey(first));
   return Array.from({ length: n }, (_, w) => Array.from({ length: 7 }, (_, i) => addDays(start, w * 7 + i)));
 }

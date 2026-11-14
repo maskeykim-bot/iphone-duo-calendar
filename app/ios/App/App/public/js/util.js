@@ -1,10 +1,5 @@
 // 日付・予定まわりの純粋関数。DOM に依存しない。
-export const CATS = {
-  work: '仕事',
-  private: 'プライベート',
-  golf: 'ゴルフ',
-  economy: '経済指標',
-};
+import { CAT_IDS, legacyToId } from './categories.js';
 export const DOW = ['日', '月', '火', '水', '木', '金', '土'];
 
 export const pad = (n) => String(n).padStart(2, '0');
@@ -27,7 +22,14 @@ export const addMonths = (k, n) => {
   t.setDate(Math.min(day, daysInMonth(t.getFullYear(), t.getMonth())));
   return dkey(t);
 };
-export const weekStart = (k) => addDays(k, -parseKey(k).getDay());
+// 週の始まり（0=日曜, 1=月曜）。既定は月曜。app.js が設定から setFirstDay で切り替える。
+let FIRST = 1;
+export const setFirstDay = (n) => { FIRST = n === 0 ? 0 : 1; };
+export const getFirstDay = () => FIRST;
+export const weekStartOf = (k, first) => addDays(k, -((parseKey(k).getDay() - first + 7) % 7));
+export const weekStart = (k) => weekStartOf(k, FIRST);
+// 曜日見出し（週の始まりから）。{ i: 曜日番号(0=日), label }
+export const weekdayHeads = () => Array.from({ length: 7 }, (_, j) => { const i = (FIRST + j) % 7; return { i, label: DOW[i] }; });
 export const dayLabel = (k) => {
   const d = parseKey(k);
   return `${d.getMonth() + 1}月${d.getDate()}日（${DOW[d.getDay()]}）`;
@@ -67,7 +69,8 @@ export function parseInput(text, all) {
 }
 
 // 古い（v1）レコードに既定値を補う。
-export const withDefaults = (e) => ({ ...e, notes: e.notes ?? '', recurrence: e.recurrence ?? null, exdates: e.exdates ?? [], overrides: e.overrides ?? {} });
+// categoryId は読み込み時の保険（旧 cat があれば id に変換、無ければ未分類）。
+export const withDefaults = (e) => ({ ...e, categoryId: e.categoryId ?? legacyToId(e.cat) ?? CAT_IDS.none, notes: e.notes ?? '', recurrence: e.recurrence ?? null, exdates: e.exdates ?? [], overrides: e.overrides ?? {} });
 
 export const FREQS = { daily: '毎日', weekly: '毎週', monthly: '毎月', yearly: '毎年' };
 export const LIMITS = { title: 80, place: 200, notes: 4000, count: 9999 };
@@ -86,7 +89,7 @@ export function ruleSummary(rule, start) {
 }
 
 // ドラフト → 保存用の予定。失敗時は { error, where } を返す。
-export function validateDraft(f) {
+export function validateDraft(f, categoryIds = null) {
   const title = (f.title || '').trim();
   if (!title) return { error: '予定名を入力してください。' };
   const all = !!f.all;
@@ -100,7 +103,7 @@ export function validateDraft(f) {
     end = `${dayOf(end)}T23:59`;
   }
   if (end < start) return { error: '終了は開始以降にしてください。' };
-  if (!Object.hasOwn(CATS, f.cat)) return { error: 'カテゴリを選んでください。' };
+  if (typeof f.categoryId !== 'string' || !f.categoryId || (categoryIds && !categoryIds.includes(f.categoryId))) return { error: 'カテゴリを選んでください。' };
   let recurrence = null;
   const freq = f.rfreq || 'none';
   if (freq !== 'none') {
@@ -122,7 +125,7 @@ export function validateDraft(f) {
       recurrence.until = dayOf(u);
     }
   }
-  return { event: { title, cat: f.cat, all, start, end, place: (f.place || '').trim().slice(0, LIMITS.place), notes: String(f.notes || '').slice(0, LIMITS.notes), recurrence } };
+  return { event: { title, categoryId: f.categoryId, all, start, end, place: (f.place || '').trim().slice(0, LIMITS.place), notes: String(f.notes || '').slice(0, LIMITS.notes), recurrence } };
 }
 
 // 月グリッド: 週ごとの日付配列
@@ -131,7 +134,7 @@ export function monthWeeks(selected) {
   const y = d.getFullYear();
   const m = d.getMonth();
   const first = new Date(y, m, 1, 12);
-  const n = Math.ceil((first.getDay() + daysInMonth(y, m)) / 7);
+  const n = Math.ceil((((first.getDay() - FIRST + 7) % 7) + daysInMonth(y, m)) / 7);
   const start = weekStart(dkey(first));
   return Array.from({ length: n }, (_, w) => Array.from({ length: 7 }, (_, i) => addDays(start, w * 7 + i)));
 }

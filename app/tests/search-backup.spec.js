@@ -194,7 +194,7 @@ test.describe('バックアップ', () => {
     expect(j.categories.length).toBeGreaterThanOrEqual(5);
     expect(j.exportedAt).toMatch(/^2026-11-12T09:41:00\+09:00$/);
     expect(j.events).toHaveLength(7);
-    expect(j.settings).toEqual({ view: 'month', style: 'simple', desk: false, monthExpand: false });
+    expect(j.settings).toEqual({ view: 'month', style: 'simple', desk: false, monthExpand: false, weekStart: 1 });
   });
 
   test('往復: 書き出して別の DB へ置き換え読み込み → 同一内容', async ({ page }, info) => {
@@ -304,7 +304,7 @@ test.describe('バックアップ', () => {
     const p = info.outputPath('v3.json');
     await exportFile(page, p);
     const j = JSON.parse(readFileSync(p, 'utf8'));
-    expect(j.settings).toEqual({ view: 'week', style: 'named', desk: true, monthExpand: true, notify: { enabled: true, showTitle: false, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '07:30' } } });
+    expect(j.settings).toEqual({ view: 'week', style: 'named', desk: true, monthExpand: true, weekStart: 1, notify: { enabled: true, showTitle: false, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '07:30' } } });
     expect(j.categories.find((c) => c.id === 'my-cat')).toMatchObject({ name: '自作カテゴリ', color: '#5e4c8e', hidden: true });
     const src = await dbEvents(page);
     expect(src[0].nativeLink).toEqual(LINK);

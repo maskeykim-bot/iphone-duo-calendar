@@ -12,8 +12,10 @@ test.describe('開いた縦 626×890: 月', () => {
     expect(await layout(page)).toBe('open');
     await expect(page.locator('body')).toHaveAttribute('data-posture', 'portrait');
     // 手帳／予定名の切替は隠れ、左右分割ではない
-    await expect(page.getByRole('button', { name: '予定名', exact: true })).toBeHidden();
+    // 開いた縦の月は常に予定名なので「手帳」は出さず、「予定名｜全部」の2つ
     await expect(page.getByRole('button', { name: '手帳', exact: true })).toBeHidden();
+    await expect(page.getByRole('button', { name: '予定名', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: '全部', exact: true })).toHaveAttribute('aria-pressed', 'false');
     const cal = await box(page.locator('.calendar'));
     const ag = await box(page.locator('.agenda'));
     expect(cal.width).toBeGreaterThanOrEqual(590);
@@ -52,7 +54,8 @@ test.describe('開いた縦 626×890: 月', () => {
     expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight && document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 
-  for (const [name, back] of [['2026年8月', 3], ['2027年1月', -2]]) {
+  // 月曜始まりで6週になる月
+  for (const [name, back] of [['2026年8月', 3], ['2027年5月', -6]]) {
     test(`6週ある月（${name}）でも月とアジェンダは重ならず、週行は縮まない`, async ({ page }) => {
       await openApp(page, SIZES.openPortrait);
       await loadSample(page);
@@ -143,8 +146,8 @@ test.describe('開いた縦 626×890: 週', () => {
     await openApp(page, SIZES.openPortrait);
     await loadSample(page);
     await tab(page, '週').click();
-    await page.getByRole('button', { name: '次の週' }).click(); // 11/15〜21（出張・京都は 11/19〜）
-    await expect(page.locator('.weekrow', { hasText: '出張・京都' })).toHaveCount(3);
+    await page.getByRole('button', { name: '次の週' }).click(); // 11/16〜22（月曜始まり。出張・京都は 11/19〜23 なので19〜22の4日）
+    await expect(page.locator('.weekrow', { hasText: '出張・京都' })).toHaveCount(4);
     await expect(page.locator('.weekrow', { hasText: '出張・京都' }).first().locator('.clock')).toHaveText('終日');
     await page.getByRole('button', { name: '11月20日（金）を日表示で開く' }).click();
     await expect(page.locator('#ctitle')).toHaveText('11月20日（金）');

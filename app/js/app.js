@@ -10,7 +10,7 @@ import { call, errCode, errText, listen, nativeAvailable } from './native.js';
 import { covers, dedupe, extIn, extRange, fmtLoaded, groupBySource, lastDay, normSettings, rangeKey, searchExt, stampOf, subLabel, toDisplay, writable, ymdSlash } from './iphone.js';
 import {
   DOW, addDays, addMonths, assignLanes, assignSharedLanes, dayLabel, dayOf, dkey, eventsOnDay, isKey, isMulti,
-  monthWeeks, newId, nowStamp, parseInput, parseKey, ruleSummary, timeLabel, toInput, todayKey, validateDraft, weekStart,
+  monthWeeks, newId, nowStamp, parseInput, parseKey, ruleSummary, setFirstDay, timeLabel, toInput, todayKey, validateDraft, weekStart, weekdayHeads,
 } from './util.js';
 
 const params = new URLSearchParams(location.search);
@@ -37,9 +37,11 @@ function loadUi() {
     desk: s.desk === true,
     home: s.home !== false,
     monthExpand: s.monthExpand === true,
+    weekStart: s.weekStart === 0 ? 0 : 1, // 週の始まり: 0=日曜 / 1=月曜（既定）
   };
 }
 const state = { ...loadUi(), events: [], categories: [], loaded: false };
+setFirstDay(state.weekStart);
 let hiddenCats = new Set();
 function setCategories(list) {
   state.categories = sortCategories(list);
@@ -55,10 +57,10 @@ function saveNotify(n) {
   try { localStorage.setItem(NOTIFY_KEY, JSON.stringify({ version: 1, ...(loadNotify() || {}), ...n })); } catch { /* 保存不可でも続ける */ }
 }
 function saveUi() {
-  const { selected, view, style, desk, home, monthExpand } = state;
-  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand })); } catch { /* 保存不可でも動作は続ける */ }
+  const { selected, view, style, desk, home, monthExpand, weekStart: ws } = state;
+  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, weekStart: ws })); } catch { /* 保存不可でも動作は続ける */ }
 }
-function set(patch) { Object.assign(state, patch); saveUi(); render(); }
+function set(patch) { Object.assign(state, patch); if ('weekStart' in patch) setFirstDay(state.weekStart); saveUi(); render(); }
 
 // ---------- レイアウト寸法 L（キーボードで変わらない寸法）と可視範囲 V ----------
 // L = キーボード非表示時の文書領域。テキスト入力中（とその直後）は幅が変わらない限り高さの縮小を無視する。
@@ -196,8 +198,11 @@ function periodTitle() {
 }
 const unit = () => ({ month: '月', week: '週', day: '日' }[state.view]);
 const arrows = () => `<div class="arrows"><button type="button" data-act="prev" aria-label="前の${unit()}">‹</button><button type="button" data-act="next" aria-label="次の${unit()}">›</button></div>`;
-const variant = () => `<div class="variant" role="group" aria-label="月の表現">${[['simple', '手帳'], ['named', '予定名']].map(([v, l]) => `<button type="button" data-style="${v}" aria-pressed="${state.style === v}">${l}</button>`).join('')}</div>`;
-const chead = (withTitle = true, kind = '') => `<div class="chead">${withTitle ? `<h2 id="ctitle">${periodTitle()}</h2>${arrows()}` : ''}${state.view === 'month' && kind !== 'portrait' ? variant() : ''}</div>`;
+// 月の表現: 手帳（点）｜予定名｜全部。「全部」は monthExpand、手帳・予定名は style に対応する。
+// 開いた縦の月は常に予定名の表示なので、「手帳」は出さない（予定名｜全部）。
+const monthMode = (kind) => (state.monthExpand ? 'all' : kind === 'portrait' ? 'named' : state.style);
+const variant = (kind) => `<div class="variant" role="group" aria-label="月の表現">${[['simple', '手帳'], ['named', '予定名'], ['all', '全部']].filter(([v]) => !(kind === 'portrait' && v === 'simple')).map(([v, l]) => `<button type="button" data-mode="${v}" aria-pressed="${monthMode(kind) === v}">${l}</button>`).join('')}</div>`;
+const chead = (withTitle = true, kind = '') => `<div class="chead">${withTitle ? `<h2 id="ctitle">${periodTitle()}</h2>${arrows()}` : ''}${state.view === 'month' ? variant(kind) : ''}</div>`;
 
 function card(e) {
   const sub = [e.place ? esc(e.place) : '', isMulti(e) ? `${e.start.slice(5, 10).replace('-', '/')} 〜 ${e.end.slice(5, 10).replace('-', '/')}` : '', e.nativeLink?.state === 'linked' ? 'iPhoneにも追加済み' : ''].filter(Boolean).join(' · ');
@@ -217,10 +222,11 @@ function agenda(k) {
 // 月グリッド
 const xCount = (es) => { const n = es.filter(isX).length; return n ? `（うちiPhone ${n}件）` : ''; };
 const ROW_H = 88, BAR_H = 16, BAR_GAP = 2, CHIP_H = 16;
+const weekdaysHtml = (cls = '') => `<div class="weekdays${cls}">${weekdayHeads().map(({ i, label }) => `<span class="${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${label}</span>`).join('')}</div>`;
 function monthGrid(kind) {
   if (kind === 'portrait') return monthGridPortrait();
   const sel = state.selected, today = todayKey(), cur = parseKey(sel).getMonth(), named = state.style === 'named';
-  let html = `<div class="weekdays">${DOW.map((x, i) => `<span class="${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${x}</span>`).join('')}</div>`;
+  let html = weekdaysHtml();
   for (const days of monthWeeks(sel)) {
     const wev = occIn(days[0], days[6]);
     const lane = named ? assignLanes(wev, days) : { bars: [], hidden: Array(7).fill(0), used: 0 };
@@ -253,7 +259,7 @@ function monthGrid(kind) {
 const LANE_TOP = 20, LANE_H = 18;
 function monthGridPortrait() {
   const sel = state.selected, today = todayKey(), cur = parseKey(sel).getMonth();
-  let html = `<div class="weekdays">${DOW.map((x, i) => `<span class="${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${x}</span>`).join('')}</div>`;
+  let html = weekdaysHtml();
   for (const days of monthWeeks(sel)) {
     const wev = occIn(days[0], days[6]);
     const { items, hidden } = assignSharedLanes(wev, days);
@@ -276,6 +282,90 @@ function monthGridPortrait() {
   return html;
 }
 
+// 「全部」: 1日5件まで。週ごとの行の高さ = max(いつもの高さ, 日付24 + その週の最大段数×18 + 下余白6)。+N は日付行の右端。
+// 帯と短冊は共通の5レーン。見えている週と前後1週だけ中身を描き、それ以外は高さだけ確保した空の行にする。
+const ALL_MAX = 5, ALL_HEAD = 24, ALL_LANE = 18, ALL_PAD = 6;
+let allYm = ''; // 直前に描いた「全部」の月（月が変わったらスクロール位置を引き継がない）
+let allWeeks = new Map(); // 週の先頭の日付 → { days, wev, items, hidden, need }（描画のたびに作り直す）
+function allWeekData(days) {
+  const wev = occIn(days[0], days[6]);
+  const { items, hidden } = assignSharedLanes(wev, days, ALL_MAX);
+  const used = items.reduce((m, b) => Math.max(m, b.lane + 1), 0);
+  return { days, wev, items, hidden, need: ALL_HEAD + used * ALL_LANE + ALL_PAD };
+}
+function allWeekHtml(w, cur, sel, today) {
+  const { days, wev, items, hidden } = w;
+  let html = '';
+  days.forEach((k, col) => {
+    const es = eventsOnDay(wev, k), d = parseKey(k);
+    html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}" data-date="${k}" aria-label="${dayLabel(k)}、予定${es.length}件${xCount(es)}" aria-pressed="${k === sel}"><span class="dhead"><span class="num">${d.getDate()}</span></span></button>`;
+    if (hidden[col]) html += `<button type="button" class="plus" data-jump="${k}" style="right:calc(${6 - col} * 100% / 7 + 3px)" aria-label="${dayLabel(k)}の予定をすべて見る（ほか${hidden[col]}件）">+${hidden[col]}</button>`;
+  });
+  for (const b of items) {
+    const pos = `${catVar(b.e)}left:calc(${b.sc} * 100% / 7 + 2px);width:calc(${b.ec - b.sc + 1} * 100% / 7 - 4px);top:${ALL_HEAD + b.lane * ALL_LANE}px`;
+    if (b.multi) html += `<button type="button" class="bar ${catCls(b.e)}" data-event="${esc(b.e.id)}" style="${pos}" aria-label="${esc(xname(b.e) + b.e.title)} ${dayOf(b.e.start)}から${dayOf(b.e.end)}${b.e.recurring ? ' 繰り返し' : ''}">${b.fromPrev ? '← ' : ''}${xi(b.e)}${rep(b.e)}${esc(b.e.title)}${b.toNext ? ' →' : ''}</button>`;
+    else html += `<button type="button" class="strip ${catCls(b.e)}" data-event="${esc(b.e.id)}" style="${pos}" aria-label="${esc(`${xname(b.e)}${dayLabel(days[b.sc])} ${timeLabel(b.e)} ${b.e.title}${b.e.recurring ? ' 繰り返し' : ''}`)}">${xi(b.e)}${rep(b.e)}${esc(b.e.title)}</button>`;
+  }
+  return html;
+}
+function monthGridAll() {
+  const weeks = monthWeeks(state.selected);
+  allWeeks = new Map();
+  let rows = '';
+  for (const days of weeks) {
+    const w = allWeekData(days);
+    allWeeks.set(days[0], w);
+    rows += `<div class="week all" data-wk="${days[0]}" style="--need:${w.need}px"></div>`;
+  }
+  return `${weekdaysHtml(' all')}<div class="scroll all" data-scroll="cal" style="--n:${weeks.length}">${rows}</div>`;
+}
+// 見えている週（スクロール位置から計算）と前後1週だけ描く。行の高さは固定なので、描画してもスクロール位置はずれない。
+function syncAllWeeks() {
+  const sc = root.querySelector('.scroll.all');
+  if (!sc) return;
+  const rows = [...sc.children], top = sc.scrollTop, bot = top + sc.clientHeight;
+  let a = rows.length, z = -1;
+  rows.forEach((r, i) => { if (r.offsetTop < bot && r.offsetTop + r.offsetHeight > top) { a = Math.min(a, i); z = Math.max(z, i); } });
+  const cur = parseKey(state.selected).getMonth(), sel = state.selected, today = todayKey();
+  rows.forEach((r, i) => {
+    const want = i >= a - 1 && i <= z + 1;
+    if (want && !r.dataset.drawn) { r.innerHTML = allWeekHtml(allWeeks.get(r.dataset.wk), cur, sel, today); r.dataset.drawn = '1'; }
+    else if (!want && r.dataset.drawn) { r.textContent = ''; delete r.dataset.drawn; }
+  });
+}
+// 見えている先頭の週と、その週の中での位置（割合）を覚える。向き・開閉で行の高さが変わっても同じ週に戻せる。
+// 画面サイズが変わると、描画し直す前にブラウザがスクロール位置を詰めてしまう。そのため、位置は「スクロールしたとき」に
+// （領域の大きさが変わっていないときだけ）記録しておき、描画し直すときはその記録を使う。
+let anchorRec = null, recSize = '';
+const sizeOf = (sc) => `${sc.clientWidth}x${sc.clientHeight}`;
+function anchorOf(sc) {
+  const r = sc.getBoundingClientRect();
+  for (const w of sc.children) {
+    const wr = w.getBoundingClientRect();
+    if (wr.bottom > r.top + 1) return { ym: allYm, wk: w.dataset.wk, ratio: Math.max(0, (r.top - wr.top) / (wr.height || 1)) };
+  }
+  return null;
+}
+function restoreAll(anchor) {
+  const sc = root.querySelector('.scroll.all');
+  if (!sc) { anchorRec = null; return; }
+  const ym = state.selected.slice(0, 7), target = anchor && anchor.ym === ym ? sc.querySelector(`[data-wk="${anchor.wk}"]`) : null;
+  if (target) sc.scrollTop = target.offsetTop + anchor.ratio * target.offsetHeight;
+  else { // 初回・月が変わったとき: 選んでいる日の週が見えるように
+    const w = sc.querySelector(`[data-wk="${weekStart(state.selected)}"]`);
+    sc.scrollTop = w && w.offsetTop + w.offsetHeight > sc.clientHeight ? w.offsetTop : 0;
+  }
+  allYm = ym;
+  syncAllWeeks();
+  recSize = sizeOf(sc);
+  anchorRec = anchorOf(sc);
+  let raf = 0;
+  sc.addEventListener('scroll', () => {
+    if (sizeOf(sc) === recSize) anchorRec = anchorOf(sc);
+    cancelAnimationFrame(raf); raf = requestAnimationFrame(syncAllWeeks);
+  }, { passive: true });
+}
+
 // 週・日
 const weekKeys = () => Array.from({ length: 7 }, (_, i) => addDays(weekStart(state.selected), i));
 function weekEvent(e, k, vlist = false) {
@@ -290,7 +380,7 @@ function weekRow(k, short, vlist = false) {
 const weekNotes = '<div class="weeknotes"><div class="eyebrow">今週の余白</div>日付から一日の詳細へ。予定を選ぶと全文を確認できます。</div>';
 
 function calendarBody(kind) {
-  if (state.view === 'month') return `<div class="scroll" data-scroll="cal">${monthGrid(kind)}</div>${legend()}${xlegend()}`;
+  if (state.view === 'month') return `${state.monthExpand ? monthGridAll() : `<div class="scroll msc" data-scroll="cal">${monthGrid(kind)}</div>`}${legend()}${xlegend()}`;
   if (state.view === 'week') {
     const cols = kind === 'open' || kind === 'desk';
     const vlist = kind === 'portrait';
@@ -360,17 +450,19 @@ let lastKind = '';
 function render() {
   const kind = layoutKind();
   const scrolls = {};
+  const anchor = root.querySelector('.scroll.all') ? anchorRec : null;
   root.querySelectorAll('[data-scroll]').forEach((el) => { scrolls[`${lastKind}:${el.dataset.scroll}`] = el.scrollTop; });
   const f = document.activeElement;
-  const focusKey = f && root.contains(f) ? f.dataset.act ? `act:${f.dataset.act}` : f.dataset.view ? `view:${f.dataset.view}` : f.dataset.style ? `style:${f.dataset.style}` : f.dataset.date ? `date:${f.dataset.date}` : '' : '';
+  const focusKey = f && root.contains(f) ? f.dataset.act ? `act:${f.dataset.act}` : f.dataset.view ? `view:${f.dataset.view}` : f.dataset.mode ? `mode:${f.dataset.mode}` : f.dataset.date ? `date:${f.dataset.date}` : '' : '';
   document.body.dataset.layout = kind;
   document.body.dataset.posture = kind === 'open' && isPortrait() ? 'portrait' : '';
   root.innerHTML = { home, browse, open, desk, spread }[kind]();
   lastKind = kind;
   root.querySelectorAll('[data-scroll]').forEach((el) => { el.scrollTop = scrolls[`${kind}:${el.dataset.scroll}`] || 0; });
+  restoreAll(anchor);
   if (focusKey) {
     const [t, v] = focusKey.split(/:(.*)/);
-    const sel = { act: `[data-act="${v}"]`, view: `[data-view="${v}"]`, style: `[data-style="${v}"]`, date: `[data-date="${v}"]` }[t];
+    const sel = { act: `[data-act="${v}"]`, view: `[data-view="${v}"]`, mode: `[data-mode="${v}"]`, date: `[data-date="${v}"]` }[t];
     root.querySelector(sel)?.focus({ preventScroll: true });
   }
   syncExt();
@@ -388,7 +480,7 @@ root.addEventListener('click', (ev) => {
   if (!b || !root.contains(b)) return;
   const d = b.dataset;
   if (d.view) set({ view: d.view, home: false });
-  else if (d.style) set({ style: d.style });
+  else if (d.mode) set(d.mode === 'all' ? { monthExpand: true } : { style: d.mode, monthExpand: false });
   else if (d.date) {
     const compact = ['home', 'browse'].includes(layoutKind());
     // 閉じた状態では選択日サイドが無いので、日付選択でその日の日表示へ進む。
@@ -791,6 +883,7 @@ function openMenu(from) {
   $('#m-desk').hidden = L.w < 600 || L.h < 600;
   $('#m-link').hidden = !(NATIVE && X.avail);
   $('#m-desk').textContent = state.desk ? '卓上表示をやめる' : '卓上表示';
+  $('#m-week').textContent = `週の始まり: ${state.weekStart === 1 ? '月曜（日曜にする）' : '日曜（月曜にする）'}`;
   $('#m-sample').hidden = !(state.loaded && state.events.length === 0);
   openPanel(menuDlg, from);
   placeMenu(from);
@@ -817,6 +910,7 @@ menuDlg.addEventListener('click', (ev) => {
   else if (m === 'backup') { closePanel(menuDlg, false); openBackup(from); }
   else if (m === 'link') { closePanel(menuDlg, false); openLink(from); }
   else if (m === 'desk') { closePanel(menuDlg); set({ desk: !state.desk }); }
+  else if (m === 'week') { closePanel(menuDlg); set({ weekStart: state.weekStart === 1 ? 0 : 1 }); say(`週の始まりを${state.weekStart === 1 ? '月曜' : '日曜'}にしました。`); }
   else if (m === 'sample') { closePanel(menuDlg); loadSample(); }
   else closePanel(menuDlg);
 });
@@ -1155,7 +1249,7 @@ async function finishImport(kind) {
   if (kind === 'add') msg = `${plan.add.length}件を追加しました（重複${plan.skipped}件を除外）。`;
   else {
     msg = `${data.events.length}件の予定${data.settings ? 'と設定' : ''}に置き換えました。`;
-    if (data.settings) { const { notify, ...ui } = data.settings; Object.assign(state, ui); if (notify) saveNotify(notify); }
+    if (data.settings) { const { notify, ...ui } = data.settings; Object.assign(state, ui); setFirstDay(state.weekStart); if (notify) saveNotify(notify); }
   }
   closePanel(backupDlg);
   set({});

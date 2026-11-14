@@ -50,10 +50,11 @@ test('表示用の項目（recurring / occKey / parentId / moved / origin）は�
 
 test('設定の往復（view/style/desk/monthExpand/notify）。未知のキーは無視', () => {
   const notify = { enabled: false, showTitle: true, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '09:30' } };
-  const v = roundtrip([], { view: 'week', style: 'named', desk: true, monthExpand: true, notify });
-  assert.deepEqual(v.data.settings, { view: 'week', style: 'named', desk: true, monthExpand: true, notify });
+  const v = roundtrip([], { view: 'week', style: 'named', desk: true, monthExpand: true, weekStart: 0, notify });
+  assert.deepEqual(v.data.settings, { view: 'week', style: 'named', desk: true, monthExpand: true, weekStart: 0, notify });
   const w = validateBackup(file({ events: [], settings: { view: 'day', weekStart: 1, bogus: 1 } }));
-  assert.deepEqual(w.data.settings, { view: 'day' });
+  assert.deepEqual(w.data.settings, { view: 'day', weekStart: 1 });
+  assert.equal(validateBackup(file({ events: [], settings: { weekStart: 2 } })).ok, false);
   assert.equal(validateBackup(file({ events: [], settings: { monthExpand: 'yes' } })).ok, false);
   assert.equal(validateBackup(file({ events: [], settings: { notify: { defaultTimed: { before: 7 } } } })).ok, false);
 });

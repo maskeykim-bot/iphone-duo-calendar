@@ -58,9 +58,10 @@ const isHm = (s) => typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s)
 const okTimed = (a) => isObj(a) && NOTIFY_BEFORE.includes(a.before);
 const okAllDay = (a) => isObj(a) && NOTIFY_DAYS.includes(a.day) && isHm(a.at);
 
-// categories: 現在のカテゴリ一覧。settings: { view, style, desk, monthExpand, notify? }。
+// categories: 現在のカテゴリ一覧。settings: { view, style, desk, monthExpand, weekStart(0|1), notify? }。
 export function buildBackup(events, settings = {}, now = new Date(), categories = []) {
   const s = { view: settings.view, style: settings.style, desk: !!settings.desk, monthExpand: !!settings.monthExpand };
+  if (settings.weekStart === 0 || settings.weekStart === 1) s.weekStart = settings.weekStart;
   if (isObj(settings.notify)) s.notify = deepClean(settings.notify);
   return { app: APP, version: VERSION, schema: SCHEMA, exportedAt: localIso(now), categories: categories.map((c) => deepClean(c)), events: events.map(exportEvent), settings: s };
 }
@@ -120,7 +121,9 @@ function checkSettings(s) {
   if (s.style !== undefined && !Object.hasOwn(STYLES, s.style)) return { error: '設定の月表現が不正です' };
   if (s.desk !== undefined && typeof s.desk !== 'boolean') return { error: '設定の卓上指定が不正です' };
   if (s.monthExpand !== undefined && typeof s.monthExpand !== 'boolean') return { error: '設定の月の広げる表示が不正です' };
+  if (s.weekStart !== undefined && s.weekStart !== 0 && s.weekStart !== 1) return { error: '設定の週の始まりが不正です' };
   const out = {};
+  if (s.weekStart !== undefined) out.weekStart = s.weekStart;
   if (s.view !== undefined) out.view = s.view;
   if (s.style !== undefined) out.style = STYLES[s.style];
   if (s.desk !== undefined) out.desk = s.desk;

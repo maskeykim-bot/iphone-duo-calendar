@@ -1,6 +1,7 @@
 // 最適化前の recur.js（HEAD 5512061 時点）。最適化後の expand / countBefore との一致確認用の基準実装。変更しないこと。
 // 繰り返し予定の展開・編集計画。DOM に依存しない純粋関数。日付キーは YYYY-MM-DD、日時は YYYY-MM-DDTHH:MM（端末ローカル）。
-import { addDays, daysInMonth, dayOf, pad, parseKey, weekStart } from '../../js/util.js';
+import { addDays, daysInMonth, dayOf, pad, parseKey, weekStartOf } from '../../js/util.js';
+const weekStart = (k) => weekStartOf(k, 0); // 繰り返しの週は日曜基準（表示の週の始まり設定とは別）
 
 const dayDiff = (a, b) => Math.round((parseKey(a) - parseKey(b)) / 864e5);
 const BODY = ['title', 'categoryId', 'place', 'notes', 'alarms'];

@@ -27,7 +27,8 @@ const rows = [
   measure('6週展開: daily count=999(2024起点) 20件', (a) => expand(a, '2026-11-01', '2026-12-12').length, () => dailyCount999()),
   measure('検索: 毎日30+単発500 "会議"（初回）', (a) => searchEvents(a, '会議', TODAY).total, () => clone(ss)),
   measure('検索: 毎日30+単発500 "会議 メモ"（2回目）', () => searchEvents(ss, '会議 メモ', TODAY).total),
-  measure('検索: 繰り返し200件 "tp1"', (a) => searchEvents(a, 'tp1', TODAY).total, () => manyRecurring(fresh())),
+  // 題名は `t${接頭辞}${番号}`。毎回別の接頭辞なので、その回の2件目の題名（前方一致で数十件に当たる）で検索する。
+  measure('検索: 繰り返し200件（その回の接頭辞に合う語）', (a) => searchEvents(a, a[1].title, TODAY).total, () => manyRecurring(fresh())),
 ];
 for (const r of rows) r.goal = r.median < GOAL_MS ? 'OK' : 'NG';
 if (process.argv.includes('--json')) console.log(JSON.stringify({ tz: process.env.TZ ?? Intl.DateTimeFormat().resolvedOptions().timeZone, node: process.version, goalMs: GOAL_MS, rows }, null, 1));
