@@ -1,6 +1,6 @@
 // 検索: 正規化（NFKC → 小文字 → カタカナ→ひらがな）と、正規化位置の原文への対応付け。DOM に依存しない。
 import { dayOf, daysInMonth, dkey, parseKey } from './util.js';
-import { expand } from './recur.js';
+import { expand, occurrenceAt } from './recur.js';
 
 export const LIMIT = 200;
 const kata2hira = (s) => s.replace(/[ァ-ヶ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60));
@@ -23,7 +23,23 @@ export function normalizeMap(src) {
   }
   return { norm, map };
 }
-export const normalize = (s) => normalizeMap(String(s ?? '')).norm;
+// 検索用の正規化（normalizeMap と同じ結果。対応表を作らず、単位ごとの結果を使い回す）。
+const unitCache = new Map();
+const ASCII = /^[\x00-\x7f]*$/;
+export function normalize(v) {
+  const s = String(v ?? '');
+  if (ASCII.test(s)) return s.toLowerCase();
+  let norm = '';
+  const chars = [...s];
+  for (let i = 0; i < chars.length;) {
+    let unit = chars[i++];
+    while (i < chars.length && MARK.test(chars[i])) unit += chars[i++];
+    let n = unitCache.get(unit);
+    if (n === undefined) { n = normUnit(unit); if (unitCache.size > 20000) unitCache.clear(); unitCache.set(unit, n); }
+    norm += n;
+  }
+  return norm;
+}
 export const terms = (q) => normalize(q).split(/\s+/).filter(Boolean);
 
 // 原文中の一致範囲（重なりは結合済み）。
@@ -66,17 +82,43 @@ export function searchRange(today) {
   return { from: at(y - 1), to: at(y + 2) };
 }
 
+// 親予定の正規化結果は、元の文字列が同じ間だけ使い回す（編集で親が置き換わると別オブジェクトになる）。
+const normCache = new WeakMap();
+const fieldsOf = (e) => {
+  const c = normCache.get(e);
+  if (c && c.t === e.title && c.n === e.notes && c.p === e.place) return c.f;
+  const f = [normalize(e.title), normalize(e.notes), normalize(e.place)];
+  normCache.set(e, { t: e.title, n: e.notes, p: e.place, f });
+  return f;
+};
+const matches = (f, ts) => ts.every((t) => f.some((x) => x.includes(t)));
+const collator = new Intl.Collator();
+const byStartId = (a, b) => (a.start === b.start ? collator.compare(String(a.id), String(b.id)) : (a.start < b.start ? -1 : 1));
+
 // 戻り値: { items（開始日時昇順・同時刻はID順・最大LIMIT件）, total, capped, range }
+// 親予定ごとに1回だけ一致判定し、一致した親だけ展開する。個別変更（overrides）の回は、変更後の項目で別に判定する。
 export function searchEvents(events, query, today, extra = []) {
   const ts = terms(query);
   const range = searchRange(today);
   if (!ts.length) return { items: [], total: 0, capped: false, range, ts };
-  const hits = expand(events, range.from, range.to).filter((e) => {
-    const fields = [normalize(e.title), normalize(e.notes), normalize(e.place)];
-    return ts.every((t) => fields.some((f) => f.includes(t)));
-  });
+  const { from, to } = range, hits = [];
+  const inRange = (e) => dayOf(e.start) <= to && dayOf(e.end) >= from;
+  for (const p of events) {
+    if (!p.recurrence) { if (inRange(p) && matches(fieldsOf(p), ts)) hits.push(p); continue; }
+    if (matches(fieldsOf(p), ts)) {
+      for (const o of expand([p], from, to)) if (!o.moved || matches([normalize(o.title), normalize(o.notes), normalize(o.place)], ts)) hits.push(o);
+    } else {
+      // 親が一致しなくても、個別変更で一致する回があれば拾う（除外日は出さない）。
+      const ex = new Set(p.exdates || []);
+      for (const key of Object.keys(p.overrides || {})) {
+        if (ex.has(key)) continue;
+        const o = occurrenceAt(p, key);
+        if (inRange(o) && matches([normalize(o.title), normalize(o.notes), normalize(o.place)], ts)) hits.push(o);
+      }
+    }
+  }
   hits.push(...extra); // 外部（iPhone）予定: 呼び出し側で同じ正規化・AND・範囲で絞り済み
-  hits.sort((a, b) => a.start.localeCompare(b.start) || String(a.id).localeCompare(String(b.id)));
+  hits.sort(byStartId);
   return { items: hits.slice(0, LIMIT), total: hits.length, capped: hits.length > LIMIT, range, ts };
 }
 export const groupByDay = (items) => {

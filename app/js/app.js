@@ -1,7 +1,8 @@
 import * as db from './db.js';
 import { SAMPLE } from './sample.js';
 import { initSwipe } from './swipe.js';
-import { expand, occurrenceAt, parseOccId, planDelete, planEdit, editInfo } from './recur.js';
+import { occurrenceAt, parseOccId, planDelete, planEdit, editInfo } from './recur.js';
+import { bumpRevision, occBetween } from './occcache.js';
 import { LIMIT, groupByDay, highlight, excerpt, searchEvents } from './search.js';
 import { backupName, buildBackup, countStats, localIso, planAppend, validateBackup, MAX_BYTES } from './backup.js';
 import { CAT_IDS, LIMITS as CAT_LIMITS, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory } from './categories.js';
@@ -173,7 +174,7 @@ const deskBtn = () => `<button type="button" class="deskbtn" data-act="desk" ari
 const hdr = '<button type="button" class="iconbtn" data-act="search" aria-label="予定を検索"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15 15l5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><button type="button" class="iconbtn" data-act="menu" aria-label="その他" aria-haspopup="dialog">…</button>';
 const brand = `<div class="brand"><span class="logo">Duo.</span><span class="small">私の手帳</span></div>${hdr}`;
 const occIn = (a, b) => {
-  let base = expand(state.events, a, b);
+  let base = occBetween(state.events, a, b);
   if (hiddenCats.size) base = base.filter((e) => !hiddenCats.has(e.categoryId)); // 非表示のカテゴリは表示から隠す（予定は消さない）
   const x = visExt();
   return x.length ? base.concat(extIn(x, a, b)) : base;
@@ -410,6 +411,7 @@ async function loadSample() {
     const ok = new Set(state.categories.map((c) => c.id)), first = state.categories[0]?.id ?? CAT_IDS.none;
     await db.putMany(SAMPLE.map((e) => ({ ...e, categoryId: ok.has(e.categoryId) ? e.categoryId : first })));
     state.events = await db.listEvents();
+    bumpRevision();
     render();
     say('サンプルの予定を入れました。');
   } catch { say('サンプルを保存できませんでした。'); }
@@ -651,6 +653,7 @@ async function commit(plan) {
   await db.applyChanges(plan);
   const gone = new Set([...plan.dels, ...plan.puts.map((e) => e.id)]);
   state.events = [...state.events.filter((e) => !gone.has(e.id)), ...plan.puts];
+  bumpRevision();
 }
 const SAVE_FAIL = '保存できませんでした。もう一度お試しください。';
 
@@ -773,9 +776,8 @@ $('#dodelete').addEventListener('click', async () => {
   const cur = editing ? resolve(editing) : null;
   try {
     if (pendingDelete) await commit(planDelete(pendingDelete.cur.p, pendingDelete.cur.occKey, pendingDelete.scope));
-    else await db.deleteEvent(editing);
+    else await commit({ puts: [], dels: [editing] });
   } catch { confirmDlg.close(); $('#error').textContent = '削除できませんでした。'; return; }
-  if (!pendingDelete) state.events = state.events.filter((x) => x.id !== editing);
   void cur;
   pendingDelete = null;
   confirmDlg.close();
@@ -838,6 +840,7 @@ async function commitCats({ catPuts = [], catDels = [], eventPuts = [] }) {
   const dels = new Set(catDels), puts = new Map(catPuts.map((c) => [c.id, c]));
   setCategories([...state.categories.filter((c) => !dels.has(c.id) && !puts.has(c.id)), ...catPuts]);
   if (eventPuts.length) { const m = new Map(eventPuts.map((e) => [e.id, e])); state.events = state.events.map((e) => m.get(e.id) || e); }
+  bumpRevision();
   render();
 }
 const catColorName = (c) => paletteName(c) || '色';
@@ -1140,11 +1143,13 @@ async function finishImport(kind) {
     }
   } catch {
     try { state.events = await db.listEvents(); } catch { /* 無視 */ }
+    bumpRevision();
     bk = { stage: kind === 'add' ? 'confirm' : 'replace', busy: false, name, data, plan, err: '読み込みに失敗しました。現在の予定は変更していません。' };
     renderBackup();
     return;
   }
   state.events = await db.listEvents();
+  bumpRevision();
   try { setCategories(await db.listCategories()); } catch { /* 直前の一覧で続ける */ }
   let msg;
   if (kind === 'add') msg = `${plan.add.length}件を追加しました（重複${plan.skipped}件を除外）。`;
@@ -1263,7 +1268,7 @@ async function resumeExt() {
   if (!link.enabled) { if (linkDlg.open) renderLink(); return; }
   if (p !== 'granted') { if (p) dropLink('カレンダーへのアクセスを確認してください。'); return; }
   try { await refreshCalendars(); } catch { /* 取得できなくても直前の一覧で続ける */ }
-  if (X.cache && X.cache.tz !== new Date().getTimezoneOffset()) X.cache = null; // タイムゾーン変更: キャッシュ破棄
+  if (X.cache && X.cache.tz !== new Date().getTimezoneOffset()) { X.cache = null; bumpRevision(); } // タイムゾーン変更: キャッシュ破棄
   await loadExt(true);
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) resumeExt(); });
@@ -1488,7 +1493,7 @@ setInterval(() => { if (!anyPanel() && layoutKind() === 'home') render(); }, 600
 async function boot() {
   updateVars();
   render();
-  try { setCategories(await db.listCategories()); state.events = await db.listEvents(); } catch { say('保存領域を開けませんでした。'); }
+  try { setCategories(await db.listCategories()); state.events = await db.listEvents(); bumpRevision(); } catch { say('保存領域を開けませんでした。'); }
   state.loaded = true;
   render();
   let draft = null;

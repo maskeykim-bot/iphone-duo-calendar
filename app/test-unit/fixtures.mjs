@@ -3,12 +3,12 @@ export const R = (freq, x = {}) => ({ freq, interval: 1, byDay: null, count: nul
 export const ev = (id, s, e, rec, x = {}) => ({ id, title: 't' + id, categoryId: 'c-work', all: false, start: s, end: e, place: '', notes: '', recurrence: rec, exdates: [], overrides: {}, ...x });
 // 性能計測用の予定セット（probe_perf / probe_recur と同じ形）。
 export const perfEv = (id, s, e, rec) => ({ id, title: '会議' + id, categoryId: 'c-work', all: false, start: s, end: e, place: '本社', notes: 'メモ'.repeat(50), recurrence: rec, exdates: [], overrides: {} });
-export const manyRecurring = () => {
+export const manyRecurring = (pre = 'p') => {
   const a = [];
-  for (let i = 0; i < 200; i++) a.push(ev('p' + i, '2020-01-01T09:00', '2020-01-01T10:00', R(i % 2 ? 'daily' : 'weekly', { byDay: i % 2 ? null : [1, 2, 3, 4, 5] })));
+  for (let i = 0; i < 200; i++) a.push(ev(pre + i, '2020-01-01T09:00', '2020-01-01T10:00', R(i % 2 ? 'daily' : 'weekly', { byDay: i % 2 ? null : [1, 2, 3, 4, 5] })));
   return a;
 };
-export const oldCountSeries = () => Array.from({ length: 200 }, (_, i) => ev('c' + i, '2000-01-01T09:00', '2000-01-01T10:00', R('daily', { count: 9999 })));
+export const oldCountSeries = (pre = 'c') => Array.from({ length: 200 }, (_, i) => ev(pre + i, '2000-01-01T09:00', '2000-01-01T10:00', R('daily', { count: 9999 })));
 export const dailyCount999 = () => Array.from({ length: 20 }, (_, i) => perfEv('c' + i, '2024-01-01T09:00', '2024-01-01T10:00', R('daily', { count: 999 })));
 export const searchSet = () => {
   const b = [];
