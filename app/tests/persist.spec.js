@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test';
-import { openApp, loadSample, addEvent, tab, layout, SIZES } from './helpers.js';
+import { openApp, loadSample, addEvent, tab, layout, SIZES, catId } from './helpers.js';
 
 test.describe('永続化', () => {
   test('再読込後も予定が残る（IndexedDB）', async ({ page }) => {
     await openApp(page);
-    await addEvent(page, { title: '再読込テスト', cat: 'golf' });
+    await addEvent(page, { title: '再読込テスト', cat: 'family' });
     await page.reload();
     await page.waitForSelector('html[data-ready]');
     await expect(page.locator('.next')).toContainText('再読込テスト');
@@ -12,8 +12,9 @@ test.describe('永続化', () => {
       const r = indexedDB.open('duo-calendar');
       r.onsuccess = () => res({ version: r.result.version, stores: [...r.result.objectStoreNames] });
     }));
-    expect(meta.version).toBe(2);
+    expect(meta.version).toBe(3);
     expect(meta.stores).toContain('events');
+    expect(meta.stores).toContain('categories');
   });
 
   test('削除も再読込後に反映される', async ({ page }) => {
@@ -65,14 +66,14 @@ test.describe('永続化', () => {
     await openApp(page, SIZES.closedPortrait);
     await page.getByRole('button', { name: '予定を追加' }).click();
     await page.locator('#f-title').fill('下書きの予定');
-    await page.locator('#f-cat').selectOption('economy');
+    await page.locator('#f-cat').selectOption(catId('out'));
     await page.locator('#f-place').fill('オンライン');
     await page.locator('#f-end').fill('2026/11/12 15:30');
 
     const check = async () => {
       await expect(page.locator('#editor')).toBeVisible();
       await expect(page.locator('#f-title')).toHaveValue('下書きの予定');
-      await expect(page.locator('#f-cat')).toHaveValue('economy');
+      await expect(page.locator('#f-cat')).toHaveValue(catId('out'));
       await expect(page.locator('#f-place')).toHaveValue('オンライン');
       await expect(page.locator('#f-end')).toHaveValue('2026/11/12 15:30');
     };

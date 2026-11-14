@@ -33,12 +33,12 @@ test('毎週で起点が byDay に含まれない場合は byDay の曜日だけ
 });
 
 test('範囲外から範囲内へ移動した個別変更を拾う', () => {
-  const mv = ev('e', '2026-01-05T10:00', '2026-01-05T11:00', R('weekly', { byDay: [1] }), { overrides: { '2026-01-12T10:00': { title: 'moved', cat: 'work', all: false, start: '2026-02-20T10:00', end: '2026-02-20T11:00' } } });
+  const mv = ev('e', '2026-01-05T10:00', '2026-01-05T11:00', R('weekly', { byDay: [1] }), { overrides: { '2026-01-12T10:00': { title: 'moved', categoryId: 'c-work', all: false, start: '2026-02-20T10:00', end: '2026-02-20T11:00' } } });
   assert.deepEqual(starts(expand([mv], '2026-02-20', '2026-02-20')), ['2026-02-20T10:00']);
 });
 
 test('until より後の個別変更キー（ゴースト）は表示されない', { todo: '現状の不具合: until=2026-01-10 の系列で 01-12 の override が表示される（probe_recur の overrideBeyondUntil）' }, () => {
-  const ou = ev('f', '2026-01-05T10:00', '2026-01-05T11:00', R('weekly', { byDay: [1], until: '2026-01-10' }), { overrides: { '2026-01-12T10:00': { title: 'ghost', cat: 'work', all: false, start: '2026-01-12T10:00', end: '2026-01-12T11:00' } } });
+  const ou = ev('f', '2026-01-05T10:00', '2026-01-05T11:00', R('weekly', { byDay: [1], until: '2026-01-10' }), { overrides: { '2026-01-12T10:00': { title: 'ghost', categoryId: 'c-work', all: false, start: '2026-01-12T10:00', end: '2026-01-12T11:00' } } });
   assert.deepEqual(expand([ou], '2026-01-01', '2026-01-31').map((o) => o.title), ['tf']);
 });
 

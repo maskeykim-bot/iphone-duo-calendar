@@ -4,10 +4,11 @@ import { initSwipe } from './swipe.js';
 import { expand, occurrenceAt, parseOccId, planDelete, planEdit, editInfo } from './recur.js';
 import { LIMIT, groupByDay, highlight, excerpt, searchEvents } from './search.js';
 import { backupName, buildBackup, countStats, localIso, planAppend, validateBackup, MAX_BYTES } from './backup.js';
+import { CAT_IDS, LIMITS as CAT_LIMITS, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory } from './categories.js';
 import { call, errCode, errText, listen, nativeAvailable } from './native.js';
 import { covers, dedupe, extIn, extRange, fmtLoaded, groupBySource, lastDay, normSettings, rangeKey, searchExt, stampOf, subLabel, toDisplay, writable, ymdSlash } from './iphone.js';
 import {
-  CATS, DOW, addDays, addMonths, assignLanes, assignSharedLanes, dayLabel, dayOf, dkey, eventsOnDay, isKey, isMulti,
+  DOW, addDays, addMonths, assignLanes, assignSharedLanes, dayLabel, dayOf, dkey, eventsOnDay, isKey, isMulti,
   monthWeeks, newId, nowStamp, parseInput, parseKey, ruleSummary, timeLabel, toInput, todayKey, validateDraft, weekStart,
 } from './util.js';
 
@@ -36,7 +37,12 @@ function loadUi() {
     home: s.home !== false,
   };
 }
-const state = { ...loadUi(), events: [], loaded: false };
+const state = { ...loadUi(), events: [], categories: [], loaded: false };
+let hiddenCats = new Set();
+function setCategories(list) {
+  state.categories = sortCategories(list);
+  hiddenCats = new Set(state.categories.filter((c) => c.hidden).map((c) => c.id));
+}
 if (params.has('desk')) state.desk = params.get('desk') === '1';
 function saveUi() {
   const { selected, view, style, desk, home } = state;
@@ -140,10 +146,13 @@ function visExt() {
   return X.vis;
 }
 const isX = (e) => e.origin === 'iphone';
-const catCls = (e) => (isX(e) ? 'ext' : e.cat);
-const catVar = (e) => (isX(e) ? `--cat:${e.color};` : '');
-const catSty = (e) => (isX(e) ? ` style="${catVar(e)}"` : '');
-const tagText = (e) => (isX(e) ? subLabel(e) : CATS[e.cat]);
+const catOf = (e) => resolveCategory(e.categoryId, state.categories);
+const catCls = (e) => (isX(e) ? 'ext' : '');
+// 色はカテゴリ一覧から inline の CSS 変数で（固定クラスは使わない）。iPhone の予定はカレンダーの色。
+const colorVars = (c) => `--cat:${c};--tint:${tint(c)};`;
+const catVar = (e) => (isX(e) ? `--cat:${e.color};` : colorVars(catOf(e).color));
+const catSty = (e) => ` style="${catVar(e)}"`;
+const tagText = (e) => (isX(e) ? subLabel(e) : catOf(e).name);
 const xi = (e) => (isX(e) ? '<span class="xi" aria-hidden="true">▦</span>' : '');
 const xname = (e) => (isX(e) ? `iPhone、${e.calName}、` : '');
 
@@ -155,13 +164,15 @@ const deskBtn = () => `<button type="button" class="deskbtn" data-act="desk" ari
 const hdr = '<button type="button" class="iconbtn" data-act="search" aria-label="予定を検索"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15 15l5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><button type="button" class="iconbtn" data-act="menu" aria-label="その他" aria-haspopup="dialog">…</button>';
 const brand = `<div class="brand"><span class="logo">Duo.</span><span class="small">私の手帳</span></div>${hdr}`;
 const occIn = (a, b) => {
-  const base = expand(state.events, a, b), x = visExt();
+  let base = expand(state.events, a, b);
+  if (hiddenCats.size) base = base.filter((e) => !hiddenCats.has(e.categoryId)); // 非表示のカテゴリは表示から隠す（予定は消さない）
+  const x = visExt();
   return x.length ? base.concat(extIn(x, a, b)) : base;
 };
 const rep = (e) => (e.recurring ? '<span class="rep" aria-hidden="true">↻</span>' : '');
 const repLabel = (e, t) => (e.recurring || isX(e) ? ` aria-label="${esc(`${xname(e)}${t}${e.recurring ? ' 繰り返し' : ''}`)}"` : '');
 const addBtn = '<footer class="foot"><button type="button" class="add" data-act="add">＋ 予定を追加</button></footer>';
-const legend = `<div class="legend" aria-label="カテゴリ凡例">${Object.entries(CATS).map(([k, l]) => `<span class="${k}">${l}</span>`).join('')}</div>`;
+const legend = () => `<div class="legend" aria-label="カテゴリ凡例">${state.categories.filter((c) => !c.hidden).map((c) => `<span style="--cat:${c.color}">${esc(c.name)}</span>`).join('')}</div>`;
 const xlegend = () => (extActive() ? '<div class="xlegend small">▦ iPhoneの予定（カレンダーの色）</div>' : '');
 
 function periodTitle() {
@@ -269,7 +280,7 @@ function weekRow(k, short, vlist = false) {
 const weekNotes = '<div class="weeknotes"><div class="eyebrow">今週の余白</div>日付から一日の詳細へ。予定を選ぶと全文を確認できます。</div>';
 
 function calendarBody(kind) {
-  if (state.view === 'month') return `<div class="scroll" data-scroll="cal">${monthGrid(kind)}</div>${legend}${xlegend()}`;
+  if (state.view === 'month') return `<div class="scroll" data-scroll="cal">${monthGrid(kind)}</div>${legend()}${xlegend()}`;
   if (state.view === 'week') {
     const cols = kind === 'open' || kind === 'desk';
     const vlist = kind === 'portrait';
@@ -387,7 +398,8 @@ root.addEventListener('click', (ev) => {
 
 async function loadSample() {
   try {
-    await db.putMany(SAMPLE);
+    const ok = new Set(state.categories.map((c) => c.id)), first = state.categories[0]?.id ?? CAT_IDS.none;
+    await db.putMany(SAMPLE.map((e) => ({ ...e, categoryId: ok.has(e.categoryId) ? e.categoryId : first })));
     state.events = await db.listEvents();
     render();
     say('サンプルの予定を入れました。');
@@ -396,8 +408,8 @@ async function loadSample() {
 
 // ---------- パネル共通（編集・範囲・確認・メニュー・検索・バックアップ） ----------
 const dlg = $('#editor'), confirmDlg = $('#confirm'), scopeDlg = $('#scope'), menuDlg = $('#menu'), searchDlg = $('#search'), backupDlg = $('#backup'), form = $('#form');
-const linkDlg = $('#link'), xdDlg = $('#xdetail'), xrDlg = $('#xretry');
-const panels = [dlg, confirmDlg, scopeDlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, xrDlg];
+const linkDlg = $('#link'), xdDlg = $('#xdetail'), xrDlg = $('#xretry'), catsDlg = $('#cats');
+const panels = [dlg, confirmDlg, scopeDlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, xrDlg, catsDlg];
 const anyPanel = () => panels.some((d) => d.open);
 const syncInert = () => { root.inert = anyPanel(); };
 const origins = new Map();
@@ -411,7 +423,16 @@ function closePanel(d, restore = true) {
   if (d.open) d.close();
   syncInert();
 }
-for (const d of [dlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg]) {
+// カテゴリ編集を編集シートから開いたときは、閉じたら編集シートの選択肢を作り直す（新規カテゴリはそのまま選択）。
+catsDlg.addEventListener('close', () => {
+  clearTimeout(cs.timer);
+  if (dlg.open) {
+    dlg.inert = confirmDlg.open || scopeDlg.open;
+    if (cs.fromEditor) fillCatSelect(cs.created && state.categories.some((c) => c.id === cs.created) ? cs.created : state.categories.some((c) => c.id === lastCat) ? lastCat : defaultCatId());
+    saveDraft();
+  }
+});
+for (const d of [dlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, catsDlg]) {
   d.addEventListener('close', () => {
     syncInert();
     if (d._restore !== false) {
@@ -443,9 +464,33 @@ function resolve(id) {
 const startDow = () => { const t = parseInput(F.start.value, F.all.checked); return parseKey(t ? dayOf(t) : state.selected).getDay(); };
 const startKey = () => { const t = parseInput(F.start.value, F.all.checked); return t ? dayOf(t) : state.selected; };
 
+// カテゴリ選択（編集シート）。選択肢はカテゴリ一覧から作り、末尾に「カテゴリを編集…」を置く。
+const EDIT_CATS = '__edit-categories';
+let lastCat = '';
+const defaultCatId = () => state.categories[0]?.id ?? CAT_IDS.none;
+function draftCat(d) {
+  const ids = state.categories.map((c) => c.id);
+  if (ids.includes(d.categoryId)) return d.categoryId;
+  const l = legacyToId(d.cat);
+  return l && ids.includes(l) ? l : defaultCatId();
+}
+function fillCatSelect(id) {
+  const list = state.categories.map((c) => ({ id: c.id, name: c.hidden ? `${c.name}（非表示）` : c.name }));
+  let sel = list.some((c) => c.id === id) ? id : null;
+  if (!sel && id) { list.push({ id: CAT_IDS.none, name: UNCATEGORIZED.name }); sel = CAT_IDS.none; } // 参照先が無い予定
+  sel ??= defaultCatId();
+  F.cat.innerHTML = list.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('') + `<option value="${EDIT_CATS}">カテゴリを編集…</option>`;
+  F.cat.value = sel;
+  lastCat = sel;
+}
+F.cat.addEventListener('change', () => {
+  if (F.cat.value === EDIT_CATS) { F.cat.value = lastCat; openCategories(F.cat, true); return; }
+  lastCat = F.cat.value;
+});
+
 function readForm() {
   return {
-    title: F.title.value, cat: F.cat.value, all: F.all.checked, start: F.start.value, end: F.end.value, place: F.place.value, notes: F.notes.value,
+    title: F.title.value, categoryId: F.cat.value === EDIT_CATS ? lastCat : F.cat.value, all: F.all.checked, start: F.start.value, end: F.end.value, place: F.place.value, notes: F.notes.value,
     rfreq: F.rfreq.value, rbyday: [...rsel], rend: F.rend.value, rcount: F.rcount.value, runtil: F.runtil.value, ropen: !R.panel.hidden, autoDays,
     xadd: F.xadd.checked, xcal: F.xcal.value,
   };
@@ -488,7 +533,7 @@ function updateRepeatUi() {
 function showEditor(values, id, focus = true) {
   editing = id;
   $('#edtitle').textContent = id ? '予定を編集' : '予定を追加';
-  F.title.value = values.title; F.cat.value = values.cat; F.all.checked = values.all;
+  F.title.value = values.title; fillCatSelect(values.categoryId); F.all.checked = values.all;
   F.start.value = values.start; F.end.value = values.end; F.place.value = values.place; F.notes.value = values.notes || '';
   F.rfreq.value = ['daily', 'weekly', 'monthly', 'yearly'].includes(values.rfreq) ? values.rfreq : 'none';
   F.rend.value = ['count', 'until'].includes(values.rend) ? values.rend : 'none';
@@ -541,7 +586,7 @@ $('#xlinked-open').addEventListener('click', async () => {
 function valuesFrom(cur) {
   const o = cur.occ, r = cur.p.recurrence;
   return {
-    title: o.title, cat: o.cat, all: !!o.all, start: toInput(o.start, o.all), end: toInput(o.end, o.all), place: o.place || '', notes: o.notes || '',
+    title: o.title, categoryId: o.categoryId, all: !!o.all, start: toInput(o.start, o.all), end: toInput(o.end, o.all), place: o.place || '', notes: o.notes || '',
     rfreq: r ? r.freq : 'none', rbyday: r?.byDay || [], rend: r ? (r.count != null ? 'count' : r.until ? 'until' : 'none') : 'none',
     rcount: String(r?.count ?? 10), runtil: r?.until ? r.until.replaceAll('-', '/') : '', ropen: false, autoDays: false,
   };
@@ -552,7 +597,7 @@ function openEditor(id, from, day = state.selected) {
   const cur = id ? resolve(id) : null;
   const values = cur
     ? valuesFrom(cur)
-    : { title: '', cat: 'work', all: false, start: `${day.replaceAll('-', '/')} 10:00`, end: `${day.replaceAll('-', '/')} 11:00`, place: '', notes: '', rfreq: 'none', rbyday: [], rend: 'none', rcount: '10', runtil: '', ropen: false };
+    : { title: '', categoryId: defaultCatId(), all: false, start: `${day.replaceAll('-', '/')} 10:00`, end: `${day.replaceAll('-', '/')} 11:00`, place: '', notes: '', rfreq: 'none', rbyday: [], rend: 'none', rcount: '10', runtil: '', ropen: false };
   showEditor(values, cur ? id : null);
   saveDraft();
 }
@@ -604,7 +649,7 @@ let saving = false;
 form.addEventListener('submit', async (ev) => {
   ev.preventDefault();
   if (saving) return;
-  const r = validateDraft(readForm());
+  const r = validateDraft(readForm(), [...state.categories.map((c) => c.id), CAT_IDS.none]);
   $('#error').textContent = ''; R.err.textContent = '';
   if (r.error) {
     if (r.where === 'repeat') { setRepeatOpen(true); R.err.textContent = r.error; } else $('#error').textContent = r.error;
@@ -757,7 +802,8 @@ menuDlg.addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-m]');
   if (!b) return;
   const m = b.dataset.m, from = origins.get(menuDlg);
-  if (m === 'backup') { closePanel(menuDlg, false); openBackup(from); }
+  if (m === 'cats') { closePanel(menuDlg, false); openCategories(from); }
+  else if (m === 'backup') { closePanel(menuDlg, false); openBackup(from); }
   else if (m === 'link') { closePanel(menuDlg, false); openLink(from); }
   else if (m === 'desk') { closePanel(menuDlg); set({ desk: !state.desk }); }
   else if (m === 'sample') { closePanel(menuDlg); loadSample(); }
@@ -765,6 +811,151 @@ menuDlg.addEventListener('click', (ev) => {
 });
 document.addEventListener('click', (ev) => {
   if (menuDlg.open && !menuDlg.contains(ev.target) && !ev.target.closest('[data-act="menu"]')) closePanel(menuDlg);
+});
+
+// ---------- カテゴリ編集（設定メニューから。追加・名前と色・並べ替え・非表示・削除） ----------
+const CT = { body: $('#cat-body'), close: $('#cat-close'), title: $('#cat-title') };
+// stage: 'list' | 'edit'。edit の id が null なら新規。confirmDel は削除の確認中。undo は削除直後の「元に戻す」（5秒）。
+let cs = { stage: 'list', id: null, name: '', color: '', err: '', confirmDel: false, target: '', undo: null, timer: 0, fromEditor: false, created: null, busy: false, msg: '' };
+function openCategories(from, fromEditor = false) {
+  cs = { stage: 'list', id: null, name: '', color: '', err: '', confirmDel: false, target: '', undo: null, timer: 0, fromEditor, created: null, busy: false, msg: '' };
+  renderCats();
+  if (dlg.open) dlg.inert = true;
+  openPanel(catsDlg, from);
+  CT.body.querySelector('button')?.focus({ preventScroll: true });
+}
+async function commitCats({ catPuts = [], catDels = [], eventPuts = [] }) {
+  await db.applyCategoryChanges({ catPuts, catDels, eventPuts });
+  const dels = new Set(catDels), puts = new Map(catPuts.map((c) => [c.id, c]));
+  setCategories([...state.categories.filter((c) => !dels.has(c.id) && !puts.has(c.id)), ...catPuts]);
+  if (eventPuts.length) { const m = new Map(eventPuts.map((e) => [e.id, e])); state.events = state.events.map((e) => m.get(e.id) || e); }
+  render();
+}
+const catColorName = (c) => paletteName(c) || '色';
+function previewHtml(name, color) {
+  const n = esc(name.trim() || 'カテゴリ名');
+  return `<div class="catpre" style="${colorVars(color)}"><span class="chip">${n}</span><span class="chip bar-like">${n}</span></div>`;
+}
+function renderCats() {
+  const list = state.categories, counts = countByCategory(state.events), dis = cs.busy ? ' disabled' : '';
+  if (cs.stage === 'list') {
+    CT.title.textContent = 'カテゴリ';
+    CT.close.textContent = '閉じる';
+    const nh = list.filter((c) => c.hidden).length;
+    const rows = list.map((c, i) => `<li class="catrow${c.hidden ? ' off' : ''}"><button type="button" class="catmain" data-cat-edit="${esc(c.id)}" aria-label="${esc(c.name)}を編集"${dis}><i class="cdot big" style="background:${c.color}" aria-hidden="true"></i><span class="cname">${esc(c.name)}</span><span class="small ccount">${counts.get(c.id) || 0}件</span></button>
+      <button type="button" role="switch" class="sw mini" data-cat-vis="${esc(c.id)}" aria-checked="${!c.hidden}" aria-label="${esc(c.name)}を表示"${dis}><span class="knob" aria-hidden="true"></span><span class="swt">表示</span></button>
+      <span class="mv"><button type="button" data-cat-up="${esc(c.id)}" aria-label="${esc(c.name)}を上へ"${i === 0 || cs.busy ? ' disabled' : ''}>↑</button><button type="button" data-cat-down="${esc(c.id)}" aria-label="${esc(c.name)}を下へ"${i === list.length - 1 || cs.busy ? ' disabled' : ''}>↓</button></span></li>`).join('');
+    const full = list.length >= CAT_LIMITS.max;
+    CT.body.innerHTML = `${nh ? `<p class="small" id="cat-hidden">${nh}件のカテゴリを非表示中</p>` : ''}<ul class="catlist" aria-label="カテゴリ一覧">${rows}</ul>
+      <button type="button" class="row catadd" data-cat-add${full || cs.busy ? ' disabled' : ''}>＋ カテゴリを追加</button>${full ? `<p class="small">カテゴリは最大${CAT_LIMITS.max}個まで作れます。</p>` : ''}
+      ${cs.err ? `<p class="berr" role="alert">${esc(cs.err)}</p>` : ''}
+      ${cs.undo ? `<div class="undobar" role="status"><span>「${esc(cs.undo.cat.name)}」を削除しました。</span><button type="button" data-cat-undo>元に戻す</button></div>` : ''}`;
+    return;
+  }
+  const cur = cs.id ? list.find((c) => c.id === cs.id) : null;
+  CT.title.textContent = cur ? 'カテゴリを編集' : 'カテゴリを追加';
+  CT.close.textContent = '完了';
+  const pal = PALETTE.map((p) => `<button type="button" class="swatch" data-color="${p.light}" style="background:${p.light}" aria-label="${p.name}" aria-pressed="${p.light === cs.color.toLowerCase()}"></button>`).join('');
+  let del = '';
+  if (cur) {
+    if (list.length <= 1) del = '<button type="button" class="row danger" disabled data-cat-del>カテゴリを削除</button><p class="small">カテゴリは1つ以上必要です</p>';
+    else if (!cs.confirmDel) del = '<button type="button" class="row danger" data-cat-del>カテゴリを削除</button>';
+    else {
+      const others = list.filter((c) => c.id !== cur.id), n = state.events.filter((e) => e.categoryId === cur.id || Object.values(e.overrides || {}).some((o) => o?.categoryId === cur.id)).length;
+      const target = others.some((c) => c.id === cs.target) ? cs.target : others[0].id;
+      cs.target = target;
+      del = `<section class="card delbox"><h3>「${esc(cur.name)}」を削除しますか？</h3>${n ? `<label>${n}件の予定を移すカテゴリ<select id="cat-target">${others.map((c) => `<option value="${esc(c.id)}"${c.id === target ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>` : '<p>このカテゴリの予定はありません。</p>'}
+        <div class="pair2"><button type="button" data-cat-delcancel>キャンセル</button><button type="button" class="dangerfill" data-cat-delgo>削除する</button></div></section>`;
+    }
+  }
+  CT.body.innerHTML = `<section class="card"><label>名前<input id="cat-name" maxlength="${CAT_LIMITS.name}" value="${esc(cs.name)}" placeholder="例：仕事" autocomplete="off"></label>
+    <span id="cat-color-l" class="lbl">色</span><div class="palette" role="group" aria-labelledby="cat-color-l">${pal}</div>
+    <span class="lbl">見本</span>${previewHtml(cs.name, cs.color)}
+    <p class="berr" role="alert" id="cat-err">${esc(cs.err)}</p></section>
+    <button type="button" class="row cancel" data-cat-cancel${dis}>キャンセル</button>${del}`;
+}
+async function catSave() {
+  if (cs.busy) return;
+  const list = state.categories, now = Date.now(), name = cs.name.trim();
+  const base = cs.id ? list.find((c) => c.id === cs.id) : newCategory(list, { id: newId(), name, color: cs.color }, now);
+  const v = validateCategory({ ...base, name, color: cs.color || base.color, updatedAt: now }, now);
+  if (!v.ok) { cs.err = v.error; renderCats(); CT.body.querySelector('#cat-name')?.focus({ preventScroll: true }); return; }
+  if (nameTaken(list, v.value.name, v.value.id)) { cs.err = 'ほかのカテゴリと同じ名前は使えません。'; renderCats(); CT.body.querySelector('#cat-name')?.focus({ preventScroll: true }); return; }
+  if (!cs.id && list.length >= CAT_LIMITS.max) { cs.err = `カテゴリは最大${CAT_LIMITS.max}個までです。`; renderCats(); return; }
+  cs.busy = true;
+  try { await commitCats({ catPuts: [v.value] }); } catch { cs.busy = false; cs.err = '保存できませんでした。もう一度お試しください。'; renderCats(); return; }
+  cs.busy = false;
+  if (!cs.id) cs.created = v.value.id;
+  Object.assign(cs, { stage: 'list', id: null, err: '', confirmDel: false });
+  renderCats();
+  CT.body.querySelector(`[data-cat-edit="${CSS.escape(v.value.id)}"]`)?.focus({ preventScroll: true });
+  say(`カテゴリ「${v.value.name}」を保存しました。`);
+}
+async function catDelete() {
+  const cur = state.categories.find((c) => c.id === cs.id);
+  if (!cur || cs.busy) return;
+  const plan = planDeleteCategory(state.categories, state.events, cur.id, cs.target);
+  if (!plan.ok) { cs.err = plan.error; renderCats(); return; }
+  const originals = state.events.filter((e) => plan.eventPuts.some((p) => p.id === e.id));
+  cs.busy = true;
+  try { await commitCats({ catDels: plan.catDels, eventPuts: plan.eventPuts }); } catch { cs.busy = false; cs.err = '削除できませんでした。もう一度お試しください。'; renderCats(); return; }
+  cs.busy = false;
+  clearTimeout(cs.timer);
+  const timer = setTimeout(() => { if (cs.undo?.cat.id === cur.id) { cs.undo = null; if (cs.stage === 'list' && catsDlg.open) renderCats(); } }, 5000);
+  Object.assign(cs, { stage: 'list', id: null, err: '', confirmDel: false, undo: { cat: cur, originals }, timer });
+  renderCats();
+  say(`カテゴリ「${cur.name}」を削除しました。`);
+}
+async function catUndo() {
+  const u = cs.undo;
+  if (!u || cs.busy) return;
+  clearTimeout(cs.timer);
+  cs.undo = null; cs.busy = true;
+  try { await commitCats({ catPuts: [u.cat], eventPuts: u.originals }); cs.err = ''; say(`カテゴリ「${u.cat.name}」を元に戻しました。`); } catch { cs.err = '元に戻せませんでした。'; }
+  cs.busy = false;
+  renderCats();
+}
+async function catMutate(fn) {
+  if (cs.busy) return;
+  cs.busy = true; cs.err = '';
+  try { await commitCats(fn()); } catch { cs.err = '保存できませんでした。もう一度お試しください。'; }
+  cs.busy = false;
+  renderCats();
+}
+function catsBack() {
+  if (cs.stage === 'edit') {
+    Object.assign(cs, { stage: 'list', id: null, err: '', confirmDel: false });
+    renderCats();
+    CT.body.querySelector('[data-cat-add]')?.focus({ preventScroll: true });
+  } else closePanel(catsDlg);
+}
+CT.close.addEventListener('click', () => { if (cs.stage === 'edit') catSave(); else if (!cs.busy) closePanel(catsDlg); });
+CT.body.addEventListener('input', (ev) => { if (ev.target.id === 'cat-name') { cs.name = ev.target.value; const pre = CT.body.querySelector('.catpre'); if (pre) pre.outerHTML = previewHtml(cs.name, cs.color); } });
+CT.body.addEventListener('change', (ev) => { if (ev.target.id === 'cat-target') cs.target = ev.target.value; });
+CT.body.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && ev.target.id === 'cat-name') { ev.preventDefault(); catSave(); } });
+CT.body.addEventListener('click', (ev) => {
+  const b = ev.target.closest('button');
+  if (!b || b.disabled) return;
+  const d = b.dataset;
+  if (d.catEdit !== undefined) {
+    const c = state.categories.find((x) => x.id === d.catEdit);
+    if (c) { Object.assign(cs, { stage: 'edit', id: c.id, name: c.name, color: c.color, err: '', confirmDel: false }); renderCats(); CT.body.querySelector('#cat-name')?.focus({ preventScroll: true }); }
+  } else if (d.catAdd !== undefined) {
+    Object.assign(cs, { stage: 'edit', id: null, name: '', color: newCategory(state.categories, { id: '', name: '' }).color, err: '', confirmDel: false });
+    renderCats();
+    CT.body.querySelector('#cat-name')?.focus({ preventScroll: true });
+  } else if (d.catVis !== undefined) {
+    const c = state.categories.find((x) => x.id === d.catVis);
+    if (c) catMutate(() => ({ catPuts: [{ ...c, hidden: !c.hidden, updatedAt: Date.now() }] })).then(() => CT.body.querySelector(`[data-cat-vis="${CSS.escape(c.id)}"]`)?.focus({ preventScroll: true }));
+  } else if (d.catUp !== undefined || d.catDown !== undefined) {
+    const id = d.catUp ?? d.catDown, dir = d.catUp !== undefined ? -1 : 1;
+    catMutate(() => ({ catPuts: moveCategory(state.categories, id, dir).changed })).then(() => (CT.body.querySelector(`[data-cat-${dir < 0 ? 'up' : 'down'}="${CSS.escape(id)}"]:not(:disabled)`) || CT.body.querySelector(`[data-cat-${dir < 0 ? 'down' : 'up'}="${CSS.escape(id)}"]`))?.focus({ preventScroll: true }));
+  } else if (d.color) { cs.color = d.color; renderCats(); CT.body.querySelector(`[data-color="${d.color}"]`)?.focus({ preventScroll: true }); }
+  else if (d.catCancel !== undefined) catsBack();
+  else if (d.catDel !== undefined) { cs.confirmDel = true; cs.err = ''; renderCats(); CT.body.querySelector('[data-cat-delgo], #cat-target')?.focus({ preventScroll: true }); }
+  else if (d.catDelcancel !== undefined) { cs.confirmDel = false; renderCats(); CT.body.querySelector('[data-cat-del]')?.focus({ preventScroll: true }); }
+  else if (d.catDelgo !== undefined) catDelete();
+  else if (d.catUndo !== undefined) catUndo();
 });
 
 // ---------- 検索 ----------
@@ -875,7 +1066,7 @@ function download(file) {
 async function doExport() {
   bk.err = ''; bk.msg = '';
   try {
-    const text = JSON.stringify(buildBackup(state.events, state), null, 2);
+    const text = JSON.stringify(buildBackup(state.events, state, new Date(), state.categories), null, 2);
     const file = new File([text], backupName(), { type: 'application/json' });
     if (NATIVE) {
       // ネイティブは共有シート（shareFile）を優先。失敗したときだけ従来の共有／ダウンロードへ。
@@ -920,8 +1111,18 @@ async function finishImport(kind) {
   bk = { ...bk, busy: true, err: '' };
   renderBackup();
   try {
-    if (kind === 'add') await db.putMany(plan.add);
-    else await db.replaceAll(data.events);
+    // カテゴリと予定を1トランザクションで。参照先のカテゴリが無い予定は未分類に付け替える。
+    const now = Date.now(), cin = data.categories.map((c) => ({ ...c, createdAt: c.createdAt || now, updatedAt: c.updatedAt || now }));
+    if (kind === 'add') {
+      const fx = fixEventCategories(plan.add, mergeCategories(state.categories, cin, 'add').categories, now);
+      const have = new Set(state.categories.map((c) => c.id));
+      await db.applyImport({ catPuts: fx.categories.filter((c) => !have.has(c.id)), eventPuts: fx.events });
+    } else {
+      let cats = data.hasCategories ? sortCategories(cin) : mergeCategories(state.categories, cin, 'add').categories;
+      if (!cats.length) cats = state.categories;
+      const fx = fixEventCategories(data.events, cats, now);
+      await db.applyImport({ catPuts: fx.categories, eventPuts: fx.events, replace: true });
+    }
   } catch {
     try { state.events = await db.listEvents(); } catch { /* 無視 */ }
     bk = { stage: kind === 'add' ? 'confirm' : 'replace', busy: false, name, data, plan, err: '読み込みに失敗しました。現在の予定は変更していません。' };
@@ -929,6 +1130,7 @@ async function finishImport(kind) {
     return;
   }
   state.events = await db.listEvents();
+  try { setCategories(await db.listCategories()); } catch { /* 直前の一覧で続ける */ }
   let msg;
   if (kind === 'add') msg = `${plan.add.length}件を追加しました（重複${plan.skipped}件を除外）。`;
   else {
@@ -1213,6 +1415,7 @@ document.addEventListener('keydown', (ev) => {
   else if (menuDlg.open) closePanel(menuDlg);
   else if (xdDlg.open) closePanel(xdDlg);
   else if (linkDlg.open) closePanel(linkDlg);
+  else if (catsDlg.open) catsBack();
   else if (backupDlg.open) backBackup();
   else if (searchDlg.open) closePanel(searchDlg);
   else if (dlg.open) closeEditor();
@@ -1270,7 +1473,7 @@ setInterval(() => { if (!anyPanel() && layoutKind() === 'home') render(); }, 600
 async function boot() {
   updateVars();
   render();
-  try { state.events = await db.listEvents(); } catch { say('保存領域を開けませんでした。'); }
+  try { setCategories(await db.listCategories()); state.events = await db.listEvents(); } catch { say('保存領域を開けませんでした。'); }
   state.loaded = true;
   render();
   let draft = null;
@@ -1279,7 +1482,7 @@ async function boot() {
     const id = draft.editing && resolve(draft.editing) ? draft.editing : null;
     origins.set(dlg, root.querySelector('[data-act="add"]'));
     showEditor({
-      title: draft.title || '', cat: Object.hasOwn(CATS, draft.cat) ? draft.cat : 'work', all: !!draft.all, start: draft.start || '', end: draft.end || '', place: draft.place || '', notes: draft.notes || '',
+      title: draft.title || '', categoryId: draftCat(draft), all: !!draft.all, start: draft.start || '', end: draft.end || '', place: draft.place || '', notes: draft.notes || '',
       rfreq: draft.rfreq, rbyday: Array.isArray(draft.rbyday) ? draft.rbyday : [], rend: draft.rend, rcount: draft.rcount, runtil: draft.runtil, ropen: !!draft.ropen, autoDays: draft.autoDays,
     }, id, false);
   }

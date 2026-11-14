@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { CAT_IDS } from '../js/categories.js';
 import { openApp, tab, setStyle, pickDay, addRepeat, openOccurrence, chip, dbEvents, fillEditor, fillRepeat, ev, seed } from './helpers.js';
 
 // recur.js を実ブラウザで import して展開結果を検証する。
@@ -48,7 +49,7 @@ test.describe('繰り返しの展開（純粋関数）', () => {
   test('移動した例外は元の範囲外でも移動先で拾い、元の回と二重にならない', async ({ page }) => {
     const e = ev('a', 'o', '2026-11-12T10:00', '2026-11-12T11:00', {
       recurrence: rule('weekly', { byDay: [4] }),
-      overrides: { '2026-11-19T10:00': { title: 'moved', cat: 'work', all: false, start: '2026-11-17T08:00', end: '2026-11-17T09:00', place: '', notes: '' } },
+      overrides: { '2026-11-19T10:00': { title: 'moved', categoryId: CAT_IDS.work, all: false, start: '2026-11-17T08:00', end: '2026-11-17T09:00', place: '', notes: '' } },
     });
     expect(await expandKeys(page, e, '2026-11-17', '2026-11-17')).toEqual(['2026-11-17T08:00']);
     expect(await expandKeys(page, e, '2026-11-19', '2026-11-19')).toEqual([]);
@@ -252,7 +253,7 @@ test.describe('schema v1 → v2 移行', () => {
         g.onsuccess = () => res({ version: r.result.version, rows: g.result });
       };
     }));
-    expect(raw.version).toBe(2);
+    expect(raw.version).toBe(3);
     expect(raw.rows).toHaveLength(3);
     for (const row of raw.rows) {
       expect(row.notes).toBe('');

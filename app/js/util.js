@@ -1,10 +1,5 @@
 // 日付・予定まわりの純粋関数。DOM に依存しない。
-export const CATS = {
-  work: '仕事',
-  private: 'プライベート',
-  golf: 'ゴルフ',
-  economy: '経済指標',
-};
+import { CAT_IDS, legacyToId } from './categories.js';
 export const DOW = ['日', '月', '火', '水', '木', '金', '土'];
 
 export const pad = (n) => String(n).padStart(2, '0');
@@ -67,7 +62,8 @@ export function parseInput(text, all) {
 }
 
 // 古い（v1）レコードに既定値を補う。
-export const withDefaults = (e) => ({ ...e, notes: e.notes ?? '', recurrence: e.recurrence ?? null, exdates: e.exdates ?? [], overrides: e.overrides ?? {} });
+// categoryId は読み込み時の保険（旧 cat があれば id に変換、無ければ未分類）。
+export const withDefaults = (e) => ({ ...e, categoryId: e.categoryId ?? legacyToId(e.cat) ?? CAT_IDS.none, notes: e.notes ?? '', recurrence: e.recurrence ?? null, exdates: e.exdates ?? [], overrides: e.overrides ?? {} });
 
 export const FREQS = { daily: '毎日', weekly: '毎週', monthly: '毎月', yearly: '毎年' };
 export const LIMITS = { title: 80, place: 200, notes: 4000, count: 9999 };
@@ -86,7 +82,7 @@ export function ruleSummary(rule, start) {
 }
 
 // ドラフト → 保存用の予定。失敗時は { error, where } を返す。
-export function validateDraft(f) {
+export function validateDraft(f, categoryIds = null) {
   const title = (f.title || '').trim();
   if (!title) return { error: '予定名を入力してください。' };
   const all = !!f.all;
@@ -100,7 +96,7 @@ export function validateDraft(f) {
     end = `${dayOf(end)}T23:59`;
   }
   if (end < start) return { error: '終了は開始以降にしてください。' };
-  if (!Object.hasOwn(CATS, f.cat)) return { error: 'カテゴリを選んでください。' };
+  if (typeof f.categoryId !== 'string' || !f.categoryId || (categoryIds && !categoryIds.includes(f.categoryId))) return { error: 'カテゴリを選んでください。' };
   let recurrence = null;
   const freq = f.rfreq || 'none';
   if (freq !== 'none') {
@@ -122,7 +118,7 @@ export function validateDraft(f) {
       recurrence.until = dayOf(u);
     }
   }
-  return { event: { title, cat: f.cat, all, start, end, place: (f.place || '').trim().slice(0, LIMITS.place), notes: String(f.notes || '').slice(0, LIMITS.notes), recurrence } };
+  return { event: { title, categoryId: f.categoryId, all, start, end, place: (f.place || '').trim().slice(0, LIMITS.place), notes: String(f.notes || '').slice(0, LIMITS.notes), recurrence } };
 }
 
 // 月グリッド: 週ごとの日付配列

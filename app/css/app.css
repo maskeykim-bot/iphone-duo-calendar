@@ -1,7 +1,7 @@
 :root{--paper:#f7f4ed;--card:#fffdfa;--ink:#293b35;--muted:#68716a;--line:#dddcd3;--green:#294e42;--focus:#a77538;
  --sat:env(safe-area-inset-top,0px);--sar:env(safe-area-inset-right,0px);--sab:env(safe-area-inset-bottom,0px);--sal:env(safe-area-inset-left,0px);--vy:0px;--vb:0px;
  --rt:max(var(--vy),var(--sat));--rb:max(var(--vb),var(--sab));--rl:var(--sal);--rr:var(--sar);
- --work:#375a7f;--work-t:#eaf0f7;--private:#885265;--private-t:#f7eaf0;--golf:#396b49;--golf-t:#eaf3e9;--economy:#825a23;--economy-t:#f7eedc;--danger:#963e38}
+ --danger:#963e38}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{width:100%;max-width:100%;height:100%;margin:0;overscroll-behavior:none;background:var(--paper);color:var(--ink);overflow:hidden;
@@ -12,8 +12,6 @@ button{cursor:pointer;border:0;background:transparent;min-height:44px;border-rad
 button:hover{background:#e6e9df}
 :focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 button[aria-pressed=true]{background:var(--green);color:#fff}
-.work{--cat:var(--work);--tint:var(--work-t)}.private{--cat:var(--private);--tint:var(--private-t)}
-.golf{--cat:var(--golf);--tint:var(--golf-t)}.economy{--cat:var(--economy);--tint:var(--economy-t)}
 .small{font-size:12px;color:var(--muted)}.eyebrow{font-size:11px;letter-spacing:.12em;color:var(--muted)}
 .pad{padding:8px 0}
 
@@ -412,3 +410,28 @@ html[data-kb] body[data-layout=spread] dialog,html[data-kb] body[data-layout=des
 dialog#xretry p{overflow-wrap:anywhere}
 /* 入力文字は 16px 以上（textarea などの font ショートハンドで戻らないよう最後に指定） */
 input,select,textarea,.date-text{font-size:16px}
+
+/* ===== 第9版: カテゴリ編集（色はカテゴリごとに inline の --cat/--tint） ===== */
+.catlist{list-style:none;margin:8px 0;padding:0}
+.catrow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;min-height:52px;border-bottom:1px solid var(--line)}
+.catrow.off .cname{color:var(--muted)}
+.catmain{display:flex;align-items:center;gap:12px;min-width:0;text-align:left;width:100%}
+.cdot.big{width:20px;height:20px}
+.ccount{flex:none}
+.sw.mini{min-width:0;padding:4px 10px 4px 6px;gap:6px}
+.sw.mini .knob{width:22px;height:22px}
+.mv{display:flex}.mv button{min-width:44px;padding:0;font-size:18px}.mv button:disabled{opacity:.3;cursor:default}
+.catadd{color:var(--green);text-align:center}
+.undobar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding:8px 12px;border-radius:12px;background:var(--green);color:#fff}
+.undobar button{color:#fff;border:1px solid #ffffff80;flex:none}
+.undobar button:hover{background:#386351}
+.palette{display:grid;grid-template-columns:repeat(6,36px);gap:12px;justify-content:space-between;margin:8px 0 12px}
+.swatch{width:36px;min-width:36px;height:36px;min-height:36px;padding:0;border-radius:50%;border:0}
+.swatch:hover{filter:brightness(1.1)}
+.swatch[aria-pressed=true]{background-clip:padding-box;box-shadow:0 0 0 3px var(--card),0 0 0 6px var(--ink)}
+.catpre{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 8px}
+.catpre .chip{max-width:100%;padding:0 6px}
+.catpre .bar-like{border-left:3px solid var(--cat);border-radius:4px}
+.delbox{margin-top:12px}
+.delbox select{width:100%}
+#cat-err:empty{display:none}

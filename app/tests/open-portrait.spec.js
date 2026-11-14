@@ -85,7 +85,7 @@ test.describe('開いた縦 626×890: 月', () => {
   test('共通2レーン: 帯＋短冊は2段まで、収まらない分は +N（複数日も数える）', async ({ page }) => {
     await openApp(page, SIZES.openPortrait);
     await addEvent(page, { title: '出張A', all: true, start: '2026/11/16', end: '2026/11/18', cat: 'work' });
-    await addEvent(page, { title: '合宿B', all: true, start: '2026/11/17', end: '2026/11/19', cat: 'golf' });
+    await addEvent(page, { title: '合宿B', all: true, start: '2026/11/17', end: '2026/11/19', cat: 'family' });
     await addEvent(page, { title: '研修C', all: true, start: '2026/11/17', end: '2026/11/17', cat: 'private' });
     const bars = page.locator('.bar');
     await expect(bars).toHaveCount(2);

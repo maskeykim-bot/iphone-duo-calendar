@@ -1,6 +1,7 @@
 // バックアップの書き出し・検証・追加計画。DOM に依存しない。
-import { CATS, FREQS, LIMITS, isKey } from './util.js';
+import { FREQS, LIMITS, isKey } from './util.js';
 import { normRule } from './recur.js';
+import { LEGACY, legacyToId, validateCategory } from './categories.js';
 
 export const APP = 'duo-calendar';
 export const VERSION = 2;
@@ -23,12 +24,13 @@ export function localIso(d = new Date()) {
 export const backupName = (d = new Date()) => `duo-calendar-backup-${localIso(d).slice(0, 10)}.json`;
 
 const clean = (e) => ({
-  id: e.id, title: e.title, cat: e.cat, all: !!e.all, start: e.start, end: e.end, place: e.place || '', notes: e.notes || '',
+  id: e.id, title: e.title, categoryId: e.categoryId, all: !!e.all, start: e.start, end: e.end, place: e.place || '', notes: e.notes || '',
   recurrence: e.recurrence ? normRule(e.recurrence) : null, exdates: [...(e.exdates || [])], overrides: e.overrides || {},
   ...(e.updatedAt != null ? { updatedAt: e.updatedAt } : {}),
 });
-export function buildBackup(events, settings, now = new Date()) {
-  return { app: APP, version: VERSION, exportedAt: localIso(now), events: events.map(clean), settings: { view: settings.view, style: settings.style, desk: !!settings.desk } };
+// categories: 現在のカテゴリ一覧。予定は categoryId で参照するので、ファイルにも含める（v3 の形式は次のステップで正式化）。
+export function buildBackup(events, settings, now = new Date(), categories = []) {
+  return { app: APP, version: VERSION, exportedAt: localIso(now), categories: categories.map((c) => ({ ...c })), events: events.map(clean), settings: { view: settings.view, style: settings.style, desk: !!settings.desk } };
 }
 export const countStats = (events) => ({
   total: events.length,
@@ -39,7 +41,8 @@ export const countStats = (events) => ({
 // 本文系フィールドの検証。失敗時は理由の文字列。
 function checkBody(o, where) {
   if (typeof o.title !== 'string' || !o.title.trim() || o.title.length > LIMITS.title) return `${where}: 予定名が不正です`;
-  if (!Object.hasOwn(CATS, o.cat)) return `${where}: カテゴリが不正です`;
+  // 旧形式（cat: 'work' 等）か、新形式（categoryId: 文字列 1〜64 文字）。
+  if (o.cat !== undefined) { if (!Object.hasOwn(LEGACY, o.cat)) return `${where}: カテゴリが不正です`; } else if (typeof o.categoryId !== 'string' || !o.categoryId || o.categoryId.length > 64) return `${where}: カテゴリが不正です`;
   if (o.all !== undefined && typeof o.all !== 'boolean') return `${where}: 終日の指定が不正です`;
   if (!isStamp(o.start) || !isStamp(o.end)) return `${where}: 不正な日時です`;
   if (o.end < o.start) return `${where}: 終了が開始より前です`;
@@ -81,6 +84,25 @@ export function validateBackup(text) {
     if (s.style !== undefined) settings.style = STYLES[s.style];
     if (s.desk !== undefined) settings.desk = s.desk;
   }
+  // カテゴリ（任意）。旧形式の cat が参照する固定カテゴリは、ファイルに無ければ LEGACY の定義で補う。
+  const categories = [], catIds = new Set();
+  const hasCategories = obj.categories !== undefined;
+  if (hasCategories) {
+    if (!Array.isArray(obj.categories) || obj.categories.length > 50) return { ok: false, reason: 'カテゴリの一覧が不正です' };
+    for (const [i, c] of obj.categories.entries()) {
+      const r = validateCategory(c);
+      if (!r.ok) return { ok: false, reason: `カテゴリ${i + 1}件目: ${r.error}` };
+      if (catIds.has(r.value.id)) return { ok: false, reason: `カテゴリ${i + 1}件目: idが重複しています` };
+      catIds.add(r.value.id); categories.push(r.value);
+    }
+  }
+  const legacyUsed = new Set();
+  const toCat = (o) => {
+    const { cat, ...rest } = o;
+    if (cat === undefined) return rest;
+    legacyUsed.add(cat);
+    return { ...rest, categoryId: legacyToId(cat) };
+  };
   const ids = new Set(), events = [];
   let exceptions = 0;
   for (const [i, e] of obj.events.entries()) {
@@ -103,10 +125,14 @@ export function validateBackup(text) {
     exceptions += (e.exdates?.length || 0) + Object.keys(e.overrides || {}).length;
     if (exceptions > MAX_EXCEPTIONS) return { ok: false, reason: `例外が多すぎます（上限${MAX_EXCEPTIONS}件）` };
     if (e.updatedAt !== undefined && typeof e.updatedAt !== 'number') return { ok: false, reason: `${where}: 更新日時が不正です` };
-    const ov = Object.fromEntries(Object.entries(e.overrides || {}).map(([k, o]) => [k, { title: o.title, cat: o.cat, all: !!o.all, start: o.start, end: o.end, place: o.place || '', notes: o.notes || '' }]));
-    events.push({ ...clean(e), overrides: ov });
+    const ov = Object.fromEntries(Object.entries(e.overrides || {}).map(([k, o]) => { const c = toCat(o); return [k, { title: c.title, categoryId: c.categoryId, all: !!c.all, start: c.start, end: c.end, place: c.place || '', notes: c.notes || '' }]; }));
+    events.push({ ...clean(toCat(e)), overrides: ov });
   }
-  return { ok: true, data: { exportedAt: obj.exportedAt, events, settings } };
+  for (const key of legacyUsed) {
+    const L = LEGACY[key];
+    if (!catIds.has(L.id)) { catIds.add(L.id); categories.push({ ...L, order: categories.length, hidden: false, createdAt: 0, updatedAt: 0 }); }
+  }
+  return { ok: true, data: { exportedAt: obj.exportedAt, events, settings, categories, hasCategories } };
 }
 
 // 重複判定用: id と updatedAt を除いた内容（キー順・byDay/exdates の順序を正規化）。

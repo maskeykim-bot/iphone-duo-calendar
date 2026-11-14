@@ -2,7 +2,7 @@
 import { addDays, daysInMonth, dayOf, pad, parseKey, weekStart } from './util.js';
 
 const dayDiff = (a, b) => Math.round((parseKey(a) - parseKey(b)) / 864e5);
-const BODY = ['title', 'cat', 'place', 'notes'];
+const BODY = ['title', 'categoryId', 'place', 'notes'];
 
 export const normRule = (r) => (r
   ? { freq: r.freq, interval: 1, byDay: r.freq === 'weekly' ? [...new Set(r.byDay || [])].sort((a, b) => a - b) : null, count: r.count ?? null, until: r.until ?? null }
@@ -46,8 +46,8 @@ function make(p, key) {
   const k = key.slice(0, 10), o = p.overrides?.[key];
   const dd = dayDiff(dayOf(p.end), dayOf(p.start));
   const base = o
-    ? { title: o.title, cat: o.cat, all: !!o.all, start: o.start, end: o.end, place: o.place || '', notes: o.notes || '' }
-    : { title: p.title, cat: p.cat, all: !!p.all, start: key, end: `${addDays(k, dd)}T${p.end.slice(11)}`, place: p.place || '', notes: p.notes || '' };
+    ? { title: o.title, categoryId: o.categoryId ?? p.categoryId, all: !!o.all, start: o.start, end: o.end, place: o.place || '', notes: o.notes || '' }
+    : { title: p.title, categoryId: p.categoryId, all: !!p.all, start: key, end: `${addDays(k, dd)}T${p.end.slice(11)}`, place: p.place || '', notes: p.notes || '' };
   return { ...base, id: `${p.id}@${key}`, parentId: p.id, occKey: key, recurring: true, moved: !!o };
 }
 export const occurrenceAt = make;
@@ -99,7 +99,7 @@ export function countBefore(p, boundaryKey) {
 }
 export const isFirstOccurrence = (p, occKey) => occKey <= p.start;
 
-const pick = (o) => ({ title: o.title, cat: o.cat, all: !!o.all, start: o.start, end: o.end, place: o.place || '', notes: o.notes || '' });
+const pick = (o) => ({ title: o.title, categoryId: o.categoryId, all: !!o.all, start: o.start, end: o.end, place: o.place || '', notes: o.notes || '' });
 const filterKeys = (obj, fn) => Object.fromEntries(Object.entries(obj || {}).filter(([k]) => fn(k)));
 const hasExceptions = (p, fn = () => true) => (p.exdates || []).some(fn) || Object.keys(p.overrides || {}).some(fn);
 

@@ -232,7 +232,7 @@ test.describe('複数日の帯', () => {
   test('予定名表示で同時に2本の帯が重ならず並び、3本目は +N', async ({ page }) => {
     await openApp(page, SIZES.openLandscape);
     await addEvent(page, { title: '出張A', all: true, start: '2026/11/16', end: '2026/11/18', cat: 'work' });
-    await addEvent(page, { title: '合宿B', all: true, start: '2026/11/17', end: '2026/11/19', cat: 'golf' });
+    await addEvent(page, { title: '合宿B', all: true, start: '2026/11/17', end: '2026/11/19', cat: 'family' });
     await setStyle(page, '予定名');
     const bars = page.locator('.bar');
     await expect(bars).toHaveCount(2);
@@ -242,7 +242,7 @@ test.describe('複数日の帯', () => {
     expect(a.y).not.toBe(b.y);
     expect((await Promise.all([bars.nth(0).innerText(), bars.nth(1).innerText()])).join()).toMatch(/出張A.*合宿B|合宿B.*出張A/);
     await addEvent(page, { title: '研修C', all: true, start: '2026/11/17', end: '2026/11/17', cat: 'private' });
-    await addEvent(page, { title: '集中D', all: true, start: '2026/11/16', end: '2026/11/18', cat: 'economy' });
+    await addEvent(page, { title: '集中D', all: true, start: '2026/11/16', end: '2026/11/18', cat: 'out' });
     await expect(bars).toHaveCount(2);
     await expect(page.locator('.plus').first()).toHaveText('+1');
     expect(await findTextOverlaps(page)).toEqual([]);
@@ -256,7 +256,7 @@ test.describe('複数日の帯', () => {
     test(`帯は自週の日付直下で週行内に収まる (${size}${q})`, async ({ page }) => {
       await openApp(page, SIZES[size], q);
       await addEvent(page, { title: '出張A', all: true, start: '2026/11/16', end: '2026/11/18', cat: 'work' });
-      await addEvent(page, { title: '合宿B', all: true, start: '2026/11/17', end: '2026/11/19', cat: 'golf' });
+      await addEvent(page, { title: '合宿B', all: true, start: '2026/11/17', end: '2026/11/19', cat: 'family' });
       await addEvent(page, { title: '長期出張', all: true, start: '2026/11/19', end: '2026/11/23' });
       if (size.startsWith('closed')) await tab(page, '月').click();
       await setStyle(page, '予定名');

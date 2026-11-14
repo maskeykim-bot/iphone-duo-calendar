@@ -1,13 +1,14 @@
 import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import { CAT_IDS } from '../js/categories.js';
 import { openApp, seed, ev, SIZES, tab, setStyle, fillEditor, fillRepeat } from './helpers.js';
 
 const DIR = 'screenshots';
 mkdirSync(DIR, { recursive: true });
 const SEED = [
   ev('p1', 'プロジェクト定例', '2026-11-12T10:00', '2026-11-12T11:00', { place: '会議室A', recurrence: { freq: 'weekly', interval: 1, byDay: [1, 4], count: 10, until: null } }),
-  ev('p2', 'ランチと散歩', '2026-11-12T12:30', '2026-11-12T13:30', { cat: 'private', place: '中目黒' }),
-  ev('p3', '秋のゴルフ合宿', '2026-11-13T00:00', '2026-11-15T23:59', { cat: 'golf', all: true, place: '軽井沢' }),
+  ev('p2', 'ランチと散歩', '2026-11-12T12:30', '2026-11-12T13:30', { categoryId: CAT_IDS.private, place: '中目黒' }),
+  ev('p3', '秋のゴルフ合宿', '2026-11-13T00:00', '2026-11-15T23:59', { categoryId: CAT_IDS.family, all: true, place: '軽井沢' }),
 ];
 const shot = (page, name) => page.screenshot({ path: `${DIR}/${name}.png` });
 

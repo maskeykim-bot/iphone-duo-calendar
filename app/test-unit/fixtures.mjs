@@ -1,8 +1,8 @@
 // 単体テスト共通のフィクスチャ（テストではなく node --test の対象外: *.test.mjs のみが対象）。
 export const R = (freq, x = {}) => ({ freq, interval: 1, byDay: null, count: null, until: null, ...x });
-export const ev = (id, s, e, rec, x = {}) => ({ id, title: 't' + id, cat: 'work', all: false, start: s, end: e, place: '', notes: '', recurrence: rec, exdates: [], overrides: {}, ...x });
+export const ev = (id, s, e, rec, x = {}) => ({ id, title: 't' + id, categoryId: 'c-work', all: false, start: s, end: e, place: '', notes: '', recurrence: rec, exdates: [], overrides: {}, ...x });
 // 性能計測用の予定セット（probe_perf / probe_recur と同じ形）。
-export const perfEv = (id, s, e, rec) => ({ id, title: '会議' + id, cat: 'work', all: false, start: s, end: e, place: '本社', notes: 'メモ'.repeat(50), recurrence: rec, exdates: [], overrides: {} });
+export const perfEv = (id, s, e, rec) => ({ id, title: '会議' + id, categoryId: 'c-work', all: false, start: s, end: e, place: '本社', notes: 'メモ'.repeat(50), recurrence: rec, exdates: [], overrides: {} });
 export const manyRecurring = () => {
   const a = [];
   for (let i = 0; i < 200; i++) a.push(ev('p' + i, '2020-01-01T09:00', '2020-01-01T10:00', R(i % 2 ? 'daily' : 'weekly', { byDay: i % 2 ? null : [1, 2, 3, 4, 5] })));

@@ -1,14 +1,15 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { CAT_IDS } from '../js/categories.js';
 import { openApp, seed, dbEvents, ev, SIZES, layout, period, findTextOverlaps, textInGutter } from './helpers.js';
 
 const SEED = [
-  ev('s1', 'プロジェクト定例', '2026-11-12T10:00', '2026-11-12T11:00', { place: '会議室A', cat: 'work' }),
-  ev('s2', 'ランチ', '2026-11-13T12:00', '2026-11-13T13:00', { place: 'Cafe ＡＢＣ', cat: 'private' }),
-  ev('s3', '歯医者', '2026-11-14T09:00', '2026-11-14T10:00', { notes: '前回の ﾌﾟﾛｼﾞｪｸﾄ 資料を持参。' + 'あ'.repeat(60) + '長いメモの途中に目印あり' + 'い'.repeat(60), cat: 'private' }),
-  ev('s4', 'ジム', '2026-11-16T07:00', '2026-11-16T08:00', { cat: 'golf', recurrence: { freq: 'weekly', interval: 1, byDay: [1], count: null, until: null } }),
+  ev('s1', 'プロジェクト定例', '2026-11-12T10:00', '2026-11-12T11:00', { place: '会議室A', categoryId: CAT_IDS.work }),
+  ev('s2', 'ランチ', '2026-11-13T12:00', '2026-11-13T13:00', { place: 'Cafe ＡＢＣ', categoryId: CAT_IDS.private }),
+  ev('s3', '歯医者', '2026-11-14T09:00', '2026-11-14T10:00', { notes: '前回の ﾌﾟﾛｼﾞｪｸﾄ 資料を持参。' + 'あ'.repeat(60) + '長いメモの途中に目印あり' + 'い'.repeat(60), categoryId: CAT_IDS.private }),
+  ev('s4', 'ジム', '2026-11-16T07:00', '2026-11-16T08:00', { categoryId: CAT_IDS.family, recurrence: { freq: 'weekly', interval: 1, byDay: [1], count: null, until: null } }),
   ev('s5', '<b>危険</b>&amp;', '2026-11-17T10:00', '2026-11-17T11:00'),
-  ev('s6', '複数日の出張', '2026-11-19T00:00', '2026-11-21T23:59', { all: true, cat: 'economy' }),
+  ev('s6', '複数日の出張', '2026-11-19T00:00', '2026-11-21T23:59', { all: true, categoryId: CAT_IDS.out }),
 ];
 const searchBtn = (page) => page.getByRole('button', { name: '予定を検索' });
 async function search(page, q) {
@@ -172,7 +173,7 @@ const RICH = [
   ...SEED,
   ev('r1', '特殊', '2026-11-18T10:00', '2026-11-18T11:00', {
     notes: '行1\n行2', place: '渋谷', recurrence: { freq: 'weekly', interval: 1, byDay: [3, 5], count: 8, until: null }, exdates: ['2026-11-20T10:00'],
-    overrides: { '2026-11-25T10:00': { title: '変更回', cat: 'golf', all: false, start: '2026-11-25T14:00', end: '2026-11-25T15:00', place: 'X', notes: 'n' } },
+    overrides: { '2026-11-25T10:00': { title: '変更回', categoryId: CAT_IDS.family, all: false, start: '2026-11-25T14:00', end: '2026-11-25T15:00', place: 'X', notes: 'n' } },
   }),
 ];
 
@@ -288,7 +289,7 @@ test.describe('バックアップ', () => {
     ['events が配列でない', { app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T00:00:00Z', events: {} }, 'events'],
     ['不正な日時', { app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T00:00:00Z', events: [{ ...SEED[0], start: '2026-13-40T10:00' }] }, '不正な日時'],
     ['必須欠落', { app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T00:00:00Z', events: [{ id: 'x', start: '2026-11-12T10:00', end: '2026-11-12T11:00' }] }, '予定名'],
-    ['2件目だけ不正でも一部取り込まない', { app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T00:00:00Z', events: [ev('good', 'OK', '2026-12-01T10:00', '2026-12-01T11:00'), { ...SEED[1], cat: 'nope' }] }, 'カテゴリ'],
+    ['2件目だけ不正でも一部取り込まない', { app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T00:00:00Z', events: [ev('good', 'OK', '2026-12-01T10:00', '2026-12-01T11:00'), { ...SEED[1], categoryId: undefined, cat: 'nope' }] }, 'カテゴリ'],
   ];
   for (const [name, content, reason] of BAD) {
     test(`不正ファイル: ${name} → エラー表示のみで DB は変わらない`, async ({ page }) => {

@@ -24,7 +24,7 @@
     <div class="formhead"><h2 id="edtitle">予定を追加</h2><button type="button" id="close" aria-label="閉じる">✕</button></div>
     <div class="fbody">
       <label>予定名<input id="f-title" name="title" maxlength="80" placeholder="例：プロジェクト定例" required></label>
-      <label>カテゴリ<select id="f-cat" name="cat"><option value="work">仕事</option><option value="private">プライベート</option><option value="golf">ゴルフ</option><option value="economy">経済指標</option></select></label>
+      <label>カテゴリ<select id="f-cat" name="cat"></select></label>
       <label class="check"><input id="f-all" name="all" type="checkbox">終日</label>
       <div class="pair">
         <label>開始<input id="f-start" name="start" class="date-text" inputmode="numeric" placeholder="2026/11/12 10:00"></label>
@@ -85,6 +85,7 @@
 </dialog>
 <dialog id="menu" aria-label="その他のメニュー">
   <div class="menurows">
+    <button type="button" data-m="cats">カテゴリ</button>
     <button type="button" data-m="link" id="m-link" hidden>iPhone カレンダー連携</button>
     <button type="button" data-m="backup">バックアップ</button>
     <button type="button" data-m="desk" id="m-desk">卓上表示</button>
@@ -100,6 +101,10 @@
     <p id="sr-xrange" class="small" hidden></p>
   </div>
   <div id="sr-body" class="pbody"></div>
+</dialog>
+<dialog id="cats" class="panel full" aria-labelledby="cat-title">
+  <div class="phead"><h2 id="cat-title">カテゴリ</h2><button type="button" id="cat-close">閉じる</button></div>
+  <div id="cat-body" class="pbody"></div>
 </dialog>
 <dialog id="backup" class="panel full" aria-labelledby="bk-title">
   <div class="phead"><h2 id="bk-title">バックアップ</h2><button type="button" id="bk-close">閉じる</button></div>

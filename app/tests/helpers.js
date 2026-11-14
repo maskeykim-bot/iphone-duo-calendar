@@ -1,4 +1,8 @@
 import { expect } from '@playwright/test';
+import { CAT_IDS } from '../js/categories.js';
+
+// テストでは旧キー（work/private）や既定カテゴリのキー（family/out/other）で指定できる。
+export const catId = (k) => CAT_IDS[k] ?? k;
 
 export const SIZES = {
   closedPortrait: { width: 466, height: 678 },
@@ -24,7 +28,7 @@ export const layout = (page) => page.evaluate(() => document.body.dataset.layout
 export async function fillEditor(page, f) {
   const dlg = page.locator('#editor');
   if (f.title !== undefined) await dlg.locator('#f-title').fill(f.title);
-  if (f.cat) await dlg.locator('#f-cat').selectOption(f.cat);
+  if (f.cat) await dlg.locator('#f-cat').selectOption(catId(f.cat));
   if (f.all !== undefined) await dlg.locator('#f-all').setChecked(f.all);
   if (f.start !== undefined) await dlg.locator('#f-start').fill(f.start);
   if (f.end !== undefined) await dlg.locator('#f-end').fill(f.end);
@@ -125,7 +129,7 @@ export async function seed(page, events) {
   await page.waitForSelector('html[data-ready]');
 }
 export const dbEvents = (page) => page.evaluate(async () => (await (await import('/js/db.js')).listEvents()).sort((a, b) => String(a.id).localeCompare(String(b.id))));
-export const ev = (id, title, start, end, extra = {}) => ({ id, title, cat: 'work', all: false, start, end, place: '', notes: '', recurrence: null, exdates: [], overrides: {}, ...extra });
+export const ev = (id, title, start, end, extra = {}) => ({ id, title, categoryId: CAT_IDS.work, all: false, start, end, place: '', notes: '', recurrence: null, exdates: [], overrides: {}, ...extra });
 
 // 編集ダイアログの繰り返し設定。f: { rfreq, days:[0..6], rend, rcount, runtil }
 export async function fillRepeat(page, f) {
