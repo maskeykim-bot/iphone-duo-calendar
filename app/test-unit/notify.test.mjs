@@ -1,0 +1,189 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { ALLDAY_DAYS, MAX_PENDING, NOTIFY_DEFAULTS, TIMED_BEFORE, WINDOW_DAYS, alarmsFor, defaultAlarms, fireAt, normNotify, notifyText, planNotifications } from '../js/notify.js';
+import { alarmsOk } from '../js/alarms.js';
+import { validateDraft } from '../js/util.js';
+import { buildBackup, validateBackup } from '../js/backup.js';
+import { R, ev, manyRecurring } from './fixtures.mjs';
+
+const NOW = new Date(2026, 10, 14, 9, 0); // 2026-11-14 09:00 ローカル
+const S = normNotify(null);
+const al = (x) => ev(x.id, x.s, x.e, x.rec ?? null, { alarms: x.alarms, ...(x.extra || {}) });
+const plan = (events, now = NOW, s = S, o) => planNotifications(events, now, s, o);
+
+test('定数', () => {
+  assert.deepEqual([...TIMED_BEFORE], [0, 5, 10, 15, 30, 60, 120, 1440, 2880]);
+  assert.deepEqual([...ALLDAY_DAYS], [0, 1, 2, 7]);
+  assert.equal(MAX_PENDING, 60); assert.equal(WINDOW_DAYS, 30);
+});
+
+test('normNotify: 未保存・null・不正値 → 30分前／当日08:00', () => {
+  for (const v of [undefined, null, 5, 'x', [], {}]) {
+    const n = normNotify(v);
+    assert.deepEqual(n, { version: 1, enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } });
+  }
+  assert.deepEqual(normNotify({ defaultTimed: { before: 7 } }).defaultTimed, { before: 30 });
+  assert.deepEqual(normNotify({ defaultAllDay: { day: 3, at: '08:00' } }).defaultAllDay, { day: 0, at: '08:00' });
+  assert.deepEqual(normNotify({ defaultAllDay: { day: 1, at: '25:00' } }).defaultAllDay, { day: 0, at: '08:00' });
+  const ok = normNotify({ enabled: false, showTitle: false, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '07:30' } });
+  assert.deepEqual(ok, { version: 1, enabled: false, showTitle: false, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '07:30' } });
+  assert.equal(normNotify({ enabled: 'no' }).enabled, true);
+  assert.notEqual(normNotify(null), normNotify(null)); // 毎回新しいオブジェクト
+  assert.ok(Object.isFrozen(NOTIFY_DEFAULTS));
+});
+
+test('defaultAlarms: 時刻あり→[{before:30}]、終日→[{day:0,at:08:00}]', () => {
+  assert.deepEqual(defaultAlarms(false, S), [{ before: 30 }]);
+  assert.deepEqual(defaultAlarms(true, S), [{ day: 0, at: '08:00' }]);
+  assert.deepEqual(defaultAlarms(false, { defaultTimed: { before: 5 } }), [{ before: 5 }]);
+});
+
+test('alarmsFor: 未定義・null → []', () => {
+  assert.deepEqual(alarmsFor({}), []); assert.deepEqual(alarmsFor({ alarms: null }), []);
+  assert.deepEqual(alarmsFor({ alarms: [{ before: 5 }] }), [{ before: 5 }]);
+});
+
+test('fireAt: 全 alarm', () => {
+  const t = { all: false, start: '2026-11-20T10:00' };
+  for (const [b, exp] of [[0, '2026-11-20T10:00'], [5, '2026-11-20T09:55'], [10, '2026-11-20T09:50'], [15, '2026-11-20T09:45'], [30, '2026-11-20T09:30'], [60, '2026-11-20T09:00'], [120, '2026-11-20T08:00'], [1440, '2026-11-19T10:00'], [2880, '2026-11-18T10:00']]) {
+    assert.equal(fireAt(t, { before: b }), exp, `before ${b}`);
+  }
+  const a = { all: true, start: '2026-11-20T00:00' };
+  assert.equal(fireAt(a, { day: 0, at: '08:00' }), '2026-11-20T08:00');
+  assert.equal(fireAt(a, { day: 1, at: '08:00' }), '2026-11-19T08:00');
+  assert.equal(fireAt(a, { day: 2, at: '08:00' }), '2026-11-18T08:00');
+  assert.equal(fireAt(a, { day: 7, at: '08:00' }), '2026-11-13T08:00');
+  assert.equal(fireAt(a, { day: 7, at: '09:30' }), '2026-11-13T09:30');
+  assert.equal(fireAt({ all: true, start: '2026-03-01T00:00' }, { day: 1, at: '08:00' }), '2026-02-28T08:00');
+  assert.equal(fireAt(t, { day: 0, at: '08:00' }), null); // 種類違いは無効
+});
+
+test('fireAt: NY の DST 開始日 02:30 → 03:30（NY のときだけ）', { skip: process.env.TZ !== 'America/New_York' }, () => {
+  assert.equal(fireAt({ all: true, start: '2026-03-08T00:00' }, { day: 0, at: '02:30' }), '2026-03-08T03:30');
+  assert.equal(fireAt({ all: false, start: '2026-03-08T03:00' }, { before: 30 }), '2026-03-08T01:30');
+  assert.equal(fireAt({ all: false, start: '2026-03-09T10:00' }, { before: 1440 }), '2026-03-08T10:00'); // 暦の1日前（同じ時刻）
+});
+
+test('planNotifications: enabled:false → []、alarms 無し・未定義は鳴らない', () => {
+  const e = al({ id: 'a', s: '2026-11-20T10:00', e: '2026-11-20T11:00', alarms: [{ before: 30 }] });
+  assert.equal(plan([e], NOW, { enabled: false }).length, 0);
+  assert.equal(plan([ev('u', '2026-11-20T10:00', '2026-11-20T11:00', null), al({ id: 'n', s: '2026-11-20T10:00', e: '2026-11-20T11:00', alarms: [] }), al({ id: 'z', s: '2026-11-20T10:00', e: '2026-11-20T11:00', alarms: null })]).length, 0);
+});
+
+test('planNotifications: 範囲境界（過去・now ちょうど・30日ちょうど・30日超）', () => {
+  const at = (s, before = 0) => al({ id: s, s, e: s, alarms: [{ before }] });
+  const got = plan([at('2026-11-14T08:59'), at('2026-11-14T09:00'), at('2026-11-14T09:01'), at('2026-12-14T09:00'), at('2026-12-14T09:01')]);
+  assert.deepEqual(got.map((x) => x.fireDate), ['2026-11-14T09:01', '2026-12-14T09:00']);
+});
+
+test('planNotifications: 61件→近い順60件、2件の alarm は #0/#1', () => {
+  const evs = Array.from({ length: 61 }, (_, i) => al({ id: `e${String(i).padStart(2, '0')}`, s: `2026-11-${String(15 + (i % 10)).padStart(2, '0')}T${String(10 + (i % 5)).padStart(2, '0')}:00`, e: `2026-11-30T23:00`, alarms: [{ before: 30 }] }));
+  const got = plan(evs);
+  assert.equal(got.length, 60);
+  assert.deepEqual(got.map((x) => x.fireDate), [...got.map((x) => x.fireDate)].sort());
+  const two = plan([al({ id: 'two', s: '2026-11-20T10:00', e: '2026-11-20T11:00', alarms: [{ before: 30 }, { before: 5 }] })]);
+  assert.deepEqual(two.map((x) => x.id), ['duo.two@2026-11-20T10:00#0', 'duo.two@2026-11-20T10:00#1']);
+  assert.equal(plan(evs, NOW, S, { max: 5 }).length, 5);
+});
+
+test('planNotifications: 同時刻は id 順・冪等（同じ入力は同じ結果）', () => {
+  const evs = ['b', 'a', 'c'].map((id) => al({ id, s: '2026-11-20T10:00', e: '2026-11-20T11:00', alarms: [{ before: 30 }] }));
+  const a = plan(evs), b = plan([...evs].reverse());
+  assert.deepEqual(a.map((x) => x.eventId), ['a', 'b', 'c']);
+  assert.deepEqual(a, b); assert.deepEqual(plan(evs), a);
+  assert.equal(a[0].thread, 'duo.2026-11-20'); assert.equal(a[0].day, '2026-11-20');
+});
+
+test('planNotifications: 繰り返し（exdates・移動・alarms 継承・[]と未定義）', () => {
+  const p = ev('r', '2026-11-16T10:00', '2026-11-16T11:00', R('daily', { count: 5 }), {
+    alarms: [{ before: 30 }], exdates: ['2026-11-17T10:00'],
+    overrides: {
+      '2026-11-18T10:00': { title: '移動', categoryId: 'c-work', all: false, start: '2026-11-18T15:00', end: '2026-11-18T16:00', place: '', notes: '', alarms: [{ before: 5 }] },
+      '2026-11-19T10:00': { title: 'なし', categoryId: 'c-work', all: false, start: '2026-11-19T10:00', end: '2026-11-19T11:00', place: '', notes: '', alarms: [] },
+      '2026-11-20T10:00': { title: '継承', categoryId: 'c-work', all: false, start: '2026-11-20T10:00', end: '2026-11-20T11:00', place: '', notes: '', alarms: null },
+    },
+  });
+  const got = plan([p]);
+  assert.deepEqual(got.map((x) => [x.id, x.fireDate]), [
+    ['duo.r@2026-11-16T10:00#0', '2026-11-16T09:30'],
+    ['duo.r@2026-11-18T10:00#0', '2026-11-18T14:55'],
+    ['duo.r@2026-11-20T10:00#0', '2026-11-20T09:30'],
+  ]);
+  assert.equal(got[1].day, '2026-11-18'); assert.equal(got[1].eventId, 'r');
+  assert.equal(plan([{ ...p, alarms: undefined, overrides: {} }]).length, 0);
+});
+
+test('planNotifications: origin iphone／linked／pending は除外、unlinked は対象（繰り返しの親でも）', () => {
+  const base = { s: '2026-11-20T10:00', e: '2026-11-20T11:00', alarms: [{ before: 30 }] };
+  const evs = [
+    al({ id: 'ip', ...base, extra: { origin: 'iphone' } }),
+    al({ id: 'li', ...base, extra: { nativeLink: { state: 'linked' } } }),
+    al({ id: 'pe', ...base, extra: { nativeLink: { state: 'pending' } } }),
+    al({ id: 'un', ...base, extra: { nativeLink: { state: 'unlinked' } } }),
+    al({ id: 'rl', ...base, rec: R('daily', { count: 3 }), extra: { nativeLink: { state: 'linked' } } }),
+    al({ id: 'ru', ...base, rec: R('daily', { count: 2 }), extra: { nativeLink: { state: 'unlinked' } } }),
+  ];
+  assert.deepEqual([...new Set(plan(evs).map((x) => x.eventId))].sort(), ['ru', 'un']);
+});
+
+test('planNotifications: 非表示カテゴリも対象、終日の1週間前は37日先まで見る', () => {
+  const h = al({ id: 'h', s: '2026-11-20T10:00', e: '2026-11-20T11:00', alarms: [{ before: 0 }], extra: { categoryId: 'hidden-cat' } });
+  const far = al({ id: 'far', s: '2026-12-21T00:00', e: '2026-12-21T23:59', alarms: [{ day: 7, at: '08:00' }, { day: 0, at: '08:00' }], extra: { all: true } });
+  const got = plan([h, far]);
+  assert.deepEqual(got.map((x) => x.id), ['duo.h@2026-11-20T10:00#0', 'duo.far@2026-12-21T00:00#0']);
+  assert.equal(got[1].fireDate, '2026-12-14T08:00');
+});
+
+test('notifyText: 文面（02 §3）', () => {
+  const t = { all: false, title: 'プロジェクト定例', start: '2026-11-13T10:00', end: '2026-11-13T11:00', place: '会議室A' };
+  assert.deepEqual(notifyText(t, { before: 30 }), { title: '30分後：プロジェクト定例', body: '10:00〜11:00 ・ 会議室A' });
+  assert.equal(notifyText(t, { before: 0 }).title, '開始：プロジェクト定例');
+  assert.equal(notifyText(t, { before: 60 }).title, '1時間後：プロジェクト定例');
+  assert.deepEqual(notifyText(t, { before: 1440 }), { title: '明日：プロジェクト定例', body: '11月13日（金）10:00〜11:00 ・ 会議室A' });
+  assert.equal(notifyText(t, { before: 2880 }).title, '明後日：プロジェクト定例');
+  assert.equal(notifyText({ ...t, place: '' }, { before: 30 }).body, '10:00〜11:00');
+  const a = { all: true, title: '秋のゴルフ合宿', start: '2026-11-13T00:00', end: '2026-11-15T23:59', place: '' };
+  assert.deepEqual(notifyText(a, { day: 0, at: '08:00' }), { title: '今日：秋のゴルフ合宿', body: '終日（〜11月15日（日））' });
+  assert.deepEqual(notifyText(a, { day: 1, at: '08:00' }), { title: '明日：秋のゴルフ合宿', body: '終日 ・ 11月13日（金）〜15日（日）' });
+  assert.equal(notifyText(a, { day: 7, at: '08:00' }).title, '1週間後：秋のゴルフ合宿');
+  assert.equal(notifyText({ ...a, end: '2026-11-13T23:59' }, { day: 0, at: '08:00' }).body, '終日');
+});
+
+test('notifyText: showTitle:false は予定名・場所なし、41文字→40文字＋…', () => {
+  const t = { all: false, title: 'ひみつ会議', start: '2026-11-13T10:00', end: '2026-11-13T11:00', place: '会議室A' };
+  const x = notifyText(t, { before: 30 }, false);
+  assert.deepEqual(x, { title: '予定があります', body: '30分後 ・ 10:00〜11:00' });
+  assert.ok(!JSON.stringify(x).includes('ひみつ') && !JSON.stringify(x).includes('会議室'));
+  const n = (k) => notifyText({ ...t, title: 'あ'.repeat(k) }, { before: 30 }).title;
+  assert.equal(n(40), `30分後：${'あ'.repeat(40)}`);
+  assert.equal(n(41), `30分後：${'あ'.repeat(40)}…`);
+  const items = plan([al({ id: 'x', s: '2026-11-20T10:00', e: '2026-11-20T11:00', alarms: [{ before: 30 }], extra: { title: 'ひみつ', place: '本社' } })], NOW, { showTitle: false });
+  assert.ok(!JSON.stringify(items).includes('ひみつ') && !JSON.stringify(items).includes('本社'));
+});
+
+test('性能: 1万件で 100ms 目安', () => {
+  const evs = Array.from({ length: 10000 }, (_, i) => al({ id: `p${i}`, s: `2026-11-${String(15 + (i % 14)).padStart(2, '0')}T10:00`, e: `2026-11-${String(15 + (i % 14)).padStart(2, '0')}T11:00`, alarms: [{ before: 30 }] }));
+  const t0 = performance.now(); const got = plan(evs); const ms = performance.now() - t0;
+  assert.equal(got.length, 60);
+  assert.ok(ms < 250, `${ms}ms`); // 目安100ms、CI のぶれに余裕
+  const rec = manyRecurring().map((e) => ({ ...e, alarms: [{ before: 30 }] }));
+  const t1 = performance.now(); assert.equal(plan(rec).length, 60); assert.ok(performance.now() - t1 < 250);
+});
+
+test('validateDraft: alarms の検証と undefined 保持', () => {
+  const f = { title: 't', categoryId: 'c-work', start: '2026/11/20 10:00', end: '2026/11/20 11:00' };
+  assert.equal('alarms' in validateDraft(f).event, false);
+  assert.deepEqual(validateDraft({ ...f, alarms: [] }).event.alarms, []);
+  assert.deepEqual(validateDraft({ ...f, alarms: [{ before: 30 }, { before: 5 }] }).event.alarms, [{ before: 30 }, { before: 5 }]);
+  for (const bad of [[{ before: 7 }], [{ before: 5 }, { before: 10 }, { before: 15 }], 'x', [{ day: 9, at: '08:00' }]]) assert.ok(validateDraft({ ...f, alarms: bad }).error, JSON.stringify(bad));
+});
+
+test('backup: 設定の既定を未保存でも書き出し、alarms が往復する', () => {
+  const bk = buildBackup([], { view: 'month', style: 'simple', desk: false });
+  assert.deepEqual(bk.settings.notify, { enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } });
+  assert.equal(alarmsOk([{ before: 0 }, { day: 7, at: '08:00' }]), true);
+  const e = ev('A', '2026-11-20T10:00', '2026-11-20T11:00', null, { alarms: [{ before: 1440 }, { before: 0 }] });
+  const v = validateBackup(JSON.stringify(buildBackup([e], { view: 'month', style: 'simple' }, new Date(), [{ id: 'c-work', name: '仕事', color: '#2f5f8a', order: 0, hidden: false, createdAt: 1, updatedAt: 2 }])));
+  assert.equal(v.ok, true);
+  assert.deepEqual(v.data.events[0].alarms, [{ before: 1440 }, { before: 0 }]);
+});

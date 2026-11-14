@@ -1,5 +1,6 @@
 // 日付・予定まわりの純粋関数。DOM に依存しない。
 import { CAT_IDS, legacyToId } from './categories.js';
+import { alarmsOk } from './alarms.js';
 export const DOW = ['日', '月', '火', '水', '木', '金', '土'];
 
 export const pad = (n) => String(n).padStart(2, '0');
@@ -125,7 +126,9 @@ export function validateDraft(f, categoryIds = null) {
       recurrence.until = dayOf(u);
     }
   }
-  return { event: { title, categoryId: f.categoryId, all, start, end, place: (f.place || '').trim().slice(0, LIMITS.place), notes: String(f.notes || '').slice(0, LIMITS.notes), recurrence } };
+  if (f.alarms !== undefined && !alarmsOk(f.alarms)) return { error: '通知の指定が不正です。' };
+  // alarms は持っている形だけ載せる（undefined は「項目なし」のまま。既存予定を [] や既定に変えない）。
+  return { event: { title, categoryId: f.categoryId, all, start, end, place: (f.place || '').trim().slice(0, LIMITS.place), notes: String(f.notes || '').slice(0, LIMITS.notes), recurrence, ...(f.alarms !== undefined ? { alarms: f.alarms } : {}) } };
 }
 
 // 月グリッド: 週ごとの日付配列

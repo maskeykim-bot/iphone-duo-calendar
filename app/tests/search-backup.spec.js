@@ -195,7 +195,7 @@ test.describe('バックアップ', () => {
     expect(j.categories.length).toBeGreaterThanOrEqual(5);
     expect(j.exportedAt).toMatch(/^2026-11-12T09:41:00\+09:00$/);
     expect(j.events).toHaveLength(7);
-    expect(j.settings).toEqual({ view: 'month', style: 'simple', desk: false, monthExpand: false, weekStart: 1 });
+    expect(j.settings).toEqual({ view: 'month', style: 'simple', desk: false, monthExpand: false, weekStart: 1, notify: { enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } } });
   });
 
   test('往復: 書き出して別の DB へ置き換え読み込み → 同一内容', async ({ page }, info) => {
