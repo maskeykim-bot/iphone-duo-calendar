@@ -1632,7 +1632,7 @@ function loadExt(force = false) {
     } catch (e) {
       if (gen !== X.gen) return;
       X.status = 'error'; X.failKey = key0;
-      if (['PERMISSION_DENIED', 'RESTRICTED'].includes(errCode(e))) dropLink('カレンダーへのアクセスを確認してください。');
+      if (['PERMISSION_DENIED', 'RESTRICTED', 'WRITE_ONLY'].includes(errCode(e))) dropLink('カレンダーへのアクセスを確認してください。');
     } finally {
       if (gen === X.gen) { X.inflight = null; X.inflightKey = ''; afterExt(); }
     }
@@ -1798,7 +1798,7 @@ async function createNative(id) {
     loadExt(true);
   } catch (err) {
     const msg = 'Duoに保存しました。iPhoneのカレンダーには追加できませんでした。';
-    const hard = ['PERMISSION_DENIED', 'CALENDAR_NOT_FOUND', 'RESTRICTED', 'READ_ONLY'].includes(errCode(err));
+    const hard = ['PERMISSION_DENIED', 'WRITE_ONLY', 'CALENDAR_NOT_FOUND', 'RESTRICTED', 'READ_ONLY'].includes(errCode(err));
     openRetry(id, hard ? `${msg}${errText(err, '')}メニューの『iPhone カレンダー連携』と追加先を確認してください。` : msg, !hard);
     say(msg);
   } finally { xBusy = false; }

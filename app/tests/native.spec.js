@@ -32,6 +32,8 @@ async function mock(page, cfg = {}) {
           case 'createEvent':
             if (M.createFail > 0) { M.createFail--; throw { code: 'UNAVAILABLE', message: 'boom' }; }
             M.created[opts.requestId] = M.created[opts.requestId] || `new-${Object.keys(M.created).length + 1}`;
+            if (M.createErr) throw { code: M.createErr, message: 'x' };
+            if (c.v2) { const n = M.created[opts.requestId]; return { itemId: `item-${n}`, externalId: `ext-${n}`, eventId: n, modifiedAt: 1763100000000, calendarId: opts.calendarId, occurrenceDate: null }; }
             return { eventId: M.created[opts.requestId] };
           case 'openInCalendar': return { opened: M.opened };
           case 'shareFile': return M.share;
@@ -329,6 +331,35 @@ test.describe('ネイティブ（偽装）', () => {
     expect(c[1].opts.requestId).toBe(c[0].opts.requestId);
     expect(c[1].opts).toMatchObject({ all: true, start: '2026-11-25T00:00', end: '2026-11-26T00:00' });
     expect((await dbEvents(page)).find((e) => e.title === '出張').nativeLink.state).toBe('linked');
+  });
+
+  test('第11版 PR5: createEvent の戻りが v2（itemId/externalId/modifiedAt/calendarId）でも壊れず、alarms 引数を渡さない現状でも作成できる', async ({ page }) => {
+    await mock(page, { v2: true });
+    await openApp(page);
+    await enable(page);
+    await page.locator('[data-act="add"]:visible').first().click();
+    await page.locator('#f-title').fill('v2戻り');
+    await page.locator('#f-xadd').check();
+    await page.locator('#editor [type=submit]').click();
+    await expect(page.getByRole('status')).toHaveText('予定を保存し、iPhoneのカレンダーにも追加しました。');
+    const saved = (await dbEvents(page)).find((e) => e.title === 'v2戻り');
+    expect(saved.nativeLink).toMatchObject({ state: 'linked', eventId: 'new-1', calendarId: 'cal-1' });
+  });
+
+  test('第11版 PR5: createEvent の WRITE_ONLY は再試行なしの案内（許可の確認）になる', async ({ page }) => {
+    await mock(page);
+    await openApp(page);
+    await enable(page);
+    await page.evaluate(() => { window.__mock.createErr = 'WRITE_ONLY'; });
+    await page.locator('[data-act="add"]:visible').first().click();
+    await page.locator('#f-title').fill('許可不足');
+    await page.locator('#f-xadd').check();
+    await page.locator('#editor [type=submit]').click();
+    const r = page.locator('#xretry');
+    await expect(r).toBeVisible();
+    await expect(r).toContainText('カレンダーのフルアクセスの許可が必要です。');
+    await expect(page.locator('#xr-retry')).toBeHidden();
+    expect((await dbEvents(page)).find((e) => e.title === '許可不足').nativeLink.state).toBe('pending');
   });
 
   test('二重表示の除外: linked.eventId と一致する外部予定は表示・検索から除く', async ({ page }) => {

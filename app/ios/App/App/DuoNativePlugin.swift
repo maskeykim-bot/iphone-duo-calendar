@@ -1,5 +1,6 @@
 import Foundation
 import Capacitor
+import CryptoKit
 import EventKit
 import UIKit
 import UserNotifications
@@ -37,7 +38,9 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
     private static let notifyTestId = "duo.test"
     private static let notifyMax = 60
 
-    private static let createdKey = "duo.native.created.v1"
+    private static let createdKeyV1 = "duo.native.created.v1"
+    private static let createdKey = "duo.native.created.v2"
+    private static let createdMax = 500
     private static let urlPrefix = "duo-calendar://created/"
     private static let fallbackColor = "#68716a"
     private static let maxShareBytes = 10 * 1024 * 1024
@@ -105,6 +108,10 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         case "restricted":
             call.reject("restricted", "RESTRICTED")
             return false
+        case "writeOnly":
+            // 既存の予定の読み取り・更新にはフルアクセスが要る。
+            call.reject("full access is required", "WRITE_ONLY")
+            return false
         default:
             call.reject("calendar access is not granted", "PERMISSION_DENIED")
             return false
@@ -124,7 +131,16 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         }
         let finish: () -> Void = { [weak self] in
             guard let self = self else { return }
-            call.resolve(["status": self.statusString()])
+            let status = self.statusString()
+            guard status == "granted" else {
+                call.resolve(["status": status])
+                return
+            }
+            // 許可の直後は古い状態のキャッシュが残るので、EventKit の直列 queue で reset してから返す。
+            self.queue.async {
+                self.store.reset()
+                call.resolve(["status": self.statusString()])
+            }
         }
         if #available(iOS 17.0, *) {
             store.requestFullAccessToEvents { _, _ in finish() }
@@ -287,7 +303,11 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
                     "place": ev.location ?? "",
                     "notes": ev.notes ?? "",
                     "recurring": ev.hasRecurrenceRules,
-                    "requestId": requestId
+                    "requestId": requestId,
+                    "itemId": ev.calendarItemIdentifier,
+                    "externalId": ev.calendarItemExternalIdentifier ?? "",
+                    "occurrenceDate": self.stampOrNull(ev.occurrenceDate, f),
+                    "modifiedAt": self.msOrNull(ev.lastModifiedDate)
                 ])
             }
             call.resolve(["events": out])
@@ -296,18 +316,92 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
 
     // MARK: - 作成（requestId で重複を防ぐ）
 
-    private func loadCreated() -> [String: [String: String]] {
-        return (UserDefaults.standard.dictionary(forKey: DuoNativePlugin.createdKey) as? [String: [String: String]]) ?? [:]
+    private func stampOrNull(_ d: Date?, _ f: DateFormatter) -> Any {
+        guard let d = d else { return NSNull() }
+        return f.string(from: d)
     }
 
-    private func saveCreated(_ requestId: String, eventId: String, fingerprint: String) {
-        var all = loadCreated()
-        all[requestId] = ["eventId": eventId, "fingerprint": fingerprint]
-        // 肥大化を避けるため古いものから間引く（上限 500 件）。
-        if all.count > 500, let drop = all.keys.sorted().first, drop != requestId {
-            all.removeValue(forKey: drop)
+    private func msOrNull(_ d: Date?) -> Any {
+        guard let d = d else { return NSNull() }
+        return Int64((d.timeIntervalSince1970 * 1000).rounded())
+    }
+
+    /// 通常の SHA256 の小文字 hex（暗号化・HMAC ではない）。作成記録に本文を残さないために使う。
+    private func sha256Hex(_ s: String) -> String {
+        return SHA256.hash(data: Data(s.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// 作成記録 v2: [requestId: [itemId, eventId, fp, at]]。v1（平文 fingerprint）が残っていればハッシュにして移し、v1 を消す。
+    /// 呼ぶのは EventKit の直列 queue 上（または load()）。
+    private func loadCreated() -> [String: [String: Any]] {
+        let ud = UserDefaults.standard
+        var all = (ud.dictionary(forKey: DuoNativePlugin.createdKey) as? [String: [String: Any]]) ?? [:]
+        if let old = ud.dictionary(forKey: DuoNativePlugin.createdKeyV1) as? [String: [String: String]] {
+            let now = Int(Date().timeIntervalSince1970)
+            for (rid, rec) in old where all[rid] == nil {
+                guard let eid = rec["eventId"], let fp = rec["fingerprint"] else { continue }
+                // itemId は v1 に無い。空のままにして、次に使うとき EventKit から補う。
+                all[rid] = ["itemId": "", "eventId": eid, "fp": sha256Hex(fp), "at": now]
+            }
+            trimCreated(&all, keep: nil)
+            ud.set(all, forKey: DuoNativePlugin.createdKey)
+            ud.removeObject(forKey: DuoNativePlugin.createdKeyV1)
         }
+        return all
+    }
+
+    /// 上限を超えたら at の古い順に除く（keep の requestId は残す）。
+    private func trimCreated(_ all: inout [String: [String: Any]], keep: String?) {
+        while all.count > DuoNativePlugin.createdMax {
+            let victim = all
+                .filter { $0.key != keep }
+                .min { a, b in
+                    let x = (a.value["at"] as? NSNumber)?.intValue ?? 0, y = (b.value["at"] as? NSNumber)?.intValue ?? 0
+                    return x != y ? x < y : a.key < b.key
+                }
+            guard let k = victim?.key else { break }
+            all.removeValue(forKey: k)
+        }
+    }
+
+    private func saveCreated(_ requestId: String, itemId: String, eventId: String, fp: String) {
+        var all = loadCreated()
+        all[requestId] = ["itemId": itemId, "eventId": eventId, "fp": fp, "at": Int(Date().timeIntervalSince1970)]
+        trimCreated(&all, keep: requestId)
         UserDefaults.standard.set(all, forKey: DuoNativePlugin.createdKey)
+    }
+
+    /// alarms 引数 → relativeOffset（秒）の配列。nil は「変更なし」、[] は「明示的になし」。不正なら nil を返し invalid を立てる。
+    private func parseAlarms(_ raw: [Any]?, allDay: Bool) -> (offsets: [TimeInterval]?, invalid: Bool) {
+        guard let raw = raw else { return (nil, false) }
+        guard raw.count <= 2 else { return (nil, true) }
+        var out: [TimeInterval] = []
+        for o in raw {
+            guard let d = o as? [String: Any] else { return (nil, true) }
+            if allDay {
+                guard let day = (d["day"] as? NSNumber)?.intValue, day >= 0, day <= 30,
+                      let at = d["at"] as? String, at.count == 5,
+                      let h = Int(at.prefix(2)), let m = Int(at.suffix(2)), at[at.index(at.startIndex, offsetBy: 2)] == ":",
+                      h >= 0, h < 24, m >= 0, m < 60 else { return (nil, true) }
+                out.append(TimeInterval(-day * 86400 + h * 3600 + m * 60))
+            } else {
+                guard let before = (d["before"] as? NSNumber)?.intValue, before >= 0, before <= 40320 else { return (nil, true) }
+                out.append(TimeInterval(-before * 60))
+            }
+        }
+        return (out, false)
+    }
+
+    /// 作成・URL 回収・再呼出しのどれでも同じ形で返す。EventKit から取れれば最新の値、無ければ記録の値。
+    private func createdReply(_ ev: EKEvent?, itemId: String, eventId: String, calendarId: String, _ f: DateFormatter) -> [String: Any] {
+        return [
+            "itemId": ev?.calendarItemIdentifier ?? itemId,
+            "externalId": ev?.calendarItemExternalIdentifier ?? "",
+            "eventId": ev?.eventIdentifier ?? eventId,
+            "modifiedAt": msOrNull(ev?.lastModifiedDate),
+            "calendarId": ev?.calendar?.calendarIdentifier ?? calendarId,
+            "occurrenceDate": stampOrNull(ev?.occurrenceDate, f)
+        ]
     }
 
     @objc func createEvent(_ call: CAPPluginCall) {
@@ -324,17 +418,42 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         let allDay = call.getBool("all") ?? false
         let place = call.getString("place") ?? ""
         let notes = call.getString("notes") ?? ""
-        let fingerprint = [calendarId, title, call.getString("start") ?? "", call.getString("end") ?? "", allDay ? "1" : "0", place, notes].joined(separator: "\u{1F}")
+        let parsedAlarms = parseAlarms(call.getArray("alarms"), allDay: allDay)
+        // alarms が配列でも null/未指定でもない値（文字列など）は不正。
+        let alarmsGiven = call.options["alarms"]
+        if parsedAlarms.invalid || (alarmsGiven != nil && !(alarmsGiven is NSNull) && call.getArray("alarms") == nil) {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        let offsets = parsedAlarms.offsets
+        // alarms 未指定なら旧版と同じ原文（旧版の記録と同じハッシュになる）。指定ありは offsets を足す（[] も区別する）。
+        let baseFingerprint = [calendarId, title, call.getString("start") ?? "", call.getString("end") ?? "", allDay ? "1" : "0", place, notes].joined(separator: "\u{1F}")
+        var fingerprint = baseFingerprint
+        if let offs = offsets {
+            fingerprint += "\u{1E}alarms:" + offs.map { String(Int($0)) }.sorted().joined(separator: ",")
+        }
+        let fp = sha256Hex(fingerprint)
+        let legacyFp = sha256Hex(baseFingerprint)
 
         queue.async { [weak self] in
             guard let self = self else { return }
             // 1) 記録済みの requestId は作り直さない（内容が違えばエラー）。
+            //    v1 から移した記録（itemId が空）は alarms 未指定の旧内容と照合する。
             if let done = self.loadCreated()[requestId] {
-                if done["fingerprint"] != fingerprint {
+                let doneFp = done["fp"] as? String
+                let doneItem = done["itemId"] as? String ?? ""
+                let migrated = doneItem.isEmpty
+                guard doneFp == fp || (migrated && offsets != nil && doneFp == legacyFp) else {
                     call.reject("requestId was used with different content", "INVALID_ARGUMENT")
-                } else {
-                    call.resolve(["eventId": done["eventId"] ?? ""])
+                    return
                 }
+                let eid = done["eventId"] as? String ?? ""
+                let ev = eid.isEmpty ? nil : self.store.event(withIdentifier: eid)
+                let reply = self.createdReply(ev, itemId: doneItem, eventId: eid, calendarId: calendarId, f)
+                if migrated, let newItem = reply["itemId"] as? String, !newItem.isEmpty {
+                    self.saveCreated(requestId, itemId: newItem, eventId: eid, fp: doneFp ?? fp)
+                }
+                call.resolve(reply)
                 return
             }
             guard let calendar = self.store.calendar(withIdentifier: calendarId) else {
@@ -362,8 +481,8 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             for ev in self.store.events(matching: probe) where ev.url?.absoluteString == marker {
                 let existing = ev.eventIdentifier ?? ""
                 if !existing.isEmpty {
-                    self.saveCreated(requestId, eventId: existing, fingerprint: fingerprint)
-                    call.resolve(["eventId": existing])
+                    self.saveCreated(requestId, itemId: ev.calendarItemIdentifier, eventId: existing, fp: fp)
+                    call.resolve(self.createdReply(ev, itemId: ev.calendarItemIdentifier, eventId: existing, calendarId: calendarId, f))
                     return
                 }
             }
@@ -377,6 +496,10 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             if !place.isEmpty { event.location = place }
             if !notes.isEmpty { event.notes = notes }
             event.url = URL(string: marker)
+            // alarms: 未指定は触らない、[] は明示的になし、値ありはその通りに。
+            if let offs = offsets {
+                event.alarms = offs.map { EKAlarm(relativeOffset: $0) }
+            }
             do {
                 try self.store.save(event, span: .thisEvent, commit: true)
             } catch {
@@ -388,8 +511,8 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
                 call.reject("saved event has no identifier", "UNAVAILABLE")
                 return
             }
-            self.saveCreated(requestId, eventId: newId, fingerprint: fingerprint)
-            call.resolve(["eventId": newId])
+            self.saveCreated(requestId, itemId: event.calendarItemIdentifier, eventId: newId, fp: fp)
+            call.resolve(self.createdReply(event, itemId: event.calendarItemIdentifier, eventId: newId, calendarId: calendarId, f))
         }
     }
 

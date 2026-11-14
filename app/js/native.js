@@ -26,6 +26,7 @@ export const errCode = (e) => (e && typeof e === 'object' && typeof e.code === '
 export function errText(e, fallback) {
   switch (errCode(e)) {
     case 'PERMISSION_DENIED': return 'カレンダーへのアクセスが許可されていません。';
+    case 'WRITE_ONLY': return 'カレンダーのフルアクセスの許可が必要です。';
     case 'RESTRICTED': return 'この端末ではカレンダーへのアクセスが制限されています。';
     case 'CALENDAR_NOT_FOUND': return '追加先のカレンダーが見つかりません。';
     case 'READ_ONLY': return 'このカレンダーには追加できません。';
