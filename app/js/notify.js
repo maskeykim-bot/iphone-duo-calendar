@@ -99,3 +99,48 @@ export function planNotifications(events, now, s, { days = WINDOW_DAYS, max = MA
   pool.sort((a, b) => (a.fireDate < b.fireDate ? -1 : a.fireDate > b.fireDate ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return pool.slice(0, max);
 }
+
+// ---------- 画面（通知行・パネル・ベル）用 ----------
+// 選択肢の値の符号化: ''=なし、時刻あり 'b30'、終日 'd1@08:00'。
+export const encAlarm = (a) => (a == null ? '' : a.before !== undefined ? `b${a.before}` : `d${a.day}@${a.at}`);
+export function decAlarm(v) {
+  const m = /^b(\d+)$/.exec(v ?? '');
+  if (m) return { before: Number(m[1]) };
+  const d = /^d(\d+)@(\d\d:\d\d)$/.exec(v ?? '');
+  return d ? { day: Number(d[1]), at: d[2] } : null;
+}
+const BEFORE_LABEL = { 0: '予定の時刻', 5: '5分前', 10: '10分前', 15: '15分前', 30: '30分前', 60: '1時間前', 120: '2時間前', 1440: '1日前', 2880: '2日前' };
+const DAY_LABEL = { 0: '当日', 1: '前日', 2: '2日前', 7: '1週間前' };
+const hmLabel = (at) => `${Number(at.slice(0, 2))}:${at.slice(3)}`;
+export const alarmLabel = (a) => (a.before !== undefined ? BEFORE_LABEL[a.before] : `${DAY_LABEL[a.day]} ${hmLabel(a.at)}`);
+// 選択肢（なしを含む）。all は終日用。extra は 08:00 以外など標準にない現在値（失わないよう足す）。
+export function alarmOptions(all, extra = []) {
+  const std = all ? ALLDAY_DAYS.map((day) => ({ day, at: '08:00' })) : TIMED_BEFORE.map((before) => ({ before }));
+  const have = new Set(std.map(encAlarm));
+  const add = extra.filter((a) => a && (all ? a.day !== undefined : a.before !== undefined) && !have.has(encAlarm(a)));
+  return [{ value: '', label: 'なし' }, ...[...std, ...add].map((a) => ({ value: encAlarm(a), label: alarmLabel(a) }))];
+}
+export const alarmsDup = (alarms) => new Set(alarms.map(encAlarm)).size !== alarms.length;
+const uniq = (list) => { const seen = new Set(); return list.filter((a) => { const k = encAlarm(a); if (seen.has(k)) return false; seen.add(k); return true; }); };
+// 終日の切替。時刻あり→終日：1日以上前は前日 08:00、他は当日 08:00。終日→時刻あり：既定。[]（明示のなし）は維持。
+export function convertAlarms(alarms, toAll, s) {
+  if (!Array.isArray(alarms) || !alarms.length) return alarms;
+  const n = normNotify(s);
+  return uniq(alarms.map((a) => (toAll ? (a.before !== undefined ? { day: a.before >= 1440 ? 1 : 0, at: '08:00' } : a) : (a.before !== undefined ? a : { ...n.defaultTimed }))));
+}
+// 画面の読み上げ・ベル用。
+export const alarmsAria = (alarms) => (Array.isArray(alarms) && alarms.length ? `通知 ${alarms.map(alarmLabel).join('、')}` : '');
+// 次に鳴る通知の表示（「9:30」「11/14 9:30」）。無ければ ''。
+export function nextNotifyText(occ, now) {
+  const stamp = localStr(now), fires = alarmsFor(occ).map((a) => fireAt(occ, a)).filter((f) => f && f > stamp).sort();
+  if (!fires.length) return '';
+  const f = fires[0], t = hmLabel(f.slice(11));
+  return f.slice(0, 10) === stamp.slice(0, 10) ? t : `${Number(f.slice(5, 7))}/${Number(f.slice(8, 10))} ${t}`;
+}
+// 開始が過去か（時刻あり：開始、終日：すべての発火が過去）。
+export function pastForNotify(occ, alarms, now) {
+  const stamp = localStr(now);
+  if (!occ.all) return occ.start <= stamp;
+  const fs = alarms.map((a) => fireAt(occ, a)).filter(Boolean);
+  return fs.length > 0 && fs.every((f) => f <= stamp);
+}

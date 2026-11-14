@@ -6,7 +6,7 @@ import { bumpRevision, occBetween } from './occcache.js';
 import { LIMIT, groupByDay, highlight, excerpt, searchEvents } from './search.js';
 import { backupName, buildBackup, countStats, localIso, planAppend, validateBackup, MAX_BYTES } from './backup.js';
 import { CAT_IDS, LIMITS as CAT_LIMITS, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory } from './categories.js';
-import { normNotify, planNotifications } from './notify.js';
+import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAlarms, encAlarm, fireAt, nextNotifyText, normNotify, pastForNotify, planNotifications, MAX_PENDING, WINDOW_DAYS } from './notify.js';
 import { call, errCode, errText, listen, nativeAvailable } from './native.js';
 import { covers, dedupe, extIn, extRange, fmtLoaded, groupBySource, lastDay, normSettings, rangeKey, searchExt, stampOf, subLabel, toDisplay, writable, ymdSlash } from './iphone.js';
 import {
@@ -272,8 +272,16 @@ const occIn = (a, b) => {
   const x = visExt();
   return x.length ? base.concat(extIn(x, a, b)) : base;
 };
+// 通知の印。Duo が鳴らす通知を持つ予定だけ（Web・全体オフ・iPhone 由来・iPhone と結びついた予定は出さない）。
+const duoNotifies = (e) => !isX(e) && !['linked', 'pending'].includes(e.nativeLink?.state);
+// Duo が鳴らす通知を持つ（回ごとの個別変更を含む）。許可の要求の判断に使う。
+const hasDuoAlarms = (e) => duoNotifies(e) && ((Array.isArray(e.alarms) && e.alarms.length > 0) || Object.values(e.overrides || {}).some((o) => Array.isArray(o?.alarms) && o.alarms.length > 0));
+const hasBell = (e) => NATIVE && duoNotifies(e) && Array.isArray(e.alarms) && e.alarms.length > 0 && loadNotify().enabled;
+const alLabel = (e) => (hasBell(e) ? ` ${alarmsAria(e.alarms)}` : '');
+const BELL = '<svg class="bell" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M6 1.2a.7.7 0 0 1 .7.7v.35A3.3 3.3 0 0 1 9.3 5.5v1.7l.9 1.1v.6H1.8v-.6l.9-1.1V5.5a3.3 3.3 0 0 1 2.6-3.25V1.9A.7.7 0 0 1 6 1.2zM4.8 10h2.4a1.2 1.2 0 0 1-2.4 0z" fill="currentColor"/></svg>';
+const bell = (e) => (hasBell(e) ? BELL : '');
 const rep = (e) => (e.recurring ? '<span class="rep" aria-hidden="true">↻</span>' : '');
-const repLabel = (e, t) => (e.recurring || isX(e) ? ` aria-label="${esc(`${xname(e)}${t}${e.recurring ? ' 繰り返し' : ''}`)}"` : '');
+const repLabel = (e, t) => (e.recurring || isX(e) || alLabel(e) ? ` aria-label="${esc(`${xname(e)}${t}${e.recurring ? ' 繰り返し' : ''}${alLabel(e)}`)}"` : '');
 const addBtn = '<footer class="foot"><button type="button" class="add" data-act="add">＋ 予定を追加</button></footer>';
 const legend = () => `<div class="legend" aria-label="カテゴリ凡例">${state.categories.filter((c) => !c.hidden).map((c) => `<span style="--cat:${c.color}">${esc(c.name)}</span>`).join('')}</div>`;
 const xlegend = () => (extActive() ? '<div class="xlegend small">▦ iPhoneの予定（カレンダーの色）</div>' : '');
@@ -303,7 +311,7 @@ const chead = () => (state.view === 'month'
 
 function card(e) {
   const sub = [e.place ? esc(e.place) : '', isMulti(e) ? `${e.start.slice(5, 10).replace('-', '/')} 〜 ${e.end.slice(5, 10).replace('-', '/')}` : '', e.nativeLink?.state === 'linked' ? 'iPhoneにも追加済み' : ''].filter(Boolean).join(' · ');
-  return `<button type="button" class="event ${catCls(e)}"${catSty(e)} data-event="${esc(e.id)}"${repLabel(e, `${timeLabel(e)} ${e.title}`)}><span class="clock">${timeLabel(e)}</span><span class="tag">${esc(tagText(e))}</span><strong>${rep(e)}${esc(e.title)}</strong>${sub ? `<span class="sub">${sub}</span>` : ''}</button>`;
+  return `<button type="button" class="event ${catCls(e)}"${catSty(e)} data-event="${esc(e.id)}"${repLabel(e, `${timeLabel(e)} ${e.title}`)}><span class="clock">${timeLabel(e)}${bell(e)}</span><span class="tag">${esc(tagText(e))}</span><strong>${rep(e)}${esc(e.title)}</strong>${sub ? `<span class="sub">${sub}</span>` : ''}</button>`;
 }
 const sampleBtn = () => (state.loaded && state.events.length === 0 ? '<button type="button" class="ghost" data-act="sample">サンプルを入れる</button>' : '');
 function dayList(k) {
@@ -439,7 +447,7 @@ function restoreAll(anchor) {
 // 週・日
 const weekKeys = () => Array.from({ length: 7 }, (_, i) => addDays(weekStart(state.selected), i));
 function weekEvent(e, k, vlist = false) {
-  return `<button type="button" class="event week-event ${catCls(e)}"${catSty(e)} data-event="${esc(e.id)}" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${e.title}${e.recurring ? ' 繰り返し' : ''}`)}"><span class="clock">${e.all || (vlist && isMulti(e)) ? '終日' : e.start.slice(11)}</span><strong>${xi(e)}${rep(e)}${esc(e.title)}</strong></button>`;
+  return `<button type="button" class="event week-event ${catCls(e)}"${catSty(e)} data-event="${esc(e.id)}" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${e.title}${e.recurring ? ' 繰り返し' : ''}${alLabel(e)}`)}"><span class="clock">${e.all || (vlist && isMulti(e)) ? '終日' : e.start.slice(11)}${bell(e)}</span><strong>${xi(e)}${rep(e)}${esc(e.title)}</strong></button>`;
 }
 function weekRow(k, short, vlist = false) {
   const list = eventsOnDay(occIn(k, k), k), d = parseKey(k);
@@ -470,10 +478,16 @@ function listHtml() {
   if (!next) next = occIn(addDays(k, 1), addDays(k, 400)).sort((a, b) => a.start.localeCompare(b.start) || String(a.id).localeCompare(String(b.id)))[0];
   const nextDay = next && dayOf(next.start) !== k ? `<small class="nd">${dayLabel(dayOf(next.start))}</small> ` : '';
   const nextHtml = next
-    ? `<button type="button" class="next ${catCls(next)}"${catSty(next)} data-event="${esc(next.id)}"${repLabel(next, `次の予定 ${next.title}`)}><small>次の予定 · ${esc(tagText(next))}</small><strong>${xi(next)}${rep(next)}${esc(next.title)}</strong><span class="when"><span class="time">${nextDay}${next.all ? '終日' : next.start.slice(11)}</span>${next.all || dayOf(next.start) !== dayOf(next.end) ? '' : ` — ${next.end.slice(11)}`}${next.place ? ` <small>${esc(next.place)}</small>` : ''}</span></button>`
+    ? `<button type="button" class="next ${catCls(next)}"${catSty(next)} data-event="${esc(next.id)}"${repLabel(next, `次の予定 ${next.title}`)}><small>次の予定 · ${esc(tagText(next))}</small><strong>${xi(next)}${rep(next)}${esc(next.title)}</strong><span class="when"><span class="time">${nextDay}${next.all ? '終日' : next.start.slice(11)}</span>${next.all || dayOf(next.start) !== dayOf(next.end) ? '' : ` — ${next.end.slice(11)}`}${next.place ? ` <small>${esc(next.place)}</small>` : ''}${nextBell(next)}</span></button>`
     : `<div class="next none"><small>次の予定</small><strong>${extActive() ? '読み込み済みの期間に次の予定はありません。' : state.events.length ? 'この後の予定はありません' : '予定はまだありません'}</strong>${sampleBtn()}</div>`;
   return `<section class="hero"><div class="date-block"><div class="eyebrow">今日 / ${d.getFullYear()}年${d.getMonth() + 1}月</div><div class="date">${d.getDate()}<span>${DOW[d.getDay()]}曜日</span></div></div>${nextHtml}</section>
     <section class="remaining" aria-label="今日の残り予定"><h3>今日の残り予定</h3><div class="list" data-scroll="rest">${rest.map(card).join('') || '<p class="small pad">この後の予定はありません。</p>'}</div></section>`;
+}
+// 閉じた一覧の「次の予定」の時刻行に、次に鳴る通知の時刻を添える。
+function nextBell(e) {
+  if (!hasBell(e)) return '';
+  const t = nextNotifyText(e, new Date());
+  return t ? ` <small class="nb">${BELL}${esc(t)} に通知</small>` : '';
 }
 const listView = () => `<div class="home listview" aria-label="一覧">${listHtml()}</div>`;
 // 閉じた画面（一覧 = home / 日・週・月 = browse）: 月領域（左）＋ 操作列 84px（右）＋ 浮動タブ。
@@ -532,7 +546,7 @@ function dayBlocks(k) {
 }
 function tlBlock({ e, s, en, col, n }, k) {
   const t = e.title, sub = hhmm(s);
-  return `<button type="button" class="tlev ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}--m:${s};--d:${en - s};left:calc(${col} * 100% / ${n} + 1px);width:calc(100% / ${n} - 2px)" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${t}${e.recurring ? ' 繰り返し' : ''}`)}"><span class="tt">${sub}</span>${esc(t)}</button>`;
+  return `<button type="button" class="tlev ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}--m:${s};--d:${en - s};left:calc(${col} * 100% / ${n} + 1px);width:calc(100% / ${n} - 2px)" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${t}${e.recurring ? ' 繰り返し' : ''}${alLabel(e)}`)}"><span class="tt">${sub}${bell(e)}</span>${esc(t)}</button>`;
 }
 // 終日段: 11px「終日」＋カテゴリの淡色地・本色12px太字のピル。最大3件（3日表示は各日1件）、幅不足なら減らして +N（その日の一覧へ）。
 function allDayRow(ks, avail) {
@@ -542,7 +556,7 @@ function allDayRow(ks, avail) {
     let shown = Math.min(cap, list.length);
     const est = (es) => es.reduce((a, e) => a + Math.min(colW, e.title.length * 12 + 26) + 6, 0) + (list.length > es.length ? 40 : 0);
     while (shown > 1 && est(list.slice(0, shown)) > colW) shown--;
-    const pills = list.slice(0, shown).map((e) => `<button type="button" class="adpill ${catCls(e)}" data-event="${esc(e.id)}" style="${catVar(e)}" aria-label="${esc(`${xname(e)}${dayLabel(k)} 終日 ${e.title}${e.recurring ? ' 繰り返し' : ''}`)}">${esc(e.title)}</button>`).join('');
+    const pills = list.slice(0, shown).map((e) => `<button type="button" class="adpill ${catCls(e)}" data-event="${esc(e.id)}" style="${catVar(e)}" aria-label="${esc(`${xname(e)}${dayLabel(k)} 終日 ${e.title}${e.recurring ? ' 繰り返し' : ''}${alLabel(e)}`)}">${esc(e.title)}</button>`).join('');
     const extra = list.length - shown;
     return `<div class="adcol" data-day="${k}">${pills}${extra > 0 ? `<button type="button" class="adplus" data-jump="${k}" aria-label="${dayLabel(k)}の終日の予定をすべて見る（ほか${extra}件）">+${extra}</button>` : ''}</div>`;
   }).join('');
@@ -726,8 +740,8 @@ async function loadSample() {
 
 // ---------- パネル共通（編集・範囲・確認・メニュー・検索・バックアップ） ----------
 const dlg = $('#editor'), confirmDlg = $('#confirm'), scopeDlg = $('#scope'), menuDlg = $('#menu'), searchDlg = $('#search'), backupDlg = $('#backup'), form = $('#form');
-const linkDlg = $('#link'), xdDlg = $('#xdetail'), xrDlg = $('#xretry'), catsDlg = $('#cats');
-const panels = [dlg, confirmDlg, scopeDlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, xrDlg, catsDlg];
+const linkDlg = $('#link'), xdDlg = $('#xdetail'), xrDlg = $('#xretry'), catsDlg = $('#cats'), notifyDlg = $('#notify');
+const panels = [dlg, confirmDlg, scopeDlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, xrDlg, catsDlg, notifyDlg];
 const anyPanel = () => panels.some((d) => d.open);
 const syncInert = () => { root.inert = anyPanel(); };
 const origins = new Map();
@@ -750,7 +764,7 @@ catsDlg.addEventListener('close', () => {
     saveDraft();
   }
 });
-for (const d of [dlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, catsDlg]) {
+for (const d of [dlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, catsDlg, notifyDlg]) {
   d.addEventListener('close', () => {
     syncInert();
     if (d._restore !== false) {
@@ -769,6 +783,7 @@ const F = {
 };
 const R = { toggle: $('#rtoggle'), panel: $('#rpanel'), sum: $('#rsum'), desc: $('#rdesc'), days: $('#rdays-wrap'), end: $('#rend-wrap'), countL: $('#rcount-l'), untilL: $('#runtil-l'), err: $('#rerror') };
 let rsel = [], autoDays = true;
+let alarms; // 編集中の通知。undefined=項目なし（既存で未設定。触るまで既定を付けない）／配列=明示（[] はなし）
 
 function resolve(id) {
   const pr = parseOccId(id);
@@ -810,7 +825,7 @@ function readForm() {
   return {
     title: F.title.value, categoryId: F.cat.value === EDIT_CATS ? lastCat : F.cat.value, all: F.all.checked, start: F.start.value, end: F.end.value, place: F.place.value, notes: F.notes.value,
     rfreq: F.rfreq.value, rbyday: [...rsel], rend: F.rend.value, rcount: F.rcount.value, runtil: F.runtil.value, ropen: !R.panel.hidden, autoDays,
-    xadd: F.xadd.checked, xcal: F.xcal.value,
+    xadd: F.xadd.checked, xcal: F.xcal.value, alarms,
   };
 }
 function saveDraft() {
@@ -866,7 +881,10 @@ function showEditor(values, id, focus = true) {
   setRepeatOpen(!!values.ropen);
   F.xadd.checked = !!values.xadd;
   xSel = values.xcal || '';
+  alarms = Array.isArray(values.alarms) ? values.alarms.map((a) => ({ ...a })) : undefined;
   updateRepeatUi();
+  updateAlarmUi();
+  if (NATIVE) refreshNotifyPerm().then(() => { if (dlg.open) updateAlarmUi(); });
   dlg.show();
   syncInert();
   if (focus) F.title.focus({ preventScroll: true });
@@ -906,7 +924,7 @@ function valuesFrom(cur) {
   return {
     title: o.title, categoryId: o.categoryId, all: !!o.all, start: toInput(o.start, o.all), end: toInput(o.end, o.all), place: o.place || '', notes: o.notes || '',
     rfreq: r ? r.freq : 'none', rbyday: r?.byDay || [], rend: r ? (r.count != null ? 'count' : r.until ? 'until' : 'none') : 'none',
-    rcount: String(r?.count ?? 10), runtil: r?.until ? r.until.replaceAll('-', '/') : '', ropen: false, autoDays: false,
+    rcount: String(r?.count ?? 10), runtil: r?.until ? r.until.replaceAll('-', '/') : '', ropen: false, autoDays: false, alarms: o.alarms,
   };
 }
 function openEditor(id, from, day = state.selected, startMin = null) {
@@ -916,7 +934,7 @@ function openEditor(id, from, day = state.selected, startMin = null) {
   const t0 = startMin == null ? '10:00' : hhmm(startMin), t1 = startMin == null ? '11:00' : startMin + 60 > 1439 ? '23:59' : hhmm(startMin + 60);
   const values = cur
     ? valuesFrom(cur)
-    : { title: '', categoryId: defaultCatId(), all: false, start: `${day.replaceAll('-', '/')} ${t0}`, end: `${day.replaceAll('-', '/')} ${t1}`, place: '', notes: '', rfreq: 'none', rbyday: [], rend: 'none', rcount: '10', runtil: '', ropen: false };
+    : { title: '', categoryId: defaultCatId(), all: false, start: `${day.replaceAll('-', '/')} ${t0}`, end: `${day.replaceAll('-', '/')} ${t1}`, place: '', notes: '', rfreq: 'none', rbyday: [], rend: 'none', rcount: '10', runtil: '', ropen: false, alarms: defaultAlarms(false, loadNotify()) };
   showEditor(values, cur ? id : null);
   saveDraft();
 }
@@ -926,10 +944,12 @@ function closeEditor() {
   if (scopeDlg.open) scopeDlg.close();
   closePanel(dlg);
 }
-function onFormChange() {
+function onFormChange(ev) {
+  if (AL.sel.includes(ev?.target)) return; // 通知の選択は onAlarmChange が扱う（input で作り直すと選択が戻ってしまう）
   if (F.rfreq.value === 'weekly' && (autoDays || !rsel.length)) { rsel = [startDow()]; autoDays = true; }
   if (F.rend.value === 'until' && !F.runtil.value.trim()) F.runtil.value = startKey().replaceAll('-', '/');
   updateRepeatUi();
+  updateAlarmUi();
   saveDraft();
 }
 form.addEventListener('input', onFormChange);
@@ -952,6 +972,8 @@ F.all.addEventListener('change', () => {
     else if (!all && /^\d{4}\/\d{2}\/\d{2}$/.test(v)) el.value = `${v} ${t}`;
   }
   applyAllDayUi();
+  alarms = convertAlarms(alarms, all, loadNotify());
+  updateAlarmUi();
   saveDraft();
 });
 $('#close').addEventListener('click', closeEditor);
@@ -963,6 +985,7 @@ async function commit(plan) {
   state.events = [...state.events.filter((e) => !gone.has(e.id)), ...plan.puts];
   bumpRevision();
   requestNotifySync('edit');
+  if (plan.puts.some(hasDuoAlarms)) askNotifyPerm(); // 結果を待たない。拒否されても保存は成立
 }
 const SAVE_FAIL = '保存できませんでした。もう一度お試しください。';
 
@@ -1120,6 +1143,7 @@ $('#dodelete').addEventListener('click', async () => {
 function openMenu(from) {
   $('#m-desk').hidden = L.w < 600 || L.h < 600;
   $('#m-link').hidden = !(NATIVE && X.avail);
+  $('#m-notify').hidden = !NATIVE;
   $('#m-desk').textContent = state.desk ? '卓上表示をやめる' : '卓上表示';
   $('#m-week').textContent = `週の始まり: ${state.weekStart === 1 ? '月曜（日曜にする）' : '日曜（月曜にする）'}`;
   $('#m-sample').hidden = !(state.loaded && state.events.length === 0);
@@ -1170,6 +1194,7 @@ menuDlg.addEventListener('click', (ev) => {
   if (!b) return;
   const m = b.dataset.m, from = origins.get(menuDlg);
   if (m === 'cats') { closePanel(menuDlg, false); openCategories(from); }
+  else if (m === 'notify') { closePanel(menuDlg, false); openNotify(from); }
   else if (m === 'backup') { closePanel(menuDlg, false); openBackup(from); }
   else if (m === 'link') { closePanel(menuDlg, false); openLink(from); }
   else if (m === 'desk') { closePanel(menuDlg); set({ desk: !state.desk }); }
@@ -1781,9 +1806,185 @@ async function createNative(id) {
 $('#xr-close').addEventListener('click', () => closePanel(xrDlg));
 $('#xr-retry').addEventListener('click', () => { closePanel(xrDlg); createNative(xrId); });
 
+
+// ---------- 通知（編集シートの行・設定パネル・許可・タップ） ----------
+const AL = { wrap: $('#alwrap'), sel: [$('#f-al0'), $('#f-al1')], row: [$('#al0-row'), $('#al1-row')], val: [$('#al0-v'), $('#al1-v')], note: $('#al-note'), off: $('#al-off'), perm: $('#al-perm'), xperm: $('#al-xperm'), ilink: $('#al-ilink') };
+const openSettings = async () => { try { await call('openSettings'); } catch { /* 開けなくても案内は残る */ } };
+// 編集中の予定の iPhone との関係。linked / pending は iPhone 側のアラームが鳴らす（Duo は鳴らさない）。
+const editLinked = () => {
+  const cur = editing ? resolve(editing) : null;
+  return !!(cur && ['linked', 'pending'].includes(cur.p.nativeLink?.state));
+};
+function updateAlarmUi() {
+  AL.wrap.hidden = !NATIVE;
+  if (!NATIVE) return;
+  const all = F.all.checked, list = Array.isArray(alarms) ? alarms : [];
+  const linked = editLinked(), n = loadNotify();
+  const noAccess = linked && X.perm !== 'granted';
+  const rows = list.length ? 2 : 1;
+  for (let i = 0; i < 2; i++) {
+    AL.row[i].hidden = i >= rows;
+    if (i >= rows) continue;
+    const other = list[1 - i] ? encAlarm(list[1 - i]) : null;
+    const opts = alarmOptions(all, list).filter((o) => o.value === '' || o.value !== other);
+    const cur = list[i] ? encAlarm(list[i]) : '';
+    AL.sel[i].innerHTML = opts.map((o) => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
+    AL.sel[i].value = cur;
+    AL.sel[i].disabled = noAccess;
+    AL.val[i].textContent = `${(opts.find((o) => o.value === cur) || opts[0]).label} ›`;
+    AL.val[i].classList.toggle('none', !cur);
+  }
+  const fires = !linked && list.length > 0;
+  const st = parseInput(F.start.value, all);
+  const past = fires && !!st && F.rfreq.value === 'none' && pastForNotify({ all, start: st, end: st }, list, new Date());
+  AL.note.hidden = !past;
+  AL.note.textContent = '過去の予定には通知されません';
+  AL.off.hidden = linked || n.enabled;
+  AL.perm.hidden = !(fires && n.enabled && N.perm === 'denied');
+  AL.ilink.hidden = !linked || noAccess;
+  AL.xperm.hidden = !noAccess;
+}
+function onAlarmChange(i) {
+  const vals = [0, 1].filter((j) => !AL.row[j].hidden).map((j) => decAlarm(AL.sel[j].value));
+  vals[i] = decAlarm(AL.sel[i].value);
+  const next = vals.filter(Boolean);
+  alarms = alarmsDup(next) ? next.filter((a, j) => next.findIndex((b) => encAlarm(b) === encAlarm(a)) === j) : next;
+  updateAlarmUi();
+  saveDraft();
+}
+AL.sel.forEach((el, i) => el.addEventListener('change', (ev) => { ev.stopPropagation(); onAlarmChange(i); }));
+AL.off.addEventListener('click', () => openNotify(AL.off));
+$('#al-settings').addEventListener('click', openSettings);
+$('#al-xsettings').addEventListener('click', openSettings);
+
+// 通知の許可。notifyStatus / requestNotifyPermission も再予約と同じ直列 chain に載せる（同時に native を呼ばない）。
+function refreshNotifyPerm() {
+  if (!NATIVE) return Promise.resolve();
+  const p = N.chain.then(async () => { try { const st = await call('notifyStatus'); N.perm = st?.status || N.perm; } catch { /* 不明のまま */ } });
+  N.chain = p;
+  return p;
+}
+// notDetermined のときだけ iOS の許可ダイアログを要求する。許可状態が変わったら再予約。
+function askNotifyPerm() {
+  if (!NATIVE) return Promise.resolve();
+  const p = N.chain.then(async () => {
+    try {
+      const st = await call('notifyStatus');
+      N.perm = st?.status || N.perm;
+      if (N.perm === 'notDetermined') {
+        const r = await call('requestNotifyPermission');
+        N.perm = r?.status || N.perm;
+        notifyPermissionChanged();
+      }
+    } catch { /* 許可の確認に失敗しても保存・操作は成立 */ }
+    if (dlg.open) updateAlarmUi();
+    if (notifyDlg.open) renderNotify();
+  });
+  N.chain = p;
+  return p;
+}
+
+// 通知パネル（その他メニュー →「通知」）。右ページ／全画面の dialog.full。
+const NT = { body: $('#nt-body') };
+let nt = { msg: '', err: '', busy: false };
+function openNotify(from) {
+  nt = { msg: '', err: '', busy: false };
+  renderNotify();
+  openPanel(notifyDlg, from);
+  NT.body.querySelector('button')?.focus({ preventScroll: true });
+  refreshNotifyPerm().then(() => { if (notifyDlg.open) renderNotify(); });
+}
+function optHtml(opts, cur) { return opts.map((o) => `<option value="${esc(o.value)}"${o.value === cur ? ' selected' : ''}>${esc(o.label)}</option>`).join(''); }
+function renderNotify() {
+  const n = loadNotify(), on = n.enabled, dis = nt.busy ? ' disabled' : '';
+  const tOpts = alarmOptions(false).slice(1), aOpts = alarmOptions(true, [n.defaultAllDay]).slice(1);
+  const tCur = encAlarm(n.defaultTimed), aCur = encAlarm(n.defaultAllDay);
+  const lbl = (opts, cur) => (opts.find((o) => o.value === cur) || opts[0]).label;
+  let h = `<div class="swrow nsw"><span id="nt-swl">予定の通知</span><button type="button" role="switch" id="nt-sw" class="sw" aria-checked="${on}" aria-labelledby="nt-swl"${dis}><span class="knob" aria-hidden="true"></span><span class="swt">${on ? 'オン' : 'オフ'}</span></button></div>`;
+  if (N.perm === 'denied') h += '<section class="card ncard deny"><p class="berr" role="alert">iPhone の設定で通知が許可されていません。</p><button type="button" id="nt-settings">設定を開く</button></section>';
+  else if (N.perm === 'provisional') h += '<section class="card ncard"><p>通知は通知センターに静かに届きます。ロック画面に出すには、設定で許可してください。</p><button type="button" id="nt-settings">設定を開く</button></section>';
+  if (nt.err) h += `<p class="berr" role="alert">${esc(nt.err)}</p>`;
+  h += `<h3 class="nh">新しい予定の既定</h3><section class="card nrows">
+    <label class="alrow"><span class="alk">時刻のある予定</span><span class="alv">${esc(lbl(tOpts, tCur))} ›</span><select id="nt-dt" aria-label="時刻のある予定の既定">${optHtml(tOpts, tCur)}</select></label>
+    <label class="alrow"><span class="alk">終日の予定</span><span class="alv">${esc(lbl(aOpts, aCur))} ›</span><select id="nt-da" aria-label="終日の予定の既定">${optHtml(aOpts, aCur)}</select></label>
+    <p class="small">ここを変えても、すでにある予定の通知は変わりません。</p></section>
+    <div class="swrow nsw"><span id="nt-tl">通知に予定名を表示</span><button type="button" role="switch" id="nt-showtitle" class="sw" aria-checked="${n.showTitle}" aria-labelledby="nt-tl"><span class="knob" aria-hidden="true"></span><span class="swt">${n.showTitle ? 'オン' : 'オフ'}</span></button></div>
+    <p class="nsmall">オフにすると、ロック画面には「予定があります」とだけ出ます。</p>
+    <section class="card nstat"><p class="ncount"><strong>予約中 <span id="nt-count">${N.scheduled == null ? '—' : N.scheduled}</span>件</strong></p><p class="small">${WINDOW_DAYS}日先まで・最大${MAX_PENDING}件。アプリを開くたびに先の分を予約し直します。長く開かないと、その先は届きません。</p></section>
+    <button type="button" id="nt-test" class="nbtn"${dis}>1分後にテスト通知を送る</button>`;
+  if (nt.msg) h += `<p class="bmsg" role="status">${esc(nt.msg)}</p>`;
+  NT.body.innerHTML = h;
+}
+function updateNotifyCount() {
+  const el = $('#nt-count');
+  if (el) el.textContent = N.scheduled == null ? '—' : N.scheduled;
+}
+NT.body.addEventListener('click', async (ev) => {
+  const b = ev.target.closest('button');
+  if (!b || b.disabled) return;
+  if (b.id === 'nt-settings') openSettings();
+  else if (b.id === 'nt-sw') {
+    const next = !loadNotify().enabled;
+    saveNotify({ enabled: next });
+    notifySettingsChanged(); // オフは直列 clear
+    renderNotify();
+    NT.body.querySelector('#nt-sw')?.focus({ preventScroll: true });
+    if (next) { await askNotifyPerm(); if (notifyDlg.open) renderNotify(); NT.body.querySelector('#nt-sw')?.focus({ preventScroll: true }); }
+  } else if (b.id === 'nt-showtitle') {
+    saveNotify({ showTitle: !loadNotify().showTitle });
+    notifySettingsChanged();
+    renderNotify();
+    NT.body.querySelector('#nt-showtitle')?.focus({ preventScroll: true });
+  } else if (b.id === 'nt-test') {
+    nt = { msg: '', err: '', busy: true }; renderNotify();
+    await askNotifyPerm();
+    try { await call('notifyTest'); nt = { msg: '1分後にテスト通知を送ります。', err: '', busy: false }; } catch (e) { nt = { msg: '', err: errCode(e) === 'PERMISSION_DENIED' ? '通知が許可されていないため、テスト通知を送れません。' : 'テスト通知を送れませんでした。もう一度お試しください。', busy: false }; }
+    renderNotify();
+    NT.body.querySelector('#nt-test')?.focus({ preventScroll: true });
+  }
+});
+NT.body.addEventListener('change', (ev) => {
+  const t = ev.target;
+  if (t.id === 'nt-dt') saveNotify({ defaultTimed: decAlarm(t.value) });
+  else if (t.id === 'nt-da') saveNotify({ defaultAllDay: decAlarm(t.value) });
+  else return;
+  notifySettingsChanged();
+  renderNotify();
+  NT.body.querySelector(`#${t.id}`)?.focus({ preventScroll: true });
+});
+$('#nt-close').addEventListener('click', () => closePanel(notifyDlg));
+
+// 通知のタップ: その日を開く（閉じた／縦は日表示、見開きは月＋右の時間軸）。対象の回を1.5秒だけ枠で示す。詳細・編集は開かない。
+let lastTap = { key: '', t: 0 };
+function onNotifyTap(p) {
+  if (!p || !isKey(p.day)) return;
+  const key = `${p.day}|${p.eventId}`, now = Date.now();
+  if (key === lastTap.key && now - lastTap.t < 1500) return; // 同じ通知の二重配送
+  lastTap = { key, t: now };
+  if (!N.ready) { N.tap = p; return; }
+  openNotifyTarget(p);
+}
+function openNotifyTarget({ day, eventId }) {
+  for (const d of [menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, xrDlg, catsDlg, notifyDlg]) if (d.open) closePanel(d, false);
+  const target = eventsOnDay(occIn(day, day), day).find((e) => !isX(e) && (e.id === eventId || e.parentId === eventId));
+  const spreadKind = layoutKind() === 'spread';
+  set({ selected: day, home: false, view: spreadKind ? 'month' : 'day' });
+  if (!target) { say(`${dayLabel(day)}を開きました。`); return; }
+  const sel = spreadKind ? '.rp .tlev, .rp .adpill' : '.daylist .event';
+  const el = [...root.querySelectorAll(sel)].find((b) => b.dataset.event === target.id && (!b.dataset.sday || b.dataset.sday === day));
+  if (el) {
+    const tl = el.closest('.tl');
+    if (tl) tl.scrollTop = Math.max(0, tl.scrollTop + el.getBoundingClientRect().top - tl.getBoundingClientRect().top - 40);
+    else el.scrollIntoView({ block: 'nearest' });
+    el.classList.add('nhl');
+    setTimeout(() => el.classList.remove('nhl'), 1500);
+  }
+  say(`${dayLabel(day)}の予定「${target.title}」の通知を開きました。`);
+}
+
 // ---------- 通知の再予約（予約の正本は常に「今の予定＋通知設定」。差分でなく全件を送り直す） ----------
 // N.scheduled / N.lastReason はメモリだけ。要求は 500ms trailing debounce、世代で古い応答を捨て、native 呼出しは常に1本ずつ。
-const N = { ready: false, perm: null, scheduled: null, lastReason: '', err: '', gen: 0, timer: 0, chain: Promise.resolve() };
+const N = { ready: false, tap: null, perm: null, scheduled: null, lastReason: '', err: '', gen: 0, timer: 0, chain: Promise.resolve() };
 const NOTIFY_OK = ['granted', 'provisional', 'ephemeral'];
 function requestNotifySync(reason = 'unknown') {
   if (!NATIVE || !N.ready) return;
@@ -1798,7 +1999,7 @@ async function runNotifySync(gen) {
     const n = loadNotify();
     if (!n.enabled) {
       await call('notifyClear'); // 許可状態に関係なく、オフなら全消去
-      if (gen === N.gen) { N.scheduled = 0; N.err = ''; }
+      if (gen === N.gen) { N.scheduled = 0; N.err = ''; updateNotifyCount(); }
       return;
     }
     const st = await call('notifyStatus');
@@ -1808,7 +2009,7 @@ async function runNotifySync(gen) {
     const items = planNotifications(state.events, new Date(), n);
     if (gen !== N.gen) return;
     const r = await call('notifySync', { items });
-    if (gen === N.gen) { N.scheduled = Number.isFinite(r?.scheduled) ? r.scheduled : items.length; N.err = ''; }
+    if (gen === N.gen) { N.scheduled = Number.isFinite(r?.scheduled) ? r.scheduled : items.length; N.err = ''; updateNotifyCount(); }
   } catch (e) {
     if (gen === N.gen) { N.err = errCode(e) || 'UNAVAILABLE'; N.scheduled = null; }
   }
@@ -1817,12 +2018,12 @@ async function runNotifySync(gen) {
 window.syncNotifications = requestNotifySync;
 const notifySettingsChanged = () => requestNotifySync('settings'); // オン・既定・showTitle の変更。オフなら直列 clear
 const notifyPermissionChanged = () => requestNotifySync('permission');
-void notifySettingsChanged; void notifyPermissionChanged; // PR 4 で使用
 
 async function initNative() {
   if (!NATIVE) return;
   // 連携オフ・カレンダー権限なしでも通知は動くので、購読は権限確認より前に行う。
   listen('calendarChanged', () => { clearTimeout(extTimer); extTimer = setTimeout(() => { if (extActive()) loadExt(true); }, 300); });
+  listen('notificationTapped', onNotifyTap);
   listen('timeChanged', () => { X.cache = null; bumpRevision(); requestNotifySync('time'); if (extActive()) loadExt(true); else render(); });
   const p = await checkPerm();
   if (p === null) return;
@@ -1844,6 +2045,7 @@ document.addEventListener('keydown', (ev) => {
   else if (menuDlg.open) closePanel(menuDlg);
   else if (xdDlg.open) closePanel(xdDlg);
   else if (linkDlg.open) closePanel(linkDlg);
+  else if (notifyDlg.open) closePanel(notifyDlg);
   else if (catsDlg.open) catsBack();
   else if (backupDlg.open) backBackup();
   else if (searchDlg.open) closePanel(searchDlg);
@@ -1915,8 +2117,10 @@ async function boot() {
     showEditor({
       title: draft.title || '', categoryId: draftCat(draft), all: !!draft.all, start: draft.start || '', end: draft.end || '', place: draft.place || '', notes: draft.notes || '',
       rfreq: draft.rfreq, rbyday: Array.isArray(draft.rbyday) ? draft.rbyday : [], rend: draft.rend, rcount: draft.rcount, runtil: draft.runtil, ropen: !!draft.ropen, autoDays: draft.autoDays,
+      alarms: Array.isArray(draft.alarms) ? draft.alarms : id ? undefined : defaultAlarms(!!draft.all, loadNotify()),
     }, id, false);
   }
+  if (N.tap) { const t = N.tap; N.tap = null; openNotifyTarget(t); }
   await Promise.race([initNative(), new Promise((r) => setTimeout(r, 2500))]);
   document.documentElement.dataset.ready = '1';
 }
