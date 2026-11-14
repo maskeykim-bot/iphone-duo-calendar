@@ -1,5 +1,5 @@
 // 静的アセットのみをキャッシュ。同一オリジン以外には一切アクセスしない。
-const CACHE = 'duo-static-v10';
+const CACHE = 'duo-static-v11';
 const ASSETS = [
   './', './index.html', './manifest.json', './css/app.css',
   './js/app.js', './js/db.js', './js/util.js', './js/sample.js', './js/swipe.js', './js/recur.js', './js/search.js', './js/backup.js', './js/native.js', './js/iphone.js', './js/categories.js', './js/occcache.js',

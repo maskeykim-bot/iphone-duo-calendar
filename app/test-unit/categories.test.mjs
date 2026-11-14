@@ -92,13 +92,15 @@ test('planDeleteCategory: 最後の1件は削除できない／移し先が必�
   assert.equal(planDeleteCategory(CATS, [], 'nope', 'a').ok, false);
 });
 
-test('mergeCategories add: 同じ id は現在の名前・色を残し、新しい id は末尾へ', () => {
+test('mergeCategories add: 同じ id は取り込む側の名前・色で上書き（order は今のまま）、新しい id は末尾へ', () => {
   const inc = [cat('a', '別名', 5, { color: '#a13a3a' }), cat('n1', 'N1', 0), cat('n2', 'N2', 1)];
   const r = mergeCategories(CATS, inc, 'add');
   assert.equal(r.conflicts, 1);
   assert.equal(r.added, 2);
   assert.deepEqual(r.categories.map((c) => c.id), ['a', 'b', 'c', 'n1', 'n2']);
-  assert.equal(r.categories[0].name, 'A');
+  assert.equal(r.categories[0].name, '別名');
+  assert.equal(r.categories[0].color, '#a13a3a');
+  assert.deepEqual(r.overwritten.map((c) => c.id), ['a']);
   assert.deepEqual(r.categories.map((c) => c.order), [0, 1, 2, 3, 4]);
   assert.equal(mergeCategories(CATS, CATS, 'add').added, 0);
 });
@@ -161,4 +163,58 @@ test('バックアップ: categoryId とカテゴリ一覧が往復する。不�
   assert.equal(validateBackup(JSON.stringify({ ...o, categories: [...o.categories, o.categories[0]] })).ok, false); // id 重複
   assert.equal(validateBackup(JSON.stringify({ ...o, categories: [{ id: 'x', name: '', color: '#000000' }] })).ok, false);
   assert.equal(validateBackup(JSON.stringify({ ...o, events: [{ ...o.events[0], categoryId: undefined }] })).ok, false);
+});
+
+test('mergeCategories add: id が違うのに同名なら「仕事 (2)」。同じ id は上書きしない', () => {
+  const cur = [cat('a', '仕事', 0), cat('b', '仕事 (2)', 1)];
+  const r = mergeCategories(cur, [cat('x', ' 仕事 ', 0), cat('a', '仕事', 1), cat('y', '仕事', 2)], 'add');
+  assert.deepEqual(r.categories.map((c) => [c.id, c.name]), [['a', '仕事'], ['b', '仕事 (2)'], ['x', '仕事 (3)'], ['y', '仕事 (4)']]);
+  assert.equal(r.renamed, 2);
+  assert.equal(mergeCategories(cur, cur, 'add').added, 0);
+});
+test('mergeCategories add: 読み込み後も上限20。溢れは入れず、未分類の受け皿を1つ空ける', () => {
+  const cur = Array.from({ length: 15 }, (_, i) => cat(`c${i}`, `C${i}`, i));
+  const inc = Array.from({ length: 10 }, (_, i) => cat(`n${i}`, `N${i}`, i));
+  const r = mergeCategories(cur, inc, 'add');
+  assert.equal(r.categories.length, 19);
+  assert.equal(r.dropped, 6);
+  // 溢れた id を参照する予定は未分類へ。未分類を足しても20を超えない
+  const fx = fixEventCategories([E('1', 'n9'), E('2', 'n0')], r.categories);
+  assert.equal(fx.categories.length, 20);
+  assert.equal(fx.events[0].categoryId, CAT_IDS.none);
+  assert.equal(fx.events[1].categoryId, 'n0');
+  assert.equal(fx.fallbackEvents, 1);
+  // 溢れなければ受け皿は空けない
+  assert.equal(mergeCategories(cur, inc.slice(0, 5), 'add').categories.length, 20);
+});
+test('mergeCategories replace: 20個を超えるファイルは20個まで', () => {
+  const inc = Array.from({ length: 30 }, (_, i) => cat(`n${i}`, `N${i}`, i));
+  const r = mergeCategories(CATS, inc, 'replace');
+  assert.equal(r.categories.length, 19);
+  assert.equal(r.dropped, 11);
+});
+test('fixEventCategories: fallbackEvents は予定の件数（親と個別変更が両方外れても1件）', () => {
+  const r = fixEventCategories([E('2', 'g', { overrides: { k: { title: 't', categoryId: 'g2' } } }), E('3', 'a')], CATS);
+  assert.equal(r.fallbackCount, 2);
+  assert.equal(r.fallbackEvents, 1);
+});
+
+test('mergeCategories add: 同じ id の上書きが別 id と同名になるときは、上書きする側に番号（取り込まれない既存は動かさない）', () => {
+  const r = mergeCategories(CATS, [cat('a', 'B', 0)], 'add');
+  assert.deepEqual(r.categories.map((c) => c.name), ['B (2)', 'B', 'C']);
+  assert.equal(r.renamed, 1);
+});
+test('mergeCategories add: 名前の入れ替え（a↔b）は両方取り込まれるなら衝突しない', () => {
+  const r = mergeCategories(CATS, [cat('a', 'B', 0), cat('b', 'A', 1)], 'add');
+  assert.deepEqual(r.categories.map((c) => c.name), ['B', 'A', 'C']);
+  assert.equal(r.renamed, 0);
+});
+test('mergeCategories add: 同じ内容を2回続けて取り込んでも数・名前・色は変わらない（番号付きも安定）', () => {
+  const inc = [cat('x', 'A', 0, { color: '#a13a3a' }), cat('a', 'A', 1), cat('b', 'Z', 2, { color: '#5e4c8e' })];
+  const once = mergeCategories(CATS, inc, 'add');
+  const twice = mergeCategories(once.categories, inc, 'add');
+  assert.equal(twice.added, 0);
+  assert.deepEqual(twice.categories.map((c) => [c.id, c.name, c.color]), once.categories.map((c) => [c.id, c.name, c.color]));
+  assert.deepEqual(once.categories.map((c) => c.name).sort(), ['A', 'A (2)', 'C', 'Z']);
+  assert.equal(mergeCategories(twice.categories, inc, 'add').categories.length, 4);
 });

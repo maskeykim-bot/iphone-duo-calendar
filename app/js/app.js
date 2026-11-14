@@ -489,7 +489,7 @@ root.addEventListener('click', (ev) => {
   else if (d.event) openEditor(d.event, b);
   else if (d.new) openEditor(null, b, d.new);
   else if (d.act === 'add') openEditor(null, b);
-  else if (d.act === 'today') set({ selected: todayKey(), view: 'month', home: true });
+  else if (d.act === 'today') set(['home', 'browse'].includes(layoutKind()) ? { selected: todayKey(), view: 'month', home: true } : { selected: todayKey() }); // 開いた画面では日・週・月のビューを保つ
   else if (d.act === 'prev') move(-1);
   else if (d.act === 'next') move(1);
   else if (d.act === 'desk') set({ desk: !state.desk });
@@ -570,7 +570,7 @@ const startKey = () => { const t = parseInput(F.start.value, F.all.checked); ret
 // カテゴリ選択（編集シート）。選択肢はカテゴリ一覧から作り、末尾に「カテゴリを編集…」を置く。
 const EDIT_CATS = '__edit-categories';
 let lastCat = '';
-const defaultCatId = () => state.categories[0]?.id ?? CAT_IDS.none;
+const defaultCatId = () => (state.categories.find((c) => !c.hidden) ?? state.categories[0])?.id ?? CAT_IDS.none;
 function draftCat(d) {
   const ids = state.categories.map((c) => c.id);
   if (ids.includes(d.categoryId)) return d.categoryId;
@@ -780,7 +780,28 @@ form.addEventListener('submit', async (ev) => {
   closePanel(dlg);
   set({ selected: dayOf(item.start) });
   if (xwant) createNative(item.id); else say('予定を保存しました。');
+  hiddenNotice(item.categoryId);
 });
+
+// 非表示のカテゴリに保存したとき、4秒間だけ知らせて「表示する」で戻せる（予定が消えたように見えないように）。
+let hnTimer = 0;
+function hiddenNotice(catId) {
+  const c = state.categories.find((x) => x.id === catId);
+  clearTimeout(hnTimer);
+  document.querySelector('#hidden-notice')?.remove();
+  if (!c?.hidden) return;
+  const el = document.createElement('div');
+  el.id = 'hidden-notice';
+  el.className = 'undobar toastbar';
+  el.setAttribute('role', 'status');
+  el.innerHTML = '<span>非表示のカテゴリに保存しました</span><button type="button" data-show-cat>表示する</button>';
+  el.querySelector('button').addEventListener('click', async () => {
+    clearTimeout(hnTimer); el.remove();
+    try { await commitCats({ catPuts: [{ ...c, hidden: false, updatedAt: Date.now() }] }); say(`「${c.name}」を表示に戻しました。`); } catch { say('保存できませんでした。もう一度お試しください。'); }
+  });
+  document.body.append(el);
+  hnTimer = setTimeout(() => el.remove(), 4000);
+}
 
 // ---------- 範囲シート（この予定のみ／これ以降すべて／すべて） ----------
 let scopeCtx = null; // { kind:'edit'|'delete', cur, ev }
@@ -1171,9 +1192,12 @@ function download(file) {
 }
 // 確認画面のカテゴリ行: 追加 n／同じ id で名前・色が違う n／未分類へ n 件。
 function catLine() {
-  const m = mergeCategories(state.categories, bk.data.categories.map((c) => ({ ...c })), 'add'), fb = bk.report?.fallbackCount || 0;
-  if (!m.added && !m.conflicts && !fb) return '';
-  return `<p class="small">カテゴリ：追加${m.added}件／同じidで名前・色が違う${m.conflicts}件（今のものを残します）／未分類へ${fb}件</p>`;
+  // 件数は適用時（finishImport の追加）と同じ計算で出す。
+  const m = mergeCategories(state.categories, bk.data.categories.map((c) => ({ ...c })), 'add');
+  // 読み込み後に「未分類」を指す予定（検証で知らない参照を未分類にしたものと、適用時に付け替えるものの両方）。
+  const fb = fixEventCategories(bk.plan.add, m.categories).events.filter((e) => e.categoryId === CAT_IDS.none || Object.values(e.overrides || {}).some((o) => o?.categoryId === CAT_IDS.none)).length;
+  if (!m.added && !m.conflicts && !fb && !m.dropped) return '';
+  return `<p class="small">カテゴリ：追加${m.added}件${m.conflicts ? `／同じidで名前・色が違う${m.conflicts}件（ファイルの名前・色に上書きします）` : ''}${m.renamed ? `／同じ名前に番号を付ける${m.renamed}件` : ''}${m.dropped ? `／上限${CAT_LIMITS.max}個を超える${m.dropped}件は追加しません` : ''}／未分類へ${fb}件</p>`;
 }
 async function doExport() {
   bk.err = ''; bk.msg = '';
@@ -1227,10 +1251,11 @@ async function finishImport(kind) {
     const now = Date.now(), cin = data.categories.map((c) => ({ ...c, createdAt: c.createdAt || now, updatedAt: c.updatedAt || now }));
     if (kind === 'add') {
       const fx = fixEventCategories(plan.add, mergeCategories(state.categories, cin, 'add').categories, now);
-      const have = new Set(state.categories.map((c) => c.id));
-      await db.applyImport({ catPuts: fx.categories.filter((c) => !have.has(c.id)), eventPuts: fx.events });
+      const cur = new Map(state.categories.map((c) => [c.id, c]));
+      const same = (c) => cur.get(c.id)?.name === c.name && cur.get(c.id)?.color === c.color;
+      await db.applyImport({ catPuts: fx.categories.filter((c) => !cur.has(c.id) || !same(c)), eventPuts: fx.events });
     } else {
-      let cats = data.hasCategories ? sortCategories(cin) : mergeCategories(state.categories, cin, 'add').categories;
+      let cats = data.hasCategories ? mergeCategories([], cin, 'replace').categories : mergeCategories(state.categories, cin, 'add').categories;
       if (!cats.length) cats = state.categories;
       const fx = fixEventCategories(data.events, cats, now);
       await db.applyImport({ catPuts: fx.categories, eventPuts: fx.events, replace: true });

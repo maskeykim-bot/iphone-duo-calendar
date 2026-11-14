@@ -136,35 +136,70 @@ export function planDeleteCategory(categories, events, id, targetId, now = Date.
 }
 
 // バックアップのカテゴリを現在のものに合わせる。
-// add: id が同じなら現在の名前・色を残す（conflicts に数える）。新しい id は末尾に追加。
+// add: id が同じなら取り込む側の名前・色で上書きする（conflicts に数える。上書き結果が別 id と同名なら番号を付ける）。新しい id は末尾に追加。
 // replace: 取り込むカテゴリで全置換。ただし予定が参照する id が無ければ呼び出し側で fixEventCategories を使う。
 export function mergeCategories(current, incoming, mode = 'add') {
-  if (mode === 'replace') return { categories: sortCategories(incoming), added: incoming.length, conflicts: 0 };
-  const byId = new Map(current.map((c) => [c.id, c]));
-  let next = current.reduce((m, c) => Math.max(m, c.order ?? 0), -1) + 1, conflicts = 0;
-  const added = [];
-  for (const c of sortCategories(incoming)) {
-    const cur = byId.get(c.id);
-    if (cur) { if (cur.name !== c.name || cur.color !== c.color) conflicts++; continue; }
-    const n = { ...c, order: next++ };
-    byId.set(n.id, n);
-    added.push(n);
+  const base = mode === 'replace' ? [] : current;
+  const inIds = new Set(incoming.map((c) => c.id));
+  const byId = new Map(base.map((c) => [c.id, c]));
+  // 取り込まれない既存カテゴリの名前は動かさない。同じ id は取り込む側の名前・色で上書きする（order・hidden は今のまま）。
+  const names = new Set(base.filter((c) => !inIds.has(c.id)).map((c) => c.name.trim()));
+  const uniq = (raw, isNone) => {
+    let name = raw.trim();
+    if (names.has(name) && !isNone) {
+      let n = 2, cand;
+      do { const suf = ` (${n++})`; cand = name.slice(0, Math.max(1, LIMITS.name - suf.length)) + suf; } while (names.has(cand));
+      name = cand;
+    }
+    names.add(name);
+    return name;
+  };
+  let next = base.reduce((m, c) => Math.max(m, c.order ?? 0), -1) + 1, conflicts = 0, renamed = 0, dropped = 0;
+  const sorted = sortCategories(incoming);
+  const overwritten = new Map();
+  // 上書きは今ある並び順で処理する（2回目以降も同じ結果になり、番号が入れ替わらない）。
+  const inById = new Map(incoming.map((c) => [c.id, c]));
+  for (const cur of sortCategories(base)) {
+    const c = inById.get(cur.id);
+    if (!c) continue;
+    const name = uniq(c.name, c.id === CAT_IDS.none);
+    if (name !== c.name.trim()) renamed++;
+    if (cur.name !== name || cur.color !== c.color) { conflicts++; overwritten.set(c.id, { ...cur, name, color: c.color, updatedAt: Math.max(cur.updatedAt || 0, c.updatedAt || 0, 1) }); }
+    else names.add(cur.name);
   }
-  return { categories: sortCategories([...current, ...added]), added: added.length, addedList: added, conflicts };
+  // 新しい id だけが追加の候補。合計が LIMITS.max を超える分は入れない（参照する予定は呼び出し側で未分類へ）。
+  // 溢れるとき（または未分類がファイルに含まれるとき）は、未分類の受け皿を1つ空けておく。
+  const fresh = sorted.filter((c) => !byId.has(c.id));
+  const normal = fresh.filter((c) => c.id !== CAT_IDS.none);
+  const needNone = !byId.has(CAT_IDS.none) && (normal.length < fresh.length || normal.length > LIMITS.max - base.length);
+  const room = LIMITS.max - base.length - (needNone ? 1 : 0);
+  const added = [];
+  for (const c of fresh) {
+    const isNone = c.id === CAT_IDS.none;
+    if (!isNone && added.filter((x) => x.id !== CAT_IDS.none).length >= room) { dropped++; continue; }
+    const name = uniq(c.name, isNone);
+    if (name !== c.name.trim()) renamed++;
+    added.push({ ...c, name, order: next++ });
+  }
+  const all = [...base.map((c) => overwritten.get(c.id) || c), ...added];
+  return { categories: sortCategories(all), added: added.length, addedList: added, conflicts, overwritten: [...overwritten.values()], renamed, dropped };
 }
 
 // 参照先のカテゴリが無い予定を未分類に付け替える（親と overrides）。必要なら未分類カテゴリを足す。
 export function fixEventCategories(events, categories, now = Date.now()) {
   const ids = new Set(categories.map((c) => c.id));
-  let fallback = 0;
+  let fallback = 0, fallbackEvents = 0;
   const fix = (id) => (ids.has(id) ? id : (fallback++, CAT_IDS.none));
   const out = events.map((e) => {
+    const before = fallback;
     const ov = e.overrides ? Object.fromEntries(Object.entries(e.overrides).map(([k, o]) => [k, o && o.categoryId !== undefined ? { ...o, categoryId: fix(o.categoryId) } : o])) : e.overrides;
-    return { ...e, categoryId: fix(e.categoryId), ...(ov ? { overrides: ov } : {}) };
+    const r = { ...e, categoryId: fix(e.categoryId), ...(ov ? { overrides: ov } : {}) };
+    if (fallback > before) fallbackEvents++;
+    return r;
   });
   let cats = categories;
   if (fallback && !ids.has(CAT_IDS.none)) {
     cats = [...categories, { ...UNCATEGORIZED, order: categories.reduce((m, c) => Math.max(m, c.order ?? 0), -1) + 1, createdAt: now, updatedAt: now }];
   }
-  return { events: out, categories: cats, fallbackCount: fallback };
+  return { events: out, categories: cats, fallbackCount: fallback, fallbackEvents };
 }
