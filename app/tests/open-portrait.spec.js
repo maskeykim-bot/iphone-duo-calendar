@@ -52,7 +52,7 @@ for (const size of PORTRAITS) {
       const strip = page.locator('.calendar .strip', { hasText: 'プロジェクト' }).first();
       await expect(strip).toBeVisible();
       expect(inside(await box(strip), sc)).toBe(true);
-      expect(await strip.innerText()).toMatch(/^(\d\d:\d\d )?プロジェクト/); // 開いた画面は既定で時刻を出す
+      expect(await strip.innerText()).toMatch(/^(\d{1,2}:\d\d )?プロジェクト/); // 時刻は既定で切（出すときは先頭0なし）
       await expect(page.locator('.calendar .bar', { hasText: '秋のゴルフ合宿' }).first()).toBeVisible();
       expect(await findTextOverlaps(page)).toEqual([]);
       expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight && document.documentElement.scrollWidth <= innerWidth)).toBe(true);

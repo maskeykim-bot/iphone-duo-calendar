@@ -227,7 +227,7 @@ test.describe('月の文字「大」・時刻の出し入れ', () => {
     await expect(chip(page, '2026-11-12')).toHaveCount(4);
   });
 
-  test('時刻は閉じ（既定オフ）と開き（既定オン）で別。切替は保存され、題名の全文は aria に残る', async ({ page }) => {
+  test('時刻は閉じ・開きとも既定オフで別。切替は保存され、題名の全文は aria に残る', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await seed(page, six.slice(0, 1));
     await tab(page, '月').click();
@@ -240,22 +240,39 @@ test.describe('月の文字「大」・時刻の出し入れ', () => {
     await expect(t).toHaveAttribute('aria-pressed', 'false');
     await t.click();
     await expect(t).toHaveAttribute('aria-pressed', 'true');
-    await expect(s).toHaveText('09:00 大小0');
+    await expect(s).toHaveText('9:00 大小0');
     await expect(s).toHaveAttribute('aria-label', /大小0/);
     const ui = await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')));
-    expect(ui).toMatchObject({ monthTimeClosed: true, monthTimeOpen: true });
+    expect(ui).toMatchObject({ monthTimeClosed: true, monthTimeOpen: false });
     await page.reload();
     await page.waitForSelector('html[data-ready]');
-    await expect(chip(page, '2026-11-12')).toHaveText('09:00 大小0');
-    // 開いた画面は既定オン → オフにしても閉じた側は変わらない
+    await expect(chip(page, '2026-11-12')).toHaveText('9:00 大小0');
+    // 開いた画面も既定オフ（保存済みの閉じ側「入」とは別）→ オンにするとオンのみ
     await page.setViewportSize(SIZES.openPortrait669);
     await setStyle(page, '予定名');
     await openMenu(page);
-    await expect(t).toHaveAttribute('aria-pressed', 'true');
-    await t.click();
     await expect(t).toHaveAttribute('aria-pressed', 'false');
     await expect(chip(page, '2026-11-12')).toHaveText('大小0');
-    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')))).toMatchObject({ monthTimeClosed: true, monthTimeOpen: false });
+    await t.click();
+    await expect(t).toHaveAttribute('aria-pressed', 'true');
+    await expect(chip(page, '2026-11-12')).toHaveText('9:00 大小0');
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')))).toMatchObject({ monthTimeClosed: true, monthTimeOpen: true });
+  });
+
+  test('第10版が自動保存した開き側「入」は切に戻る。第11版以降に明示した「入」は尊重。先頭0なし（3:00 / 10:00）', async ({ page }) => {
+    await page.addInitScript(() => { if (!localStorage.getItem('duo.ui.v1')) localStorage.setItem('duo.ui.v1', JSON.stringify({ view: 'month', style: 'named', home: false, weekStart: 1, monthTimeClosed: false, monthTimeOpen: true })); });
+    await openApp(page, SIZES.openPortrait669);
+    await seed(page, [ev('e3', '早朝', '2026-11-12T03:00', '2026-11-12T04:00'), ev('e10', '昼前', '2026-11-12T10:00', '2026-11-12T11:00')]);
+    await tab(page, '月').click().catch(() => {});
+    await setStyle(page, '予定名');
+    await expect(chip(page, '2026-11-12').first()).not.toHaveText(/\d:\d\d/);
+    await openMenu(page);
+    await menuBtn(page, '月表示に時刻を出す').click();
+    await expect(chip(page, '2026-11-12').filter({ hasText: '早朝' })).toHaveText('3:00 早朝');
+    await expect(chip(page, '2026-11-12').filter({ hasText: '昼前' })).toHaveText('10:00 昼前');
+    await page.reload();
+    await page.waitForSelector('html[data-ready]');
+    await expect(chip(page, '2026-11-12').filter({ hasText: '早朝' })).toHaveText('3:00 早朝');
   });
 
   test('旧い保存値（新キーなし）でも既定で補完される', async ({ page }) => {
