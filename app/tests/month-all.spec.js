@@ -261,7 +261,7 @@ test.describe('月「全部」表示', () => {
     expect(ms2).toBeLessThan(50);
   });
 
-  test('折り目 x=425〜465 に文字が入らない（見開きの全部）', async ({ page }) => {
+  test('折り目（中心±10）に文字が入らない（見開きの全部）', async ({ page }) => {
     await openApp(page, SIZES.openLandscape);
     await seed(page, [...SEED, ...many(day(13), 8, 'w')]);
     expect(await layout(page)).toBe('spread');
@@ -269,10 +269,10 @@ test.describe('月「全部」表示', () => {
     await expect(page.locator('.scroll.all')).toBeVisible();
     expect(await textInGutter(page)).toEqual([]);
     const pg = await page.locator('.page.calendar').boundingBox();
-    expect(pg.x + pg.width).toBeLessThanOrEqual(425);
+    expect(pg.x + pg.width).toBeLessThanOrEqual(890 / 2 - 10 + 0.5);
     for (const b of await page.locator('.week.all .strip, .week.all .bar, .week.all .plus').all()) {
       const r = await b.boundingBox();
-      expect(r.x + r.width).toBeLessThanOrEqual(425 + 0.5);
+      expect(r.x + r.width).toBeLessThanOrEqual(890 / 2 - 10 + 0.5);
     }
     // 上下にスクロールしても同じ
     await page.locator('.scroll.all').evaluate((e) => { e.scrollTop = e.scrollHeight; });

@@ -128,10 +128,11 @@ test.describe('検索とバックアップの表示', () => {
         expect(await layout(page)).toBe('spread');
         expect(await textInGutter(page)).toEqual([]);
         const r = await page.locator('#search').boundingBox();
-        expect(r.x).toBeGreaterThanOrEqual(465);
-        expect(r.x + r.width).toBeLessThanOrEqual(864.5);
+        // 右ページ（中心+10 〜 右端−76）の内側
+        expect(r.x).toBeGreaterThanOrEqual(size.width / 2 + 10 - 0.5);
+        expect(r.x + r.width).toBeLessThanOrEqual(size.width - 76 + 0.5);
         expect(r.y).toBeGreaterThanOrEqual(24);
-        expect(r.y + r.height).toBeLessThanOrEqual(602.5);
+        expect(r.y + r.height).toBeLessThanOrEqual(size.height - 24 + 0.5);
       }
       await page.getByRole('button', { name: '閉じる' }).first().click();
       await page.getByRole('button', { name: 'その他' }).click();

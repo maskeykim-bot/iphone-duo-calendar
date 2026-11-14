@@ -133,21 +133,8 @@ button[aria-pressed=true]{background:var(--green);color:#fff}
 .desk .legend{padding:2px 0}
 .desk .variant button{min-height:32px}
 
-/* 見開き手帳（開いた横）: 中央 x=425〜465 は無描画ガター */
-.shell.spread{padding:12px 24px 16px;gap:12px}
-.spreadhead{display:grid;grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr);flex:none;min-height:44px}
-.spreadhead .half{display:flex;align-items:center;gap:4px;min-width:0}
-.spreadhead .half:first-child{gap:8px}
-.spreadhead .brand{margin-right:auto;gap:0}.spreadhead .brand .small{display:none}
-.spreadhead .segment button{padding:4px 8px;min-width:40px}
-.spreadhead .deskbtn{padding:4px 8px;font-size:13px}
-.stitle{font:18px/1.2 Georgia,'Hiragino Mincho ProN',serif;margin:0 auto 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.spreadhead .arrows button{min-width:32px;padding:4px 2px}
-.spreadhead .today{padding:4px 8px;font-size:13px}
-.add.mini{width:44px;min-height:44px;flex:none;border-radius:12px;font-size:24px;padding:0;margin-left:2px}
-.pages{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr)}
+/* 見開き手帳（開いた横）: 折り目（ビューポート中心 ±10px）は無描画。左右ページは JS の --left-start/--left-end/--right-start/--right-end で絶対配置 */
 .page{min-width:0;min-height:0;display:flex;flex-direction:column}
-.page.calendar{display:flex}
 .spread .agenda{border:0;padding:0}
 .spread .agenda .eyebrow{margin-bottom:0}
 .spread .agenda h3{font-size:18px}
@@ -199,7 +186,6 @@ input[type=checkbox]{display:inline-block;width:20px;min-height:20px;vertical-al
 .day[aria-pressed=true]:hover,.day:hover{background:#ecebe2}
 .date{line-height:1.3}
 .date-block .eyebrow{margin-bottom:4px}
-.spreadhead .segment button{min-height:38px}
 
 /* スワイプ面: 縦スクロールとピンチは許可し、横はスクリプトで判定。ガター・ヘッダー・追加は対象外 */
 .scroll,.scroll button,.agenda,.agenda button,.list,.list button,.remaining,.hero,.hero button,.page,.page button{touch-action:pan-y pinch-zoom}
@@ -322,12 +308,12 @@ body[data-layout=home] dialog.full .phead,body[data-layout=browse] dialog.full .
 body[data-posture=portrait] dialog{--pw:520px;--m:16px}
 body[data-posture=portrait] dialog#confirm,body[data-posture=portrait] dialog#scope,body[data-posture=portrait] dialog#xretry{--pw:520px}
 body[data-posture=portrait] dialog.full{height:calc(100% - var(--rt) - var(--rb) - 2 * var(--m))}
-/* 開いた横 890×626: 右ページ x=465–864（左端は 50%+20px）・y=24–602。ガターに影を描かない */
-body[data-layout=spread] dialog{--pt:max(24px,calc(var(--rt) + 12px));--pb:max(24px,calc(var(--rb) + 12px));--pr:max(26px,calc(var(--rr) + 12px));
- top:var(--pt);bottom:var(--pb);left:calc(50% + 20px);right:var(--pr);margin:0;width:auto;--pw:399px;max-width:399px;max-height:min(578px,calc(100% - var(--pt) - var(--pb)));box-shadow:none}
-body[data-layout=spread] dialog.full{height:min(578px,calc(100% - var(--pt) - var(--pb)))}
-body[data-layout=spread] dialog#scope,body[data-layout=spread] dialog#confirm,body[data-layout=spread] dialog#xretry{top:auto;bottom:var(--pb);max-height:min(578px,calc(100% - var(--pt) - var(--pb)))}
-body[data-layout=spread] dialog#menu{inset:56px auto auto 24px;width:240px;max-width:240px;max-height:none;box-shadow:0 12px 30px #132c3340}
+/* 開いた横: パネルは右ページ（--right-start〜--right-end）の内側。折り目の保護域(中心±10)へは影も枠も出さない */
+body[data-layout=spread] dialog{--pt:max(24px,calc(var(--rt) + 12px));--pb:max(24px,calc(var(--rb) + 12px));
+ top:var(--pt);bottom:var(--pb);left:var(--right-start);right:calc(var(--layout-w) - var(--right-end));margin:0;width:auto;max-width:none;max-height:calc(100% - var(--pt) - var(--pb));box-shadow:none}
+body[data-layout=spread] dialog.full{height:calc(100% - var(--pt) - var(--pb))}
+body[data-layout=spread] dialog#scope,body[data-layout=spread] dialog#confirm,body[data-layout=spread] dialog#xretry{top:auto;bottom:var(--pb);left:var(--right-start);right:calc(var(--layout-w) - var(--right-end));max-height:calc(100% - var(--pt) - var(--pb))}
+body[data-layout=spread] dialog#menu{inset:56px auto auto var(--left-start);width:240px;max-width:240px;max-height:none;border:1px solid #c9c6ba;box-shadow:none}
 /* ハーフフォールド: 下ペインのみ（保護帯の下、左右16、下12） */
 body[data-layout=desk] dialog{--dt:max(calc(50% + 20px),calc(var(--rt) + 12px));--db:calc(var(--rb) + 12px);
  top:var(--dt);bottom:var(--db);left:calc(var(--rl) + 16px);right:calc(var(--rr) + 16px);margin:0;width:auto;max-width:none;max-height:calc(100% - var(--dt) - var(--db))}
@@ -490,3 +476,72 @@ input,select,textarea,.date-text{font-size:16px}
 .menurows .variant button{display:block;flex:1;width:auto;min-width:0;min-height:44px;font-size:14px;padding:4px 6px;text-align:center}
 .mlegend{margin:6px 4px 2px;padding-top:6px;border-top:1px solid var(--line)}
 .mlegend .legend{padding:4px 0 2px}
+
+/* ===== 第10版 ④: 見開き（左ページ＝月・一覧など／右ページ＝時間軸 60px/時／右端 76px の操作列）===== */
+.shell.spread{position:fixed;inset:0;display:block;padding:0;gap:0;background:linear-gradient(90deg,#F0EDE5 var(--fold-x),#FFFDFA var(--fold-x));overflow:hidden}
+.spread .page{position:fixed;top:var(--content-y);height:var(--content-h);display:flex;flex-direction:column;min-width:0;min-height:0;overflow:clip}
+.spread .lp{left:var(--left-start);width:calc(var(--left-end) - var(--left-start))}
+.spread .rp{left:var(--right-start);width:calc(var(--right-end) - var(--right-start))}
+.spread .page :focus-visible{outline-offset:-3px}
+/* 左の見出し: 年（薄色）月 ｜ 前・次・設定（各44角） */
+.shead{display:flex;align-items:flex-start;flex:none;height:var(--head-h);padding-top:calc(24px * var(--ry,1));min-height:0}
+.shead h2{flex:1;min-width:0;margin:0;font:20px/44px Georgia,'Hiragino Mincho ProN',serif;font-weight:700;white-space:nowrap;overflow:hidden;text-align:left}
+.shead h2 .yr{font-weight:400;color:#9a9d96}
+.sctl{display:flex;flex:none}
+.sctl button{min-width:44px;width:44px;height:44px;padding:0;font-size:22px;display:flex;align-items:center;justify-content:center}
+.spread .calendar{display:flex}
+.spread .weekdays{height:var(--wd-h);padding-bottom:0;align-items:center;background:transparent}
+.spread .week.named,.spread .week.simple{flex:0 0 max(var(--week-h),var(--need,85px))}
+.spread .week.all{height:max(var(--week-h),var(--need,0px))}
+.spread .scroll:not(.msc):not(.all)>.daylist,.spread .weekpage{padding:0 4px}
+.spread .listview{padding:0 4px;min-height:0;overflow:auto}
+.spread .agenda{border:0;padding:0 8px}
+.spread .agenda .list{padding-bottom:0}
+.spread .rpad{flex:none;height:var(--head-h)}
+.spread .weekpage{flex:1}
+/* 右の日見出し・1日/3日 */
+.rhead{display:flex;align-items:flex-start;flex:none;height:var(--head-h);padding-top:calc(24px * var(--ry,1));min-height:0}
+.rhead h2{flex:1;min-width:0;margin:0;font:20px/44px -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:clip}
+.spanbtn{flex:none;min-width:44px;height:44px;padding:0 2px;background:transparent}
+.spanbtn:hover{background:transparent}
+.spanbtn span{display:flex;align-items:center;justify-content:center;min-width:88px;height:32px;padding:0 12px;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);font-size:14px}
+/* 終日段（28px）: 月の線帯とは別 CSS。カテゴリの淡色地＋本色の太字 */
+.allday{display:flex;align-items:center;flex:none;height:28px;margin-bottom:max(4px,calc(32px * var(--ry,1) - 28px));min-width:0}
+.adl{flex:none;width:50px;font-size:11px;color:var(--muted)}
+.adcols{display:flex;flex:1;min-width:0}
+.adcol{display:flex;flex:1;gap:6px;min-width:0;overflow:hidden}
+.adpill,.adplus{height:28px;min-height:28px;padding:0 12px;border-radius:14px;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
+.adpill{background:var(--tint);color:var(--cat)}
+.adpill:hover{background:var(--tint);filter:brightness(.95)}
+.adplus{flex:none;padding:0 8px;color:var(--muted);background:transparent}
+.tlheads{display:flex;flex:none;height:44px}
+.tlh0{flex:none;width:50px}
+.tlhd{flex:1;min-width:0;height:44px;padding:0;font-size:13px;font-weight:700;border-radius:8px}
+.tlhd.today{color:var(--green)}
+.tlhd[aria-pressed=true]{background:var(--green);color:#fff}
+/* 時間軸: 1時間 --hh（既定60px）。時刻列 44px・線は +50 から右端まで。内部スクロール（文書は動かさない） */
+.tl{flex:1;min-height:0;overflow-y:auto;overflow-x:clip;overscroll-behavior:contain;position:relative;touch-action:pan-y}
+.tl *{touch-action:pan-y}
+.tlin{position:relative;height:calc(24 * var(--hh) + 2 * 12px)}
+.hl{position:absolute;left:50px;right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:0;border-top:1px solid #dcd9cf}
+.hl.half{border-top:1px dotted #dcd9cf}
+.hlab{position:absolute;left:0;width:44px;top:calc(12px + var(--m) * var(--hh) / 60 - 9px);height:18px;font-size:12px;line-height:18px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.tlcols{position:absolute;left:50px;right:0;top:0;bottom:0;display:flex}
+.tlcol{position:relative;flex:1;min-width:0}
+.tlcol+.tlcol{border-left:1px solid #e8e5dc}
+.tlev{position:absolute;z-index:2;top:calc(12px + var(--m) * var(--hh) / 60);height:max(20px,calc(var(--d) * var(--hh) / 60 - 1px));min-height:20px;padding:1px 4px 1px 8px;border-radius:4px;background:var(--tint);color:var(--ink);box-shadow:inset 4px 0 0 var(--cat);
+ font-size:12px;line-height:17px;text-align:left;white-space:nowrap;overflow:hidden}
+.tlev:hover{background:var(--tint);filter:brightness(.95)}
+.tlev .tt{margin-right:5px;font-weight:700;color:var(--cat)}
+.nowl{position:absolute;z-index:3;left:0;right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:0;pointer-events:none}
+.nowl:before{content:'';position:absolute;left:calc(50px + var(--i) * (100% - 50px) / var(--n));width:calc((100% - 50px) / var(--n));top:-.75px;height:1.5px;background:#D64541}
+.nowt{position:absolute;left:0;top:-11px;width:46px;height:22px;border-radius:11px;background:#D64541;color:#fff;font-size:11px;font-weight:700;line-height:22px;text-align:center;font-variant-numeric:tabular-nums}
+/* 右端 76px の操作列（背景は左ページ色。操作は JS の --sr-*-y） */
+.spread .rail.srail{position:fixed;z-index:5;top:0;bottom:0;left:var(--right-end);right:0;display:block;padding:0;overflow:visible;background:#F0EDE5}
+.srail .rbtn,.srail .cap{position:absolute;left:14px}
+.srail .rtoday{top:var(--sr-today-y)}
+.srail .radd{top:var(--sr-add-y)}
+.srail .cap{top:var(--sr-cap-y);width:48px;height:144px;border-radius:24px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);display:flex;flex-direction:column;overflow:hidden}
+.srail .cap button{flex:none;width:48px;height:48px;min-height:48px;padding:0;border-radius:0;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center}
+body[data-layout=spread] .toastbar{left:var(--left-start);right:auto;width:calc(var(--left-end) - var(--left-start));margin:0}
+.menurows .tlz{display:flex;gap:4px;margin:2px 0 6px}.menurows .tlz button{flex:1;min-width:0;font-size:13px;padding:4px 6px}

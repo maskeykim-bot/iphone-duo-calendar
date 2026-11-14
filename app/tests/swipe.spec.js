@@ -12,8 +12,11 @@ const VIEWS = [
   ['日', '11月12日（木）', '11月13日（金）', '11月11日（水）'],
 ];
 // 本文の中ほど。次送りは右寄り、前送りは左寄りから始める（開いた横では左右どちらのページも使う）。
-const next = (s) => ({ x0: Math.round(s.width * 0.7), y0: Math.round(s.height * 0.55), dx: -120 });
+// 見開きの右ページの時間軸はスワイプの対象外（ピンチ・縦スクロール用）。月は左ページ、日は右の詳細一覧、週は左右どちらでも。
+const next = (s) => (s.width > s.height ? { x0: Math.round(s.width * 0.3), y0: Math.round(s.height * 0.5), dx: -120 } : { x0: Math.round(s.width * 0.7), y0: Math.round(s.height * 0.55), dx: -120 });
 const prev = (s) => ({ x0: Math.round(s.width * 0.3), y0: Math.round(s.height * 0.55), dx: 120 });
+const nextDay = (s) => ({ x0: Math.round(s.width * 0.6), y0: Math.round(s.height * 0.55), dx: -120 });
+const prevDay = (s) => ({ x0: Math.round(s.width * 0.55), y0: Math.round(s.height * 0.55), dx: 120 });
 
 for (const [lname, size] of LAYOUTS) {
   for (const [view, now, nextT, prevT] of VIEWS) {
@@ -22,11 +25,13 @@ for (const [lname, size] of LAYOUTS) {
       await loadSample(page);
       await tab(page, view).click();
       expect(await period(page)).toBe(now);
-      await swipe(page, next(size));
+      const spreadDay = size.width > size.height && view === '日'; // 見開きの日: 左は時間軸なので右の詳細一覧から
+      const [nx, pv] = spreadDay ? [nextDay, prevDay] : [next, prev];
+      await swipe(page, nx(size));
       await expect.poll(() => period(page)).toBe(nextT);
-      await swipe(page, prev(size));
+      await swipe(page, pv(size));
       await expect.poll(() => period(page)).toBe(now);
-      await swipe(page, prev(size));
+      await swipe(page, pv(size));
       await expect.poll(() => period(page)).toBe(prevT);
       await expect(page.getByRole('status')).toContainText(prevT);
     });
@@ -51,13 +56,24 @@ test('閉じたホーム: 左スワイプで月を送り、ホームを終了し
   expect(await period(page)).toBe('2026年 12月');
 });
 
-test('開いた横: 左右どちらのページでも1回だけ送る', async ({ page }) => {
+test('開いた横: 左ページ・右の一覧・週の右ページで1回だけ送る（時間軸は対象外）', async ({ page }) => {
   await openApp(page, SIZES.openLandscape);
   await loadSample(page);
   await swipe(page, { x0: 300, y0: 344, dx: -120 }); // 左ページ
   await expect.poll(() => period(page)).toBe('2026年 12月');
-  await swipe(page, { x0: 700, y0: 344, dx: -120 }); // 右ページ（アジェンダ）
-  await expect.poll(() => period(page)).toBe('2027年 1月');
+  await page.waitForTimeout(350);
+  await swipe(page, { x0: 700, y0: 344, dx: -120 }); // 右ページの時間軸は対象外（変わらない）
+  await page.waitForTimeout(350);
+  expect(await period(page)).toBe('2026年 12月');
+  await tab(page, '日').click();
+  expect(await period(page)).toBe('12月12日（土）');
+  await swipe(page, { x0: 700, y0: 344, dx: -120 }); // 右ページ（詳細一覧）
+  await expect.poll(() => period(page)).toBe('12月13日（日）');
+  await page.waitForTimeout(450); // スワイプ直後の click は抑止される
+  await tab(page, '週').click();
+  await expect.poll(() => period(page)).toBe('12月7日〜12月13日');
+  await swipe(page, { x0: 700, y0: 500, dx: -120 }); // 週: 右ページ
+  await expect.poll(() => period(page)).toBe('12月14日〜12月20日');
 });
 
 test.describe('判定', () => {

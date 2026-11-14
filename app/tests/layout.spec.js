@@ -101,26 +101,38 @@ test.describe('レイアウト（4サイズ）', () => {
     expect(new Set(xs).size).toBe(1);
   });
 
-  test('890×626 開いた横: 見開き（ヘッダー1行・折り目ガター無描画・5件がスクロールなし）', async ({ page }) => {
-    await openApp(page, SIZES.openLandscape);
-    await loadSample(page);
-    expect(await layout(page)).toBe('spread');
-    const head = await box(page.locator('.spreadhead'));
-    expect(head.height).toBeLessThanOrEqual(48);
-    // 全幅の追加バーはなく、44px 角の＋
-    const plus = await box(page.getByRole('button', { name: '予定を追加' }));
-    expect(plus.width).toBeLessThanOrEqual(48);
-    expect(plus.height).toBeLessThanOrEqual(48);
-    const pages = await page.locator('.pages').boundingBox();
-    expect(pages.y).toBeLessThan(head.y + head.height + 16);
-    const list = await box(page.locator('.agenda .list'));
-    const evs = page.locator('.agenda .event');
-    await expect(evs).toHaveCount(5);
-    for (const ev of await evs.all()) expect(inside(await box(ev), list)).toBe(true);
-    expect((await box(evs.first())).height).toBeGreaterThanOrEqual(70);
-    const pageBox = await box(page.locator('.pages'));
-    expect(pageBox.y + pageBox.height).toBeLessThanOrEqual(626);
-  });
+  for (const size of [SIZES.openLandscape, SIZES.openLandscape951]) {
+    test(`${size.width}×${size.height} 開いた横: 見開き（左見出し1行・右は時間軸・76px 操作列・日の右ページは5件がスクロールなし）`, async ({ page }) => {
+      await openApp(page, size);
+      await loadSample(page);
+      expect(await layout(page)).toBe('spread');
+      const f = size.width / 2;
+      const head = await box(page.locator('.shead'));
+      expect(head.height).toBeLessThanOrEqual(80);
+      // 全幅の追加バーはなく、48px 角の＋は右端 76px の列
+      const plus = await box(page.getByRole('button', { name: '予定を追加' }));
+      expect(plus.width).toBeLessThanOrEqual(48);
+      expect(plus.height).toBeLessThanOrEqual(48);
+      const rail = await box(page.locator('.srail'));
+      expect(Math.round(size.width - rail.x)).toBe(76);
+      // 左ページは中心−10まで、右ページは中心+10から
+      const lp = await box(page.locator('.page.lp')), rp = await box(page.locator('.page.rp'));
+      expect(lp.x + lp.width).toBeLessThanOrEqual(f - 10 + 0.5);
+      expect(rp.x).toBeGreaterThanOrEqual(f + 10 - 0.5);
+      expect(rp.x + rp.width).toBeLessThanOrEqual(rail.x + 0.5);
+      // 月では右は時間軸（予定カードの一覧ではない）
+      await expect(page.locator('.tl')).toBeVisible();
+      await expect(page.locator('.agenda')).toHaveCount(0);
+      // 日: 左が時間軸・右が詳細一覧（5件が収まる）
+      await tab(page, '日').click();
+      const list = await box(page.locator('.agenda .list'));
+      const evs = page.locator('.agenda .event');
+      await expect(evs).toHaveCount(5);
+      for (const ev of await evs.all()) expect(inside(await box(ev), list)).toBe(true);
+      expect((await box(evs.first())).height).toBeGreaterThanOrEqual(70);
+      expect((await box(page.locator('.page.rp'))).y + (await box(page.locator('.page.rp'))).height).toBeLessThanOrEqual(size.height);
+    });
+  }
 
   test('卓上: 上カレンダー／折り目帯（全文表示）／下に選択日と追加', async ({ page }) => {
     for (const size of [SIZES.openPortrait, SIZES.openLandscape]) {
@@ -172,13 +184,13 @@ test.describe('可視テキストの重なり', () => {
   }
 });
 
-test.describe('見開きの折り目 (x=425〜465)', () => {
-  test('どのビューでも文字・カード・ボタンが折り目帯に乗らない', async ({ page }) => {
-    await openApp(page, SIZES.openLandscape);
+test.describe('見開きの折り目（ビューポート中心 ±10px）', () => {
+  for (const size of [SIZES.openLandscape, SIZES.openLandscape951]) test(`${size.width}×${size.height}: どのビューでも文字・カード・ボタンが折り目帯に乗らない`, async ({ page }) => {
+    await openApp(page, size);
     await loadSample(page);
     const collect = () => page.evaluate(() => {
       const hits = [];
-      const L = 425, R = 465;
+      const L = window.innerWidth / 2 - 10, R = window.innerWidth / 2 + 10;
       const hit = (r) => r.right > L + 0.5 && r.left < R - 0.5 && r.width > 0 && r.height > 0;
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       for (let n = walker.nextNode(); n; n = walker.nextNode()) {
@@ -198,7 +210,7 @@ test.describe('見開きの折り目 (x=425〜465)', () => {
       document.querySelectorAll('#app *').forEach((el) => {
         const cs = getComputedStyle(el);
         const painted = cs.backgroundColor !== 'rgba(0, 0, 0, 0)' || parseFloat(cs.borderTopWidth) || parseFloat(cs.borderLeftWidth) || parseFloat(cs.borderBottomWidth) || el.matches('button,input,select,.week,.event');
-        if (painted && !el.matches('.gutter,.pages,.spreadhead,.shell,.half,#app') && hit(el.getBoundingClientRect())) hits.push(`box:${el.className || el.tagName}`);
+        if (painted && !el.matches('.shell,#app') && hit(el.getBoundingClientRect())) hits.push(`box:${el.className || el.tagName}`);
       });
       return hits;
     });
@@ -209,10 +221,10 @@ test.describe('見開きの折り目 (x=425〜465)', () => {
       else probs.push(...(await collect()).map((h) => `${v} ${h}`));
     }
     expect(probs).toEqual([]);
-    // ガターの実座標
-    const g = await page.locator('.pages .gutter').boundingBox();
-    expect(Math.round(g.x)).toBe(425);
-    expect(Math.round(g.x + g.width)).toBe(465);
+    // 左右ページの端は折り目の実座標（中心±10）
+    const lp = await page.locator('.page.lp').boundingBox(), rp = await page.locator('.page.rp').boundingBox();
+    expect(Math.round(lp.x + lp.width)).toBe(Math.round(size.width / 2 - 10));
+    expect(Math.round(rp.x)).toBe(Math.round(size.width / 2 + 10));
   });
 });
 
