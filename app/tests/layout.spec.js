@@ -12,7 +12,7 @@ test.describe('レイアウト（4サイズ）', () => {
     await expect(page.locator('.hero')).toBeVisible();
     await expect(page.locator('.remaining')).toBeVisible();
     await expect(page.locator('.week, .agenda, .legend')).toHaveCount(0);
-    await expect(tab(page, '月')).toHaveAttribute('aria-pressed', 'true');
+    for (const t of ['日', '週', '月']) await expect(tab(page, t)).toHaveAttribute('aria-pressed', 'false');
     const add = await box(page.getByRole('button', { name: '予定を追加' }));
     expect(add.y + add.height).toBeLessThanOrEqual(678);
     // 残り4件が内部スクロールなしで見える
@@ -195,7 +195,16 @@ test.describe('見開きの折り目 (x=425〜465)', () => {
       for (let n = walker.nextNode(); n; n = walker.nextNode()) {
         if (!n.nodeValue.trim() || n.parentElement.closest('[hidden],dialog:not([open]),#status')) continue;
         const range = document.createRange(); range.selectNodeContents(n);
-        for (const r of range.getClientRects()) if (hit(r)) hits.push(`text:${n.nodeValue.trim()}`);
+        for (const r0 of range.getClientRects()) {
+          // overflow:hidden の祖先で切られた分は見えないので、可視部分だけで判定する（省略記号で切れるチップ名など）
+          let r = { left: r0.left, right: r0.right, width: r0.width, height: r0.height };
+          for (let a = n.parentElement; a && a !== document.documentElement; a = a.parentElement) {
+            const s = getComputedStyle(a);
+            if (s.overflowX !== 'visible') { const ar = a.getBoundingClientRect(); r.left = Math.max(r.left, ar.left); r.right = Math.min(r.right, ar.right); }
+          }
+          r.width = r.right - r.left;
+          if (hit(r)) hits.push(`text:${n.nodeValue.trim()}`);
+        }
       }
       document.querySelectorAll('#app *').forEach((el) => {
         const cs = getComputedStyle(el);

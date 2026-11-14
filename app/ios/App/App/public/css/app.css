@@ -64,12 +64,12 @@ button[aria-pressed=true]{background:var(--green);color:#fff}
 .named .chips{margin-top:var(--reserve)}
 .named .dhead{justify-content:space-between;height:20px;padding:0 1px}
 .named .num{width:22px;height:20px;border-radius:10px;font-size:13px}
-.plus{font-size:10px;color:var(--muted);line-height:1}
+.plus{font-size:11px;color:var(--muted);line-height:1}
 .chips{display:flex;flex-direction:column;min-height:0;overflow:hidden;gap:0}
-.chip{display:block;height:13px;background:var(--tint);color:var(--cat);font-size:10px;line-height:13px;border-radius:3px;padding:0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
-.more{display:block;height:13px;font-size:10px;line-height:13px;color:var(--muted);text-align:left;padding:0 3px;white-space:nowrap;overflow:hidden}
+.chip{display:block;height:16px;background:var(--tint);color:var(--cat);font-size:12px;line-height:16px;border-radius:3px;padding:0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+.more{display:block;height:16px;font-size:12px;line-height:16px;color:var(--muted);text-align:left;padding:0 3px;white-space:nowrap;overflow:hidden}
 .bar{position:absolute;z-index:2;height:16px;min-height:16px;padding:0 4px;border-radius:4px;background:var(--tint);color:var(--cat);border-left:3px solid var(--cat);
- font-size:10px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+font-size:12px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
 
 /* 予定カード */
 .event{position:relative;display:grid;grid-template-columns:1fr auto;column-gap:8px;align-items:center;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 12px 8px 14px;margin-top:8px;min-height:60px}
@@ -242,7 +242,7 @@ input[type=checkbox]{display:inline-block;width:20px;min-height:20px;vertical-al
 .portrait .pm .day:last-child{border-right:0}
 .portrait .pm .dhead{justify-content:flex-start;height:20px;padding:0 3px}
 .portrait .pm .num{width:22px;height:20px;border-radius:10px;font-size:13px}
-.portrait .pm .plus{position:absolute;right:4px;bottom:0;height:8px;font-size:9px;line-height:8px}
+.portrait .pm .plus{position:absolute;right:4px;top:0;height:20px;font-size:11px;line-height:20px}
 .pm .bar,.strip{position:absolute;z-index:2;height:16px;min-height:16px;padding:0 4px;border-radius:4px;background:var(--tint);color:var(--cat);
  font-size:12px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
 .pm .bar{border-left:3px solid var(--cat)}
@@ -252,7 +252,7 @@ input[type=checkbox]{display:inline-block;width:20px;min-height:20px;vertical-al
 .portrait .agenda .eyebrow{display:none}
 .portrait .agenda h3{margin:0;font-size:20px;line-height:36px}
 .portrait .agenda .count{margin:0}
-.portrait .agenda .list{grid-column:1/-1;align-self:stretch;min-height:0}
+.portrait .agenda .list{grid-column:1/-1;align-self:stretch;min-height:0;padding-bottom:calc(72px + var(--sab, env(safe-area-inset-bottom, 0px)))}
 .portrait .agenda .event{margin-top:0;margin-bottom:6px;min-height:54px;padding:6px 12px 6px 14px}
 .portrait .agenda .event .clock,.portrait .agenda .event .tag{line-height:18px}
 .portrait .agenda .event .sub{display:none}

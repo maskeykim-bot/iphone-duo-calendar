@@ -195,7 +195,7 @@ function agenda(k) {
 
 // 月グリッド
 const xCount = (es) => { const n = es.filter(isX).length; return n ? `（うちiPhone ${n}件）` : ''; };
-const ROW_H = 88, BAR_H = 16, BAR_GAP = 2, CHIP_H = 13;
+const ROW_H = 88, BAR_H = 16, BAR_GAP = 2, CHIP_H = 16;
 function monthGrid(kind) {
   if (kind === 'portrait') return monthGridPortrait();
   const sel = state.selected, today = todayKey(), cur = parseKey(sel).getMonth(), named = state.style === 'named';
@@ -228,7 +228,7 @@ function monthGrid(kind) {
   return html;
 }
 
-// 開いた縦の月: 常に予定名表示。週行64px = 日付20 + 2レーン×18 + 残件8。帯と短冊は共通の2レーン。
+// 開いた縦の月: 常に予定名表示。週行64px = 日付20 + 2レーン×18（+N は日付行の右端）。帯と短冊は共通の2レーン。
 const LANE_TOP = 20, LANE_H = 18;
 function monthGridPortrait() {
   const sel = state.selected, today = todayKey(), cur = parseKey(sel).getMonth();
@@ -291,7 +291,7 @@ function home() {
     ? `<button type="button" class="next ${catCls(next)}"${catSty(next)} data-event="${esc(next.id)}"${repLabel(next, `次の予定 ${next.title}`)}><small>次の予定 · ${esc(tagText(next))}</small><strong>${xi(next)}${rep(next)}${esc(next.title)}</strong><span class="when"><span class="time">${nextDay}${next.all ? '終日' : next.start.slice(11)}</span>${next.all || dayOf(next.start) !== dayOf(next.end) ? '' : ` — ${next.end.slice(11)}`}${next.place ? ` <small>${esc(next.place)}</small>` : ''}</span></button>`
     : `<div class="next none"><small>次の予定</small><strong>${extActive() ? '読み込み済みの期間に次の予定はありません。' : state.events.length ? 'この後の予定はありません' : '予定はまだありません'}</strong>${sampleBtn()}</div>`;
   return `<div class="shell home">
-    <header class="top">${brand}<div class="toolbar">${segment('month')}</div></header>
+    <header class="top">${brand}<div class="toolbar">${segment(null)}</div></header>
     <section class="hero"><div class="date-block"><div class="eyebrow">今日 / ${d.getFullYear()}年${d.getMonth() + 1}月</div><div class="date">${d.getDate()}<span>${DOW[d.getDay()]}曜日</span></div></div>${nextHtml}</section>
     <section class="remaining" aria-label="今日の残り予定"><h3>今日の残り予定</h3><div class="list" data-scroll="rest">${rest.map(card).join('') || '<p class="small pad">この後の予定はありません。</p>'}</div></section>
     ${addBtn}</div>`;
