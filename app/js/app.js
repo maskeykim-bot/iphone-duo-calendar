@@ -6,7 +6,7 @@ import { bumpRevision, occBetween } from './occcache.js';
 import { LIMIT, groupByDay, highlight, excerpt, searchEvents } from './search.js';
 import { backupName, buildBackup, countStats, localIso, planAppend, validateBackup, MAX_BYTES } from './backup.js';
 import { CAT_IDS, LIMITS as CAT_LIMITS, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory } from './categories.js';
-import { normNotify } from './notify.js';
+import { normNotify, planNotifications } from './notify.js';
 import { call, errCode, errText, listen, nativeAvailable } from './native.js';
 import { covers, dedupe, extIn, extRange, fmtLoaded, groupBySource, lastDay, normSettings, rangeKey, searchExt, stampOf, subLabel, toDisplay, writable, ymdSlash } from './iphone.js';
 import {
@@ -718,6 +718,7 @@ async function loadSample() {
     await db.putMany(SAMPLE.map((e) => ({ ...e, categoryId: ok.has(e.categoryId) ? e.categoryId : first })));
     state.events = await db.listEvents();
     bumpRevision();
+    requestNotifySync('sample');
     render();
     say('サンプルの予定を入れました。');
   } catch { say('サンプルを保存できませんでした。'); }
@@ -961,6 +962,7 @@ async function commit(plan) {
   const gone = new Set([...plan.dels, ...plan.puts.map((e) => e.id)]);
   state.events = [...state.events.filter((e) => !gone.has(e.id)), ...plan.puts];
   bumpRevision();
+  requestNotifySync('edit');
 }
 const SAVE_FAIL = '保存できませんでした。もう一度お試しください。';
 
@@ -1200,6 +1202,7 @@ async function commitCats({ catPuts = [], catDels = [], eventPuts = [] }) {
   setCategories([...state.categories.filter((c) => !dels.has(c.id) && !puts.has(c.id)), ...catPuts]);
   if (eventPuts.length) { const m = new Map(eventPuts.map((e) => [e.id, e])); state.events = state.events.map((e) => m.get(e.id) || e); }
   bumpRevision();
+  requestNotifySync('category');
   render();
 }
 const catColorName = (c) => paletteName(c) || '色';
@@ -1520,6 +1523,7 @@ async function finishImport(kind) {
     msg = `${data.events.length}件の予定${data.settings ? 'と設定' : ''}に置き換えました。`;
     if (data.settings) { const { notify, ...ui } = data.settings; Object.assign(state, ui); setFirstDay(state.weekStart); if (notify) saveNotify(notify); }
   }
+  requestNotifySync('import'); // state と（置換なら）通知設定が確定した後
   closePanel(backupDlg);
   set({});
   say(msg);
@@ -1634,7 +1638,7 @@ async function resumeExt() {
   if (X.cache && X.cache.tz !== new Date().getTimezoneOffset()) { X.cache = null; bumpRevision(); } // タイムゾーン変更: キャッシュ破棄
   await loadExt(true);
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden) resumeExt(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { resumeExt(); requestNotifySync('resume'); } });
 
 // 設定パネル
 function openLink(from) {
@@ -1690,6 +1694,7 @@ async function enableLink() {
   setLink({ enabled: true });
   lk.want = false;
   loadExt(true);
+  requestNotifySync('calendarAccess');
   render();
 }
 async function lkRequest() {
@@ -1762,6 +1767,7 @@ async function createNative(id) {
     if (!r?.eventId) throw new Error('no event id');
     await commit({ puts: [{ ...e, nativeLink: { state: 'linked', requestId: l.requestId, eventId: String(r.eventId), calendarId: l.calendarId } }], dels: [] });
     setLink({ defaultCalendarId: l.calendarId });
+    requestNotifySync('link');
     render();
     say('予定を保存し、iPhoneのカレンダーにも追加しました。');
     loadExt(true);
@@ -1775,11 +1781,51 @@ async function createNative(id) {
 $('#xr-close').addEventListener('click', () => closePanel(xrDlg));
 $('#xr-retry').addEventListener('click', () => { closePanel(xrDlg); createNative(xrId); });
 
+// ---------- 通知の再予約（予約の正本は常に「今の予定＋通知設定」。差分でなく全件を送り直す） ----------
+// N.scheduled / N.lastReason はメモリだけ。要求は 500ms trailing debounce、世代で古い応答を捨て、native 呼出しは常に1本ずつ。
+const N = { ready: false, perm: null, scheduled: null, lastReason: '', err: '', gen: 0, timer: 0, chain: Promise.resolve() };
+const NOTIFY_OK = ['granted', 'provisional', 'ephemeral'];
+function requestNotifySync(reason = 'unknown') {
+  if (!NATIVE || !N.ready) return;
+  const gen = ++N.gen;
+  N.lastReason = reason;
+  clearTimeout(N.timer);
+  N.timer = setTimeout(() => { N.chain = N.chain.then(() => runNotifySync(gen)).catch(() => {}); }, 500);
+}
+async function runNotifySync(gen) {
+  if (gen !== N.gen) return; // 開始前に新しい要求が来ていれば、そちらに任せる
+  try {
+    const n = loadNotify();
+    if (!n.enabled) {
+      await call('notifyClear'); // 許可状態に関係なく、オフなら全消去
+      if (gen === N.gen) { N.scheduled = 0; N.err = ''; }
+      return;
+    }
+    const st = await call('notifyStatus');
+    if (gen !== N.gen) return;
+    N.perm = st?.status || null;
+    if (!NOTIFY_OK.includes(N.perm)) { N.scheduled = null; return; } // 許可はここでは要求しない
+    const items = planNotifications(state.events, new Date(), n);
+    if (gen !== N.gen) return;
+    const r = await call('notifySync', { items });
+    if (gen === N.gen) { N.scheduled = Number.isFinite(r?.scheduled) ? r.scheduled : items.length; N.err = ''; }
+  } catch (e) {
+    if (gen === N.gen) { N.err = errCode(e) || 'UNAVAILABLE'; N.scheduled = null; }
+  }
+}
+// 公開呼出し名。PR 4 の設定・許可処理もここへ接続する。
+window.syncNotifications = requestNotifySync;
+const notifySettingsChanged = () => requestNotifySync('settings'); // オン・既定・showTitle の変更。オフなら直列 clear
+const notifyPermissionChanged = () => requestNotifySync('permission');
+void notifySettingsChanged; void notifyPermissionChanged; // PR 4 で使用
+
 async function initNative() {
   if (!NATIVE) return;
+  // 連携オフ・カレンダー権限なしでも通知は動くので、購読は権限確認より前に行う。
+  listen('calendarChanged', () => { clearTimeout(extTimer); extTimer = setTimeout(() => { if (extActive()) loadExt(true); }, 300); });
+  listen('timeChanged', () => { X.cache = null; bumpRevision(); requestNotifySync('time'); if (extActive()) loadExt(true); else render(); });
   const p = await checkPerm();
   if (p === null) return;
-  listen('calendarChanged', () => { clearTimeout(extTimer); extTimer = setTimeout(() => { if (extActive()) loadExt(true); }, 300); });
   if (link.enabled) {
     if (p === 'granted') { try { await refreshCalendars(); } catch { /* 一覧は後で再取得 */ } loadExt(true); } else dropLink('カレンダーへのアクセスを確認してください。');
   }
@@ -1858,7 +1904,7 @@ setInterval(() => { if (!anyPanel() && listShown()) render(); else updateNow(); 
 async function boot() {
   updateVars();
   render();
-  try { setCategories(await db.listCategories()); state.events = await db.listEvents(); bumpRevision(); } catch { say('保存領域を開けませんでした。'); }
+  try { setCategories(await db.listCategories()); state.events = await db.listEvents(); bumpRevision(); N.ready = true; requestNotifySync('launch'); } catch { say('保存領域を開けませんでした。'); }
   state.loaded = true;
   render();
   let draft = null;
