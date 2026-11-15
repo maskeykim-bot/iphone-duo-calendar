@@ -677,3 +677,47 @@ test.describe('ネイティブ（偽装）第11版 PR7: iPhone へ反映', () =>
     expect(e.nativeLink.ekIdentifier).toBe(`ext-new-1@${e.start}`);
   });
 });
+
+test.describe('端末をまたぐ照合（ekIdentifier）', () => {
+  const rawEv = (x) => ({ id: 'x@2026-11-12T10:00', eventId: 'other-dev', calendarId: 'cal-1', title: '会食', start: '2026-11-12T10:00', end: '2026-11-12T11:00', all: false, place: '', notes: '', recurring: false, requestId: null, ...x });
+
+  test('別の端末（eventId・itemId が違い、URL なしで externalId が同じ）でも月表示で二重にならない', async ({ page }) => {
+    await mock(page, { events: [rawEv({ itemId: 'zz', externalId: 'ex-1' })] });
+    await openApp(page);
+    await seed(page, [linkedEv()]);
+    await enable(page);
+    await tab(page, '月').click();
+    await page.locator('[data-date="2026-11-12"]').click({ position: { x: 12, y: 10 } });
+    await expect(page.locator('.daylist .event', { hasText: '会食' })).toHaveCount(1); // Duo の1件だけ
+    await expect(page.locator('.daylist .event.ext', { hasText: '会食' })).toHaveCount(0);
+  });
+
+  test('externalId が空だった結びつきは、同期後の読込で埋まり ekIdentifier も付く（同値では書き換えない）', async ({ page }) => {
+    await mock(page, { events: [rawEv({ itemId: 'it-1', externalId: 'ex-9', requestId: 'rq-1', eventId: 'ev-1' })] });
+    await openApp(page);
+    const { externalId, ekIdentifier, ...bare } = LINK;
+    void externalId; void ekIdentifier;
+    await seed(page, [linkedEv({ nativeLink: bare })]);
+    await enable(page);
+    await expect.poll(async () => (await dbEvents(page))[0].nativeLink.ekIdentifier).toBe('ex-9@2026-11-12T10:00');
+    expect((await dbEvents(page))[0].nativeLink.externalId).toBe('ex-9');
+    expect(await sent(page, 'updateEvent')).toHaveLength(0); // 照合では iPhone へ反映しない
+  });
+
+  test('代わりの照合で結びついた予定の削除は、予定名つきの確認文。キャンセルでは消費しない', async ({ page }) => {
+    await mock(page, { v2: true });
+    await openApp(page);
+    const nl = { ...LINK, itemId: 'gone', eventId: 'gone', matchedBy: 'fallback', fallbackDeleteConfirmed: false, calName: '家族', calSource: 'Google' };
+    await seed(page, [linkedEv({ nativeLink: nl })]);
+    await enable(page);
+    await openLinked(page);
+    await page.locator('#delete').click();
+    await expect(page.locator('#deletetitle')).toHaveText('会食\niPhone のカレンダーからも削除されます。\niPhone のカレンダーの『会食』も削除されます');
+    await page.locator('#canceldelete').click();
+    expect((await dbEvents(page))[0].nativeLink.fallbackDeleteConfirmed).toBe(false);
+    await page.locator('#delete').click();
+    await expect(page.locator('#deletetitle')).toContainText('『会食』も削除されます');
+    await page.locator('#dodelete').click();
+    await expect.poll(async () => (await sent(page, 'deleteEvent')).length).toBe(1);
+  });
+});

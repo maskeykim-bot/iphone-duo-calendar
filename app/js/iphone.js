@@ -1,7 +1,7 @@
 // iPhone カレンダー連携の純粋ロジック（DOM・ネイティブ呼び出しなし）。
 import { addDays, addMonths, dayOf, newId, weekStart } from './util.js';
 import { normalize, searchRange, terms } from './search.js';
-import { isFirstOccurrence, normRule, occurrenceAt, ruleEq } from './recur.js';
+import { expand, isFirstOccurrence, normRule, occurrenceAt, ruleEq } from './recur.js';
 
 export const DEFAULTS = { version: 1, enabled: false, calendarIds: [], selectionInitialized: false, defaultCalendarId: null };
 
@@ -39,6 +39,8 @@ export function toDisplay(raw, cal) {
   else if (end < start) end = start;
   return {
     id: `ip:${raw.id}`, origin: 'iphone', cat: 'ext', xid: String(raw.id), eventId: raw.eventId == null ? '' : String(raw.eventId), requestId: raw.requestId || null,
+    itemId: raw.itemId == null ? '' : String(raw.itemId), externalId: raw.externalId == null ? '' : String(raw.externalId),
+    occurrenceDate: typeof raw.occurrenceDate === 'string' && raw.occurrenceDate ? raw.occurrenceDate : null, modifiedAt: Number.isFinite(raw.modifiedAt) ? raw.modifiedAt : null,
     calId: raw.calendarId, calName: cal?.title || '', calSource: cal?.source || '', color: /^#[0-9a-fA-F]{6}$/.test(cal?.color || '') ? cal.color : '#68716a',
     title: String(raw.title || '').trim() ? String(raw.title) : '（無題）', start, end, rawEnd: String(raw.end), all, place: raw.place || '', notes: raw.notes || '', recurring: !!raw.recurring,
   };
@@ -52,17 +54,127 @@ const hiddenByDelete = (x, d) => {
   return d.span === 'this' ? x.start === d.occurrenceStart : x.start >= d.occurrenceStart;
 };
 
+// ---------- 端末をまたぐ照合（ekIdentifier）----------
+export const cleanLink = (l) => Object.fromEntries(Object.entries(l).filter(([, v]) => v !== undefined));
+// externalId が空なら ekIdentifier は作らない。非空なら `${externalId}@${seriesStart}`。
+export const withIdent = (l) => { const o = { ...l }; if (o.externalId && o.seriesStart) o.ekIdentifier = `${o.externalId}@${o.seriesStart}`; else delete o.ekIdentifier; return cleanLink(o); };
+
+// 外部予定の回（occurrenceDate、なければ start）が、親の系列の実在する回か。単発は開始が一致するか。
+// 系列は seriesStart（なければ親の開始）の日以降で、until（終了日を含む）・count の範囲に入る回だけ。例外（削除・移動）は無視して規則だけで見る。
+function inSeries(parent, x) {
+  const l = parent.nativeLink || {};
+  if (!parent.recurrence) return x.start === parent.start;
+  const key = x.occurrenceDate || x.start, day = dayOf(key), tm = key.slice(11);
+  const lo = dayOf(l.seriesStart && l.seriesStart < parent.start ? l.seriesStart : parent.start);
+  if (day < lo) return false;
+  const bare = { ...parent, exdates: [], overrides: {} };
+  return expand([bare], day, day).some((o) => o.occKey.slice(0, 10) === day && (key.length < 16 || o.occKey.slice(11) === tm));
+}
+
 // アプリ予定に linked で結びついた外部予定を除外する（タイトル・時刻の一致による推測はしない）。
+// 一致: eventId／requestId／itemId、または externalId（単発は開始も、系列は回が範囲内）。unlinked の古い印では隠さない。
 // outbox: 送信待ち。削除待ちの外部予定は、送信が終わる（または失敗して解除される）まで一時的に隠す。
 export function dedupe(ext, appEvents, outbox = []) {
-  const ids = new Set(), reqs = new Set();
+  const ids = new Set(), reqs = new Set(), items = new Set(), byExt = new Map();
   for (const e of appEvents) {
     const l = e.nativeLink;
-    if (l?.state === 'linked' && l.eventId) ids.add(String(l.eventId));
-    if (l?.requestId) reqs.add(l.requestId);
+    if (!l) continue;
+    if (l.state === 'linked') {
+      if (l.eventId) ids.add(String(l.eventId));
+      if (l.itemId) items.add(String(l.itemId));
+      if (l.externalId) { if (!byExt.has(l.externalId)) byExt.set(l.externalId, []); byExt.get(l.externalId).push(e); }
+    }
+    if (l.requestId && l.state !== 'unlinked') reqs.add(l.requestId);
   }
   const dels = outbox.filter((o) => o.kind === 'delete');
-  return ext.filter((x) => !(x.eventId && ids.has(x.eventId)) && !(x.requestId && reqs.has(x.requestId)) && !dels.some((d) => hiddenByDelete(x, d)));
+  return ext.filter((x) => !(x.eventId && ids.has(x.eventId)) && !(x.requestId && reqs.has(x.requestId)) && !(x.itemId && items.has(x.itemId))
+    && !(x.externalId && byExt.get(x.externalId)?.some((p) => inSeries(p, x))) && !dels.some((d) => hiddenByDelete(x, d)));
+}
+
+const sameLink = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+// 外部予定から作る nativeLink（照合・補完で使う実値）。
+function adopt(l, x, matchedBy) {
+  return withIdent({
+    ...l, v: 2, calendarId: x.calId || l.calendarId, itemId: x.itemId || l.itemId, eventId: x.eventId || l.eventId,
+    externalId: x.externalId || l.externalId, ekModified: x.modifiedAt ?? l.ekModified, matchedBy, warn: null,
+    calName: x.calName || l.calName, calSource: x.calSource ?? l.calSource, fallbackDeleteConfirmed: matchedBy === 'fallback' ? false : l.fallbackDeleteConfirmed,
+  });
+}
+
+// 遅れて埋める: requestId か itemId が一致する外部予定を見て、externalId が空→非空・変化したとき（と欠けた項目の補完）だけ更新する。
+// 戻り値 [{id, from, link}]。同じ値なら何も返さない（毎回 commit しない）。ekModified は触らない（食い違いの検出を壊さない）。
+export function refreshLinks(appEvents, ext) {
+  const out = [];
+  for (const e of appEvents) {
+    const l = e.nativeLink;
+    if (l?.state !== 'linked') continue;
+    const xs = ext.filter((x) => (l.requestId && x.requestId === l.requestId) || (l.itemId && x.itemId === l.itemId));
+    if (!xs.length) continue;
+    const x = xs.find((y) => y.externalId) || xs[0];
+    const nl = cleanLink({
+      ...l, v: 2, itemId: l.itemId || x.itemId || undefined, eventId: l.eventId || x.eventId || undefined,
+      externalId: x.externalId || l.externalId || undefined, seriesStart: l.seriesStart || e.start,
+      calName: l.calName || x.calName || undefined, calSource: l.calSource ?? (x.calName ? x.calSource : undefined),
+    });
+    const fin = withIdent(nl);
+    if (!sameLink(fin, l)) out.push({ id: e.id, from: l, link: fin });
+  }
+  return out;
+}
+
+// 復元・入れ直し・別端末の照合。この端末の外部予定に itemId が見つからない linked だけを、URL → externalId＋開始 → 代わりの照合 の順で探し直す。
+// 代わりの照合は restoring（復元した予定の id）だけ。タイトル・開始・終日・カレンダー名とアカウント名が一致し、他と結びつかない候補がちょうど1件のときだけ。
+// 戻り値 [{id, from, link}]。通常の表示ではタイトル推測をしない。
+export function relink(appEvents, ext, restoring = new Set()) {
+  const has = new Set(ext.map((x) => x.itemId).filter(Boolean));
+  const taken = new Set(); // 他の予定が使っている外部予定の id
+  for (const e of appEvents) {
+    const l = e.nativeLink;
+    if (l?.state === 'linked' && ((l.itemId && has.has(l.itemId)) || (l.eventId && ext.some((x) => x.eventId === l.eventId)))) ext.forEach((x) => { if ((l.itemId && x.itemId === l.itemId) || (l.eventId && x.eventId === l.eventId)) taken.add(x.id); });
+  }
+  const reqOwner = (e, x) => x.requestId && appEvents.some((o) => o !== e && o.nativeLink?.requestId === x.requestId && o.nativeLink.state !== 'unlinked');
+  const groupOf = (xs) => { const m = new Map(); for (const x of xs) { const k = x.itemId || x.id; if (!m.has(k)) m.set(k, []); m.get(k).push(x); } return [...m.values()]; };
+  const pick = (g) => [...g].sort((a, b) => (a.start < b.start ? -1 : 1))[0];
+  const out = [];
+  for (const e of appEvents) {
+    const l = e.nativeLink;
+    if (l?.state !== 'linked' || (l.itemId && has.has(l.itemId))) continue;
+    if (l.eventId && ext.some((x) => x.eventId === l.eventId)) continue;
+    const free = (x) => !taken.has(x.id);
+    let how = null, grp = null;
+    const byUrl = l.requestId ? ext.filter((x) => x.requestId === l.requestId && free(x)) : [];
+    if (byUrl.length && groupOf(byUrl).length === 1) { how = 'url'; grp = byUrl; }
+    if (!how && l.externalId) {
+      const g = groupOf(ext.filter((x) => x.externalId === l.externalId && free(x) && !reqOwner(e, x) && inSeries(e, x)));
+      if (g.length === 1) { how = 'external'; grp = g[0]; }
+    }
+    if (!how && restoring.has(e.id) && l.calName) {
+      const t = String(e.title).trim(), st = l.seriesStart || e.start;
+      const g = groupOf(ext.filter((x) => free(x) && !reqOwner(e, x) && String(x.title).trim() === t && x.start === st && !!x.all === !!e.all && x.calName === l.calName && x.calSource === (l.calSource || '')));
+      if (g.length === 1) { how = 'fallback'; grp = g[0]; }
+    }
+    if (!how) continue;
+    const x = pick(grp);
+    grp.forEach((y) => taken.add(y.id));
+    const nl = adopt(l, x, how);
+    if (!sameLink(nl, l)) out.push({ id: e.id, from: l, link: nl });
+  }
+  return out;
+}
+
+// 置換の読み込み: 同じ requestId の予定が複数あれば先の1件だけ linked/pending のまま、後は unlinked にする。{ events, unlinked }
+export function uniqueRequestIds(events) {
+  const seen = new Set();
+  let unlinked = 0;
+  const out = events.map((e) => {
+    const l = e.nativeLink;
+    if (!l?.requestId) return e;
+    if (!seen.has(l.requestId)) { seen.add(l.requestId); return e; }
+    if (l.state === 'unlinked') return e;
+    unlinked++;
+    return { ...e, nativeLink: cleanLink({ ...l, state: 'unlinked', warn: null }) };
+  });
+  return { events: out, unlinked };
 }
 
 // 範囲 [a, b]（日キー・両端含む）に重なる外部予定。

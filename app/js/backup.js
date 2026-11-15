@@ -96,10 +96,13 @@ function checkRule(r, where) {
 
 // alarms（B.2 の形・最大2件。null は継承）と nativeLink（C.2 の形）。不正ならその項目だけ捨てる。
 const LINK_STATES = ['pending', 'linked', 'unlinked'];
-const LINK_STR = ['requestId', 'calendarId', 'itemId', 'externalId', 'ekIdentifier', 'eventId'];
+const LINK_STR = ['requestId', 'calendarId', 'itemId', 'externalId', 'ekIdentifier', 'eventId', 'calName', 'calSource'];
+const LINK_STAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 const linkOk = (l) => isObj(l) && LINK_STATES.includes(l.state)
   && LINK_STR.every((k) => l[k] == null || (typeof l[k] === 'string' && l[k].length <= 500))
-  && (l.v == null || Number.isInteger(l.v)) && (l.syncedAt == null || Number.isFinite(l.syncedAt))
+  && (l.v == null || Number.isInteger(l.v)) && (l.syncedAt == null || Number.isFinite(l.syncedAt)) && (l.ekModified == null || Number.isFinite(l.ekModified))
+  && (l.seriesStart == null || (typeof l.seriesStart === 'string' && LINK_STAMP.test(l.seriesStart)))
+  && (l.matchedBy == null || ['id', 'url', 'external', 'fallback'].includes(l.matchedBy)) && (l.fallbackDeleteConfirmed == null || typeof l.fallbackDeleteConfirmed === 'boolean')
   && (l.warn == null || l.warn === 'missing' || l.warn === 'writeOnly' || l.warn === 'conflict');
 // 予定・個別変更に共通の任意項目の検証。捨てた件数を返す。
 function checkOptional(o) {

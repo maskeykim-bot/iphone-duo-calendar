@@ -201,3 +201,19 @@ test('「これ以降」で分けた2つの親（別の requestId）を2回追�
   assert.equal(p2.skipped, 2);
   assert.notEqual(res.data.events[0].nativeLink.requestId, res.data.events[1].nativeLink.requestId);
 });
+
+test('nativeLink v2 の全項目（ekModified・matchedBy・seriesStart・warn:conflict・calName/calSource）が往復する', () => {
+  const nl = { ...link, ekModified: 1763000000000, matchedBy: 'fallback', seriesStart: '2026-11-20T10:00', warn: 'conflict', calName: '家族', calSource: 'Google', fallbackDeleteConfirmed: true };
+  const src = ev('N', '2026-11-20T10:00', '2026-11-20T11:00', null, { nativeLink: nl });
+  const v = roundtrip([src]);
+  assert.deepEqual(v.data.events[0].nativeLink, nl);
+  assert.equal(v.report.dropped, 0);
+  const bad = roundtrip([{ ...src, nativeLink: { ...nl, matchedBy: 'x' } }]);
+  assert.equal(bad.data.events[0].nativeLink, undefined);
+});
+test('同じ ekIdentifier の予定は別 id・別 requestId でも追加の読み込みで重複になる', () => {
+  const a = ev('A', '2026-11-20T10:00', '2026-11-20T11:00', null, { nativeLink: { ...link } });
+  const b = ev('B', '2026-11-20T10:00', '2026-11-20T11:00', null, { title: '別名', nativeLink: { ...link, requestId: 'other' } });
+  const p = planAppend([a], [b]);
+  assert.equal(p.add.length, 0); assert.equal(p.dup, 1);
+});

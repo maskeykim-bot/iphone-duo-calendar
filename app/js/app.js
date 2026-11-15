@@ -8,7 +8,7 @@ import { backupName, buildBackup, countStats, localIso, planAppend, validateBack
 import { CAT_IDS, LIMITS as CAT_LIMITS, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory } from './categories.js';
 import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAlarms, encAlarm, fireAt, nextNotifyText, normNotify, pastForNotify, planNotifications, MAX_PENDING, WINDOW_DAYS } from './notify.js';
 import { call, errCode, errText, listen, nativeAvailable } from './native.js';
-import { covers, dedupe, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, planNativeOps, rangeKey, searchExt, stampOf, subLabel, toDisplay, writable, ymdSlash } from './iphone.js';
+import { cleanLink, covers, dedupe, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, planNativeOps, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
 import {
   DOW, addDays, addMonths, assignSharedLanes, dayLabel, dayOf, dkey, eventsOnDay, isKey, isMulti,
   monthWeeks, newId, nowStamp, pad, parseInput, parseKey, ruleSummary, setFirstDay, timeLabel, toInput, todayKey, validateDraft, weekStart, weekdayHeads,
@@ -1116,7 +1116,7 @@ function deleteNotice(p) {
   const duoOnly = !NATIVE || ['denied', 'restricted', 'writeOnly', 'notDetermined'].includes(X.perm) || (!!cal && !cal.allowsModify);
   return duoOnly
     ? { duoOnly, text: () => 'Duo からだけ削除されます。iPhone のカレンダーには残ります。' }
-    : { duoOnly, text: (t) => `${t}\niPhone のカレンダーからも削除されます。` };
+    : { duoOnly, fallback: l.matchedBy === 'fallback' && !l.fallbackDeleteConfirmed, text: (t) => `${t}\niPhone のカレンダーからも削除されます。${l.matchedBy === 'fallback' && !l.fallbackDeleteConfirmed ? `\niPhone のカレンダーの『${t}』も削除されます` : ''}` };
 }
 function showConfirm(title, cur, duoOnly, dn) {
   $('#deletetitle').textContent = dn ? dn.text(cur.p.title) : cur.p.title;
@@ -1125,7 +1125,7 @@ function showConfirm(title, cur, duoOnly, dn) {
 }
 function askDelete(scope, cur) {
   const dn = deleteNotice(cur.p);
-  pendingDelete = { scope, cur, duoOnly: !!dn?.duoOnly };
+  pendingDelete = { scope, cur, duoOnly: !!dn?.duoOnly, fb: !!dn?.fallback };
   const day = dayLabel(dayOf(cur.occ.start));
   $('#confirmtitle').textContent = { only: 'この予定を削除しますか？', following: `${day.replace(/（.）/, '')}以降の予定をすべて削除しますか？`, all: '繰り返し予定をすべて削除しますか？' }[scope];
   showConfirm('', cur, !!dn?.duoOnly, dn);
@@ -1139,7 +1139,7 @@ $('#delete').addEventListener('click', () => {
   const cur = editing ? resolve(editing) : null;
   if (cur?.occKey) { openScope('delete', cur); return; }
   const dn = cur ? deleteNotice(cur.p) : null;
-  pendingDelete = cur ? { scope: 'only', cur, single: true, duoOnly: !!dn?.duoOnly } : null;
+  pendingDelete = cur ? { scope: 'only', cur, single: true, duoOnly: !!dn?.duoOnly, fb: !!dn?.fallback } : null;
   $('#confirmtitle').textContent = 'この予定を削除しますか？';
   if (cur) showConfirm('', cur, !!dn?.duoOnly, dn);
   else { $('#deletetitle').textContent = ''; $('#dodelete').textContent = '削除する'; }
@@ -1160,6 +1160,12 @@ $('#canceldelete').addEventListener('click', cancelConfirm);
 $('#dodelete').addEventListener('click', async () => {
   const pd = pendingDelete;
   try {
+    if (pd?.fb && !pd.duoOnly) { // 代わりの照合で結びついた予定の最初の削除を確定した。以後は追加の文を出さない（キャンセルでは消費しない）
+      const rid = pd.cur.p.nativeLink.requestId;
+      const ack = await db.applyAck({ keys: [pd.cur.p.id], update: (raw) => (raw.nativeLink?.requestId === rid && raw.nativeLink.state === 'linked' ? { ...raw, nativeLink: { ...raw.nativeLink, fallbackDeleteConfirmed: true } } : null) });
+      applyEvents(ack.events);
+      pd.cur = { ...pd.cur, p: state.events.find((e) => e.id === pd.cur.p.id) || pd.cur.p };
+    }
     if (pd && !pd.single) {
       // この明示選択（Duo から削除）では iPhone への削除を積まず、同じ範囲の未送信の更新も止める。
       const { ops } = planOps(pd.cur.p, null, pd.scope, pd.cur.occKey, null, { dropOnly: pd.duoOnly });
@@ -1487,7 +1493,7 @@ function renderBackup() {
       <button type="button" class="row" id="bk-replace"${dis}>置き換え<small>今の予定はすべて消えて、このファイルの内容になります。設定も置き換わります</small></button>
       <button type="button" class="row cancel" id="bk-cancel"${dis}>キャンセル</button>${bk.err ? `<p class="berr" role="alert">${esc(bk.err)}</p>` : ''}`;
   } else {
-    BK.body.innerHTML = `<section class="card"><h3>今の予定${st.total}件を削除して、${bk.data.events.length}件に置き換えますか？</h3><p>元に戻せません。必要なら先に書き出してください。</p>${NATIVE ? '<p class="small">iPhoneの予定と連携設定は変更しません。復元後、以前iPhoneにも追加した予定が重複して表示されることがあります。</p>' : ''}
+    BK.body.innerHTML = `<section class="card"><h3>今の予定${st.total}件を削除して、${bk.data.events.length}件に置き換えますか？</h3><p>元に戻せません。必要なら先に書き出してください。</p>${NATIVE ? '<p class="small">iPhoneの予定と連携設定は変更しません。復元後、iPhoneにも追加済みの予定はこの端末のiPhoneの予定と照合し直します。見つからない予定は、最初に変更・削除するときに結びつきが外れます。</p>' : ''}
       <div class="pair2"><button type="button" id="bk-rcancel"${dis}>キャンセル</button><button type="button" class="dangerfill" id="bk-rdo"${dis}>すべて置き換える</button></div>${bk.err ? `<p class="berr" role="alert">${esc(bk.err)}</p>` : ''}</section>`;
   }
 }
@@ -1553,7 +1559,9 @@ BK.file.addEventListener('change', () => {
 });
 async function finishImport(kind) {
   if (bk.busy) return;
-  const { data, plan } = bk, name = bk.name;
+  const { plan } = bk, name = bk.name;
+  let data = bk.data, dupLinks = 0;
+  if (kind === 'replace') { const u = uniqueRequestIds(data.events); data = { ...data, events: u.events }; dupLinks = u.unlinked; } // 二重の requestId は先の1件だけ結びつけ
   bk = { ...bk, busy: true, err: '' };
   renderBackup();
   try {
@@ -1583,9 +1591,12 @@ async function finishImport(kind) {
   let msg;
   if (kind === 'add') msg = `${plan.add.length}件を追加しました（重複${plan.skipped}件を除外）。`;
   else {
-    msg = `${data.events.length}件の予定${data.settings ? 'と設定' : ''}に置き換えました。`;
+    msg = `${data.events.length}件の予定${data.settings ? 'と設定' : ''}に置き換えました。${dupLinks ? `同じiPhone連携の印を持つ予定があったため、${dupLinks}件の結びつきを外しました。` : ''}`;
     if (data.settings) { const { notify, ...ui } = data.settings; Object.assign(state, ui); setFirstDay(state.weekStart); if (notify) saveNotify(notify); }
   }
+  // 復元した linked の予定は、この端末の iPhone の予定と照合し直す（代わりの照合は復元直後の予定だけ）。
+  for (const e of (kind === 'add' ? plan.add : data.events)) if (e.nativeLink?.state === 'linked') RESTORED.add(e.id);
+  if (extActive()) loadExt(true);
   requestNotifySync('import'); // state と（置換なら）通知設定が確定した後
   closePanel(backupDlg);
   set({});
@@ -1667,6 +1678,7 @@ function loadExt(force = false) {
       if (gen !== X.gen) return; // 古い応答は捨てる
       X.cache = { range: need, ids: idsKey(link.calendarIds), events, loadedAt: new Date(), tz: new Date().getTimezoneOffset() };
       X.status = 'ok'; X.failKey = '';
+      await reconcileLinks(); // 世代確認の後。照合は同期で計算し、保存時に現状と再確認する
     } catch (e) {
       if (gen !== X.gen) return;
       X.status = 'error'; X.failKey = key0;
@@ -1677,6 +1689,24 @@ function loadExt(force = false) {
   })();
   X.inflight = p;
   return p;
+}
+// 復元したばかりの予定の id（メモリのみ）。代わりの照合は、この予定にだけ・外部読込のたびに再試行する。
+const RESTORED = new Set();
+async function reconcileLinks() {
+  const ext = X.cache?.events;
+  if (!ext) return;
+  try {
+    const rel = relink(state.events, ext, RESTORED);
+    const moved = new Map(rel.map((r) => [r.id, r]));
+    const merged = state.events.map((e) => (moved.has(e.id) ? { ...e, nativeLink: moved.get(e.id).link } : e));
+    const ups = new Map([...rel, ...refreshLinks(merged, ext)].map((r) => [r.id, { from: moved.get(r.id)?.from || r.from, link: r.link }]));
+    for (const e of state.events) if (RESTORED.has(e.id) && !ups.has(e.id) && e.nativeLink?.itemId && ext.some((x) => x.itemId === e.nativeLink.itemId)) RESTORED.delete(e.id);
+    for (const id of moved.keys()) RESTORED.delete(id);
+    if (!ups.size) return;
+    // 保存時にも、計算した時点と同じ結びつきか確かめる。native への反映（update）は作らない。
+    const ack = await db.applyAck({ keys: [...ups.keys()], update: (raw) => { const u = ups.get(raw.id); return u && JSON.stringify(raw.nativeLink) === JSON.stringify(u.from) ? { ...raw, nativeLink: u.link } : null; } });
+    applyEvents(ack.events);
+  } catch { /* 照合の失敗は表示を止めない。次の読込で再試行 */ }
 }
 function afterExt() {
   render();
@@ -1826,15 +1856,14 @@ function openRetry(id, msg, canRetry) {
   (canRetry ? $('#xr-retry') : $('#xr-close')).focus({ preventScroll: true });
 }
 let xrId = null;
-const cleanLink = (l) => Object.fromEntries(Object.entries(l).filter(([, v]) => v !== undefined));
-// externalId が空なら ekIdentifier は作らない。非空なら `${externalId}@${seriesStart}`。
-const withIdent = (l) => { const o = { ...l }; if (o.externalId && o.seriesStart) o.ekIdentifier = `${o.externalId}@${o.seriesStart}`; else delete o.ekIdentifier; return cleanLink(o); };
 const applyEvents = (list) => {
   if (!list?.length) return;
   const m = new Map(list.map((e) => [e.id, e]));
   state.events = state.events.map((e) => m.get(e.id) || e);
   bumpRevision();
 };
+// 復元時の一意照合用に、作成・同期時点のカレンダー名とアカウント名を残す。
+const calIdent = (cid) => { const c = X.calendars.find((x) => x.id === cid); return c ? { calName: c.title, calSource: c.source || '' } : {}; };
 async function createNative(id) {
   const e = state.events.find((x) => x.id === id), l = e?.nativeLink;
   if (!e || l?.state !== 'pending' || xBusy) return;
@@ -1848,7 +1877,7 @@ async function createNative(id) {
     const nl = cleanLink({
       v: 2, state: 'linked', requestId: l.requestId, calendarId: r.calendarId || l.calendarId, itemId: r.itemId != null ? String(r.itemId) : undefined,
       externalId: r.externalId != null ? String(r.externalId) : undefined, eventId: String(r.eventId), ekModified: Number.isFinite(r.modifiedAt) ? r.modifiedAt : undefined,
-      syncedAt: Date.now(), matchedBy: 'id', warn: null,
+      syncedAt: Date.now(), matchedBy: 'id', warn: null, ...calIdent(r.calendarId || l.calendarId),
     });
     // 本文は読み直した最新のものを残し、結びつきだけ書く（作成中の編集を古いスナップショットで消さない）。
     const ack = await db.applyAck({ keys: [id], update: (raw) => (raw.nativeLink?.requestId === l.requestId && raw.nativeLink.state === 'pending' ? { ...raw, nativeLink: withIdent({ ...nl, seriesStart: raw.start }) } : null) });
