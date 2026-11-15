@@ -611,3 +611,11 @@ html:not([data-kb]) body[data-layout=home] dialog#editor,html:not([data-kb]) bod
 html:not([data-kb]) body[data-layout=home] dialog#xdetail,html:not([data-kb]) body[data-layout=browse] dialog#xdetail{top:auto;bottom:var(--rb);margin:0 auto;border-radius:22px 22px 0 0}
 body[data-layout=home] dialog#editor::before,body[data-layout=browse] dialog#editor::before,
 body[data-layout=home] dialog#xdetail::before,body[data-layout=browse] dialog#xdetail::before{content:"";position:absolute;top:6px;left:50%;width:36px;height:4px;margin-left:-18px;border-radius:2px;background:#c9c6ba;pointer-events:none}
+
+.diagbtn{margin:0 4px 6px;padding:6px 10px;font-size:12px}
+#touch-check{position:fixed;inset:0;z-index:2147483647;background:rgba(20,30,25,.45);touch-action:none;user-select:none;-webkit-user-select:none;overflow:hidden;color:#fff;font-size:12px;line-height:1.4}
+#touch-check[hidden]{display:none}
+#touch-check .tc-info{position:absolute;left:8px;top:50%;transform:translateY(-50%);max-width:calc(100% - 16px);padding:6px 8px;background:rgba(0,0,0,.6);border-radius:6px;pointer-events:none;white-space:pre-line;font-variant-numeric:tabular-nums}
+#touch-check .tc-end{position:absolute;left:50%;bottom:24%;transform:translateX(-50%);padding:10px 14px;font-size:14px;font-weight:700;border-radius:10px;border:0;background:#fff;color:#111}
+#touch-check .tc-dot{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:#ffd400;border:1px solid #000;pointer-events:none}
+#touch-check .tc-dot i{position:absolute;left:10px;top:-2px;font-style:normal;font-size:10px;white-space:nowrap;background:rgba(0,0,0,.65);padding:0 3px;border-radius:3px}

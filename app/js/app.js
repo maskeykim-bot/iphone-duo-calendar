@@ -211,6 +211,33 @@ function diagText() {
 }
 function updateDiagnostics() { const el = $('#layout-diagnostics'); if (el) el.textContent = diagText(); }
 
+// タッチ確認モード（実機の座標確認用。保存しない・通常時は DOM に層がない）。
+let touchLayer = null;
+function closeTouchCheck() { touchLayer?.remove(); touchLayer = null; }
+function openTouchCheck() {
+  if (touchLayer) return;
+  const L = document.createElement('div');
+  L.id = 'touch-check'; L.setAttribute('role', 'dialog'); L.setAttribute('aria-label', 'タッチ確認');
+  const info = document.createElement('div'); info.className = 'tc-info';
+  const end = document.createElement('button'); end.type = 'button'; end.className = 'tc-end'; end.textContent = 'タッチ確認を終わる';
+  const head = () => { const S = safe(); return `${window.innerWidth}×${window.innerHeight} px · DPR ${num(window.devicePixelRatio || 1)}\nsafe 上${num(S.top)} 右${num(S.right)} 下${num(S.bottom)} 左${num(S.left)}`; };
+  info.textContent = `${head()}\n画面をタップすると座標が出ます`;
+  const stop = (e) => { e.stopPropagation(); };
+  L.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (e.target === end) return;
+    const S = safe(), x = e.clientX, y = e.clientY;
+    info.textContent = `${head()}\nclient ${num(x)}, ${num(y)}\nsafe内 ${num(x - S.left)}, ${num(y - S.top)}`;
+    const dot = document.createElement('div'); dot.className = 'tc-dot'; dot.style.left = `${x}px`; dot.style.top = `${y}px`;
+    const t = document.createElement('i'); t.textContent = `${Math.round(x)},${Math.round(y)}`; dot.append(t);
+    L.insertBefore(dot, info);
+    const dots = L.querySelectorAll('.tc-dot'); if (dots.length > 20) dots[0].remove();
+  });
+  for (const t of ['pointerup', 'click', 'touchstart', 'touchmove', 'contextmenu']) L.addEventListener(t, (e) => { if (t === 'click' && e.target === end) return; e.preventDefault(); stop(e); });
+  end.addEventListener('click', (e) => { e.stopPropagation(); closeTouchCheck(); });
+  L.append(info, end); document.body.append(L); touchLayer = L; end.focus({ preventScroll: true });
+}
+
 // ---------- iPhone カレンダー連携の状態（ネイティブ版のみ） ----------
 const NATIVE = nativeAvailable();
 const LINK_KEY = `duo-native-cal${suffix}`;
@@ -1370,6 +1397,7 @@ menuDlg.addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-m]');
   if (!b) return;
   const m = b.dataset.m, from = origins.get(menuDlg);
+  if (b.id === 'touch-check-open') { closePanel(menuDlg); openTouchCheck(); return; }
   if (m === 'cats') { closePanel(menuDlg, false); openCategories(from); }
   else if (m === 'notify') { closePanel(menuDlg, false); openNotify(from); }
   else if (m === 'backup') { closePanel(menuDlg, false); openBackup(from); }
