@@ -100,7 +100,7 @@ const LINK_STR = ['requestId', 'calendarId', 'itemId', 'externalId', 'ekIdentifi
 const linkOk = (l) => isObj(l) && LINK_STATES.includes(l.state)
   && LINK_STR.every((k) => l[k] == null || (typeof l[k] === 'string' && l[k].length <= 500))
   && (l.v == null || Number.isInteger(l.v)) && (l.syncedAt == null || Number.isFinite(l.syncedAt))
-  && (l.warn == null || l.warn === 'missing' || l.warn === 'writeOnly');
+  && (l.warn == null || l.warn === 'missing' || l.warn === 'writeOnly' || l.warn === 'conflict');
 // 予定・個別変更に共通の任意項目の検証。捨てた件数を返す。
 function checkOptional(o) {
   let dropped = 0;

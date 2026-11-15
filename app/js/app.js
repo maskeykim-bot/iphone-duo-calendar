@@ -8,7 +8,7 @@ import { backupName, buildBackup, countStats, localIso, planAppend, validateBack
 import { CAT_IDS, LIMITS as CAT_LIMITS, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory } from './categories.js';
 import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAlarms, encAlarm, fireAt, nextNotifyText, normNotify, pastForNotify, planNotifications, MAX_PENDING, WINDOW_DAYS } from './notify.js';
 import { call, errCode, errText, listen, nativeAvailable } from './native.js';
-import { covers, dedupe, extIn, extRange, fmtLoaded, groupBySource, lastDay, normSettings, rangeKey, searchExt, stampOf, subLabel, toDisplay, writable, ymdSlash } from './iphone.js';
+import { covers, dedupe, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, planNativeOps, rangeKey, searchExt, stampOf, subLabel, toDisplay, writable, ymdSlash } from './iphone.js';
 import {
   DOW, addDays, addMonths, assignSharedLanes, dayLabel, dayOf, dkey, eventsOnDay, isKey, isMulti,
   monthWeeks, newId, nowStamp, pad, parseInput, parseKey, ruleSummary, setFirstDay, timeLabel, toInput, todayKey, validateDraft, weekStart, weekdayHeads,
@@ -224,12 +224,14 @@ function setLink(patch) {
   try { localStorage.setItem(LINK_KEY, JSON.stringify(link)); linkSaveFailed = false; } catch { linkSaveFailed = true; }
 }
 // perm: null（未確認）| granted | denied | restricted | notDetermined | writeOnly
+// iPhone への反映の送信待ち（meta.nativeOutbox の写し）。items は更新のたびに新しい配列にする。
+const OBX = { items: [], inflight: null, timer: 0, chain: Promise.resolve() };
 const X = { avail: NATIVE, perm: null, calendars: [], cache: null, status: 'idle', stale: false, gen: 0, inflight: null, inflightKey: '', failKey: '', vis: null, visFor: null };
 const extActive = () => NATIVE && X.avail && link.enabled && X.perm === 'granted';
 // 表示用の外部予定（アプリ予定のリンクと一致するものは除外）。入力が変わるまで使い回す。
 function visExt() {
   if (!extActive() || !X.cache) return [];
-  if (X.visFor?.[0] !== X.cache || X.visFor?.[1] !== state.events) { X.vis = dedupe(X.cache.events, state.events); X.visFor = [X.cache, state.events]; }
+  if (X.visFor?.[0] !== X.cache || X.visFor?.[1] !== state.events || X.visFor?.[2] !== OBX.items) { X.vis = dedupe(X.cache.events, state.events, OBX.items); X.visFor = [X.cache, state.events, OBX.items]; }
   return X.vis;
 }
 const isX = (e) => e.origin === 'iphone';
@@ -894,7 +896,7 @@ let xSel = '', xSig = '';
 function updateXUi() {
   const eligible = extActive();
   const cur = editing ? resolve(editing) : null;
-  const linked = !!(editing && cur && !cur.occKey && cur.p.nativeLink?.state === 'linked');
+  const linked = !!(editing && cur && cur.p.nativeLink?.state === 'linked');
   $('#xlinked').hidden = !linked;
   $('#xadd').hidden = !(eligible && !editing);
   if ($('#xadd').hidden) return;
@@ -979,14 +981,20 @@ F.all.addEventListener('change', () => {
 $('#close').addEventListener('click', closeEditor);
 
 // 保存・削除の確定（1トランザクション）。
-async function commit(plan) {
-  await db.applyChanges(plan);
+// iPhone へ反映する操作（ops）は、予定の保存と同じトランザクションで送信待ちへ積む。
+async function commit(plan, { ops = [] } = {}) {
+  if (ops.length) OBX.items = await db.applyChangesWithOutbox({ ...plan, outbox: (cur) => mergeOps(cur, ops, OBX.inflight) });
+  else await db.applyChanges(plan);
   const gone = new Set([...plan.dels, ...plan.puts.map((e) => e.id)]);
   state.events = [...state.events.filter((e) => !gone.has(e.id)), ...plan.puts];
   bumpRevision();
   requestNotifySync('edit');
+  if (ops.some((o) => o.kind !== 'drop')) requestFlush();
   if (plan.puts.some(hasDuoAlarms)) askNotifyPerm(); // 結果を待たない。拒否されても保存は成立
 }
+// 送信待ちを作る入力（新系列の id がまだ確定していない np への操作も、確定後に送る操作として積める）。
+const opsCtx = (extra = {}) => ({ waiting: new Set(OBX.items.filter((o) => o.newParentId).map((o) => o.newParentId)), ...extra });
+const planOps = (prev, plan, scope, occKey, form, extra) => (NATIVE ? planNativeOps(prev, plan, scope, occKey, form, opsCtx(extra)) : { ops: [], plan });
 const SAVE_FAIL = '保存できませんでした。もう一度お試しください。';
 
 let saving = false;
@@ -1007,9 +1015,10 @@ form.addEventListener('submit', async (ev) => {
   // 新規の通常予定だけ: アプリDBへ pending で確定してから、iPhone 側の作成を1回だけ呼ぶ。
   const xwant = !editing && !item.recurrence && extActive() && F.xadd.checked && !F.xadd.disabled && !!F.xcal.value;
   if (xwant) item.nativeLink = { state: 'pending', requestId: newId(), calendarId: F.xcal.value };
+  const { ops, plan: splan } = prev ? planOps(prev, { puts: [item], dels: [] }, 'all', null, r.event) : { ops: [], plan: { puts: [item], dels: [] } };
   saving = true;
   try {
-    await commit({ puts: [item], dels: [] });
+    await commit(splan, { ops });
   } catch {
     $('#error').textContent = SAVE_FAIL;
     saving = false;
@@ -1062,6 +1071,9 @@ function openScope(kind, cur, ev) {
     if (info.clears('following') || info.clears('all')) notes.push('「これ以降すべて」「すべて」を選ぶと、この範囲の個別変更と削除指定を解除します。');
   }
   $('#sc-note').textContent = notes.join(' ');
+  const dn = del ? deleteNotice(cur.p) : null;
+  $('#sc-warn').hidden = !dn?.text;
+  $('#sc-warn').textContent = dn ? dn.text(occ.title) : '';
   dlg.inert = true;
   scopeDlg.show();
   syncInert();
@@ -1078,7 +1090,8 @@ scopeDlg.addEventListener('click', async (ev) => {
   const scope = b.dataset.scope, { kind, cur, ev: form0 } = scopeCtx;
   if (kind === 'delete') { askDelete(scope, cur); return; }
   try {
-    await commit(planEdit(cur.p, cur.occKey, scope, form0, newId));
+    const { ops, plan } = planOps(cur.p, planEdit(cur.p, cur.occKey, scope, form0, newId), scope, cur.occKey, form0);
+    await commit(plan, { ops });
   } catch {
     scopeDlg.close();
     $('#error').textContent = SAVE_FAIL;
@@ -1093,12 +1106,29 @@ scopeDlg.addEventListener('click', async (ev) => {
 });
 
 // ---------- 削除（通常は確認のみ、繰り返しは範囲→確認） ----------
-let pendingDelete = null; // { scope, cur }
+let pendingDelete = null; // { scope, cur, single, duoOnly }
+// iPhone と結びついた予定の削除の注意（07）。text(予定名) は本文、duoOnly は権限がない／書き込めないとき Duo だけで消す選択。
+// 結びついていなければ null。pending でも、新系列の確定待ち（np）は結びつき扱い。
+function deleteNotice(p) {
+  const l = p.nativeLink;
+  if (!(l?.state === 'linked' || (l?.state === 'pending' && OBX.items.some((o) => o.newParentId === p.id)))) return null;
+  const cal = X.calendars.find((c) => c.id === l.calendarId);
+  const duoOnly = !NATIVE || ['denied', 'restricted', 'writeOnly', 'notDetermined'].includes(X.perm) || (!!cal && !cal.allowsModify);
+  return duoOnly
+    ? { duoOnly, text: () => 'Duo からだけ削除されます。iPhone のカレンダーには残ります。' }
+    : { duoOnly, text: (t) => `${t}\niPhone のカレンダーからも削除されます。` };
+}
+function showConfirm(title, cur, duoOnly, dn) {
+  $('#deletetitle').textContent = dn ? dn.text(cur.p.title) : cur.p.title;
+  $('#dodelete').textContent = duoOnly ? 'Duo から削除' : '削除する';
+  void title;
+}
 function askDelete(scope, cur) {
-  pendingDelete = { scope, cur };
+  const dn = deleteNotice(cur.p);
+  pendingDelete = { scope, cur, duoOnly: !!dn?.duoOnly };
   const day = dayLabel(dayOf(cur.occ.start));
   $('#confirmtitle').textContent = { only: 'この予定を削除しますか？', following: `${day.replace(/（.）/, '')}以降の予定をすべて削除しますか？`, all: '繰り返し予定をすべて削除しますか？' }[scope];
-  $('#deletetitle').textContent = cur.p.title;
+  showConfirm('', cur, !!dn?.duoOnly, dn);
   scopeDlg.close();
   dlg.inert = true;
   confirmDlg.show();
@@ -1108,9 +1138,11 @@ function askDelete(scope, cur) {
 $('#delete').addEventListener('click', () => {
   const cur = editing ? resolve(editing) : null;
   if (cur?.occKey) { openScope('delete', cur); return; }
-  pendingDelete = null;
+  const dn = cur ? deleteNotice(cur.p) : null;
+  pendingDelete = cur ? { scope: 'only', cur, single: true, duoOnly: !!dn?.duoOnly } : null;
   $('#confirmtitle').textContent = 'この予定を削除しますか？';
-  $('#deletetitle').textContent = cur?.p.title || '';
+  if (cur) showConfirm('', cur, !!dn?.duoOnly, dn);
+  else { $('#deletetitle').textContent = ''; $('#dodelete').textContent = '削除する'; }
   confirmDlg.show();
   dlg.inert = true;
   syncInert();
@@ -1122,16 +1154,22 @@ confirmDlg.addEventListener('close', () => {
 function cancelConfirm() {
   const pd = pendingDelete;
   confirmDlg.close();
-  if (pd) openScope('delete', pd.cur); // 最終確認キャンセルは範囲へ戻る
+  if (pd && !pd.single) openScope('delete', pd.cur); // 最終確認キャンセルは範囲へ戻る
 }
 $('#canceldelete').addEventListener('click', cancelConfirm);
 $('#dodelete').addEventListener('click', async () => {
-  const cur = editing ? resolve(editing) : null;
+  const pd = pendingDelete;
   try {
-    if (pendingDelete) await commit(planDelete(pendingDelete.cur.p, pendingDelete.cur.occKey, pendingDelete.scope));
-    else await commit({ puts: [], dels: [editing] });
+    if (pd && !pd.single) {
+      // この明示選択（Duo から削除）では iPhone への削除を積まず、同じ範囲の未送信の更新も止める。
+      const { ops } = planOps(pd.cur.p, null, pd.scope, pd.cur.occKey, null, { dropOnly: pd.duoOnly });
+      await commit(planDelete(pd.cur.p, pd.cur.occKey, pd.scope), { ops });
+    } else {
+      const prev = pd ? pd.cur.p : null;
+      const { ops } = prev ? planOps(prev, null, 'all', null, null, { dropOnly: pd.duoOnly }) : { ops: [] };
+      await commit({ puts: [], dels: [editing] }, { ops });
+    }
   } catch { confirmDlg.close(); $('#error').textContent = '削除できませんでした。'; return; }
-  void cur;
   pendingDelete = null;
   confirmDlg.close();
   closeEditor();
@@ -1530,7 +1568,7 @@ async function finishImport(kind) {
       let cats = data.hasCategories ? mergeCategories([], cin, 'replace').categories : mergeCategories(state.categories, cin, 'add').categories;
       if (!cats.length) cats = state.categories;
       const fx = fixEventCategories(data.events, cats, now);
-      await db.applyImport({ catPuts: fx.categories, eventPuts: fx.events, replace: true });
+      OBX.items = await db.applyImport({ catPuts: fx.categories, eventPuts: fx.events, replace: true, outbox: (cur) => keepAfterReplace(cur, fx.events) });
     }
   } catch {
     try { state.events = await db.listEvents(); } catch { /* 無視 */ }
@@ -1657,6 +1695,7 @@ function dropLink(msg) {
 async function resumeExt() {
   if (!NATIVE || !X.avail) return;
   const p = await checkPerm();
+  if (['granted', 'writeOnly'].includes(p)) requestFlush(0);
   if (!link.enabled) { if (linkDlg.open) renderLink(); return; }
   if (p !== 'granted') { if (p) dropLink('カレンダーへのアクセスを確認してください。'); return; }
   try { await refreshCalendars(); } catch { /* 取得できなくても直前の一覧で続ける */ }
@@ -1681,10 +1720,13 @@ function renderLink() {
   if (lk.err) h += `<p class="berr" role="alert">${esc(lk.err)}</p>`;
   if (!on && lk.want) {
     const steps = '設定 ＞ プライバシーとセキュリティ ＞ カレンダー ＞ Duo で『フルアクセス』を許可してください。';
-    if (X.perm === 'notDetermined') h += `<section class="card"><h3>iPhone のカレンダーへのアクセスを許可してください</h3><p>予定の表示と追加に、カレンダーへのフルアクセスが必要です。iPhone側の予定をDuoから編集・削除することはありません。</p><button type="button" class="solid" id="lk-req"${dis}>アクセスを許可</button></section>`;
+    if (X.perm === 'notDetermined') h += `<section class="card"><h3>iPhone のカレンダーへのアクセスを許可してください</h3><p>予定の表示と追加に、カレンダーへのフルアクセスが必要です。Duoから追加した予定の変更・削除は、iPhoneのカレンダーにも反映されます。iPhone側の予定をDuoから編集・削除することはありません。</p><button type="button" class="solid" id="lk-req"${dis}>アクセスを許可</button></section>`;
     else if (X.perm === 'denied') h += `<section class="card"><p class="berr" role="alert">カレンダーへのアクセスが許可されていません。${steps}</p><button type="button" id="lk-settings">設定を開く</button></section>`;
     else if (X.perm === 'restricted') h += '<section class="card"><p class="berr" role="alert">この端末ではカレンダーへのアクセスが制限されています。端末の管理者に確認してください。</p></section>';
     else if (X.perm === 'writeOnly') h += `<section class="card"><p class="berr" role="alert">予定を表示するにはフルアクセスが必要です。${steps}</p><button type="button" class="solid" id="lk-req"${dis}>フルアクセスを許可</button><button type="button" id="lk-settings">設定を開く</button></section>`;
+  }
+  if (X.perm === 'writeOnly' && OBX.items.length && !(!on && lk.want)) {
+    h += '<section class="card"><p class="berr" role="alert">iPhone のカレンダーに反映するには、フルアクセスの許可が必要です。設定 ＞ プライバシーとセキュリティ ＞ カレンダー ＞ Duo で『フルアクセス』を許可してください。</p><button type="button" class="solid" id="lk-req">フルアクセスを許可</button><button type="button" id="lk-settings">設定を開く</button></section>';
   }
   if (on) {
     if (!link.calendarIds.length) h += '<p class="smsg" role="status">表示するカレンダーを選んでください。</p>';
@@ -1719,6 +1761,7 @@ async function enableLink() {
   setLink({ enabled: true });
   lk.want = false;
   loadExt(true);
+  requestFlush(0);
   requestNotifySync('calendarAccess');
   render();
 }
@@ -1783,14 +1826,38 @@ function openRetry(id, msg, canRetry) {
   (canRetry ? $('#xr-retry') : $('#xr-close')).focus({ preventScroll: true });
 }
 let xrId = null;
+const cleanLink = (l) => Object.fromEntries(Object.entries(l).filter(([, v]) => v !== undefined));
+// externalId が空なら ekIdentifier は作らない。非空なら `${externalId}@${seriesStart}`。
+const withIdent = (l) => { const o = { ...l }; if (o.externalId && o.seriesStart) o.ekIdentifier = `${o.externalId}@${o.seriesStart}`; else delete o.ekIdentifier; return cleanLink(o); };
+const applyEvents = (list) => {
+  if (!list?.length) return;
+  const m = new Map(list.map((e) => [e.id, e]));
+  state.events = state.events.map((e) => m.get(e.id) || e);
+  bumpRevision();
+};
 async function createNative(id) {
   const e = state.events.find((x) => x.id === id), l = e?.nativeLink;
   if (!e || l?.state !== 'pending' || xBusy) return;
   xBusy = true;
+  const sent = { title: e.title, start: e.start, end: e.end, all: !!e.all, place: e.place || '', notes: e.notes || '', ...(Array.isArray(e.alarms) ? { alarms: e.alarms } : {}) };
   try {
-    const r = await call('createEvent', { requestId: l.requestId, calendarId: l.calendarId, title: e.title, start: e.start, end: e.all ? `${dayOf(e.end)}T00:00` : e.end, all: !!e.all, place: e.place || '', notes: e.notes || '' });
+    const args = { requestId: l.requestId, calendarId: l.calendarId, title: e.title, start: e.start, end: e.all ? `${dayOf(e.end)}T00:00` : e.end, all: !!e.all, place: e.place || '', notes: e.notes || '' };
+    if (Array.isArray(e.alarms)) args.alarms = e.alarms; // linked の通知は iPhone 側（EKAlarm）が鳴らす
+    const r = await call('createEvent', args);
     if (!r?.eventId) throw new Error('no event id');
-    await commit({ puts: [{ ...e, nativeLink: { state: 'linked', requestId: l.requestId, eventId: String(r.eventId), calendarId: l.calendarId } }], dels: [] });
+    const nl = cleanLink({
+      v: 2, state: 'linked', requestId: l.requestId, calendarId: r.calendarId || l.calendarId, itemId: r.itemId != null ? String(r.itemId) : undefined,
+      externalId: r.externalId != null ? String(r.externalId) : undefined, eventId: String(r.eventId), ekModified: Number.isFinite(r.modifiedAt) ? r.modifiedAt : undefined,
+      syncedAt: Date.now(), matchedBy: 'id', warn: null,
+    });
+    // 本文は読み直した最新のものを残し、結びつきだけ書く（作成中の編集を古いスナップショットで消さない）。
+    const ack = await db.applyAck({ keys: [id], update: (raw) => (raw.nativeLink?.requestId === l.requestId && raw.nativeLink.state === 'pending' ? { ...raw, nativeLink: withIdent({ ...nl, seriesStart: raw.start }) } : null) });
+    applyEvents(ack.events);
+    const latest = state.events.find((x) => x.id === id);
+    // 作成の間に編集・削除されていたら、差分（または削除）を送信待ちへ積む。
+    const snap = { ...(latest || e), ...sent, id, nativeLink: withIdent({ ...nl, seriesStart: sent.start }) };
+    const { ops } = planNativeOps(snap, { puts: latest ? [latest] : [], dels: latest ? [] : [id] }, 'all', null, latest || null, opsCtx());
+    if (ops.length) { OBX.items = await db.applyChangesWithOutbox({ outbox: (cur) => mergeOps(cur, ops, OBX.inflight) }); requestFlush(); }
     setLink({ defaultCalendarId: l.calendarId });
     requestNotifySync('link');
     render();
@@ -1802,6 +1869,175 @@ async function createNative(id) {
     openRetry(id, hard ? `${msg}${errText(err, '')}メニューの『iPhone カレンダー連携』と追加先を確認してください。` : msg, !hard);
     say(msg);
   } finally { xBusy = false; }
+}
+
+// ---------- iPhone への反映（送信待ちを1件ずつ送る） ----------
+const MSG = {
+  missing: 'iPhone のカレンダーに元の予定が見つからないため、結びつきを外しました。Duo の予定はそのまま残っています。',
+  conflictUpdate: 'iPhone のカレンダー側でも変更されていたため、Duo の内容で上書きしました。',
+  conflictDelete: 'iPhone 側で変更されていたため、iPhone の予定は残しました',
+  writeOnly: 'iPhone のカレンダーに反映するには、フルアクセスの許可が必要です。',
+  fail: 'iPhone のカレンダーに反映できませんでした。次に開いたときにもう一度試します。',
+  readOnly: 'このカレンダーには書き込めないため、iPhone のカレンダーへの反映を止めました。Duo の予定はそのまま残っています。',
+  gaveUp: 'iPhone のカレンダーに反映できなかったため、結びつきを外しました。Duo の予定はそのまま残っています。',
+};
+let noticeTimer = 0;
+// 4 秒のお知らせ。action を付けると右にボタンを出す。
+function notice(msg, action) {
+  clearTimeout(noticeTimer);
+  document.querySelector('#native-toast')?.remove();
+  const el = document.createElement('div');
+  el.id = 'native-toast'; el.className = 'undobar toastbar'; el.setAttribute('role', 'status');
+  const sp = document.createElement('span'); sp.textContent = msg; el.append(sp);
+  if (action) { const b = document.createElement('button'); b.type = 'button'; b.textContent = action.label; b.addEventListener('click', action.fn); el.append(b); }
+  document.body.append(el);
+  noticeTimer = setTimeout(() => el.remove(), 4000);
+}
+function requestFlush(delay = 400) {
+  if (!NATIVE || !OBX.items.length) return;
+  clearTimeout(OBX.timer);
+  OBX.timer = setTimeout(() => { OBX.chain = OBX.chain.then(runFlush).catch(() => {}); }, delay);
+}
+async function ackOps({ keys = [], update, outbox }) {
+  const r = await db.applyAck({ keys, update, outbox });
+  OBX.items = r.list;
+  applyEvents(r.events);
+  return r;
+}
+// 新系列の確定待ちのまま取り残された np（待つ操作が消えた）は結びつきを外す。
+async function sweepOrphans() {
+  for (const e of state.events) {
+    const l = e.nativeLink;
+    if (l?.state === 'pending' && l.seriesStart && !OBX.items.some((o) => o.newRequestId === l.requestId)) {
+      await ackOps({ keys: [e.id], update: (raw) => (raw.nativeLink?.requestId === l.requestId && raw.nativeLink.state === 'pending' ? { ...raw, nativeLink: { ...raw.nativeLink, state: 'unlinked', warn: null } } : null), outbox: (c) => c });
+    }
+  }
+}
+async function runFlush() {
+  if (!['granted', 'writeOnly'].includes(X.perm)) return; // 許可がなければ待ちのまま
+  await sweepOrphans();
+  const tried = new Set();
+  let failed = false;
+  for (;;) {
+    const op = OBX.items.find((o) => !tried.has(o.opId));
+    if (!op) break;
+    tried.add(op.opId); // 失敗は同じ flush 内では再試行しない（次の起点で）
+    const r = await sendOp(op);
+    if (r === 'stop') { failed = false; break; }
+    if (r === 'fail') failed = true;
+  }
+  if (failed) notice(MSG.fail);
+}
+// 送る直前の最新の結びつき。新系列の確定待ちの操作は、確定するまで送らない。
+function resolveLink(op) {
+  const ev = state.events.find((e) => e.id === op.eventKey), l = ev?.nativeLink;
+  const same = l && l.requestId === op.link.requestId;
+  if (op.link.state === 'pending') {
+    if (same && l.state === 'linked') return { link: l };
+    if (OBX.items.some((o) => o.newRequestId === op.link.requestId)) return { wait: true };
+    return { drop: true };
+  }
+  if (same && l.state !== 'linked') return { drop: true }; // 解除済み
+  return { link: same ? l : op.link };
+}
+function buildArgs(op, link) {
+  const a = { itemId: link.itemId || '', externalId: link.externalId || '', eventId: link.eventId || '', requestId: link.requestId, calendarId: link.calendarId || '', span: op.span };
+  const occ = op.span === 'all' ? (link.seriesStart || op.occurrenceStart) : op.occurrenceStart;
+  if (occ) a.occurrenceStart = occ;
+  if (Number.isFinite(link.ekModified)) a.expectModified = link.ekModified;
+  if (op.kind === 'update') {
+    const p = op.payload;
+    for (const k of ['title', 'place', 'notes']) if (k in p) a[k] = p[k];
+    if ('start' in p) { a.start = p.start; a.end = p.all ? `${dayOf(p.end)}T00:00` : p.end; a.all = !!p.all; }
+    if ('alarms' in p) a.alarms = p.alarms;
+    if ('recurrence' in p) a.recurrence = p.recurrence;
+    if (op.newRequestId) a.newRequestId = op.newRequestId;
+  }
+  return a;
+}
+const removeOp = (id) => (cur) => cur.filter((o) => o.opId !== id);
+async function sendOp(op) {
+  const rl = resolveLink(op);
+  if (rl.wait) return 'skip';
+  if (rl.drop) { await ackOps({ outbox: removeOp(op.opId) }); return 'ok'; }
+  const link = rl.link, args = buildArgs(op, link);
+  OBX.inflight = op.opId;
+  try {
+    let res, conflict = false;
+    try { res = await call(op.kind === 'delete' ? 'deleteEvent' : 'updateEvent', args); } catch (e) {
+      if (op.kind === 'update' && errCode(e) === 'CONFLICT') { res = await call('updateEvent', { ...args, force: true }); conflict = true; } else throw e;
+    }
+    await onSendOk(op, link, res || {}, conflict);
+    return 'ok';
+  } catch (e) {
+    return await onSendFail(op, link, e);
+  } finally { OBX.inflight = null; }
+}
+async function onSendOk(op, link, res, conflict) {
+  const now = Date.now(), del = op.kind === 'delete';
+  const ids = (base) => ({
+    ...base, v: 2, state: 'linked',
+    itemId: res.itemId != null ? String(res.itemId) : base.itemId, externalId: res.externalId != null ? String(res.externalId) : base.externalId,
+    eventId: res.eventId != null ? String(res.eventId) : base.eventId, calendarId: res.calendarId || base.calendarId,
+    ekModified: del ? now : Number.isFinite(res.modifiedAt) ? res.modifiedAt : base.ekModified, syncedAt: now, warn: null,
+  });
+  const npLink = op.newParentId ? withIdent({ ...ids({ requestId: op.newRequestId, calendarId: link.calendarId }), seriesStart: op.occurrenceStart, matchedBy: 'id' }) : null;
+  const moves = op.kind === 'update' && (op.span === 'all' || (op.span === 'this' && !op.occurrenceStart));
+  const r = await ackOps({
+    keys: [op.eventKey, ...(op.newParentId ? [op.newParentId] : [])],
+    update: (raw, key) => {
+      const l = raw.nativeLink;
+      if (key === op.newParentId) return l?.requestId === op.newRequestId && l.state === 'pending' ? { ...raw, nativeLink: npLink } : null;
+      if (!l || l.requestId !== link.requestId || l.state === 'unlinked') return null;
+      if (op.newParentId) return { ...raw, nativeLink: withIdent({ ...l, ekModified: Number.isFinite(res.modifiedAt) ? res.modifiedAt : l.ekModified, syncedAt: now, warn: null }) };
+      return { ...raw, nativeLink: withIdent({ ...ids(l), seriesStart: moves ? raw.start : (l.seriesStart || raw.start) }) };
+    },
+    // 待ちから消すのは opId だけ。新系列が確定したら、np への待ちの操作へ新しい結びつきを渡す。
+    outbox: (cur) => cur.filter((o) => o.opId !== op.opId).map((o) => (npLink && o.link?.requestId === op.newRequestId ? { ...o, link: npLink } : o)),
+  });
+  if (conflict) notice(MSG.conflictUpdate);
+  if (op.newParentId || r.events.length) requestNotifySync('link');
+  render();
+}
+// 結びつきを外す（同じ予定への待ちも除く）。Duo の予定は残す。
+async function unlinkOp(op, warn, msg) {
+  const reqs = new Set([op.link.requestId, op.newRequestId].filter(Boolean));
+  await ackOps({
+    keys: [op.eventKey, ...(op.newParentId ? [op.newParentId] : [])],
+    update: (raw) => (raw.nativeLink && reqs.has(raw.nativeLink.requestId) && raw.nativeLink.state !== 'unlinked' ? { ...raw, nativeLink: { ...raw.nativeLink, state: 'unlinked', warn } } : null),
+    outbox: (cur) => cur.filter((o) => o.opId !== op.opId && !reqs.has(o.link?.requestId)),
+  });
+  notice(msg);
+  requestNotifySync('link');
+  render();
+}
+async function onSendFail(op, link, e) {
+  const code = errCode(e);
+  switch (code) {
+    case 'NOT_FOUND':
+      if (op.kind === 'delete') { await ackOps({ outbox: removeOp(op.opId) }); return 'ok'; }
+      await unlinkOp(op, 'missing', MSG.missing); return 'ok';
+    case 'CONFLICT': // update は force で再送済みなので、ここへ来るのは delete（iPhone の予定は消さない）
+      await unlinkOp(op, 'conflict', MSG.conflictDelete); return 'ok';
+    case 'CALENDAR_NOT_FOUND': await unlinkOp(op, 'missing', MSG.readOnly); return 'ok';
+    case 'READ_ONLY': await unlinkOp(op, null, MSG.readOnly); return 'ok';
+    case 'WRITE_ONLY':
+      X.perm = 'writeOnly';
+      await ackOps({ keys: [op.eventKey], update: (raw) => (raw.nativeLink?.requestId === link.requestId && raw.nativeLink.warn !== 'writeOnly' ? { ...raw, nativeLink: { ...raw.nativeLink, warn: 'writeOnly' } } : null) });
+      notice(MSG.writeOnly, { label: '設定を開く', fn: openSettings });
+      if (linkDlg.open) renderLink();
+      return 'stop';
+    case 'PERMISSION_DENIED': case 'RESTRICTED':
+      X.perm = code === 'RESTRICTED' ? 'restricted' : 'denied';
+      if (link.enabled) dropLink('カレンダーへのアクセスを確認してください。');
+      return 'stop';
+    default: {
+      const tries = (op.tries || 0) + 1;
+      if (tries >= 5) { await unlinkOp(op, null, MSG.gaveUp); return 'ok'; }
+      await ackOps({ outbox: (cur) => cur.map((o) => (o.opId === op.opId ? { ...o, tries } : o)) });
+      return 'fail';
+    }
+  }
 }
 $('#xr-close').addEventListener('click', () => closePanel(xrDlg));
 $('#xr-retry').addEventListener('click', () => { closePanel(xrDlg); createNative(xrId); });
@@ -2027,6 +2263,7 @@ async function initNative() {
   listen('timeChanged', () => { X.cache = null; bumpRevision(); requestNotifySync('time'); if (extActive()) loadExt(true); else render(); });
   const p = await checkPerm();
   if (p === null) return;
+  if (['granted', 'writeOnly'].includes(p)) requestFlush(0);
   if (link.enabled) {
     if (p === 'granted') { try { await refreshCalendars(); } catch { /* 一覧は後で再取得 */ } loadExt(true); } else dropLink('カレンダーへのアクセスを確認してください。');
   }
@@ -2106,7 +2343,7 @@ setInterval(() => { if (!anyPanel() && listShown()) render(); else updateNow(); 
 async function boot() {
   updateVars();
   render();
-  try { setCategories(await db.listCategories()); state.events = await db.listEvents(); bumpRevision(); N.ready = true; requestNotifySync('launch'); } catch { say('保存領域を開けませんでした。'); }
+  try { setCategories(await db.listCategories()); state.events = await db.listEvents(); try { OBX.items = await db.getOutbox(); } catch { OBX.items = []; } bumpRevision(); N.ready = true; requestNotifySync('launch'); } catch { say('保存領域を開けませんでした。'); }
   state.loaded = true;
   render();
   let draft = null;

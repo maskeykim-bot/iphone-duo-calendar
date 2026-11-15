@@ -186,3 +186,18 @@ test('既定カテゴリ（新規インストール）だけで書き出した v
   const v = validateBackup(JSON.stringify(buildBackup([], settings, new Date(), c)));
   assert.equal(v.data.categories.length, 5);
 });
+
+test('「これ以降」で分けた2つの親（別の requestId）を2回追加読み込み → 2件とも残り、重複0', () => {
+  const link = (r, e) => ({ v: 2, state: 'linked', requestId: r, calendarId: 'c', itemId: 'i', externalId: 'x', eventId: e, seriesStart: '2026-11-02T09:00' });
+  const a = ev('p1', '2026-11-02T09:00', '2026-11-02T10:00', R('daily', { until: '2026-11-04' }), { nativeLink: link('rq-old', 'e1') });
+  const b = ev('p2', '2026-11-05T09:00', '2026-11-05T10:00', R('daily'), { nativeLink: link('rq-new', 'e2') });
+  const file = JSON.parse(JSON.stringify(buildBackup([a, b], {}, new Date(), [])));
+  const res = validateBackup(JSON.stringify(file));
+  assert.ok(res.ok);
+  const p1 = planAppend([], res.data.events);
+  assert.equal(p1.add.length, 2);
+  const p2 = planAppend(p1.add, res.data.events);
+  assert.equal(p2.add.length, 0);
+  assert.equal(p2.skipped, 2);
+  assert.notEqual(res.data.events[0].nativeLink.requestId, res.data.events[1].nativeLink.requestId);
+});

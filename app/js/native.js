@@ -30,6 +30,8 @@ export function errText(e, fallback) {
     case 'RESTRICTED': return 'この端末ではカレンダーへのアクセスが制限されています。';
     case 'CALENDAR_NOT_FOUND': return '追加先のカレンダーが見つかりません。';
     case 'READ_ONLY': return 'このカレンダーには追加できません。';
+    case 'NOT_FOUND': return 'iPhone のカレンダーに元の予定が見つかりません。';
+    case 'CONFLICT': return 'iPhone のカレンダー側でも変更されています。';
     default: return fallback;
   }
 }

@@ -99,7 +99,8 @@ async function run(stores, mode, fn) {
     tx.onerror = () => reject(tx.error);
     tx.onabort = () => reject(tx.error || new Error('aborted'));
     try {
-      result = fn(Object.fromEntries(stores.map((n) => [n, tx.objectStore(n)])), (v) => { result = v; });
+      const r = fn(Object.fromEntries(stores.map((n) => [n, tx.objectStore(n)])), (v) => { result = v; });
+      if (r !== undefined) result = r;
     } catch (e) {
       try { tx.abort(); } catch { /* 既に終了 */ }
       reject(e);
@@ -107,6 +108,8 @@ async function run(stores, mode, fn) {
   });
 }
 const EV = ['events'];
+const OUTBOX = 'nativeOutbox';
+const readOutbox = (meta, cb) => { meta.get(OUTBOX).onsuccess = (e) => cb(Array.isArray(e.target.result?.items) ? e.target.result.items : []); };
 const BOTH = ['events', 'categories'];
 
 const wrap = (req) => new Promise((resolve, reject) => { req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); });
@@ -143,8 +146,39 @@ export const applyCategoryChanges = ({ catPuts = [], catDels = [], eventPuts = [
   eventPuts.forEach((e) => events.put(e));
 });
 // バックアップの読み込み: カテゴリと予定を1トランザクションで。replace のときは両方を clear してから put。
-export const applyImport = ({ catPuts = [], eventPuts = [], replace = false }) => run(BOTH, 'readwrite', ({ events, categories }) => {
+// outbox（任意）: 送信待ちの更新関数。同じトランザクションで meta に書き、新しい送信待ちを返す。
+export const applyImport = ({ catPuts = [], eventPuts = [], replace = false, outbox = null }) => run(['events', 'categories', 'meta'], 'readwrite', ({ events, categories, meta }, set) => {
   if (replace) { events.clear(); categories.clear(); }
   catPuts.forEach((c) => categories.put(c));
   eventPuts.forEach((e) => events.put(e));
+  if (outbox) readOutbox(meta, (cur) => { const next = outbox(cur); meta.put({ key: OUTBOX, items: next }); set(next); });
+});
+
+// ---------- iPhone への反映の送信待ち（meta ストア。バックアップには出さない） ----------
+export async function getOutbox() {
+  const db = await open();
+  const r = await wrap(db.transaction('meta').objectStore('meta').get(OUTBOX));
+  return Array.isArray(r?.items) ? r.items : [];
+}
+export const putOutbox = (items) => run(['meta'], 'readwrite', ({ meta }) => { meta.put({ key: OUTBOX, items }); });
+// 予定の put/del と送信待ちの更新を同じトランザクションで。outbox は (現在の一覧) → 新しい一覧。新しい一覧を返す。
+export const applyChangesWithOutbox = ({ puts = [], dels = [], outbox }) => run(['events', 'meta'], 'readwrite', ({ events, meta }, set) => {
+  puts.forEach((e) => events.put(e));
+  dels.forEach((id) => events.delete(id));
+  readOutbox(meta, (cur) => { const next = outbox(cur); meta.put({ key: OUTBOX, items: next }); set(next); });
+});
+// 結果の反映（ack）: keys の予定をトランザクション内で読み直し、update(生の予定, key) が返した予定だけ書く（null なら触らない）。
+// 本文は読み直した最新のものなので、古いスナップショットで新しい編集を上書きしない。送信待ちも同じトランザクションで更新。
+// 戻り値 { events: 書いた予定（既定値付き）, list: 新しい送信待ち }
+export const applyAck = ({ keys = [], update = () => null, outbox = (l) => l }) => run(['events', 'meta'], 'readwrite', ({ events, meta }, set) => {
+  const out = { events: [], list: null };
+  set(out);
+  keys.forEach((k) => {
+    events.get(k).onsuccess = (ev) => {
+      const raw = ev.target.result;
+      const nv = raw ? update(raw, k) : null;
+      if (nv) { events.put(nv); out.events.push(withDefaults(nv)); }
+    };
+  });
+  readOutbox(meta, (cur) => { out.list = outbox(cur); meta.put({ key: OUTBOX, items: out.list }); });
 });
