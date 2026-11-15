@@ -1,6 +1,8 @@
 // バックアップの書き出し・検証・追加計画。DOM に依存しない。
 import { FREQS, LIMITS, isKey } from './util.js';
 import { expand, normRule } from './recur.js';
+import { alarmsOk, okAllDay, okTimed } from './alarms.js';
+import { normNotify } from './notify.js';
 import { CAT_IDS, LEGACY, UNCATEGORIZED, legacyToId, validateCategory } from './categories.js';
 
 export const APP = 'duo-calendar';
@@ -52,17 +54,11 @@ function shape(e) {
 }
 export const exportEvent = shape;
 
-const NOTIFY_BEFORE = [0, 5, 10, 15, 30, 60, 120, 1440, 2880];
-const NOTIFY_DAYS = [0, 1, 2, 7];
-const isHm = (s) => typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
-const okTimed = (a) => isObj(a) && NOTIFY_BEFORE.includes(a.before);
-const okAllDay = (a) => isObj(a) && NOTIFY_DAYS.includes(a.day) && isHm(a.at);
-
 // categories: 現在のカテゴリ一覧。settings: { view, style, desk, monthExpand, weekStart(0|1), notify? }。
 export function buildBackup(events, settings = {}, now = new Date(), categories = []) {
   const s = { view: settings.view, style: settings.style, desk: !!settings.desk, monthExpand: !!settings.monthExpand };
   if (settings.weekStart === 0 || settings.weekStart === 1) s.weekStart = settings.weekStart;
-  if (isObj(settings.notify)) s.notify = deepClean(settings.notify);
+  { const { version, ...n } = normNotify(settings.notify); void version; s.notify = n; } // 未保存でも既定込みで常に出す
   return { app: APP, version: VERSION, schema: SCHEMA, exportedAt: localIso(now), categories: categories.map((c) => deepClean(c)), events: events.map(exportEvent), settings: s };
 }
 export const countStats = (events) => ({
@@ -99,13 +95,15 @@ function checkRule(r, where) {
 }
 
 // alarms（B.2 の形・最大2件。null は継承）と nativeLink（C.2 の形）。不正ならその項目だけ捨てる。
-const alarmsOk = (a) => a === null || (Array.isArray(a) && a.length <= 2 && a.every((x) => okTimed(x) || okAllDay(x)));
 const LINK_STATES = ['pending', 'linked', 'unlinked'];
-const LINK_STR = ['requestId', 'calendarId', 'itemId', 'externalId', 'ekIdentifier', 'eventId'];
+const LINK_STR = ['requestId', 'calendarId', 'itemId', 'externalId', 'ekIdentifier', 'eventId', 'calName', 'calSource'];
+const LINK_STAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 const linkOk = (l) => isObj(l) && LINK_STATES.includes(l.state)
   && LINK_STR.every((k) => l[k] == null || (typeof l[k] === 'string' && l[k].length <= 500))
-  && (l.v == null || Number.isInteger(l.v)) && (l.syncedAt == null || Number.isFinite(l.syncedAt))
-  && (l.warn == null || l.warn === 'missing' || l.warn === 'writeOnly');
+  && (l.v == null || Number.isInteger(l.v)) && (l.syncedAt == null || Number.isFinite(l.syncedAt)) && (l.ekModified == null || Number.isFinite(l.ekModified))
+  && (l.seriesStart == null || (typeof l.seriesStart === 'string' && LINK_STAMP.test(l.seriesStart)))
+  && (l.matchedBy == null || ['id', 'url', 'external', 'fallback'].includes(l.matchedBy)) && (l.fallbackDeleteConfirmed == null || typeof l.fallbackDeleteConfirmed === 'boolean')
+  && (l.warn == null || l.warn === 'missing' || l.warn === 'writeOnly' || l.warn === 'conflict');
 // 予定・個別変更に共通の任意項目の検証。捨てた件数を返す。
 function checkOptional(o) {
   let dropped = 0;

@@ -147,6 +147,28 @@ export function expand(events, rs, re) {
   return out;
 }
 
+// 現在以降に有効な回が1つでも残るか（単発・複数日は end > now）。count/until・exdates・移動 override・存在しない時刻（DST）を尊重し、
+// 予約窓（30日）では切らない。有限系列は実在する回を最大 9999 まで、無期限系列は次の有効な回までを調べる。
+// 元の位置が候補にならない override（ゴースト）は数えない。
+export function hasFutureOccurrence(p, now) {
+  const stamp = `${dkeyOf(now)}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  if (!p.recurrence) return p.end > stamp;
+  const rule = p.recurrence, anchor = dayOf(p.start), tm = p.start.slice(11);
+  const dd = dayDiff(dayOf(p.end), anchor), ex = new Set(p.exdates || []);
+  let idx = 0, guard = 0;
+  for (const k of candidates(rule, anchor, anchor)) {
+    if (++guard > 400000) break;
+    if (rule.until && k > rule.until) break;
+    if (!validTime(k, tm)) continue;
+    if (++idx > Math.min(rule.count ?? 9999, 9999)) break;
+    const key = `${k}T${tm}`;
+    if (ex.has(key)) continue;
+    if (make(p, key, dd).end > stamp) return true;
+  }
+  return false;
+}
+const dkeyOf = (d) => `${String(d.getFullYear()).padStart(4, '0')}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
 // boundaryKey（回の開始日時）より前の実在する回数（削除例外も数える）。
 export function countBefore(p, boundaryKey) {
   if (!p.recurrence) return 0;

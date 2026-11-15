@@ -1,13 +1,14 @@
 import * as db from './db.js';
 import { SAMPLE } from './sample.js';
 import { initSwipe } from './swipe.js';
-import { occurrenceAt, parseOccId, planDelete, planEdit, editInfo } from './recur.js';
+import { occurrenceAt, parseOccId, planDelete, planEdit, editInfo, normRule } from './recur.js';
 import { bumpRevision, occBetween } from './occcache.js';
 import { LIMIT, groupByDay, highlight, excerpt, searchEvents } from './search.js';
 import { backupName, buildBackup, countStats, localIso, planAppend, validateBackup, MAX_BYTES } from './backup.js';
 import { CAT_IDS, LIMITS as CAT_LIMITS, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory } from './categories.js';
+import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAlarms, encAlarm, fireAt, nextNotifyText, normNotify, pastForNotify, planNotifications, MAX_PENDING, WINDOW_DAYS } from './notify.js';
 import { call, errCode, errText, listen, nativeAvailable } from './native.js';
-import { covers, dedupe, extIn, extRange, fmtLoaded, groupBySource, lastDay, normSettings, rangeKey, searchExt, stampOf, subLabel, toDisplay, writable, ymdSlash } from './iphone.js';
+import { cleanLink, covers, dedupe, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, planNativeOps, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
 import {
   DOW, addDays, addMonths, assignSharedLanes, dayLabel, dayOf, dkey, eventsOnDay, isKey, isMulti,
   monthWeeks, newId, nowStamp, pad, parseInput, parseKey, ruleSummary, setFirstDay, timeLabel, toInput, todayKey, validateDraft, weekStart, weekdayHeads,
@@ -39,7 +40,8 @@ function loadUi() {
     monthExpand: s.monthExpand === true,
     weekStart: s.weekStart === 0 ? 0 : 1, // 週の始まり: 0=日曜 / 1=月曜（既定）
     monthTimeClosed: s.monthTimeClosed === true, // 月表示に時刻を出す（閉じた画面。既定は切）
-    monthTimeOpen: s.monthTimeOpen !== false, // 同（開いた画面・見開き・卓上。既定は入）
+    // 同（開いた画面・見開き・卓上。既定は切）。第10版は既定「入」の値を自動保存していたため、monthTimeV=11 の印がない保存値の true は旧既定とみなして切に戻す
+    monthTimeOpen: s.monthTimeV === 11 ? s.monthTimeOpen === true : false,
     monthTextSize: s.monthTextSize === 'large' ? 'large' : 'normal', // 月の文字: 標準 / 大
   };
 }
@@ -51,17 +53,18 @@ function setCategories(list) {
   hiddenCats = new Set(state.categories.filter((c) => c.hidden).map((c) => c.id));
 }
 if (params.has('desk')) state.desk = params.get('desk') === '1';
-// 通知の既定（形式だけ。UI は今回なし）。localStorage['duo-notify' + suffix]、バックアップの settings.notify に出し入れする。
+// 通知の設定。localStorage['duo-notify' + suffix]、バックアップの settings.notify に出し入れする。未保存でも既定（時刻あり30分前／終日は当日 8:00）を返す。
 const NOTIFY_KEY = `duo-notify${suffix}`;
 function loadNotify() {
-  try { const { version, ...n } = JSON.parse(localStorage.getItem(NOTIFY_KEY) || 'null') || {}; void version; return Object.keys(n).length ? n : undefined; } catch { return undefined; }
+  try { return normNotify(JSON.parse(localStorage.getItem(NOTIFY_KEY) || 'null')); } catch { return normNotify(null); }
 }
 function saveNotify(n) {
-  try { localStorage.setItem(NOTIFY_KEY, JSON.stringify({ version: 1, ...(loadNotify() || {}), ...n })); } catch { /* 保存不可でも続ける */ }
+  try { localStorage.setItem(NOTIFY_KEY, JSON.stringify(normNotify({ ...loadNotify(), ...n }))); } catch { /* 保存不可でも続ける */ }
 }
+const chipTime = (iso) => iso.slice(11).replace(/^0/, ''); // 月チップの時刻は先頭の0なし（3:00 / 10:00）
 function saveUi() {
   const { selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize } = state;
-  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize })); } catch { /* 保存不可でも動作は続ける */ }
+  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTimeV: 11, monthTextSize })); } catch { /* 保存不可でも動作は続ける */ }
 }
 function set(patch) { Object.assign(state, patch); if ('weekStart' in patch) setFirstDay(state.weekStart); saveUi(); render(); }
 
@@ -208,6 +211,33 @@ function diagText() {
 }
 function updateDiagnostics() { const el = $('#layout-diagnostics'); if (el) el.textContent = diagText(); }
 
+// タッチ確認モード（実機の座標確認用。保存しない・通常時は DOM に層がない）。
+let touchLayer = null;
+function closeTouchCheck() { touchLayer?.remove(); touchLayer = null; }
+function openTouchCheck() {
+  if (touchLayer) return;
+  const L = document.createElement('div');
+  L.id = 'touch-check'; L.setAttribute('role', 'dialog'); L.setAttribute('aria-label', 'タッチ確認');
+  const info = document.createElement('div'); info.className = 'tc-info';
+  const end = document.createElement('button'); end.type = 'button'; end.className = 'tc-end'; end.textContent = 'タッチ確認を終わる';
+  const head = () => { const S = safe(); return `${window.innerWidth}×${window.innerHeight} px · DPR ${num(window.devicePixelRatio || 1)}\nsafe 上${num(S.top)} 右${num(S.right)} 下${num(S.bottom)} 左${num(S.left)}`; };
+  info.textContent = `${head()}\n画面をタップすると座標が出ます`;
+  const stop = (e) => { e.stopPropagation(); };
+  L.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (e.target === end) return;
+    const S = safe(), x = e.clientX, y = e.clientY;
+    info.textContent = `${head()}\nclient ${num(x)}, ${num(y)}\nsafe内 ${num(x - S.left)}, ${num(y - S.top)}`;
+    const dot = document.createElement('div'); dot.className = 'tc-dot'; dot.style.left = `${x}px`; dot.style.top = `${y}px`;
+    const t = document.createElement('i'); t.textContent = `${Math.round(x)},${Math.round(y)}`; dot.append(t);
+    L.insertBefore(dot, info);
+    const dots = L.querySelectorAll('.tc-dot'); if (dots.length > 20) dots[0].remove();
+  });
+  for (const t of ['pointerup', 'click', 'touchstart', 'touchmove', 'contextmenu']) L.addEventListener(t, (e) => { if (t === 'click' && e.target === end) return; e.preventDefault(); stop(e); });
+  end.addEventListener('click', (e) => { e.stopPropagation(); closeTouchCheck(); });
+  L.append(info, end); document.body.append(L); touchLayer = L; end.focus({ preventScroll: true });
+}
+
 // ---------- iPhone カレンダー連携の状態（ネイティブ版のみ） ----------
 const NATIVE = nativeAvailable();
 const LINK_KEY = `duo-native-cal${suffix}`;
@@ -221,12 +251,14 @@ function setLink(patch) {
   try { localStorage.setItem(LINK_KEY, JSON.stringify(link)); linkSaveFailed = false; } catch { linkSaveFailed = true; }
 }
 // perm: null（未確認）| granted | denied | restricted | notDetermined | writeOnly
+// iPhone への反映の送信待ち（meta.nativeOutbox の写し）。items は更新のたびに新しい配列にする。
+const OBX = { items: [], inflight: null, timer: 0, chain: Promise.resolve() };
 const X = { avail: NATIVE, perm: null, calendars: [], cache: null, status: 'idle', stale: false, gen: 0, inflight: null, inflightKey: '', failKey: '', vis: null, visFor: null };
 const extActive = () => NATIVE && X.avail && link.enabled && X.perm === 'granted';
 // 表示用の外部予定（アプリ予定のリンクと一致するものは除外）。入力が変わるまで使い回す。
 function visExt() {
   if (!extActive() || !X.cache) return [];
-  if (X.visFor?.[0] !== X.cache || X.visFor?.[1] !== state.events) { X.vis = dedupe(X.cache.events, state.events); X.visFor = [X.cache, state.events]; }
+  if (X.visFor?.[0] !== X.cache || X.visFor?.[1] !== state.events || X.visFor?.[2] !== OBX.items) { X.vis = dedupe(X.cache.events, state.events, OBX.items); X.visFor = [X.cache, state.events, OBX.items]; }
   return X.vis;
 }
 const isX = (e) => e.origin === 'iphone';
@@ -269,8 +301,16 @@ const occIn = (a, b) => {
   const x = visExt();
   return x.length ? base.concat(extIn(x, a, b)) : base;
 };
+// 通知の印。Duo が鳴らす通知を持つ予定だけ（Web・全体オフ・iPhone 由来・iPhone と結びついた予定は出さない）。
+const duoNotifies = (e) => !isX(e) && !['linked', 'pending'].includes(e.nativeLink?.state);
+// Duo が鳴らす通知を持つ（回ごとの個別変更を含む）。許可の要求の判断に使う。
+const hasDuoAlarms = (e) => duoNotifies(e) && ((Array.isArray(e.alarms) && e.alarms.length > 0) || Object.values(e.overrides || {}).some((o) => Array.isArray(o?.alarms) && o.alarms.length > 0));
+const hasBell = (e) => NATIVE && duoNotifies(e) && Array.isArray(e.alarms) && e.alarms.length > 0 && loadNotify().enabled;
+const alLabel = (e) => (hasBell(e) ? ` ${alarmsAria(e.alarms)}` : '');
+const BELL = '<svg class="bell" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M6 1.2a.7.7 0 0 1 .7.7v.35A3.3 3.3 0 0 1 9.3 5.5v1.7l.9 1.1v.6H1.8v-.6l.9-1.1V5.5a3.3 3.3 0 0 1 2.6-3.25V1.9A.7.7 0 0 1 6 1.2zM4.8 10h2.4a1.2 1.2 0 0 1-2.4 0z" fill="currentColor"/></svg>';
+const bell = (e) => (hasBell(e) ? BELL : '');
 const rep = (e) => (e.recurring ? '<span class="rep" aria-hidden="true">↻</span>' : '');
-const repLabel = (e, t) => (e.recurring || isX(e) ? ` aria-label="${esc(`${xname(e)}${t}${e.recurring ? ' 繰り返し' : ''}`)}"` : '');
+const repLabel = (e, t) => (e.recurring || isX(e) || alLabel(e) ? ` aria-label="${esc(`${xname(e)}${t}${e.recurring ? ' 繰り返し' : ''}${alLabel(e)}`)}"` : '');
 const addBtn = '<footer class="foot"><button type="button" class="add" data-act="add">＋ 予定を追加</button></footer>';
 const legend = () => `<div class="legend" aria-label="カテゴリ凡例">${state.categories.filter((c) => !c.hidden).map((c) => `<span style="--cat:${c.color}">${esc(c.name)}</span>`).join('')}</div>`;
 const xlegend = () => (extActive() ? '<div class="xlegend small">▦ iPhoneの予定（カレンダーの色）</div>' : '');
@@ -300,7 +340,7 @@ const chead = () => (state.view === 'month'
 
 function card(e) {
   const sub = [e.place ? esc(e.place) : '', isMulti(e) ? `${e.start.slice(5, 10).replace('-', '/')} 〜 ${e.end.slice(5, 10).replace('-', '/')}` : '', e.nativeLink?.state === 'linked' ? 'iPhoneにも追加済み' : ''].filter(Boolean).join(' · ');
-  return `<button type="button" class="event ${catCls(e)}"${catSty(e)} data-event="${esc(e.id)}"${repLabel(e, `${timeLabel(e)} ${e.title}`)}><span class="clock">${timeLabel(e)}</span><span class="tag">${esc(tagText(e))}</span><strong>${rep(e)}${esc(e.title)}</strong>${sub ? `<span class="sub">${sub}</span>` : ''}</button>`;
+  return `<button type="button" class="event ${catCls(e)}"${catSty(e)} data-event="${esc(e.id)}"${repLabel(e, `${timeLabel(e)} ${e.title}`)}><span class="clock">${timeLabel(e)}${bell(e)}</span><span class="tag">${esc(tagText(e))}</span><strong>${rep(e)}${esc(e.title)}</strong>${sub ? `<span class="sub">${sub}</span>` : ''}</button>`;
 }
 const sampleBtn = () => (state.loaded && state.events.length === 0 ? '<button type="button" class="ghost" data-act="sample">サンプルを入れる</button>' : '');
 function dayList(k) {
@@ -353,7 +393,7 @@ function weekInner(w, { mode, cur, sel, today, cap, time }) {
       html += `<button type="button" class="bar ${catCls(e)}" data-event="${esc(e.id)}" style="${catVar(e)}left:calc(${b.sc} * 100% / 7);width:calc(${b.ec - b.sc + 1} * 100% / 7);${top}" aria-label="${esc(`${xname(e)}${e.title} ${when}${e.recurring ? ' 繰り返し' : ''}`)}"><span class="bt">${esc(e.title)}</span></button>`;
     } else {
       const k = days[b.sc];
-      html += `<button type="button" class="strip ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}${colPos(b.sc, b.ec)};${top}" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${e.title}${e.recurring ? ' 繰り返し' : ''}`)}">${time ? `${e.start.slice(11)} ` : ''}${esc(e.title)}</button>`;
+      html += `<button type="button" class="strip ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}${colPos(b.sc, b.ec)};${top}" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${e.title}${e.recurring ? ' 繰り返し' : ''}`)}">${time ? `${chipTime(e.start)} ` : ''}${esc(e.title)}</button>`;
     }
   }
   return html;
@@ -436,7 +476,7 @@ function restoreAll(anchor) {
 // 週・日
 const weekKeys = () => Array.from({ length: 7 }, (_, i) => addDays(weekStart(state.selected), i));
 function weekEvent(e, k, vlist = false) {
-  return `<button type="button" class="event week-event ${catCls(e)}"${catSty(e)} data-event="${esc(e.id)}" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${e.title}${e.recurring ? ' 繰り返し' : ''}`)}"><span class="clock">${e.all || (vlist && isMulti(e)) ? '終日' : e.start.slice(11)}</span><strong>${xi(e)}${rep(e)}${esc(e.title)}</strong></button>`;
+  return `<button type="button" class="event week-event ${catCls(e)}"${catSty(e)} data-event="${esc(e.id)}" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${e.title}${e.recurring ? ' 繰り返し' : ''}${alLabel(e)}`)}"><span class="clock">${e.all || (vlist && isMulti(e)) ? '終日' : e.start.slice(11)}${bell(e)}</span><strong>${xi(e)}${rep(e)}${esc(e.title)}</strong></button>`;
 }
 function weekRow(k, short, vlist = false) {
   const list = eventsOnDay(occIn(k, k), k), d = parseKey(k);
@@ -467,10 +507,16 @@ function listHtml() {
   if (!next) next = occIn(addDays(k, 1), addDays(k, 400)).sort((a, b) => a.start.localeCompare(b.start) || String(a.id).localeCompare(String(b.id)))[0];
   const nextDay = next && dayOf(next.start) !== k ? `<small class="nd">${dayLabel(dayOf(next.start))}</small> ` : '';
   const nextHtml = next
-    ? `<button type="button" class="next ${catCls(next)}"${catSty(next)} data-event="${esc(next.id)}"${repLabel(next, `次の予定 ${next.title}`)}><small>次の予定 · ${esc(tagText(next))}</small><strong>${xi(next)}${rep(next)}${esc(next.title)}</strong><span class="when"><span class="time">${nextDay}${next.all ? '終日' : next.start.slice(11)}</span>${next.all || dayOf(next.start) !== dayOf(next.end) ? '' : ` — ${next.end.slice(11)}`}${next.place ? ` <small>${esc(next.place)}</small>` : ''}</span></button>`
+    ? `<button type="button" class="next ${catCls(next)}"${catSty(next)} data-event="${esc(next.id)}"${repLabel(next, `次の予定 ${next.title}`)}><small>次の予定 · ${esc(tagText(next))}</small><strong>${xi(next)}${rep(next)}${esc(next.title)}</strong><span class="when"><span class="time">${nextDay}${next.all ? '終日' : next.start.slice(11)}</span>${next.all || dayOf(next.start) !== dayOf(next.end) ? '' : ` — ${next.end.slice(11)}`}${next.place ? ` <small>${esc(next.place)}</small>` : ''}${nextBell(next)}</span></button>`
     : `<div class="next none"><small>次の予定</small><strong>${extActive() ? '読み込み済みの期間に次の予定はありません。' : state.events.length ? 'この後の予定はありません' : '予定はまだありません'}</strong>${sampleBtn()}</div>`;
   return `<section class="hero"><div class="date-block"><div class="eyebrow">今日 / ${d.getFullYear()}年${d.getMonth() + 1}月</div><div class="date">${d.getDate()}<span>${DOW[d.getDay()]}曜日</span></div></div>${nextHtml}</section>
     <section class="remaining" aria-label="今日の残り予定"><h3>今日の残り予定</h3><div class="list" data-scroll="rest">${rest.map(card).join('') || '<p class="small pad">この後の予定はありません。</p>'}</div></section>`;
+}
+// 閉じた一覧の「次の予定」の時刻行に、次に鳴る通知の時刻を添える。
+function nextBell(e) {
+  if (!hasBell(e)) return '';
+  const t = nextNotifyText(e, new Date());
+  return t ? ` <small class="nb">${BELL}${esc(t)} に通知</small>` : '';
 }
 const listView = () => `<div class="home listview" aria-label="一覧">${listHtml()}</div>`;
 // 閉じた画面（一覧 = home / 日・週・月 = browse）: 月領域（左）＋ 操作列 84px（右）＋ 浮動タブ。
@@ -529,7 +575,7 @@ function dayBlocks(k) {
 }
 function tlBlock({ e, s, en, col, n }, k) {
   const t = e.title, sub = hhmm(s);
-  return `<button type="button" class="tlev ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}--m:${s};--d:${en - s};left:calc(${col} * 100% / ${n} + 1px);width:calc(100% / ${n} - 2px)" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${t}${e.recurring ? ' 繰り返し' : ''}`)}"><span class="tt">${sub}</span>${esc(t)}</button>`;
+  return `<button type="button" class="tlev ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}--m:${s};--d:${en - s};left:calc(${col} * 100% / ${n} + 1px);width:calc(100% / ${n} - 2px)" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${t}${e.recurring ? ' 繰り返し' : ''}${alLabel(e)}`)}"><span class="tt">${sub}${bell(e)}</span>${esc(t)}</button>`;
 }
 // 終日段: 11px「終日」＋カテゴリの淡色地・本色12px太字のピル。最大3件（3日表示は各日1件）、幅不足なら減らして +N（その日の一覧へ）。
 function allDayRow(ks, avail) {
@@ -539,7 +585,7 @@ function allDayRow(ks, avail) {
     let shown = Math.min(cap, list.length);
     const est = (es) => es.reduce((a, e) => a + Math.min(colW, e.title.length * 12 + 26) + 6, 0) + (list.length > es.length ? 40 : 0);
     while (shown > 1 && est(list.slice(0, shown)) > colW) shown--;
-    const pills = list.slice(0, shown).map((e) => `<button type="button" class="adpill ${catCls(e)}" data-event="${esc(e.id)}" style="${catVar(e)}" aria-label="${esc(`${xname(e)}${dayLabel(k)} 終日 ${e.title}${e.recurring ? ' 繰り返し' : ''}`)}">${esc(e.title)}</button>`).join('');
+    const pills = list.slice(0, shown).map((e) => `<button type="button" class="adpill ${catCls(e)}" data-event="${esc(e.id)}" style="${catVar(e)}" aria-label="${esc(`${xname(e)}${dayLabel(k)} 終日 ${e.title}${e.recurring ? ' 繰り返し' : ''}${alLabel(e)}`)}">${esc(e.title)}</button>`).join('');
     const extra = list.length - shown;
     return `<div class="adcol" data-day="${k}">${pills}${extra > 0 ? `<button type="button" class="adplus" data-jump="${k}" aria-label="${dayLabel(k)}の終日の予定をすべて見る（ほか${extra}件）">+${extra}</button>` : ''}</div>`;
   }).join('');
@@ -715,6 +761,7 @@ async function loadSample() {
     await db.putMany(SAMPLE.map((e) => ({ ...e, categoryId: ok.has(e.categoryId) ? e.categoryId : first })));
     state.events = await db.listEvents();
     bumpRevision();
+    requestNotifySync('sample');
     render();
     say('サンプルの予定を入れました。');
   } catch { say('サンプルを保存できませんでした。'); }
@@ -722,8 +769,9 @@ async function loadSample() {
 
 // ---------- パネル共通（編集・範囲・確認・メニュー・検索・バックアップ） ----------
 const dlg = $('#editor'), confirmDlg = $('#confirm'), scopeDlg = $('#scope'), menuDlg = $('#menu'), searchDlg = $('#search'), backupDlg = $('#backup'), form = $('#form');
-const linkDlg = $('#link'), xdDlg = $('#xdetail'), xrDlg = $('#xretry'), catsDlg = $('#cats');
-const panels = [dlg, confirmDlg, scopeDlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, xrDlg, catsDlg];
+const discardDlg = $('#discard'), scrim = $('#scrim');
+const linkDlg = $('#link'), xdDlg = $('#xdetail'), xrDlg = $('#xretry'), catsDlg = $('#cats'), notifyDlg = $('#notify');
+const panels = [dlg, confirmDlg, scopeDlg, discardDlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, xrDlg, catsDlg, notifyDlg];
 const anyPanel = () => panels.some((d) => d.open);
 const syncInert = () => { root.inert = anyPanel(); };
 const origins = new Map();
@@ -731,6 +779,7 @@ function openPanel(d, from) {
   origins.set(d, from || document.activeElement);
   d.show();
   syncInert();
+  if (d === xdDlg) syncScrim();
 }
 function closePanel(d, restore = true) {
   d._restore = restore;
@@ -741,12 +790,12 @@ function closePanel(d, restore = true) {
 catsDlg.addEventListener('close', () => {
   clearTimeout(cs.timer);
   if (dlg.open) {
-    dlg.inert = confirmDlg.open || scopeDlg.open;
+    dlg.inert = confirmDlg.open || scopeDlg.open || discardDlg.open;
     if (cs.fromEditor) fillCatSelect(cs.created && state.categories.some((c) => c.id === cs.created) ? cs.created : state.categories.some((c) => c.id === lastCat) ? lastCat : defaultCatId());
     saveDraft();
   }
 });
-for (const d of [dlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, catsDlg]) {
+for (const d of [dlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, catsDlg, notifyDlg]) {
   d.addEventListener('close', () => {
     syncInert();
     if (d._restore !== false) {
@@ -758,6 +807,7 @@ for (const d of [dlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, catsDlg]) {
 }
 
 // ---------- 編集シート（ドラフトは sessionStorage に保持） ----------
+let edBase = null; // 開いた時点のフォームの写し。null は「破棄確認が必要」（復元した下書き）
 let editing = null; // 描画ID（通常予定は id、繰り返しの回は parentId@occurrenceKey）
 const F = {
   title: $('#f-title'), cat: $('#f-cat'), all: $('#f-all'), start: $('#f-start'), end: $('#f-end'), place: $('#f-place'), notes: $('#f-notes'),
@@ -765,6 +815,7 @@ const F = {
 };
 const R = { toggle: $('#rtoggle'), panel: $('#rpanel'), sum: $('#rsum'), desc: $('#rdesc'), days: $('#rdays-wrap'), end: $('#rend-wrap'), countL: $('#rcount-l'), untilL: $('#runtil-l'), err: $('#rerror') };
 let rsel = [], autoDays = true;
+let alarms; // 編集中の通知。undefined=項目なし（既存で未設定。触るまで既定を付けない）／配列=明示（[] はなし）
 
 function resolve(id) {
   const pr = parseOccId(id);
@@ -806,7 +857,7 @@ function readForm() {
   return {
     title: F.title.value, categoryId: F.cat.value === EDIT_CATS ? lastCat : F.cat.value, all: F.all.checked, start: F.start.value, end: F.end.value, place: F.place.value, notes: F.notes.value,
     rfreq: F.rfreq.value, rbyday: [...rsel], rend: F.rend.value, rcount: F.rcount.value, runtil: F.runtil.value, ropen: !R.panel.hidden, autoDays,
-    xadd: F.xadd.checked, xcal: F.xcal.value,
+    xadd: F.xadd.checked, xcal: F.xcal.value, alarms,
   };
 }
 function saveDraft() {
@@ -862,9 +913,14 @@ function showEditor(values, id, focus = true) {
   setRepeatOpen(!!values.ropen);
   F.xadd.checked = !!values.xadd;
   xSel = values.xcal || '';
+  alarms = Array.isArray(values.alarms) ? values.alarms.map((a) => ({ ...a })) : undefined;
   updateRepeatUi();
+  updateAlarmUi();
+  if (NATIVE) refreshNotifyPerm().then(() => { if (dlg.open) updateAlarmUi(); });
+  edBase = editSnap();
   dlg.show();
   syncInert();
+  syncScrim();
   if (focus) F.title.focus({ preventScroll: true });
 }
 // 新規通常予定だけに出す「iPhone のカレンダーにも追加」。編集中のリンク済み予定には案内を出す。
@@ -872,11 +928,11 @@ let xSel = '', xSig = '';
 function updateXUi() {
   const eligible = extActive();
   const cur = editing ? resolve(editing) : null;
-  const linked = !!(editing && cur && !cur.occKey && cur.p.nativeLink?.state === 'linked');
+  const linked = !!(editing && cur && cur.p.nativeLink?.state === 'linked');
   $('#xlinked').hidden = !linked;
   $('#xadd').hidden = !(eligible && !editing);
   if ($('#xadd').hidden) return;
-  const cals = writable(X.calendars), repeating = F.rfreq.value !== 'none';
+  const cals = writable(X.calendars);
   const sig = cals.map((c) => c.id).join('|');
   if (sig !== xSig) {
     xSig = sig;
@@ -885,9 +941,9 @@ function updateXUi() {
   if (F.xcal.value) xSel = F.xcal.value;
   const want = [xSel, link.defaultCalendarId].find((id) => id && cals.some((c) => c.id === id)) || cals[0]?.id || '';
   F.xcal.value = want; xSel = want;
-  if (!cals.length || repeating) F.xadd.checked = false;
-  F.xadd.disabled = !cals.length || repeating;
-  $('#xnote').textContent = !cals.length ? '追加できるカレンダーがありません。' : repeating ? '繰り返し予定はiPhoneのカレンダーに追加できません。' : '';
+  if (!cals.length) F.xadd.checked = false;
+  F.xadd.disabled = !cals.length;
+  $('#xnote').textContent = !cals.length ? '追加できるカレンダーがありません。' : '';
   $('#xcal-l').hidden = !F.xadd.checked || F.xadd.disabled;
 }
 F.xadd.addEventListener('change', () => { updateXUi(); saveDraft(); });
@@ -902,7 +958,7 @@ function valuesFrom(cur) {
   return {
     title: o.title, categoryId: o.categoryId, all: !!o.all, start: toInput(o.start, o.all), end: toInput(o.end, o.all), place: o.place || '', notes: o.notes || '',
     rfreq: r ? r.freq : 'none', rbyday: r?.byDay || [], rend: r ? (r.count != null ? 'count' : r.until ? 'until' : 'none') : 'none',
-    rcount: String(r?.count ?? 10), runtil: r?.until ? r.until.replaceAll('-', '/') : '', ropen: false, autoDays: false,
+    rcount: String(r?.count ?? 10), runtil: r?.until ? r.until.replaceAll('-', '/') : '', ropen: false, autoDays: false, alarms: o.alarms,
   };
 }
 function openEditor(id, from, day = state.selected, startMin = null) {
@@ -912,7 +968,7 @@ function openEditor(id, from, day = state.selected, startMin = null) {
   const t0 = startMin == null ? '10:00' : hhmm(startMin), t1 = startMin == null ? '11:00' : startMin + 60 > 1439 ? '23:59' : hhmm(startMin + 60);
   const values = cur
     ? valuesFrom(cur)
-    : { title: '', categoryId: defaultCatId(), all: false, start: `${day.replaceAll('-', '/')} ${t0}`, end: `${day.replaceAll('-', '/')} ${t1}`, place: '', notes: '', rfreq: 'none', rbyday: [], rend: 'none', rcount: '10', runtil: '', ropen: false };
+    : { title: '', categoryId: defaultCatId(), all: false, start: `${day.replaceAll('-', '/')} ${t0}`, end: `${day.replaceAll('-', '/')} ${t1}`, place: '', notes: '', rfreq: 'none', rbyday: [], rend: 'none', rcount: '10', runtil: '', ropen: false, alarms: defaultAlarms(false, loadNotify()) };
   showEditor(values, cur ? id : null);
   saveDraft();
 }
@@ -920,12 +976,15 @@ function closeEditor() {
   clearDraft();
   if (confirmDlg.open) confirmDlg.close();
   if (scopeDlg.open) scopeDlg.close();
+  if (discardDlg.open) discardDlg.close();
   closePanel(dlg);
 }
-function onFormChange() {
+function onFormChange(ev) {
+  if (AL.sel.includes(ev?.target)) return; // 通知の選択は onAlarmChange が扱う（input で作り直すと選択が戻ってしまう）
   if (F.rfreq.value === 'weekly' && (autoDays || !rsel.length)) { rsel = [startDow()]; autoDays = true; }
   if (F.rend.value === 'until' && !F.runtil.value.trim()) F.runtil.value = startKey().replaceAll('-', '/');
   updateRepeatUi();
+  updateAlarmUi();
   saveDraft();
 }
 form.addEventListener('input', onFormChange);
@@ -948,17 +1007,154 @@ F.all.addEventListener('change', () => {
     else if (!all && /^\d{4}\/\d{2}\/\d{2}$/.test(v)) el.value = `${v} ${t}`;
   }
   applyAllDayUi();
+  alarms = convertAlarms(alarms, all, loadNotify());
+  updateAlarmUi();
   saveDraft();
 });
-$('#close').addEventListener('click', closeEditor);
+$('#close').addEventListener('click', () => fadeClose(dlg, closeEditor));
+
+// ---------- 予定のポップアップを閉じる（08 §5）: 幕タップ・下に引く・0.2秒のフェード ----------
+// 未保存の変更の有無（開閉だけの ropen、遅れて決まる xcal、自動曜日は数えない）。
+function editSnap() { const { ropen, xcal, autoDays: _a, ...rest } = readForm(); return JSON.stringify({ ...rest, xcal: rest.xadd ? xcal : '' }); }
+const editorDirty = () => edBase == null || edBase !== editSnap();
+// 幕が受け持つポップアップ（最前面が編集シートか iPhone の予定詳細のときだけ）
+const popupTop = () => [dlg, xdDlg].find((d) => d.open && panels.every((p) => p === d || p === dlg || p === xdDlg || !p.open)) || null;
+function syncScrim() { scrim.hidden = !(dlg.open || xdDlg.open); }
+for (const d of [dlg, xdDlg]) d.addEventListener('close', syncScrim);
+let fading = false, guardUntil = 0, guardAt = null;
+// 幕を触って閉じた直後は、同じ場所へ遅れて届く click を下の要素へ通さない（別の場所の操作は妨げない）。
+const guardClicks = (x, y) => { guardUntil = performance.now() + 400; guardAt = x == null ? null : { x, y }; };
+const ghost = (ev) => performance.now() < guardUntil && (!guardAt || Math.hypot(ev.clientX - guardAt.x, ev.clientY - guardAt.y) < 40);
+function fadeClose(d, done) {
+  if (fading || !d.open) return;
+  fading = true;
+  if (d === dlg) clearDraft(); // フェード中に再読込されても下書きを復元しない
+  d.classList.add('fading'); scrim.classList.add('fade');
+  setTimeout(() => {
+    done();
+    d.classList.remove('fading', 'snap'); d.style.transform = ''; d.style.opacity = '';
+    scrim.classList.remove('fade'); scrim.style.opacity = '';
+    fading = false;
+    syncScrim();
+  }, 200);
+}
+const closeXd = () => closePanel(xdDlg);
+// 外側タップ・下に引く操作の共通の入口。編集シートは未保存の変更があれば確認を出す。
+function dismissPopup(viaScrim, at) {
+  const d = popupTop();
+  if (!d || fading) return false;
+  if (viaScrim) guardClicks(at?.x, at?.y);
+  if (d === dlg) {
+    if (editorDirty()) { openDiscard(); return true; }
+    fadeClose(dlg, closeEditor);
+  } else fadeClose(xdDlg, closeXd);
+  return true;
+}
+function openDiscard() {
+  dlg.inert = true;
+  discardDlg.show();
+  syncInert();
+  $('#dc-keep').focus({ preventScroll: true });
+}
+discardDlg.addEventListener('close', () => {
+  syncInert();
+  if (dlg.open && !confirmDlg.open && !scopeDlg.open) dlg.inert = false;
+});
+$('#dc-keep').addEventListener('click', () => { discardDlg.close(); if (dlg.open) F.title.focus({ preventScroll: true }); });
+$('#dc-drop').addEventListener('click', () => { discardDlg.close(); fadeClose(dlg, closeEditor); });
+scrim.addEventListener('click', (ev) => { ev.stopPropagation(); ev.preventDefault(); if (popupTop()) dismissPopup(true, { x: ev.clientX, y: ev.clientY }); });
+scrim.addEventListener('pointerdown', (ev) => ev.preventDefault());
+// 幕の外の click（折り目の帯・遅れて届く click）は、幕が出ている間と閉じた直後は何も起こさない。
+document.addEventListener('click', (ev) => {
+  const blocked = !scrim.hidden && ev.target !== scrim && !ev.target.closest?.('dialog');
+  if (blocked || ghost(ev)) { ev.stopPropagation(); ev.preventDefault(); }
+}, true);
+
+// 下に引いて閉じる。つかめるのは見出しの帯と、本文が先頭にあるときの本文。横の動きは別物（月の前後移動は root が受け持つ）。
+const PULL_MIN = 80, PULL_FLING = 40;
+function initPull(d) {
+  let g = null;
+  const target = () => !fading;
+  const setPos = (dy) => {
+    d.style.transform = `translateY(${dy}px)`;
+    scrim.style.opacity = String(Math.max(0, 1 - dy / 240));
+  };
+  const begin = (x, y, scroller) => { g = { x, y, t: performance.now(), dy: 0, on: false, scroller }; };
+  const move = (x, y) => { // true = 下に引く操作として扱う（既定動作を止める）
+    if (!g) return false;
+    const dx = x - g.x, dy = y - g.y;
+    if (!g.on) {
+      if (Math.abs(dx) > 12 && Math.abs(dx) >= Math.abs(dy)) { g = null; return false; } // 横の動き
+      if (dy < 12 || dy < Math.abs(dx) * 1.5) return false;
+      if (g.scroller && g.scroller.scrollTop > 0) { g = null; return false; }
+      g.on = true; d.classList.remove('snap');
+    }
+    g.dy = Math.max(0, dy);
+    setPos(g.dy);
+    return true;
+  };
+  const end = (cancelled) => {
+    const s = g; g = null;
+    if (!s || !s.on) return false;
+    const fling = (s.dy >= PULL_FLING) && (performance.now() - s.t < 250);
+    if (!cancelled && (s.dy >= PULL_MIN || fling)) {
+      const c = popupTop();
+      if (c === dlg && editorDirty()) { snapBack(); openDiscard(); }
+      else dismissPopup(false);
+    } else snapBack();
+    return true;
+  };
+  const snapBack = () => {
+    d.classList.add('snap'); d.style.transform = ''; scrim.style.opacity = '';
+    setTimeout(() => d.classList.remove('snap'), 220);
+  };
+  // 見出しの帯（pointer。touch-action:none）
+  d.addEventListener('pointerdown', (ev) => {
+    if (!target() || !ev.isPrimary || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
+    if (popupTop() !== d) return;
+    const head = ev.target.closest('.formhead,.phead');
+    if (!head || ev.target.closest('button,input,select,textarea')) return;
+    begin(ev.clientX, ev.clientY, null);
+    d.setPointerCapture?.(ev.pointerId);
+    g.pid = ev.pointerId;
+  });
+  d.addEventListener('pointermove', (ev) => { if (g && g.pid === ev.pointerId) move(ev.clientX, ev.clientY); });
+  d.addEventListener('pointerup', (ev) => { if (g && g.pid === ev.pointerId) end(false); });
+  d.addEventListener('pointercancel', (ev) => { if (g && g.pid === ev.pointerId) end(true); });
+  // 本文（touch）。先頭にあるときだけ、下向きの動きをシートの移動にする
+  d.addEventListener('touchstart', (ev) => {
+    if (!target() || ev.touches.length !== 1 || popupTop() !== d) { g = null; return; }
+    const sc = ev.target.closest('.fbody,.pbody');
+    if (!sc) return; // 見出し・フッターは pointer 側
+    const t = ev.touches[0];
+    begin(t.clientX, t.clientY, sc);
+  }, { passive: true });
+  d.addEventListener('touchmove', (ev) => {
+    if (!g || g.pid != null || ev.touches.length !== 1) return;
+    const t = ev.touches[0];
+    if (move(t.clientX, t.clientY) && ev.cancelable) ev.preventDefault();
+  }, { passive: false });
+  d.addEventListener('touchend', () => { if (g && g.pid == null) end(false); });
+  d.addEventListener('touchcancel', () => { if (g && g.pid == null) end(true); });
+}
+initPull(dlg);
+initPull(xdDlg);
 
 // 保存・削除の確定（1トランザクション）。
-async function commit(plan) {
-  await db.applyChanges(plan);
+// iPhone へ反映する操作（ops）は、予定の保存と同じトランザクションで送信待ちへ積む。
+async function commit(plan, { ops = [] } = {}) {
+  if (ops.length) OBX.items = await db.applyChangesWithOutbox({ ...plan, outbox: (cur) => mergeOps(cur, ops, OBX.inflight) });
+  else await db.applyChanges(plan);
   const gone = new Set([...plan.dels, ...plan.puts.map((e) => e.id)]);
   state.events = [...state.events.filter((e) => !gone.has(e.id)), ...plan.puts];
   bumpRevision();
+  requestNotifySync('edit');
+  if (ops.some((o) => o.kind !== 'drop')) requestFlush();
+  if (plan.puts.some(hasDuoAlarms)) askNotifyPerm(); // 結果を待たない。拒否されても保存は成立
 }
+// 送信待ちを作る入力（新系列の id がまだ確定していない np への操作も、確定後に送る操作として積める）。
+const opsCtx = (extra = {}) => ({ waiting: new Set(OBX.items.filter((o) => o.newParentId).map((o) => o.newParentId)), ...extra });
+const planOps = (prev, plan, scope, occKey, form, extra) => (NATIVE ? planNativeOps(prev, plan, scope, occKey, form, opsCtx(extra)) : { ops: [], plan });
 const SAVE_FAIL = '保存できませんでした。もう一度お試しください。';
 
 let saving = false;
@@ -977,11 +1173,12 @@ form.addEventListener('submit', async (ev) => {
   const item = { ...prev, ...r.event, id: prev ? prev.id : newId(), exdates: prev?.exdates ?? [], overrides: prev?.overrides ?? {}, updatedAt: Date.now() };
   if (!item.recurrence) { item.exdates = []; item.overrides = {}; }
   // 新規の通常予定だけ: アプリDBへ pending で確定してから、iPhone 側の作成を1回だけ呼ぶ。
-  const xwant = !editing && !item.recurrence && extActive() && F.xadd.checked && !F.xadd.disabled && !!F.xcal.value;
+  const xwant = !editing && extActive() && F.xadd.checked && !F.xadd.disabled && !!F.xcal.value;
   if (xwant) item.nativeLink = { state: 'pending', requestId: newId(), calendarId: F.xcal.value };
+  const { ops, plan: splan } = prev ? planOps(prev, { puts: [item], dels: [] }, 'all', null, r.event) : { ops: [], plan: { puts: [item], dels: [] } };
   saving = true;
   try {
-    await commit({ puts: [item], dels: [] });
+    await commit(splan, { ops });
   } catch {
     $('#error').textContent = SAVE_FAIL;
     saving = false;
@@ -1034,6 +1231,9 @@ function openScope(kind, cur, ev) {
     if (info.clears('following') || info.clears('all')) notes.push('「これ以降すべて」「すべて」を選ぶと、この範囲の個別変更と削除指定を解除します。');
   }
   $('#sc-note').textContent = notes.join(' ');
+  const dn = del ? deleteNotice(cur.p) : null;
+  $('#sc-warn').hidden = !dn?.text;
+  $('#sc-warn').textContent = dn ? dn.text(occ.title) : '';
   dlg.inert = true;
   scopeDlg.show();
   syncInert();
@@ -1050,7 +1250,8 @@ scopeDlg.addEventListener('click', async (ev) => {
   const scope = b.dataset.scope, { kind, cur, ev: form0 } = scopeCtx;
   if (kind === 'delete') { askDelete(scope, cur); return; }
   try {
-    await commit(planEdit(cur.p, cur.occKey, scope, form0, newId));
+    const { ops, plan } = planOps(cur.p, planEdit(cur.p, cur.occKey, scope, form0, newId), scope, cur.occKey, form0);
+    await commit(plan, { ops });
   } catch {
     scopeDlg.close();
     $('#error').textContent = SAVE_FAIL;
@@ -1065,12 +1266,29 @@ scopeDlg.addEventListener('click', async (ev) => {
 });
 
 // ---------- 削除（通常は確認のみ、繰り返しは範囲→確認） ----------
-let pendingDelete = null; // { scope, cur }
+let pendingDelete = null; // { scope, cur, single, duoOnly }
+// iPhone と結びついた予定の削除の注意（07）。text(予定名) は本文、duoOnly は権限がない／書き込めないとき Duo だけで消す選択。
+// 結びついていなければ null。pending でも、新系列の確定待ち（np）は結びつき扱い。
+function deleteNotice(p) {
+  const l = p.nativeLink;
+  if (!(l?.state === 'linked' || (l?.state === 'pending' && OBX.items.some((o) => o.newParentId === p.id)))) return null;
+  const cal = X.calendars.find((c) => c.id === l.calendarId);
+  const duoOnly = !NATIVE || ['denied', 'restricted', 'writeOnly', 'notDetermined'].includes(X.perm) || (!!cal && !cal.allowsModify);
+  return duoOnly
+    ? { duoOnly, text: () => 'Duo からだけ削除されます。iPhone のカレンダーには残ります。' }
+    : { duoOnly, fallback: l.matchedBy === 'fallback' && !l.fallbackDeleteConfirmed, text: (t) => `${t}\niPhone のカレンダーからも削除されます。${l.matchedBy === 'fallback' && !l.fallbackDeleteConfirmed ? `\niPhone のカレンダーの『${t}』も削除されます` : ''}` };
+}
+function showConfirm(title, cur, duoOnly, dn) {
+  $('#deletetitle').textContent = dn ? dn.text(cur.p.title) : cur.p.title;
+  $('#dodelete').textContent = duoOnly ? 'Duo から削除' : '削除する';
+  void title;
+}
 function askDelete(scope, cur) {
-  pendingDelete = { scope, cur };
+  const dn = deleteNotice(cur.p);
+  pendingDelete = { scope, cur, duoOnly: !!dn?.duoOnly, fb: !!dn?.fallback };
   const day = dayLabel(dayOf(cur.occ.start));
   $('#confirmtitle').textContent = { only: 'この予定を削除しますか？', following: `${day.replace(/（.）/, '')}以降の予定をすべて削除しますか？`, all: '繰り返し予定をすべて削除しますか？' }[scope];
-  $('#deletetitle').textContent = cur.p.title;
+  showConfirm('', cur, !!dn?.duoOnly, dn);
   scopeDlg.close();
   dlg.inert = true;
   confirmDlg.show();
@@ -1080,9 +1298,11 @@ function askDelete(scope, cur) {
 $('#delete').addEventListener('click', () => {
   const cur = editing ? resolve(editing) : null;
   if (cur?.occKey) { openScope('delete', cur); return; }
-  pendingDelete = null;
+  const dn = cur ? deleteNotice(cur.p) : null;
+  pendingDelete = cur ? { scope: 'only', cur, single: true, duoOnly: !!dn?.duoOnly, fb: !!dn?.fallback } : null;
   $('#confirmtitle').textContent = 'この予定を削除しますか？';
-  $('#deletetitle').textContent = cur?.p.title || '';
+  if (cur) showConfirm('', cur, !!dn?.duoOnly, dn);
+  else { $('#deletetitle').textContent = ''; $('#dodelete').textContent = '削除する'; }
   confirmDlg.show();
   dlg.inert = true;
   syncInert();
@@ -1094,16 +1314,28 @@ confirmDlg.addEventListener('close', () => {
 function cancelConfirm() {
   const pd = pendingDelete;
   confirmDlg.close();
-  if (pd) openScope('delete', pd.cur); // 最終確認キャンセルは範囲へ戻る
+  if (pd && !pd.single) openScope('delete', pd.cur); // 最終確認キャンセルは範囲へ戻る
 }
 $('#canceldelete').addEventListener('click', cancelConfirm);
 $('#dodelete').addEventListener('click', async () => {
-  const cur = editing ? resolve(editing) : null;
+  const pd = pendingDelete;
   try {
-    if (pendingDelete) await commit(planDelete(pendingDelete.cur.p, pendingDelete.cur.occKey, pendingDelete.scope));
-    else await commit({ puts: [], dels: [editing] });
+    if (pd?.fb && !pd.duoOnly) { // 代わりの照合で結びついた予定の最初の削除を確定した。以後は追加の文を出さない（キャンセルでは消費しない）
+      const rid = pd.cur.p.nativeLink.requestId;
+      const ack = await db.applyAck({ keys: [pd.cur.p.id], update: (raw) => (raw.nativeLink?.requestId === rid && raw.nativeLink.state === 'linked' ? { ...raw, nativeLink: { ...raw.nativeLink, fallbackDeleteConfirmed: true } } : null) });
+      applyEvents(ack.events);
+      pd.cur = { ...pd.cur, p: state.events.find((e) => e.id === pd.cur.p.id) || pd.cur.p };
+    }
+    if (pd && !pd.single) {
+      // この明示選択（Duo から削除）では iPhone への削除を積まず、同じ範囲の未送信の更新も止める。
+      const { ops } = planOps(pd.cur.p, null, pd.scope, pd.cur.occKey, null, { dropOnly: pd.duoOnly });
+      await commit(planDelete(pd.cur.p, pd.cur.occKey, pd.scope), { ops });
+    } else {
+      const prev = pd ? pd.cur.p : null;
+      const { ops } = prev ? planOps(prev, null, 'all', null, null, { dropOnly: pd.duoOnly }) : { ops: [] };
+      await commit({ puts: [], dels: [editing] }, { ops });
+    }
   } catch { confirmDlg.close(); $('#error').textContent = '削除できませんでした。'; return; }
-  void cur;
   pendingDelete = null;
   confirmDlg.close();
   closeEditor();
@@ -1115,6 +1347,7 @@ $('#dodelete').addEventListener('click', async () => {
 function openMenu(from) {
   $('#m-desk').hidden = L.w < 600 || L.h < 600;
   $('#m-link').hidden = !(NATIVE && X.avail);
+  $('#m-notify').hidden = !NATIVE;
   $('#m-desk').textContent = state.desk ? '卓上表示をやめる' : '卓上表示';
   $('#m-week').textContent = `週の始まり: ${state.weekStart === 1 ? '月曜（日曜にする）' : '日曜（月曜にする）'}`;
   $('#m-sample').hidden = !(state.loaded && state.events.length === 0);
@@ -1164,7 +1397,9 @@ menuDlg.addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-m]');
   if (!b) return;
   const m = b.dataset.m, from = origins.get(menuDlg);
+  if (b.id === 'touch-check-open') { closePanel(menuDlg); openTouchCheck(); return; }
   if (m === 'cats') { closePanel(menuDlg, false); openCategories(from); }
+  else if (m === 'notify') { closePanel(menuDlg, false); openNotify(from); }
   else if (m === 'backup') { closePanel(menuDlg, false); openBackup(from); }
   else if (m === 'link') { closePanel(menuDlg, false); openLink(from); }
   else if (m === 'desk') { closePanel(menuDlg); set({ desk: !state.desk }); }
@@ -1197,6 +1432,7 @@ async function commitCats({ catPuts = [], catDels = [], eventPuts = [] }) {
   setCategories([...state.categories.filter((c) => !dels.has(c.id) && !puts.has(c.id)), ...catPuts]);
   if (eventPuts.length) { const m = new Map(eventPuts.map((e) => [e.id, e])); state.events = state.events.map((e) => m.get(e.id) || e); }
   bumpRevision();
+  requestNotifySync('category');
   render();
 }
 const catColorName = (c) => paletteName(c) || '色';
@@ -1418,7 +1654,7 @@ function renderBackup() {
       <button type="button" class="row" id="bk-replace"${dis}>置き換え<small>今の予定はすべて消えて、このファイルの内容になります。設定も置き換わります</small></button>
       <button type="button" class="row cancel" id="bk-cancel"${dis}>キャンセル</button>${bk.err ? `<p class="berr" role="alert">${esc(bk.err)}</p>` : ''}`;
   } else {
-    BK.body.innerHTML = `<section class="card"><h3>今の予定${st.total}件を削除して、${bk.data.events.length}件に置き換えますか？</h3><p>元に戻せません。必要なら先に書き出してください。</p>${NATIVE ? '<p class="small">iPhoneの予定と連携設定は変更しません。復元後、以前iPhoneにも追加した予定が重複して表示されることがあります。</p>' : ''}
+    BK.body.innerHTML = `<section class="card"><h3>今の予定${st.total}件を削除して、${bk.data.events.length}件に置き換えますか？</h3><p>元に戻せません。必要なら先に書き出してください。</p>${NATIVE ? '<p class="small">iPhoneの予定と連携設定は変更しません。復元後、iPhoneにも追加済みの予定はこの端末のiPhoneの予定と照合し直します。見つからない予定は、最初に変更・削除するときに結びつきが外れます。</p>' : ''}
       <div class="pair2"><button type="button" id="bk-rcancel"${dis}>キャンセル</button><button type="button" class="dangerfill" id="bk-rdo"${dis}>すべて置き換える</button></div>${bk.err ? `<p class="berr" role="alert">${esc(bk.err)}</p>` : ''}</section>`;
   }
 }
@@ -1484,7 +1720,9 @@ BK.file.addEventListener('change', () => {
 });
 async function finishImport(kind) {
   if (bk.busy) return;
-  const { data, plan } = bk, name = bk.name;
+  const { plan } = bk, name = bk.name;
+  let data = bk.data, dupLinks = 0;
+  if (kind === 'replace') { const u = uniqueRequestIds(data.events); data = { ...data, events: u.events }; dupLinks = u.unlinked; } // 二重の requestId は先の1件だけ結びつけ
   bk = { ...bk, busy: true, err: '' };
   renderBackup();
   try {
@@ -1499,7 +1737,7 @@ async function finishImport(kind) {
       let cats = data.hasCategories ? mergeCategories([], cin, 'replace').categories : mergeCategories(state.categories, cin, 'add').categories;
       if (!cats.length) cats = state.categories;
       const fx = fixEventCategories(data.events, cats, now);
-      await db.applyImport({ catPuts: fx.categories, eventPuts: fx.events, replace: true });
+      OBX.items = await db.applyImport({ catPuts: fx.categories, eventPuts: fx.events, replace: true, outbox: (cur) => keepAfterReplace(cur, fx.events) });
     }
   } catch {
     try { state.events = await db.listEvents(); } catch { /* 無視 */ }
@@ -1514,9 +1752,13 @@ async function finishImport(kind) {
   let msg;
   if (kind === 'add') msg = `${plan.add.length}件を追加しました（重複${plan.skipped}件を除外）。`;
   else {
-    msg = `${data.events.length}件の予定${data.settings ? 'と設定' : ''}に置き換えました。`;
+    msg = `${data.events.length}件の予定${data.settings ? 'と設定' : ''}に置き換えました。${dupLinks ? `同じiPhone連携の印を持つ予定があったため、${dupLinks}件の結びつきを外しました。` : ''}`;
     if (data.settings) { const { notify, ...ui } = data.settings; Object.assign(state, ui); setFirstDay(state.weekStart); if (notify) saveNotify(notify); }
   }
+  // 復元した linked の予定は、この端末の iPhone の予定と照合し直す（代わりの照合は復元直後の予定だけ）。
+  for (const e of (kind === 'add' ? plan.add : data.events)) if (e.nativeLink?.state === 'linked') RESTORED.add(e.id);
+  if (extActive()) loadExt(true);
+  requestNotifySync('import'); // state と（置換なら）通知設定が確定した後
   closePanel(backupDlg);
   set({});
   say(msg);
@@ -1597,16 +1839,35 @@ function loadExt(force = false) {
       if (gen !== X.gen) return; // 古い応答は捨てる
       X.cache = { range: need, ids: idsKey(link.calendarIds), events, loadedAt: new Date(), tz: new Date().getTimezoneOffset() };
       X.status = 'ok'; X.failKey = '';
+      await reconcileLinks(); // 世代確認の後。照合は同期で計算し、保存時に現状と再確認する
     } catch (e) {
       if (gen !== X.gen) return;
       X.status = 'error'; X.failKey = key0;
-      if (['PERMISSION_DENIED', 'RESTRICTED'].includes(errCode(e))) dropLink('カレンダーへのアクセスを確認してください。');
+      if (['PERMISSION_DENIED', 'RESTRICTED', 'WRITE_ONLY'].includes(errCode(e))) dropLink('カレンダーへのアクセスを確認してください。');
     } finally {
       if (gen === X.gen) { X.inflight = null; X.inflightKey = ''; afterExt(); }
     }
   })();
   X.inflight = p;
   return p;
+}
+// 復元したばかりの予定の id（メモリのみ）。代わりの照合は、この予定にだけ・外部読込のたびに再試行する。
+const RESTORED = new Set();
+async function reconcileLinks() {
+  const ext = X.cache?.events;
+  if (!ext) return;
+  try {
+    const rel = relink(state.events, ext, RESTORED);
+    const moved = new Map(rel.map((r) => [r.id, r]));
+    const merged = state.events.map((e) => (moved.has(e.id) ? { ...e, nativeLink: moved.get(e.id).link } : e));
+    const ups = new Map([...rel, ...refreshLinks(merged, ext)].map((r) => [r.id, { from: moved.get(r.id)?.from || r.from, link: r.link }]));
+    for (const e of state.events) if (RESTORED.has(e.id) && !ups.has(e.id) && e.nativeLink?.itemId && ext.some((x) => x.itemId === e.nativeLink.itemId)) RESTORED.delete(e.id);
+    for (const id of moved.keys()) RESTORED.delete(id);
+    if (!ups.size) return;
+    // 保存時にも、計算した時点と同じ結びつきか確かめる。native への反映（update）は作らない。
+    const ack = await db.applyAck({ keys: [...ups.keys()], update: (raw) => { const u = ups.get(raw.id); return u && JSON.stringify(raw.nativeLink) === JSON.stringify(u.from) ? { ...raw, nativeLink: u.link } : null; } });
+    applyEvents(ack.events);
+  } catch { /* 照合の失敗は表示を止めない。次の読込で再試行 */ }
 }
 function afterExt() {
   render();
@@ -1625,13 +1886,14 @@ function dropLink(msg) {
 async function resumeExt() {
   if (!NATIVE || !X.avail) return;
   const p = await checkPerm();
+  if (['granted', 'writeOnly'].includes(p)) requestFlush(0);
   if (!link.enabled) { if (linkDlg.open) renderLink(); return; }
   if (p !== 'granted') { if (p) dropLink('カレンダーへのアクセスを確認してください。'); return; }
   try { await refreshCalendars(); } catch { /* 取得できなくても直前の一覧で続ける */ }
   if (X.cache && X.cache.tz !== new Date().getTimezoneOffset()) { X.cache = null; bumpRevision(); } // タイムゾーン変更: キャッシュ破棄
   await loadExt(true);
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden) resumeExt(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { resumeExt(); requestNotifySync('resume'); } });
 
 // 設定パネル
 function openLink(from) {
@@ -1649,10 +1911,13 @@ function renderLink() {
   if (lk.err) h += `<p class="berr" role="alert">${esc(lk.err)}</p>`;
   if (!on && lk.want) {
     const steps = '設定 ＞ プライバシーとセキュリティ ＞ カレンダー ＞ Duo で『フルアクセス』を許可してください。';
-    if (X.perm === 'notDetermined') h += `<section class="card"><h3>iPhone のカレンダーへのアクセスを許可してください</h3><p>予定の表示と追加に、カレンダーへのフルアクセスが必要です。iPhone側の予定をDuoから編集・削除することはありません。</p><button type="button" class="solid" id="lk-req"${dis}>アクセスを許可</button></section>`;
+    if (X.perm === 'notDetermined') h += `<section class="card"><h3>iPhone のカレンダーへのアクセスを許可してください</h3><p>予定の表示と追加に、カレンダーへのフルアクセスが必要です。Duoから追加した予定の変更・削除は、iPhoneのカレンダーにも反映されます。iPhone側の予定をDuoから編集・削除することはありません。</p><button type="button" class="solid" id="lk-req"${dis}>アクセスを許可</button></section>`;
     else if (X.perm === 'denied') h += `<section class="card"><p class="berr" role="alert">カレンダーへのアクセスが許可されていません。${steps}</p><button type="button" id="lk-settings">設定を開く</button></section>`;
     else if (X.perm === 'restricted') h += '<section class="card"><p class="berr" role="alert">この端末ではカレンダーへのアクセスが制限されています。端末の管理者に確認してください。</p></section>';
     else if (X.perm === 'writeOnly') h += `<section class="card"><p class="berr" role="alert">予定を表示するにはフルアクセスが必要です。${steps}</p><button type="button" class="solid" id="lk-req"${dis}>フルアクセスを許可</button><button type="button" id="lk-settings">設定を開く</button></section>`;
+  }
+  if (X.perm === 'writeOnly' && OBX.items.length && !(!on && lk.want)) {
+    h += '<section class="card"><p class="berr" role="alert">iPhone のカレンダーに反映するには、フルアクセスの許可が必要です。設定 ＞ プライバシーとセキュリティ ＞ カレンダー ＞ Duo で『フルアクセス』を許可してください。</p><button type="button" class="solid" id="lk-req">フルアクセスを許可</button><button type="button" id="lk-settings">設定を開く</button></section>';
   }
   if (on) {
     if (!link.calendarIds.length) h += '<p class="smsg" role="status">表示するカレンダーを選んでください。</p>';
@@ -1687,6 +1952,8 @@ async function enableLink() {
   setLink({ enabled: true });
   lk.want = false;
   loadExt(true);
+  requestFlush(0);
+  requestNotifySync('calendarAccess');
   render();
 }
 async function lkRequest() {
@@ -1734,7 +2001,7 @@ function openExtDetail(id, from) {
   openPanel(xdDlg, from);
   $('#xd-close').focus({ preventScroll: true });
 }
-$('#xd-close').addEventListener('click', () => closePanel(xdDlg));
+$('#xd-close').addEventListener('click', () => fadeClose(xdDlg, closeXd));
 $('#xd-open').addEventListener('click', async () => {
   if (!xdCur) return;
   $('#xd-err').textContent = '';
@@ -1750,33 +2017,444 @@ function openRetry(id, msg, canRetry) {
   (canRetry ? $('#xr-retry') : $('#xr-close')).focus({ preventScroll: true });
 }
 let xrId = null;
+const applyEvents = (list) => {
+  if (!list?.length) return;
+  const m = new Map(list.map((e) => [e.id, e]));
+  state.events = state.events.map((e) => m.get(e.id) || e);
+  bumpRevision();
+};
+// 復元時の一意照合用に、作成・同期時点のカレンダー名とアカウント名を残す。
+const calIdent = (cid) => { const c = X.calendars.find((x) => x.id === cid); return c ? { calName: c.title, calSource: c.source || '' } : {}; };
 async function createNative(id) {
   const e = state.events.find((x) => x.id === id), l = e?.nativeLink;
   if (!e || l?.state !== 'pending' || xBusy) return;
   xBusy = true;
+  const sent = { title: e.title, start: e.start, end: e.end, all: !!e.all, place: e.place || '', notes: e.notes || '', ...(Array.isArray(e.alarms) ? { alarms: e.alarms } : {}), ...(e.recurrence ? { recurrence: normRule(e.recurrence) } : {}) };
   try {
-    const r = await call('createEvent', { requestId: l.requestId, calendarId: l.calendarId, title: e.title, start: e.start, end: e.all ? `${dayOf(e.end)}T00:00` : e.end, all: !!e.all, place: e.place || '', notes: e.notes || '' });
+    const args = { requestId: l.requestId, calendarId: l.calendarId, title: e.title, start: e.start, end: e.all ? `${dayOf(e.end)}T00:00` : e.end, all: !!e.all, place: e.place || '', notes: e.notes || '' };
+    if (e.recurrence) args.recurrence = normRule(e.recurrence); // 新規の規則だけ（例外入りの系列は送らない）
+    if (Array.isArray(e.alarms)) args.alarms = e.alarms; // linked の通知は iPhone 側（EKAlarm）が鳴らす
+    const r = await call('createEvent', args);
     if (!r?.eventId) throw new Error('no event id');
-    await commit({ puts: [{ ...e, nativeLink: { state: 'linked', requestId: l.requestId, eventId: String(r.eventId), calendarId: l.calendarId } }], dels: [] });
+    const nl = cleanLink({
+      v: 2, state: 'linked', requestId: l.requestId, calendarId: r.calendarId || l.calendarId, itemId: r.itemId != null ? String(r.itemId) : undefined,
+      externalId: r.externalId != null ? String(r.externalId) : undefined, eventId: String(r.eventId), ekModified: Number.isFinite(r.modifiedAt) ? r.modifiedAt : undefined,
+      syncedAt: Date.now(), matchedBy: 'id', warn: null, ...calIdent(r.calendarId || l.calendarId),
+    });
+    // 本文は読み直した最新のものを残し、結びつきだけ書く（作成中の編集を古いスナップショットで消さない）。
+    const ack = await db.applyAck({ keys: [id], update: (raw) => (raw.nativeLink?.requestId === l.requestId && raw.nativeLink.state === 'pending' ? { ...raw, nativeLink: withIdent({ ...nl, seriesStart: raw.start }) } : null) });
+    applyEvents(ack.events);
+    const latest = state.events.find((x) => x.id === id);
+    // 作成の間に編集・削除されていたら、差分（または削除）を送信待ちへ積む。
+    const snap = { ...(latest || e), ...sent, id, nativeLink: withIdent({ ...nl, seriesStart: sent.start }) };
+    const { ops } = planNativeOps(snap, { puts: latest ? [latest] : [], dels: latest ? [] : [id] }, 'all', null, latest || null, opsCtx());
+    if (ops.length) { OBX.items = await db.applyChangesWithOutbox({ outbox: (cur) => mergeOps(cur, ops, OBX.inflight) }); requestFlush(); }
     setLink({ defaultCalendarId: l.calendarId });
+    requestNotifySync('link');
     render();
     say('予定を保存し、iPhoneのカレンダーにも追加しました。');
     loadExt(true);
   } catch (err) {
     const msg = 'Duoに保存しました。iPhoneのカレンダーには追加できませんでした。';
-    const hard = ['PERMISSION_DENIED', 'CALENDAR_NOT_FOUND', 'RESTRICTED', 'READ_ONLY'].includes(errCode(err));
+    const hard = ['PERMISSION_DENIED', 'WRITE_ONLY', 'CALENDAR_NOT_FOUND', 'RESTRICTED', 'READ_ONLY'].includes(errCode(err));
     openRetry(id, hard ? `${msg}${errText(err, '')}メニューの『iPhone カレンダー連携』と追加先を確認してください。` : msg, !hard);
     say(msg);
   } finally { xBusy = false; }
 }
+
+// ---------- iPhone への反映（送信待ちを1件ずつ送る） ----------
+const MSG = {
+  missing: 'iPhone のカレンダーに元の予定が見つからないため、結びつきを外しました。Duo の予定はそのまま残っています。',
+  conflictUpdate: 'iPhone のカレンダー側でも変更されていたため、Duo の内容で上書きしました。',
+  conflictDelete: 'iPhone 側で変更されていたため、iPhone の予定は残しました',
+  writeOnly: 'iPhone のカレンダーに反映するには、フルアクセスの許可が必要です。',
+  fail: 'iPhone のカレンダーに反映できませんでした。次に開いたときにもう一度試します。',
+  readOnly: 'このカレンダーには書き込めないため、iPhone のカレンダーへの反映を止めました。Duo の予定はそのまま残っています。',
+  gaveUp: 'iPhone のカレンダーに反映できなかったため、結びつきを外しました。Duo の予定はそのまま残っています。',
+};
+let noticeTimer = 0;
+// 4 秒のお知らせ。action を付けると右にボタンを出す。
+function notice(msg, action) {
+  clearTimeout(noticeTimer);
+  document.querySelector('#native-toast')?.remove();
+  const el = document.createElement('div');
+  el.id = 'native-toast'; el.className = 'undobar toastbar'; el.setAttribute('role', 'status');
+  const sp = document.createElement('span'); sp.textContent = msg; el.append(sp);
+  if (action) { const b = document.createElement('button'); b.type = 'button'; b.textContent = action.label; b.addEventListener('click', action.fn); el.append(b); }
+  document.body.append(el);
+  noticeTimer = setTimeout(() => el.remove(), 4000);
+}
+function requestFlush(delay = 400) {
+  if (!NATIVE || !OBX.items.length) return;
+  clearTimeout(OBX.timer);
+  OBX.timer = setTimeout(() => { OBX.chain = OBX.chain.then(runFlush).catch(() => {}); }, delay);
+}
+async function ackOps({ keys = [], update, outbox }) {
+  const r = await db.applyAck({ keys, update, outbox });
+  OBX.items = r.list;
+  applyEvents(r.events);
+  return r;
+}
+// 新系列の確定待ちのまま取り残された np（待つ操作が消えた）は結びつきを外す。
+async function sweepOrphans() {
+  for (const e of state.events) {
+    const l = e.nativeLink;
+    if (l?.state === 'pending' && l.seriesStart && !OBX.items.some((o) => o.newRequestId === l.requestId)) {
+      await ackOps({ keys: [e.id], update: (raw) => (raw.nativeLink?.requestId === l.requestId && raw.nativeLink.state === 'pending' ? { ...raw, nativeLink: { ...raw.nativeLink, state: 'unlinked', warn: null } } : null), outbox: (c) => c });
+    }
+  }
+}
+async function runFlush() {
+  if (!['granted', 'writeOnly'].includes(X.perm)) return; // 許可がなければ待ちのまま
+  await sweepOrphans();
+  const tried = new Set();
+  let failed = false;
+  for (;;) {
+    const op = OBX.items.find((o) => !tried.has(o.opId));
+    if (!op) break;
+    tried.add(op.opId); // 失敗は同じ flush 内では再試行しない（次の起点で）
+    const r = await sendOp(op);
+    if (r === 'stop') { failed = false; break; }
+    if (r === 'fail') failed = true;
+  }
+  if (failed) notice(MSG.fail);
+}
+// 送る直前の最新の結びつき。新系列の確定待ちの操作は、確定するまで送らない。
+function resolveLink(op) {
+  const ev = state.events.find((e) => e.id === op.eventKey), l = ev?.nativeLink;
+  const same = l && l.requestId === op.link.requestId;
+  if (op.link.state === 'pending') {
+    if (same && l.state === 'linked') return { link: l };
+    if (OBX.items.some((o) => o.newRequestId === op.link.requestId)) return { wait: true };
+    return { drop: true };
+  }
+  if (same && l.state !== 'linked') return { drop: true }; // 解除済み
+  return { link: same ? l : op.link };
+}
+function buildArgs(op, link) {
+  const a = { itemId: link.itemId || '', externalId: link.externalId || '', eventId: link.eventId || '', requestId: link.requestId, calendarId: link.calendarId || '', span: op.span };
+  const occ = op.span === 'all' ? (link.seriesStart || op.occurrenceStart) : op.occurrenceStart;
+  if (occ) a.occurrenceStart = occ;
+  if (Number.isFinite(link.ekModified)) a.expectModified = link.ekModified;
+  if (op.kind === 'update') {
+    const p = op.payload;
+    for (const k of ['title', 'place', 'notes']) if (k in p) a[k] = p[k];
+    if ('start' in p) { a.start = p.start; a.end = p.all ? `${dayOf(p.end)}T00:00` : p.end; a.all = !!p.all; }
+    if ('alarms' in p) a.alarms = p.alarms;
+    if ('recurrence' in p) a.recurrence = p.recurrence;
+    if (op.newRequestId) a.newRequestId = op.newRequestId;
+  }
+  return a;
+}
+const removeOp = (id) => (cur) => cur.filter((o) => o.opId !== id);
+async function sendOp(op) {
+  const rl = resolveLink(op);
+  if (rl.wait) return 'skip';
+  if (rl.drop) { await ackOps({ outbox: removeOp(op.opId) }); return 'ok'; }
+  const link = rl.link, args = buildArgs(op, link);
+  OBX.inflight = op.opId;
+  try {
+    let res, conflict = false;
+    try { res = await call(op.kind === 'delete' ? 'deleteEvent' : 'updateEvent', args); } catch (e) {
+      if (op.kind === 'update' && errCode(e) === 'CONFLICT') { res = await call('updateEvent', { ...args, force: true }); conflict = true; } else throw e;
+    }
+    await onSendOk(op, link, res || {}, conflict);
+    return 'ok';
+  } catch (e) {
+    return await onSendFail(op, link, e);
+  } finally { OBX.inflight = null; }
+}
+async function onSendOk(op, link, res, conflict) {
+  const now = Date.now(), del = op.kind === 'delete';
+  const ids = (base) => ({
+    ...base, v: 2, state: 'linked',
+    itemId: res.itemId != null ? String(res.itemId) : base.itemId, externalId: res.externalId != null ? String(res.externalId) : base.externalId,
+    eventId: res.eventId != null ? String(res.eventId) : base.eventId, calendarId: res.calendarId || base.calendarId,
+    ekModified: del ? now : Number.isFinite(res.modifiedAt) ? res.modifiedAt : base.ekModified, syncedAt: now, warn: null,
+  });
+  const npLink = op.newParentId ? withIdent({ ...ids({ requestId: op.newRequestId, calendarId: link.calendarId }), seriesStart: op.occurrenceStart, matchedBy: 'id' }) : null;
+  const moves = op.kind === 'update' && (op.span === 'all' || (op.span === 'this' && !op.occurrenceStart));
+  const r = await ackOps({
+    keys: [op.eventKey, ...(op.newParentId ? [op.newParentId] : [])],
+    update: (raw, key) => {
+      const l = raw.nativeLink;
+      if (key === op.newParentId) return l?.requestId === op.newRequestId && l.state === 'pending' ? { ...raw, nativeLink: npLink } : null;
+      if (!l || l.requestId !== link.requestId || l.state === 'unlinked') return null;
+      if (op.newParentId) return { ...raw, nativeLink: withIdent({ ...l, ekModified: Number.isFinite(res.modifiedAt) ? res.modifiedAt : l.ekModified, syncedAt: now, warn: null }) };
+      return { ...raw, nativeLink: withIdent({ ...ids(l), seriesStart: moves ? raw.start : (l.seriesStart || raw.start) }) };
+    },
+    // 待ちから消すのは opId だけ。新系列が確定したら、np への待ちの操作へ新しい結びつきを渡す。
+    outbox: (cur) => cur.filter((o) => o.opId !== op.opId).map((o) => (npLink && o.link?.requestId === op.newRequestId ? { ...o, link: npLink } : o)),
+  });
+  if (conflict) notice(MSG.conflictUpdate);
+  if (op.newParentId || r.events.length) requestNotifySync('link');
+  render();
+}
+// 結びつきを外す（同じ予定への待ちも除く）。Duo の予定は残す。
+async function unlinkOp(op, warn, msg) {
+  const reqs = new Set([op.link.requestId, op.newRequestId].filter(Boolean));
+  await ackOps({
+    keys: [op.eventKey, ...(op.newParentId ? [op.newParentId] : [])],
+    update: (raw) => (raw.nativeLink && reqs.has(raw.nativeLink.requestId) && raw.nativeLink.state !== 'unlinked' ? { ...raw, nativeLink: { ...raw.nativeLink, state: 'unlinked', warn } } : null),
+    outbox: (cur) => cur.filter((o) => o.opId !== op.opId && !reqs.has(o.link?.requestId)),
+  });
+  notice(msg);
+  requestNotifySync('link');
+  render();
+}
+async function onSendFail(op, link, e) {
+  const code = errCode(e);
+  switch (code) {
+    case 'NOT_FOUND':
+      if (op.kind === 'delete') { await ackOps({ outbox: removeOp(op.opId) }); return 'ok'; }
+      await unlinkOp(op, 'missing', MSG.missing); return 'ok';
+    case 'CONFLICT': // update は force で再送済みなので、ここへ来るのは delete（iPhone の予定は消さない）
+      await unlinkOp(op, 'conflict', MSG.conflictDelete); return 'ok';
+    case 'CALENDAR_NOT_FOUND': await unlinkOp(op, 'missing', MSG.readOnly); return 'ok';
+    case 'READ_ONLY': await unlinkOp(op, null, MSG.readOnly); return 'ok';
+    case 'WRITE_ONLY':
+      X.perm = 'writeOnly';
+      await ackOps({ keys: [op.eventKey], update: (raw) => (raw.nativeLink?.requestId === link.requestId && raw.nativeLink.warn !== 'writeOnly' ? { ...raw, nativeLink: { ...raw.nativeLink, warn: 'writeOnly' } } : null) });
+      notice(MSG.writeOnly, { label: '設定を開く', fn: openSettings });
+      if (linkDlg.open) renderLink();
+      return 'stop';
+    case 'PERMISSION_DENIED': case 'RESTRICTED':
+      X.perm = code === 'RESTRICTED' ? 'restricted' : 'denied';
+      if (link.enabled) dropLink('カレンダーへのアクセスを確認してください。');
+      return 'stop';
+    default: {
+      const tries = (op.tries || 0) + 1;
+      if (tries >= 5) { await unlinkOp(op, null, MSG.gaveUp); return 'ok'; }
+      await ackOps({ outbox: (cur) => cur.map((o) => (o.opId === op.opId ? { ...o, tries } : o)) });
+      return 'fail';
+    }
+  }
+}
 $('#xr-close').addEventListener('click', () => closePanel(xrDlg));
 $('#xr-retry').addEventListener('click', () => { closePanel(xrDlg); createNative(xrId); });
 
+
+// ---------- 通知（編集シートの行・設定パネル・許可・タップ） ----------
+const AL = { wrap: $('#alwrap'), sel: [$('#f-al0'), $('#f-al1')], row: [$('#al0-row'), $('#al1-row')], val: [$('#al0-v'), $('#al1-v')], note: $('#al-note'), off: $('#al-off'), perm: $('#al-perm'), xperm: $('#al-xperm'), ilink: $('#al-ilink') };
+const openSettings = async () => { try { await call('openSettings'); } catch { /* 開けなくても案内は残る */ } };
+// 編集中の予定の iPhone との関係。linked / pending は iPhone 側のアラームが鳴らす（Duo は鳴らさない）。
+const editLinked = () => {
+  const cur = editing ? resolve(editing) : null;
+  return !!(cur && ['linked', 'pending'].includes(cur.p.nativeLink?.state));
+};
+function updateAlarmUi() {
+  AL.wrap.hidden = !NATIVE;
+  if (!NATIVE) return;
+  const all = F.all.checked, list = Array.isArray(alarms) ? alarms : [];
+  const linked = editLinked(), n = loadNotify();
+  const noAccess = linked && X.perm !== 'granted';
+  const rows = list.length ? 2 : 1;
+  for (let i = 0; i < 2; i++) {
+    AL.row[i].hidden = i >= rows;
+    if (i >= rows) continue;
+    const other = list[1 - i] ? encAlarm(list[1 - i]) : null;
+    const opts = alarmOptions(all, list).filter((o) => o.value === '' || o.value !== other);
+    const cur = list[i] ? encAlarm(list[i]) : '';
+    AL.sel[i].innerHTML = opts.map((o) => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
+    AL.sel[i].value = cur;
+    AL.sel[i].disabled = noAccess;
+    AL.val[i].textContent = `${(opts.find((o) => o.value === cur) || opts[0]).label} ›`;
+    AL.val[i].classList.toggle('none', !cur);
+  }
+  const fires = !linked && list.length > 0;
+  const st = parseInput(F.start.value, all);
+  const past = fires && !!st && F.rfreq.value === 'none' && pastForNotify({ all, start: st, end: st }, list, new Date());
+  AL.note.hidden = !past;
+  AL.note.textContent = '過去の予定には通知されません';
+  AL.off.hidden = linked || n.enabled;
+  AL.perm.hidden = !(fires && n.enabled && N.perm === 'denied');
+  AL.ilink.hidden = !linked || noAccess;
+  AL.xperm.hidden = !noAccess;
+}
+function onAlarmChange(i) {
+  const vals = [0, 1].filter((j) => !AL.row[j].hidden).map((j) => decAlarm(AL.sel[j].value));
+  vals[i] = decAlarm(AL.sel[i].value);
+  const next = vals.filter(Boolean);
+  alarms = alarmsDup(next) ? next.filter((a, j) => next.findIndex((b) => encAlarm(b) === encAlarm(a)) === j) : next;
+  updateAlarmUi();
+  saveDraft();
+}
+AL.sel.forEach((el, i) => el.addEventListener('change', (ev) => { ev.stopPropagation(); onAlarmChange(i); }));
+AL.off.addEventListener('click', () => openNotify(AL.off));
+$('#al-settings').addEventListener('click', openSettings);
+$('#al-xsettings').addEventListener('click', openSettings);
+
+// 通知の許可。notifyStatus / requestNotifyPermission も再予約と同じ直列 chain に載せる（同時に native を呼ばない）。
+function refreshNotifyPerm() {
+  if (!NATIVE) return Promise.resolve();
+  const p = N.chain.then(async () => { try { const st = await call('notifyStatus'); N.perm = st?.status || N.perm; } catch { /* 不明のまま */ } });
+  N.chain = p;
+  return p;
+}
+// notDetermined のときだけ iOS の許可ダイアログを要求する。許可状態が変わったら再予約。
+function askNotifyPerm() {
+  if (!NATIVE) return Promise.resolve();
+  const p = N.chain.then(async () => {
+    try {
+      const st = await call('notifyStatus');
+      N.perm = st?.status || N.perm;
+      if (N.perm === 'notDetermined') {
+        const r = await call('requestNotifyPermission');
+        N.perm = r?.status || N.perm;
+        notifyPermissionChanged();
+      }
+    } catch { /* 許可の確認に失敗しても保存・操作は成立 */ }
+    if (dlg.open) updateAlarmUi();
+    if (notifyDlg.open) renderNotify();
+  });
+  N.chain = p;
+  return p;
+}
+
+// 通知パネル（その他メニュー →「通知」）。右ページ／全画面の dialog.full。
+const NT = { body: $('#nt-body') };
+let nt = { msg: '', err: '', busy: false };
+function openNotify(from) {
+  nt = { msg: '', err: '', busy: false };
+  renderNotify();
+  openPanel(notifyDlg, from);
+  NT.body.querySelector('button')?.focus({ preventScroll: true });
+  refreshNotifyPerm().then(() => { if (notifyDlg.open) renderNotify(); });
+}
+function optHtml(opts, cur) { return opts.map((o) => `<option value="${esc(o.value)}"${o.value === cur ? ' selected' : ''}>${esc(o.label)}</option>`).join(''); }
+function renderNotify() {
+  const n = loadNotify(), on = n.enabled, dis = nt.busy ? ' disabled' : '';
+  const tOpts = alarmOptions(false).slice(1), aOpts = alarmOptions(true, [n.defaultAllDay]).slice(1);
+  const tCur = encAlarm(n.defaultTimed), aCur = encAlarm(n.defaultAllDay);
+  const lbl = (opts, cur) => (opts.find((o) => o.value === cur) || opts[0]).label;
+  let h = `<div class="swrow nsw"><span id="nt-swl">予定の通知</span><button type="button" role="switch" id="nt-sw" class="sw" aria-checked="${on}" aria-labelledby="nt-swl"${dis}><span class="knob" aria-hidden="true"></span><span class="swt">${on ? 'オン' : 'オフ'}</span></button></div>`;
+  if (N.perm === 'denied') h += '<section class="card ncard deny"><p class="berr" role="alert">iPhone の設定で通知が許可されていません。</p><button type="button" id="nt-settings">設定を開く</button></section>';
+  else if (N.perm === 'provisional') h += '<section class="card ncard"><p>通知は通知センターに静かに届きます。ロック画面に出すには、設定で許可してください。</p><button type="button" id="nt-settings">設定を開く</button></section>';
+  if (nt.err) h += `<p class="berr" role="alert">${esc(nt.err)}</p>`;
+  h += `<h3 class="nh">新しい予定の既定</h3><section class="card nrows">
+    <label class="alrow"><span class="alk">時刻のある予定</span><span class="alv">${esc(lbl(tOpts, tCur))} ›</span><select id="nt-dt" aria-label="時刻のある予定の既定">${optHtml(tOpts, tCur)}</select></label>
+    <label class="alrow"><span class="alk">終日の予定</span><span class="alv">${esc(lbl(aOpts, aCur))} ›</span><select id="nt-da" aria-label="終日の予定の既定">${optHtml(aOpts, aCur)}</select></label>
+    <p class="small">ここを変えても、すでにある予定の通知は変わりません。</p></section>
+    <div class="swrow nsw"><span id="nt-tl">通知に予定名を表示</span><button type="button" role="switch" id="nt-showtitle" class="sw" aria-checked="${n.showTitle}" aria-labelledby="nt-tl"><span class="knob" aria-hidden="true"></span><span class="swt">${n.showTitle ? 'オン' : 'オフ'}</span></button></div>
+    <p class="nsmall">オフにすると、ロック画面には「予定があります」とだけ出ます。</p>
+    <section class="card nstat"><p class="ncount"><strong>予約中 <span id="nt-count">${N.scheduled == null ? '—' : N.scheduled}</span>件</strong></p><p class="small">${WINDOW_DAYS}日先まで・最大${MAX_PENDING}件。アプリを開くたびに先の分を予約し直します。長く開かないと、その先は届きません。</p></section>
+    <button type="button" id="nt-test" class="nbtn"${dis}>1分後にテスト通知を送る</button>`;
+  if (nt.msg) h += `<p class="bmsg" role="status">${esc(nt.msg)}</p>`;
+  NT.body.innerHTML = h;
+}
+function updateNotifyCount() {
+  const el = $('#nt-count');
+  if (el) el.textContent = N.scheduled == null ? '—' : N.scheduled;
+}
+NT.body.addEventListener('click', async (ev) => {
+  const b = ev.target.closest('button');
+  if (!b || b.disabled) return;
+  if (b.id === 'nt-settings') openSettings();
+  else if (b.id === 'nt-sw') {
+    const next = !loadNotify().enabled;
+    saveNotify({ enabled: next });
+    notifySettingsChanged(); // オフは直列 clear
+    renderNotify();
+    NT.body.querySelector('#nt-sw')?.focus({ preventScroll: true });
+    if (next) { await askNotifyPerm(); if (notifyDlg.open) renderNotify(); NT.body.querySelector('#nt-sw')?.focus({ preventScroll: true }); }
+  } else if (b.id === 'nt-showtitle') {
+    saveNotify({ showTitle: !loadNotify().showTitle });
+    notifySettingsChanged();
+    renderNotify();
+    NT.body.querySelector('#nt-showtitle')?.focus({ preventScroll: true });
+  } else if (b.id === 'nt-test') {
+    nt = { msg: '', err: '', busy: true }; renderNotify();
+    await askNotifyPerm();
+    try { await call('notifyTest'); nt = { msg: '1分後にテスト通知を送ります。', err: '', busy: false }; } catch (e) { nt = { msg: '', err: errCode(e) === 'PERMISSION_DENIED' ? '通知が許可されていないため、テスト通知を送れません。' : 'テスト通知を送れませんでした。もう一度お試しください。', busy: false }; }
+    renderNotify();
+    NT.body.querySelector('#nt-test')?.focus({ preventScroll: true });
+  }
+});
+NT.body.addEventListener('change', (ev) => {
+  const t = ev.target;
+  if (t.id === 'nt-dt') saveNotify({ defaultTimed: decAlarm(t.value) });
+  else if (t.id === 'nt-da') saveNotify({ defaultAllDay: decAlarm(t.value) });
+  else return;
+  notifySettingsChanged();
+  renderNotify();
+  NT.body.querySelector(`#${t.id}`)?.focus({ preventScroll: true });
+});
+$('#nt-close').addEventListener('click', () => closePanel(notifyDlg));
+
+// 通知のタップ: その日を開く（閉じた／縦は日表示、見開きは月＋右の時間軸）。対象の回を1.5秒だけ枠で示す。詳細・編集は開かない。
+let lastTap = { key: '', t: 0 };
+function onNotifyTap(p) {
+  if (!p || !isKey(p.day)) return;
+  const key = `${p.day}|${p.eventId}`, now = Date.now();
+  if (key === lastTap.key && now - lastTap.t < 1500) return; // 同じ通知の二重配送
+  lastTap = { key, t: now };
+  if (!N.ready) { N.tap = p; return; }
+  openNotifyTarget(p);
+}
+function openNotifyTarget({ day, eventId }) {
+  for (const d of [menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, xrDlg, catsDlg, notifyDlg]) if (d.open) closePanel(d, false);
+  const target = eventsOnDay(occIn(day, day), day).find((e) => !isX(e) && (e.id === eventId || e.parentId === eventId));
+  const spreadKind = layoutKind() === 'spread';
+  set({ selected: day, home: false, view: spreadKind ? 'month' : 'day' });
+  if (!target) { say(`${dayLabel(day)}を開きました。`); return; }
+  const sel = spreadKind ? '.rp .tlev, .rp .adpill' : '.daylist .event';
+  const el = [...root.querySelectorAll(sel)].find((b) => b.dataset.event === target.id && (!b.dataset.sday || b.dataset.sday === day));
+  if (el) {
+    const tl = el.closest('.tl');
+    if (tl) tl.scrollTop = Math.max(0, tl.scrollTop + el.getBoundingClientRect().top - tl.getBoundingClientRect().top - 40);
+    else el.scrollIntoView({ block: 'nearest' });
+    el.classList.add('nhl');
+    setTimeout(() => el.classList.remove('nhl'), 1500);
+  }
+  say(`${dayLabel(day)}の予定「${target.title}」の通知を開きました。`);
+}
+
+// ---------- 通知の再予約（予約の正本は常に「今の予定＋通知設定」。差分でなく全件を送り直す） ----------
+// N.scheduled / N.lastReason はメモリだけ。要求は 500ms trailing debounce、世代で古い応答を捨て、native 呼出しは常に1本ずつ。
+const N = { ready: false, tap: null, perm: null, scheduled: null, lastReason: '', err: '', gen: 0, timer: 0, chain: Promise.resolve() };
+const NOTIFY_OK = ['granted', 'provisional', 'ephemeral'];
+function requestNotifySync(reason = 'unknown') {
+  if (!NATIVE || !N.ready) return;
+  const gen = ++N.gen;
+  N.lastReason = reason;
+  clearTimeout(N.timer);
+  N.timer = setTimeout(() => { N.chain = N.chain.then(() => runNotifySync(gen)).catch(() => {}); }, 500);
+}
+async function runNotifySync(gen) {
+  if (gen !== N.gen) return; // 開始前に新しい要求が来ていれば、そちらに任せる
+  try {
+    const n = loadNotify();
+    if (!n.enabled) {
+      await call('notifyClear'); // 許可状態に関係なく、オフなら全消去
+      if (gen === N.gen) { N.scheduled = 0; N.err = ''; updateNotifyCount(); }
+      return;
+    }
+    const st = await call('notifyStatus');
+    if (gen !== N.gen) return;
+    N.perm = st?.status || null;
+    if (!NOTIFY_OK.includes(N.perm)) { N.scheduled = null; return; } // 許可はここでは要求しない
+    const items = planNotifications(state.events, new Date(), n);
+    if (gen !== N.gen) return;
+    const r = await call('notifySync', { items });
+    if (gen === N.gen) { N.scheduled = Number.isFinite(r?.scheduled) ? r.scheduled : items.length; N.err = ''; updateNotifyCount(); }
+  } catch (e) {
+    if (gen === N.gen) { N.err = errCode(e) || 'UNAVAILABLE'; N.scheduled = null; }
+  }
+}
+// 公開呼出し名。PR 4 の設定・許可処理もここへ接続する。
+window.syncNotifications = requestNotifySync;
+const notifySettingsChanged = () => requestNotifySync('settings'); // オン・既定・showTitle の変更。オフなら直列 clear
+const notifyPermissionChanged = () => requestNotifySync('permission');
+
 async function initNative() {
   if (!NATIVE) return;
+  // 連携オフ・カレンダー権限なしでも通知は動くので、購読は権限確認より前に行う。
+  listen('calendarChanged', () => { clearTimeout(extTimer); extTimer = setTimeout(() => { if (extActive()) loadExt(true); }, 300); });
+  listen('notificationTapped', onNotifyTap);
+  listen('timeChanged', () => { X.cache = null; bumpRevision(); requestNotifySync('time'); if (extActive()) loadExt(true); else render(); });
   const p = await checkPerm();
   if (p === null) return;
-  listen('calendarChanged', () => { clearTimeout(extTimer); extTimer = setTimeout(() => { if (extActive()) loadExt(true); }, 300); });
+  if (['granted', 'writeOnly'].includes(p)) requestFlush(0);
   if (link.enabled) {
     if (p === 'granted') { try { await refreshCalendars(); } catch { /* 一覧は後で再取得 */ } loadExt(true); } else dropLink('カレンダーへのアクセスを確認してください。');
   }
@@ -1795,6 +2473,7 @@ document.addEventListener('keydown', (ev) => {
   else if (menuDlg.open) closePanel(menuDlg);
   else if (xdDlg.open) closePanel(xdDlg);
   else if (linkDlg.open) closePanel(linkDlg);
+  else if (notifyDlg.open) closePanel(notifyDlg);
   else if (catsDlg.open) catsBack();
   else if (backupDlg.open) backBackup();
   else if (searchDlg.open) closePanel(searchDlg);
@@ -1855,7 +2534,7 @@ setInterval(() => { if (!anyPanel() && listShown()) render(); else updateNow(); 
 async function boot() {
   updateVars();
   render();
-  try { setCategories(await db.listCategories()); state.events = await db.listEvents(); bumpRevision(); } catch { say('保存領域を開けませんでした。'); }
+  try { setCategories(await db.listCategories()); let bf = null; try { bf = await db.backfillNotifyOnce(new Date()); } catch { bf = null; /* ロールバック済み。次の起動で再実行 */ } state.events = await db.listEvents(); try { OBX.items = await db.getOutbox(); } catch { OBX.items = []; } bumpRevision(); N.ready = true; requestNotifySync(bf?.ran ? 'backfill' : 'launch'); } catch { say('保存領域を開けませんでした。'); }
   state.loaded = true;
   render();
   let draft = null;
@@ -1866,8 +2545,11 @@ async function boot() {
     showEditor({
       title: draft.title || '', categoryId: draftCat(draft), all: !!draft.all, start: draft.start || '', end: draft.end || '', place: draft.place || '', notes: draft.notes || '',
       rfreq: draft.rfreq, rbyday: Array.isArray(draft.rbyday) ? draft.rbyday : [], rend: draft.rend, rcount: draft.rcount, runtil: draft.runtil, ropen: !!draft.ropen, autoDays: draft.autoDays,
+      alarms: Array.isArray(draft.alarms) ? draft.alarms : id ? undefined : defaultAlarms(!!draft.all, loadNotify()),
     }, id, false);
+    edBase = null; // 復元した下書きは未保存の変更として扱う
   }
+  if (N.tap) { const t = N.tap; N.tap = null; openNotifyTarget(t); }
   await Promise.race([initNative(), new Promise((r) => setTimeout(r, 2500))]);
   document.documentElement.dataset.ready = '1';
 }

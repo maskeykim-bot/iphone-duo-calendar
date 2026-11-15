@@ -18,6 +18,7 @@
 </head>
 <body>
 <div id="app"></div>
+<div id="scrim" hidden></div>
 
 <dialog id="editor" class="panel" aria-labelledby="edtitle">
   <form id="form" novalidate autocomplete="off">
@@ -29,6 +30,15 @@
       <div class="pair">
         <label>開始<input id="f-start" name="start" class="date-text" inputmode="numeric" placeholder="2026/11/12 10:00"></label>
         <label>終了<input id="f-end" name="end" class="date-text" inputmode="numeric" placeholder="2026/11/12 11:00"></label>
+      </div>
+      <div id="alwrap" class="alwrap" hidden>
+        <label class="alrow" id="al0-row"><span class="alk">通知</span><span class="alv" id="al0-v"></span><select id="f-al0" aria-label="通知"></select></label>
+        <label class="alrow" id="al1-row" hidden><span class="alk">2つ目の通知</span><span class="alv" id="al1-v"></span><select id="f-al1" aria-label="2つ目の通知"></select></label>
+        <p id="al-note" class="alnote" hidden></p>
+        <button type="button" id="al-off" class="alnote link" hidden>通知はオフです</button>
+        <div id="al-perm" class="alperm" hidden><span class="alnote">iPhone の設定で通知がオフです</span><button type="button" id="al-settings" class="mini">設定を開く</button></div>
+        <div id="al-xperm" class="alperm" hidden><span class="alnote13">通知を変えるには、カレンダーのフルアクセスが必要です</span><button type="button" id="al-xsettings" class="mini">設定を開く</button></div>
+        <p id="al-ilink" class="alnote13" hidden>iPhone のカレンダーが通知します</p>
       </div>
       <div class="repeat">
         <button type="button" id="rtoggle" class="rtoggle" aria-expanded="false" aria-controls="rpanel"><span class="tri" aria-hidden="true">▸</span> 繰り返し · <span id="rsum">なし</span></button>
@@ -57,7 +67,7 @@
         <p id="xnote" class="small"></p>
       </div>
       <div id="xlinked" class="xadd" hidden>
-        <p class="small">iPhoneにも追加済み。以後の変更・削除はDuoだけに反映されます。</p>
+        <p class="small">iPhoneにも追加済み。Duo で変えた内容は iPhone のカレンダーにも反映されます。</p>
         <button type="button" id="xlinked-open" class="ghost">カレンダーで開く</button>
       </div>
     </div>
@@ -69,8 +79,13 @@
 </dialog>
 <dialog id="confirm" aria-labelledby="confirmtitle">
   <h2 id="confirmtitle">この予定を削除しますか？</h2>
-  <p id="deletetitle"></p>
+  <p id="deletetitle" class="dtext"></p>
   <div class="actions"><button type="button" id="canceldelete">キャンセル</button><button type="button" class="danger" id="dodelete">削除する</button></div>
+</dialog>
+<dialog id="discard" aria-labelledby="dc-title">
+  <h2 id="dc-title">変更を破棄しますか？</h2>
+  <p class="dtext">保存していない変更は失われます。</p>
+  <div class="actions"><button type="button" id="dc-keep">編集を続ける</button><button type="button" class="danger" id="dc-drop">破棄</button></div>
 </dialog>
 <dialog id="scope" aria-labelledby="sc-title">
   <h2 id="sc-title">変更する範囲</h2>
@@ -80,12 +95,14 @@
     <button type="button" class="row" data-scope="following">これ以降すべて</button>
     <button type="button" class="row" data-scope="all">すべて</button>
   </div>
+  <p id="sc-warn" class="dtext" hidden></p>
   <p id="sc-note" class="small"></p>
   <button type="button" id="sc-cancel" class="row cancel">キャンセル</button>
 </dialog>
 <dialog id="menu" aria-label="その他のメニュー">
   <div class="menurows">
     <button type="button" data-m="cats">カテゴリ</button>
+    <button type="button" data-m="notify" id="m-notify" hidden>通知</button>
     <button type="button" data-m="link" id="m-link" hidden>iPhone カレンダー連携</button>
     <button type="button" data-m="backup">バックアップ</button>
     <button type="button" data-m="desk" id="m-desk">卓上表示</button>
@@ -100,6 +117,7 @@
   </div>
   <div id="m-legend" class="mlegend" hidden></div>
   <p id="layout-diagnostics" class="diag" aria-label="画面の寸法の診断"></p>
+  <button type="button" data-m="touch" id="touch-check-open" class="diagbtn">タッチ確認</button>
 </dialog>
 <dialog id="search" class="panel full" aria-labelledby="sr-title">
   <div class="phead"><h2 id="sr-title">予定を検索</h2><button type="button" id="sr-close">閉じる</button></div>
@@ -113,6 +131,10 @@
 <dialog id="cats" class="panel full" aria-labelledby="cat-title">
   <div class="phead"><h2 id="cat-title">カテゴリ</h2><button type="button" id="cat-close">閉じる</button></div>
   <div id="cat-body" class="pbody"></div>
+</dialog>
+<dialog id="notify" class="panel full" aria-labelledby="nt-title">
+  <div class="phead"><h2 id="nt-title">通知</h2><button type="button" id="nt-close">閉じる</button></div>
+  <div id="nt-body" class="pbody"></div>
 </dialog>
 <dialog id="backup" class="panel full" aria-labelledby="bk-title">
   <div class="phead"><h2 id="bk-title">バックアップ</h2><button type="button" id="bk-close">閉じる</button></div>
