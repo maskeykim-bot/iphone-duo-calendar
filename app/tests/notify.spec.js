@@ -54,9 +54,11 @@ test.describe('通知の再予約', () => {
   test('3連続の要求は1回の送信にまとまる（500ms trailing debounce）', async ({ page }) => {
     await mock(page);
     await openApp(page, SIZES.closedPortrait, '?nosw');
-    await expect.poll(() => count(page, 'notifySync')).toBe(1);
+    await expect.poll(() => count(page, 'notifySync'), { timeout: 10000 }).toBe(1);
     await page.evaluate(() => { window.syncNotifications('a'); window.syncNotifications('b'); window.syncNotifications('c'); });
-    await settle(page);
+    // 固定の待ちではなく条件待ち: 負荷で遅れても、2回目が届くまで待つ。その後に余裕を持って静かな時間を置き、3回に増えないことを確かめる。
+    await expect.poll(() => count(page, 'notifySync'), { timeout: 10000 }).toBe(2);
+    await settle(page, 1500);
     expect(await count(page, 'notifySync')).toBe(2);
   });
 

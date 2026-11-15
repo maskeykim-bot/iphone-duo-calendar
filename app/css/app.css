@@ -251,7 +251,7 @@ textarea{display:block;width:100%;min-height:80px;padding:8px 10px;background:#f
 
 /* 範囲シート・メニュー */
 dialog#scope{z-index:11}
-dialog#confirm,dialog#scope,dialog#xretry{top:auto;bottom:calc(var(--rb) + 12px);margin:0 auto;z-index:11}
+dialog#confirm,dialog#scope,dialog#xretry,dialog#discard{top:auto;bottom:calc(var(--rb) + 12px);margin:0 auto;z-index:11}
 #sc-target{margin:6px 0 0;overflow-wrap:anywhere}
 .rows{margin-top:4px}
 .row{display:block;width:100%;min-height:52px;padding:8px 16px;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:12px;margin-top:8px}
@@ -300,26 +300,26 @@ dialog#menu{z-index:12;inset:56px 16px auto auto;margin:0;width:240px;--pw:240px
 /* 配置（R = 可視範囲 ∩ 安全矩形）。閉じた縦: 幅最大442・横: 幅480。開いた縦: 幅520・余白16。 */
 @media (orientation:portrait){ dialog{--pw:442px} }
 @media (orientation:landscape){ dialog{--pw:480px} }
-dialog#confirm,dialog#scope,dialog#xretry{--pw:460px;left:calc(var(--rl) + 12px);right:calc(var(--rr) + 12px);max-height:calc(100% - var(--rt) - var(--rb) - 24px)}
+dialog#confirm,dialog#scope,dialog#xretry,dialog#discard{--pw:460px;left:calc(var(--rl) + 12px);right:calc(var(--rr) + 12px);max-height:calc(100% - var(--rt) - var(--rb) - 24px)}
 /* 検索・バックアップ・連携設定（dialog.full）: 閉じた画面では可視範囲 V 全体に紙色、操作は R の内側 */
 body[data-layout=home] dialog.full,body[data-layout=browse] dialog.full{top:var(--vy);bottom:var(--vb);left:0;right:0;margin:0;width:100%;max-width:none;height:auto;max-height:none;border-radius:0;border:0;box-shadow:none;
  padding:max(0px,calc(var(--sat) - var(--vy))) var(--sar) max(0px,calc(var(--sab) - var(--vb))) var(--sal)}
 body[data-layout=home] dialog.full .phead,body[data-layout=browse] dialog.full .phead{margin-top:12px;padding:0 16px}
 /* 開いた縦 626×890: 中央幅520・余白16。全画面にはしない */
 body[data-posture=portrait] dialog{--pw:520px;--m:16px}
-body[data-posture=portrait] dialog#confirm,body[data-posture=portrait] dialog#scope,body[data-posture=portrait] dialog#xretry{--pw:520px}
+body[data-posture=portrait] dialog#confirm,body[data-posture=portrait] dialog#scope,body[data-posture=portrait] dialog#xretry,body[data-posture=portrait] dialog#discard{--pw:520px}
 body[data-posture=portrait] dialog.full{height:calc(100% - var(--rt) - var(--rb) - 2 * var(--m))}
 /* 開いた横: パネルは右ページ（--right-start〜--right-end）の内側。折り目の保護域(中心±10)へは影も枠も出さない */
 body[data-layout=spread] dialog{--pt:max(24px,calc(var(--rt) + 12px));--pb:max(24px,calc(var(--rb) + 12px));
  top:var(--pt);bottom:var(--pb);left:var(--right-start);right:calc(var(--layout-w) - var(--right-end));margin:0;width:auto;max-width:none;max-height:calc(100% - var(--pt) - var(--pb));box-shadow:none}
 body[data-layout=spread] dialog.full{height:calc(100% - var(--pt) - var(--pb))}
-body[data-layout=spread] dialog#scope,body[data-layout=spread] dialog#confirm,body[data-layout=spread] dialog#xretry{top:auto;bottom:var(--pb);left:var(--right-start);right:calc(var(--layout-w) - var(--right-end));max-height:calc(100% - var(--pt) - var(--pb))}
+body[data-layout=spread] dialog#scope,body[data-layout=spread] dialog#confirm,body[data-layout=spread] dialog#xretry,body[data-layout=spread] dialog#discard{top:auto;bottom:var(--pb);left:var(--right-start);right:calc(var(--layout-w) - var(--right-end));max-height:calc(100% - var(--pt) - var(--pb))}
 body[data-layout=spread] dialog#menu{inset:56px auto auto var(--left-start);width:240px;max-width:240px;max-height:none;border:1px solid #c9c6ba;box-shadow:none}
 /* ハーフフォールド: 下ペインのみ（保護帯の下、左右16、下12） */
 body[data-layout=desk] dialog{--dt:max(calc(50% + 20px),calc(var(--rt) + 12px));--db:calc(var(--rb) + 12px);
  top:var(--dt);bottom:var(--db);left:calc(var(--rl) + 16px);right:calc(var(--rr) + 16px);margin:0;width:auto;max-width:none;max-height:calc(100% - var(--dt) - var(--db))}
 body[data-layout=desk] dialog.full{height:calc(100% - var(--dt) - var(--db))}
-body[data-layout=desk] dialog#scope,body[data-layout=desk] dialog#confirm,body[data-layout=desk] dialog#xretry{top:auto;overflow:auto}
+body[data-layout=desk] dialog#scope,body[data-layout=desk] dialog#confirm,body[data-layout=desk] dialog#xretry,body[data-layout=desk] dialog#discard{top:auto;overflow:auto}
 body[data-layout=desk] dialog#menu{inset:56px 16px auto auto;width:240px;max-width:240px;max-height:none}
 body[data-layout=desk] .formhead,body[data-layout=desk] .phead{height:44px;min-height:44px}
 html[data-kb] body[data-layout=spread] dialog,html[data-kb] body[data-layout=desk] dialog{margin:0}
@@ -588,3 +588,26 @@ button.alnote.link{min-height:44px;padding:0;text-align:left;background:none;bor
 .ncard.deny{background:#f6e5e2}
 .nbtn{display:block;width:100%;min-height:44px;border:1px solid var(--line);background:var(--card);border-radius:12px}
 .nhl{outline:2px solid #a77538 !important;outline-offset:-2px;box-shadow:0 0 0 2px #a77538 !important}
+
+/* ===== 第11版 PR11: 予定のポップアップの閉じ方（08 §5） ===== */
+/* 外側の幕: 黒12%（ダーク30%）。ポップアップ(10)の下、確認・範囲シート(11)の下。 */
+#scrim{position:fixed;inset:0;z-index:9;background:#0000001f;opacity:1;transition:opacity .2s ease;touch-action:none}
+#scrim[hidden]{display:none}
+#scrim.fade{opacity:0}
+@media (prefers-color-scheme:dark){ #scrim{background:#0000004d} }
+/* 見開き: 折り目（中心±10）には幕もかけない（操作は何も置かないので通り抜けても反応しない） */
+body[data-layout=spread] #scrim{background:linear-gradient(90deg,#0000001f calc(var(--fold-x) - var(--fold-keepout)),#0000 calc(var(--fold-x) - var(--fold-keepout)),#0000 calc(var(--fold-x) + var(--fold-keepout)),#0000001f calc(var(--fold-x) + var(--fold-keepout)))}
+@media (prefers-color-scheme:dark){ body[data-layout=spread] #scrim{background:linear-gradient(90deg,#0000004d calc(var(--fold-x) - var(--fold-keepout)),#0000 calc(var(--fold-x) - var(--fold-keepout)),#0000 calc(var(--fold-x) + var(--fold-keepout)),#0000004d calc(var(--fold-x) + var(--fold-keepout)))} }
+/* ポップアップ自身は幕を使うので、従来の全面の影は外す（落ち影だけ残す） */
+dialog#editor,dialog#xdetail{box-shadow:0 25px 70px #132c3340}
+body[data-layout=spread] dialog#editor,body[data-layout=spread] dialog#xdetail{box-shadow:none}
+dialog#editor,dialog#xdetail{transition:opacity .2s ease}
+dialog#editor.fading,dialog#xdetail.fading{opacity:0;pointer-events:none}
+dialog#editor.snap,dialog#xdetail.snap{transition:opacity .2s ease,transform .2s ease}
+.formhead,.phead{touch-action:none}
+dialog#editor .fbody,dialog#xdetail .pbody{overscroll-behavior-y:contain}
+/* 閉じた画面ではシートの形: 下に付け、上だけ丸く、つまみを出す */
+html:not([data-kb]) body[data-layout=home] dialog#editor,html:not([data-kb]) body[data-layout=browse] dialog#editor,
+html:not([data-kb]) body[data-layout=home] dialog#xdetail,html:not([data-kb]) body[data-layout=browse] dialog#xdetail{top:auto;bottom:var(--rb);margin:0 auto;border-radius:22px 22px 0 0}
+body[data-layout=home] dialog#editor::before,body[data-layout=browse] dialog#editor::before,
+body[data-layout=home] dialog#xdetail::before,body[data-layout=browse] dialog#xdetail::before{content:"";position:absolute;top:6px;left:50%;width:36px;height:4px;margin-left:-18px;border-radius:2px;background:#c9c6ba;pointer-events:none}

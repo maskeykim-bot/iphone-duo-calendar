@@ -742,8 +742,9 @@ async function loadSample() {
 
 // ---------- パネル共通（編集・範囲・確認・メニュー・検索・バックアップ） ----------
 const dlg = $('#editor'), confirmDlg = $('#confirm'), scopeDlg = $('#scope'), menuDlg = $('#menu'), searchDlg = $('#search'), backupDlg = $('#backup'), form = $('#form');
+const discardDlg = $('#discard'), scrim = $('#scrim');
 const linkDlg = $('#link'), xdDlg = $('#xdetail'), xrDlg = $('#xretry'), catsDlg = $('#cats'), notifyDlg = $('#notify');
-const panels = [dlg, confirmDlg, scopeDlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, xrDlg, catsDlg, notifyDlg];
+const panels = [dlg, confirmDlg, scopeDlg, discardDlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, xrDlg, catsDlg, notifyDlg];
 const anyPanel = () => panels.some((d) => d.open);
 const syncInert = () => { root.inert = anyPanel(); };
 const origins = new Map();
@@ -751,6 +752,7 @@ function openPanel(d, from) {
   origins.set(d, from || document.activeElement);
   d.show();
   syncInert();
+  if (d === xdDlg) syncScrim();
 }
 function closePanel(d, restore = true) {
   d._restore = restore;
@@ -761,7 +763,7 @@ function closePanel(d, restore = true) {
 catsDlg.addEventListener('close', () => {
   clearTimeout(cs.timer);
   if (dlg.open) {
-    dlg.inert = confirmDlg.open || scopeDlg.open;
+    dlg.inert = confirmDlg.open || scopeDlg.open || discardDlg.open;
     if (cs.fromEditor) fillCatSelect(cs.created && state.categories.some((c) => c.id === cs.created) ? cs.created : state.categories.some((c) => c.id === lastCat) ? lastCat : defaultCatId());
     saveDraft();
   }
@@ -778,6 +780,7 @@ for (const d of [dlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, catsDlg, no
 }
 
 // ---------- 編集シート（ドラフトは sessionStorage に保持） ----------
+let edBase = null; // 開いた時点のフォームの写し。null は「破棄確認が必要」（復元した下書き）
 let editing = null; // 描画ID（通常予定は id、繰り返しの回は parentId@occurrenceKey）
 const F = {
   title: $('#f-title'), cat: $('#f-cat'), all: $('#f-all'), start: $('#f-start'), end: $('#f-end'), place: $('#f-place'), notes: $('#f-notes'),
@@ -887,8 +890,10 @@ function showEditor(values, id, focus = true) {
   updateRepeatUi();
   updateAlarmUi();
   if (NATIVE) refreshNotifyPerm().then(() => { if (dlg.open) updateAlarmUi(); });
+  edBase = editSnap();
   dlg.show();
   syncInert();
+  syncScrim();
   if (focus) F.title.focus({ preventScroll: true });
 }
 // 新規通常予定だけに出す「iPhone のカレンダーにも追加」。編集中のリンク済み予定には案内を出す。
@@ -944,6 +949,7 @@ function closeEditor() {
   clearDraft();
   if (confirmDlg.open) confirmDlg.close();
   if (scopeDlg.open) scopeDlg.close();
+  if (discardDlg.open) discardDlg.close();
   closePanel(dlg);
 }
 function onFormChange(ev) {
@@ -978,7 +984,134 @@ F.all.addEventListener('change', () => {
   updateAlarmUi();
   saveDraft();
 });
-$('#close').addEventListener('click', closeEditor);
+$('#close').addEventListener('click', () => fadeClose(dlg, closeEditor));
+
+// ---------- 予定のポップアップを閉じる（08 §5）: 幕タップ・下に引く・0.2秒のフェード ----------
+// 未保存の変更の有無（開閉だけの ropen、遅れて決まる xcal、自動曜日は数えない）。
+function editSnap() { const { ropen, xcal, autoDays: _a, ...rest } = readForm(); return JSON.stringify({ ...rest, xcal: rest.xadd ? xcal : '' }); }
+const editorDirty = () => edBase == null || edBase !== editSnap();
+// 幕が受け持つポップアップ（最前面が編集シートか iPhone の予定詳細のときだけ）
+const popupTop = () => [dlg, xdDlg].find((d) => d.open && panels.every((p) => p === d || p === dlg || p === xdDlg || !p.open)) || null;
+function syncScrim() { scrim.hidden = !(dlg.open || xdDlg.open); }
+for (const d of [dlg, xdDlg]) d.addEventListener('close', syncScrim);
+let fading = false, guardUntil = 0, guardAt = null;
+// 幕を触って閉じた直後は、同じ場所へ遅れて届く click を下の要素へ通さない（別の場所の操作は妨げない）。
+const guardClicks = (x, y) => { guardUntil = performance.now() + 400; guardAt = x == null ? null : { x, y }; };
+const ghost = (ev) => performance.now() < guardUntil && (!guardAt || Math.hypot(ev.clientX - guardAt.x, ev.clientY - guardAt.y) < 40);
+function fadeClose(d, done) {
+  if (fading || !d.open) return;
+  fading = true;
+  if (d === dlg) clearDraft(); // フェード中に再読込されても下書きを復元しない
+  d.classList.add('fading'); scrim.classList.add('fade');
+  setTimeout(() => {
+    done();
+    d.classList.remove('fading', 'snap'); d.style.transform = ''; d.style.opacity = '';
+    scrim.classList.remove('fade'); scrim.style.opacity = '';
+    fading = false;
+    syncScrim();
+  }, 200);
+}
+const closeXd = () => closePanel(xdDlg);
+// 外側タップ・下に引く操作の共通の入口。編集シートは未保存の変更があれば確認を出す。
+function dismissPopup(viaScrim, at) {
+  const d = popupTop();
+  if (!d || fading) return false;
+  if (viaScrim) guardClicks(at?.x, at?.y);
+  if (d === dlg) {
+    if (editorDirty()) { openDiscard(); return true; }
+    fadeClose(dlg, closeEditor);
+  } else fadeClose(xdDlg, closeXd);
+  return true;
+}
+function openDiscard() {
+  dlg.inert = true;
+  discardDlg.show();
+  syncInert();
+  $('#dc-keep').focus({ preventScroll: true });
+}
+discardDlg.addEventListener('close', () => {
+  syncInert();
+  if (dlg.open && !confirmDlg.open && !scopeDlg.open) dlg.inert = false;
+});
+$('#dc-keep').addEventListener('click', () => { discardDlg.close(); if (dlg.open) F.title.focus({ preventScroll: true }); });
+$('#dc-drop').addEventListener('click', () => { discardDlg.close(); fadeClose(dlg, closeEditor); });
+scrim.addEventListener('click', (ev) => { ev.stopPropagation(); ev.preventDefault(); if (popupTop()) dismissPopup(true, { x: ev.clientX, y: ev.clientY }); });
+scrim.addEventListener('pointerdown', (ev) => ev.preventDefault());
+// 幕の外の click（折り目の帯・遅れて届く click）は、幕が出ている間と閉じた直後は何も起こさない。
+document.addEventListener('click', (ev) => {
+  const blocked = !scrim.hidden && ev.target !== scrim && !ev.target.closest?.('dialog');
+  if (blocked || ghost(ev)) { ev.stopPropagation(); ev.preventDefault(); }
+}, true);
+
+// 下に引いて閉じる。つかめるのは見出しの帯と、本文が先頭にあるときの本文。横の動きは別物（月の前後移動は root が受け持つ）。
+const PULL_MIN = 80, PULL_FLING = 40;
+function initPull(d) {
+  let g = null;
+  const target = () => !fading;
+  const setPos = (dy) => {
+    d.style.transform = `translateY(${dy}px)`;
+    scrim.style.opacity = String(Math.max(0, 1 - dy / 240));
+  };
+  const begin = (x, y, scroller) => { g = { x, y, t: performance.now(), dy: 0, on: false, scroller }; };
+  const move = (x, y) => { // true = 下に引く操作として扱う（既定動作を止める）
+    if (!g) return false;
+    const dx = x - g.x, dy = y - g.y;
+    if (!g.on) {
+      if (Math.abs(dx) > 12 && Math.abs(dx) >= Math.abs(dy)) { g = null; return false; } // 横の動き
+      if (dy < 12 || dy < Math.abs(dx) * 1.5) return false;
+      if (g.scroller && g.scroller.scrollTop > 0) { g = null; return false; }
+      g.on = true; d.classList.remove('snap');
+    }
+    g.dy = Math.max(0, dy);
+    setPos(g.dy);
+    return true;
+  };
+  const end = (cancelled) => {
+    const s = g; g = null;
+    if (!s || !s.on) return false;
+    const fling = (s.dy >= PULL_FLING) && (performance.now() - s.t < 250);
+    if (!cancelled && (s.dy >= PULL_MIN || fling)) {
+      const c = popupTop();
+      if (c === dlg && editorDirty()) { snapBack(); openDiscard(); }
+      else dismissPopup(false);
+    } else snapBack();
+    return true;
+  };
+  const snapBack = () => {
+    d.classList.add('snap'); d.style.transform = ''; scrim.style.opacity = '';
+    setTimeout(() => d.classList.remove('snap'), 220);
+  };
+  // 見出しの帯（pointer。touch-action:none）
+  d.addEventListener('pointerdown', (ev) => {
+    if (!target() || !ev.isPrimary || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
+    if (popupTop() !== d) return;
+    const head = ev.target.closest('.formhead,.phead');
+    if (!head || ev.target.closest('button,input,select,textarea')) return;
+    begin(ev.clientX, ev.clientY, null);
+    d.setPointerCapture?.(ev.pointerId);
+    g.pid = ev.pointerId;
+  });
+  d.addEventListener('pointermove', (ev) => { if (g && g.pid === ev.pointerId) move(ev.clientX, ev.clientY); });
+  d.addEventListener('pointerup', (ev) => { if (g && g.pid === ev.pointerId) end(false); });
+  d.addEventListener('pointercancel', (ev) => { if (g && g.pid === ev.pointerId) end(true); });
+  // 本文（touch）。先頭にあるときだけ、下向きの動きをシートの移動にする
+  d.addEventListener('touchstart', (ev) => {
+    if (!target() || ev.touches.length !== 1 || popupTop() !== d) { g = null; return; }
+    const sc = ev.target.closest('.fbody,.pbody');
+    if (!sc) return; // 見出し・フッターは pointer 側
+    const t = ev.touches[0];
+    begin(t.clientX, t.clientY, sc);
+  }, { passive: true });
+  d.addEventListener('touchmove', (ev) => {
+    if (!g || g.pid != null || ev.touches.length !== 1) return;
+    const t = ev.touches[0];
+    if (move(t.clientX, t.clientY) && ev.cancelable) ev.preventDefault();
+  }, { passive: false });
+  d.addEventListener('touchend', () => { if (g && g.pid == null) end(false); });
+  d.addEventListener('touchcancel', () => { if (g && g.pid == null) end(true); });
+}
+initPull(dlg);
+initPull(xdDlg);
 
 // 保存・削除の確定（1トランザクション）。
 // iPhone へ反映する操作（ops）は、予定の保存と同じトランザクションで送信待ちへ積む。
@@ -1840,7 +1973,7 @@ function openExtDetail(id, from) {
   openPanel(xdDlg, from);
   $('#xd-close').focus({ preventScroll: true });
 }
-$('#xd-close').addEventListener('click', () => closePanel(xdDlg));
+$('#xd-close').addEventListener('click', () => fadeClose(xdDlg, closeXd));
 $('#xd-open').addEventListener('click', async () => {
   if (!xdCur) return;
   $('#xd-err').textContent = '';
@@ -2386,6 +2519,7 @@ async function boot() {
       rfreq: draft.rfreq, rbyday: Array.isArray(draft.rbyday) ? draft.rbyday : [], rend: draft.rend, rcount: draft.rcount, runtil: draft.runtil, ropen: !!draft.ropen, autoDays: draft.autoDays,
       alarms: Array.isArray(draft.alarms) ? draft.alarms : id ? undefined : defaultAlarms(!!draft.all, loadNotify()),
     }, id, false);
+    edBase = null; // 復元した下書きは未保存の変更として扱う
   }
   if (N.tap) { const t = N.tap; N.tap = null; openNotifyTarget(t); }
   await Promise.race([initNative(), new Promise((r) => setTimeout(r, 2500))]);

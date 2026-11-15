@@ -18,6 +18,7 @@
 </head>
 <body>
 <div id="app"></div>
+<div id="scrim" hidden></div>
 
 <dialog id="editor" class="panel" aria-labelledby="edtitle">
   <form id="form" novalidate autocomplete="off">
@@ -80,6 +81,11 @@
   <h2 id="confirmtitle">この予定を削除しますか？</h2>
   <p id="deletetitle" class="dtext"></p>
   <div class="actions"><button type="button" id="canceldelete">キャンセル</button><button type="button" class="danger" id="dodelete">削除する</button></div>
+</dialog>
+<dialog id="discard" aria-labelledby="dc-title">
+  <h2 id="dc-title">変更を破棄しますか？</h2>
+  <p class="dtext">保存していない変更は失われます。</p>
+  <div class="actions"><button type="button" id="dc-keep">編集を続ける</button><button type="button" class="danger" id="dc-drop">破棄</button></div>
 </dialog>
 <dialog id="scope" aria-labelledby="sc-title">
   <h2 id="sc-title">変更する範囲</h2>
