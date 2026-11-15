@@ -1,5 +1,6 @@
 // IndexedDB データ層。schema を変えるときは SCHEMA_VERSION を上げ、MIGRATIONS に追記する。
 import { withDefaults } from './util.js';
+import { planNotifyBackfill } from './notify.js';
 import { CAT_IDS, DEFAULTS_NEW, LEGACY, UNCATEGORIZED, legacyToId, sortCategories } from './categories.js';
 
 export const SCHEMA_VERSION = 3;
@@ -181,4 +182,21 @@ export const applyAck = ({ keys = [], update = () => null, outbox = (l) => l }) 
     };
   });
   readOutbox(meta, (cur) => { out.list = outbox(cur); meta.put({ key: OUTBOX, items: out.list }); });
+});
+
+// ---------- 一度だけの既定通知の付与（meta の notifyBackfillV1。バックアップには出さず、読み込みからは呼ばない） ----------
+// events と meta の1トランザクションで、マーカー確認 → 対象の更新 → マーカー書込み。途中で失敗すれば全体ロールバック（次の起動で再実行）。
+// 戻り値 { ran: このときに実行した, count: 付けた件数 }
+const BACKFILL = 'notifyBackfillV1';
+export const backfillNotifyOnce = (now = new Date()) => run(['events', 'meta'], 'readwrite', ({ events, meta }, set) => {
+  set({ ran: false, count: 0 });
+  meta.get(BACKFILL).onsuccess = (ev) => {
+    if (ev.target.result) return;
+    events.getAll().onsuccess = (e2) => {
+      const puts = planNotifyBackfill(e2.target.result.map(withDefaults), now).map((x) => ({ ...x }));
+      puts.forEach((x) => events.put(x));
+      meta.put({ key: BACKFILL, value: new Date(now).toISOString() });
+      set({ ran: true, count: puts.length });
+    };
+  };
 });

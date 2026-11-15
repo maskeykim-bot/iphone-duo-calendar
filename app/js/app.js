@@ -2373,7 +2373,7 @@ setInterval(() => { if (!anyPanel() && listShown()) render(); else updateNow(); 
 async function boot() {
   updateVars();
   render();
-  try { setCategories(await db.listCategories()); state.events = await db.listEvents(); try { OBX.items = await db.getOutbox(); } catch { OBX.items = []; } bumpRevision(); N.ready = true; requestNotifySync('launch'); } catch { say('保存領域を開けませんでした。'); }
+  try { setCategories(await db.listCategories()); let bf = null; try { bf = await db.backfillNotifyOnce(new Date()); } catch { bf = null; /* ロールバック済み。次の起動で再実行 */ } state.events = await db.listEvents(); try { OBX.items = await db.getOutbox(); } catch { OBX.items = []; } bumpRevision(); N.ready = true; requestNotifySync(bf?.ran ? 'backfill' : 'launch'); } catch { say('保存領域を開けませんでした。'); }
   state.loaded = true;
   render();
   let draft = null;

@@ -1,0 +1,82 @@
+// 第11版 PR10: 一度だけの既定通知付与の計画（純粋関数）と、未来の回の判定。
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { planNotifyBackfill } from '../js/notify.js';
+import { hasFutureOccurrence } from '../js/recur.js';
+import { R, ev } from './fixtures.mjs';
+
+const NOW = new Date(2026, 10, 14, 9, 0); // 2026-11-14 09:00 ローカル
+const plan = (list, now = NOW) => planNotifyBackfill(list, now);
+const ids = (list, now) => plan(list, now).map((e) => e.id);
+const T = [{ before: 30 }], A = [{ day: 0, at: '08:00' }];
+
+test('単発: end > now のみ対象（end == now は対象外）。固定既定を付ける', () => {
+  const out = plan([
+    ev('fut', '2026-11-20T10:00', '2026-11-20T11:00'), ev('past', '2026-11-01T10:00', '2026-11-01T11:00'),
+    ev('eq', '2026-11-14T08:00', '2026-11-14T09:00'), ev('run', '2026-11-14T08:00', '2026-11-14T09:01'),
+  ].map((e) => e), NOW);
+  assert.deepEqual(out.map((e) => e.id), ['fut', 'run']);
+  assert.deepEqual(out[0].alarms, T);
+});
+test('終日・複数日: 最終日23:59 の end 境界。終日は当日08:00', () => {
+  const a = (id, s, e) => ev(id, s, e, null, { all: true });
+  const out = plan([a('today', '2026-11-14T00:00', '2026-11-14T23:59'), a('yday', '2026-11-13T00:00', '2026-11-13T23:59'), a('multi', '2026-11-10T00:00', '2026-11-15T23:59')]);
+  assert.deepEqual(out.map((e) => e.id), ['today', 'multi']);
+  assert.deepEqual(out[0].alarms, A);
+});
+test('対象外: null・[]・既存配列・iPhone 由来・nativeLink あり（unlinked も）', () => {
+  const f = (id, x) => ev(id, '2026-11-20T10:00', '2026-11-20T11:00', null, x);
+  assert.deepEqual(ids([f('n', { alarms: null }), f('e', { alarms: [] }), f('a', { alarms: [{ before: 5 }] }), f('i', { origin: 'iphone' }),
+    f('l', { nativeLink: { state: 'linked' } }), f('u', { nativeLink: { state: 'unlinked' } }), f('ok', {})]), ['ok']);
+});
+test('入力を変更しない。2回目（付与後）は何も返さない', () => {
+  const src = [ev('x', '2026-11-20T10:00', '2026-11-20T11:00')];
+  const once = plan(src);
+  assert.equal(src[0].alarms, undefined);
+  assert.deepEqual(plan(once), []);
+});
+test('系列: 親にだけ付け override・exdates は触らない', () => {
+  const p = ev('r', '2026-11-01T10:00', '2026-11-01T11:00', R('daily'), { overrides: { '2026-11-20T10:00': { title: 'x', start: '2026-11-20T10:00', end: '2026-11-20T11:00', alarms: [] } } });
+  const [o] = plan([p]);
+  assert.deepEqual(o.alarms, T);
+  assert.deepEqual(o.overrides, p.overrides);
+});
+
+const fut = (p, now = NOW) => hasFutureOccurrence(p, now);
+test('系列: 無期限は常に残る。開始が過去でも終了が未来の回（日またぎ）', () => {
+  assert.equal(fut(ev('d', '2020-01-01T09:00', '2020-01-01T10:00', R('daily'))), true);
+  assert.equal(fut(ev('n', '2026-11-13T23:00', '2026-11-14T10:00', R('daily', { count: 1 }))), true); // 開始は過去・終了 10:00 > 9:00
+  assert.equal(fut(ev('n2', '2026-11-13T23:00', '2026-11-14T09:00', R('daily', { count: 1 }))), false);
+});
+test('系列: count / until の打切り', () => {
+  assert.equal(fut(ev('c', '2026-11-01T10:00', '2026-11-01T11:00', R('daily', { count: 13 }))), false); // 11/13 が最後
+  assert.equal(fut(ev('c2', '2026-11-01T10:00', '2026-11-01T11:00', R('daily', { count: 14 }))), true); // 11/14 10:00
+  assert.equal(fut(ev('u', '2026-11-01T10:00', '2026-11-01T11:00', R('daily', { until: '2026-11-13' }))), false);
+  assert.equal(fut(ev('u2', '2026-11-01T10:00', '2026-11-01T11:00', R('daily', { until: '2026-11-14' }))), true);
+  assert.equal(fut(ev('big', '2000-01-01T10:00', '2000-01-01T11:00', R('daily', { count: 9999 }))), true); // 最終回は 2027-05
+  assert.equal(fut(ev('big2', '1990-01-01T10:00', '1990-01-01T11:00', R('daily', { count: 9999 }))), false); // 最終回は 2017 年
+});
+test('系列: 全回 exdates → 対象外。窓（30日）で判定しない（翌年・閏年）', () => {
+  const ex = ev('x', '2026-11-13T10:00', '2026-11-13T11:00', R('daily', { count: 3 }), { exdates: ['2026-11-13T10:00', '2026-11-14T10:00', '2026-11-15T10:00'] });
+  assert.equal(fut(ex), false);
+  assert.equal(fut(ev('y', '2026-03-05T10:00', '2026-03-05T11:00', R('yearly'))), true);
+  const leap = ev('l', '2024-02-29T10:00', '2024-02-29T11:00', R('yearly'));
+  assert.equal(fut(leap), true); // 次は 2028-02-29
+  assert.equal(fut(leap, new Date(2027, 5, 1)), true);
+  assert.equal(fut(ev('l2', '2024-02-29T10:00', '2024-02-29T11:00', R('yearly', { count: 1 })), new Date(2025, 0, 1)), false);
+});
+test('系列: 移動 override は移動先で判定。ゴースト override は証拠にしない', () => {
+  const base = { count: 2 };
+  const moved = ev('m', '2026-11-01T10:00', '2026-11-01T11:00', R('weekly', base), { overrides: { '2026-11-08T10:00': { title: 'm', start: '2026-12-01T10:00', end: '2026-12-01T11:00' } } });
+  assert.equal(fut(moved), true);
+  const ghost = ev('g', '2026-11-01T10:00', '2026-11-01T11:00', R('weekly', base), { overrides: { '2026-11-22T10:00': { title: 'g', start: '2026-12-01T10:00', end: '2026-12-01T11:00' } } });
+  assert.equal(fut(ghost), false); // 11/22 は count 2 の外
+  const earlier = ev('e', '2026-11-01T10:00', '2026-11-01T11:00', R('weekly', base), { overrides: { '2026-11-08T10:00': { title: 'e', start: '2026-11-02T10:00', end: '2026-11-02T11:00' } } });
+  assert.equal(fut(earlier), false); // 移動先が過去
+});
+test('系列: DST で存在しない時刻の回は数えない', () => {
+  // 2027-03-14 は米東部で 02:30 が存在しない。until で 2027 年内に限る（count は実在する回だけ数えるので翌年の回が残る）。東京では存在するので TZ 依存を分けて検査。
+  const p = ev('dst', '2027-03-14T02:30', '2027-03-14T03:30', R('yearly', { until: '2027-12-31' }));
+  const exists = new Date(2027, 2, 14, 2, 30).getHours() === 2;
+  assert.equal(fut(p), exists);
+});

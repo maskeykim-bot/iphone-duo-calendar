@@ -1,6 +1,6 @@
 // 通知の既定値・計画・文面。DOM・ネイティブに依存しない純粋関数。日時は YYYY-MM-DDTHH:MM（端末ローカル）。
 import { addDays, dayOf, dkey, pad, parseKey, DOW } from './util.js';
-import { expand } from './recur.js';
+import { expand, hasFutureOccurrence } from './recur.js';
 import { ALLDAY_DAYS, TIMED_BEFORE, okAllDay, okTimed } from './alarms.js';
 export { ALLDAY_DAYS, TIMED_BEFORE };
 
@@ -143,4 +143,17 @@ export function pastForNotify(occ, alarms, now) {
   if (!occ.all) return occ.start <= stamp;
   const fs = alarms.map((a) => fireAt(occ, a)).filter(Boolean);
   return fs.length > 0 && fs.every((f) => f <= stamp);
+}
+
+// 一度だけの既定通知の付与（第11版 PR10）。付与後の予定（alarms を入れた新しいオブジェクト）だけを返す。
+// 対象：Duo だけの予定（origin が iphone でなく nativeLink が無い）で alarms が未定義、かつ現在以降に回が残るもの。
+// 値は固定（利用者が変えた新規用の既定には読み替えない）。null・[]・既存の配列・過去は触らない。親にだけ付ける。
+export function planNotifyBackfill(events, now) {
+  const out = [];
+  for (const e of events) {
+    if (e.origin === 'iphone' || e.nativeLink || e.alarms !== undefined) continue;
+    if (!hasFutureOccurrence(e, now)) continue;
+    out.push({ ...e, alarms: e.all ? [{ day: 0, at: '08:00' }] : [{ before: 30 }] });
+  }
+  return out;
 }
