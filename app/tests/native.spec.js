@@ -280,15 +280,14 @@ test.describe('ネイティブ（偽装）', () => {
     // 書込可のみ（家族）。読み取り専用の祝日は出ない
     await x.check();
     await expect(page.locator('#f-xcal option')).toHaveText(['家族（Google）']);
-    // 繰り返しありは無効化
+    // 第11版 PR9: 繰り返しありでも選べる（無効化しない）
     await page.locator('#rtoggle').click();
     await page.locator('#f-rfreq').selectOption('daily');
-    await expect(x).toBeDisabled();
-    await expect(x).not.toBeChecked();
-    await expect(page.locator('#xnote')).toHaveText('繰り返し予定はiPhoneのカレンダーに追加できません。');
-    await page.locator('#f-rfreq').selectOption('none');
     await expect(x).toBeEnabled();
-    await expect(x).not.toBeChecked(); // 自動でオンに戻さない
+    await expect(x).toBeChecked();
+    await expect(page.locator('#xnote')).toHaveText('');
+    await page.locator('#f-rfreq').selectOption('none');
+    await x.uncheck();
     await page.locator('#f-title').fill('会食');
     await page.locator('#f-start').fill('2026/11/20 19:00');
     await page.locator('#f-end').fill('2026/11/20 21:00');
@@ -338,6 +337,32 @@ test.describe('ネイティブ（偽装）', () => {
     expect(c[1].opts.requestId).toBe(c[0].opts.requestId);
     expect(c[1].opts).toMatchObject({ all: true, start: '2026-11-25T00:00', end: '2026-11-26T00:00' });
     expect((await dbEvents(page)).find((e) => e.title === '出張').nativeLink.state).toBe('linked');
+  });
+
+  test('第11版 PR9: 新規の繰り返し予定も iPhone に追加（recurrence 引数・再試行は同じ requestId・二重通知なし）', async ({ page }) => {
+    await mock(page);
+    await openApp(page);
+    await enable(page);
+    await page.evaluate(() => { window.__mock.createFail = 1; });
+    await page.locator('[data-act="add"]:visible').first().click();
+    await page.locator('#f-title').fill('毎週の会');
+    await page.locator('#f-start').fill('2026/11/20 19:00');
+    await page.locator('#f-end').fill('2026/11/20 20:00');
+    await page.locator('#rtoggle').click();
+    await page.locator('#f-rfreq').selectOption('weekly');
+    await page.locator('#f-xadd').check();
+    await page.locator('#editor [type=submit]').click();
+    const r = page.locator('#xretry');
+    await expect(r).toBeVisible();
+    await r.locator('#xr-retry').click();
+    await expect(r).toBeHidden();
+    const c = await calls(page, 'createEvent');
+    expect(c).toHaveLength(2);
+    expect(c[1].opts.requestId).toBe(c[0].opts.requestId);
+    for (const k of c) expect(k.opts.recurrence).toMatchObject({ freq: 'weekly', interval: 1, count: null, until: null });
+    expect(c[1].opts.recurrence.byDay).toEqual([5]);
+    const ev = (await dbEvents(page)).find((e) => e.title === '毎週の会');
+    expect(ev.nativeLink.state).toBe('linked');
   });
 
   test('第11版 PR5: createEvent の戻りが v2（itemId/externalId/modifiedAt/calendarId）でも壊れず、alarms 引数を渡さない現状でも作成できる', async ({ page }) => {

@@ -428,12 +428,29 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             return
         }
         let offsets = parsedAlarms.offsets
+        // recurrence: 未指定/null は単発。オブジェクトは新規の規則（makeRule で変換）。それ以外は不正。
+        let recGiven = call.options["recurrence"]
+        let recObj = call.getObject("recurrence")
+        if let g = recGiven, !(g is NSNull), recObj == nil {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        var recCanon: String? = nil
+        if let r = recObj {
+            guard let c = self.canonicalRule(r) else {
+                call.reject("invalid arguments", "INVALID_ARGUMENT")
+                return
+            }
+            recCanon = c
+        }
         // alarms 未指定なら旧版と同じ原文（旧版の記録と同じハッシュになる）。指定ありは offsets を足す（[] も区別する）。
         let baseFingerprint = [calendarId, title, call.getString("start") ?? "", call.getString("end") ?? "", allDay ? "1" : "0", place, notes].joined(separator: "\u{1F}")
         var fingerprint = baseFingerprint
         if let offs = offsets {
             fingerprint += "\u{1E}alarms:" + offs.map { String(Int($0)) }.sorted().joined(separator: ",")
         }
+        // 単発（recurrence なし）は従来と同じ原文のまま。規則ありだけ正規化した規則を足す。
+        if let c = recCanon { fingerprint += "\u{1E}rec:" + c }
         let fp = sha256Hex(fingerprint)
         let legacyFp = sha256Hex(baseFingerprint)
 
@@ -488,7 +505,7 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
                     return
                 }
             }
-            // 3) 作成（繰り返しなしの通常予定1件）。ユーザーのメモは変更しない。識別は URL に持つ。
+            // 3) 作成（単発、または新規の繰り返し規則1つ）。ユーザーのメモは変更しない。識別は URL に持つ。
             let event = EKEvent(eventStore: self.store)
             event.calendar = calendar
             event.title = title
@@ -501,6 +518,14 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             // alarms: 未指定は触らない、[] は明示的になし、値ありはその通りに。
             if let offs = offsets {
                 event.alarms = offs.map { EKAlarm(relativeOffset: $0) }
+            }
+            // 規則は開始日（系列の先頭）を基準に updateEvent と同じ変換。
+            if let r = recObj {
+                guard let rule = self.makeRule(r, anchor: startDate, cal: cal) else {
+                    call.reject("invalid arguments", "INVALID_ARGUMENT")
+                    return
+                }
+                event.addRecurrenceRule(rule)
             }
             do {
                 try self.store.save(event, span: .thisEvent, commit: true)
@@ -644,6 +669,24 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         default:
             return nil
         }
+    }
+
+    /// 作成ハッシュ用の規則の正規形。freq|interval=1|byDay（weekly のみ・昇順・重複なし）|count|until。不正は nil。
+    private func canonicalRule(_ d: [String: Any]) -> String? {
+        guard let freq = d["freq"] as? String, ["daily", "weekly", "monthly", "yearly"].contains(freq) else { return nil }
+        var days: [Int] = []
+        if freq == "weekly", let by = d["byDay"] as? [Any] {
+            for v in by {
+                guard let n = (v as? NSNumber)?.intValue, n >= 0, n <= 6 else { return nil }
+                days.append(n)
+            }
+            days = Array(Set(days)).sorted()
+        }
+        var count = ""
+        if let c = (d["count"] as? NSNumber)?.intValue, c > 0 { count = String(c) }
+        var until = ""
+        if count.isEmpty, let u = d["until"] as? String, !u.isEmpty { until = u }
+        return [freq, "1", days.map { String($0) }.joined(separator: ","), count, until].joined(separator: "|")
     }
 
     @objc func updateEvent(_ call: CAPPluginCall) {

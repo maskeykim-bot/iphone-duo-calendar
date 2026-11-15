@@ -1,7 +1,7 @@
 import * as db from './db.js';
 import { SAMPLE } from './sample.js';
 import { initSwipe } from './swipe.js';
-import { occurrenceAt, parseOccId, planDelete, planEdit, editInfo } from './recur.js';
+import { occurrenceAt, parseOccId, planDelete, planEdit, editInfo, normRule } from './recur.js';
 import { bumpRevision, occBetween } from './occcache.js';
 import { LIMIT, groupByDay, highlight, excerpt, searchEvents } from './search.js';
 import { backupName, buildBackup, countStats, localIso, planAppend, validateBackup, MAX_BYTES } from './backup.js';
@@ -900,7 +900,7 @@ function updateXUi() {
   $('#xlinked').hidden = !linked;
   $('#xadd').hidden = !(eligible && !editing);
   if ($('#xadd').hidden) return;
-  const cals = writable(X.calendars), repeating = F.rfreq.value !== 'none';
+  const cals = writable(X.calendars);
   const sig = cals.map((c) => c.id).join('|');
   if (sig !== xSig) {
     xSig = sig;
@@ -909,9 +909,9 @@ function updateXUi() {
   if (F.xcal.value) xSel = F.xcal.value;
   const want = [xSel, link.defaultCalendarId].find((id) => id && cals.some((c) => c.id === id)) || cals[0]?.id || '';
   F.xcal.value = want; xSel = want;
-  if (!cals.length || repeating) F.xadd.checked = false;
-  F.xadd.disabled = !cals.length || repeating;
-  $('#xnote').textContent = !cals.length ? '追加できるカレンダーがありません。' : repeating ? '繰り返し予定はiPhoneのカレンダーに追加できません。' : '';
+  if (!cals.length) F.xadd.checked = false;
+  F.xadd.disabled = !cals.length;
+  $('#xnote').textContent = !cals.length ? '追加できるカレンダーがありません。' : '';
   $('#xcal-l').hidden = !F.xadd.checked || F.xadd.disabled;
 }
 F.xadd.addEventListener('change', () => { updateXUi(); saveDraft(); });
@@ -1013,7 +1013,7 @@ form.addEventListener('submit', async (ev) => {
   const item = { ...prev, ...r.event, id: prev ? prev.id : newId(), exdates: prev?.exdates ?? [], overrides: prev?.overrides ?? {}, updatedAt: Date.now() };
   if (!item.recurrence) { item.exdates = []; item.overrides = {}; }
   // 新規の通常予定だけ: アプリDBへ pending で確定してから、iPhone 側の作成を1回だけ呼ぶ。
-  const xwant = !editing && !item.recurrence && extActive() && F.xadd.checked && !F.xadd.disabled && !!F.xcal.value;
+  const xwant = !editing && extActive() && F.xadd.checked && !F.xadd.disabled && !!F.xcal.value;
   if (xwant) item.nativeLink = { state: 'pending', requestId: newId(), calendarId: F.xcal.value };
   const { ops, plan: splan } = prev ? planOps(prev, { puts: [item], dels: [] }, 'all', null, r.event) : { ops: [], plan: { puts: [item], dels: [] } };
   saving = true;
@@ -1868,9 +1868,10 @@ async function createNative(id) {
   const e = state.events.find((x) => x.id === id), l = e?.nativeLink;
   if (!e || l?.state !== 'pending' || xBusy) return;
   xBusy = true;
-  const sent = { title: e.title, start: e.start, end: e.end, all: !!e.all, place: e.place || '', notes: e.notes || '', ...(Array.isArray(e.alarms) ? { alarms: e.alarms } : {}) };
+  const sent = { title: e.title, start: e.start, end: e.end, all: !!e.all, place: e.place || '', notes: e.notes || '', ...(Array.isArray(e.alarms) ? { alarms: e.alarms } : {}), ...(e.recurrence ? { recurrence: normRule(e.recurrence) } : {}) };
   try {
     const args = { requestId: l.requestId, calendarId: l.calendarId, title: e.title, start: e.start, end: e.all ? `${dayOf(e.end)}T00:00` : e.end, all: !!e.all, place: e.place || '', notes: e.notes || '' };
+    if (e.recurrence) args.recurrence = normRule(e.recurrence); // 新規の規則だけ（例外入りの系列は送らない）
     if (Array.isArray(e.alarms)) args.alarms = e.alarms; // linked の通知は iPhone 側（EKAlarm）が鳴らす
     const r = await call('createEvent', args);
     if (!r?.eventId) throw new Error('no event id');
