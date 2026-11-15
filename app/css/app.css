@@ -550,9 +550,9 @@ body[data-layout=spread] .toastbar{left:var(--left-start);right:auto;width:calc(
 /* 月見出し横の「全部」ボタン（押せる範囲 44pt 角、見た目は小さな札） */
 .chsp{flex:none;width:44px}
 .allbtn{border-radius:0;flex:none;position:relative;width:44px;min-width:44px;height:44px;padding:0;border:0;background:none;color:inherit;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
-.allbtn span{display:block;min-width:26px;height:22px;line-height:20px;text-align:center;border:1px solid currentColor;border-radius:6px}
-.allbtn[aria-pressed="true"]{color:#fff}
-.allbtn[aria-pressed="true"] span{background:#2F6B4F;border-color:#2F6B4F;color:#fff}
+.allbtn span{display:block;box-sizing:border-box;min-width:28px;width:28px;height:28px;line-height:25px;text-align:center;border:1.5px solid var(--ink);border-radius:6px;background:var(--paper,#F7F5EE);color:var(--ink)}
+.allbtn:hover,.allbtn[aria-pressed]{background:transparent;color:inherit}
+.allbtn[aria-pressed="true"] span{background:#294E42;border-color:#294E42;color:#fff}
 .chead .allbtn,.sctl .allbtn{font-size:12px}
 
 /* 通知（第11版 PR4）: 編集シートの行・設定パネル・ベル */
@@ -604,7 +604,7 @@ body[data-layout=spread] dialog#editor,body[data-layout=spread] dialog#xdetail{b
 dialog#editor,dialog#xdetail{transition:opacity .2s ease}
 dialog#editor.fading,dialog#xdetail.fading{opacity:0;pointer-events:none}
 dialog#editor.snap,dialog#xdetail.snap{transition:opacity .2s ease,transform .2s ease}
-.formhead,.phead{touch-action:none}
+.formhead,.phead{touch-action:none;-webkit-user-select:none;user-select:none}
 dialog#editor .fbody,dialog#xdetail .pbody{overscroll-behavior-y:contain}
 /* 閉じた画面ではシートの形: 下に付け、上だけ丸く、つまみを出す */
 html:not([data-kb]) body[data-layout=home] dialog#editor,html:not([data-kb]) body[data-layout=browse] dialog#editor,
