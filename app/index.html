@@ -137,8 +137,15 @@
       <div id="m-tlz" class="tlz" role="group" aria-label="時間軸の大きさ" hidden><button type="button" data-m="tlout">時間軸を縮小</button><button type="button" data-m="tlin">時間軸を拡大</button></div>
     </div>
     <div class="menurows" data-screen="calendar" hidden>
-      <button type="button" data-m="cats">カテゴリ</button>
-      <button type="button" data-m="link" id="m-link" hidden>iPhone カレンダー連携</button>
+      <div id="m-cal">
+        <div id="m-cal-duo"></div>
+        <button type="button" data-m="cats" class="cedit">カテゴリ</button>
+        <div id="m-cal-ip"></div>
+        <div id="m-cal-rem"></div>
+      </div>
+      <button type="button" id="m-dest" class="destrow" aria-expanded="false" aria-controls="m-destpop"></button>
+      <div id="m-destpop" class="destpop" role="listbox" aria-label="新しい予定の追加先" hidden></div>
+      <div id="m-cal-foot" class="lkfoot" hidden></div>
       <div id="m-legend" class="mlegend" hidden></div>
     </div>
     <div class="menurows" data-screen="reminders" hidden>
@@ -181,10 +188,6 @@
   <div class="phead"><h2 id="bk-title">バックアップ</h2><button type="button" id="bk-close">閉じる</button></div>
   <div id="bk-body" class="pbody"></div>
   <input id="bk-file" type="file" accept="application/json,.json" hidden>
-</dialog>
-<dialog id="link" class="panel full" aria-labelledby="lk-title">
-  <div class="phead"><h2 id="lk-title">iPhone カレンダー連携</h2><button type="button" id="lk-close">閉じる</button></div>
-  <div id="lk-body" class="pbody"></div>
 </dialog>
 <dialog id="xdetail" class="panel" aria-labelledby="xd-title">
   <div class="phead"><h2 id="xd-title">iPhoneの予定</h2><button type="button" id="xd-close" class="xclose" aria-label="閉じる">✕</button></div>

@@ -1,6 +1,6 @@
 // 第7版: iPhone カレンダー連携。window.Capacitor を偽装して、DuoNative の契約どおりに呼ばれ表示されることを確認する。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, tab, seed, ev, dbEvents, setStyle, openMenu, pickDest } from './helpers.js';
+import { openApp, SIZES, tab, seed, ev, dbEvents, setStyle, openMenu, pickDest, enableCalendars } from './helpers.js';
 // 新規予定のカレンダー選択: 種別の先頭を選ぶ（第15版 PR5）
 const pickKind = async (page, type) => { await page.locator('#f-dest').click(); await page.locator(`#dest-pop .dopt[data-dtype="${type}"]`).first().click(); };
 const toIphone = (page) => pickKind(page, 'iphone');
@@ -140,18 +140,14 @@ const DETAILS = [
   { ...DETAIL_BASE, id: 'm1@2026-11-21T10:00', eventId: 'm1', itemId: 'it-m', externalId: 'ex-m', title: '会議', start: '2026-11-21T10:00', end: '2026-11-21T11:00', recurring: true, occurrenceDate: '2026-11-21T10:00', rule: null, ruleText: '2週間ごと', hasAttendees: true, isOrganizer: true, editable: false, reason: 'organizerWithAttendees' },
 ];
 const calls = (page, m) => page.evaluate((m) => window.__mock.calls.filter((c) => !m || c.method === m), m);
+// 設定 › カレンダー（✓方式。許可済みなら開くだけで連携が入る）。
 const openLinkPanel = async (page) => {
   await page.locator('[data-act="menu"]:visible').first().click();
   await page.locator('#menu [data-go="calendar"]').click();
-  await page.locator('[data-m="link"]').click();
-  await expect(page.locator('#link')).toBeVisible();
+  await expect(page.locator('#menu [data-screen="calendar"]')).toBeVisible();
 };
-async function enable(page) {
-  await openLinkPanel(page);
-  await page.locator('#lk-sw').click();
-  await expect(page.locator('#lk-sw')).toHaveAttribute('aria-checked', 'true');
-  await page.locator('#lk-close').click();
-}
+const closeSettings = async (page) => { await page.locator('#m-back').click(); await page.locator('#m-back').click(); await expect(page.locator('#menu')).toBeHidden(); };
+async function enable(page) { await enableCalendars(page); }
 
 test.describe('Web 版（Capacitor なし）', () => {
   test('連携の入口もブリッジ呼び出しも出ない', async ({ page }) => {
@@ -159,7 +155,10 @@ test.describe('Web 版（Capacitor なし）', () => {
     await page.locator('[data-act="menu"]:visible').first().click();
     await expect(page.locator('#menu')).toBeVisible();
     await expect(page.locator('[data-m="link"]')).toBeHidden();
-    await expect(page.locator('#link')).toBeHidden();
+    await page.locator('#menu [data-go="calendar"]').click();
+    await expect(page.locator('#m-cal-ip')).toBeEmpty();
+    await expect(page.locator('#m-cal-foot')).toBeHidden();
+    await page.locator('#m-back').click();
     await page.keyboard.press('Escape');
     await page.locator('[data-act="add"]:visible').first().click();
     await expect(page.locator('#xadd')).toHaveCount(0);
@@ -290,15 +289,14 @@ test.describe('ネイティブ（偽装）', () => {
     await expect(page.locator('[data-m="link"]')).toBeHidden();
   });
 
-  test('メニューは「バックアップ」の直前に入口。初期はオフで取得しない', async ({ page }) => {
-    await mock(page);
+  test('設定 › カレンダー: 旧スイッチ・旧パネルはなく、許可のない間は何も要求しない', async ({ page }) => {
+    await mock(page, { perm: 'notDetermined' });
     await openApp(page);
-    await page.locator('[data-act="menu"]:visible').first().click();
-    await page.locator('#menu [data-go="calendar"]').click();
+    await openLinkPanel(page);
     const labels = await page.locator('#menu [data-screen="calendar"] button:visible').allTextContents();
-    expect(labels.indexOf('iPhone カレンダー連携')).toBe(labels.indexOf('カテゴリ') + 1);
-    await page.locator('[data-m="link"]').click();
-    await expect(page.locator('#lk-sw')).toHaveAttribute('aria-checked', 'false');
+    expect(labels.join('|')).not.toContain('iPhone カレンダー連携');
+    await expect(page.locator('#lk-sw, #link, [data-m="link"]')).toHaveCount(0);
+    await expect(page.locator('#m-cal-ip')).toContainText('iPhone のカレンダーを出すには、アクセスを許可してください。');
     expect(await calls(page, 'listEvents')).toHaveLength(0);
     expect(await calls(page, 'requestPermission')).toHaveLength(0);
   });
@@ -307,19 +305,14 @@ test.describe('ネイティブ（偽装）', () => {
     await mock(page, { perm: 'notDetermined', afterRequest: 'granted' });
     await openApp(page);
     await openLinkPanel(page);
-    await page.locator('#lk-sw').click();
-    await expect(page.getByText('iPhone のカレンダーへのアクセスを許可してください')).toBeVisible();
-    await expect(page.getByText('Duo から iPhone のカレンダーの予定を変更・削除できます（書き込めるカレンダーのみ）。')).toBeVisible();
-    await expect(page.locator('body')).not.toContainText('編集・削除することはありません');
+    await expect(page.getByText('iPhone のカレンダーを出すには、アクセスを許可してください。')).toBeVisible();
     expect(await calls(page, 'requestPermission')).toHaveLength(0);
     await page.locator('#lk-req').click();
-    await expect(page.locator('#lk-sw')).toHaveAttribute('aria-checked', 'true');
-    expect(await calls(page, 'requestPermission')).toHaveLength(1);
     await expect(page.locator('[data-cal]')).toHaveCount(2);
-    await expect(page.locator('[data-cal]:checked')).toHaveCount(2);
-    await expect(page.getByRole('heading', { name: 'Google' })).toBeVisible();
-    await expect(page.getByText('読み取り専用')).toBeVisible();
-    await expect(page.getByText(/Googleを追加してください/)).toBeVisible();
+    expect(await calls(page, 'requestPermission')).toHaveLength(1);
+    await expect(page.locator('[data-cal][aria-checked="true"]')).toHaveCount(2);
+    await expect(page.locator('#m-cal-ip .cahead', { hasText: 'Google' })).toBeVisible();
+    await expect(page.locator('#m-cal-ip .cro')).toHaveText('表示のみ');
     await expect(page.locator('#lk-status')).toContainText('最終読み込み：');
     const ls = await page.evaluate(() => JSON.parse(localStorage.getItem('duo-native-cal')));
     expect(ls).toMatchObject({ version: 1, enabled: true, selectionInitialized: true });
@@ -328,15 +321,15 @@ test.describe('ネイティブ（偽装）', () => {
     expect(le).toMatchObject({ from: '2026-10-01T00:00', to: '2027-01-01T00:00' });
   });
 
-  for (const [st, text] of [['denied', '設定 ＞ プライバシーとセキュリティ ＞ カレンダー ＞ Duo で『フルアクセス』'], ['restricted', 'この端末ではカレンダーへのアクセスが制限されています。'], ['writeOnly', '予定を表示するにはフルアクセスが必要です。']]) {
+  for (const [st, text] of [['denied', '設定アプリで許可すると使えます。'], ['restricted', 'この端末ではカレンダーへのアクセスが制限されています。'], ['writeOnly', '予定を表示するにはフルアクセスが必要です。']]) {
     test(`許可フロー: ${st} の案内。連携オンは確定しない`, async ({ page }) => {
       await mock(page, { perm: st, afterRequest: st });
       await openApp(page);
       await openLinkPanel(page);
-      await page.locator('#lk-sw').click();
-      await expect(page.locator('#lk-body')).toContainText(text);
-      await expect(page.locator('#lk-sw')).toHaveAttribute('aria-checked', 'false');
+      await expect(page.locator('#m-cal-ip')).toContainText(text);
+      await expect(page.locator('[data-cal]')).toHaveCount(0);
       expect(await calls(page, 'requestPermission')).toHaveLength(0); // 自動で再要求しない
+      expect((await page.evaluate(() => JSON.parse(localStorage.getItem('duo-native-cal') || '{}'))).enabled).toBeFalsy();
       if (st !== 'restricted') {
         await page.locator('#lk-settings').click();
         expect(await calls(page, 'openSettings')).toHaveLength(1);
@@ -344,7 +337,7 @@ test.describe('ネイティブ（偽装）', () => {
       if (st === 'writeOnly') {
         await page.locator('#lk-req').click();
         expect(await calls(page, 'requestPermission')).toHaveLength(1);
-        await expect(page.locator('#lk-sw')).toHaveAttribute('aria-checked', 'false');
+        await expect(page.locator('[data-cal]')).toHaveCount(0);
       }
     });
   }
@@ -680,7 +673,7 @@ test.describe('ネイティブ（偽装）', () => {
     await expect(page.locator('#bk-body')).toContainText('iPhoneの予定と連携設定は変更しません。');
   });
 
-  test('連携オフでキャッシュを破棄し、アプリ予定は残す。選択はlocalStorageに保存', async ({ page }) => {
+  test('✓を外すとその予定は消え、全オフでも連携は保持。選択はlocalStorageに保存（EventKit変更APIは呼ばない）', async ({ page }) => {
     await mock(page);
     await openApp(page);
     await seed(page, [ev('a1', 'Duo予定', '2026-11-12T08:00', '2026-11-12T09:00')]);
@@ -688,15 +681,17 @@ test.describe('ネイティブ（偽装）', () => {
     await tab(page, '日').click();
     await expect(page.locator('.tlev.ext')).toHaveCount(2); // 歯医者・Duoで作成済み（この試験ではリンクなし）
     await openLinkPanel(page);
-    await page.locator('[data-cal="cal-1"]').uncheck();
+    await page.locator('[data-cal="cal-1"]').click();
     await expect(page.locator('.tlev.ext')).toHaveCount(0);
-    await page.locator('#lk-sw').click();
-    await expect(page.locator('#lk-sw')).toHaveAttribute('aria-checked', 'false');
+    await expect(page.locator('[data-cal="cal-1"]')).toHaveAttribute('aria-checked', 'false');
+    await page.locator('[data-cal="cal-2"]').click(); // 全オフも可
+    await expect(page.locator('[data-cal][aria-checked="true"]')).toHaveCount(0);
     const ls = await page.evaluate(() => JSON.parse(localStorage.getItem('duo-native-cal')));
-    expect(ls.enabled).toBe(false);
-    expect(ls.calendarIds).toEqual(['cal-2']); // 選択IDは次回用に保持
-    await page.locator('#lk-close').click();
+    expect(ls.enabled).toBe(true);
+    expect(ls.calendarIds).toEqual([]);
+    await closeSettings(page);
     await expect(page.locator('.tlev')).toHaveCount(1);
+    for (const m of ['createEvent', 'createEvents', 'updateEvent', 'deleteEvent', 'deleteExternalEvent']) expect(await calls(page, m)).toHaveLength(0);
   });
 });
 
@@ -1099,7 +1094,7 @@ test.describe('新規の標準オン（第13版 PR5）', () => {
     await expect(page.locator('#editor')).toBeHidden();
     await page.evaluate(() => sessionStorage.clear());
     await page.reload();
-    await expect(page.locator('#lk-sw, [data-act="add"]').first()).toBeAttached();
+    await expect(page.locator('[data-act="add"]').first()).toBeAttached();
     await openNew(page);
     await expect(page.locator('#dest-name')).toHaveText('家族（Google）');
     // 設定は暗黙に変わらない
@@ -1122,27 +1117,29 @@ test.describe('新規の標準オン（第13版 PR5）', () => {
     expect((await lk(page)).defaultDest).toMatchObject({ type: 'iphone', id: 'cal-b' });
   });
 
-  test('設定カード: オフにすると標準オフが再起動後も残り、既定先を永続化', async ({ page }) => {
+  test('設定の「新しい予定の追加先」: 一覧から選ぶと再起動後も残り、新規シートの先頭になる', async ({ page }) => {
     await mock(page, { cals: CALS3, events: [] });
     await openApp(page);
     await enable(page);
     await openLinkPanel(page);
-    await expect(page.locator('#lk-add')).toBeChecked();
-    await page.locator('#lk-defcal').selectOption('cal-a');
-    await page.locator('#lk-close').click();
+    await page.locator('#m-dest').click();
+    await page.locator('#m-destpop .dopt[data-sdid="cal-a"]').click();
+    await expect(page.locator('#m-dest')).toContainText('仕事（iCloud）');
+    await closeSettings(page);
     await openNew(page);
     await expect(page.locator('#dest-name')).toHaveText('仕事（iCloud）');
     await page.locator('#close').click();
     await openLinkPanel(page);
-    await page.locator('#lk-add').uncheck();
-    await expect(page.locator('#lk-defcal')).toHaveCount(0);
-    await page.locator('#lk-close').click();
+    await page.locator('#m-dest').click();
+    await page.locator('#m-destpop .dopt[data-sdtype="duo"]').first().click();
+    await closeSettings(page);
     await page.evaluate(() => sessionStorage.clear());
     await page.reload();
     await openNew(page);
-    await expect(page.locator('#dest-name')).toHaveText('仕事');
-    const st = await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith('duo-native-cal')))));
-    expect(st.defaultDest.type).toBe('duo'); // 第15版 PR4: 追加先は defaultDest 一つ。旧 addByDefault は参照しない
+    await expect(page.locator('#dest-name')).toHaveText(/^(仕事|プライベート|家族|外出|その他)$/);
+    await page.locator('#close').click();
+    await openLinkPanel(page);
+    await expect(page.locator('#m-dest')).not.toContainText('iCloud');
   });
 
   test('旧設定（addByDefault なし）は標準オン／不正値もオン', async ({ page }) => {
@@ -1212,7 +1209,7 @@ test.describe('新規の標準オン（第13版 PR5）', () => {
     await expect(page.locator('#dest-name')).toHaveText('その他'); // 既定先 cal-b は表示対象外（calendarIds=[cal-a]）なので「その他」;
   });
 
-  test('書込先なし: パネルは disabled＋案内、新規シートは段を隠す。未連携では出ない', async ({ page }) => {
+  test('書込先なし: 追加先の一覧は iPhone を出さず、新規シートも Duo だけ。未連携では出ない', async ({ page }) => {
     await mock(page, { cals: [CALS3[2]], events: [] });
     await openApp(page);
     await openNew(page);
@@ -1223,9 +1220,10 @@ test.describe('新規の標準オン（第13版 PR5）', () => {
     await page.locator('#close').click();
     await enable(page);
     await openLinkPanel(page);
-    await expect(page.locator('#lk-add')).toBeDisabled();
-    await expect(page.locator('.newcard')).toContainText('書き込めるカレンダーがありません');
-    await page.locator('#lk-close').click();
+    await page.locator('#m-dest').click();
+    await expect(page.locator('#m-destpop .dopt[data-sdtype="iphone"]')).toHaveCount(0);
+    await expect(page.locator('[data-cal]')).toHaveCount(1); // 表示のみのカレンダーは✓で選べる
+    await closeSettings(page);
     await openNew(page);
     await page.locator('#f-dest').click();
     await expect(page.locator('#dest-pop .dopt[data-dtype="iphone"]')).toHaveCount(0); // 書込先なし

@@ -463,7 +463,7 @@ const allBtn = (cls = 'allbtn', st = '') => `<button type="button" class="${cls}
 const chead = () => {
   if (PS.on && monthAll()) return `<div class="chead pasting">${pasteBand()}</div>`;
   const inBand = POS.post === 'closed' && POS.band;
-  return `<div class="chead">${navBtn(-1)}<h2 id="ctitle">${periodTitle()}${state.view === 'day' ? rkSpan(state.selected, 'hrk') : ''}</h2>${navBtn(1)}${state.view === 'month' && !inBand ? allBtn() : ''}</div>`;
+  return `<div class="cahead">${navBtn(-1)}<h2 id="ctitle">${periodTitle()}${state.view === 'day' ? rkSpan(state.selected, 'hrk') : ''}</h2>${navBtn(1)}${state.view === 'month' && !inBand ? allBtn() : ''}</div>`;
 };
 
 function card(e) {
@@ -1124,6 +1124,7 @@ async function loadTasks() {
     const sig = JSON.stringify(r);
     if (sig === RM.sig && RM.data) return;
     RM.sig = sig; RM.data = r; render();
+    if (calScreenOpen()) renderCalScreen();
   } catch (e) {
     if (RM.state !== 'granted') return;
     RM.more = false;
@@ -1440,8 +1441,8 @@ async function loadSample() {
 // ---------- パネル共通（編集・範囲・確認・メニュー・検索・バックアップ） ----------
 const dlg = $('#editor'), confirmDlg = $('#confirm'), scopeDlg = $('#scope'), menuDlg = $('#menu'), searchDlg = $('#search'), backupDlg = $('#backup'), form = $('#form');
 const discardDlg = $('#discard'), scrim = $('#scrim');
-const linkDlg = $('#link'), xdDlg = $('#xdetail'), xrDlg = $('#xretry'), catsDlg = $('#cats'), notifyDlg = $('#notify'), taskDlg = $('#taskdlg');
-const panels = [dlg, confirmDlg, scopeDlg, discardDlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, xrDlg, catsDlg, notifyDlg, taskDlg];
+const xdDlg = $('#xdetail'), xrDlg = $('#xretry'), catsDlg = $('#cats'), notifyDlg = $('#notify'), taskDlg = $('#taskdlg');
+const panels = [dlg, confirmDlg, scopeDlg, discardDlg, menuDlg, searchDlg, backupDlg, xdDlg, xrDlg, catsDlg, notifyDlg, taskDlg];
 const anyPanel = () => panels.some((d) => d.open);
 const syncInert = () => { root.inert = anyPanel(); };
 const origins = new Map();
@@ -1467,7 +1468,7 @@ catsDlg.addEventListener('close', () => {
 });
 menuDlg.addEventListener('close', () => { document.body.classList.remove('settings-open'); });
 menuDlg.addEventListener('cancel', (ev) => { ev.preventDefault(); menuBack(); });
-for (const d of [dlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, catsDlg, notifyDlg, taskDlg]) {
+for (const d of [dlg, menuDlg, searchDlg, backupDlg, xdDlg, catsDlg, notifyDlg, taskDlg]) {
   d.addEventListener('close', () => {
     syncInert();
     if (d._restore !== false) {
@@ -1671,9 +1672,9 @@ function destInfo(d) {
   const c = state.categories.find((x) => x.id === d.id);
   return { name: c ? c.name : UNCATEGORIZED.name, color: c ? c.color : '#5A5E62', hidden: !!c?.hidden };
 }
-function destGroups() {
+function destGroups(locked = curDest()?.type === 'iphone') {
   const byVis = (l) => [...l.filter((x) => !x.hidden), ...l.filter((x) => x.hidden)];
-  const gs = curDest()?.type === 'iphone' ? [] : [{ head: 'Duo（この端末だけ）', items: byVis(state.categories.map((c) => ({ type: 'duo', id: c.id, name: c.name, color: c.color, hidden: !!c.hidden }))) }];
+  const gs = locked ? [] : [{ head: 'Duo（この端末だけ）', items: byVis(state.categories.map((c) => ({ type: 'duo', id: c.id, name: c.name, color: c.color, hidden: !!c.hidden }))) }];
   if (extActive()) {
     for (const g of groupBySource(writable(X.calendars))) {
       gs.push({ head: `iPhone ・ ${g.heading}`, items: byVis(g.items.map((c) => ({ type: 'iphone', id: c.id, name: c.title, color: c.color, hidden: !link.calendarIds.includes(c.id) }))) });
@@ -2300,6 +2301,7 @@ function showMenuScreen(name, focus = true, opener = null) {
   document.body.classList.toggle('settings-open', menuDlg.open);
   menuDlg.querySelector('.mscreens').scrollTop = 0;
   if (focus) (opener?.isConnected ? opener : menuDlg.querySelector(`[data-screen="${name}"] button:not([hidden])`) || back).focus({ preventScroll: true });
+  if (name === 'calendar') { $('#m-destpop').hidden = true; enterCalScreen(); }
 }
 // 下層なら1つ戻り（戻り先の行へフォーカス）、一番上なら閉じる。
 function menuBack() {
@@ -2310,7 +2312,6 @@ function menuBack() {
 function openMenu(from) {
   if (menuDlg.open) { closePanel(menuDlg); return; } // 帯の設定ボタン（×）でも閉じる
   $('#m-desk').hidden = L.w < 600 || L.h < 600;
-  $('#m-link').hidden = !(NATIVE && X.avail);
   $('#m-notify').hidden = !NATIVE;
   $('#m-reminders').hidden = !NATIVE;
   $('#m-gset').hidden = !NATIVE;
@@ -2369,6 +2370,7 @@ function syncTaskMenu(reset = false) {
 }
 function tkChanged(reload) {
   RM.sig = ''; render(); syncTaskMenu();
+  if (calScreenOpen()) renderCalScreen();
   if (reload) loadTasks();
 }
 function syncRokuyoMenu() { $('#m-rokuyo').setAttribute('aria-checked', String(state.rokuyo)); }
@@ -2400,6 +2402,16 @@ menuDlg.addEventListener('click', (ev) => {
   if (mb0) { setRemSettings({ ...remSet, monthTasks: !remSet.monthTasks }); syncTaskMenu(); render(); say(`月にタスクを${remSet.monthTasks ? '表示します' : '表示しません'}。`); return; }
   const tl = ev.target.closest('[data-m="tklists"]');
   if (tl) { const p = $('#m-tkpanel'); p.hidden = !p.hidden; tl.setAttribute('aria-expanded', String(!p.hidden)); syncTaskMenu(); return; }
+  const cv = ev.target.closest('[data-cvis]'), cc = ev.target.closest('[data-cal]');
+  if (cv) { calToggleCat(cv.dataset.cvis, cv); return; }
+  if (cc) { calToggleIphone(cc.dataset.cal); return; }
+  if (ev.target.closest('#lk-req')) { lkRequest(); return; }
+  if (ev.target.closest('#lk-settings, [data-act="remsettings"]')) { openSettings(); return; }
+  if (ev.target.closest('#m-remreq')) { remRequest('menu').then(() => { if (calScreenOpen()) renderCalScreen(); }); return; }
+  if (ev.target.closest('#lk-reload')) { X.failKey = ''; loadExt(true); renderCalScreen(); return; }
+  if (ev.target.closest('#m-dest')) { const p = $('#m-destpop'); p.hidden = !p.hidden; renderCalScreen(); if (!p.hidden) (p.querySelector('[aria-selected="true"]') || p.querySelector('.dopt'))?.focus({ preventScroll: true }); return; }
+  const sd = ev.target.closest('[data-sdtype]');
+  if (sd) { setDest({ type: sd.dataset.sdtype, id: sd.dataset.sdid }); $('#m-destpop').hidden = true; renderCalScreen(); $('#m-dest').focus({ preventScroll: true }); say('新しい予定の追加先を変えました。'); return; }
   const go = ev.target.closest('[data-go]');
   if (go) { showMenuScreen(go.dataset.go, true); return; }
   if (ev.target.closest('#m-back')) { menuBack(); return; }
@@ -2413,7 +2425,6 @@ menuDlg.addEventListener('click', (ev) => {
   if (m === 'cats') { closePanel(menuDlg, false); openCategories(from); }
   else if (m === 'notify') { closePanel(menuDlg, false); openNotify(from); }
   else if (m === 'backup') { closePanel(menuDlg, false); openBackup(from); }
-  else if (m === 'link') { closePanel(menuDlg, false); openLink(from); }
   else if (m === 'desk') { closePanel(menuDlg); set({ desk: !state.desk }); }
   else if (m === 'week') { closePanel(menuDlg); set({ weekStart: state.weekStart === 1 ? 0 : 1 }); say(`週の始まりを${state.weekStart === 1 ? '月曜' : '日曜'}にしました。`); }
   else if (m === 'sample') { closePanel(menuDlg); loadSample(); }
@@ -2832,9 +2843,8 @@ const isXId = (id) => String(id).startsWith('ip:') && visExt().some((x) => x.id 
 const idsKey = (ids) => [...ids].sort().join(',');
 const safeColor = (c) => (/^#[0-9a-fA-F]{6}$/.test(c || '') ? c : '#68716a');
 const extNeed = () => extRange(listShown() && layoutKind() === 'home' ? todayKey() : state.selected);
-let lk = { busy: false, err: '', want: false };
+let lk = { busy: false, err: '', catBusy: false };
 let firstCheck = true, extTimer = 0, xBusy = false;
-const LK = { body: $('#lk-body') };
 
 async function checkPerm() {
   try {
@@ -2922,7 +2932,7 @@ function sameExt(a, b) {
 }
 function afterExt() {
   render();
-  if (linkDlg.open) renderLink();
+  if (calScreenOpen()) renderCalScreen();
   if (xdDlg.open && xdCur && !visExt().some((x) => x.id === xdCur.id)) $('#xd-err').textContent = 'この予定は見つかりません。カレンダーで確認してください。';
   if (dlg.open) updateXUi();
   if (dlg.open && extEd) $('#ext-gone').hidden = X.status !== 'ok' || visExt().some((x) => sameExt(x, extEd.before)); // 入力・基準値は変えない。注意帯だけ
@@ -2930,17 +2940,17 @@ function afterExt() {
 function dropLink(msg) {
   setLink({ enabled: false });
   X.gen++; X.cache = null; X.status = 'idle'; X.inflight = null; X.inflightKey = ''; X.failKey = '';
-  lk.err = msg; lk.want = false;
+  lk.err = msg;
   say(msg);
   render();
-  if (linkDlg.open) renderLink();
+  if (calScreenOpen()) renderCalScreen();
 }
 async function resumeExt() {
   if (!NATIVE || !X.avail) return;
   const p = await checkPerm();
   if (['granted', 'writeOnly'].includes(p)) requestFlush(0);
   if (p === 'granted' && !link.enabled && linkMigPending()) { try { await refreshCalendars(); } catch { /* 取得できなければ次回 */ } } else if (p && p !== 'granted') migrateLinkOnce();
-  if (!link.enabled) { if (linkDlg.open) renderLink(); return; }
+  if (!link.enabled) { if (calScreenOpen()) renderCalScreen(); return; }
   if (p !== 'granted') { if (p) dropLink('カレンダーへのアクセスを確認してください。'); return; }
   try { await refreshCalendars(); } catch { /* 取得できなくても直前の一覧で続ける */ }
   if (X.cache && X.cache.tz !== new Date().getTimezoneOffset()) { X.cache = null; bumpRevision(); } // タイムゾーン変更: キャッシュ破棄
@@ -2948,110 +2958,123 @@ async function resumeExt() {
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { resumeExt(); requestNotifySync('resume'); refreshReminderAccess(); } });
 
-// 設定パネル
-function openLink(from) {
-  lk = { busy: false, err: '', want: false };
-  renderLink();
-  openPanel(linkDlg, from);
-  LK.body.querySelector('button')?.focus({ preventScroll: true });
-  resumeExt();
-}
-function renderLink() {
-  const on = extActive(), dis = lk.busy ? ' disabled' : '';
-  let h = `<p class="lkintro">iPhoneのカレンダーの予定をDuoに表示し、書き込めるカレンダーの予定はDuoから変更・削除できます。Duoから追加した予定も、iPhoneのカレンダーに残せます。</p>
-    <div class="swrow"><span id="lk-swl">連携</span><button type="button" role="switch" id="lk-sw" class="sw" aria-checked="${on}" aria-labelledby="lk-swl"${dis}><span class="knob" aria-hidden="true"></span><span class="swt">${on ? 'オン' : 'オフ'}</span></button></div>`;
-  if (linkSaveFailed) h += '<p class="berr" role="alert">連携設定を保存できませんでした。</p>';
-  if (lk.err) h += `<p class="berr" role="alert">${esc(lk.err)}</p>`;
-  if (!on && lk.want) {
-    const steps = '設定 ＞ プライバシーとセキュリティ ＞ カレンダー ＞ Duo で『フルアクセス』を許可してください。';
-    if (X.perm === 'notDetermined') h += `<section class="card"><h3>iPhone のカレンダーへのアクセスを許可してください</h3><p>予定の表示と追加に、カレンダーへのフルアクセスが必要です。Duo から iPhone のカレンダーの予定を変更・削除できます（書き込めるカレンダーのみ）。</p><button type="button" class="solid" id="lk-req"${dis}>アクセスを許可</button></section>`;
-    else if (X.perm === 'denied') h += `<section class="card"><p class="berr" role="alert">カレンダーへのアクセスが許可されていません。${steps}</p><button type="button" id="lk-settings">設定を開く</button></section>`;
-    else if (X.perm === 'restricted') h += '<section class="card"><p class="berr" role="alert">この端末ではカレンダーへのアクセスが制限されています。端末の管理者に確認してください。</p></section>';
-    else if (X.perm === 'writeOnly') h += `<section class="card"><p class="berr" role="alert">予定を表示するにはフルアクセスが必要です。${steps}</p><button type="button" class="solid" id="lk-req"${dis}>フルアクセスを許可</button><button type="button" id="lk-settings">設定を開く</button></section>`;
+// ---------- 設定 › カレンダー（Duo／iPhone のアカウント別／リマインダー。✓で表示を切り替える） ----------
+// ✓を変えても iPhone 側の予定・カレンダーは書き換えない（Duo の画面に出すかどうかだけ）。
+const calScreenOpen = () => menuDlg.open && menuScreen === 'calendar';
+const calDot = (c) => `<i class="cdot" style="background:${esc(safeColor(c))}" aria-hidden="true"></i>`;
+const calRow = (attr, on, color, name, tag = '') => `<button type="button" class="crow${on ? '' : ' off'}" role="checkbox" aria-checked="${on}" ${attr}>${calDot(color)}<span class="cname">${esc(name || '（名前なし）')}</span>${tag}<span class="cck" aria-hidden="true">${on ? '✓' : ''}</span></button>`;
+function renderCalScreen() {
+  const box = $('#m-cal');
+  if (!box) return;
+  // Duo
+  let h = `<h3 class="cahead">Duo（この端末だけ）</h3>${state.categories.map((c) => calRow(`data-cvis="${esc(c.id)}"`, !c.hidden, c.color, c.name)).join('')}`;
+  $('#m-cal-duo').innerHTML = h;
+  // iPhone（アカウント別）
+  const dis = lk.busy ? ' disabled' : '';
+  h = '';
+  if (NATIVE && X.avail) {
+    const steps = '設定アプリで許可すると使えます。';
+    if (lk.err) h += `<p class="berr cnote" role="alert">${esc(lk.err)}</p>`;
+    if (linkSaveFailed) h += '<p class="berr cnote" role="alert">連携設定を保存できませんでした。</p>';
+    if (X.perm === 'granted') {
+      const gs = groupBySource(X.calendars);
+      if (!gs.length) h += `<p class="cnote">${X.listed ? '表示できる iPhone のカレンダーがありません。' : '読み込み中…'}</p>`;
+      for (const g of gs) h += `<h3 class="cahead">${esc(g.heading)}</h3>${g.items.map((c) => calRow(`data-cal="${esc(c.id)}"`, link.calendarIds.includes(c.id), c.color, c.title, c.allowsModify ? '' : '<small class="cro">表示のみ</small>')).join('')}`;
+    } else if (X.perm === 'notDetermined') h += `<h3 class="cahead">iPhone</h3><p class="cnote">iPhone のカレンダーを出すには、アクセスを許可してください。</p><button type="button" class="cbtn" id="lk-req"${dis}>許可する</button>`;
+    else if (X.perm === 'denied') h += `<h3 class="cahead">iPhone</h3><p class="cnote" role="alert">${steps}</p><button type="button" class="cbtn" id="lk-settings">設定を開く</button>`;
+    else if (X.perm === 'restricted') h += '<h3 class="cahead">iPhone</h3><p class="cnote" role="alert">この端末ではカレンダーへのアクセスが制限されています。端末の管理者に確認してください。</p>';
+    else if (X.perm === 'writeOnly') h += `<h3 class="cahead">iPhone</h3><p class="cnote" role="alert">予定を表示するにはフルアクセスが必要です。設定アプリで許可すると使えます。</p><button type="button" class="cbtn" id="lk-req"${dis}>フルアクセスを許可</button><button type="button" class="cbtn" id="lk-settings">設定を開く</button>`;
+    else h += '<h3 class="cahead">iPhone</h3><p class="cnote" role="alert">カレンダーの状態を確認できませんでした。</p>';
   }
-  if (X.perm === 'writeOnly' && OBX.items.length && !(!on && lk.want)) {
-    h += '<section class="card"><p class="berr" role="alert">iPhone のカレンダーに反映するには、フルアクセスの許可が必要です。設定 ＞ プライバシーとセキュリティ ＞ カレンダー ＞ Duo で『フルアクセス』を許可してください。</p><button type="button" class="solid" id="lk-req">フルアクセスを許可</button><button type="button" id="lk-settings">設定を開く</button></section>';
+  $('#m-cal-ip').innerHTML = h;
+  // リマインダー（段の表示は既存の設定と一覧を使う。全オフの意味の修正は後の PR）
+  const rb = $('#m-cal-rem');
+  if (!NATIVE) rb.innerHTML = '';
+  else {
+    const lists = RM.state === 'granted' && RM.data ? RM.data.lists : null;
+    if (lists) {
+      const shown = shownIds();
+      const groups = [];
+      for (const l of lists) { const k = l.source || 'リマインダー'; let g = groups.find((x) => x.k === k); if (!g) groups.push(g = { k, items: [] }); g.items.push(l); }
+      rb.innerHTML = groups.map((g) => `<h3 class="cahead">${esc(g.k)}（リマインダー）</h3>${g.items.map((l) => calRow(`data-tkshow="${esc(l.id)}"`, shown.has(l.id), l.color, l.title, l.allowsModify === false ? '<small class="cro">表示のみ</small>' : '')).join('')}`).join('');
+    } else rb.innerHTML = `<h3 class="cahead">リマインダー</h3><p class="cnote">${RM.state === 'denied' ? '設定アプリで許可すると使えます。' : RM.state === 'notDetermined' ? 'リマインダーのアクセスを許可すると選べます。' : 'リマインダーの許可後に選べます。'}</p>${RM.state === 'denied' ? '<button type="button" class="cbtn" data-act="remsettings">設定を開く</button>' : RM.state === 'notDetermined' ? '<button type="button" class="cbtn" id="m-remreq">許可する</button>' : ''}`;
   }
-  if (on) {
-    const wc = writable(X.calendars).filter((c) => link.calendarIds.includes(c.id)), noW = !wc.length, dn = destNow(), dOn = dn.type === 'iphone', defId = dOn ? dn.id : pickAddCal(wc, '', '');
-    h += `<section class="card newcard"><h3>新しい予定</h3><label class="swl"><span id="lk-add-l">iPhone のカレンダーにも追加</span><input type="checkbox" role="switch" id="lk-add" class="swc" aria-labelledby="lk-add-l"${dOn && !noW ? ' checked' : ''}${noW ? ' disabled' : ''}></label>`;
-    if (noW) h += '<p class="small">書き込めるカレンダーがありません。</p>';
-    else {
-      if (dOn) h += `<label class="xcal"><span class="xcal-t">追加先カレンダー</span><select id="lk-defcal">${wc.map((c) => `<option value="${esc(c.id)}"${c.id === defId ? ' selected' : ''}>${esc(c.title)}（${esc(c.source)}）</option>`).join('')}</select></label>`;
-      h += '<p class="small">新しい予定を作るとき、このカレンダーにも追加します。予定ごとに変えられます。</p>';
-    }
-    h += '</section>';
-    if (!link.calendarIds.length) h += '<p class="smsg" role="status">表示するカレンダーを選んでください。</p>';
-    for (const g of groupBySource(X.calendars)) {
-      h += `<section class="card calgroup"><h3>${esc(g.heading)}</h3>${g.items.map((c) => `<label class="calrow"><input type="checkbox" data-cal="${esc(c.id)}"${link.calendarIds.includes(c.id) ? ' checked' : ''}><i class="cdot" style="background:${c.color}" aria-hidden="true"></i><span class="cname">${esc(c.title)}</span>${c.allowsModify ? '' : '<small>読み取り専用</small>'}</label>`).join('')}</section>`;
-    }
-    h += '<p class="small">Google カレンダーを表示するには、iPhoneの『設定 ＞ カレンダー ＞ アカウント』でGoogleを追加してください。iOSのバージョンによっては『設定 ＞ アプリ ＞ カレンダー ＞ カレンダーアカウント』にあります。</p>';
+  // 新しい予定の追加先
+  const d = destInfo(destNow()), open = !$('#m-destpop').hidden;
+  $('#m-dest').innerHTML = `<span class="dname">新しい予定の追加先</span>${calDot(d.color)}<span class="dval">${esc(d.name)}</span><span class="sch" aria-hidden="true">›</span>`;
+  $('#m-dest').setAttribute('aria-expanded', String(open));
+  if (open) renderSetDestPop();
+  // 再読込／最終取得（カレンダー末尾に小さく）
+  const foot = $('#m-cal-foot');
+  if (NATIVE && X.avail && X.perm === 'granted') {
     const loading = X.status === 'loading';
     let st = 'まだ読み込んでいません';
     if (loading) st = '読み込み中…';
-    else if (X.status === 'error') st = `読み込めませんでした。もう一度お試しください。${X.cache ? '前回読み込み分を表示中' : ''}`;
+    else if (X.status === 'error') st = `読み込めませんでした。${X.cache ? '前回読み込み分を表示中' : ''}`;
     else if (X.cache) st = `最終読み込み：${fmtLoaded(X.cache.loadedAt)}`;
-    if (X.status === 'ok' && X.cache && !X.cache.events.length && link.calendarIds.length) st += '　この期間の予定はありません。';
-    h += `<div class="lkfoot"><span id="lk-status" role="status">${esc(st)}</span><button type="button" id="lk-reload"${loading ? ' disabled' : ''}>再読み込み</button></div>`;
-  }
-  LK.body.innerHTML = h;
+    foot.hidden = false;
+    foot.innerHTML = `<span id="lk-status" role="status">${esc(st)}</span><button type="button" id="lk-reload"${loading ? ' disabled' : ''}>再読み込み</button>`;
+  } else { foot.hidden = true; foot.innerHTML = ''; }
 }
-async function lkToggle() {
-  if (lk.busy) return;
-  lk.err = '';
-  if (link.enabled) { setLink({ enabled: false }); X.gen++; X.cache = null; X.status = 'idle'; X.inflight = null; X.inflightKey = ''; X.failKey = ''; lk.want = false; render(); renderLink(); return; }
-  lk.busy = true; lk.want = true; renderLink();
-  const p = await checkPerm();
-  lk.busy = false;
-  if (p === 'granted') await enableLink();
-  else if (p === null) lk.err = 'カレンダーの状態を確認できませんでした。もう一度お試しください。';
-  renderLink();
-  LK.body.querySelector('#lk-req, #lk-settings, #lk-sw')?.focus({ preventScroll: true });
+// 新しい予定の追加先の一覧（編集シートと同じ並び・同じ見せ方）。
+function renderSetDestPop() {
+  const cur = destNow(), gs = destGroups(false);
+  $('#m-destpop').innerHTML = gs.map((g) => `<h4>${esc(g.head)}</h4>${g.items.map((i) => { const on = cur.type === i.type && cur.id === i.id; return `<button type="button" class="dopt${i.hidden ? ' hid' : ''}" role="option" aria-selected="${on}" data-sdtype="${i.type}" data-sdid="${esc(i.id)}"><i class="cdot" style="background:${esc(i.color)}" aria-hidden="true"></i><span class="dn">${esc(i.name)}</span>${i.hidden ? '<span class="dhid">非表示</span>' : ''}<span class="dck" aria-hidden="true">${on ? '✓' : ''}</span></button>`; }).join('')}`).join('');
+}
+// 設定の「カレンダー」を開いたとき: 許可を確かめ、許可済みなら一覧を取り直す（オフだった連携は✓で選べる状態に戻す）。
+async function enterCalScreen() {
+  renderCalScreen();
+  if (!NATIVE) return;
+  refreshReminderAccess().then(() => { if (calScreenOpen()) renderCalScreen(); });
+  if (!X.avail) return;
+  await resumeExt();
+  if (X.perm === 'granted' && !link.enabled) await enableLink();
+  renderCalScreen();
 }
 async function enableLink() {
   if (!link.enabledMig) setLink({ enabledMig: true }); // 利用者が今つないだ。旧「オフ」の移行は不要
-  try { await refreshCalendars(); } catch { lk.err = 'カレンダーの一覧を読み込めませんでした。もう一度お試しください。'; return; }
+  try { await refreshCalendars(); } catch { lk.err = 'カレンダーの一覧を読み込めませんでした。もう一度お試しください。'; renderCalScreen(); return; }
+  lk.err = '';
   setLink({ enabled: true });
-  lk.want = false;
   loadExt(true);
   requestFlush(0);
   requestNotifySync('calendarAccess');
   render();
+  renderCalScreen();
 }
 async function lkRequest() {
   if (lk.busy) return;
-  lk.busy = true; lk.err = ''; renderLink();
+  lk.busy = true; lk.err = ''; renderCalScreen();
   try { const r = await call('requestPermission'); X.perm = r?.status || X.perm; } catch (e) { lk.err = errText(e, 'アクセスの確認に失敗しました。もう一度お試しください。'); }
   lk.busy = false;
   if (X.perm === 'granted') await enableLink();
-  renderLink();
+  renderCalScreen();
+  $('#m-cal-ip').querySelector('button')?.focus({ preventScroll: true });
 }
-LK.body.addEventListener('click', async (ev) => {
-  const b = ev.target.closest('button');
-  if (!b || b.disabled) return;
-  if (b.id === 'lk-sw') lkToggle();
-  else if (b.id === 'lk-req') lkRequest();
-  else if (b.id === 'lk-settings') { try { await call('openSettings'); } catch { /* 開けなくても案内は残る */ } }
-  else if (b.id === 'lk-reload') { X.failKey = ''; loadExt(true); renderLink(); }
-});
-LK.body.addEventListener('change', (ev) => {
-  if (ev.target.id === 'lk-add') {
-    const wc = writable(X.calendars).filter((c) => link.calendarIds.includes(c.id));
-    setDest(ev.target.checked && wc.length ? { type: 'iphone', id: pickAddCal(wc, '', '') } : { type: 'duo', id: defaultCatId() });
-    renderLink(); return;
+async function calToggleCat(id, btn) {
+  const c = state.categories.find((x) => x.id === id);
+  if (!c || lk.catBusy) return;
+  if (!c.hidden && !canHideCategory(state.categories, c.id)) { // 最後の表示は隠せない: 書かずに0.2秒揺らして3秒案内
+    btn.classList.add('shake'); setTimeout(() => btn.classList.remove('shake'), 200);
+    notice('カテゴリを1つは表示してください', null, 3000);
+    return;
   }
-  if (ev.target.id === 'lk-defcal') { setDest({ type: 'iphone', id: ev.target.value }); return; }
-  const cb = ev.target.closest('[data-cal]');
-  if (!cb) return;
+  lk.catBusy = true;
+  try { await commitCats({ catPuts: [{ ...c, hidden: !c.hidden, updatedAt: Date.now() }] }); } catch { say('保存できませんでした。もう一度お試しください。'); }
+  lk.catBusy = false;
+  renderCalScreen();
+  $('#m-cal-duo').querySelector(`[data-cvis="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
+}
+function calToggleIphone(id) {
   const ids = new Set(link.calendarIds);
-  if (cb.checked) ids.add(cb.dataset.cal); else ids.delete(cb.dataset.cal);
-  setLink({ calendarIds: [...ids] });
+  if (ids.has(id)) ids.delete(id); else ids.add(id);
+  setLink({ calendarIds: [...ids], selectionInitialized: true }); // 全オフも保持する
   X.failKey = '';
   loadExt(true);
-  renderLink();
+  renderCalScreen();
+  $('#m-cal-ip').querySelector(`[data-cal="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
   render();
-});
-$('#lk-close').addEventListener('click', () => closePanel(linkDlg));
+}
 
 // iPhone の予定のポップアップ（09 §1）。開くたびに getEvent で確かめ、書けるときだけ「削除」「編集」を出す。
 const REASON_TEXT = {
@@ -3728,7 +3751,7 @@ async function onSendFail(op, link, e) {
       X.perm = 'writeOnly';
       await ackOps({ keys: [op.eventKey], update: (raw) => (raw.nativeLink?.requestId === link.requestId && raw.nativeLink.warn !== 'writeOnly' ? { ...raw, nativeLink: { ...raw.nativeLink, warn: 'writeOnly' } } : null) });
       notice(MSG.writeOnly, { label: '設定を開く', fn: openSettings });
-      if (linkDlg.open) renderLink();
+      if (calScreenOpen()) renderCalScreen();
       return 'stop';
     case 'PERMISSION_DENIED': case 'RESTRICTED':
       X.perm = code === 'RESTRICTED' ? 'restricted' : 'denied';
@@ -3925,7 +3948,7 @@ function onNotifyTap(p) {
   openNotifyTarget(p);
 }
 function openNotifyTarget({ day, eventId }) {
-  for (const d of [menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, xrDlg, catsDlg, notifyDlg]) if (d.open) closePanel(d, false);
+  for (const d of [menuDlg, searchDlg, backupDlg, xdDlg, xrDlg, catsDlg, notifyDlg]) if (d.open) closePanel(d, false);
   const target = eventsOnDay(occIn(day, day), day).find((e) => !isX(e) && (e.id === eventId || e.parentId === eventId));
   const spreadKind = layoutKind() === 'spread';
   // 見開きで時間ページがどちらにも無いときは、予定を見せるため右を時間にする。日付は左右共通。
@@ -4023,7 +4046,6 @@ document.addEventListener('keydown', (ev) => {
   else if (menuDlg.open) menuBack();
   else if (xdDlg.open) closePanel(xdDlg);
   else if (taskDlg.open) dismissPopup(false);
-  else if (linkDlg.open) closePanel(linkDlg);
   else if (notifyDlg.open) closePanel(notifyDlg);
   else if (catsDlg.open) catsBack();
   else if (backupDlg.open) backBackup();

@@ -266,3 +266,10 @@ export async function showView(page, name) {
   if ((await page.locator('.page.rp').getAttribute('data-page')) !== 'time') await pagePick(page, 'right', '時間').click();
   await setTimeMode(page, 'right', { 日: '1日', 週: '週', 一覧: '一覧' }[name]);
 }
+
+// 設定 › カレンダーを開いて iPhone のカレンダー一覧が出るまで待ち、設定を閉じる（許可済みなら✓で連携が入る）。
+export async function enableCalendars(page, { close = true } = {}) {
+  await openMenu(page, 'calendar');
+  await expect(page.locator('#menu [data-cal]').first()).toBeVisible();
+  if (close) { await page.locator('#m-back').click(); await page.locator('#m-back').click(); await expect(page.locator('#menu')).toBeHidden(); }
+}

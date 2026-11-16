@@ -1,6 +1,6 @@
 // 第14版 PR33: コピー開始と貼る日の選択画面。確定（実行）は PR34 なので、ここでは選択・キャンセル・DB/native0 を確かめる。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, seed, ev, dbEvents, tab, OPEN_SIZES } from './helpers.js';
+import { openApp, SIZES, seed, ev, dbEvents, tab, OPEN_SIZES, enableCalendars } from './helpers.js';
 
 const CALS = [
   { id: 'cal-1', title: '家族', color: '#d93025', sourceId: 's-g', source: 'Google', sourceType: 'caldav', allowsModify: true, isDefault: true },
@@ -59,12 +59,7 @@ async function boot(page, size = SIZES.openPortrait669, { ext = false, query = '
   await page.evaluate(() => { const o = JSON.parse(localStorage.getItem('duo.ui.v1') || '{}'); localStorage.setItem('duo.ui.v1', JSON.stringify({ ...o, style: 'named' })); });
   await seed(page, SEED);
   if (ext) {
-    await page.locator('[data-act="menu"]:visible').first().click();
-    await page.locator('#menu [data-go="calendar"]').click();
-    await page.locator('[data-m="link"]').click();
-    await page.locator('#lk-sw').click();
-    await expect(page.locator('#lk-sw')).toHaveAttribute('aria-checked', 'true');
-    await page.locator('#lk-close').click();
+    await enableCalendars(page);
   }
 }
 

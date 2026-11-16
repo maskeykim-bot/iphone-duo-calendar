@@ -1,7 +1,7 @@
 // 第13版 PR4: iPhone の予定（ext）の編集・削除の画面。window.Capacitor を偽装して JS 側の動きを検査する。
 // 偽装は Swift の実動作の証明ではない（契約は design/IMPL_PLAN_V13.md PR1〜PR3）。
 import { test, expect } from '@playwright/test';
-import { openApp, tab, dbEvents, pickDest } from './helpers.js';
+import { openApp, tab, dbEvents, pickDest, enableCalendars } from './helpers.js';
 
 const CALS = [
   { id: 'cal-1', title: '家族', color: '#d93025', sourceId: 's-g', source: 'Google', sourceType: 'caldav', allowsModify: true, isDefault: true },
@@ -71,12 +71,7 @@ const calls = (page, m) => page.evaluate((m) => window.__mock.calls.filter((c) =
 async function setup(page, cfg) {
   await mock(page, cfg);
   await openApp(page);
-  await page.locator('[data-act="menu"]:visible').first().click();
-  await page.locator('#menu [data-go="calendar"]').click();
-  await page.locator('[data-m="link"]').click();
-  await page.locator('#lk-sw').click();
-  await expect(page.locator('#lk-sw')).toHaveAttribute('aria-checked', 'true');
-  await page.locator('#lk-close').click();
+  await enableCalendars(page);
   await tab(page, '日').click();
 }
 const pop = (page, name) => page.locator('.tlev.ext, .adpill.ext', { hasText: name }).first().click(); // 終日は終日段のピル

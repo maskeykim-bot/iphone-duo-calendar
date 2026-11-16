@@ -946,3 +946,32 @@ body[data-layout=spread] dialog#menu,body[data-layout=desk] dialog#menu{height:a
 /* 帯の設定ボタンは開いている間 × にする（閉じる／戻るの入口） */
 body.settings-open .ctl.band [data-act=menu] .bi svg{display:none}
 body.settings-open .ctl.band [data-act=menu] .bi::after{content:"×";font-size:26px;line-height:1}
+/* 第15版 PR8: 設定 › カレンダー（アカウント別の段。見出し32・行40・青✓・色丸14・表示のみ札） */
+.cahead{margin:0;height:32px;line-height:32px;padding:0 20px;font-size:12px;font-weight:400;color:#8C918B;border-top:1px solid #ECE9E1}
+#m-cal>div:first-child .cahead:first-child{border-top:0}
+.mscreens .menurows button.crow{display:flex;align-items:center;gap:10px;min-height:40px;height:40px;padding:0 20px 0 20px;font-size:16px;background:transparent;border:0;text-align:left}
+.crow .cdot{flex:none;width:14px;height:14px;border-radius:50%;display:inline-block}
+.crow .cname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crow .cro{flex:none;font-size:11px;color:#A8ABA4}
+.crow .cck{flex:none;width:20px;text-align:right;color:#4E7FC4;font-weight:700}
+.crow.off .cname{color:#A8ABA4}
+.crow.off .cdot{opacity:.4}
+.crow.shake{animation:catshake .2s linear}
+@media (prefers-reduced-motion:reduce){.crow.shake{animation:none;outline:2px solid #4E7FC4}}
+.cnote{margin:0;padding:4px 20px 6px;font-size:12px;line-height:1.4;color:#68716A}
+.mscreens .menurows button.cbtn{display:inline-block;width:auto;margin:2px 20px 8px 20px;min-height:40px;padding:0 16px;border:1px solid #DCD7CB;border-radius:20px;background:#fff;font-size:14px}
+.mscreens .menurows button.cedit{min-height:40px;height:40px;font-size:13px;color:#68716A;border-top:1px solid #ECE9E1}
+.mscreens .menurows button.destrow{display:flex;align-items:center;gap:8px;height:48px;font-size:16px;border-top:1px solid #ECE9E1;background:transparent;border-left:0;border-right:0;border-bottom:0}
+.destrow .dname{flex:1;min-width:0}
+.destrow .cdot{flex:none;width:12px;height:12px;border-radius:50%}
+.destrow .dval{font-size:14px;color:#68716A;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.destpop{margin:0 12px 6px;border:1px solid #ECE9E1;border-radius:14px;overflow:hidden;background:#fff}
+.destpop h4{margin:0;padding:6px 14px 2px;font-size:12px;font-weight:400;color:#8C918B}
+.destpop .dopt{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:0 14px;border:0;background:transparent;text-align:left;font-size:15px}
+.destpop .dopt .cdot{flex:none;width:12px;height:12px;border-radius:50%}
+.destpop .dopt .dn{flex:1;min-width:0}
+.destpop .dopt.hid .dn{color:#A8ABA4}.destpop .dopt.hid .cdot{opacity:.4}
+.destpop .dopt .dhid{font-size:11px;color:#A8ABA4}
+.destpop .dopt .dck{width:18px;text-align:right;color:#2E6B5A;font-weight:700}
+#m-cal-foot{padding:8px 20px 0;font-size:12px;color:#68716A}
+#m-cal-foot button{min-height:32px;padding:0 12px;border:1px solid #DCD7CB;border-radius:16px;background:#fff;font-size:12px;width:auto}
