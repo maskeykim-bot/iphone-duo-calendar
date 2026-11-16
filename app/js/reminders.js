@@ -120,17 +120,18 @@ export function taskRowHtml(r, color, overdue) {
   const pri = r.priority > 0 ? '<span class="rmpri" aria-label="優先度あり">!</span>' : '';
   const ro = r.readOnly ? ' ro' : '';
   const c = safeColor(color);
-  return `<div class="rmrow${hasDue ? ' two' : ''}${r.done ? ' done' : ''}${ro}" data-key="rm:${escH(r.itemId)}" role="listitem" style="--rc:${c}">`
-    + `<span class="rmck" aria-hidden="true"></span>`
-    + `<span class="rmbody"><span class="rmt">${pri}${escH(r.title || '（題名なし）')}</span>${hasDue ? `<span class="rmd${overdue ? ' late' : ''}">${escH(dt)}</span>` : ''}</span>`
+  const id = escH(r.itemId), ti = escH(r.title || '（題名なし）');
+  return `<div class="rmrow${hasDue ? ' two' : ''}${r.done ? ' done' : ''}${ro}" data-key="rm:${id}" role="listitem" style="--rc:${c}">`
+    + `<button type="button" class="rmckb" data-act="remck" data-id="${id}" role="checkbox" aria-checked="${r.done ? 'true' : 'false'}" aria-label="${r.done ? '未完了に戻す' : '完了にする'}：${ti}"${r.readOnly ? ' disabled' : ''}><span class="rmck" aria-hidden="true"></span></button>`
+    + `<button type="button" class="rmbody" data-act="remedit" data-id="${id}"><span class="rmt">${pri}${ti}</span>${hasDue ? `<span class="rmd${overdue ? ' late' : ''}">${escH(dt)}</span>` : ''}</button>`
     + `${r.readOnly ? '<span class="rmro">読み取り専用</span>' : ''}</div>`;
 }
 // ui: { doneOpen, histDays }。loading（初回）/ error は呼び出し側が渡す。
-export function tasksHtml(data, { selected, now = new Date(), doneOpen = false, histDays = HIST_DAYS, loading = false, error = false, busyMore = false, add = null } = {}) {
+export function tasksHtml(data, { selected, now = new Date(), doneOpen = false, histDays = HIST_DAYS, loading = false, error = false, busyMore = false, add = null, pending = null } = {}) {
   if (!data) return `<div class="pagewait padb taskl" data-wait="task"><p class="remtx pad">${error ? 'リマインダーを読み込めませんでした。' : loading ? '読み込み中…' : ''}</p></div>`;
   const colors = new Map((data.lists || []).map((l) => [l.id, l.color]));
   const g = groupReminders(data.reminders, { now, selected, histDays });
-  const row = (r, late) => taskRowHtml(r, colors.get(r.listId), late);
+  const row = (r, late) => taskRowHtml(pending?.has(r.itemId) ? { ...r, done: pending.get(r.itemId) } : r, colors.get(r.listId), late);
   const sec = (key, title, arr, late) => (arr.length ? `<section class="rmsec" data-sec="${key}"><h3 class="rmh${late ? ' late' : ''}">${escH(title)}</h3><div role="list">${arr.map((r) => row(r, late)).join('')}</div></section>` : '');
   let h = sec('overdue', '期限切れ', g.overdue, true) + sec('selected', mdFull(selected), g.selected, false) + sec('upcoming', 'この先', g.upcoming, false) + sec('nodue', '期限なし', g.nodue, false);
   const doneHead = `<button type="button" class="rmdonebtn" data-act="remdone" aria-expanded="${doneOpen}">完了（${g.done.length}） <span aria-hidden="true">${doneOpen ? '⌄' : '›'}</span></button>`;
@@ -206,4 +207,85 @@ export function addRowHtml(d, { selected, noList = false } = {}) {
     : `<button type="button" class="rmchip rmchip0" data-act="remdue1" aria-label="期限を選んでいる日にする">期限なし</button>`;
   return `<div class="rmadd open"><div class="rmaddin"><input type="text" class="remin" enterkeyhint="done" autocomplete="off" aria-label="タスクの題名" placeholder="タスクを入力"${d.busy ? ' readonly aria-busy="true"' : ''}>${chip}</div>`
     + `${d.err ? `<p class="rmwhy err" role="alert">${escH(d.err)}</p>` : ''}</div>`;
+}
+
+// ---- 第14版 PR19: タスクの編集と完了（本文は保存しない。メモリ上だけ） ----
+export const TASK_NOTE = 'iPhone のリマインダーに保存されます。';
+export const TASK_CONFLICT = 'iPhone のリマインダー側でも変更されていたため、Duo の内容で上書きしました。';
+const normDue = (d) => (d && d.date ? (d.time ? { date: d.date, time: d.time } : { date: d.date }) : null);
+const sameDue = (a, b) => JSON.stringify(normDue(a)) === JSON.stringify(normDue(b));
+// 編集シートの初期状態。lock: 'ro'（書けないリスト）| 'rec'（繰り返し＝完了だけ）| null。
+export function openTaskEditor(r, lists = []) {
+  const form = { title: r.title || '', date: r.due?.date || '', time: r.due?.time || '', listId: r.listId, notes: r.notes || '' };
+  const ls = (Array.isArray(lists) ? lists : []).filter((l) => l.id === r.listId || l.allowsModify !== false);
+  return { itemId: r.itemId, orig: r, form, base: JSON.stringify(form), lists: ls, lock: r.readOnly ? 'ro' : r.recurring ? 'rec' : null, err: '' };
+}
+export const taskDirty = (ed, form) => !ed.lock && JSON.stringify(form) !== ed.base;
+// 変えた欄だけの patch。{ error } は入力の誤り。
+export function buildTaskPatch(orig, f) {
+  const title = String(f.title ?? '').trim();
+  if (!title) return { error: '題名を入力してください。' };
+  if (f.time && !f.date) return { error: '時刻を入れるときは日付も選んでください。' };
+  const patch = {};
+  if (title !== (orig.title || '')) patch.title = title;
+  if ((f.notes || '') !== (orig.notes || '')) patch.notes = f.notes || '';
+  if (f.listId && f.listId !== orig.listId) patch.listId = f.listId;
+  const due = f.date ? (f.time ? { date: f.date, time: f.time } : { date: f.date }) : null;
+  if (!sameDue(due, orig.due)) patch.due = due;
+  return { patch };
+}
+// 保存。変更なしは呼ばない（noop）。優先度・繰返しは送らない。
+export async function saveTask(call, orig, form) {
+  if (orig.readOnly || orig.recurring) return { ok: false, code: orig.readOnly ? 'READ_ONLY' : 'NOT_EDITABLE' };
+  const b = buildTaskPatch(orig, form);
+  if (b.error) return { ok: false, invalid: b.error };
+  if (!Object.keys(b.patch).length) return { ok: true, noop: true, reminder: orig, conflicted: false };
+  try {
+    const r = await updateReminder(call, { itemId: orig.itemId, externalId: orig.externalId }, orig.modifiedAt, b.patch);
+    return { ok: true, ...r };
+  } catch (e) { return { ok: false, code: e?.code || 'UNAVAILABLE' }; }
+}
+export function taskEditorHtml(ed) {
+  const f = ed.form, dis = ed.lock ? ' disabled' : '';
+  const r = ed.orig;
+  const opts = ed.lists.map((l) => `<option value="${escH(l.id)}"${l.id === f.listId ? ' selected' : ''}>${escH(l.title || '')}</option>`).join('');
+  const meta = (r.priority > 0 ? '<span class="rmpri" aria-label="優先度あり">!</span> 優先度あり　' : '') + (r.recurring ? '繰り返し（リマインダーで変更できます）' : '');
+  const why = ed.lock === 'ro' ? '<p class="small" role="note">読み取り専用のリストのため変更できません。</p>' : ed.lock === 'rec' ? '<p class="small" role="note">繰り返しのタスクは完了だけ変更できます。</p>' : '';
+  return `<label>題名<input id="tk-title" maxlength="200" value="${escH(f.title)}"${dis}></label>`
+    + `<div class="pair"><label>期限<input id="tk-date" type="date" value="${escH(f.date)}"${dis}></label><label>時刻<input id="tk-time" type="time" value="${escH(f.time)}"${dis}></label></div>`
+    + `<label>リスト<select id="tk-list"${dis}>${opts}</select></label>`
+    + `<label>メモ<textarea id="tk-notes"${dis}>${escH(f.notes)}</textarea></label>`
+    + (meta ? `<p class="small tkmeta">${meta}</p>` : '') + why;
+}
+
+// 完了の丸（即 native へ。1.5 秒後に完了段へ移す。再 tap は同じタスク内で直列化。失敗は表示を戻す）。
+// onSettle(id, { result, failed, err }) — 表示を確定する時に呼ぶ。pending() は表示だけの上書き（id→done）。
+export function createDoneController(call, { delay = 1500, onSettle, onPending } = {}) {
+  const map = new Map();
+  const settle = (e) => {
+    if (e.dead || e.inflight > 0) return;
+    if (!e.broken && !e.fired) return;
+    map.delete(e.id); e.dead = true; clearTimeout(e.timer);
+    onSettle?.(e.id, { result: e.result, failed: e.broken, err: e.err });
+  };
+  return {
+    has: (id) => map.has(id),
+    pending() { return new Map([...map].map(([id, e]) => [id, e.want])); },
+    toggle(r) {
+      if (!r || r.readOnly) return false;
+      let e = map.get(r.itemId);
+      if (!e) { e = { id: r.itemId, target: { itemId: r.itemId, externalId: r.externalId }, want: !!r.done, inflight: 0, fired: false, broken: false, dead: false, result: null, err: null, timer: 0, chain: Promise.resolve() }; map.set(r.itemId, e); }
+      const want = (e.want = !e.want);
+      clearTimeout(e.timer); e.fired = false;
+      e.timer = setTimeout(() => { e.fired = true; settle(e); }, delay);
+      e.inflight++;
+      e.chain = e.chain.then(async () => {
+        if (e.broken || e.dead) return;
+        try { e.result = await setReminderDone(call, e.target, want); } catch (x) { e.broken = true; e.err = x; }
+      }).finally(() => { e.inflight--; settle(e); });
+      onPending?.();
+      return true;
+    },
+    reset() { for (const e of map.values()) { e.dead = true; clearTimeout(e.timer); } map.clear(); },
+  };
 }

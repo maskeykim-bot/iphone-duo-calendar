@@ -168,6 +168,15 @@
     <button type="button" class="primary wide" id="xd-open">カレンダーで開く</button>
   </div>
 </dialog>
+<dialog id="taskdlg" class="panel" aria-labelledby="tk-h">
+  <div class="phead"><h2 id="tk-h">タスク</h2><button type="button" id="tk-close" class="xclose" aria-label="閉じる">✕</button></div>
+  <div id="tk-body" class="pbody"></div>
+  <div class="pfoot">
+    <p id="tk-err" class="error" role="alert"></p>
+    <p id="tk-note" class="small" role="note">iPhone のリマインダーに保存されます。</p>
+    <div class="xdact"><button type="button" id="tk-save" class="primary">保存</button></div>
+  </div>
+</dialog>
 <dialog id="xretry" aria-labelledby="xr-title">
   <h2 id="xr-title">iPhoneのカレンダーに追加できませんでした</h2>
   <p id="xr-msg">Duoに保存しました。iPhoneのカレンダーには追加できませんでした。</p>

@@ -10,7 +10,7 @@ import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAl
 import { rokuyoOf } from './rokuyo.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS } from './pages.js';
 import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.js';
-import { checkReminderAccess, requestReminderAccess, taskAccessHtml, createReminderLoader, tasksHtml, HIST_DAYS, pickAddList, createAddController } from './reminders.js';
+import { checkReminderAccess, requestReminderAccess, taskAccessHtml, createReminderLoader, tasksHtml, HIST_DAYS, pickAddList, createAddController, openTaskEditor, taskEditorHtml, taskDirty, saveTask, createDoneController, TASK_CONFLICT } from './reminders.js';
 import { call, errCode, errReason, errText, listen, nativeAvailable, reminderErrText } from './native.js';
 import { buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, pickAddCal, planNativeOps, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
 import {
@@ -976,14 +976,36 @@ async function remSubmit() {
 // ---------- タスク: リマインダー許可の案内（カレンダー権限・連携設定とは独立） ----------
 const newDraft = () => ({ open: false, title: '', due: undefined, busy: false, err: '' }); // due: undefined＝選んでいる日に従う／null＝期限なし
 const RM = { add: newDraft(), state: null, gen: 0, data: null, err: false, doneOpen: false, histDays: HIST_DAYS, more: false, timer: 0, sig: '' };
+let tkDrop = null; // 編集シートを閉じる口（シート側の定義後に設定）
 const remLoader = createReminderLoader(call);
 const addCtl = createAddController(call);
+// 完了の丸: 即 native へ送り、1.5 秒後に完了段へ移す（PR19）。確定時に返ってきた1件で置き換える。失敗は表示を戻す。
+const doneCtl = createDoneController(call, {
+  onPending: () => render(),
+  onSettle: (id, { result, failed, err }) => {
+    if (RM.state !== 'granted') return;
+    if (result && RM.data) RM.data = { ...RM.data, reminders: RM.data.reminders.map((x) => (x.itemId === id ? result : x)) };
+    RM.sig = '';
+    render(); scheduleTasks();
+    if (failed) {
+      const m = reminderErrText(err, '完了の変更に失敗しました。もとに戻しました。');
+      notice(m); say(m);
+      if (err?.code === 'PERMISSION_DENIED') refreshReminderAccess();
+    }
+  },
+});
+function toggleDone(id) {
+  const r = RM.data?.reminders.find((x) => x.itemId === id);
+  if (!r || !doneCtl.toggle(r)) return;
+  const now = doneCtl.pending().get(id);
+  say(now ? '完了にしました。' : '未完了に戻しました。');
+}
 function taskBody(where) {
-  if (RM.state === 'granted') return tasksHtml(RM.data, { selected: state.selected, doneOpen: RM.doneOpen, histDays: RM.histDays, loading: !RM.err, error: RM.err, busyMore: RM.more, add: RM.data ? { draft: RM.add, listId: pickAddList(RM.data.lists) } : null });
+  if (RM.state === 'granted') return tasksHtml(RM.data, { selected: state.selected, doneOpen: RM.doneOpen, histDays: RM.histDays, loading: !RM.err, error: RM.err, busyMore: RM.more, pending: doneCtl.pending(), add: RM.data ? { draft: RM.add, listId: pickAddList(RM.data.lists) } : null });
   return taskAccessHtml(RM.state, where, NATIVE);
 }
 // 許可がなくなったら、メモリ上のタスクも読込も捨てる（本文はどこにも保存していない）。
-function dropTasks() { remLoader.cancel(); clearTimeout(RM.timer); RM.data = null; RM.err = false; RM.sig = ''; RM.more = false; RM.doneOpen = false; RM.histDays = HIST_DAYS; RM.add = newDraft(); }
+function dropTasks() { doneCtl.reset(); tkDrop?.(); remLoader.cancel(); clearTimeout(RM.timer); RM.data = null; RM.err = false; RM.sig = ''; RM.more = false; RM.doneOpen = false; RM.histDays = HIST_DAYS; RM.add = newDraft(); }
 async function loadTasks() {
   if (!NATIVE || RM.state !== 'granted') return;
   try {
@@ -1187,6 +1209,8 @@ root.addEventListener('click', (ev) => {
   if (pg) { const sd = pg.classList.contains('lp') ? 'left' : 'right'; if (sd !== state.lastSide) { state.lastSide = sd; saveUi(); } }
   if (d.view) set({ view: d.view, home: false });
   else if (d.act === 'list') set({ home: true });
+  else if (d.act === 'remck') toggleDone(d.id);
+  else if (d.act === 'remedit') openTask(d.id, b);
   else if (d.act === 'remadd') openAdd();
   else if (d.act === 'remdue0') { RM.add.due = null; RM.add.focus = true; render(); }
   else if (d.act === 'remdue1') { RM.add.due = undefined; RM.add.focus = true; render(); }
@@ -1239,8 +1263,8 @@ async function loadSample() {
 // ---------- パネル共通（編集・範囲・確認・メニュー・検索・バックアップ） ----------
 const dlg = $('#editor'), confirmDlg = $('#confirm'), scopeDlg = $('#scope'), menuDlg = $('#menu'), searchDlg = $('#search'), backupDlg = $('#backup'), form = $('#form');
 const discardDlg = $('#discard'), scrim = $('#scrim');
-const linkDlg = $('#link'), xdDlg = $('#xdetail'), xrDlg = $('#xretry'), catsDlg = $('#cats'), notifyDlg = $('#notify');
-const panels = [dlg, confirmDlg, scopeDlg, discardDlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, xrDlg, catsDlg, notifyDlg];
+const linkDlg = $('#link'), xdDlg = $('#xdetail'), xrDlg = $('#xretry'), catsDlg = $('#cats'), notifyDlg = $('#notify'), taskDlg = $('#taskdlg');
+const panels = [dlg, confirmDlg, scopeDlg, discardDlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, xrDlg, catsDlg, notifyDlg, taskDlg];
 const anyPanel = () => panels.some((d) => d.open);
 const syncInert = () => { root.inert = anyPanel(); };
 const origins = new Map();
@@ -1248,7 +1272,7 @@ function openPanel(d, from) {
   origins.set(d, from || document.activeElement);
   d.show();
   syncInert();
-  if (d === xdDlg) syncScrim();
+  if (d === xdDlg || d === taskDlg) syncScrim();
 }
 function closePanel(d, restore = true) {
   d._restore = restore;
@@ -1264,7 +1288,7 @@ catsDlg.addEventListener('close', () => {
     saveDraft();
   }
 });
-for (const d of [dlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, catsDlg, notifyDlg]) {
+for (const d of [dlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, catsDlg, notifyDlg, taskDlg]) {
   d.addEventListener('close', () => {
     syncInert();
     if (d._restore !== false) {
@@ -1515,9 +1539,9 @@ $('#close').addEventListener('click', () => fadeClose(dlg, closeEditor));
 function editSnap() { const { ropen, xcal, autoDays: _a, ...rest } = readForm(); return JSON.stringify({ ...rest, xcal: rest.xadd ? xcal : '' }); }
 const editorDirty = () => edBase == null || edBase !== editSnap();
 // 幕が受け持つポップアップ（最前面が編集シートか iPhone の予定詳細のときだけ）
-const popupTop = () => [dlg, xdDlg].find((d) => d.open && panels.every((p) => p === d || p === dlg || p === xdDlg || !p.open)) || null;
-function syncScrim() { scrim.hidden = !(dlg.open || xdDlg.open); }
-for (const d of [dlg, xdDlg]) d.addEventListener('close', syncScrim);
+const popupTop = () => [dlg, xdDlg, taskDlg].find((d) => d.open && panels.every((p) => p === d || p === dlg || p === xdDlg || p === taskDlg || !p.open)) || null;
+function syncScrim() { scrim.hidden = !(dlg.open || xdDlg.open || taskDlg.open); }
+for (const d of [dlg, xdDlg, taskDlg]) d.addEventListener('close', syncScrim);
 let fading = false, guardUntil = 0, guardAt = null;
 // 幕を触って閉じた直後は、同じ場所へ遅れて届く click を下の要素へ通さない（別の場所の操作は妨げない）。
 const guardClicks = (x, y) => { guardUntil = performance.now() + 400; guardAt = x == null ? null : { x, y }; };
@@ -1544,21 +1568,27 @@ function dismissPopup(viaScrim, at) {
   if (d === dlg) {
     if (editorDirty()) { openDiscard(); return true; }
     fadeClose(dlg, closeEditor);
+  } else if (d === taskDlg) {
+    if (taskIsDirty()) { openDiscard(taskDlg); return true; }
+    fadeClose(taskDlg, closeTask);
   } else fadeClose(xdDlg, closeXd);
   return true;
 }
-function openDiscard() {
-  dlg.inert = true;
+let dcTarget = dlg;
+function openDiscard(t = dlg) {
+  dcTarget = t;
+  t.inert = true;
   discardDlg.show();
   syncInert();
   $('#dc-keep').focus({ preventScroll: true });
 }
 discardDlg.addEventListener('close', () => {
   syncInert();
-  if (dlg.open && !confirmDlg.open && !scopeDlg.open) dlg.inert = false;
+  if (dcTarget === taskDlg) { if (taskDlg.open) taskDlg.inert = false; }
+  else if (dlg.open && !confirmDlg.open && !scopeDlg.open) dlg.inert = false;
 });
-$('#dc-keep').addEventListener('click', () => { discardDlg.close(); if (dlg.open) F.title.focus({ preventScroll: true }); });
-$('#dc-drop').addEventListener('click', () => { discardDlg.close(); fadeClose(dlg, closeEditor); });
+$('#dc-keep').addEventListener('click', () => { discardDlg.close(); if (dcTarget === taskDlg) { if (taskDlg.open) { taskDlg.inert = false; $('#tk-title').focus({ preventScroll: true }); } } else if (dlg.open) F.title.focus({ preventScroll: true }); });
+$('#dc-drop').addEventListener('click', () => { discardDlg.close(); if (dcTarget === taskDlg) fadeClose(taskDlg, closeTask); else fadeClose(dlg, closeEditor); });
 scrim.addEventListener('click', (ev) => { ev.stopPropagation(); ev.preventDefault(); if (popupTop()) dismissPopup(true, { x: ev.clientX, y: ev.clientY }); });
 scrim.addEventListener('pointerdown', (ev) => ev.preventDefault());
 // 幕の外の click（折り目の帯・遅れて届く click）は、幕が出ている間と閉じた直後は何も起こさない。
@@ -1597,6 +1627,7 @@ function initPull(d) {
     if (!cancelled && (s.dy >= PULL_MIN || fling)) {
       const c = popupTop();
       if (c === dlg && editorDirty()) { snapBack(); openDiscard(); }
+      else if (c === taskDlg && taskIsDirty()) { snapBack(); openDiscard(taskDlg); }
       else dismissPopup(false);
     } else snapBack();
     return true;
@@ -1636,7 +1667,55 @@ function initPull(d) {
 }
 initPull(dlg);
 initPull(xdDlg);
+initPull(taskDlg);
 
+// ---------- タスク: 編集シート（PR19） ----------
+let TK = null; // { ed, busy }
+const tkForm = () => ({ title: $('#tk-title').value, date: $('#tk-date').value, time: $('#tk-time').value, listId: $('#tk-list').value, notes: $('#tk-notes').value });
+const taskIsDirty = () => !!TK && taskDirty(TK.ed, tkForm());
+function tkUi() {
+  const lock = !!TK.ed.lock, gone = TK.gone;
+  $('#tk-save').hidden = lock || gone;
+  $('#tk-save').disabled = TK.busy;
+  $('#tk-err').textContent = TK.ed.err || '';
+  $('#tk-note').hidden = gone;
+}
+function openTask(id, from) {
+  const r = RM.data?.reminders.find((x) => x.itemId === id);
+  if (!r || anyPanel()) return;
+  TK = { ed: openTaskEditor(r, RM.data.lists), busy: false, gone: false }; tkKey = r.itemId;
+  $('#tk-body').innerHTML = taskEditorHtml(TK.ed);
+  tkUi();
+  openPanel(taskDlg, from);
+  const t = $('#tk-title'); (t.disabled ? $('#tk-close') : t).focus({ preventScroll: true });
+}
+let tkKey = '';
+tkDrop = () => { if (taskDlg.open) closeTask(); };
+function closeTask() { tkKey = TK?.ed.itemId || tkKey; TK = null; closePanel(taskDlg); }
+taskDlg.addEventListener('close', () => {
+  const key = TK?.ed.itemId || tkKey; TK = null; tkKey = '';
+  const o = origins.get(taskDlg);
+  if (key && !o?.isConnected) root.querySelector(`[data-key="rm:${CSS.escape(key)}"] .rmbody`)?.focus({ preventScroll: true });
+});
+$('#tk-close').addEventListener('click', () => dismissPopup(false));
+$('#tk-save').addEventListener('click', async () => {
+  if (!TK || TK.busy || TK.ed.lock) return;
+  const t = TK, orig = t.ed.orig;
+  t.busy = true; t.ed.err = ''; tkUi();
+  const r = await saveTask(call, orig, tkForm());
+  if (TK !== t) return;
+  t.busy = false;
+  if (r.ok) {
+    if (!r.noop && RM.data) { RM.data = { ...RM.data, reminders: RM.data.reminders.map((x) => (x.itemId === orig.itemId ? r.reminder : x)) }; RM.sig = ''; render(); scheduleTasks(); }
+    fadeClose(taskDlg, closeTask);
+    if (r.conflicted) { notice(TASK_CONFLICT); say(TASK_CONFLICT); } else if (!r.noop) say('タスクを保存しました。');
+    return;
+  }
+  t.ed.err = r.invalid || reminderErrText({ code: r.code }, '保存できませんでした。もう一度お試しください。');
+  if (r.code === 'NOT_FOUND') { t.gone = true; t.ed.err = 'このリマインダーは削除されています。'; loadTasks(); } // 作り直さない
+  tkUi(); say(t.ed.err);
+  if (r.code === 'PERMISSION_DENIED') { closeTask(); refreshReminderAccess(); }
+});
 // 保存・削除の確定（1トランザクション）。
 // iPhone へ反映する操作（ops）は、予定の保存と同じトランザクションで送信待ちへ積む。
 async function commit(plan, { ops = [] } = {}) {
@@ -3274,6 +3353,7 @@ document.addEventListener('keydown', (ev) => {
   else if (confirmDlg.open) cancelConfirm();
   else if (menuDlg.open) closePanel(menuDlg);
   else if (xdDlg.open) closePanel(xdDlg);
+  else if (taskDlg.open) dismissPopup(false);
   else if (linkDlg.open) closePanel(linkDlg);
   else if (notifyDlg.open) closePanel(notifyDlg);
   else if (catsDlg.open) catsBack();
