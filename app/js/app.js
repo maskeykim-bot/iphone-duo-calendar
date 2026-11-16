@@ -10,8 +10,8 @@ import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAl
 import { rokuyoOf } from './rokuyo.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS } from './pages.js';
 import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.js';
-import { checkReminderAccess, requestReminderAccess, taskAccessHtml, createReminderLoader, tasksHtml, HIST_DAYS } from './reminders.js';
-import { call, errCode, errReason, errText, listen, nativeAvailable } from './native.js';
+import { checkReminderAccess, requestReminderAccess, taskAccessHtml, createReminderLoader, tasksHtml, HIST_DAYS, pickAddList, createAddController } from './reminders.js';
+import { call, errCode, errReason, errText, listen, nativeAvailable, reminderErrText } from './native.js';
 import { buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, pickAddCal, planNativeOps, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
 import {
   DOW, addDays, addMonths, assignSharedLanes, dayLabel, dayOf, dkey, eventsOnDay, isKey, isMulti,
@@ -916,28 +916,74 @@ function memoSync() {
   root.querySelectorAll('textarea.memota').forEach((ta) => { const e = memoStore.get(ta.dataset.memo); if (e?.loaded && e.text !== ta.value) memoStore.setText(ta.dataset.memo, ta.value); });
 }
 root.addEventListener('input', (ev) => { const ta = ev.target.closest?.('textarea.memota'); if (ta && !ev.isComposing && !memoComposing && !ta.readOnly) memoStore.setText(ta.dataset.memo, ta.value); });
-root.addEventListener('compositionstart', (ev) => { if (ev.target.closest?.('textarea.memota')) memoComposing = true; });
+root.addEventListener('compositionstart', (ev) => { if (ev.target.closest?.('textarea.memota, input.remin')) memoComposing = true; });
 root.addEventListener('compositionend', (ev) => {
+  const rin = ev.target.closest?.('input.remin');
+  if (rin) { memoComposing = false; RM.add.title = rin.value; if (renderPending) { renderPending = false; render(); } return; }
   const ta = ev.target.closest?.('textarea.memota'); if (!ta) return;
   memoComposing = false;
   if (!ta.readOnly) memoStore.setText(ta.dataset.memo, ta.value);
   if (renderPending) { renderPending = false; render(); }
 });
-root.addEventListener('focusout', (ev) => { if (memoComposing && ev.target.closest?.('textarea.memota')) { memoComposing = false; if (renderPending) { renderPending = false; setTimeout(render, 0); } } });
+root.addEventListener('focusout', (ev) => { if (memoComposing && ev.target.closest?.('textarea.memota, input.remin')) { memoComposing = false; if (renderPending) { renderPending = false; setTimeout(render, 0); } } });
 const flushMemosNow = () => { memoSync(); return memoStore.flushAll(); };
 // バックアップの前後: 未保存のメモを保存し終えるまで待つ。保存できなかった日があれば false。
 const flushMemosAwait = async () => { try { const r = await flushMemosNow(); return r.every((x) => x !== false) && !memoStore.anyDirty(); } catch { return false; } };
 document.addEventListener('visibilitychange', () => { if (document.hidden) flushMemosNow(); });
 window.addEventListener('pagehide', flushMemosNow);
+// ---------- タスク: 続けて追加（PR17） ----------
+root.addEventListener('input', (ev) => { const i = ev.target.closest?.('input.remin'); if (i && !RM.add.busy) RM.add.title = i.value; });
+root.addEventListener('keydown', (ev) => {
+  const i = ev.target.closest?.('input.remin'); if (!i) return;
+  if (ev.key !== 'Enter') return;
+  if (ev.isComposing || ev.keyCode === 229 || memoComposing) return; // IME 変換中の Enter は確定だけ（保存しない）
+  ev.preventDefault(); remSubmit();
+});
+const remInput = () => root.querySelector('input.remin');
+function fillAdd(keep) {
+  const i = remInput(); if (!i) return;
+  i.value = RM.add.title;
+  if (keep || RM.add.focus) {
+    RM.add.focus = false;
+    i.focus({ preventScroll: true });
+    try { const n = i.value.length; i.setSelectionRange(keep ? Math.min(keep.s, n) : n, keep ? Math.min(keep.e, n) : n); } catch { /* 無視 */ }
+  }
+}
+function openAdd() { RM.add.open = true; RM.add.focus = true; render(); }
+async function remSubmit() {
+  const a = RM.add, i = remInput();
+  if (a.busy || !i) return;
+  a.title = i.value;
+  const due = a.due === undefined ? state.selected : a.due;
+  const listId = pickAddList(RM.data?.lists);
+  if (!a.title.trim() || !listId) return;
+  a.busy = true; a.err = ''; i.readOnly = true; i.setAttribute('aria-busy', 'true');
+  const r = await addCtl.submit({ title: a.title, listId, due });
+  if (RM.add !== a) return; // 許可の取消などで下書きごと捨てられた
+  a.busy = false;
+  if (r.ok) {
+    a.title = ''; a.err = '';
+    const list = RM.data?.reminders;
+    if (list && !list.some((x) => x.itemId === r.reminder.itemId)) RM.data = { ...RM.data, reminders: [...list, r.reminder] };
+    RM.sig = ''; a.focus = true; render(); scheduleTasks(); say('タスクを追加しました。');
+  } else {
+    a.err = reminderErrText({ code: r.code }, '追加できませんでした。もう一度 Enter で試せます。');
+    a.focus = true; render(); say(a.err);
+    if (r.code === 'PERMISSION_DENIED') refreshReminderAccess();
+    else if (r.code === 'LIST_NOT_FOUND' || r.code === 'READ_ONLY') loadTasks(); // 追加先を取り直す
+  }
+}
 // ---------- タスク: リマインダー許可の案内（カレンダー権限・連携設定とは独立） ----------
-const RM = { state: null, gen: 0, data: null, err: false, doneOpen: false, histDays: HIST_DAYS, more: false, timer: 0, sig: '' };
+const newDraft = () => ({ open: false, title: '', due: undefined, busy: false, err: '' }); // due: undefined＝選んでいる日に従う／null＝期限なし
+const RM = { add: newDraft(), state: null, gen: 0, data: null, err: false, doneOpen: false, histDays: HIST_DAYS, more: false, timer: 0, sig: '' };
 const remLoader = createReminderLoader(call);
+const addCtl = createAddController(call);
 function taskBody(where) {
-  if (RM.state === 'granted') return tasksHtml(RM.data, { selected: state.selected, doneOpen: RM.doneOpen, histDays: RM.histDays, loading: !RM.err, error: RM.err, busyMore: RM.more });
+  if (RM.state === 'granted') return tasksHtml(RM.data, { selected: state.selected, doneOpen: RM.doneOpen, histDays: RM.histDays, loading: !RM.err, error: RM.err, busyMore: RM.more, add: RM.data ? { draft: RM.add, listId: pickAddList(RM.data.lists) } : null });
   return taskAccessHtml(RM.state, where, NATIVE);
 }
 // 許可がなくなったら、メモリ上のタスクも読込も捨てる（本文はどこにも保存していない）。
-function dropTasks() { remLoader.cancel(); clearTimeout(RM.timer); RM.data = null; RM.err = false; RM.sig = ''; RM.more = false; RM.doneOpen = false; RM.histDays = HIST_DAYS; }
+function dropTasks() { remLoader.cancel(); clearTimeout(RM.timer); RM.data = null; RM.err = false; RM.sig = ''; RM.more = false; RM.doneOpen = false; RM.histDays = HIST_DAYS; RM.add = newDraft(); }
 async function loadTasks() {
   if (!NATIVE || RM.state !== 'granted') return;
   try {
@@ -1084,10 +1130,13 @@ function render() {
   document.body.dataset.posture = kind === 'open' && isPortrait() ? 'portrait' : '';
   const ma = document.activeElement;
   const memoKeep = ma && ma.matches?.('textarea.memota') ? { where: ma.dataset.where, s: ma.selectionStart, e: ma.selectionEnd, d: ma.selectionDirection, sc: ma.scrollTop } : null;
+  const ra = document.activeElement;
+  const remKeep = ra && ra.matches?.('input.remin') ? { s: ra.selectionStart, e: ra.selectionEnd } : null;
   rendering = true;
   root.innerHTML = { home: () => closed('home'), browse: () => closed('browse'), open, desk, spread }[kind]();
   rendering = false;
   fillMemos(memoKeep);
+  fillAdd(remKeep);
   ensureMarks();
   if (memoListUsed() && !ML.rows && !ML.failed) loadMemoList();
   lastKind = kind;
@@ -1095,7 +1144,7 @@ function render() {
   restoreAll(anchor);
   measureMonthPane();
   initTimeline();
-  if (focusKey) {
+  if (focusKey && !document.activeElement?.matches?.('input.remin')) { // 入力欄へ送ったフォーカスは取り戻さない
     const [t, v] = focusKey.split(/:(.*)/);
     const sel = { act: `[data-act="${v}"]`, view: `[data-view="${v}"]`, mode: `[data-mode="${v}"]`, date: `[data-date="${v}"]` }[t];
     root.querySelector(sel)?.focus({ preventScroll: true });
@@ -1121,7 +1170,7 @@ function pickPage(side, id) {
 function addFromHere(b) {
   const id = layoutKind() === 'spread' ? state.pages[state.lastSide] : panelOn() ? state.pages.portraitBottom : 'month';
   if (id === 'memo') { const ta = root.querySelector('textarea.memota'); if (ta) { ta.focus(); say('メモを書けます。'); } return; }
-  if (id === 'task') { say(`${PAGE_NAMES[id]}の入力は準備中です。`); return; }
+  if (id === 'task') { if (RM.state === 'granted' && RM.data && pickAddList(RM.data.lists)) { openAdd(); say('タスクを入力できます。'); } else say(RM.state === 'granted' && RM.data ? '書き込めるリストがないため、タスクを追加できません。' : `${PAGE_NAMES[id]}の入力は準備中です。`); return; }
   openEditor(null, b);
 }
 function say(msg) { $('#status').textContent = ''; requestAnimationFrame(() => { $('#status').textContent = msg; }); }
@@ -1138,6 +1187,9 @@ root.addEventListener('click', (ev) => {
   if (pg) { const sd = pg.classList.contains('lp') ? 'left' : 'right'; if (sd !== state.lastSide) { state.lastSide = sd; saveUi(); } }
   if (d.view) set({ view: d.view, home: false });
   else if (d.act === 'list') set({ home: true });
+  else if (d.act === 'remadd') openAdd();
+  else if (d.act === 'remdue0') { RM.add.due = null; RM.add.focus = true; render(); }
+  else if (d.act === 'remdue1') { RM.add.due = undefined; RM.add.focus = true; render(); }
   else if (d.act === 'remdone') { RM.doneOpen = !RM.doneOpen; render(); root.querySelector('[data-act="remdone"]')?.focus({ preventScroll: true }); }
   else if (d.act === 'remmore') { RM.histDays += HIST_DAYS; RM.more = true; render(); root.querySelector('[data-act="remmore"]')?.focus({ preventScroll: true }); loadTasks(); }
   else if (d.date) {

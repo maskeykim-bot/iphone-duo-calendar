@@ -108,7 +108,7 @@ export function taskRowHtml(r, color, overdue) {
     + `${r.readOnly ? '<span class="rmro">読み取り専用</span>' : ''}</div>`;
 }
 // ui: { doneOpen, histDays }。loading（初回）/ error は呼び出し側が渡す。
-export function tasksHtml(data, { selected, now = new Date(), doneOpen = false, histDays = HIST_DAYS, loading = false, error = false, busyMore = false } = {}) {
+export function tasksHtml(data, { selected, now = new Date(), doneOpen = false, histDays = HIST_DAYS, loading = false, error = false, busyMore = false, add = null } = {}) {
   if (!data) return `<div class="pagewait padb taskl" data-wait="task"><p class="remtx pad">${error ? 'リマインダーを読み込めませんでした。' : loading ? '読み込み中…' : ''}</p></div>`;
   const colors = new Map((data.lists || []).map((l) => [l.id, l.color]));
   const g = groupReminders(data.reminders, { now, selected, histDays });
@@ -118,7 +118,8 @@ export function tasksHtml(data, { selected, now = new Date(), doneOpen = false, 
   const doneHead = `<button type="button" class="rmdonebtn" data-act="remdone" aria-expanded="${doneOpen}">完了（${g.done.length}） <span aria-hidden="true">${doneOpen ? '⌄' : '›'}</span></button>`;
   h += `<section class="rmsec" data-sec="done">${doneHead}${doneOpen ? `<div role="list">${g.done.map((r) => row(r, false)).join('')}</div><button type="button" class="rmmore" data-act="remmore"${busyMore ? ' disabled' : ''}>もっと前を表示</button>` : ''}</section>`;
   if (!g.overdue.length && !g.selected.length && !g.upcoming.length && !g.nodue.length) h = `<p class="remtx pad rmempty">未完了のタスクはありません。</p>${h}`;
-  return `<div class="pagewait padb taskl" data-wait="task">${h}</div>`;
+  const addH = add ? addRowHtml(add.draft, { selected, noList: !add.listId }) : '';
+  return `<div class="pagewait padb taskl" data-wait="task">${addH}${h}</div>`;
 }
 
 export const REM_TEXT = {
@@ -140,4 +141,51 @@ export function taskAccessHtml(state, where, native) {
   else if (state === 'notDetermined') body = `<p class="remtx">${REM_TEXT.intro}</p><button type="button" class="rembtn" data-act="remreq" data-where="${w}">${REM_TEXT.allow}</button>`;
   else body = `<p class="remtx">${REM_TEXT.intro}</p>`; // 確認中
   return `<div class="pagewait padb remgate" data-wait="task" data-remstate="${native ? state || 'checking' : 'web'}" data-where="${w}">${body}</div>`;
+}
+
+// ---- 第14版 PR17: タスクを続けて追加する（追加先の選び方・排他・再試行。本文は保存しない） ----
+// 追加先: OS 既定（書ける場合）→ 書ける先頭。書けるリストがなければ null。
+export function pickAddList(lists) {
+  const ok = (Array.isArray(lists) ? lists : []).filter((l) => l && typeof l.id === 'string' && l.allowsModify !== false);
+  return (ok.find((l) => l.isDefault) || ok[0] || null)?.id ?? null;
+}
+const newRequestId = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID() : `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`);
+// 1つの入力欄に対する追加の制御。保存中は排他（busy）。失敗では本文を残し、同じ内容の再試行は同じ requestId、
+// 内容（題名・期限・追加先）が変わったら新しい requestId、成功したら次の新タスク用に requestId を捨てる。
+export function createAddController(call) {
+  let pend = null, busy = false; // pend: { requestId, fp }
+  return {
+    get busy() { return busy; },
+    // -> { ok:true, reminder } | { ok:false, code } | { ok:false, busy|empty|nolist:true }
+    async submit({ title, listId, due = null }) {
+      if (busy) return { ok: false, busy: true };
+      const t = String(title ?? '').trim();
+      if (!t) return { ok: false, empty: true };
+      if (!listId) return { ok: false, nolist: true };
+      const dueV = due ? { date: due } : null;
+      const fp = JSON.stringify([listId, t, dueV]);
+      if (!pend || pend.fp !== fp) pend = { requestId: newRequestId(), fp };
+      const req = pend;
+      busy = true;
+      try {
+        const reminder = await createReminder(call, { requestId: req.requestId, listId, title: t, notes: '', due: dueV });
+        if (pend === req) pend = null;
+        return { ok: true, reminder };
+      } catch (e) {
+        return { ok: false, code: e?.code || 'UNAVAILABLE' };
+      } finally { busy = false; }
+    },
+  };
+}
+
+// 追加の行。draft: { open, title, due(日付キー|null|undefined=選択日に従う), busy, err }。入力値は描画後に呼び出し側が入れる。
+export function addRowHtml(d, { selected, noList = false } = {}) {
+  if (noList) return `<div class="rmadd off"><button type="button" class="rmaddbtn" disabled aria-describedby="rmaddwhy">＋ タスクを追加</button><p class="rmwhy" id="rmaddwhy">書き込めるリストがないため、追加できません。</p></div>`;
+  if (!d.open) return `<div class="rmadd"><button type="button" class="rmaddbtn" data-act="remadd">＋ タスクを追加</button></div>`;
+  const due = d.due === undefined ? selected : d.due;
+  const chip = due
+    ? `<span class="rmchip"><span>期限 ${mdLabel(due)}</span><button type="button" class="rmchipx" data-act="remdue0" aria-label="期限をなしにする">×</button></span>`
+    : `<button type="button" class="rmchip rmchip0" data-act="remdue1" aria-label="期限を選んでいる日にする">期限なし</button>`;
+  return `<div class="rmadd open"><div class="rmaddin"><input type="text" class="remin" enterkeyhint="done" autocomplete="off" aria-label="タスクの題名" placeholder="タスクを入力"${d.busy ? ' readonly aria-busy="true"' : ''}>${chip}</div>`
+    + `${d.err ? `<p class="rmwhy err" role="alert">${escH(d.err)}</p>` : ''}</div>`;
 }
