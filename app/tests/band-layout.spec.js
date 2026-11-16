@@ -203,7 +203,8 @@ test.describe('開いた横 + 右 safe（帯あり）', () => {
       const tabs = await bx(page.locator('.pgsw.pgl'));
       near(tabs.y, tabTop, 0.2);
       const span = await bx(page.locator('.rhead .spanbtn'));
-      near(span.x + span.width, E); near(span.width, 60); expect(span.height).toBeGreaterThanOrEqual(44 - 0.5);
+      near(span.x + span.width, E - 96); // PR6: 右端 E は ‹ ›（各44）、その左8pt
+      { const nx = await bx(page.locator(".rhead [data-act=\"next\"]")); near(nx.x + nx.width, E); near(nx.width, 44); } near(span.width, 60); expect(span.height).toBeGreaterThanOrEqual(44 - 0.5);
       const vis = await bx(page.locator('.rhead .spanbtn span'));
       near(vis.width, 60); near(vis.height, 32);
       near(span.y + span.height / 2, 40 * q, 0.8);

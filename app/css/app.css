@@ -693,3 +693,23 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .spread .padb{padding-bottom:64px}
 .spread .listpane{flex:1;min-height:0;display:flex;flex-direction:column}
 .spread .listpane .listview{flex:1;padding-bottom:64px}
+
+/* 第14版 PR6: 共通の日付移動と小さな月 */
+.rhead.dh h2.rdate{display:flex;align-items:center}
+.datebtn{min-height:44px;height:44px;padding:0;background:transparent;font:inherit;color:inherit;text-align:left;white-space:nowrap;overflow:hidden;max-width:100%;display:flex;align-items:center}
+.datebtn:hover{background:transparent}
+.spread.fb .rhead.dh{flex-wrap:wrap}
+.spread.fb .rhead.dh h2{flex:1 1 150px;min-width:150px}
+.spread .page .mmenu{position:absolute;z-index:9;left:0;top:calc(var(--hpt,24px) + 44px);height:260px;box-sizing:border-box;border-radius:12px;background:#fffdfa;box-shadow:inset 0 0 0 1px var(--line),0 4px 16px #1a302d33;overflow:hidden;display:flex;flex-direction:column}
+.mmh{display:flex;align-items:center;height:44px;flex:none}
+.mmh button{flex:none;width:44px;min-width:44px;height:44px;padding:0;font-size:22px;background:transparent;display:flex;align-items:center;justify-content:center}
+.mmt{flex:1;text-align:center;font-weight:700;font-size:15px}
+.mmg{display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:36px;flex:none}
+.mmc{position:relative;width:100%;min-width:0;height:36px;min-height:36px;padding:0;border-radius:10px;background:transparent;font-size:14px;display:flex;align-items:center;justify-content:center}
+.mmc.out{color:#a8aba4}
+.mmc.tod .n{font-weight:800;color:var(--green)}
+.mmc.sel{background:var(--green);color:#fff}
+.mmc.sel .n{color:#fff}
+.mmc .mline{position:absolute;left:50%;top:26px;width:12px;height:2px;margin-left:-6px;border-radius:1px;background:#8a7e5c}
+.rhead.dh .spanbtn{margin-right:8px}
+.rhead.dh .sctl{margin-left:auto}

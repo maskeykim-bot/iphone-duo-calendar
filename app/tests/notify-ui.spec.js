@@ -352,6 +352,17 @@ test.describe('通知のタップ', () => {
     await expect(page.locator('.nhl')).toHaveCount(0, { timeout: 3000 });
   });
 
+  test('見開き: 月なしの メモ｜タスク でも右を時間にして対象を強調し、日付は左右共通', async ({ page }) => {
+    await mock(page);
+    await openApp(page, SIZES.openLandscape, '?nosw');
+    await seed(page, [A]);
+    await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('duo.ui.v1') || '{}'); localStorage.setItem('duo.ui.v1', JSON.stringify({ ...s, pages: { left: 'memo', right: 'task' } })); });
+    await page.reload(); await page.waitForSelector('html[data-ready]');
+    await tap(page, { day: '2026-11-13', eventId: 'a1' });
+    await expect(page.locator('.page[data-page="time"] .tlev[data-event="a1"].nhl')).toHaveCount(1);
+    await expect(page.locator('.page.lp .datebtn')).toContainText('13');
+  });
+
   test('開いた縦: 日表示（全幅の月は維持される別の見え方ではなく選択日の日表示）', async ({ page }) => {
     await mock(page);
     await openApp(page, SIZES.openPortrait, '?nosw');

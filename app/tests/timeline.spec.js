@@ -113,7 +113,12 @@ test.describe('見開き: 判定・背景・操作列', () => {
       }
       const span = await page.locator('.rhead .spanbtn').boundingBox();
       rects.push(span);
-      expect(span.x + span.width).toBeCloseTo(size.width - 16, 0); // 右端 E
+      // PR6: 右端 E は ‹ › （各44）。カプセルはその左8pt。狭幅（帯なし）では ‹ › が2段目へ回ることがある
+      const nav = await page.locator('.rhead [data-act="next"]').boundingBox();
+      rects.push(nav, await page.locator('.rhead [data-act="prev"]').boundingBox());
+      expect(nav.x + nav.width).toBeCloseTo(size.width - 16, 0);
+      expect(nav.width).toBeGreaterThanOrEqual(44 - 0.5); expect(nav.height).toBeGreaterThanOrEqual(44 - 0.5);
+      expect(span.x + span.width).toBeLessThanOrEqual(size.width - 16 - 8 + 0.5);
       for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
         const a = rects[i], b = rects[j];
         expect(a.x + a.width <= b.x + 0.5 || b.x + b.width <= a.x + 0.5 || a.y + a.height <= b.y + 0.5 || b.y + b.height <= a.y + 0.5).toBe(true);
@@ -198,8 +203,9 @@ test.describe('見開き: 折り目の保護域（文字・罫線・チップ・
   });
 });
 
+// PR6: 帯なしの右見出しが ‹ › で2段になり、時間軸が約44px（0.7時間）減るので下限を下げた
 test.describe('見開き: 右ページの時間軸', () => {
-  for (const [size, minHours] of [[SIZES.openLandscape, 8.5], [SIZES.openLandscape951, 9.3]]) {
+  for (const [size, minHours] of [[SIZES.openLandscape, 8.1], [SIZES.openLandscape951, 8.8]]) {
     test(`${size.width}×${size.height}: 60px/時・${minHours}時間以上が見える・現在札と赤線・今の1時間前から`, async ({ page }) => {
       await openApp(page, size);
       await seed(page, SEED_LIGHT);

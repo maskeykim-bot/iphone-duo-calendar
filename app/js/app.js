@@ -702,9 +702,27 @@ function timeMenu(side) {
 }
 const gearBtn = () => (POS.band ? '' : `<button type="button" class="sset" data-act="menu" aria-label="設定" aria-haspopup="dialog">${ICON_GEAR}</button>`);
 const paneNav = (side, dir) => `<button type="button" data-act="${dir > 0 ? 'next' : 'prev'}" data-pane="${side}" aria-label="${dir > 0 ? '次' : '前'}の${state.pages[side] === 'time' && tmode(side) === 'week' ? '週' : '日'}">${dir > 0 ? '›' : '‹'}</button>`;
-// 時間・タスク・メモの見出し: 日付 ｜（右は 今日・検索・＋）｜（時間のみ）カプセル ｜（左のみ）前・次。帯がなければ左は設定もここ。右の前・次は第14版 PR6（共通の日付移動）。
+// 時間・タスク・メモの見出し: 日付（たたくと小さな月）｜（右は 今日・検索・＋）｜（時間のみ）カプセル ｜ 前・次（左右とも）。帯がなければ左は設定もここ。
 function dateHead(side, id) {
-  return `<div class="rhead dh"><h2 class="rdate">${dayTitle(state.selected)}</h2>${side === 'right' ? rctl() : ''}${id === 'time' ? timeCapsule(side) : ''}${side === 'left' ? `<div class="sctl">${paneNav(side, -1)}${paneNav(side, 1)}${gearBtn()}</div>` : ''}</div>`;
+  return `<div class="rhead dh"><h2 class="rdate"><button type="button" class="datebtn" data-act="mini" data-pane="${side}" aria-haspopup="dialog" aria-expanded="${MM.open === side}" aria-label="日付を選ぶ: ${esc(dayLabel(state.selected))}">${dayTitle(state.selected)}</button></h2>${side === 'right' ? rctl() : ''}${id === 'time' ? timeCapsule(side) : ''}<div class="sctl">${paneNav(side, -1)}${paneNav(side, 1)}${side === 'left' ? gearBtn() : ''}</div></div>`;
+}
+// 小さな月（幅 280・高さ 260、1マス 40×36）。選んでいる日は共通。六曜は出さない。メモの印は memoMark の差込口。
+const MM = { open: null, ym: '' };
+const memoMark = (k) => (memoDayHas(k) ? '<i class="mline" aria-hidden="true"></i>' : ''); // 日付下の短い線（メモの保存は後続のPR）
+const memoDayHas = () => false;
+function miniMonth(side) {
+  if (MM.open !== side) return '';
+  const d = parseKey(MM.ym || state.selected);
+  const cells = monthWeeks(MM.ym || state.selected).flat().map((k) => {
+    const c = parseKey(k), out = c.getMonth() !== d.getMonth();
+    return `<button type="button" class="mmc${out ? ' out' : ''}${k === state.selected ? ' sel' : ''}${k === todayKey() ? ' tod' : ''}" data-mmday="${k}" data-pane="${side}" aria-label="${esc(dayLabel(k))}${k === state.selected ? '、選択中' : ''}" aria-pressed="${k === state.selected}"><span class="n">${c.getDate()}</span>${memoMark(k)}</button>`;
+  }).join('');
+  return `<div class="mmenu" role="dialog" aria-label="日付を選ぶ" data-pane="${side}" style="width:min(280px,${Math.max(0, paneWidth(side))}px)"><div class="mmh"><button type="button" data-mmnav="-1" data-pane="${side}" aria-label="前の月">‹</button><span class="mmt" aria-live="polite">${d.getFullYear()}年${d.getMonth() + 1}月</span><button type="button" data-mmnav="1" data-pane="${side}" aria-label="次の月">›</button></div><div class="mmg">${cells}</div></div>`;
+}
+function closeMini(focus = true) {
+  if (!MM.open) return;
+  const sd = MM.open; MM.open = null; render();
+  if (focus) root.querySelector(`[data-act="mini"][data-pane="${sd}"]`)?.focus({ preventScroll: true });
 }
 const rightWidth = () => Math.max(0, L.w - safe().right - 16 - (L.w / 2 + 10));
 const paneWidth = (side) => (side === 'right' ? rightWidth() : Math.max(0, L.w / 2 - 10 - (safe().left + 8)));
@@ -719,9 +737,9 @@ function timeBody(side, w) {
 function renderPage(side, id) {
   const cls = side === 'left' ? 'lp' : 'rp';
   if (id === 'month') return `<section class="page ${cls} calendar" data-page="month" aria-label="カレンダー">${shead(side)}${calendarBody('spread')}</section>`;
-  if (id === 'time') return `<section class="page ${cls}" data-page="time">${dateHead(side, 'time')}${timeBody(side, paneWidth(side))}${timeMenu(side)}</section>`;
+  if (id === 'time') return `<section class="page ${cls}" data-page="time">${dateHead(side, 'time')}${timeBody(side, paneWidth(side))}${timeMenu(side)}${miniMonth(side)}</section>`;
   // task / memo: 実装待ちの説明のみ（保存先は作らない）
-  return `<section class="page ${cls}" data-page="${id}">${dateHead(side, id)}<div class="pagewait padb" data-wait="${id}"><p class="small pad">${PAGE_NAMES[id] || ''}のページは準備中です。</p></div></section>`;
+  return `<section class="page ${cls}" data-page="${id}">${dateHead(side, id)}<div class="pagewait padb" data-wait="${id}"><p class="small pad">${PAGE_NAMES[id] || ''}のページは準備中です。</p></div>${miniMonth(side)}</section>`;
 }
 // 各ページの下の切替「月｜時間｜タスク｜メモ」（幅 240・高 46）。選んでいるページを押すと何も変えない。
 const PAGE_LABELS = { month: '月', time: '時間', task: 'タスク', memo: 'メモ' };
@@ -841,7 +859,7 @@ function move(n, pane) {
 // 見開きの切替。左右で同じ種類になるときは入れ替わる。最後に触ったページを記録（＋の行き先）。
 function pickPage(side, id) {
   const before = state.pages, next = selectPage(before, side, id);
-  TLM.open = null;
+  TLM.open = null; MM.open = null;
   set({ pages: next, lastSide: side });
   const swapped = before[side] !== id && before[side === 'left' ? 'right' : 'left'] === id;
   say(`${side === 'left' ? '左' : '右'}ページを${PAGE_LABELS[id]}にしました。${swapped ? `${side === 'left' ? '右' : '左'}ページは${PAGE_LABELS[next[side === 'left' ? 'right' : 'left']]}になりました。` : ''}`);
@@ -859,6 +877,7 @@ root.addEventListener('click', (ev) => {
   if (col && !ev.target.closest('button')) { tlTap(ev, col); return; }
   const b = ev.target.closest('button');
   if (TLM.open && !ev.target.closest('.tlmenu, [data-act="tlmenu"]')) { TLM.open = null; render(); return; } // 選択肢の外をたたくと閉じる（たたいた先の操作はしない）
+  if (MM.open && !ev.target.closest('.mmenu, [data-act="mini"]')) { closeMini(false); return; } // 小さな月の外をたたくと閉じる（たたいた先の操作はしない）
   if (!b || !root.contains(b)) return;
   const d = b.dataset;
   const pg = layoutKind() === 'spread' && d.act !== 'add' ? b.closest('.page') : null;
@@ -880,7 +899,10 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'sample') loadSample();
   else if (d.act === 'search') openSearch(b);
   else if (d.act === 'menu') openMenu(b);
-  else if (d.act === 'tlmenu') { TLM.open = TLM.open === d.pane ? null : d.pane; render(); }
+  else if (d.act === 'tlmenu') { MM.open = null; TLM.open = TLM.open === d.pane ? null : d.pane; render(); }
+  else if (d.act === 'mini') { TLM.open = null; MM.open = MM.open === d.pane ? null : d.pane; MM.ym = state.selected; render(); if (MM.open) root.querySelector('.mmc.sel, .mmc')?.focus({ preventScroll: true }); }
+  else if (d.mmnav) { MM.ym = addMonths(MM.ym || state.selected, Number(d.mmnav)); render(); root.querySelector(`[data-mmnav="${d.mmnav}"]`)?.focus({ preventScroll: true }); }
+  else if (d.mmday) { const sd = d.pane; MM.open = null; set({ selected: d.mmday, lastSide: sd }); root.querySelector(`[data-act="mini"][data-pane="${sd}"]`)?.focus({ preventScroll: true }); say(`${dayLabel(d.mmday)}を選びました。`); }
   else if (d.tlmode) { TLM.open = null; set({ timeMode: { ...state.timeMode, [d.pane]: d.tlmode }, lastSide: d.pane }); root.querySelector('[data-act="tlmenu"]')?.focus({ preventScroll: true }); say(`時間の表示を${TIME_LABELS[d.tlmode]}にしました。`); }
   else if (d.pick) pickPage(d.side, d.pick);
   else if (d.tlday) set({ selected: d.tlday });
@@ -2825,9 +2847,12 @@ function openNotifyTarget({ day, eventId }) {
   for (const d of [menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, xrDlg, catsDlg, notifyDlg]) if (d.open) closePanel(d, false);
   const target = eventsOnDay(occIn(day, day), day).find((e) => !isX(e) && (e.id === eventId || e.parentId === eventId));
   const spreadKind = layoutKind() === 'spread';
-  set({ selected: day, home: false, view: spreadKind ? 'month' : 'day' });
+  // 見開きで時間ページがどちらにも無いときは、予定を見せるため右を時間にする。日付は左右共通。
+  const needTime = spreadKind && target && state.pages.left !== 'time' && state.pages.right !== 'time';
+  MM.open = null;
+  set({ selected: day, home: false, view: spreadKind ? 'month' : 'day', ...(needTime ? { pages: selectPage(state.pages, 'right', 'time') } : {}) });
   if (!target) { say(`${dayLabel(day)}を開きました。`); return; }
-  const sel = spreadKind ? '.rp .tlev, .rp .adpill' : '.daylist .event';
+  const sel = spreadKind ? '.page[data-page="time"] .tlev, .page[data-page="time"] .adpill' : '.daylist .event';
   const el = [...root.querySelectorAll(sel)].find((b) => b.dataset.event === target.id && (!b.dataset.sday || b.dataset.sday === day));
   if (el) {
     const tl = el.closest('.tl');
@@ -2897,6 +2922,7 @@ async function initNative() {
 
 document.addEventListener('keydown', (ev) => {
   if (ev.key !== 'Escape') return;
+  if (MM.open && !anyPanel()) { closeMini(); return; }
   if (TLM.open && !anyPanel()) { const sd = TLM.open; TLM.open = null; render(); root.querySelector(`[data-act="tlmenu"][data-pane="${sd}"]`)?.focus({ preventScroll: true }); return; }
   if (scopeDlg.open) cancelScope();
   else if (xrDlg.open) closePanel(xrDlg);
@@ -2913,12 +2939,21 @@ document.addEventListener('keydown', (ev) => {
 
 // ---------- スワイプ（左＝次、右＝前） ----------
 const SWIPE_ZONE = '.scroll, .agenda, .remaining, .hero, .page, .list';
-const SWIPE_EXCLUDE = '.top, .shead, .rhead, .allday, .tl, .tlheads, .chead, .foot, .add, .tabs, .pgsw, .tlmenu, .ctl, .bandbg, .hline, .foldband, .gutter, input, select, textarea, label, dialog';
+const SWIPE_EXCLUDE = '.top, .shead, .rhead, .allday, .tlheads, .mmenu, .chead, .foot, .add, .tabs, .pgsw, .tlmenu, .ctl, .bandbg, .hline, .foldband, .gutter, input, select, textarea, label, dialog';
 let swiping = false;
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const paneContent = () => [...root.querySelectorAll('.scroll > *, .agenda > *, .hero > *, .remaining > *, .margin > *')];
 
+// 見開きでは、なぞり始めたページ（左 'left' / 右 'right'）で動きを決める。月＝月送り、時間・メモ＝日送り（時間の週は7日）、タスク＝動かない。
+let swipePane = null;
+const pageOf = (t) => { const pg = t.closest('.page'); return pg && layoutKind() === 'spread' ? { side: pg.classList.contains('lp') ? 'left' : 'right', id: pg.dataset.page } : null; };
 function swipeMove(dir) {
+  const pane = swipePane; swipePane = null;
+  if (pane && state.pages[pane] !== 'month') {
+    move(dir, pane);
+    say(`選択日は${dayLabel(state.selected)}。`);
+    return;
+  }
   if (listShown()) set({ home: false, view: 'month', selected: addMonths(state.selected, dir) });
   else move(dir);
   say(`${periodTitle()}。選択日は${dayLabel(state.selected)}。`);
@@ -2942,7 +2977,16 @@ async function swipeTo(dir) {
 }
 initSwipe({
   root,
-  canStart: (t) => !anyPanel() && !swiping && t instanceof Element && !!t.closest(SWIPE_ZONE) && !t.closest(SWIPE_EXCLUDE),
+  canStart: (t) => {
+    if (anyPanel() || swiping || !(t instanceof Element) || !t.closest(SWIPE_ZONE) || t.closest(SWIPE_EXCLUDE)) return false;
+    const pg = pageOf(t);
+    swipePane = null;
+    if (!pg) return !t.closest('.tl'); // 見開き以外の時間軸は従来どおり対象外
+    if (pg.id === 'task') return false;
+    if (pg.id === 'memo' && isTextEl(document.activeElement)) return false; // メモを編集中は動かさない
+    if (pg.id !== 'month') swipePane = pg.side;
+    return true;
+  },
   onSwipe: swipeTo,
 });
 
