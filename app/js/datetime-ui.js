@@ -215,13 +215,40 @@ export function dateLabel(k, thisYear = Number(todayKey().slice(0, 4))) {
   return `${d.getFullYear() === thisYear ? '' : `${d.getFullYear()}年`}${d.getMonth() + 1}月${d.getDate()}日（${DOW[d.getDay()]}）`;
 }
 const dateSpoken = (k) => { const d = parseKey(k); return `${d.getMonth() + 1}月${d.getDate()}日${DOW[d.getDay()]}曜日`; };
-const monthOf = (k) => `${k.slice(0, 8)}01`;
+export const monthOf = (k) => `${k.slice(0, 8)}01`;
 // 週始まり設定どおりの6週（42日）。月が5週でも6行出す。
 export function monthGrid6(vm) {
   const st = weekStart(vm);
   return Array.from({ length: 42 }, (_, i) => addDays(st, i));
 }
 export const SWIPE_MIN = 50;
+
+// 小さな月の中身（HTML 文字列）。日付のカプセル（予定・繰り返し・タスク）が共通で使う。
+// opts: { cur: 選択中の日|'', min: これより前は押せない日|'', holiday(k)→boolean, today, attr: 日のボタンに付ける属性（例 'data-act="remdp"'） }
+export function monthPopParts(vm, { cur = '', min = '', holiday = () => false, today = todayKey(), attr = '' } = {}) {
+  const d = parseKey(vm);
+  const chips = [['今日', today], ['明日', addDays(today, 1)], [`来週の${DOW[parseKey(today).getDay()]}曜`, addDays(today, 7)]]
+    .map(([t, k]) => `<button type="button" class="dpchip" ${attr} data-day="${k}"${min && k < min ? ' disabled' : ''}>${t}</button>`).join('');
+  const heads = weekdayHeads().map(({ i, label }) => `<span class="${i === 0 ? 'hol' : ''}">${label}</span>`).join('');
+  const grid = monthGrid6(vm).map((k) => {
+    const c = parseKey(k), out = k.slice(0, 7) !== vm.slice(0, 7), red = c.getDay() === 0 || holiday(k);
+    const off = !!min && k < min;
+    return `<button type="button" class="dcell${out ? ' out' : ''}${red ? ' hol' : ''}${k === today ? ' tod' : ''}${k === cur ? ' sel' : ''}" ${attr} data-day="${k}" aria-label="${dateSpoken(k)}" aria-pressed="${k === cur}"${off ? ' disabled' : ''}><span class="n">${c.getDate()}</span></button>`;
+  }).join('');
+  return { title: `${d.getFullYear()}年${d.getMonth() + 1}月`, chips, heads, grid };
+}
+// 時・分のマス（HTML 文字列）。cur: { h, mi } | null
+export function hourCellsHtml(cur, attr = '') {
+  return HOURS.map((h) => `<button type="button" class="tcell ${hourUsual(h) ? 'usual' : 'rare'}" ${attr} data-h="${h}" aria-label="${h}時" aria-pressed="${!!cur && cur.h === h}">${h}</button>`).join('');
+}
+export function minCellsHtml(cur, attr = '') {
+  return MINUTES.map((m) => `<button type="button" class="tcell mcell" ${attr} data-m="${m}" aria-label="${p2(m)}分" aria-pressed="${!!cur && cur.mi === m}">${p2(m)}</button>`).join('');
+}
+// 'HH:mm' → { h, mi }
+export const splitHm = (t) => { const m = /^(\d{2}):(\d{2})$/.exec(String(t || '')); return m ? { h: +m[1], mi: +m[2] } : null; };
+// 時刻の変更（触った所だけ変える。分はそのまま＝07分も保つ）。cur: 'HH:mm'|''、h/m は null なら据え置き。
+export const withHm = (cur, h, m) => { const c = splitHm(cur) || { h: 9, mi: 0 }; return `${p2(h ?? c.h)}:${p2(m ?? c.mi)}`; };
+
 
 // els: { box, start, end（日付カプセル）, rows, pop, chips, title, prev, next, heads, grid }
 // api: { get() → 編集状態または null, pick(which, key), buzz(), holiday(key) → boolean, closeOthers?() }
@@ -240,17 +267,9 @@ export function createDateUi(els, api) {
       caps[w].setAttribute('aria-expanded', String(open === w));
     }
     if (!open || !st) return;
-    const cur = dayOfSt(st, open), min = open === 'end' ? dayOfSt(st, 'start') : '', today = todayKey();
-    const d = parseKey(vm);
-    els.title.textContent = `${d.getFullYear()}年${d.getMonth() + 1}月`;
-    const chips = [['今日', today], ['明日', addDays(today, 1)], [`来週の${DOW[parseKey(today).getDay()]}曜`, addDays(today, 7)]];
-    els.chips.innerHTML = chips.map(([t, k]) => `<button type="button" class="dpchip" data-day="${k}"${k < min ? ' disabled' : ''}>${t}</button>`).join('');
-    els.heads.innerHTML = weekdayHeads().map(({ i, label }) => `<span class="${i === 0 ? 'hol' : ''}">${label}</span>`).join('');
-    els.grid.innerHTML = monthGrid6(vm).map((k) => {
-      const c = parseKey(k), out = k.slice(0, 7) !== vm.slice(0, 7), red = c.getDay() === 0 || api.holiday(k);
-      const off = !!min && k < min;
-      return `<button type="button" class="dcell${out ? ' out' : ''}${red ? ' hol' : ''}${k === today ? ' tod' : ''}${k === cur ? ' sel' : ''}" data-day="${k}" aria-label="${dateSpoken(k)}" aria-pressed="${k === cur}"${off ? ' disabled' : ''}><span class="n">${c.getDate()}</span></button>`;
-    }).join('');
+    const cur = dayOfSt(st, open), min = open === 'end' ? dayOfSt(st, 'start') : '';
+    const m = monthPopParts(vm, { cur, min, holiday: api.holiday });
+    els.title.textContent = m.title; els.chips.innerHTML = m.chips; els.heads.innerHTML = m.heads; els.grid.innerHTML = m.grid;
   }
   function show(which) {
     open = which;
@@ -320,3 +339,113 @@ export function createDateUi(els, api) {
   els.box.closest('form')?.addEventListener('pointerdown', outside, true);
   return { render, close, isOpen: () => open };
 }
+
+// ---------- 単独の日付・時刻の欄（繰り返しの終了日・タスクの期限。予定の開始/終了と同じ部品） ----------
+// 値はカプセル（button）の .value に持つ。値を変えたら cap から input イベントを上げる（既存のフォームの入口と同じ）。
+const fire = (el) => { el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); };
+// opts: { after: 部品を挿入する直前の要素, scope: 外側に触れたら閉じる範囲, label, empty: 空のときの表示,
+//   get() → 'YYYY-MM-DD'|'', set(k), min?() → 日|'', holiday?(k), buzz?(), clear?: { label, on() }, canOpen?() }
+export function createDateField(cap, opts) {
+  const pop = document.createElement('div');
+  pop.className = 'dpop dpfield'; pop.hidden = true;
+  pop.innerHTML = '<div class="dpchips"></div><div class="dpmh"><button type="button" class="dpnav" aria-label="前の月">‹</button><span class="dpmt" aria-live="polite"></span><button type="button" class="dpnav" aria-label="次の月">›</button></div><div class="dpwk"></div><div class="dpgrid"></div>';
+  if (opts.clear) { const b = document.createElement('button'); b.type = 'button'; b.className = 'dpclear'; b.textContent = opts.clear.label; pop.append(b); }
+  opts.after.after(pop);
+  const q = (c) => pop.querySelector(c);
+  const [prev, next] = pop.querySelectorAll('.dpnav');
+  let open = false, vm = '';
+  const spoken = (k) => dateSpoken(k);
+  function render() {
+    const k = opts.get();
+    cap.textContent = k ? dateLabel(k) : (opts.empty || '日付を選ぶ');
+    cap.setAttribute('aria-label', `${opts.label}、${k ? spoken(k) : '未設定'}、ボタン`);
+    cap.classList.toggle('open', open); cap.setAttribute('aria-expanded', String(open));
+    if (!open) return;
+    const m = monthPopParts(vm, { cur: k, min: opts.min?.() || '', holiday: opts.holiday });
+    q('.dpmt').textContent = m.title; q('.dpchips').innerHTML = m.chips; q('.dpwk').innerHTML = m.heads; q('.dpgrid').innerHTML = m.grid;
+    const c = q('.dpclear'); if (c) c.hidden = !k;
+  }
+  function show(on) {
+    open = on; pop.hidden = !on;
+    if (on) { vm = monthOf(opts.get() || todayKey()); opts.after.after(pop); }
+    render();
+  }
+  function close(focusCap = false) { const was = open; if (open) show(false); if (focusCap && was) cap.focus({ preventScroll: true }); }
+  function pick(k) { opts.buzz?.(); show(false); opts.set(k); render(); cap.focus({ preventScroll: true }); }
+  cap.addEventListener('click', () => { if (opts.canOpen && !opts.canOpen()) return; show(!open); });
+  attachDigitEntry(cap, {
+    cls: 'dcap-in', label: opts.label,
+    blocked: () => (opts.canOpen ? !opts.canOpen() : false),
+    same: (d) => { const cur = opts.get(); return !!cur && parseDateDigits(d, Number(cur.slice(0, 4))) === cur; },
+    commit: (d) => {
+      const cur = opts.get(), k = parseDateDigits(d, Number((cur || todayKey()).slice(0, 4)));
+      const min = opts.min?.() || '';
+      if (!k || (min && k < min)) return false;
+      close(); opts.set(k); render(); return true;
+    },
+  });
+  pop.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && open) { ev.preventDefault(); ev.stopPropagation(); close(true); } });
+  prev.addEventListener('click', () => { vm = addMonths(vm, -1); render(); });
+  next.addEventListener('click', () => { vm = addMonths(vm, 1); render(); });
+  q('.dpchips').addEventListener('click', (ev) => { const b = ev.target.closest('[data-day]'); if (b && !b.disabled) pick(b.dataset.day); });
+  let swiped = false, g = null;
+  const grid = q('.dpgrid');
+  grid.addEventListener('click', (ev) => {
+    if (swiped) { swiped = false; return; }
+    const b = ev.target.closest('[data-day]'); if (b && !b.disabled) pick(b.dataset.day);
+  });
+  grid.addEventListener('pointerdown', (ev) => { if (ev.isPrimary) g = { id: ev.pointerId, x: ev.clientX, y: ev.clientY }; });
+  const swipeEnd = (ev) => {
+    if (!g || ev.pointerId !== g.id) return;
+    const dx = ev.clientX - g.x, dy = ev.clientY - g.y; g = null;
+    if (ev.type === 'pointerup' && Math.abs(dx) >= SWIPE_MIN && Math.abs(dx) / Math.max(Math.abs(dy), 1) >= 1.5) {
+      swiped = true; setTimeout(() => { swiped = false; }, 400);
+      vm = addMonths(vm, dx < 0 ? 1 : -1); render();
+    }
+  };
+  grid.addEventListener('pointerup', swipeEnd); grid.addEventListener('pointercancel', swipeEnd);
+  q('.dpclear')?.addEventListener('click', () => { show(false); opts.clear.on(); render(); cap.focus({ preventScroll: true }); });
+  const outside = (ev) => { if (open && !pop.contains(ev.target) && ev.target !== cap) close(); };
+  (opts.scope || document).addEventListener('focusin', outside);
+  (opts.scope || document).addEventListener('pointerdown', outside, true);
+  return { render, close, isOpen: () => open };
+}
+
+// opts: { after, scope, label, get() → 'HH:mm'|'', set('HH:mm'), buzz?(), canOpen?() }
+export function createTimeField(cap, opts) {
+  const pop = document.createElement('div');
+  pop.className = 'tpop tpfield'; pop.hidden = true;
+  pop.innerHTML = '<p class="tlab">時</p><div class="tgrid hgrid"></div><p class="tlab">分 <span class="tnote" hidden></span></p><div class="tgrid mgrid"></div>';
+  opts.after.after(pop);
+  const hg = pop.querySelector('.hgrid'), mg = pop.querySelector('.mgrid'), note = pop.querySelector('.tnote');
+  let open = false;
+  hg.innerHTML = hourCellsHtml(null); mg.innerHTML = minCellsHtml(null);
+  function render() {
+    const v = opts.get(), cur = splitHm(v);
+    cap.textContent = v || '--:--';
+    cap.setAttribute('aria-label', `${opts.label}、${v || '未設定'}、ボタン`);
+    cap.classList.toggle('open', open); cap.setAttribute('aria-expanded', String(open));
+    if (!open) return;
+    hg.querySelectorAll('[data-h]').forEach((c) => c.setAttribute('aria-pressed', String(!!cur && Number(c.dataset.h) === cur.h)));
+    mg.querySelectorAll('[data-m]').forEach((c) => c.setAttribute('aria-pressed', String(!!cur && Number(c.dataset.m) === cur.mi)));
+    const n = cur ? oddMinute(cur.mi) : ''; note.textContent = n; note.hidden = !n;
+  }
+  function show(on) { open = on; pop.hidden = !on; if (on) opts.after.after(pop); render(); }
+  function close(focusCap = false) { const was = open; if (open) show(false); if (focusCap && was) cap.focus({ preventScroll: true }); }
+  const set = (h, m) => { opts.set(withHm(opts.get(), h, m)); render(); };
+  cap.addEventListener('click', () => { if (opts.canOpen && !opts.canOpen()) return; show(!open); });
+  attachDigitEntry(cap, {
+    cls: 'tcap-in', label: opts.label,
+    blocked: () => (opts.canOpen ? !opts.canOpen() : false),
+    same: (d) => { const t = parseTimeDigits(d), c = splitHm(opts.get()); return !!t && !!c && t.h === c.h && t.m === c.mi; },
+    commit: (d) => { const t = parseTimeDigits(d); if (!t) return false; close(); opts.set(withHm('', t.h, t.m)); render(); return true; },
+  });
+  hg.addEventListener('click', (ev) => { const b = ev.target.closest('[data-h]'); if (!b) return; opts.buzz?.(); set(Number(b.dataset.h), null); }); // 分はそのまま
+  mg.addEventListener('click', (ev) => { const b = ev.target.closest('[data-m]'); if (!b) return; opts.buzz?.(); set(null, Number(b.dataset.m)); close(true); });
+  pop.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && open) { ev.preventDefault(); ev.stopPropagation(); close(true); } });
+  const outside = (ev) => { if (open && !pop.contains(ev.target) && ev.target !== cap) close(); };
+  (opts.scope || document).addEventListener('focusin', outside);
+  (opts.scope || document).addEventListener('pointerdown', outside, true);
+  return { render, close, isOpen: () => open };
+}
+export { fire as fireInput };

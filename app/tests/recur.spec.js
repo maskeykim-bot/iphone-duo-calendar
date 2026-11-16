@@ -83,10 +83,37 @@ test.describe('繰り返しの UI', () => {
     await fillRepeat(page, { days: [4], rend: 'count', rcount: '0' });
     await save();
     await expect(page.locator('#rerror')).toContainText('1〜9999');
-    await fillRepeat(page, { rend: 'until', runtil: '2026/11/01' });
+    // 終了日は開始より前を選べない（開始日より前のマスは押せない）。選んだあとで開始を後ろへ動かすと保存で止まる。
+    await fillRepeat(page, { rend: 'until', runtil: '2026/11/13' });
+    await page.locator('#f-runtil').click();
+    await expect(page.locator('#runtil-l ~ .dpfield .dcell[data-day="2026-11-11"]')).toBeDisabled();
+    await page.locator('#f-runtil').click();
+    await fillEditor(page, { start: '2026/11/20 10:00', end: '2026/11/20 11:00' });
     await save();
     await expect(page.locator('#rerror')).toContainText('開始日以降の日付');
     expect(await dbEvents(page)).toHaveLength(0);
+  });
+
+  test('終了日は日付のカプセル＋小さな月。保存・下書き復元でも終了日と曜日が保たれ、明示した曜日は開始に追随しない', async ({ page }) => {
+    await openApp(page);
+    await page.locator('[data-act="add"]').click();
+    await fillEditor(page, { title: '終了日', start: '2026/11/12 10:00', end: '2026/11/12 11:00' });
+    await fillRepeat(page, { rfreq: 'weekly', days: [1, 3], rend: 'until', runtil: '2026/12/10' });
+    await expect(page.locator('#f-runtil')).toHaveText('12月10日（木）');
+    await expect(page.locator('#f-runtil')).toHaveJSProperty('tagName', 'BUTTON');
+    // 開始を動かしても、明示した曜日は書き換わらない
+    await fillEditor(page, { start: '2026/11/18 10:00', end: '2026/11/18 11:00' });
+    await expect(page.locator('.dow[aria-pressed="true"]')).toHaveCount(2);
+    await page.reload();
+    await page.waitForSelector('html[data-ready]');
+    await expect(page.locator('#editor')).toBeVisible();
+    await expect(page.locator('#f-runtil')).toHaveText('12月10日（木）');
+    await expect(page.locator('#f-runtil')).toHaveJSProperty('value', '2026/12/10');
+    await page.locator('#editor').getByRole('button', { name: '保存' }).click();
+    await expect(page.locator('#editor')).toBeHidden();
+    const [e] = await dbEvents(page);
+    expect(e.recurrence.until).toBe('2026-12-10');
+    expect(e.recurrence.byDay).toEqual([1, 3]);
   });
 
   test('編集中の繰り返し設定は再読込後もドラフトで残る', async ({ page }) => {

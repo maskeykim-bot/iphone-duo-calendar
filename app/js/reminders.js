@@ -1,3 +1,4 @@
+import { monthPopParts, hourCellsHtml, minCellsHtml, splitHm, oddMinute, monthOf } from './datetime-ui.js';
 // タスク（iPhone のリマインダー）: 許可の確認と案内。状態確認だけでは許可を求めない。
 export const REM_STATES = ['notDetermined', 'granted', 'denied', 'restricted'];
 const norm = (s) => (REM_STATES.includes(s) ? s : 'denied');
@@ -193,12 +194,12 @@ export function createAddController(call) {
   return {
     get busy() { return busy; },
     // -> { ok:true, reminder } | { ok:false, code } | { ok:false, busy|empty|nolist:true }
-    async submit({ title, listId, due = null, notify }) {
+    async submit({ title, listId, due = null, time = '', notify }) {
       if (busy) return { ok: false, busy: true };
       const t = String(title ?? '').trim();
       if (!t) return { ok: false, empty: true };
       if (!listId) return { ok: false, nolist: true };
-      const dueV = due ? { date: due } : null;
+      const dueV = due ? (time ? { date: due, time } : { date: due }) : null; // 日付のみ／時刻あり／なしを区別して送る
       const nv = dueV && notify === true ? true : undefined; // 既定なし（省略）。明示オンだけ送る。期限なしは送らない
       const fp = JSON.stringify([listId, t, dueV, nv ?? null]);
       if (!pend || pend.fp !== fp) pend = { requestId: newRequestId(), fp, args: { listId, title: t, due: dueV, notify: nv } };
@@ -220,17 +221,32 @@ export function addRowHtml(d, { selected, noList = false } = {}) {
   if (noList) return `<div class="rmadd off"><button type="button" class="rmaddbtn" disabled aria-describedby="rmaddwhy">＋ タスクを追加</button><p class="rmwhy" id="rmaddwhy">書き込めるリストがないため、追加できません。</p></div>`;
   if (!d.open) return `<div class="rmadd"><button type="button" class="rmaddbtn" data-act="remadd">＋ タスクを追加</button></div>`;
   const due = d.due === undefined ? selected : d.due;
+  const time = due ? d.time || '' : '';
+  const label = due ? `期限 ${mdLabel(due)}${time ? ` ${time}` : ''}` : '期限なし';
   const chip = due
-    ? `<span class="rmchip"><span>期限 ${mdLabel(due)}</span><button type="button" class="rmchipx" data-act="remdue0" aria-label="期限をなしにする">×</button></span>`
-    : `<button type="button" class="rmchip rmchip0" data-act="remdue1" aria-label="期限を選んでいる日にする">期限なし</button>`;
+    ? `<span class="rmchip"><button type="button" class="rmchipl" data-act="remdue2" aria-expanded="${!!d.pop}" aria-label="期限を選ぶ: ${escH(label)}">${escH(label)}</button><button type="button" class="rmchipx" data-act="remdue0" aria-label="期限をなしにする">×</button></span>`
+    : `<button type="button" class="rmchip rmchip0" data-act="remdue2" aria-expanded="${!!d.pop}" aria-label="期限を選ぶ">期限なし</button>`;
   const on = d.notify === true;
   const nchip = due
     ? `<button type="button" class="rmchip rmnote${on ? ' on' : ''}" data-act="remnote" role="switch" aria-checked="${on}" aria-label="通知">${on ? '通知あり' : '通知なし'}</button>`
     : '';
   return `<div class="rmadd open"><div class="rmaddin"><input type="text" class="remin" enterkeyhint="done" autocomplete="off" aria-label="タスクの題名" placeholder="タスクを入力"${d.busy ? ' readonly aria-busy="true"' : ''}>${chip}${nchip}</div>`
-    + `<p class="rmwhy" id="rmnotewhy">${due ? (on ? '期限の日の 8:00 に通知します。' : '通知しません。') : '期限がないタスクは通知されません。'}</p>`
+    + (d.pop ? addDuePopHtml(d, due, time) : '')
+    + `<p class="rmwhy" id="rmnotewhy">${due ? (on ? (time ? '期限の時刻に通知します。' : '期限の日の 8:00 に通知します。') : '通知しません。') : '期限がないタスクは通知されません。'}</p>`
     + `${d.err ? `<p class="rmwhy err" role="alert">${escH(d.err)}</p>` : ''}</div>`;
 }
+// 期限の部品（予定と同じ日付の小さな月＋「時刻を入れる」）。d.pop = { vm }
+function addDuePopHtml(d, due, time) {
+  const m = monthPopParts(d.pop.vm || monthOf(due || todayKeyLocal()), { cur: due || '', attr: 'data-act="remdp"' });
+  const cur = splitHm(time), odd = cur ? oddMinute(cur.mi) : '';
+  return `<div class="dpop rmdp"><div class="dpchips">${m.chips}</div>`
+    + `<div class="dpmh"><button type="button" class="dpnav" data-act="remdpn" data-n="-1" aria-label="前の月">‹</button><span class="dpmt" aria-live="polite">${m.title}</span><button type="button" class="dpnav" data-act="remdpn" data-n="1" aria-label="次の月">›</button></div>`
+    + `<div class="dpwk">${m.heads}</div><div class="dpgrid">${m.grid}</div>`
+    + `<div class="rmdpt"><button type="button" class="rmchip rmtimeon${time ? ' on' : ''}" data-act="remtimeon" role="switch" aria-checked="${!!time}"${due ? '' : ' disabled'}>時刻を入れる</button></div>`
+    + (time ? `<div class="tpop"><p class="tlab">時</p><div class="tgrid hgrid">${hourCellsHtml(cur, 'data-act="remth"')}</div><p class="tlab">分${odd ? ` <span class="tnote">${odd}</span>` : ''}</p><div class="tgrid mgrid">${minCellsHtml(cur, 'data-act="remtm"')}</div></div>` : '')
+    + `</div>`;
+}
+const todayKeyLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
 // ---- 第14版 PR19: タスクの編集と完了（本文は保存しない。メモリ上だけ） ----
 export const NOTE_NEED_DUE = '期限を入れると通知できます。';
@@ -279,13 +295,14 @@ export function taskEditorHtml(ed) {
   const opts = ed.lists.map((l) => `<option value="${escH(l.id)}"${l.id === f.listId ? ' selected' : ''}>${escH(l.title || '')}</option>`).join('');
   const meta = (r.priority > 0 ? '<span class="rmpri" aria-label="優先度あり">!</span> 優先度あり　' : '') + (r.recurring ? '繰り返し（リマインダーで変更できます）' : '');
   const why = ed.lock === 'ro' ? '<p class="small" role="note">読み取り専用のリストのため変更できません。</p>' : ed.lock === 'rec' ? '<p class="small" role="note">繰り返しのタスクは完了だけ変更できます。</p>' : '';
-  return `<label>題名<input id="tk-title" maxlength="200" value="${escH(f.title)}"${dis}></label>`
-    + `<div class="pair"><label>期限<input id="tk-date" type="date" value="${escH(f.date)}"${dis}></label><label>時刻<input id="tk-time" type="time" value="${escH(f.time)}"${dis}></label></div>`
+  return `<div class="tkwrap"><label>題名<input id="tk-title" maxlength="200" value="${escH(f.title)}"${dis}></label>`
+    + `<div class="dtrow tkrow" id="tk-daterow"><span class="dtk">期限</span><button type="button" id="tk-date" class="dcap" aria-haspopup="true" aria-expanded="false" value="${escH(f.date)}"${dis}></button></div>`
+    + `<div class="dtrow tkrow" id="tk-timerow"><label class="tkck tkton"><input id="tk-timeon" type="checkbox" role="switch"${dis}> 時刻を入れる</label><button type="button" id="tk-time" class="tcap" aria-haspopup="true" aria-expanded="false" value="${escH(f.time)}"${dis}${f.time ? '' : ' hidden'}></button></div>`
     + `<div class="tknote"><label class="tkck"><input id="tk-notify" type="checkbox"${dis}> 通知する</label><p class="small" id="tk-notewhy" role="note"></p>`
     + `${r.alarmsExtra > 0 ? `<p class="small tkextra" role="note">${NOTE_EXTRA}</p>` : ''}</div>`
     + `<label>リスト<select id="tk-list"${dis}>${opts}</select></label>`
     + `<label>メモ<textarea id="tk-notes"${dis}>${escH(f.notes)}</textarea></label>`
-    + (meta ? `<p class="small tkmeta">${meta}</p>` : '') + why;
+    + (meta ? `<p class="small tkmeta">${meta}</p>` : '') + why + '</div>';
 }
 
 // 完了の丸（即 native へ。1.5 秒後に完了段へ移す。再 tap は同じタスク内で直列化。失敗は表示を戻す）。

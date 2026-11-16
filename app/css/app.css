@@ -1055,3 +1055,21 @@ body.settings-open .ctl.band [data-act=menu] .bi::after{content:"×";font-size:2
 .dtbox.dtlarge .tcap{width:72px;height:40px;font-size:18px}
 .dtbox.dtlarge .capin.tcap-in{width:72px;height:40px;font-size:18px}
 .dtbox.dtlarge .dcap,.dtbox.dtlarge .capin.dcap-in{height:40px;font-size:17px}
+
+/* ===== 第15版 PR19: 繰り返しの終了日・タスクの期限（予定の日付・時刻と同じ部品） ===== */
+.dtrow.runtil{margin-top:8px;padding:0 10px;background:#fff;border:1px solid var(--line);border-radius:10px}
+.dtrow.runtil .dtk{width:4em}
+.dpfield,.tpfield{margin-top:4px}
+.dpclear{display:block;margin:6px 0 0;height:36px;padding:0 12px;border:1px solid #DCD7CB;border-radius:14px;background:#fff;color:#294E42;font-size:13px}
+.tkwrap .tkrow{margin-top:8px;padding:0 10px;background:#fff;border:1px solid var(--line);border-radius:10px}
+.tkwrap .tkrow .dtk{width:3em}
+.tkwrap .tkrow .tkton{flex:1;margin-top:0}
+#tk-body .tkrow .tkck input{display:inline-block;width:22px;min-height:22px;margin:0}
+.rmchipl{border:0;background:none;color:inherit;font:inherit;padding:0 2px;position:relative;min-height:24px}
+.rmchipl::before{content:'';position:absolute;inset:-10px -4px}
+.rmdp{margin:6px 0 0;padding:8px 10px 10px;background:#fff;border:1px solid var(--line);border-radius:10px}
+.rmdpt{margin-top:6px}
+.rmtimeon{padding:0 10px;min-height:32px;position:relative;color:#68716A}
+.rmtimeon.on{color:#294E42;border-color:#294E42}
+.rmtimeon:disabled{color:#C9C6BC}
+.rmdp .tpop{margin-top:6px}

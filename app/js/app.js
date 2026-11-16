@@ -1,6 +1,6 @@
 import * as db from './db.js';
 import { isoFromInput, stateFromInput, setStartDate, pickEndDate, setStartTime, setEndTime, setDuration, setAll } from './datetime.js';
-import { createTimeUi, createDateUi } from './datetime-ui.js';
+import { createTimeUi, createDateUi, createDateField, createTimeField, fireInput, monthOf, withHm } from './datetime-ui.js';
 import { SAMPLE } from './sample.js';
 import { initSwipe } from './swipe.js';
 import { initDirectInput, dayRange, rangeText, minutesAt, dragRange, tapRange, moveHandle, spanText, hm as hmText, snap15, edgeZone, edgeVelocity, createDwell, createFrameLoop } from './direct-input.js';
@@ -1053,10 +1053,11 @@ async function remSubmit() {
   if (a.busy || !i) return;
   a.title = i.value;
   const due = a.due === undefined ? state.selected : a.due;
+  const time = due ? a.time || '' : '';
   const listId = addList();
   if (!a.title.trim() || !listId) return;
   a.busy = true; a.err = ''; i.readOnly = true; i.setAttribute('aria-busy', 'true');
-  const r = await addCtl.submit({ title: a.title, listId, due, notify: a.notify });
+  const r = await addCtl.submit({ title: a.title, listId, due, time, notify: a.notify });
   if (RM.add !== a) return; // 許可の取消などで下書きごと捨てられた
   a.busy = false;
   if (r.ok) {
@@ -1072,7 +1073,7 @@ async function remSubmit() {
   }
 }
 // ---------- タスク: リマインダー許可の案内（カレンダー権限・連携設定とは独立） ----------
-const newDraft = () => ({ open: false, title: '', due: undefined, notify: undefined, busy: false, err: '' }); // due: undefined＝選んでいる日に従う／null＝期限なし
+const newDraft = () => ({ open: false, title: '', due: undefined, time: '', pop: null, notify: undefined, busy: false, err: '' }); // due: undefined＝選んでいる日に従う／null＝期限なし
 const RM = { add: newDraft(), state: null, gen: 0, data: null, err: false, doneOpen: false, histDays: HIST_DAYS, more: false, timer: 0, sig: '' };
 let tkDrop = null; // 編集シートを閉じる口（シート側の定義後に設定）
 // リスト設定（端末内。バックアップ対象外）。表示するリストと追加先は独立。
@@ -1403,6 +1404,7 @@ root.addEventListener('click', (ev) => {
   if (col && !ev.target.closest('button')) { tlTap(ev, col); return; }
   const b = ev.target.closest('button');
   if (TLM.open && !ev.target.closest('.tlmenu, [data-act="tlmenu"]')) { TLM.open = null; render(); return; } // 選択肢の外をたたくと閉じる（たたいた先の操作はしない）
+  if (RM.add.pop && !ev.target.closest('.rmdp, [data-act="remdue2"]')) { RM.add.pop = null; render(); }
   if (MM.open && !ev.target.closest('.mmenu, [data-act="mini"]')) { closeMini(false); return; } // 小さな月の外をたたくと閉じる（たたいた先の操作はしない）
   if (!b || !root.contains(b)) return;
   const d = b.dataset;
@@ -1415,8 +1417,13 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'remedit') openTask(d.id, b);
   else if (d.act === 'remadd') openAdd();
   else if (d.act === 'remnote') { RM.add.notify = RM.add.notify !== true; RM.add.focus = true; render(); }
-  else if (d.act === 'remdue0') { RM.add.due = null; RM.add.focus = true; render(); }
-  else if (d.act === 'remdue1') { RM.add.due = undefined; RM.add.focus = true; render(); }
+  else if (d.act === 'remdue0') { RM.add.due = null; RM.add.time = ''; RM.add.pop = null; RM.add.focus = true; render(); }
+  else if (d.act === 'remdue2') { const a = RM.add, cur = a.due === undefined ? state.selected : a.due; a.pop = a.pop ? null : { vm: monthOf(cur || todayKey()) }; a.focus = true; render(); }
+  else if (d.act === 'remdp') { const a = RM.add; haptic('light').catch(() => {}); a.due = d.day; a.pop = null; a.focus = true; render(); }
+  else if (d.act === 'remdpn') { const a = RM.add; if (a.pop) { a.pop = { vm: addMonths(a.pop.vm, Number(d.n)) }; render(); root.querySelector(`[data-act="remdpn"][data-n="${d.n}"]`)?.focus({ preventScroll: true }); } }
+  else if (d.act === 'remtimeon') { const a = RM.add; if (a.due === null) return; a.time = a.time ? '' : '09:00'; render(); root.querySelector('[data-act="remtimeon"]')?.focus({ preventScroll: true }); }
+  else if (d.act === 'remth') { const a = RM.add; haptic('light').catch(() => {}); a.time = withHm(a.time, Number(d.h), null); render(); root.querySelector(`[data-act="remth"][data-h="${d.h}"]`)?.focus({ preventScroll: true }); }
+  else if (d.act === 'remtm') { const a = RM.add; haptic('light').catch(() => {}); a.time = withHm(a.time, null, Number(d.m)); a.pop = null; a.focus = true; render(); }
   else if (d.act === 'remdone') { RM.doneOpen = !RM.doneOpen; render(); root.querySelector('[data-act="remdone"]')?.focus({ preventScroll: true }); }
   else if (d.act === 'remmore') { RM.histDays += HIST_DAYS; RM.more = true; render(); root.querySelector('[data-act="remmore"]')?.focus({ preventScroll: true }); loadTasks(); }
   else if (d.date) {
@@ -1608,6 +1615,16 @@ const tui = createTimeUi({
   setTime: (which, h, m) => { if (!dt) return; dt = (which === 'start' ? setStartTime : setEndTime)(dt, h, m); afterTimeEdit(); },
   setDuration: (min) => { if (!dt) return; dt = setDuration(dt, min); afterTimeEdit(); },
 });
+// 繰り返しの終了日: 予定の日付と同じカプセル＋小さな月。値は F.runtil.value（「2026/12/31」。旧下書きと同じ形）。
+const holidayMemo = (() => { let memo = null, c0 = null, l0 = null; return (k) => { if (!memo || c0 !== X.cache || l0 !== X.calendars) { memo = holidayDays(); c0 = X.cache; l0 = X.calendars; } return memo.has(k); }; })();
+const untilUi = createDateField(F.runtil, {
+  after: R.untilL, scope: $('#rpanel'), label: '終了日', empty: '終了日を選ぶ',
+  get: () => { const u = parseInput(F.runtil.value, true); return u ? dayOf(u) : ''; },
+  min: () => startKey(),
+  holiday: holidayMemo,
+  buzz: () => { haptic('light').catch(() => {}); },
+  set: (k) => { F.runtil.value = slash(k); fireInput(F.runtil); },
+});
 function applyAllDayUi() {
   const all = F.all.checked;
   $('#dtbox').classList.toggle('allday', all);
@@ -1629,6 +1646,8 @@ function updateRepeatUi() {
   R.end.hidden = freq === 'none';
   R.countL.hidden = freq === 'none' || F.rend.value !== 'count';
   R.untilL.hidden = freq === 'none' || F.rend.value !== 'until';
+  if (R.untilL.hidden) untilUi.close();
+  untilUi.render();
   R.panel.querySelectorAll('.dow').forEach((b) => b.setAttribute('aria-pressed', String(rsel.includes(Number(b.dataset.dow)))));
   R.desc.textContent = {
     none: '', daily: '毎日繰り返します。', weekly: '選んだ曜日に繰り返します（開始日より前は作成しません）。',
@@ -2039,11 +2058,37 @@ function tkUi() {
   $('#tk-err').textContent = TK.ed.err || '';
   $('#tk-note').hidden = gone;
 }
+// 期限は予定と同じ日付のカプセル＋小さな月、時刻は「時刻を入れる」で時分のマス。値は各カプセルの .value（'YYYY-MM-DD' / 'HH:mm'、なしは ''）。
+function tkFields() {
+  const lock = !!TK.ed.lock, scope = $('#tk-body').firstElementChild;
+  const dateEl = $('#tk-date'), timeEl = $('#tk-time'), on = $('#tk-timeon');
+  let dUi = null, tUi = null;
+  const sync = () => { on.disabled = lock || !dateEl.value; on.checked = !!timeEl.value; timeEl.hidden = !timeEl.value; dUi.render(); tUi.render(); };
+  const buzz = () => { haptic('light').catch(() => {}); };
+  dUi = createDateField(dateEl, {
+    after: $('#tk-daterow'), scope, label: '期限', empty: '期限なし', canOpen: () => !lock, holiday: holidayMemo, buzz,
+    get: () => dateEl.value,
+    set: (k) => { dateEl.value = k; sync(); fireInput(dateEl); },
+    clear: { label: '期限をなしにする', on: () => { if (timeEl.value) TK.lastTime = timeEl.value; dateEl.value = ''; timeEl.value = ''; sync(); fireInput(dateEl); } },
+  });
+  tUi = createTimeField(timeEl, {
+    after: $('#tk-timerow'), scope, label: '期限の時刻', canOpen: () => !lock, buzz,
+    get: () => timeEl.value,
+    set: (v) => { timeEl.value = v; sync(); fireInput(timeEl); },
+  });
+  on.addEventListener('change', () => {
+    if (on.checked) timeEl.value = TK.lastTime || TK.ed.orig.due?.time || '09:00';
+    else { TK.lastTime = timeEl.value; timeEl.value = ''; tUi.close(); }
+    sync(); fireInput(timeEl);
+  });
+  sync();
+}
 function openTask(id, from) {
   const r = RM.data?.reminders.find((x) => x.itemId === id);
   if (!r || anyPanel()) return;
   TK = { ed: openTaskEditor(r, RM.data.lists), busy: false, gone: false, notify: undefined }; tkKey = r.itemId;
   $('#tk-body').innerHTML = taskEditorHtml(TK.ed);
+  tkFields();
   tkUi();
   openPanel(taskDlg, from);
   const t = $('#tk-title'); (t.disabled ? $('#tk-close') : t).focus({ preventScroll: true });

@@ -194,6 +194,20 @@ export async function seed(page, events) {
 export const dbEvents = (page) => page.evaluate(async () => (await (await import('/js/db.js')).listEvents()).sort((a, b) => String(a.id).localeCompare(String(b.id))));
 export const ev = (id, title, start, end, extra = {}) => ({ id, title, categoryId: CAT_IDS.work, all: false, start, end, place: '', notes: '', recurrence: null, exdates: [], overrides: {}, ...extra });
 
+// 繰り返しの終了日: 日付のカプセルを長押しの文字欄でなく、小さな月で選ぶ（'YYYY/MM/DD'）。他の月へは ‹ › で移る。
+export async function pickRuntil(page, text) {
+  const dlg = page.locator('#editor'), key = text.replaceAll('/', '-');
+  await dlg.locator('#f-runtil').click();
+  for (let i = 0; i < 48; i++) {
+    const c = dlg.locator(`#runtil-l ~ .dpfield [data-day="${key}"].dcell`);
+    if (await c.count() && !(await c.first().evaluate((e) => e.classList.contains('out')))) { await c.first().click(); return; }
+    const [y, m] = key.split('-').map(Number);
+    const t = await dlg.locator('#runtil-l ~ .dpfield .dpmt').innerText();
+    const [cy, cm] = t.match(/\d+/g).map(Number);
+    await dlg.locator(`#runtil-l ~ .dpfield .dpnav`).nth((y * 12 + m) < (cy * 12 + cm) ? 0 : 1).click();
+  }
+  throw new Error('runtil not reachable ' + text);
+}
 // 編集ダイアログの繰り返し設定。f: { rfreq, days:[0..6], rend, rcount, runtil }
 export async function fillRepeat(page, f) {
   const dlg = page.locator('#editor');
@@ -208,7 +222,7 @@ export async function fillRepeat(page, f) {
   }
   if (f.rend) await dlg.locator('#f-rend').selectOption(f.rend);
   if (f.rcount !== undefined) await dlg.locator('#f-rcount').fill(String(f.rcount));
-  if (f.runtil !== undefined) await dlg.locator('#f-runtil').fill(f.runtil);
+  if (f.runtil !== undefined) await pickRuntil(page, f.runtil);
 }
 export async function addRepeat(page, f) {
   await page.locator('[data-act="add"]:visible').first().click();
@@ -316,4 +330,31 @@ export async function notifyOn(page, cfg = {}) {
     localStorage.setItem('duo-notify', JSON.stringify({ version: 1, enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' }, ...c }));
     localStorage.setItem('duo-notify-policy.v15', 'test');
   }, cfg);
+}
+
+// タスクの編集シートの期限（予定と同じ日付のカプセル＋小さな月、「時刻を入れる」＋時分のマス）。
+export async function pickTaskDue(page, key) {
+  const pop = page.locator('#tk-body .dpfield');
+  await page.locator('#tk-date').click();
+  for (let i = 0; i < 48; i++) {
+    const c = pop.locator(`.dcell[data-day="${key}"]:not(.out)`);
+    if (await c.count()) { await c.first().click(); return; }
+    const [y, m] = key.split('-').map(Number);
+    const [cy, cm] = (await pop.locator('.dpmt').innerText()).match(/\d+/g).map(Number);
+    await pop.locator('.dpnav').nth(y * 12 + m < cy * 12 + cm ? 0 : 1).click();
+  }
+  throw new Error(`task due not reachable ${key}`);
+}
+export async function clearTaskDue(page) {
+  await page.locator('#tk-date').click();
+  await page.locator('#tk-body .dpclear').click();
+}
+// 時刻を入れる（スイッチ）。h/m を押す。m を省くと分はそのまま。
+export async function setTaskTime(page, h, m) {
+  const on = page.locator('#tk-timeon');
+  if (!(await on.isChecked())) await on.check();
+  await page.locator('#tk-time').click();
+  await page.locator(`#tk-body .tpfield [data-h="${h}"]`).click();
+  if (m !== undefined) await page.locator(`#tk-body .tpfield [data-m="${m}"]`).click();
+  else await page.locator('#tk-time').click();
 }

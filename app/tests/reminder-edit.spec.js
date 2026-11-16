@@ -1,6 +1,6 @@
 // 第14版 PR19: タスクの編集と完了の操作（偽装 native）。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES } from './helpers.js';
+import { openApp, SIZES, clearTaskDue, pickTaskDue, setTaskTime } from './helpers.js';
 
 async function mock(page, items) {
   await page.addInitScript((its) => {
@@ -104,7 +104,7 @@ test.describe('タスクの編集と完了', () => {
     await expect(page.locator('#taskdlg')).toBeHidden();
     expect((await calls(page, 'updateReminder')).length).toBe(0);
     await lp(page).locator('[data-key="rm:a"] [data-act="remedit"]').click();
-    await page.locator('#tk-date').fill('');
+    await clearTaskDue(page);
     await page.locator('#tk-save').click();
     await expect(page.locator('#taskdlg')).toBeHidden();
     expect((await calls(page, 'updateReminder'))[0].patch).toEqual({ due: null });
@@ -162,5 +162,60 @@ test.describe('タスクの編集と完了', () => {
     await row.locator('[data-act="remck"]').click();
     await expect.poll(async () => (await calls(page, 'setReminderDone')).length).toBe(1);
     await row.locator('[data-act="remedit"]').click().catch(() => {});
+  });
+});
+
+// 第15版 PR19: タスクの期限は予定と同じ日付・時刻の部品。未操作は何も送らない。
+test.describe('タスクの期限の共通部品', () => {
+  const editT = async (page, id) => { await lp(page).locator(`[data-key="rm:${id}"] [data-act="remedit"]`).click(); await expect(page.locator('#taskdlg')).toBeVisible(); };
+  const save = async (page) => { await page.locator('#tk-save').click(); await expect(page.locator('#taskdlg')).toBeHidden(); };
+
+  test('日付のみ・10:07・期限なし・特殊通知付きは、開いて保存しても update を送らない', async ({ page }) => {
+    await mock(page, [mk('a'), mk('b', { due: { date: '2026-11-12', time: '10:07' } }), mk('c', { due: null }), mk('d', { alarms: [{ at: '2026-11-12T08:00' }], alarmsExtra: 2 })]);
+    await ready(page);
+    for (const id of ['a', 'b', 'c', 'd']) {
+      await editT(page, id);
+      await expect(page.locator('#tk-date')).toBeVisible();
+      await save(page);
+    }
+    expect((await calls(page, 'updateReminder')).length).toBe(0);
+  });
+
+  test('10:07 は表示のまま、時だけ押しても 07 分を保ち、分は押さなければ変えない', async ({ page }) => {
+    await mock(page, [mk('b', { due: { date: '2026-11-12', time: '10:07' } })]); await ready(page);
+    await editT(page, 'b');
+    await expect(page.locator('#tk-time')).toHaveText('10:07');
+    await expect(page.locator('#tk-timeon')).toBeChecked();
+    await setTaskTime(page, 11);
+    await expect(page.locator('#tk-time')).toHaveText('11:07');
+    await save(page);
+    expect((await calls(page, 'updateReminder'))[0].patch).toEqual({ due: { date: '2026-11-12', time: '11:07' } });
+  });
+
+  test('期限だけ変えても通知はオンにならない（notify を送らない）。時刻を外すと日付のみ', async ({ page }) => {
+    await mock(page, [mk('a'), mk('b', { due: { date: '2026-11-12', time: '10:07' } })]); await ready(page);
+    await editT(page, 'a');
+    await pickTaskDue(page, '2026-11-20');
+    await expect(page.locator('#tk-notify')).not.toBeChecked();
+    await save(page);
+    await editT(page, 'b');
+    await page.locator('#tk-timeon').uncheck();
+    await expect(page.locator('#tk-time')).toBeHidden();
+    await save(page);
+    const u = await calls(page, 'updateReminder');
+    expect(u[0].patch).toEqual({ due: { date: '2026-11-20' } });
+    expect(u[1].patch).toEqual({ due: { date: '2026-11-12' } });
+  });
+
+  test('期限なしでは「時刻を入れる」は使えない。日付を選ぶと使える。長押しの数字入力でも日付を入れられる', async ({ page }) => {
+    await mock(page, [mk('c', { due: null })]); await ready(page);
+    await editT(page, 'c');
+    await expect(page.locator('#tk-date')).toHaveText('期限なし');
+    await expect(page.locator('#tk-timeon')).toBeDisabled();
+    await pickTaskDue(page, '2026-11-25');
+    await expect(page.locator('#tk-timeon')).toBeEnabled();
+    await setTaskTime(page, 8, 45);
+    await save(page);
+    expect((await calls(page, 'updateReminder'))[0].patch).toEqual({ due: { date: '2026-11-25', time: '08:45' } });
   });
 });

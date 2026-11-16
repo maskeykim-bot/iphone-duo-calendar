@@ -1,6 +1,6 @@
 // 第14版 PR22: タスクの追加・編集の通知の選択（偽装 native）。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES } from './helpers.js';
+import { openApp, SIZES, clearTaskDue, pickTaskDue, setTaskTime } from './helpers.js';
 
 async function mock(page, items) {
   await page.addInitScript((its) => {
@@ -53,7 +53,7 @@ test.describe('タスクの通知の選択', () => {
     await mock(page, [mk('a', { alarms: [{ at: '2026-11-12T08:00' }] })]); await ready(page); await edit(page, 'a');
     await expect(page.locator('#tk-notify')).toBeChecked();
     await expect(page.locator('#tk-notewhy')).toContainText('8:00');
-    await page.locator('#tk-time').fill('09:30');
+    await setTaskTime(page, 9, 30);
     await expect(page.locator('#tk-notewhy')).toContainText('時刻');
     await page.locator('#tk-save').click();
     await expect(page.locator('#taskdlg')).toBeHidden();
@@ -72,13 +72,13 @@ test.describe('タスクの通知の選択', () => {
   test('期限なしでは通知不可。戻すと操作した状態を反映し、期限なしのまま notify は送らない', async ({ page }) => {
     await mock(page, [mk('a')]); await ready(page); await edit(page, 'a');
     await page.locator('#tk-notify').check();
-    await page.locator('#tk-date').fill('');
+    await clearTaskDue(page);
     await expect(page.locator('#tk-notify')).toBeDisabled();
     await expect(page.locator('#tk-notify')).not.toBeChecked();
-    await page.locator('#tk-date').fill('2026-11-13');
+    await pickTaskDue(page, '2026-11-13');
     await expect(page.locator('#tk-notify')).toBeEnabled();
     await expect(page.locator('#tk-notify')).toBeChecked();
-    await page.locator('#tk-date').fill('');
+    await clearTaskDue(page);
     await page.locator('#tk-save').click();
     await expect(page.locator('#taskdlg')).toBeHidden();
     expect((await calls(page, 'updateReminder'))[0].patch).toEqual({ due: null });

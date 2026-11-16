@@ -75,7 +75,10 @@ test.describe('タスクの続けて追加', () => {
     await i.fill('いつか'); await i.press('Enter');
     await expect(lp(page).locator('[data-key="rm:x1"]')).toBeVisible();
     expect((await creates(page))[0].due).toBeNull();
-    await lp(page).locator('[data-act="remdue1"]').click();
+    // 「期限なし」をたたくと日付の部品が開き、日をたたくと期限が付く
+    await lp(page).locator('[data-act="remdue2"]').click();
+    await lp(page).locator('.rmdp .dcell[data-day="2026-11-12"]').click();
+    await expect(lp(page).locator('.rmdp')).toHaveCount(0);
     await expect(lp(page).locator('.rmchip:not(.rmnote)')).toContainText('期限 11/12');
   });
 
@@ -193,5 +196,22 @@ test.describe('タスクの続けて追加', () => {
     expect(dump.out).not.toContain('秘密のタスク名');
     expect(dump.ls).not.toContain('秘密のタスク名');
     expect(dump.bk).not.toContain('秘密のタスク名');
+  });
+
+  test('期限の部品で日付と時刻を選んで追加できる（時刻つき due、notify は省略）', async ({ page }) => {
+    await mock(page); await ready(page);
+    const i = await openAdd(page);
+    await lp(page).locator('[data-act="remdue2"]').click();
+    await lp(page).locator('.rmdp .dcell[data-day="2026-11-20"]').click();
+    await lp(page).locator('[data-act="remdue2"]').click();
+    await lp(page).locator('[data-act="remtimeon"]').click();
+    await lp(page).locator('[data-act="remth"][data-h="10"]').click();
+    await lp(page).locator('[data-act="remtm"][data-m="30"]').click();
+    await expect(lp(page).locator('.rmchip:not(.rmnote)')).toContainText('期限 11/20 10:30');
+    await i.fill('時刻つき'); await i.press('Enter');
+    await expect(lp(page).locator('[data-key="rm:x1"]')).toBeVisible();
+    const c = (await creates(page))[0];
+    expect(c.due).toEqual({ date: '2026-11-20', time: '10:30' });
+    expect('notify' in c).toBe(false);
   });
 });

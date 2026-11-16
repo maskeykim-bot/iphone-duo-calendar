@@ -73,7 +73,7 @@
           <div id="rend-wrap" hidden>
             <label>終了<select id="f-rend"><option value="none">なし</option><option value="count">回数</option><option value="until">終了日</option></select></label>
             <label id="rcount-l" hidden>回数（1〜9999）<input id="f-rcount" inputmode="numeric" value="10"></label>
-            <label id="runtil-l" hidden>終了日<input id="f-runtil" class="date-text" inputmode="numeric" placeholder="2026/12/31"></label>
+            <div id="runtil-l" class="dtrow runtil" hidden><span class="dtk" id="runtil-k">終了日</span><button type="button" id="f-runtil" class="dcap" aria-haspopup="true" aria-expanded="false" value=""></button></div>
           </div>
           <p id="rerror" class="error" role="alert"></p>
         </div>
