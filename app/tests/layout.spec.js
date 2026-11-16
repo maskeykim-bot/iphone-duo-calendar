@@ -37,10 +37,10 @@ test.describe('レイアウト（4サイズ）', () => {
     await loadSample(page);
     await tab(page, '日').click();
     expect(await layout(page)).toBe('browse');
-    const sc = await box(page.locator('.scroll'));
-    const evs = page.locator('.daylist .event');
-    await expect(evs).toHaveCount(5);
-    for (const ev of await evs.all()) expect(inside(await box(ev), sc)).toBe(true);
+    // PR25: 閉じた日は時間軸。5件が時間ブロックとして並び、軸は画面（タブの上）に収まる
+    const sc = await box(page.locator('.tlx'));
+    await expect(page.locator('.tlev')).toHaveCount(5);
+    expect(inside(await box(page.locator('.tl')), sc)).toBe(true);
     // 見出しは1回だけ
     await expect(page.getByRole('heading', { name: '11月12日（木）' })).toHaveCount(1);
     await expect(page.locator('.agenda')).toHaveCount(0);
@@ -70,7 +70,7 @@ test.describe('レイアウト（4サイズ）', () => {
     expect(add.y + add.height).toBeLessThanOrEqual(466);
     for (const ev of await page.locator('.remaining .event').all()) expect(inside(await box(ev), list)).toBe(true);
     await tab(page, '週').click();
-    await expect(page.locator('.weekview')).toBeVisible();
+    await expect(page.locator('.tlx .tlcol')).toHaveCount(7);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 

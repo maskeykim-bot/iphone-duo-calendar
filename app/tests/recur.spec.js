@@ -61,10 +61,10 @@ test.describe('繰り返しの UI', () => {
     await openApp(page);
     await addRepeat(page, { title: '週例', rfreq: 'weekly' });
     await tab(page, '週').click();
-    await expect(page.locator('.week-event', { hasText: '週例' })).toHaveCount(1);
-    await expect(page.locator('.week-event .rep')).toHaveCount(1);
+    await expect(page.locator('.tlev', { hasText: '週例' })).toHaveCount(1); // 閉じた週は時間軸（PR25）
+    await expect(page.locator('.tlev', { hasText: '週例' })).toHaveAttribute('aria-label', /繰り返し/);
     await page.getByRole('button', { name: '次の週' }).click();
-    await expect(page.locator('.week-event', { hasText: '週例' })).toHaveCount(1);
+    await expect(page.locator('.tlev', { hasText: '週例' })).toHaveCount(1);
     await tab(page, '月').click();
     await setStyle(page, '予定名');
     for (const k of ['2026-11-12', '2026-11-19', '2026-11-26']) await expect(chip(page, k)).toContainText('週例');
@@ -259,6 +259,6 @@ test.describe('schema v1 → v2 移行', () => {
     // 本番 DB には触れていない
     await tab(page, '月').click();
     await pickDay(page, '2026-11-14');
-    await expect(page.locator('.daylist .event')).toHaveCount(1);
+    await expect(page.locator('.tlev, .adpill')).toHaveCount(1); // 閉じた日は時間軸（複数日・終日は終日段のピル）
   });
 });

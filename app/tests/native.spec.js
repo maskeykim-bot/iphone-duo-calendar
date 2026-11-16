@@ -251,9 +251,8 @@ test.describe('ネイティブ（偽装）', () => {
     await expect(page.locator('.next')).toContainText('iPhone · 家族');
     // 日表示
     await tab(page, '日').click();
-    const card = page.locator('.daylist .event.ext', { hasText: '歯医者' });
+    const card = page.locator('.tlev.ext', { hasText: '歯医者' });
     await expect(card).toBeVisible();
-    await expect(card.locator('.tag')).toHaveText('iPhone · 家族');
     await expect(card).toHaveAttribute('aria-label', /iPhone、家族、/);
     expect(await card.evaluate((el) => getComputedStyle(el).getPropertyValue('--cat').trim())).toBe('#d93025');
     // 並び: 終日→時間付き（アプリ予定がなくても iPhone 内で開始昇順）
@@ -279,7 +278,7 @@ test.describe('ネイティブ（偽装）', () => {
     await openApp(page);
     await enable(page);
     await tab(page, '日').click();
-    await page.locator('.daylist .event.ext', { hasText: '歯医者' }).click();
+    await page.locator('.tlev.ext', { hasText: '歯医者' }).click();
     const d = page.locator('#xdetail');
     await expect(d).toBeVisible();
     await expect(d.getByRole('heading', { name: 'iPhoneの予定' })).toBeVisible();
@@ -304,7 +303,7 @@ test.describe('ネイティブ（偽装）', () => {
     // 終日: 含む最終日
     await tab(page, '月').click();
     await page.locator('[data-date="2026-11-23"]').click({ position: { x: 12, y: 10 } });
-    await page.locator('.daylist .event.ext', { hasText: '勤労感謝' }).click();
+    await page.locator('.tlev.ext, .adpill.ext', { hasText: '勤労感謝' }).click();
     await expect(d).toContainText('終日');
     await expect(d).toContainText('場所なし');
     await expect(d).toContainText('メモなし');
@@ -351,10 +350,10 @@ test.describe('ネイティブ（偽装）', () => {
     await page.evaluate(() => { window.__mock.events.push({ id: 'new-1@2026-11-20T19:00', eventId: 'new-1', calendarId: 'cal-1', title: '会食', start: '2026-11-20T19:00', end: '2026-11-20T21:00', all: false, place: '銀座', notes: '', recurring: false, requestId: null }); window.__mock.listeners.calendarChanged?.(); });
     await tab(page, '月').click();
     await page.locator('[data-date="2026-11-20"]').click({ position: { x: 12, y: 10 } });
-    await expect(page.locator('.daylist .event', { hasText: '会食' })).toHaveCount(1);
-    await expect(page.locator('.daylist .event', { hasText: '会食' })).toContainText('iPhoneにも追加済み');
+    await expect(page.locator('.tlev', { hasText: '会食' })).toHaveCount(1);
+    await expect(page.locator('.tlev', { hasText: '会食' })).toHaveAttribute('aria-label', /iPhoneにも追加済み/);
     // 編集には案内
-    await page.locator('.daylist .event', { hasText: '会食' }).click();
+    await page.locator('.tlev', { hasText: '会食' }).click();
     await expect(page.locator('#xlinked')).toContainText('iPhoneにも追加済み。Duo で変えた内容は iPhone のカレンダーにも反映されます。');
     await expect(page.locator('#xadd')).toBeHidden();
   });
@@ -518,9 +517,9 @@ test.describe('ネイティブ（偽装）', () => {
     await seed(page, [ev('a1', 'Duoで作成済み', '2026-11-12T18:00', '2026-11-12T19:00', { nativeLink: { state: 'linked', requestId: 'r1', eventId: 'ev-linked', calendarId: 'cal-1' } })]);
     await enable(page);
     await tab(page, '日').click();
-    await expect(page.locator('.daylist .event', { hasText: 'Duoで作成済み' })).toHaveCount(1);
-    await expect(page.locator('.daylist .event.ext', { hasText: 'Duoで作成済み' })).toHaveCount(0);
-    await expect(page.locator('.daylist .event.ext')).toHaveCount(1); // 歯医者のみ
+    await expect(page.locator('.tlev', { hasText: 'Duoで作成済み' })).toHaveCount(1);
+    await expect(page.locator('.tlev.ext', { hasText: 'Duoで作成済み' })).toHaveCount(0);
+    await expect(page.locator('.tlev.ext')).toHaveCount(1); // 歯医者のみ
     // 検索
     await page.locator('[data-act="search"]:visible').first().click();
     await page.locator('#sr-q').fill('Duoで作成');
@@ -539,7 +538,7 @@ test.describe('ネイティブ（偽装）', () => {
     await expect(hit).toContainText('iPhone · 家族');
     await hit.click();
     await expect(page.locator('#search')).toBeHidden();
-    await page.locator('.daylist .event.ext', { hasText: '歯医者' }).click();
+    await page.locator('.tlev.ext', { hasText: '歯医者' }).click();
     await expect(page.locator('#xdetail')).toBeVisible();
   });
 
@@ -577,17 +576,17 @@ test.describe('ネイティブ（偽装）', () => {
     await seed(page, [ev('a1', 'Duo予定', '2026-11-12T08:00', '2026-11-12T09:00')]);
     await enable(page);
     await tab(page, '日').click();
-    await expect(page.locator('.daylist .event.ext')).toHaveCount(2); // 歯医者・Duoで作成済み（この試験ではリンクなし）
+    await expect(page.locator('.tlev.ext')).toHaveCount(2); // 歯医者・Duoで作成済み（この試験ではリンクなし）
     await openLinkPanel(page);
     await page.locator('[data-cal="cal-1"]').uncheck();
-    await expect(page.locator('.daylist .event.ext')).toHaveCount(0);
+    await expect(page.locator('.tlev.ext')).toHaveCount(0);
     await page.locator('#lk-sw').click();
     await expect(page.locator('#lk-sw')).toHaveAttribute('aria-checked', 'false');
     const ls = await page.evaluate(() => JSON.parse(localStorage.getItem('duo-native-cal')));
     expect(ls.enabled).toBe(false);
     expect(ls.calendarIds).toEqual(['cal-2']); // 選択IDは次回用に保持
     await page.locator('#lk-close').click();
-    await expect(page.locator('.daylist .event')).toHaveCount(1);
+    await expect(page.locator('.tlev')).toHaveCount(1);
   });
 });
 
@@ -636,7 +635,7 @@ const linkedEv = (x = {}) => ev('L1', '会食', '2026-11-12T10:00', '2026-11-12T
 async function openLinked(page, title = '会食') {
   await tab(page, '月').click();
   await page.locator('[data-date="2026-11-12"]').click({ position: { x: 12, y: 10 } });
-  await page.locator('.daylist .event', { hasText: title }).click();
+  await page.locator('.tlev', { hasText: title }).click();
   await expect(page.locator('#editor')).toBeVisible();
 }
 const saveEdit = async (page, title) => { await page.locator('#f-title').fill(title); await page.locator('#editor [type=submit]').click(); await expect(page.locator('#editor')).toBeHidden(); };
@@ -864,8 +863,8 @@ test.describe('端末をまたぐ照合（ekIdentifier）', () => {
     await enable(page);
     await tab(page, '月').click();
     await page.locator('[data-date="2026-11-12"]').click({ position: { x: 12, y: 10 } });
-    await expect(page.locator('.daylist .event', { hasText: '会食' })).toHaveCount(1); // Duo の1件だけ
-    await expect(page.locator('.daylist .event.ext', { hasText: '会食' })).toHaveCount(0);
+    await expect(page.locator('.tlev', { hasText: '会食' })).toHaveCount(1); // Duo の1件だけ
+    await expect(page.locator('.tlev.ext', { hasText: '会食' })).toHaveCount(0);
   });
 
   test('externalId が空だった結びつきは、同期後の読込で埋まり ekIdentifier も付く（同値では書き換えない）', async ({ page }) => {

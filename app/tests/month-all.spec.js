@@ -62,7 +62,7 @@ test.describe('月「全部」表示', () => {
     await plus.click();
     await expect(page.locator('#ctitle')).toHaveText('11月12日（木）先勝');
     await expect(page.getByRole('button', { name: '日', exact: true })).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('.daylist .event')).toHaveCount(6);
+    await expect(page.locator('.tlev')).toHaveCount(6);
     // 5件ちょうどの日には +N は出ない
     await tab(page, '月').click();
     await expect(page.locator('.plus[data-jump="2026-11-26"]')).toHaveCount(0);

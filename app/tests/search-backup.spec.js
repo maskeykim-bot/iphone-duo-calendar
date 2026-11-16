@@ -103,8 +103,8 @@ test.describe('検索', () => {
     await expect(page.locator('#search')).toBeHidden();
     expect(await layout(page)).toBe('browse');
     expect(await period(page)).toBe('11月13日（金）');
-    await expect(page.locator('.daylist .event')).toHaveCount(1);
-    await expect(page.locator('.daylist .event')).toBeFocused();
+    await expect(page.locator('.tlev')).toHaveCount(1);
+    await expect(page.locator('.tlev')).toBeFocused();
     await expect(page.getByRole('status')).toHaveText('11月13日（金）へ移動しました。');
   });
 

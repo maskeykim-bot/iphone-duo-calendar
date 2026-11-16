@@ -78,3 +78,22 @@ test('dayAt / dayRange', () => {
   assert.deepEqual(dayRange('2026-11-30', '2026-12-02'), { start: '2026-11-30', end: '2026-12-02', days: 3 });
   assert.equal(dayRange('2026-11-18', '2026-11-18').days, 1);
 });
+
+// ---- PR25 ----
+import { tapRange, moveHandle, spanText, durText } from '../js/direct-input.js';
+test('tapRange: 15分刻み・1時間・日末で詰める', () => {
+  assert.deepEqual(tapRange(14 * 60 + 20), { start: 14 * 60 + 15, end: 15 * 60 + 15 });
+  assert.deepEqual(tapRange(23 * 60 + 50), { start: 23 * 60, end: 1440 });
+  assert.deepEqual(tapRange(0), { start: 0, end: 60 });
+});
+test('moveHandle: 最小15分・日境界 clamp', () => {
+  const r = { start: 600, end: 660 };
+  assert.deepEqual(moveHandle(r, 'end', 600), { start: 600, end: 615 });
+  assert.deepEqual(moveHandle(r, 'end', 9999), { start: 600, end: 1440 });
+  assert.deepEqual(moveHandle(r, 'start', 700), { start: 645, end: 660 });
+  assert.deepEqual(moveHandle(r, 'start', -50), { start: 0, end: 660 });
+});
+test('spanText / durText', () => {
+  assert.equal(spanText({ start: 930, end: 1020 }), '15:30〜17:00（1時間30分）');
+  assert.equal(durText(30), '30分'); assert.equal(durText(60), '1時間'); assert.equal(durText(135), '2時間15分');
+});

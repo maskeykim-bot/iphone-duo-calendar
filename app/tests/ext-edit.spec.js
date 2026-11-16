@@ -78,7 +78,7 @@ async function setup(page, cfg) {
   await page.locator('#lk-close').click();
   await tab(page, '日').click();
 }
-const pop = (page, name) => page.locator('.daylist .event.ext', { hasText: name }).first().click();
+const pop = (page, name) => page.locator('.tlev.ext, .adpill.ext', { hasText: name }).first().click(); // 終日は終日段のピル
 const XD = (page) => page.locator('#xdetail');
 async function edit(page, name) {
   await pop(page, name);
@@ -415,7 +415,7 @@ test.describe('削除（09 §3）', () => {
     expect(d).toHaveLength(1);
     expect(d[0].opts).toEqual({ itemId: 'it-e1', externalId: 'ex-e1', eventId: 'e1', occurrenceStart: '2026-11-12T15:00', currentStart: '2026-11-12T15:00', span: 'this', expectModified: 1763100000000 });
     await expect(toastText(page)).toHaveCount(0);
-    await expect(page.locator('.daylist .event.ext', { hasText: '歯医者' })).toHaveCount(0);
+    await expect(page.locator('.tlev.ext, .adpill.ext', { hasText: '歯医者' })).toHaveCount(0);
     expect(await dbEvents(page)).toEqual([]);
   });
 

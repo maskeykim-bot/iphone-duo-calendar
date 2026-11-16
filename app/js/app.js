@@ -1,7 +1,7 @@
 import * as db from './db.js';
 import { SAMPLE } from './sample.js';
 import { initSwipe } from './swipe.js';
-import { initDirectInput } from './direct-input.js';
+import { initDirectInput, minutesAt, dragRange, tapRange, moveHandle, spanText, hm as hmText, snap15 } from './direct-input.js';
 import { occurrenceAt, parseOccId, planDelete, planEdit, editInfo, normRule } from './recur.js';
 import { bumpRevision, occBetween } from './occcache.js';
 import { LIMIT, groupByDay, highlight, excerpt, searchEvents, searchMemos } from './search.js';
@@ -597,7 +597,16 @@ function weekRow(k, short, vlist = false) {
 }
 const weekNotes = '<div class="weeknotes"><div class="eyebrow">今週の余白</div>日付から一日の詳細へ。予定を選ぶと全文を確認できます。</div>';
 
+// 閉じた日・週: 空き時刻を選べる時間軸（日1列／週7列。狭幅は横スクロールで列幅 CLOSED_COL を確保）。
+const CLOSED_COL = 52;
+function closedTimeBody() {
+  const ks = viewNow() === 'week' ? weekKeys() : [state.selected];
+  const empty = state.loaded && state.events.length === 0 ? `<div class="tlempty">${sampleBtn()}</div>` : '';
+  const inner = timelineHtml(ks, Math.max(CLOSED_COL * ks.length, safeW() - 8) - 50, 'closed');
+  return `${empty}<div class="tlx"><div class="tlw" style="min-width:${50 + ks.length * CLOSED_COL}px">${inner}</div></div>`;
+}
 function calendarBody(kind) {
+  if (kind === 'browse' && viewNow() !== 'month') return closedTimeBody();
   if (viewNow() === 'month') return state.monthExpand ? monthGridAll(kind) : `${weekdaysHtml()}<div class="scroll msc" data-scroll="cal">${monthGrid(kind)}</div>`;
   if (viewNow() === 'week') {
     const cols = kind === 'open' || kind === 'desk';
@@ -720,9 +729,9 @@ function desk() {
 // 折り目（ビューポート中心 ±10px）には何も置かない。左右ページは中心±10 で clip し、背景は中心で直接接続する。
 // 時間軸の状態はペイン（左 / 右）ごと: 1時間の高さ(px)・1日/3日・初期スクロールの判定キー。quiet はピンチ・ドラッグ直後の空きタップ抑止（共通）。
 const mkTl = () => ({ hh: 60, key: '' });
-const TLP = { left: mkTl(), right: mkTl(), bottom: mkTl() };
+const TLP = { left: mkTl(), right: mkTl(), bottom: mkTl(), closed: mkTl() };
 const TLQ = { quiet: 0 };
-const paneOf = (el) => (['left', 'bottom'].includes(el?.dataset?.pane) ? el.dataset.pane : 'right');
+const paneOf = (el) => (['left', 'bottom', 'closed'].includes(el?.dataset?.pane) ? el.dataset.pane : 'right');
 const firstTl = () => root.querySelector('.tl');
 const HH_MIN = 31, HH_MAX = 80, TL_PAD = 12;
 const clampHh = (n) => Math.min(HH_MAX, Math.max(HH_MIN, n));
@@ -758,7 +767,7 @@ function dayBlocks(k) {
 }
 function tlBlock({ e, s, en, col, n }, k) {
   const t = e.title, sub = hhmm(s);
-  return `<button type="button" class="tlev ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}--m:${s};--d:${en - s};left:calc(${col} * 100% / ${n} + 1px);width:calc(100% / ${n} - 2px)" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${t}${e.recurring ? ' 繰り返し' : ''}${alLabel(e)}`)}"><span class="tt">${sub}${bell(e)}</span>${esc(t)}</button>`;
+  return `<button type="button" class="tlev ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}--m:${s};--d:${en - s};left:calc(${col} * 100% / ${n} + 1px);width:calc(100% / ${n} - 2px)" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${t}${e.recurring ? ' 繰り返し' : ''}${isX(e) ? '' : `、${tagText(e)}`}${e.nativeLink?.state === 'linked' ? '、iPhoneにも追加済み' : ''}${alLabel(e)}`)}"><span class="tt">${sub}${bell(e)}</span>${esc(t)}</button>`;
 }
 // 終日段: 11px「終日」＋カテゴリの淡色地・本色12px太字のピル。最大3件（3日表示は各日1件）、幅不足なら減らして +N（その日の一覧へ）。
 function allDayRow(ks, avail) {
@@ -1118,6 +1127,7 @@ function initTimeline() {
   const tls = root.querySelectorAll('.tl');
   TLP.left.key = tls.length && [...tls].some((t) => paneOf(t) === 'left') ? TLP.left.key : '';
   TLP.right.key = tls.length && [...tls].some((t) => paneOf(t) === 'right') ? TLP.right.key : '';
+  TLP.closed.key = tls.length && [...tls].some((t) => paneOf(t) === 'closed') ? TLP.closed.key : '';
   tls.forEach((tl) => {
     const pane = paneOf(tl), T = TLP[pane];
     const key = `${layoutKind()}|${state.view}|${state.home}|${state.pages.left}|${state.pages.right}|${state.selected}|${state.timeMode[pane]}|${pane === 'bottom' ? state.pages.portraitBottom : ''}`;
@@ -1167,13 +1177,70 @@ window.addEventListener('pointermove', (ev) => {
 const tlEnd = (ev) => { if (tlPtr.delete(ev.pointerId) && tlPtr.size < 2) tlPinch = null; };
 window.addEventListener('pointerup', tlEnd);
 window.addEventListener('pointercancel', tlEnd);
-// 空きタップ → その時刻（30分刻み・切り捨て）から1時間の予定を追加。
+// ---------- 時間軸の直接入力（第14版 PR25）----------
+// 入力中の枠 DF は描画だけの状態（DB・native へは書かない）。mode: 'temp'＝短tapの仮枠（取っ手つき）／'drag'＝長押しドラッグ中／'sheet'＝編集シート中。
+// render() で DOM が作り直されても paintDraft() が同じ場所へ描き直す。
+const DF = { mode: null, day: '', pane: '', start: 0, end: 0, anchor: 0 };
+const lastCatOk = () => (state.categories.some((c) => c.id === lastCat) ? lastCat : defaultCatId());
+const colOf = (pane, day) => [...root.querySelectorAll(`.tl[data-pane="${pane}"] .tlcol`)].find((c) => c.dataset.day === day) || null;
+const hhOf = (pane) => TLP[pane]?.hh ?? 60;
+const minAtY = (y, col, pane) => minutesAt(y, col.getBoundingClientRect().top, TL_PAD, hhOf(pane));
+function paintDraft() {
+  root.querySelectorAll('.dbox, .dtag').forEach((n) => n.remove());
+  if (!DF.mode) return;
+  const col = colOf(DF.pane, DF.day);
+  if (!col) { if (DF.mode !== 'sheet') DF.mode = null; return; }
+  const cat = resolveCategory(lastCatOk(), state.categories);
+  const box = document.createElement('div');
+  box.className = 'dbox'; box.dataset.mode = DF.mode;
+  box.setAttribute('style', `${colorVars(cat.color)}--m:${DF.start};--d:${DF.end - DF.start}`);
+  box.innerHTML = `<b class="dt">新しい予定</b><span class="ds">${spanText(DF)}</span>${DF.mode === 'temp' ? '<i class="hdl hdl-s" data-h="start"></i><i class="hdl hdl-e" data-h="end"></i>' : ''}`;
+  col.append(box);
+  const inner = col.closest('.tlin'), hh = hhOf(DF.pane);
+  [['s', DF.start], ['e', DF.end]].forEach(([k, m], i) => {
+    const t = document.createElement('span');
+    t.className = `dtag dtag-${k}`; t.textContent = hmText(m);
+    const top = TL_PAD + m * hh / 60 - 9;
+    t.style.top = `${i ? Math.max(top, TL_PAD + DF.start * hh / 60 - 9 + 18) : top}px`;
+    inner.append(t);
+  });
+}
+function clearDraftBox() { if (!DF.mode) return; DF.mode = null; paintDraft(); }
+function openDraft() {
+  const { day, start, end } = DF;
+  DF.mode = 'sheet'; paintDraft();
+  openEditor(null, root.querySelector('[data-act="add"]'), day, start, { endMin: end, direct: true });
+}
+// 空きタップ: 1回目＝その時刻（15分刻み）から1時間の仮枠、枠の上の2回目＝編集シート、枠の外＝枠を消す。
 function tlTap(ev, col) {
   if (performance.now() < TLQ.quiet) return;
-  const rect = col.getBoundingClientRect();
-  const m = Math.min(1380, Math.max(0, Math.floor(((ev.clientY - rect.top - TL_PAD) / TLP[paneOf(col.closest('.tl'))].hh * 60) / 30) * 30));
-  openEditor(null, root.querySelector('[data-act="add"]'), col.dataset.day, m);
+  if (ev.target.closest('.hdl')) return;
+  if (DF.mode === 'temp') { if (ev.target.closest('.dbox')) openDraft(); else clearDraftBox(); return; }
+  if (DF.mode) return;
+  const pane = paneOf(col.closest('.tl'));
+  Object.assign(DF, { mode: 'temp', day: col.dataset.day, pane }, tapRange(minAtY(ev.clientY, col, pane)));
+  paintDraft();
 }
+// 仮枠の取っ手（見た目12・押せる範囲44）。押してすぐ動かし、離したあとの click は抑止する。
+root.addEventListener('pointerdown', (ev) => {
+  const h = ev.target.closest?.('.hdl');
+  if (!h || DF.mode !== 'temp') return;
+  ev.preventDefault();
+  const which = h.dataset.h, id = ev.pointerId;
+  const mv = (e) => {
+    if (e.pointerId !== id || DF.mode !== 'temp') return;
+    const col = colOf(DF.pane, DF.day); if (!col) return;
+    const y = e.clientY + (hhOf(DF.pane) / 60) * 7.5; // 15分刻みの最も近い線へ
+    const r = moveHandle(DF, which, minAtY(y, col, DF.pane));
+    if (r.start !== DF.start || r.end !== DF.end) { Object.assign(DF, r); paintDraft(); }
+  };
+  const done = (e) => {
+    if (e.pointerId !== id) return;
+    window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', done); window.removeEventListener('pointercancel', done);
+    TLQ.quiet = performance.now() + 400;
+  };
+  window.addEventListener('pointermove', mv); window.addEventListener('pointerup', done); window.addEventListener('pointercancel', done);
+});
 
 // ---------- 描画（スクロール位置とフォーカスを保つ） ----------
 let lastKind = '';
@@ -1205,6 +1272,7 @@ function render() {
   restoreAll(anchor);
   measureMonthPane();
   initTimeline();
+  paintDraft();
   if (focusKey && !document.activeElement?.matches?.('input.remin')) { // 入力欄へ送ったフォーカスは取り戻さない
     const [t, v] = focusKey.split(/:(.*)/);
     const sel = { act: `[data-act="${v}"]`, view: `[data-view="${v}"]`, mode: `[data-mode="${v}"]`, date: `[data-date="${v}"]` }[t];
@@ -1237,6 +1305,7 @@ function addFromHere(b) {
 function say(msg) { $('#status').textContent = ''; requestAnimationFrame(() => { $('#status').textContent = msg; }); }
 
 root.addEventListener('click', (ev) => {
+  if (DF.mode === 'temp' && !ev.target.closest('.dbox') && (!ev.target.closest('.tlcol') || ev.target.closest('button'))) clearDraftBox();
   const col = ev.target.closest('.tlcol');
   if (col && !ev.target.closest('button')) { tlTap(ev, col); return; }
   const b = ev.target.closest('button');
@@ -1520,15 +1589,17 @@ function valuesFrom(cur) {
     rcount: String(r?.count ?? 10), runtil: r?.until ? r.until.replaceAll('-', '/') : '', ropen: false, autoDays: false, alarms: o.alarms,
   };
 }
-function openEditor(id, from, day = state.selected, startMin = null) {
+function openEditor(id, from, day = state.selected, startMin = null, opts = {}) {
   if (id && isXId(id)) { openExtDetail(id, from); return; }
   extEd = null;
   origins.set(dlg, from || document.activeElement);
   const cur = id ? resolve(id) : null;
-  const t0 = startMin == null ? '10:00' : hhmm(startMin), t1 = startMin == null ? '11:00' : startMin + 60 > 1439 ? '23:59' : hhmm(startMin + 60);
+  const endMin = opts.endMin ?? (startMin == null ? null : startMin + 60);
+  const t0 = startMin == null ? '10:00' : hhmm(startMin), t1 = startMin == null ? '11:00' : endMin > 1439 ? '23:59' : hhmm(endMin);
+  const dd = day.replaceAll('-', '/');
   const values = cur
     ? valuesFrom(cur)
-    : { title: '', categoryId: defaultCatId(), all: false, start: `${day.replaceAll('-', '/')} ${t0}`, end: `${day.replaceAll('-', '/')} ${t1}`, place: '', notes: '', rfreq: 'none', rbyday: [], rend: 'none', rcount: '10', runtil: '', ropen: false, alarms: defaultAlarms(false, loadNotify()), xadd: extActive() && link.addByDefault && writable(X.calendars).length > 0 };
+    : { title: '', categoryId: opts.direct ? lastCatOk() : defaultCatId(), all: !!opts.all, start: opts.all ? dd : `${dd} ${t0}`, end: opts.all ? dd : `${dd} ${t1}`, place: '', notes: '', rfreq: 'none', rbyday: [], rend: 'none', rcount: '10', runtil: '', ropen: false, alarms: defaultAlarms(!!opts.all, loadNotify()), xadd: extActive() && link.addByDefault && writable(X.calendars).length > 0 };
   showEditor(values, cur ? id : null);
   saveDraft();
 }
@@ -1582,6 +1653,7 @@ const editorDirty = () => edBase == null || edBase !== editSnap();
 const popupTop = () => [dlg, xdDlg, taskDlg].find((d) => d.open && panels.every((p) => p === d || p === dlg || p === xdDlg || p === taskDlg || !p.open)) || null;
 function syncScrim() { scrim.hidden = !(dlg.open || xdDlg.open || taskDlg.open); }
 for (const d of [dlg, xdDlg, taskDlg]) d.addEventListener('close', syncScrim);
+dlg.addEventListener('close', () => { if (DF.mode === 'sheet') clearDraftBox(); });
 let fading = false, guardUntil = 0, guardAt = null;
 // 幕を触って閉じた直後は、同じ場所へ遅れて届く click を下の要素へ通さない（別の場所の操作は妨げない）。
 const guardClicks = (x, y) => { guardUntil = performance.now() + 400; guardAt = x == null ? null : { x, y }; };
@@ -3375,7 +3447,7 @@ function openNotifyTarget({ day, eventId }) {
   MM.open = null;
   set({ selected: day, home: false, view: spreadKind ? 'month' : 'day', ...(needTime ? { pages: selectPage(state.pages, 'right', 'time') } : {}) });
   if (!target) { say(`${dayLabel(day)}を開きました。`); return; }
-  const sel = spreadKind ? '.page[data-page="time"] .tlev, .page[data-page="time"] .adpill' : '.daylist .event';
+  const sel = spreadKind ? '.page[data-page="time"] .tlev, .page[data-page="time"] .adpill' : '.daylist .event, .tlx .tlev, .tlx .adpill';
   const el = [...root.querySelectorAll(sel)].find((b) => b.dataset.event === target.id && (!b.dataset.sday || b.dataset.sday === day));
   if (el) {
     const tl = el.closest('.tl');
@@ -3490,8 +3562,8 @@ document.addEventListener('keydown', (ev) => {
 }
 
 // ---------- スワイプ（左＝次、右＝前） ----------
-const SWIPE_ZONE = '.scroll, .agenda, .remaining, .hero, .page, .list';
-const SWIPE_EXCLUDE = '.top, .shead, .rhead, .allday, .tlheads, .mmenu, .chead, .foot, .add, .tabs, .pgsw, .tlmenu, .ctl, .bandbg, .hline, .foldband, .gutter, input, select, textarea, label, dialog';
+const SWIPE_ZONE = '.scroll, .agenda, .remaining, .hero, .page, .list, .tlx';
+const SWIPE_EXCLUDE = '.top, .shead, .rhead, .allday, .tlheads, .mmenu, .chead, .foot, .add, .tabs, .pgsw, .tlmenu, .dbox, .ctl, .bandbg, .hline, .foldband, .gutter, input, select, textarea, label, dialog';
 let swiping = false;
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const paneContent = () => [...root.querySelectorAll('.scroll > *, .agenda > *, .hero > *, .remaining > *, .margin > *')];
@@ -3533,7 +3605,10 @@ const swipeCtl = initSwipe({
     if (anyPanel() || swiping || !(t instanceof Element) || !t.closest(SWIPE_ZONE) || t.closest(SWIPE_EXCLUDE)) return false;
     const pg = pageOf(t);
     swipePane = null;
-    if (!pg) return !t.closest('.tl'); // 見開き以外の時間軸は従来どおり対象外
+    if (!pg) { // 見開き以外の時間軸は従来どおり対象外。閉じた日・週（.tlx）は横にあふれていなければ日・週送りを許す
+      const x = t.closest('.tlx');
+      return x ? x.scrollWidth <= x.clientWidth + 1 : !t.closest('.tl');
+    }
     if (pg.id === 'task') return false;
     if (pg.id === 'memo' && isTextEl(document.activeElement)) return false; // メモを編集中は動かさない
     if (pg.id !== 'month') swipePane = pg.side;
@@ -3542,24 +3617,43 @@ const swipeCtl = initSwipe({
   onSwipe: swipeTo,
 });
 
-// ---------- 直接入力の起点（PR24: 共通制御のみ。画面への接続は PR25〜26） ----------
-// 起点の種別。既存予定・操作部品・入力欄の上は null（時間入力しない）。月チップは別種別 'chip'（後続のコピー用）。
-const DIRECT_ZONE_EXCLUDE = '.ev, .strip, .tlev, button, input, select, textarea, label, dialog, .tlheads, .tlmenu, .mmenu, .tabs';
+// ---------- 直接入力の起点（PR24 の共通制御へ PR25 で時間軸を接続。月・チップは PR26 以降） ----------
+// 既存予定・操作部品・入力欄の上は null。時刻座標のない行（旧一覧・余白）は時間入力にしない。
+const DIRECT_ZONE_EXCLUDE = '.ev, .strip, .tlev, .dbox, button, input, select, textarea, label, dialog, .tlheads, .tlmenu, .mmenu, .tabs';
 function directOrigin(t) {
   if (anyPanel() || !(t instanceof Element)) return null;
-  if (t.closest('.chip')) return { kind: 'chip' };
   if (t.closest(DIRECT_ZONE_EXCLUDE)) return null;
-  if (t.closest('.allday')) return { kind: 'allday' };
-  const col = t.closest('[data-day].tlcol, .tl [data-day]');
-  if (col) return { kind: 'time', day: col.dataset.day };
-  const cell = t.closest('[data-day]');
-  if (cell && t.closest('.scroll, .page, .hero')) return { kind: 'month', day: cell.dataset.day };
+  const ad = t.closest('.allday');
+  if (ad) { const c = t.closest('.adcol'); return c ? { kind: 'allday', day: c.dataset.day } : null; } // 「終日」の文字や段の外は対象外
+  const col = t.closest('.tlcol');
+  if (col && col.closest('.tl')) return { kind: 'time', day: col.dataset.day, pane: paneOf(col.closest('.tl')) };
   return null;
 }
-const DIRECT_INPUT_WIRED = false; // 次PRで画面接続するまで起点を返さない（既存操作は不変）
+const dragAt = (y, o) => { const col = colOf(o.pane, o.day); return col ? minAtY(y, col, o.pane) : null; };
+const DIR = { anchor: 0 };
 initDirectInput({
   root, swipe: swipeCtl,
-  classify: (t, ev) => (DIRECT_INPUT_WIRED ? directOrigin(t, ev) : null),
+  classify: (t) => directOrigin(t),
+  onStart: ({ origin: o, y }) => {
+    if (o.kind !== 'time') return;
+    const m = dragAt(y, o); if (m == null) return;
+    DIR.anchor = m;
+    Object.assign(DF, { mode: 'drag', day: o.day, pane: o.pane, anchor: m }, dragRange(m, m));
+    paintDraft();
+  },
+  onMove: ({ y, origin: o }) => {
+    if (o.kind !== 'time' || DF.mode !== 'drag') return;
+    const m = dragAt(y, o); if (m == null) return;
+    const r = dragRange(DIR.anchor, m);
+    if (r.start !== DF.start || r.end !== DF.end) { Object.assign(DF, r); paintDraft(); }
+  },
+  onEnd: ({ y, origin: o }) => {
+    if (o.kind === 'allday') { openEditor(null, root.querySelector('[data-act="add"]'), o.day, null, { all: true, direct: true }); return; }
+    if (o.kind !== 'time' || DF.mode !== 'drag') return;
+    const m = dragAt(y, o); if (m != null) Object.assign(DF, dragRange(DIR.anchor, m));
+    openDraft();
+  },
+  onCancel: () => { if (DF.mode === 'drag') clearDraftBox(); },
 });
 
 // ---------- 起動 ----------

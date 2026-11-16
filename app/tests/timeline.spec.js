@@ -312,7 +312,7 @@ test.describe('見開き: 右ページの時間軸', () => {
     expect((await center()).h).toBeGreaterThan(60);
   });
 
-  test('空きタップで30分刻みの1時間の予定を追加。ドラッグ・ピンチの後は追加しない', async ({ page }) => {
+  test('空きタップで15分刻みの1時間の仮枠→再タップで追加。ドラッグ・ピンチの後は追加しない', async ({ page }) => {
     await openApp(page, SIZES.openLandscape951);
     await page.locator('.tl').evaluate((e) => { e.scrollTop = 500; });
     const at = (min) => page.locator('.tlcol').evaluate((c, min) => { const r = c.getBoundingClientRect(), h = parseFloat(getComputedStyle(c.closest('.tl')).getPropertyValue('--hh')); return { x: r.left + r.width / 2, y: r.top + 12 + min * h / 60 }; }, min);
@@ -321,7 +321,10 @@ test.describe('見開き: 右ページの時間軸', () => {
     await expect(page.locator('#editor')).toBeHidden(); // ドラッグ後
     await page.waitForTimeout(450);
     const q = await at(10 * 60 + 40);
-    await page.mouse.click(q.x, q.y);
+    await page.mouse.click(q.x, q.y); // PR25: 1回目は1時間の仮枠だけ（15分刻み）。2回目の枠タップでシート
+    await expect(page.locator('#editor')).toBeHidden();
+    await expect(page.locator('.dbox')).toHaveCount(1);
+    await page.locator('.dbox').click({ position: { x: 30, y: 25 } });
     await expect(page.locator('#editor')).toBeVisible();
     await expect(page.locator('#f-start')).toHaveValue('2026/11/12 10:30');
     await expect(page.locator('#f-end')).toHaveValue('2026/11/12 11:30');
@@ -332,6 +335,7 @@ test.describe('見開き: 右ページの時間軸', () => {
     const r = await at(14 * 60);
     await page.mouse.click(r.x, r.y);
     await expect(page.locator('#editor')).toBeHidden();
+    await expect(page.locator('.dbox')).toHaveCount(0); // ピンチ直後の空きタップは仮枠も作らない
   });
 
   test('時間ページの 1日・週・一覧は右ページの中で描き、左の月は残る（旧「週で左右を分割」の読み替え）', async ({ page }) => {

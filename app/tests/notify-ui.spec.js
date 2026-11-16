@@ -308,12 +308,12 @@ test.describe('ベル', () => {
     await seed(page, [A, B]);
     expect(await page.locator('.week .bell').count()).toBe(0);
     await pickDay(page, '2026-11-13');
-    const bell = page.locator('.daylist [data-event="a1"] .bell');
+    const bell = page.locator('.tlev[data-event="a1"] .bell');
     await expect(bell).toHaveCount(1);
     const r = await bell.boundingBox();
     expect(Math.round(r.width)).toBe(12);
-    await expect(page.locator('.daylist [data-event="a1"]')).toHaveAttribute('aria-label', /通知 30分前、1日前/);
-    await expect(page.locator('.daylist [data-event="b1"] .bell')).toHaveCount(0);
+    await expect(page.locator('.tlev[data-event="a1"]')).toHaveAttribute('aria-label', /通知 30分前、1日前/);
+    await expect(page.locator('.tlev[data-event="b1"] .bell')).toHaveCount(0);
     const o = await page.evaluate(() => ({ sw: document.scrollingElement.scrollWidth, cw: document.scrollingElement.clientWidth }));
     expect(o.sw).toBeLessThanOrEqual(o.cw);
   });
@@ -332,7 +332,7 @@ test.describe('ベル', () => {
     await openApp(page, SIZES.closedPortrait, '?nosw');
     await seed(page, [A]);
     await pickDay(page, '2026-11-13');
-    await expect(page.locator('.daylist [data-event="a1"]')).toBeVisible();
+    await expect(page.locator('.tlev[data-event="a1"]')).toBeVisible();
     expect(await page.locator('.bell').count()).toBe(0);
   });
 });
@@ -346,7 +346,7 @@ test.describe('通知のタップ', () => {
     await openApp(page, SIZES.closedPortrait, '?nosw');
     await seed(page, [A]);
     await tap(page, { day: '2026-11-13', eventId: 'a1' });
-    await expect(page.locator('.daylist [data-event="a1"].nhl')).toHaveCount(1);
+    await expect(page.locator('.tlev[data-event="a1"].nhl')).toHaveCount(1);
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')).view)).toBe('day');
     await expect(page.locator('#editor')).toBeHidden();
     await expect(page.locator('.nhl')).toHaveCount(0, { timeout: 3000 });
@@ -401,8 +401,8 @@ test.describe('通知のタップ', () => {
     await openApp(page, SIZES.closedPortrait, '?nosw');
     await seed(page, [ev('r1', '毎日', '2026-11-12T08:00', '2026-11-12T08:30', { alarms: [{ before: 5 }], recurrence: { freq: 'daily', interval: 1, byDay: null, count: null, until: null } })]);
     await tap(page, { day: '2026-11-14', eventId: 'r1' });
-    await expect(page.locator('.daylist .event.nhl')).toHaveCount(1);
-    await expect(page.locator('.daylist .event.nhl')).toHaveAttribute('data-event', /^r1@2026-11-14/);
+    await expect(page.locator('.tlev.nhl')).toHaveCount(1);
+    await expect(page.locator('.tlev.nhl')).toHaveAttribute('data-event', /^r1@2026-11-14/);
   });
 });
 
@@ -436,6 +436,6 @@ async function pickDay(page, day) {
 }
 async function openEv(page, day, id) {
   await pickDay(page, day);
-  await page.locator(`.daylist [data-event="${id}"], .agenda [data-event="${id}"]`).first().click();
+  await page.locator(`.tlev[data-event="${id}"], .agenda [data-event="${id}"]`).first().click();
   await expect(page.locator('#editor')).toBeVisible();
 }

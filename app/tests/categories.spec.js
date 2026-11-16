@@ -87,10 +87,10 @@ test.describe('DB v2 → v3 移行', () => {
     expect(by.m5.exdates).toEqual(['2026-11-16T09:00']);
     // 画面の色は従来と同じ（経済指標も編集できる普通のカテゴリとして残る）
     await tab(page, '日').click();
-    await expect(page.locator('.daylist .event', { hasText: '仕事の予定' })).toBeVisible();
-    expect(await page.locator('.daylist .event', { hasText: '仕事の予定' }).evaluate((el) => getComputedStyle(el).getPropertyValue('--cat').trim())).toBe('#375a7f');
-    expect(await page.locator('.daylist .event', { hasText: '指標' }).evaluate((el) => getComputedStyle(el).getPropertyValue('--cat').trim())).toBe('#825a23');
-    await expect(page.locator('.daylist .event', { hasText: '指標' }).locator('.tag')).toHaveText('経済指標');
+    await expect(page.locator('.tlev', { hasText: '仕事の予定' })).toBeVisible();
+    expect(await page.locator('.tlev', { hasText: '仕事の予定' }).evaluate((el) => getComputedStyle(el).getPropertyValue('--cat').trim())).toBe('#375a7f');
+    expect(await page.locator('.tlev', { hasText: '指標' }).evaluate((el) => getComputedStyle(el).getPropertyValue('--cat').trim())).toBe('#825a23');
+    await expect(page.locator('.tlev', { hasText: '指標' })).toHaveAttribute('aria-label', /、経済指標/);
     // 再読み込みしても重複しない
     await page.reload(); await page.waitForSelector('html[data-ready]');
     expect(await page.evaluate(async () => (await (await import('/js/db.js')).listCategories()).length)).toBe(5);
@@ -144,12 +144,12 @@ test.describe('カテゴリ編集パネル', () => {
     expect(cats.find((c) => c.id === CAT_IDS.family)).toMatchObject({ name: 'ファミリー', color: '#a13a3a' });
     // 予定は id で結ばれているので、改名しても外れず、新しい名前・色で表示される
     await tab(page, '日').click();
-    const card = page.locator('.daylist .event', { hasText: '予定A' });
-    await expect(card.locator('.tag')).toHaveText('ファミリー');
+    const card = page.locator('.tlev', { hasText: '予定A' });
+    await expect(card).toHaveAttribute('aria-label', /、ファミリー/);
     expect(await card.evaluate((el) => getComputedStyle(el).getPropertyValue('--cat').trim())).toBe('#a13a3a');
     await page.reload(); await page.waitForSelector('html[data-ready]');
     await tab(page, '日').click();
-    await expect(page.locator('.daylist .event', { hasText: '予定A' }).locator('.tag')).toHaveText('ファミリー');
+    await expect(page.locator('.tlev', { hasText: '予定A' })).toHaveAttribute('aria-label', /、ファミリー/);
     await tab(page, '月').click();
     await legendCheck(page, (l) => expect(l).toContainText('ヨガ'));
   });
@@ -188,14 +188,14 @@ test.describe('カテゴリ編集パネル', () => {
     await openApp(page);
     await seed(page, [ev('a', '仕事A', '2026-11-12T10:00', '2026-11-12T11:00'), ev('b', '家族B', '2026-11-12T12:00', '2026-11-12T13:00', { categoryId: CAT_IDS.family })]);
     await tab(page, '日').click();
-    await expect(page.locator('.daylist .event')).toHaveCount(2);
+    await expect(page.locator('.tlev')).toHaveCount(2);
     await openCats(page);
     await rowOf(page, '家族').locator('[role=switch]').click();
     await expect(rowOf(page, '家族').locator('[role=switch]')).toHaveAttribute('aria-checked', 'false');
     await expect(page.locator('#cat-hidden')).toHaveText('1件のカテゴリを非表示中');
     await page.locator('#cat-close').click();
-    await expect(page.locator('.daylist .event')).toHaveCount(1);
-    await expect(page.locator('.daylist .event')).toContainText('仕事A');
+    await expect(page.locator('.tlev')).toHaveCount(1);
+    await expect(page.locator('.tlev')).toContainText('仕事A');
     await tab(page, '月').click();
     await legendCheck(page, (l) => expect(l).not.toContainText('家族'));
     expect(await dbEvents(page)).toHaveLength(2);
@@ -203,7 +203,7 @@ test.describe('カテゴリ編集パネル', () => {
     await rowOf(page, '家族').locator('[role=switch]').click();
     await page.locator('#cat-close').click();
     await tab(page, '日').click();
-    await expect(page.locator('.daylist .event')).toHaveCount(2);
+    await expect(page.locator('.tlev')).toHaveCount(2);
   });
 
   test('削除: 予定の移し先を選ばせ、予定（繰り返しの個別変更を含む）を移す。再読み込み後も維持', async ({ page }) => {
@@ -230,7 +230,7 @@ test.describe('カテゴリ編集パネル', () => {
     expect(evs.filter((e) => e.categoryId === CAT_IDS.family).map((e) => e.id).sort()).toEqual(['a', 'b']);
     expect(evs.find((e) => e.id === 'r').overrides['2026-11-16T09:00'].categoryId).toBe(CAT_IDS.family);
     await tab(page, '日').click();
-    await expect(page.locator('.daylist .event', { hasText: '外出A' }).locator('.tag')).toHaveText('家族');
+    await expect(page.locator('.tlev', { hasText: '外出A' })).toHaveAttribute('aria-label', /、家族/);
     await page.reload(); await page.waitForSelector('html[data-ready]');
     expect((await dbCats(page)).map((c) => c.name)).toEqual(['仕事', 'プライベート', '家族', 'その他']);
     expect((await dbEvents(page)).filter((e) => e.categoryId === CAT_IDS.family)).toHaveLength(2);

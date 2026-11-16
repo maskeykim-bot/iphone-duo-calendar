@@ -20,6 +20,22 @@ export function dragRange(anchor, cur, initial = 30) {
   const start = Math.max(0, cur); // 上へ: 触れた時刻が終わり
   return { start, end: Math.min(1440, Math.max(anchor, start + 15)) };
 }
+// 短tapの仮枠: 触れた時刻（15分刻み）から1時間。日の終わりを越えないよう開始を詰める。
+export function tapRange(m, len = 60) {
+  const start = Math.max(0, Math.min(snap15(m), 1440 - len));
+  return { start, end: start + len };
+}
+// 開始・終了のどちらか一方の取っ手を動かす。最小15分・日境界で clamp。
+export function moveHandle(r, which, m) {
+  if (which === 'start') return { start: Math.max(0, Math.min(snap15(m), r.end - 15)), end: r.end };
+  return { start: r.start, end: Math.min(1440, Math.max(snap15(m), r.start + 15)) };
+}
+export const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+export function durText(min) {
+  const h = Math.floor(min / 60), m = min % 60;
+  return `${h ? `${h}時間` : ''}${m ? `${m}分` : ''}`;
+}
+export const spanText = (r) => `${hm(r.start)}〜${hm(r.end)}（${durText(r.end - r.start)}）`;
 // 点が入る日（rects: [{key,left,right,top,bottom}]）。入らなければ null。
 export function dayAt(x, y, rects) {
   for (const r of rects) if (x >= r.left && x < r.right && y >= r.top && y < r.bottom) return r.key;

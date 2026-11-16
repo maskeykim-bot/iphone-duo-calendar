@@ -36,12 +36,12 @@ test.describe('非表示カテゴリと新しい予定', () => {
     const note = page.locator('#hidden-notice');
     await expect(note).toContainText('非表示のカテゴリに保存しました');
     await tab(page, '日').click();
-    await expect(page.locator('.daylist .event')).toHaveCount(0);
+    await expect(page.locator('.tlev')).toHaveCount(0);
     await note.getByRole('button', { name: '表示する' }).click();
     await expect(note).toBeHidden();
     expect((await dbCats(page)).find((c) => c.id === CAT_IDS.work).hidden).toBe(false);
     expect(await dbEvents(page)).toHaveLength(1);
-    await expect(page.locator('.daylist .event')).toContainText('隠れる予定');
+    await expect(page.locator('.tlev')).toContainText('隠れる予定');
   });
   test('知らせは4秒で消え、表示中のカテゴリへの保存では出ない', async ({ page }) => {
     await openApp(page);

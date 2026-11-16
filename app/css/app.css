@@ -836,3 +836,21 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .menurows .tkpanel button[aria-checked=true]{font-weight:700}
 .menurows .tkpanel button[aria-checked=true]::after{content:"✓";margin-left:auto;color:var(--green)}
 .tkdot{flex:none;width:10px;height:10px;border-radius:50%}
+/* 第14版 PR25: 閉じた日・週の時間軸（日1列／週7列。狭幅は横スクロール）と直接入力の枠 */
+.tlx{flex:1;min-height:0;display:flex;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain}
+.tlw{flex:1 0 auto;display:flex;flex-direction:column;min-height:0;width:100%}
+.tlx .tl,.tlx .tl *{touch-action:pan-x pan-y}
+.tlx .allday,.tlx .tlheads{flex:none}
+.tlempty{flex:none;text-align:center}
+.closed .tlx{padding:0 4px}
+.dbox{position:absolute;z-index:4;left:0;right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:calc(var(--d) * var(--hh) / 60);box-sizing:border-box;border:2px solid var(--cat);border-radius:6px;background:var(--tint);color:var(--cat);padding:1px 6px;overflow:visible;pointer-events:auto;touch-action:none}
+.dbox .dt{display:block;font-size:13px;line-height:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dbox .ds{display:block;font-size:11px;line-height:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdl{position:absolute;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px var(--cat);touch-action:none}
+.hdl:before{content:'';position:absolute;left:50%;top:50%;width:44px;height:44px;transform:translate(-50%,-50%)}
+.hdl-s{right:6px;top:-6px}
+.hdl-e{left:6px;bottom:-6px}
+.dtag{position:absolute;z-index:5;left:3px;width:44px;height:18px;border-radius:4px;background:#294E42;color:#fff;font-size:10px;font-weight:700;line-height:18px;text-align:center;pointer-events:none;font-variant-numeric:tabular-nums}
+.allday .adcols{align-self:stretch}
+.tlx .tlhd{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding:0;font-size:12px;line-height:1.15;overflow:hidden}
+.tlx .tlhd .wrk{display:block;font-size:9px;font-weight:400}
