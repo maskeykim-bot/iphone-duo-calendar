@@ -23,7 +23,7 @@ async function setup(page, { perm = 'granted', cals = CALS, link = null, listFai
         switch (method) {
           case 'checkPermission': return { status: M.perm };
           case 'requestPermission': M.perm = M.afterRequest || 'granted'; return { status: M.perm };
-          case 'openSettings': return { opened: true };
+          case 'openSettings': return { opened: M.openedResult !== false };
           case 'listCalendars': if (M.listFail) throw { code: 'UNAVAILABLE', message: 'x' }; return { calendars: M.cals };
           case 'listEvents': return { events: [] };
           case 'reminderPermission': return { status: M.remLists ? 'granted' : 'notDetermined' };
@@ -102,6 +102,27 @@ test.describe('設定 › カレンダー（PR8）', () => {
     await openMenu(page, 'calendar');
     await expect(rows(page)).toHaveCount(5);
     await expect(page.locator('#m-cal-ip')).not.toContainText('設定アプリで許可');
+  });
+
+  test('Google の案内: 手順を表示し、設定を開く。開けない時は手動の案内。Gmail 追加後は source 別一覧と追加先に出る', async ({ page }) => {
+    await setup(page, { perm: 'granted' });
+    await openMenu(page, 'google');
+    await expect(page.locator('#m-gsteps li')).toHaveCount(4);
+    await page.locator('#m-gset').click();
+    expect(await mockCalls(page, 'openSettings')).toHaveLength(1);
+    await expect(page.locator('#m-gmsg')).toBeHidden();
+    await page.evaluate(() => { window.__mock.openedResult = false; });
+    await page.locator('#m-gset').click();
+    expect(await mockCalls(page, 'openSettings')).toHaveLength(2);
+    await expect(page.locator('#m-gmsg')).toContainText('「設定」アプリから');
+    // Gmail を追加して復帰
+    await page.evaluate(() => { window.__mock.cals = [...window.__mock.cals, { id: 'cal-gm', title: 'Gmail予定', color: '#0b8043', sourceId: 's-gm', source: 'work@example.com', sourceType: 'caldav', allowsModify: true }]; window.__mock.listeners.calendarChanged?.({}); document.dispatchEvent(new Event('visibilitychange')); });
+    await page.locator('#m-back').click();
+    await page.locator('[data-go="calendar"]').click();
+    await expect(page.locator('#m-cal-ip .calsec', { hasText: 'work@example.com' })).toBeVisible();
+    await expect(page.locator('[data-cal="cal-gm"]')).toHaveCount(1);
+    await page.locator('#m-dest').click();
+    await expect(page.locator('#m-destpop')).toContainText('Gmail予定');
   });
 
   test('空の一覧・取得失敗: 案内を出し、落ちない', async ({ page }) => {

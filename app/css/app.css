@@ -942,6 +942,8 @@ body[data-layout=spread] dialog#menu,body[data-layout=desk] dialog#menu{height:a
 .sfoot{margin:14px 20px;font-size:11px;color:#A8ABA4}
 .mscreens .swnote{padding:0 20px}
 .mscreens .mlegend{margin:6px 20px 2px}
+/* Google の追加手順 */
+.gsteps{margin:4px 20px 6px;padding-left:20px;font-size:13px;line-height:1.5;color:#3A423C}
 #m-gset{margin:8px 20px;width:calc(100% - 40px)}
 /* 帯の設定ボタンは開いている間 × にする（閉じる／戻るの入口） */
 body.settings-open .ctl.band [data-act=menu] .bi svg{display:none}

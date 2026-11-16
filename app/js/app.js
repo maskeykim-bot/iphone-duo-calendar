@@ -2316,7 +2316,7 @@ function openMenu(from) {
   $('#m-desk').hidden = L.w < 600 || L.h < 600;
   $('#m-notify').hidden = !NATIVE;
   $('#m-reminders').hidden = !NATIVE;
-  $('#m-gset').hidden = !NATIVE;
+  $('#m-gset').hidden = !NATIVE; $('#m-gmsg').hidden = true;
   $('#m-desk').textContent = state.desk ? '卓上表示をやめる' : '卓上表示';
   $('#m-week').textContent = `週の始まり: ${state.weekStart === 1 ? '月曜（日曜にする）' : '日曜（月曜にする）'}`;
   $('#m-sample').hidden = !(state.loaded && state.events.length === 0);
@@ -2411,7 +2411,7 @@ menuDlg.addEventListener('click', (ev) => {
   const go = ev.target.closest('[data-go]');
   if (go) { showMenuScreen(go.dataset.go, true); return; }
   if (ev.target.closest('#m-back')) { menuBack(); return; }
-  if (ev.target.closest('#m-gset')) { openSettings(); return; }
+  if (ev.target.closest('#m-gset')) { openGoogleSettings(); return; }
   const mb = ev.target.closest('[data-mode]');
   if (mb) { closePanel(menuDlg); const m = mb.dataset.mode; set(m === 'all' ? { monthExpand: true } : { style: m, monthExpand: false }); return; }
   const b = ev.target.closest('[data-m]');
@@ -3801,6 +3801,12 @@ xrDlg.addEventListener('close', () => {
 
 // ---------- 通知（編集シートの行・設定パネル・許可・タップ） ----------
 const AL = { wrap: $('#alwrap'), sel: [$('#f-al0'), $('#f-al1')], row: [$('#al0-row'), $('#al1-row')], val: [$('#al0-v'), $('#al1-v')], note: $('#al-note'), off: $('#al-off'), perm: $('#al-perm'), xperm: $('#al-xperm'), ilink: $('#al-ilink'), extra: $('#al-extra') };
+const openGoogleSettings = async () => {
+  const m = $('#m-gmsg'); m.hidden = true;
+  let r = null;
+  try { r = await call('openSettings'); } catch { /* 下の案内を出す */ }
+  if (!r?.opened) { m.textContent = '設定アプリを開けませんでした。iPhone の「設定」アプリから、カレンダー › アカウント へ進んでください。'; m.hidden = false; }
+};
 const openSettings = async () => { try { await call('openSettings'); } catch { /* 開けなくても案内は残る */ } };
 // 編集中の予定の iPhone との関係。linked / pending は iPhone 側のアラームが鳴らす（Duo は鳴らさない）。
 const editLinked = () => {
