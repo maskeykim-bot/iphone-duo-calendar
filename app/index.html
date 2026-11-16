@@ -124,6 +124,12 @@
     <button type="button" data-m="msize" id="m-msize" aria-pressed="false">月の文字</button>
     <button type="button" data-m="rokuyo" id="m-rokuyo" class="swrow" role="switch" aria-checked="true" aria-describedby="m-rokuyo-d"><span>六曜を表示</span><i class="rkswitch" aria-hidden="true"></i></button>
     <p id="m-rokuyo-d" class="swnote">月のマスと日の見出しに、大安・仏滅などを出します。</p>
+    <div id="m-tk" hidden>
+      <button type="button" data-m="tkmonth" id="m-tkmonth" class="swrow" role="switch" aria-checked="false" aria-describedby="m-tkmonth-d"><span>月にタスクを表示</span><i class="rkswitch" aria-hidden="true"></i></button>
+      <p id="m-tkmonth-d" class="swnote">開いた画面の月に、期限の日の未完了の数（✓2）を出します。</p>
+      <button type="button" data-m="tklists" id="m-tklists" aria-expanded="false" aria-controls="m-tkpanel">タスクのリスト・追加先</button>
+      <div id="m-tkpanel" class="tkpanel" hidden></div>
+    </div>
     <div id="m-tlz" class="tlz" role="group" aria-label="時間軸の大きさ" hidden><button type="button" data-m="tlout">時間軸を縮小</button><button type="button" data-m="tlin">時間軸を拡大</button></div>
     <button type="button" data-m="sample" id="m-sample">サンプルを入れる</button>
     <button type="button" data-m="close">閉じる</button>

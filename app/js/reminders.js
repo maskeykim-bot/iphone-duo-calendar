@@ -93,7 +93,7 @@ export function groupReminders(items, { now = new Date(), selected, histDays = H
 
 // 一覧の読込。リスト一覧→listIds（すべて）→listReminders。古い要求は世代で捨てる（捨てた分は null）。
 // 権限エラーは投げる。CANCELLED は後続の要求に置き換わった印として null。
-export function createReminderLoader(call) {
+export function createReminderLoader(call, { pick } = {}) {
   let gen = 0;
   return {
     cancel() { gen++; },
@@ -103,7 +103,7 @@ export function createReminderLoader(call) {
         const l = await call('listReminderLists', {});
         if (g !== gen) return null;
         const lists = Array.isArray(l?.lists) ? l.lists : [];
-        const reminders = await listReminders(call, lists.map((x) => x.id), completedSinceStamp(now, days));
+        const reminders = await listReminders(call, (pick ? pick(lists) : lists.map((x) => x.id)), completedSinceStamp(now, days));
         if (g !== gen) return null;
         return { lists, reminders };
       } catch (e) {
@@ -357,4 +357,49 @@ export function createDeleteController(call, { delay = DELETE_UNDO_MS, onChange,
     // 許可の取消など: 送っていないものは送らずに捨てる。
     reset() { for (const e of map.values()) clearTimeout(e.timer); map.clear(); },
   };
+}
+
+// ---- 第14版 PR23: タスクのリスト設定と月の件数（設定は端末内 duo-native-rem。バックアップには入れない） ----
+// lists: null＝すべて（新しいリストも自動で入る）| id 配列＝選んだリストだけ。addTo: ''＝自動（OS 既定→書ける先頭）| リスト id。monthTasks: 初期 off。
+export const REM_SETTINGS_DEFAULT = { lists: null, addTo: '', monthTasks: false };
+export function normRemSettings(raw) {
+  const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const lists = Array.isArray(o.lists) ? [...new Set(o.lists.filter((x) => typeof x === 'string' && x))] : null;
+  return { lists, addTo: typeof o.addTo === 'string' ? o.addTo : '', monthTasks: o.monthTasks === true };
+}
+// 表示するリストの id（実在するものだけ）。選択が空・全部消えたら「すべて」に戻す（何も見えない状態にしない）。
+export function shownListIds(s, lists) {
+  const all = (Array.isArray(lists) ? lists : []).filter((l) => l && typeof l.id === 'string').map((l) => l.id);
+  if (!s || !Array.isArray(s.lists)) return all;
+  const have = new Set(all), keep = s.lists.filter((id) => have.has(id));
+  return keep.length ? keep : all;
+}
+// 消えたリストの id を設定から除く。リスト一覧が空（取得の一時的な空）の時は触らない。変化がなければ同じ object を返す。
+export function pruneRemSettings(s, lists) {
+  const ids = new Set((Array.isArray(lists) ? lists : []).map((l) => l?.id));
+  if (!ids.size) return s;
+  let lists2 = s.lists, addTo = s.addTo;
+  if (Array.isArray(s.lists)) { const k = s.lists.filter((id) => ids.has(id)); if (k.length !== s.lists.length) lists2 = k.length ? k : null; }
+  if (addTo && !ids.has(addTo)) addTo = '';
+  return lists2 === s.lists && addTo === s.addTo ? s : { ...s, lists: lists2, addTo };
+}
+// 追加先。設定の先が実在して書ける時だけそれ、それ以外は自動（OS 既定→書ける先頭）。表示するリストとは独立。
+export function resolveAddList(lists, addTo) {
+  const ok = (Array.isArray(lists) ? lists : []).find((l) => l && l.id === addTo && l.allowsModify !== false);
+  return addTo && ok ? ok.id : pickAddList(lists);
+}
+// 表示するリストのタスクだけ。
+export function filterByLists(reminders, shown) {
+  const set = shown instanceof Set ? shown : new Set(shown);
+  return (Array.isArray(reminders) ? reminders : []).filter((r) => r && set.has(r.listId));
+}
+// 日付キー → 未完了で期限がその日のタスク数（表示リストのみ）。doneOverride: id→done（完了操作中の表示上の上書き）。タスク名は返さない。
+export function dueCounts(reminders, shown, doneOverride) {
+  const m = new Map();
+  for (const r of filterByLists(reminders, shown)) {
+    const done = doneOverride && doneOverride.has(r.itemId) ? doneOverride.get(r.itemId) : r.done;
+    if (done || !r.due?.date) continue;
+    m.set(r.due.date, (m.get(r.due.date) || 0) + 1);
+  }
+  return m;
 }

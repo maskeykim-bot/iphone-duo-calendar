@@ -826,3 +826,13 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 #tk-body .tkck input{display:inline-block;width:22px;min-height:22px;margin:0}
 .tknote .small{margin:0 0 4px}
 .tkextra{color:#8A5A00}
+
+/* ===== 第14版 PR23: タスクのリスト設定と月の件数 ===== */
+/* ✓N: 日付の数字の中心から右14pt・8pt。閉じた画面には JS が出さない */
+.week .tkn{position:absolute;left:calc(50% + 14px);top:0;z-index:1;font-size:8px;line-height:var(--date-h);color:#68716A;white-space:nowrap;pointer-events:none}
+.menurows .tkpanel{margin:2px 0 6px}
+.menurows .tkpanel .eyebrow{margin:6px 12px 2px}
+.menurows .tkpanel button{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;font-size:14px;text-align:left}
+.menurows .tkpanel button[aria-checked=true]{font-weight:700}
+.menurows .tkpanel button[aria-checked=true]::after{content:"✓";margin-left:auto;color:var(--green)}
+.tkdot{flex:none;width:10px;height:10px;border-radius:50%}

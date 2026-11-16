@@ -10,7 +10,7 @@ import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAl
 import { rokuyoOf } from './rokuyo.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS } from './pages.js';
 import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.js';
-import { DELETE_UNDO_MS, checkReminderAccess, requestReminderAccess, taskAccessHtml, createReminderLoader, tasksHtml, HIST_DAYS, pickAddList, createAddController, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDoneController, TASK_CONFLICT, createDeleteController, TASK_DELETED, TASK_DELETE_CONFLICT } from './reminders.js';
+import { DELETE_UNDO_MS, checkReminderAccess, requestReminderAccess, taskAccessHtml, createReminderLoader, tasksHtml, HIST_DAYS, createAddController, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDoneController, TASK_CONFLICT, createDeleteController, TASK_DELETED, TASK_DELETE_CONFLICT, normRemSettings, shownListIds, pruneRemSettings, resolveAddList, filterByLists, dueCounts } from './reminders.js';
 import { call, errCode, errReason, errText, listen, nativeAvailable, reminderErrText } from './native.js';
 import { buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, pickAddCal, planNativeOps, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
 import {
@@ -483,14 +483,15 @@ const needOf = (used) => LANE_TOP + used * LANE_STEP + LANE_PAD;
 const colPos = (sc, ec) => `left:calc(${sc} * 100% / 7 + 1.5px);width:calc(${ec - sc + 1} * 100% / 7 - 3px)`;
 // 週の中身: 日セル（button）・+N（兄弟 button）・帯／チップ（兄弟 button）。ボタンの入れ子は作らない。
 // mode: simple（点）| named | all。
-function weekInner(w, { mode, cur, sel, today, cap, time }) {
+function weekInner(w, { mode, cur, sel, today, cap, time, tk = null }) {
   const { days, wev, items, hidden } = w;
   let html = '';
   days.forEach((k, col) => {
     const es = eventsOnDay(wev, k), d = parseKey(k), dow = d.getDay();
     const r = rkOf(k), label = d.getDate() === 1 ? (state.rokuyo ? `${d.getMonth() + 1}/1` : `${d.getMonth() + 1}月1日`) : d.getDate(); // 六曜オンの1日は「11/1」（左の六曜とぶつかるため）
+    const tn = tk?.get(k) || 0; // 月にタスクの件数（開いた画面だけ。タスク名は出さない）
     const dots = mode === 'simple' ? `<span class="dots">${es.slice(0, cap).map((e) => `<i class="dot ${catCls(e)}"${catSty(e)}></i>`).join('')}</span>` : '';
-    html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}${dow === 6 ? ' sat' : dow === 0 ? ' sun' : ''}" data-date="${k}" aria-label="${dayLabel(k)}${r ? `、${r.name}` : ''}、予定${es.length}件${xCount(es)}" aria-pressed="${k === sel}">${r ? `<span class="rk" aria-hidden="true">${r.name}</span>` : ''}<span class="num${state.rokuyo && d.getDate() === 1 ? ' sd' : ''}">${label}</span>${memoMark(k)}${dots}</button>`;
+    html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}${dow === 6 ? ' sat' : dow === 0 ? ' sun' : ''}" data-date="${k}" aria-label="${dayLabel(k)}${r ? `、${r.name}` : ''}、予定${es.length}件${xCount(es)}${tn ? `、未完了のタスク${tn}件` : ''}" aria-pressed="${k === sel}">${r ? `<span class="rk" aria-hidden="true">${r.name}</span>` : ''}<span class="num${state.rokuyo && d.getDate() === 1 ? ' sd' : ''}">${label}</span>${memoMark(k)}${tn ? `<span class="tkn" aria-hidden="true">✓${tn}</span>` : ''}${dots}</button>`;
     const extra = mode === 'simple' ? es.length - cap : hidden[col];
     if (extra > 0) html += `<button type="button" class="plus" data-jump="${k}" style="right:calc(${6 - col} * 100% / 7)" aria-label="${dayLabel(k)}の予定をすべて見る（ほか${extra}件）">+${extra}</button>`;
   });
@@ -509,11 +510,11 @@ function weekInner(w, { mode, cur, sel, today, cap, time }) {
 }
 function monthGrid(kind) {
   const sel = state.selected, today = todayKey(), cur = parseKey(sel).getMonth();
-  const mode = kind === 'portrait' ? 'named' : state.style, cfg = monthCfg(kind);
+  const mode = kind === 'portrait' ? 'named' : state.style, cfg = monthCfg(kind), tk = monthTaskCounts(kind);
   let html = '';
   for (const days of monthWeeks(sel)) {
     const w = mode === 'simple' ? { days, wev: occIn(days[0], days[6]), items: [], hidden: [] } : weekData(days, cfg.cap);
-    html += `<div class="week ${mode}" style="--need:${mode === 'simple' ? 56 : needOf(cfg.cap)}px">${weekInner(w, { mode, cur, sel, today, cap: cfg.cap, time: cfg.time })}</div>`;
+    html += `<div class="week ${mode}" style="--need:${mode === 'simple' ? 56 : needOf(cfg.cap)}px">${weekInner(w, { mode, cur, sel, today, cap: cfg.cap, time: cfg.time, tk })}</div>`;
   }
   return html;
 }
@@ -526,7 +527,7 @@ let allCtx = null;
 function monthGridAll(kind) {
   const weeks = monthWeeks(state.selected), cfg = monthCfg(kind);
   allWeeks = new Map();
-  allCtx = { mode: 'all', cap: cfg.allCap, time: cfg.time };
+  allCtx = { mode: 'all', cap: cfg.allCap, time: cfg.time, tk: monthTaskCounts(kind) };
   let rows = '';
   for (const days of weeks) {
     const w = weekData(days, cfg.allCap);
@@ -955,7 +956,7 @@ async function remSubmit() {
   if (a.busy || !i) return;
   a.title = i.value;
   const due = a.due === undefined ? state.selected : a.due;
-  const listId = pickAddList(RM.data?.lists);
+  const listId = addList();
   if (!a.title.trim() || !listId) return;
   a.busy = true; a.err = ''; i.readOnly = true; i.setAttribute('aria-busy', 'true');
   const r = await addCtl.submit({ title: a.title, listId, due, notify: a.notify });
@@ -977,7 +978,21 @@ async function remSubmit() {
 const newDraft = () => ({ open: false, title: '', due: undefined, notify: undefined, busy: false, err: '' }); // due: undefined＝選んでいる日に従う／null＝期限なし
 const RM = { add: newDraft(), state: null, gen: 0, data: null, err: false, doneOpen: false, histDays: HIST_DAYS, more: false, timer: 0, sig: '' };
 let tkDrop = null; // 編集シートを閉じる口（シート側の定義後に設定）
-const remLoader = createReminderLoader(call);
+// リスト設定（端末内。バックアップ対象外）。表示するリストと追加先は独立。
+const REM_KEY = `duo-native-rem${suffix}`;
+function loadRemSettings() { try { return normRemSettings(JSON.parse(localStorage.getItem(REM_KEY) || 'null')); } catch { return normRemSettings(null); } }
+let remSet = loadRemSettings();
+function setRemSettings(next) { remSet = next; try { localStorage.setItem(REM_KEY, JSON.stringify(remSet)); } catch { /* 無視 */ } }
+const shownIds = () => new Set(shownListIds(remSet, RM.data?.lists));
+const addList = () => resolveAddList(RM.data?.lists, remSet.addTo);
+// 月の「✓N」: 設定オン・許可済み・読み込み済みの時だけ。閉じた画面（browse）には出さない。
+function monthTaskCounts(kind) {
+  if (kind === 'browse' || !remSet.monthTasks || !NATIVE || RM.state !== 'granted' || !RM.data) return null;
+  const over = doneCtl.pending(), ids = delCtl.ids();
+  const list = ids.size ? RM.data.reminders.filter((x) => !ids.has(x.itemId)) : RM.data.reminders;
+  return dueCounts(list, shownIds(), over);
+}
+const remLoader = createReminderLoader(call, { pick: (lists) => shownListIds(remSet, lists) });
 const addCtl = createAddController(call);
 // 完了の丸: 即 native へ送り、1.5 秒後に完了段へ移す（PR19）。確定時に返ってきた1件で置き換える。失敗は表示を戻す。
 const doneCtl = createDoneController(call, {
@@ -1023,7 +1038,7 @@ function toggleDone(id) {
   say(now ? '完了にしました。' : '未完了に戻しました。');
 }
 function taskBody(where) {
-  if (RM.state === 'granted') return tasksHtml(RM.data && delCtl.ids().size ? { ...RM.data, reminders: RM.data.reminders.filter((x) => !delCtl.has(x.itemId)) } : RM.data, { selected: state.selected, doneOpen: RM.doneOpen, histDays: RM.histDays, loading: !RM.err, error: RM.err, busyMore: RM.more, pending: doneCtl.pending(), add: RM.data ? { draft: RM.add, listId: pickAddList(RM.data.lists) } : null });
+  if (RM.state === 'granted') return tasksHtml(RM.data ? { ...RM.data, reminders: filterByLists(RM.data.reminders, shownIds()).filter((x) => !delCtl.has(x.itemId)) } : RM.data, { selected: state.selected, doneOpen: RM.doneOpen, histDays: RM.histDays, loading: !RM.err, error: RM.err, busyMore: RM.more, pending: doneCtl.pending(), add: RM.data ? { draft: RM.add, listId: addList() } : null });
   return taskAccessHtml(RM.state, where, NATIVE);
 }
 // 許可がなくなったら、メモリ上のタスクも読込も捨てる（本文はどこにも保存していない）。
@@ -1034,6 +1049,7 @@ async function loadTasks() {
     const r = await remLoader.load(RM.histDays);
     if (!r || RM.state !== 'granted') return;
     RM.err = false; RM.more = false;
+    const pr = pruneRemSettings(remSet, r.lists); if (pr !== remSet) { setRemSettings(pr); RM.sig = ''; } // 消えたリストの id を除く
     const sig = JSON.stringify(r);
     if (sig === RM.sig && RM.data) return;
     RM.sig = sig; RM.data = r; render();
@@ -1214,7 +1230,7 @@ function pickPage(side, id) {
 function addFromHere(b) {
   const id = layoutKind() === 'spread' ? state.pages[state.lastSide] : panelOn() ? state.pages.portraitBottom : 'month';
   if (id === 'memo') { const ta = root.querySelector('textarea.memota'); if (ta) { ta.focus(); say('メモを書けます。'); } return; }
-  if (id === 'task') { if (RM.state === 'granted' && RM.data && pickAddList(RM.data.lists)) { openAdd(); say('タスクを入力できます。'); } else say(RM.state === 'granted' && RM.data ? '書き込めるリストがないため、タスクを追加できません。' : `${PAGE_NAMES[id]}の入力は準備中です。`); return; }
+  if (id === 'task') { if (RM.state === 'granted' && RM.data && addList()) { openAdd(); say('タスクを入力できます。'); } else say(RM.state === 'granted' && RM.data ? '書き込めるリストがないため、タスクを追加できません。' : `${PAGE_NAMES[id]}の入力は準備中です。`); return; }
   openEditor(null, b);
 }
 function say(msg) { $('#status').textContent = ''; requestAnimationFrame(() => { $('#status').textContent = msg; }); }
@@ -2005,6 +2021,7 @@ function openMenu(from) {
   syncMonthMenu();
   syncModeMenu();
   syncRokuyoMenu();
+  syncTaskMenu(true);
   $('#m-tlz').hidden = !root.querySelector('.tl');
   const cats = state.categories.filter((c) => !c.hidden);
   $('#m-legend').hidden = !cats.length;
@@ -2035,6 +2052,27 @@ function syncMonthMenu() {
   z.setAttribute('aria-pressed', String(state.monthTextSize === 'large'));
   z.textContent = `月の文字: ${state.monthTextSize === 'large' ? '大（標準にする）' : '標準（大にする）'}`;
 }
+// タスクの設定（ネイティブ版のみ）。月の件数のスイッチ／表示するリスト／追加先。
+function syncTaskMenu(reset = false) {
+  $('#m-tk').hidden = !NATIVE;
+  if (!NATIVE) return;
+  $('#m-tkmonth').setAttribute('aria-checked', String(remSet.monthTasks));
+  const b = $('#m-tklists'), p = $('#m-tkpanel');
+  if (reset) { p.hidden = true; b.setAttribute('aria-expanded', 'false'); }
+  if (p.hidden) return;
+  const lists = RM.state === 'granted' && RM.data ? RM.data.lists : null;
+  if (!lists) { p.innerHTML = '<p class="swnote">リマインダーの許可後に選べます。</p>'; return; }
+  const shown = shownIds(), addId = addList(), auto = !remSet.addTo || resolveAddList(lists, remSet.addTo) !== remSet.addTo;
+  const dot = (l) => `<i class="tkdot" style="background:${/^#[0-9a-fA-F]{6}$/.test(l.color || '') ? l.color : '#68716A'}" aria-hidden="true"></i>`;
+  const show = lists.map((l) => `<button type="button" role="checkbox" aria-checked="${shown.has(l.id)}" data-tkshow="${esc(l.id)}">${dot(l)}<span>${esc(l.title || '（名前なし）')}${l.allowsModify === false ? '（読み取り専用）' : ''}</span></button>`).join('');
+  const add = lists.filter((l) => l.allowsModify !== false).map((l) => `<button type="button" role="radio" aria-checked="${!auto && addId === l.id}" data-tkadd="${esc(l.id)}">${dot(l)}<span>${esc(l.title || '（名前なし）')}</span></button>`).join('');
+  p.innerHTML = `<div role="group" aria-label="表示するリスト"><div class="eyebrow">表示するリスト</div><button type="button" role="checkbox" aria-checked="${remSet.lists === null}" data-tkshow="">すべて</button>${show}</div>`
+    + `<div role="radiogroup" aria-label="タスクの追加先"><div class="eyebrow">タスクの追加先</div><button type="button" role="radio" aria-checked="${auto}" data-tkadd="">自動（iPhone の既定）</button>${add}</div>`;
+}
+function tkChanged(reload) {
+  RM.sig = ''; render(); syncTaskMenu(); placeMenu(origins.get(menuDlg));
+  if (reload) loadTasks();
+}
 function syncRokuyoMenu() { $('#m-rokuyo').setAttribute('aria-checked', String(state.rokuyo)); }
 // 月の表現（手帳｜予定名｜全部）。月表示のときだけ。1回選ぶと閉じる。
 function syncModeMenu() {
@@ -2045,6 +2083,25 @@ function syncModeMenu() {
   $('#m-variant').innerHTML = on ? variantBtns(isPortrait() ? 'portrait' : layoutKind()) : '';
 }
 menuDlg.addEventListener('click', (ev) => {
+  const ts = ev.target.closest('[data-tkshow]'), ta = ev.target.closest('[data-tkadd]');
+  if (ts || ta) {
+    const lists = RM.data?.lists || [];
+    if (ta) { setRemSettings({ ...remSet, addTo: ta.dataset.tkadd }); tkChanged(false); say('タスクの追加先を変えました。'); return; }
+    const id = ts.dataset.tkshow, all = lists.map((l) => l.id);
+    let next;
+    if (!id) next = null;
+    else {
+      const cur = new Set(shownListIds(remSet, lists));
+      if (cur.has(id)) cur.delete(id); else cur.add(id);
+      if (!cur.size) { say('表示するリストは1つ以上選んでください。'); return; }
+      next = all.every((x) => cur.has(x)) ? null : all.filter((x) => cur.has(x));
+    }
+    setRemSettings({ ...remSet, lists: next }); tkChanged(true); say('表示するリストを変えました。'); return;
+  }
+  const mb0 = ev.target.closest('[data-m="tkmonth"]');
+  if (mb0) { setRemSettings({ ...remSet, monthTasks: !remSet.monthTasks }); syncTaskMenu(); render(); say(`月にタスクを${remSet.monthTasks ? '表示します' : '表示しません'}。`); return; }
+  const tl = ev.target.closest('[data-m="tklists"]');
+  if (tl) { const p = $('#m-tkpanel'); p.hidden = !p.hidden; tl.setAttribute('aria-expanded', String(!p.hidden)); syncTaskMenu(); placeMenu(origins.get(menuDlg)); return; }
   const mb = ev.target.closest('[data-mode]');
   if (mb) { closePanel(menuDlg); const m = mb.dataset.mode; set(m === 'all' ? { monthExpand: true } : { style: m, monthExpand: false }); return; }
   const b = ev.target.closest('[data-m]');
@@ -2066,7 +2123,7 @@ menuDlg.addEventListener('click', (ev) => {
   else closePanel(menuDlg);
 });
 document.addEventListener('click', (ev) => {
-  if (menuDlg.open && !menuDlg.contains(ev.target) && !ev.target.closest('[data-act="menu"]')) closePanel(menuDlg);
+  if (menuDlg.open && !ev.composedPath().includes(menuDlg) && !ev.target.closest('[data-act="menu"]')) closePanel(menuDlg); // 中身を描き直してもメニュー内のクリックとして扱う
 });
 
 // ---------- カテゴリ編集（設定メニューから。追加・名前と色・並べ替え・非表示・削除） ----------
@@ -2312,7 +2369,7 @@ function renderBackup() {
   const dis = bk.busy ? ' disabled' : '';
   const st = countStats(state.events);
   if (bk.stage === 'main') {
-    BK.body.innerHTML = `<section class="card"><h3>書き出し</h3><p>予定${st.total}件・うち繰り返し${st.recurring}件／設定も含めて保存（日付のメモも含みます。タスクは含みません）</p><button type="button" class="solid" id="bk-export"${dis}>JSONを書き出す</button><p class="small">iPhoneでは共有シートの『ファイルに保存』で残せます。</p>${bk.msg ? `<p class="bmsg">${esc(bk.msg)}</p>` : ''}</section>
+    BK.body.innerHTML = `<section class="card"><h3>書き出し</h3><p>予定${st.total}件・うち繰り返し${st.recurring}件／設定も含めて保存（日付のメモも含みます。タスクと、タスクのリスト・追加先・月の件数の設定は含みません）</p><button type="button" class="solid" id="bk-export"${dis}>JSONを書き出す</button><p class="small">iPhoneでは共有シートの『ファイルに保存』で残せます。</p>${bk.msg ? `<p class="bmsg">${esc(bk.msg)}</p>` : ''}</section>
       <section class="card"><h3>読み込み</h3><p>書き出したJSONファイルから予定を戻します。</p><button type="button" id="bk-pick"${dis}>JSONファイルを選ぶ</button>${bk.busy ? '<p class="small" role="status">ファイルを検証しています…</p>' : ''}${bk.err ? `<p class="berr" role="alert">${esc(bk.err)}</p>` : ''}</section>`;
   } else if (bk.stage === 'invalid') {
     BK.body.innerHTML = `<section class="card"><h3>読み込めませんでした</h3><p class="berr" role="alert">このファイルは読み込めません。DuoのバックアップJSONを選んでください。</p><p class="small">ファイル：${esc(bk.name)}</p><p class="small">理由：${esc(bk.reason)}</p><p class="small">今の予定は変更していません。</p><button type="button" id="bk-pick">ファイルを選び直す</button><button type="button" id="bk-back" class="row cancel">戻る</button></section>`;
