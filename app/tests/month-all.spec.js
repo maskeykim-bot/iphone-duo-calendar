@@ -349,3 +349,31 @@ test.describe('週の始まり（月曜が既定）', () => {
     await expect(page.locator('.weekrow .wd').last()).toContainText('15（日）');
   });
 });
+
+test.describe('開いた横の「全」は1日5件', () => {
+  for (const size of [{ width: 951, height: 669 }, { width: 890, height: 626 }]) {
+    test(`${size.width}x${size.height}: 7件の日は5件+「+2」。内部スクロールで最終週へ。オフで元の段数`, async ({ page }) => {
+      await openApp(page, size);
+      await seed(page, many(day(12), 7));
+      expect(await layout(page)).toBe('spread');
+      const offStrips = async () => page.locator('.week.named [data-date="2026-11-12"] .strip, .week.simple [data-date="2026-11-12"] .strip').count();
+      await setStyle(page, '予定名');
+      const before = await offStrips();
+      expect(before).toBeLessThan(5);
+      await setStyle(page, '全部');
+      const sc = page.locator('.scroll.all');
+      await expect(sc).toBeVisible();
+      await expect(page.locator('.week.all .strip').filter({ hasText: /^m12-/ })).toHaveCount(5);
+      await expect(page.locator('.plus[data-jump="2026-11-12"]')).toHaveText('+2');
+      const m = await sc.evaluate((e) => { e.scrollTop = e.scrollHeight; const r = e.getBoundingClientRect(); return { sh: e.scrollHeight, ch: e.clientHeight, bottom: r.bottom }; });
+      expect(m.sh).toBeGreaterThan(m.ch);
+      const last = await page.locator('.week.all').last().boundingBox();
+      expect(last.y + last.height).toBeLessThanOrEqual(m.bottom + 1);
+      const tabs = await page.locator('[data-pick="month"][data-side="left"]').boundingBox();
+      if (tabs) expect(m.bottom).toBeLessThanOrEqual(tabs.y + 0.5);
+      await setStyle(page, '予定名');
+      await expect(page.locator('.scroll.all')).toHaveCount(0);
+      expect(await offStrips()).toBe(before);
+    });
+  }
+});

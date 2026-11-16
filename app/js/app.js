@@ -471,7 +471,7 @@ function monthCfg(kind) {
     const n = monthWeeks(state.selected).length, nominal = (n >= 6 ? 4 : 5) - (large ? 1 : 0);
     const fit = Math.max(1, Math.floor((spreadWeekH - LANE_TOP - 14) / LANE_STEP) + 1);
     const cap = Math.min(nominal, fit);
-    return { cap, allCap: cap, time: state.monthTimeOpen };
+    return { cap, allCap: large ? 4 : 5, time: state.monthTimeOpen };
   }
   if (kind === 'portrait' && portraitWeekH > 0) {
     // 下パネル表示中の縦: 6/5週は3段、4週は5段（大文字は1件減）。1週の高さに収まる段数まで下げ、あふれは +N。
