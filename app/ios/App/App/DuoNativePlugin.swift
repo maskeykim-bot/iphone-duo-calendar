@@ -491,7 +491,7 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
     @objc func createReminder(_ call: CAPPluginCall) {
         guard ensureReminderAccess(call) else { return }
         let f = makeFormatter()
-        // 優先度・繰返し・URL などは受け付けない。notify は PR21（省略 true）。
+        // 優先度・繰返し・URL などは受け付けない。notify は省略＝false（第15版）。
         let allowed: Set<String> = ["requestId", "listId", "title", "notes", "due", "notify"]
         guard Set(call.options.keys.compactMap { $0 as? String }).isSubset(of: allowed),
               let requestId = call.getString("requestId"), !requestId.isEmpty, requestId.count <= 100,
@@ -520,15 +520,15 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             }
             notifyArg = b
         }
-        // 期限なしに通知は付けられない。省略時は期限があれば true。
+        // 期限なしに通知は付けられない。省略時は false（第15版）。
         if notifyArg == true && due.dc == nil {
             call.reject("notify requires a due date", "INVALID_ARGUMENT")
             return
         }
-        let notify = due.dc != nil && (notifyArg ?? true)
+        let notify = due.dc != nil && (notifyArg ?? false)
         let title = rawTitle
         var fpParts = [listId, title, notes, due.key]
-        if due.dc != nil && !notify { fpParts.append("notify:false") }  // 旧記録（既定 true）と同じ指紋を保つ
+        if due.dc != nil && !notify { fpParts.append("notify:false") }  // 解決後の値が false の時だけ付く（旧記録の指紋と同じ形）
         let fp = sha256Hex(fpParts.joined(separator: "\u{1F}"))
         queue.async { [weak self] in
             guard let self = self else { return }

@@ -94,15 +94,15 @@ test.describe('タスクの通知の選択', () => {
     await expect(page.locator('#tk-notify')).not.toBeChecked();
   });
 
-  test('追加: 既定は通知あり（notify 省略）、オフにすると false、期限なしでは送らない', async ({ page }) => {
+  test('追加: 既定は通知なし（notify 省略）、オンにしたときだけ true、期限なしでは送らない', async ({ page }) => {
     await mock(page, []); await ready(page);
     await lp(page).locator('[data-act="remadd"]').click();
     const i = lp(page).locator('input.remin');
-    await expect(lp(page).locator('[data-act="remnote"]')).toHaveAttribute('aria-checked', 'true');
+    await expect(lp(page).locator('[data-act="remnote"]')).toHaveAttribute('aria-checked', 'false');
     await i.fill('一'); await i.press('Enter');
     await expect(lp(page).locator('[data-key="rm:n1"]')).toBeVisible();
     await lp(page).locator('[data-act="remnote"]').click();
-    await expect(lp(page).locator('[data-act="remnote"]')).toHaveAttribute('aria-checked', 'false');
+    await expect(lp(page).locator('[data-act="remnote"]')).toHaveAttribute('aria-checked', 'true');
     await lp(page).locator('input.remin').fill('二'); await lp(page).locator('input.remin').press('Enter');
     await expect(lp(page).locator('[data-key="rm:n2"]')).toBeVisible();
     await lp(page).locator('[data-act="remdue0"]').click();
@@ -111,7 +111,7 @@ test.describe('タスクの通知の選択', () => {
     await expect(lp(page).locator('[data-key="rm:n3"]')).toBeVisible();
     const c = await calls(page, 'createReminder');
     expect('notify' in c[0]).toBe(false);
-    expect(c[1].notify).toBe(false);
+    expect(c[1].notify).toBe(true);
     expect('notify' in c[2]).toBe(false);
   });
 });

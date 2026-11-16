@@ -1412,7 +1412,7 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'remck') toggleDone(d.id);
   else if (d.act === 'remedit') openTask(d.id, b);
   else if (d.act === 'remadd') openAdd();
-  else if (d.act === 'remnote') { RM.add.notify = RM.add.notify === false; RM.add.focus = true; render(); }
+  else if (d.act === 'remnote') { RM.add.notify = RM.add.notify !== true; RM.add.focus = true; render(); }
   else if (d.act === 'remdue0') { RM.add.due = null; RM.add.focus = true; render(); }
   else if (d.act === 'remdue1') { RM.add.due = undefined; RM.add.focus = true; render(); }
   else if (d.act === 'remdone') { RM.doneOpen = !RM.doneOpen; render(); root.querySelector('[data-act="remdone"]')?.focus({ preventScroll: true }); }

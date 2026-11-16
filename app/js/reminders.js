@@ -22,7 +22,7 @@ export async function listReminders(call, listIds, completedSince) {
 // listId は '' で OS 既定→書ける先頭。優先度・繰返し・URL は送れない。本文は保存しない。
 export async function createReminder(call, { requestId, listId, title, notes = '', due = null, notify }) {
   const o = { requestId, listId, title, notes, due };
-  if (typeof notify === 'boolean') o.notify = notify; // 省略＝既定（期限ありなら通知あり、期限なしはなし）
+  if (typeof notify === 'boolean') o.notify = notify; // 省略＝通知なし（第15版）。明示 true だけ期限の時刻（日付のみは 8:00）に付ける
   const r = await call('createReminder', o);
   if (!r || !r.reminder) throw { code: 'UNAVAILABLE' };
   return r.reminder;
@@ -199,13 +199,13 @@ export function createAddController(call) {
       if (!t) return { ok: false, empty: true };
       if (!listId) return { ok: false, nolist: true };
       const dueV = due ? { date: due } : null;
-      const nv = dueV && notify === false ? false : undefined; // 既定ON（省略）。明示オフだけ送る。期限なしは送らない
+      const nv = dueV && notify === true ? true : undefined; // 既定なし（省略）。明示オンだけ送る。期限なしは送らない
       const fp = JSON.stringify([listId, t, dueV, nv ?? null]);
-      if (!pend || pend.fp !== fp) pend = { requestId: newRequestId(), fp };
-      const req = pend;
+      if (!pend || pend.fp !== fp) pend = { requestId: newRequestId(), fp, args: { listId, title: t, due: dueV, notify: nv } };
+      const req = pend; // 再試行は最初に送った引数のまま（requestId と内容を一致させる）
       busy = true;
       try {
-        const reminder = await createReminder(call, { requestId: req.requestId, listId, title: t, notes: '', due: dueV, notify: nv });
+        const reminder = await createReminder(call, { requestId: req.requestId, ...req.args, notes: '' });
         if (pend === req) pend = null;
         return { ok: true, reminder };
       } catch (e) {
@@ -223,7 +223,7 @@ export function addRowHtml(d, { selected, noList = false } = {}) {
   const chip = due
     ? `<span class="rmchip"><span>期限 ${mdLabel(due)}</span><button type="button" class="rmchipx" data-act="remdue0" aria-label="期限をなしにする">×</button></span>`
     : `<button type="button" class="rmchip rmchip0" data-act="remdue1" aria-label="期限を選んでいる日にする">期限なし</button>`;
-  const on = d.notify !== false;
+  const on = d.notify === true;
   const nchip = due
     ? `<button type="button" class="rmchip rmnote${on ? ' on' : ''}" data-act="remnote" role="switch" aria-checked="${on}" aria-label="通知">${on ? '通知あり' : '通知なし'}</button>`
     : '';
