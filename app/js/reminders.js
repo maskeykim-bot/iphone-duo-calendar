@@ -18,6 +18,101 @@ export async function listReminders(call, listIds, completedSince) {
   return Array.isArray(r?.reminders) ? r.reminders : [];
 }
 
+// ---- 第14版 PR15: 分類・読込・表示（タスク本文は保存しない。メモリ上だけ） ----
+export const HIST_DAYS = 30;
+const pad2 = (n) => String(n).padStart(2, '0');
+const dk = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const stampOf = (d) => `${dk(d)}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+// Stamp（端末の現地時刻 'YYYY-MM-DDTHH:mm'）。完了の取得下限＝現在から days 日前。
+export function completedSinceStamp(now, days) { const d = new Date(now.getTime()); d.setDate(d.getDate() - days); return stampOf(d); }
+const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+const dueKey = (r) => `${r.due.date}T${r.due.time || '00:00'}`;
+const byDue = (a, b) => cmp(dueKey(a), dueKey(b)) || cmp(a.title || '', b.title || '') || cmp(a.itemId, b.itemId);
+const hasMs = (v) => typeof v === 'number' && Number.isFinite(v);
+// 期限なしは作成の古い順。作成日時の欠落は後ろへ置き、題名・id 順。
+const byCreated = (a, b) => (hasMs(a.createdAt) && hasMs(b.createdAt) ? a.createdAt - b.createdAt : hasMs(a.createdAt) ? -1 : hasMs(b.createdAt) ? 1 : 0)
+  || cmp(a.title || '', b.title || '') || cmp(a.itemId, b.itemId);
+const byDone = (a, b) => cmp(b.doneAt || '', a.doneAt || '') || cmp(a.title || '', b.title || '') || cmp(a.itemId, b.itemId);
+
+// 分類: 期限切れ → 選択日 → この先 → 期限なし → 完了。
+// 期限切れ＝実際の現在日時より前、または選択日より前の日付（どの欄にも入らない既往期限を拾う。過去の選択日と重複しない）。
+export function groupReminders(items, { now = new Date(), selected, histDays = HIST_DAYS } = {}) {
+  const nowS = stampOf(now), since = completedSinceStamp(now, histDays);
+  const g = { overdue: [], selected: [], upcoming: [], nodue: [], done: [] };
+  const seen = new Set();
+  for (const r of Array.isArray(items) ? items : []) {
+    if (!r || typeof r.itemId !== 'string' || seen.has(r.itemId)) continue;
+    seen.add(r.itemId);
+    if (r.done) { if (!r.doneAt || r.doneAt >= since) g.done.push(r); continue; }
+    if (!r.due || !r.due.date) { g.nodue.push(r); continue; }
+    const past = r.due.time ? dueKey(r) < nowS : r.due.date < nowS.slice(0, 10);
+    if (past || r.due.date < selected) g.overdue.push(r);
+    else if (r.due.date === selected) g.selected.push(r);
+    else g.upcoming.push(r);
+  }
+  g.overdue.sort(byDue); g.selected.sort(byDue); g.upcoming.sort(byDue); g.nodue.sort(byCreated); g.done.sort(byDone);
+  return g;
+}
+
+// 一覧の読込。リスト一覧→listIds（すべて）→listReminders。古い要求は世代で捨てる（捨てた分は null）。
+// 権限エラーは投げる。CANCELLED は後続の要求に置き換わった印として null。
+export function createReminderLoader(call) {
+  let gen = 0;
+  return {
+    cancel() { gen++; },
+    async load(days = HIST_DAYS, now = new Date()) {
+      const g = ++gen;
+      try {
+        const l = await call('listReminderLists', {});
+        if (g !== gen) return null;
+        const lists = Array.isArray(l?.lists) ? l.lists : [];
+        const reminders = await listReminders(call, lists.map((x) => x.id), completedSinceStamp(now, days));
+        if (g !== gen) return null;
+        return { lists, reminders };
+      } catch (e) {
+        if (g !== gen || e?.code === 'CANCELLED') return null;
+        throw e;
+      }
+    },
+  };
+}
+
+const escH = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const DOWJ = ['日', '月', '火', '水', '木', '金', '土'];
+const mdLabel = (k) => { const [, m, d] = k.split('-').map(Number); return `${m}/${d}`; };
+const mdFull = (k) => { const [y, m, d] = k.split('-').map(Number); return `${m}月${d}日(${DOWJ[new Date(y, m - 1, d).getDay()]})`; };
+const safeColor = (c) => (/^#[0-9a-fA-F]{6}$/.test(c || '') ? c : '#68716A');
+
+function dueText(r) {
+  const parts = [];
+  if (r.due?.date) parts.push(r.due.time ? `${mdLabel(r.due.date)} ${r.due.time}` : mdLabel(r.due.date));
+  if (r.recurring) parts.push('繰り返し');
+  return parts.join('・');
+}
+export function taskRowHtml(r, color, overdue) {
+  const dt = dueText(r), hasDue = !!dt;
+  const pri = r.priority > 0 ? '<span class="rmpri" aria-label="優先度あり">!</span>' : '';
+  const ro = r.readOnly ? ' ro' : '';
+  const c = safeColor(color);
+  return `<div class="rmrow${hasDue ? ' two' : ''}${r.done ? ' done' : ''}${ro}" data-key="rm:${escH(r.itemId)}" role="listitem" style="--rc:${c}">`
+    + `<span class="rmck" aria-hidden="true"></span>`
+    + `<span class="rmbody"><span class="rmt">${pri}${escH(r.title || '（題名なし）')}</span>${hasDue ? `<span class="rmd${overdue ? ' late' : ''}">${escH(dt)}</span>` : ''}</span>`
+    + `${r.readOnly ? '<span class="rmro">読み取り専用</span>' : ''}</div>`;
+}
+// ui: { doneOpen, histDays }。loading（初回）/ error は呼び出し側が渡す。
+export function tasksHtml(data, { selected, now = new Date(), doneOpen = false, histDays = HIST_DAYS, loading = false, error = false, busyMore = false } = {}) {
+  if (!data) return `<div class="pagewait padb taskl" data-wait="task"><p class="remtx pad">${error ? 'リマインダーを読み込めませんでした。' : loading ? '読み込み中…' : ''}</p></div>`;
+  const colors = new Map((data.lists || []).map((l) => [l.id, l.color]));
+  const g = groupReminders(data.reminders, { now, selected, histDays });
+  const row = (r, late) => taskRowHtml(r, colors.get(r.listId), late);
+  const sec = (key, title, arr, late) => (arr.length ? `<section class="rmsec" data-sec="${key}"><h3 class="rmh${late ? ' late' : ''}">${escH(title)}</h3><div role="list">${arr.map((r) => row(r, late)).join('')}</div></section>` : '');
+  let h = sec('overdue', '期限切れ', g.overdue, true) + sec('selected', mdFull(selected), g.selected, false) + sec('upcoming', 'この先', g.upcoming, false) + sec('nodue', '期限なし', g.nodue, false);
+  const doneHead = `<button type="button" class="rmdonebtn" data-act="remdone" aria-expanded="${doneOpen}">完了（${g.done.length}） <span aria-hidden="true">${doneOpen ? '⌄' : '›'}</span></button>`;
+  h += `<section class="rmsec" data-sec="done">${doneHead}${doneOpen ? `<div role="list">${g.done.map((r) => row(r, false)).join('')}</div><button type="button" class="rmmore" data-act="remmore"${busyMore ? ' disabled' : ''}>もっと前を表示</button>` : ''}</section>`;
+  if (!g.overdue.length && !g.selected.length && !g.upcoming.length && !g.nodue.length) h = `<p class="remtx pad rmempty">未完了のタスクはありません。</p>${h}`;
+  return `<div class="pagewait padb taskl" data-wait="task">${h}</div>`;
+}
+
 export const REM_TEXT = {
   intro: 'iPhone のリマインダーと同じタスクを、ここで見たり追加したりできます。',
   allow: 'リマインダーへのアクセスを許可',

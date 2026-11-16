@@ -40,7 +40,7 @@ test.describe('listReminders の契約', () => {
       const m = await import('/js/reminders.js'); const n = await import('/js/native.js');
       const a = await m.listReminders(n.call, ['L1'], '2026-10-16T00:00');
       const b = await m.listReminders(n.call, [], '2026-10-16T00:00');
-      return { a, b, args: window.__m.calls.filter((c) => c[0] === 'listReminders').map((c) => c[1]) };
+      return { a, b, args: window.__m.calls.filter((c) => c[0] === 'listReminders').map((c) => c[1]).slice(-2) }; // 起動時にアプリ自身も取得する（PR15）ため、直接 call した最後の2件だけを見る
     });
     expect(r.a).toEqual(SAMPLE);
     expect(r.a[0].due).toBeNull();

@@ -772,3 +772,24 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .remgate{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;padding:16px}
 .remgate .remtx{margin:0;font-size:15px;line-height:1.5;color:#293B35;max-width:280px}
 .remgate .rembtn{min-height:44px;padding:0 16px;border:0;border-radius:10px;background:#294E42;color:#fff;font-size:15px}
+
+/* タスク一覧（第14版 PR15）。丸は表示のみ（完了操作は後続） */
+.taskl{padding:0 4px;flex:1;min-height:0;overflow-y:auto}
+.taskl .remtx{margin:0;font-size:15px;color:#293B35}
+.rmh{margin:12px 0 4px;font-size:13px;font-weight:700;color:#293B35}
+.rmh.late{color:#B43C3C}
+.rmrow{display:flex;align-items:center;gap:12px;min-height:44px;padding:0 4px;box-sizing:border-box}
+.rmrow.two{min-height:56px}
+.rmck{flex:none;width:24px;height:24px;border-radius:50%;border:2px solid var(--rc);box-sizing:border-box}
+.rmrow.done .rmck{background:var(--rc);position:relative}
+.rmrow.done .rmck::after{content:'✓';position:absolute;inset:0;color:#fff;font-size:14px;line-height:20px;text-align:center}
+.rmbody{flex:1;min-width:0;display:flex;flex-direction:column}
+.rmt{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rmrow.done .rmt{color:#A8ABA4;text-decoration:line-through}
+.rmpri{font-weight:700;color:#B43C3C;margin-right:4px}
+.rmd{font-size:11px;color:#68716A}
+.rmd.late{color:#B43C3C}
+.rmro{flex:none;font-size:11px;color:#68716A}
+.rmrow.ro .rmt{color:#68716A}
+.rmdonebtn{min-height:44px;padding:0 4px;border:0;background:none;font-size:13px;font-weight:700;color:#293B35;text-align:left}
+.rmmore{min-height:44px;width:100%;border:0;background:none;font-size:13px;color:#294E42}

@@ -10,7 +10,7 @@ import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAl
 import { rokuyoOf } from './rokuyo.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS } from './pages.js';
 import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.js';
-import { checkReminderAccess, requestReminderAccess, taskAccessHtml } from './reminders.js';
+import { checkReminderAccess, requestReminderAccess, taskAccessHtml, createReminderLoader, tasksHtml, HIST_DAYS } from './reminders.js';
 import { call, errCode, errReason, errText, listen, nativeAvailable } from './native.js';
 import { buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, pickAddCal, planNativeOps, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
 import {
@@ -930,15 +930,38 @@ const flushMemosAwait = async () => { try { const r = await flushMemosNow(); ret
 document.addEventListener('visibilitychange', () => { if (document.hidden) flushMemosNow(); });
 window.addEventListener('pagehide', flushMemosNow);
 // ---------- タスク: リマインダー許可の案内（カレンダー権限・連携設定とは独立） ----------
-const RM = { state: null, gen: 0 };
+const RM = { state: null, gen: 0, data: null, err: false, doneOpen: false, histDays: HIST_DAYS, more: false, timer: 0, sig: '' };
+const remLoader = createReminderLoader(call);
 function taskBody(where) {
-  if (RM.state === 'granted') return `<div class="pagewait padb" data-wait="task"><p class="small pad">タスクの一覧は準備中です。</p></div>`;
+  if (RM.state === 'granted') return tasksHtml(RM.data, { selected: state.selected, doneOpen: RM.doneOpen, histDays: RM.histDays, loading: !RM.err, error: RM.err, busyMore: RM.more });
   return taskAccessHtml(RM.state, where, NATIVE);
 }
+// 許可がなくなったら、メモリ上のタスクも読込も捨てる（本文はどこにも保存していない）。
+function dropTasks() { remLoader.cancel(); clearTimeout(RM.timer); RM.data = null; RM.err = false; RM.sig = ''; RM.more = false; RM.doneOpen = false; RM.histDays = HIST_DAYS; }
+async function loadTasks() {
+  if (!NATIVE || RM.state !== 'granted') return;
+  try {
+    const r = await remLoader.load(RM.histDays);
+    if (!r || RM.state !== 'granted') return;
+    RM.err = false; RM.more = false;
+    const sig = JSON.stringify(r);
+    if (sig === RM.sig && RM.data) return;
+    RM.sig = sig; RM.data = r; render();
+  } catch (e) {
+    if (RM.state !== 'granted') return;
+    RM.more = false;
+    if (e?.code === 'PERMISSION_DENIED') { refreshReminderAccess(); return; }
+    if (!RM.data) { RM.err = true; render(); }
+  }
+}
+// 外部変更・前面復帰の取り直し。300ms 間引き。
+function scheduleTasks() { clearTimeout(RM.timer); RM.timer = setTimeout(loadTasks, 300); }
 function setRemState(st) {
-  if (st === RM.state) return;
+  if (st === RM.state) { if (st === 'granted') scheduleTasks(); return; }
   RM.state = st;
+  if (st !== 'granted') dropTasks();
   render();
+  if (st === 'granted') loadTasks();
 }
 // 状態確認のみ（許可は求めない）。古い応答は世代で捨てる。
 async function refreshReminderAccess() {
@@ -949,7 +972,7 @@ async function refreshReminderAccess() {
 async function remRequest(where) {
   const g = ++RM.gen, st = await requestReminderAccess(call);
   if (g !== RM.gen) return;
-  RM.state = st; render();
+  RM.state = st; if (st !== 'granted') dropTasks(); render(); if (st === 'granted') loadTasks();
   const el = root.querySelector(`.remgate[data-where="${where}"] button`) || root.querySelector(`.remgate[data-where="${where}"]`);
   if (el) { el.tabIndex = el.tagName === 'BUTTON' ? el.tabIndex : -1; el.focus({ preventScroll: true }); }
   say(st === 'granted' ? 'リマインダーへのアクセスを許可しました。' : st === 'denied' ? REM_DENIED_SAY : st === 'restricted' ? 'この端末ではリマインダーへのアクセスが制限されています。' : '');
@@ -1115,6 +1138,8 @@ root.addEventListener('click', (ev) => {
   if (pg) { const sd = pg.classList.contains('lp') ? 'left' : 'right'; if (sd !== state.lastSide) { state.lastSide = sd; saveUi(); } }
   if (d.view) set({ view: d.view, home: false });
   else if (d.act === 'list') set({ home: true });
+  else if (d.act === 'remdone') { RM.doneOpen = !RM.doneOpen; render(); root.querySelector('[data-act="remdone"]')?.focus({ preventScroll: true }); }
+  else if (d.act === 'remmore') { RM.histDays += HIST_DAYS; RM.more = true; render(); root.querySelector('[data-act="remmore"]')?.focus({ preventScroll: true }); loadTasks(); }
   else if (d.date) {
     const compact = ['home', 'browse'].includes(layoutKind()) || (isPortrait() && !panelOn());
     // 閉じた画面・開いた縦では選択日サイド（一覧）が無いので、日付選択でその日の日表示へ進む。
@@ -3171,10 +3196,10 @@ const notifyPermissionChanged = () => requestNotifySync('permission');
 async function initNative() {
   if (!NATIVE) return;
   // 連携オフ・カレンダー権限なしでも通知は動くので、購読は権限確認より前に行う。
-  listen('calendarChanged', () => { clearTimeout(extTimer); extTimer = setTimeout(() => { if (extActive()) loadExt(true); }, 300); });
+  listen('calendarChanged', () => { clearTimeout(extTimer); extTimer = setTimeout(() => { if (extActive()) loadExt(true); }, 300); if (RM.state === 'granted') scheduleTasks(); });
   listen('notificationTapped', onNotifyTap);
   refreshReminderAccess(); // 予定の権限確認とは独立（下の早期 return に影響されない）。状態確認のみ
-  listen('timeChanged', () => { X.cache = null; bumpRevision(); requestNotifySync('time'); if (extActive()) loadExt(true); else render(); });
+  listen('timeChanged', () => { X.cache = null; bumpRevision(); requestNotifySync('time'); if (RM.state === 'granted') scheduleTasks(); if (extActive()) loadExt(true); else render(); });
   const p = await checkPerm();
   if (p === null) return;
   if (['granted', 'writeOnly'].includes(p)) requestFlush(0);
