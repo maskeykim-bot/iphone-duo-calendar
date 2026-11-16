@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, loadSample, addEvent, pickDest, tab, layout, SIZES, catId, setStyle, modeStates, toggleDesk } from './helpers.js';
+import { openApp, loadSample, addEvent, pickDest, tab, layout, SIZES, catId, setStyle, modeStates, toggleDesk, fillDateTime } from './helpers.js';
 
 test.describe('永続化', () => {
   test('再読込後も予定が残る（IndexedDB）', async ({ page }) => {
@@ -75,14 +75,15 @@ test.describe('永続化', () => {
     await page.locator('#f-title').fill('下書きの予定');
     await pickDest(page, 'duo', catId('out'));
     await page.locator('#f-place').fill('オンライン');
-    await page.locator('#f-end').fill('2026/11/12 15:30');
+    await fillDateTime(page, 'end', '2026/11/12 15:30');
 
     const check = async () => {
       await expect(page.locator('#editor')).toBeVisible();
       await expect(page.locator('#f-title')).toHaveValue('下書きの予定');
       await expect(page.locator('#dest-name')).toHaveText('外出');
       await expect(page.locator('#f-place')).toHaveValue('オンライン');
-      await expect(page.locator('#f-end')).toHaveValue('2026/11/12 15:30');
+      await expect(page.locator('#f-end')).toHaveValue('2026/11/12');
+      await expect(page.locator('#f-etime')).toContainText('15:30');
     };
     for (const size of [SIZES.openLandscape, SIZES.openPortrait, SIZES.closedLandscape, SIZES.closedPortrait]) {
       await page.setViewportSize(size);

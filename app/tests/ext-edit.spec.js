@@ -1,7 +1,7 @@
 // 第13版 PR4: iPhone の予定（ext）の編集・削除の画面。window.Capacitor を偽装して JS 側の動きを検査する。
 // 偽装は Swift の実動作の証明ではない（契約は design/IMPL_PLAN_V13.md PR1〜PR3）。
 import { test, expect } from '@playwright/test';
-import { openApp, tab, dbEvents, pickDest, enableCalendars } from './helpers.js';
+import { openApp, tab, dbEvents, pickDest, enableCalendars, fillDateTime } from './helpers.js';
 
 const CALS = [
   { id: 'cal-1', title: '家族', color: '#d93025', sourceId: 's-g', source: 'Google', sourceType: 'caldav', allowsModify: true, isDefault: true },
@@ -185,8 +185,8 @@ test.describe('編集（09 §2）', () => {
     expect(await calls(page, 'updateExternalEvent')).toHaveLength(0);
     await pop(page, '歯医者');
     await XD(page).locator('#xd-edit').click();
-    await page.locator('#f-start').fill('2026/11/12 16:00');
-    await page.locator('#f-end').fill('2026/11/12 17:30');
+    await fillDateTime(page, 'start', '2026/11/12 16:00');
+    await fillDateTime(page, 'end', '2026/11/12 17:30');
     await page.locator('#form [type=submit]').click();
     await expect(page.locator('#editor')).toBeHidden();
     const o = (await calls(page, 'updateExternalEvent'))[0].opts;

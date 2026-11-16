@@ -1,6 +1,6 @@
 // 第11版 PR4: 通知の画面（編集シートの行・通知パネル・ベル・タップ）。DuoNative は偽装で、Swift の実動作の証明ではない。
 import { test, expect } from '@playwright/test';
-import { notifyOn, openApp, SIZES, seed, ev, dbEvents, openMenu, pickDay as pick } from './helpers.js';
+import { notifyOn, openApp, SIZES, seed, ev, dbEvents, openMenu, pickDay as pick, fillDateTime } from './helpers.js';
 
 async function mock(page, cfg = {}) {
   await notifyOn(page);
@@ -84,8 +84,8 @@ test.describe('編集シートの通知行', () => {
     await openApp(page, SIZES.closedPortrait, '?nosw');
     await add(page);
     await page.locator('#f-title').fill('通知つき');
-    await page.locator('#f-start').fill('2026/11/13 10:00');
-    await page.locator('#f-end').fill('2026/11/13 11:00');
+    await fillDateTime(page, 'start', '2026/11/13 10:00');
+    await fillDateTime(page, 'end', '2026/11/13 11:00');
     await page.locator('#f-al0').selectOption('b60');
     await page.locator('#editor').getByRole('button', { name: '保存' }).click();
     await expect(page.locator('#editor')).toBeHidden();
@@ -125,8 +125,8 @@ test.describe('編集シートの通知行', () => {
     await mock(page);
     await openApp(page, SIZES.closedPortrait, '?nosw');
     await add(page);
-    await page.locator('#f-start').fill('2026/11/01 10:00');
-    await page.locator('#f-end').fill('2026/11/01 11:00');
+    await fillDateTime(page, 'start', '2026/11/01 10:00');
+    await fillDateTime(page, 'end', '2026/11/01 11:00');
     await expect(page.locator('#al-note')).toHaveText('過去の予定には通知されません');
     await page.evaluate(() => localStorage.setItem('duo-notify', JSON.stringify({ version: 1, enabled: false })));
     await page.locator('#f-title').fill('x'); // 再描画

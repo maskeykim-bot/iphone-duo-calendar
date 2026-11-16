@@ -326,8 +326,10 @@ test.describe('見開き: 右ページの時間軸', () => {
     await expect(page.locator('.dbox')).toHaveCount(1);
     await page.locator('.dbox').click({ position: { x: 30, y: 25 } });
     await expect(page.locator('#editor')).toBeVisible();
-    await expect(page.locator('#f-start')).toHaveValue('2026/11/12 10:30');
-    await expect(page.locator('#f-end')).toHaveValue('2026/11/12 11:30');
+    await expect(page.locator('#f-start')).toHaveValue('2026/11/12');
+    await expect(page.locator('#f-stime')).toContainText('10:30');
+    await expect(page.locator('#f-end')).toHaveValue('2026/11/12');
+    await expect(page.locator('#f-etime')).toContainText('11:30');
     await page.keyboard.press('Escape');
     await expect(page.locator('#editor')).toBeHidden();
     // ピンチ直後

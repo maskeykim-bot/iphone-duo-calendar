@@ -31,9 +31,14 @@
         <div id="dest-pop" class="destpop" role="listbox" aria-label="カレンダー" hidden></div>
       </div>
       <label class="check"><input id="f-all" name="all" type="checkbox">終日</label>
-      <div class="pair">
-        <label>開始<input id="f-start" name="start" class="date-text" inputmode="numeric" placeholder="2026/11/12 10:00"></label>
-        <label>終了<input id="f-end" name="end" class="date-text" inputmode="numeric" placeholder="2026/11/12 11:00"></label>
+      <div id="dtbox" class="dtbox">
+        <div class="dtrow" id="row-s"><span class="dtk">開始</span><input id="f-start" name="start" class="date-text" inputmode="numeric" placeholder="2026/11/12" aria-label="開始の日付"><button type="button" id="f-stime" class="tcap" aria-haspopup="true" aria-expanded="false"></button></div>
+        <div class="dtrow" id="row-e"><span class="dtk">終了</span><input id="f-end" name="end" class="date-text" inputmode="numeric" placeholder="2026/11/12" aria-label="終了の日付"><button type="button" id="f-etime" class="tcap" aria-haspopup="true" aria-expanded="false"></button><span id="f-eday" class="dbadge" hidden></span></div>
+        <div id="tpop" class="tpop" hidden>
+          <p class="tlab">時</p><div id="tp-h" class="tgrid hgrid"></div>
+          <p class="tlab">分 <span id="tp-note" class="tnote" hidden></span></p><div id="tp-m" class="tgrid mgrid"></div>
+        </div>
+        <div class="dtrow dlen" id="row-d"><span class="dtk">長さ</span><div id="f-dur" class="durs" role="group" aria-label="長さ"></div></div>
       </div>
       <div id="alwrap" class="alwrap" hidden>
         <label class="alrow" id="al0-row"><span class="alk">通知</span><span class="alv" id="al0-v"></span><select id="f-al0" aria-label="通知"></select></label>

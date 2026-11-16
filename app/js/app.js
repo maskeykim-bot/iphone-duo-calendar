@@ -1,5 +1,6 @@
 import * as db from './db.js';
-import { isoFromInput, inputFromIso, stateFromInput, setStartDate, setStartTime, setAll } from './datetime.js';
+import { isoFromInput, stateFromInput, setStartDate, setStartTime, setEndTime, setDuration, setAll } from './datetime.js';
+import { createTimeUi } from './datetime-ui.js';
 import { SAMPLE } from './sample.js';
 import { initSwipe } from './swipe.js';
 import { initDirectInput, dayRange, rangeText, minutesAt, dragRange, tapRange, moveHandle, spanText, hm as hmText, snap15, edgeZone, edgeVelocity, createDwell, createFrameLoop } from './direct-input.js';
@@ -1526,8 +1527,8 @@ function resolve(id) {
   const p = state.events.find((e) => e.id === id);
   return p ? { p, occKey: null, occ: p } : null;
 }
-const startDow = () => { const t = parseInput(F.start.value, F.all.checked); return parseKey(t ? dayOf(t) : state.selected).getDay(); };
-const startKey = () => { const t = parseInput(F.start.value, F.all.checked); return t ? dayOf(t) : state.selected; };
+const startDow = () => { const t = parseInput(fullStart(), F.all.checked); return parseKey(t ? dayOf(t) : state.selected).getDay(); };
+const startKey = () => { const t = parseInput(fullStart(), F.all.checked); return t ? dayOf(t) : state.selected; };
 
 // 直近に選んだ Duo のカテゴリ（時間軸の仮枠の色に使う）。保存先の選択はカレンダー1行（destSel）。
 let lastCat = '';
@@ -1556,7 +1557,7 @@ function draftCat(d) {
 }
 function readForm() {
   return {
-    title: F.title.value, categoryId: formCat(), dest: destSel, all: F.all.checked, start: F.start.value, end: F.end.value, place: F.place.value, notes: F.notes.value,
+    title: F.title.value, categoryId: formCat(), dest: destSel, all: F.all.checked, start: fullStart(), end: fullEnd(), place: F.place.value, notes: F.notes.value,
     rfreq: F.rfreq.value, rbyday: [...rsel], rend: F.rend.value, rcount: F.rcount.value, runtil: F.runtil.value, ropen: !R.panel.hidden, autoDays,
     alarms,
   };
@@ -1567,32 +1568,49 @@ function saveDraft() {
 }
 function clearDraft() { try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* 無視 */ } }
 // 日時の編集状態（js/datetime.js）。入力欄の文字は従来どおり保存の入口で、状態は触っていない値を丸めず保つための裏付け。
-let dt = null, dt0End = '';
+let dt = null, dt0EndDay = '';
+// 日付は文字の欄、時刻は dt（時刻のカプセル）。保存・下書き・検証へは「日付 時刻」の一つの文字に組み立てる。
+const slash = (iso) => iso.slice(0, 10).replaceAll('-', '/');
+const fullStart = () => (F.all.checked || !dt ? F.start.value : `${F.start.value} ${dt.start.slice(11, 16)}`);
+const fullEnd = () => (F.all.checked || !dt ? F.end.value : `${F.end.value} ${dt.end.slice(11, 16)}`);
 function syncDtFromForm(ev) {
   const t = ev?.target;
   if (!dt || (t !== F.start && t !== F.end) || ev.type !== 'input') return; // 入力中に確定した形になった時点で追う（change で欄を書き換えると、次の欄へ移る操作と衝突する）
-  const all = F.all.checked;
-  const norm = (iso, end) => (all ? `${iso.slice(0, 10)}T${end ? '23:59' : '00:00'}` : iso);
-  const s = isoFromInput(F.start.value, all), e = isoFromInput(F.end.value, all);
+  const s = isoFromInput(F.start.value, true), e = isoFromInput(F.end.value, true);
   if (t === F.start && s) {
-    const ns = norm(s, false);
-    let n = dt;
-    if (ns.slice(0, 10) !== n.start.slice(0, 10)) n = setStartDate(n, ns.slice(0, 10));
-    if (!all && ns.slice(11) !== n.start.slice(11)) n = setStartTime(n, +ns.slice(11, 13), +ns.slice(14, 16));
-    dt = n;
-    // 終了欄を手で直していなければ、長さ（複数日なら日数）を保って終了も動かす。
-    if (!e || norm(e, true) === dt0End) F.end.value = inputFromIso(dt.end, all);
+    const k = s.slice(0, 10);
+    if (k !== dt.start.slice(0, 10)) dt = setStartDate(dt, k); // 日数と時刻は保つ
+    // 終了欄を手で直していなければ、日数を保って終了の日も動く。
+    if (!e || e.slice(0, 10) === dt0EndDay) F.end.value = slash(dt.end);
   } else if (t === F.end && e) {
     // 手入力の終了は検証側（validateDraft）が判定する。ここでは値を写すだけで日付を進めない。
-    const ne = norm(e, true), o = dt.end, f = dt.touched;
-    dt = { ...dt, end: ne, touched: { ...f, endDate: f.endDate || ne.slice(0, 10) !== o.slice(0, 10), endHour: f.endHour || ne.slice(11, 13) !== o.slice(11, 13), endMin: f.endMin || ne.slice(14, 16) !== o.slice(14, 16) } };
+    const k = e.slice(0, 10), o = dt.end, f = dt.touched;
+    dt = { ...dt, end: `${k}${o.slice(10)}`, touched: { ...f, endDate: f.endDate || k !== o.slice(0, 10) } };
   }
-  dt0End = dt.end;
+  dt0EndDay = dt.end.slice(0, 10);
+  tui.render();
 }
+// 時刻カプセル・長さ・時分のマス（js/datetime-ui.js）。状態は dt が持ち、日付の欄へ写す。
+function afterTimeEdit() {
+  F.start.value = slash(dt.start); F.end.value = slash(dt.end);
+  dt0EndDay = dt.end.slice(0, 10);
+  tui.render();
+  onFormChange();
+}
+const tui = createTimeUi({
+  box: $('#dtbox'), start: $('#f-stime'), end: $('#f-etime'), badge: $('#f-eday'), dur: $('#f-dur'), pop: $('#tpop'),
+  rows: { start: $('#row-s'), end: $('#row-e') }, hours: $('#tp-h'), mins: $('#tp-m'), minNote: $('#tp-note'),
+}, {
+  get: () => dt,
+  buzz: () => { haptic('light').catch(() => {}); },
+  setTime: (which, h, m) => { if (!dt) return; dt = (which === 'start' ? setStartTime : setEndTime)(dt, h, m); afterTimeEdit(); },
+  setDuration: (min) => { if (!dt) return; dt = setDuration(dt, min); afterTimeEdit(); },
+});
 function applyAllDayUi() {
   const all = F.all.checked;
-  F.start.placeholder = all ? '2026/11/12' : '2026/11/12 10:00';
-  F.end.placeholder = all ? '2026/11/12' : '2026/11/12 11:00';
+  $('#dtbox').classList.toggle('allday', all);
+  tui.close();
+  tui.render();
 }
 function setRepeatOpen(open) {
   R.panel.hidden = !open;
@@ -1638,7 +1656,9 @@ function showEditor(values, id, focus = true) {
   R.err.textContent = '';
   applyAllDayUi();
   dt = stateFromInput(values.start, values.end, values.all, extEd?.before.rawEnd);
-  dt0End = dt ? dt.end : '';
+  if (dt) { F.start.value = slash(dt.start); F.end.value = slash(dt.end); } // 日付の欄は日付だけ。時刻は dt（未操作の 10:07 を丸めない）
+  dt0EndDay = dt ? dt.end.slice(0, 10) : '';
+  applyAllDayUi();
   setRepeatOpen(!!values.ropen);
   destSel = extEd ? null : normDest(values.dest);
   { const d0 = destEff(); lastCat = d0.type === 'duo' ? d0.id : lastCatOk(); }
@@ -1848,20 +1868,8 @@ R.panel.addEventListener('click', (ev) => {
 });
 F.all.addEventListener('change', () => {
   const all = F.all.checked;
-  // 終日にする前の時刻は状態が覚えていて、OFF で戻る（10:07 も 10:07 のまま）。
-  const sTxt = isoFromInput(F.start.value, !all), eTxt = isoFromInput(F.end.value, !all);
-  if (dt && sTxt && eTxt) {
-    dt = { ...dt, start: all ? sTxt : `${sTxt.slice(0, 10)}T00:00`, end: all ? eTxt : `${eTxt.slice(0, 10)}T23:59`, all: !all };
-    dt = setAll(dt, all);
-    F.start.value = inputFromIso(dt.start, all); F.end.value = inputFromIso(dt.end, all);
-    dt0End = dt.end;
-  } else {
-    for (const [el, t] of [[F.start, '10:00'], [F.end, '11:00']]) {
-      const v = el.value.trim();
-      if (all && /^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}$/.test(v)) el.value = v.slice(0, 10);
-      else if (!all && /^\d{4}\/\d{2}\/\d{2}$/.test(v)) el.value = `${v} ${t}`;
-    }
-  }
+  // 終日にする前の時刻は状態が覚えていて、OFF で戻る（10:07 も 10:07 のまま）。日付の欄はそのまま。
+  if (dt) dt = setAll(dt, all);
   applyAllDayUi();
   alarms = convertAlarms(alarms, all, loadNotify());
   updateAlarmUi();
@@ -3894,7 +3902,7 @@ function updateAlarmUi() {
     AL.val[i].classList.toggle('none', !cur);
   }
   const fires = !linked && list.length > 0;
-  const st = parseInput(F.start.value, all);
+  const st = parseInput(fullStart(), all);
   const past = fires && !!st && F.rfreq.value === 'none' && pastForNotify({ all, start: st, end: st }, list, new Date());
   AL.note.hidden = !past;
   AL.note.textContent = '過去の予定には通知されません';

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, loadSample, addEvent, fillEditor, tab, pickDay, SIZES } from './helpers.js';
+import { openApp, loadSample, addEvent, fillEditor, tab, pickDay, SIZES, fillDateTime } from './helpers.js';
 
 test.describe('予定の追加・編集・削除', () => {
   test('初期は空で、サンプルを入れられる', async ({ page }) => {
@@ -11,19 +11,20 @@ test.describe('予定の追加・編集・削除', () => {
     await expect(page.getByRole('button', { name: 'サンプルを入れる' })).toHaveCount(0);
   });
 
-  test('開始を変えると長さを保って終了も動く。終日の ON/OFF で 10:07 に戻る', async ({ page }) => {
+  test('開始を変えると長さを保って終了も動く。終日の ON/OFF で時刻に戻る', async ({ page }) => {
     await openApp(page);
     await page.locator('[data-act="add"]:visible').first().click();
     const dlg = page.locator('#editor');
-    await dlg.locator('#f-start').fill('2026/11/12 10:07');
-    await dlg.locator('#f-end').fill('2026/11/12 11:43');
-    await dlg.locator('#f-start').fill('2026/11/12 14:07');
-    await expect(dlg.locator('#f-end')).toHaveValue('2026/11/12 15:43');
+    await fillDateTime(page, 'start', '2026/11/12 10:00');
+    await fillDateTime(page, 'end', '2026/11/12 11:45');
+    await fillDateTime(page, 'start', '2026/11/12 14:00');
+    await expect(dlg.locator('#f-etime')).toContainText('15:45');
     await dlg.locator('#f-all').setChecked(true);
     await expect(dlg.locator('#f-start')).toHaveValue('2026/11/12');
+    await expect(dlg.locator('#f-stime')).toBeHidden();
     await dlg.locator('#f-all').setChecked(false);
-    await expect(dlg.locator('#f-start')).toHaveValue('2026/11/12 14:07');
-    await expect(dlg.locator('#f-end')).toHaveValue('2026/11/12 15:43');
+    await expect(dlg.locator('#f-stime')).toContainText('14:00');
+    await expect(dlg.locator('#f-etime')).toContainText('15:45');
   });
 
   test('追加 → 編集 → 削除（確認あり）', async ({ page }) => {
@@ -58,16 +59,14 @@ test.describe('予定の追加・編集・削除', () => {
     const err = page.locator('#error');
     await save();
     await expect(err).toContainText('予定名を入力');
-    await fillEditor(page, { title: 'x', start: '2026-11-12 10:00' });
+    await fillEditor(page, { title: 'x', start: '2026-11-12' });
     await save();
     await expect(err).toContainText('形式');
-    await fillEditor(page, { start: '2026/02/30 10:00', end: '2026/02/28 11:00' });
+    await fillEditor(page, { start: '2026/02/30', end: '2026/02/28' });
     await save();
     await expect(err).toContainText('形式');
-    await fillEditor(page, { start: '2026/11/12 25:00', end: '2026/11/12 26:00' });
-    await save();
-    await expect(err).toContainText('形式');
-    await fillEditor(page, { start: '2026/11/12 12:00', end: '2026/11/12 11:00' });
+    // 時刻は選ぶだけなので不正な時刻は作れない。終了の日を開始より前にすると保存でとめる
+    await fillEditor(page, { start: '2026/11/12 12:00', end: '2026/11/11' });
     await save();
     await expect(err).toContainText('終了は開始以降');
     await expect(page.locator('#editor')).toBeVisible();

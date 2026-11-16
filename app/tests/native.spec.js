@@ -1,6 +1,6 @@
 // 第7版: iPhone カレンダー連携。window.Capacitor を偽装して、DuoNative の契約どおりに呼ばれ表示されることを確認する。
 import { test, expect } from '@playwright/test';
-import { notifyOn, openApp, SIZES, tab, seed, ev, dbEvents, setStyle, openMenu, pickDest, enableCalendars } from './helpers.js';
+import { notifyOn, openApp, SIZES, tab, seed, ev, dbEvents, setStyle, openMenu, pickDest, enableCalendars, fillDateTime } from './helpers.js';
 // 新規予定のカレンダー選択: 種別の先頭を選ぶ（第15版 PR5）
 const pickKind = async (page, type) => { await page.locator('#f-dest').click(); await page.locator(`#dest-pop .dopt[data-dtype="${type}"]`).first().click(); };
 const toIphone = (page) => pickKind(page, 'iphone');
@@ -437,8 +437,8 @@ test.describe('ネイティブ（偽装）', () => {
     await page.locator('#f-rfreq').selectOption('none');
     await toDuo(page);
     await page.locator('#f-title').fill('会食');
-    await page.locator('#f-start').fill('2026/11/20 19:00');
-    await page.locator('#f-end').fill('2026/11/20 21:00');
+    await fillDateTime(page, 'start', '2026/11/20 19:00');
+    await fillDateTime(page, 'end', '2026/11/20 21:00');
     await page.locator('#f-place').fill('銀座');
     await toIphone(page);
     await page.locator('#editor [type=submit]').click();
@@ -460,6 +460,23 @@ test.describe('ネイティブ（偽装）', () => {
     await page.locator('.tlev', { hasText: '会食' }).click();
     await expect(page.locator('#xlinked')).toContainText('iPhoneにも追加済み。Duo で変えた内容は iPhone のカレンダーにも反映されます。');
     await expect(page.locator('#xadd')).toHaveCount(0);
+  });
+
+  test('時刻のマスを押すたびに触覚（light）。開閉だけでは呼ばない', async ({ page }) => {
+    await mock(page);
+    await openApp(page);
+    await enable(page);
+    await page.locator('[data-act="add"]:visible').first().click();
+    await page.locator('#f-stime').click();
+    await page.locator('#f-stime').click();
+    expect(await calls(page, 'selectionHaptic')).toHaveLength(0);
+    await page.locator('#f-stime').click();
+    await page.locator('#tp-h [data-h="13"]').click();
+    await page.locator('#tp-m [data-m="45"]').click();
+    const h = await calls(page, 'selectionHaptic');
+    expect(h.map((c) => c.opts.kind)).toEqual(['light', 'light']);
+    await expect(page.locator('#f-stime')).toHaveText('13:45');
+    await expect(page.locator('#f-etime')).toHaveText('14:45');
   });
 
   test('終日の追加: end は最終日 00:00。失敗してもアプリ予定は残り、再試行は同じ requestId', async ({ page }) => {
@@ -494,8 +511,8 @@ test.describe('ネイティブ（偽装）', () => {
     await page.evaluate(() => { window.__mock.createFail = 1; });
     await page.locator('[data-act="add"]:visible').first().click();
     await page.locator('#f-title').fill('毎週の会');
-    await page.locator('#f-start').fill('2026/11/20 19:00');
-    await page.locator('#f-end').fill('2026/11/20 20:00');
+    await fillDateTime(page, 'start', '2026/11/20 19:00');
+    await fillDateTime(page, 'end', '2026/11/20 20:00');
     await page.locator('#rtoggle').click();
     await page.locator('#f-rfreq').selectOption('weekly');
     await toIphone(page);
@@ -548,8 +565,8 @@ test.describe('ネイティブ（偽装）', () => {
     await page.evaluate(() => { window.__mock.createFail = 1; });
     await page.locator('[data-act="add"]:visible').first().click();
     await page.locator('#f-title').fill(title);
-    await page.locator('#f-start').fill('2026/12/05 10:00');
-    await page.locator('#f-end').fill('2026/12/05 11:00');
+    await fillDateTime(page, 'start', '2026/12/05 10:00');
+    await fillDateTime(page, 'end', '2026/12/05 11:00');
     await page.locator('#f-al0').selectOption('b30');
     await toIphone(page);
     await page.locator('#editor [type=submit]').click();

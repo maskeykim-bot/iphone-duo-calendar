@@ -41,6 +41,23 @@ export async function pickDest(page, type, id) {
   await dlg.locator(`#dest-pop .dopt[data-dtype="${type}"][data-did="${id}"]`).click();
   await expect(dlg.locator('#dest-pop')).toBeHidden();
 }
+// 日付は文字の欄、時刻は時刻のカプセルと時分のマスから（'2026/11/12 14:30' / '2026/11/12'）。分は5分刻みだけ選べる。
+export async function setTimeUi(page, which, hhmm) {
+  const dlg = page.locator('#editor');
+  const cap = dlg.locator(which === 'start' ? '#f-stime' : '#f-etime');
+  const [h, m] = hhmm.split(':').map(Number);
+  if (m % 5) throw new Error(`UIでは5分刻みだけ: ${hhmm}`);
+  await cap.click();
+  await dlg.locator(`#tp-h [data-h="${h}"]`).click();
+  await dlg.locator(`#tp-m [data-m="${m}"]`).click();
+  await expect(dlg.locator('#tpop')).toBeHidden();
+}
+export async function fillDateTime(page, which, text) {
+  const dlg = page.locator('#editor');
+  const [date, time] = text.split(' ');
+  await dlg.locator(which === 'start' ? '#f-start' : '#f-end').fill(date);
+  if (time) await setTimeUi(page, which, time);
+}
 export async function fillEditor(page, f) {
   const dlg = page.locator('#editor');
   if (f.title !== undefined) await dlg.locator('#f-title').fill(f.title);
@@ -48,8 +65,8 @@ export async function fillEditor(page, f) {
   if (f.cat) await pickDest(page, 'duo', catId(f.cat));
   if (f.cal) await pickDest(page, 'iphone', f.cal);
   if (f.all !== undefined) await dlg.locator('#f-all').setChecked(f.all);
-  if (f.start !== undefined) await dlg.locator('#f-start').fill(f.start);
-  if (f.end !== undefined) await dlg.locator('#f-end').fill(f.end);
+  if (f.start !== undefined) await fillDateTime(page, 'start', f.start);
+  if (f.end !== undefined) await fillDateTime(page, 'end', f.end);
   if (f.place !== undefined) await dlg.locator('#f-place').fill(f.place);
 }
 export async function addEvent(page, f) {
