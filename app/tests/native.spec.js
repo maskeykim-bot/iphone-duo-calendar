@@ -15,7 +15,7 @@ const EVENTS = [
 
 async function mock(page, cfg = {}) {
   await page.addInitScript((c) => {
-    const M = window.__mock = { perm: c.perm ?? 'granted', afterRequest: c.afterRequest ?? 'granted', calls: [], cals: c.cals, events: c.events, createFail: 0, opened: true, share: { completed: true }, created: {}, listeners: {}, notif: c.notif ?? 'notDetermined', notifAfter: c.notifAfter ?? 'granted', pending: [] };
+    const M = window.__mock = { perm: c.perm ?? 'granted', afterRequest: c.afterRequest ?? 'granted', calls: [], cals: c.cals, events: c.events, createFail: 0, opened: true, share: { completed: true }, created: {}, listeners: {}, notif: c.notif ?? 'notDetermined', notifAfter: c.notifAfter ?? 'granted', pending: [], remPerm: c.remPerm ?? 'notDetermined', remAfter: c.remAfter ?? 'granted', remLists: c.remLists ?? [] };
     const clone = (o) => JSON.parse(JSON.stringify(o ?? {}));
     window.Capacitor = {
       isNativePlatform: () => true,
@@ -26,6 +26,12 @@ async function mock(page, cfg = {}) {
         switch (method) {
           case 'checkPermission': if (c.checkReject) throw { code: 'UNIMPLEMENTED', message: 'x' }; return { status: M.perm };
           case 'requestPermission': M.perm = M.afterRequest; return { status: M.perm };
+          case 'reminderPermission': return { status: M.remPerm };
+          case 'requestReminderPermission': if (M.remPerm === 'notDetermined') M.remPerm = M.remAfter; return { status: M.remPerm };
+          case 'listReminderLists':
+            if (M.remPerm === 'restricted') throw { code: 'RESTRICTED', message: 'restricted' };
+            if (M.remPerm !== 'granted') throw { code: 'PERMISSION_DENIED', message: 'x' };
+            return { lists: M.remLists };
           case 'openSettings': return { opened: true };
           case 'listCalendars': return { calendars: M.cals };
           case 'listEvents': return { events: M.events.filter((e) => opts.calendarIds.includes(e.calendarId) && e.start < opts.to && e.end >= opts.from) };
@@ -1085,5 +1091,49 @@ test.describe('新規の標準オン（第13版 PR5）', () => {
     expect(e.nativeLink?.state).not.toBe('linked');
     const st = await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith('duo-native-cal')))));
     expect(st.defaultCalendarId).toBeNull();
+  });
+});
+
+test.describe('リマインダーの許可とリスト取得の契約（偽装。Swift 実動作の証明ではない）', () => {
+  const L = { id: 'rl-1', title: '買い物', color: '#ff9500', sourceId: 's1', source: 'iCloud', sourceType: 'caldav', allowsModify: true, isDefault: true };
+  const rc = (page, m) => page.evaluate((m) => window.__mock.calls.filter((c) => c.method === m).length, m);
+
+  test('起動してもリマインダー許可は要求せず、カレンダー許可と独立', async ({ page }) => {
+    await mock(page, { perm: 'denied', remPerm: 'notDetermined' });
+    await page.goto('/');
+    await page.waitForTimeout(500);
+    expect(await rc(page, 'requestReminderPermission')).toBe(0);
+    expect(await rc(page, 'reminderPermission')).toBe(0);
+    const r = await page.evaluate(async () => { const n = await import('/js/native.js'); return [await n.call('reminderPermission', {}), await n.call('checkPermission', {})]; });
+    expect(r[0]).toEqual({ status: 'notDetermined' });
+    expect(r[1]).toEqual({ status: 'denied' });
+  });
+
+  for (const st of ['denied', 'restricted']) {
+    test(`${st}: 要求しても状態のまま、リスト取得は専用エラー`, async ({ page }) => {
+      await mock(page, { remPerm: st, remAfter: 'granted' });
+      await page.goto('/');
+      const r = await page.evaluate(async () => {
+        const n = await import('/js/native.js');
+        const st = await n.call('requestReminderPermission', {});
+        let err = null; try { await n.call('listReminderLists', {}); } catch (e) { err = { code: e.code, text: n.reminderErrText(e, 'x'), cal: n.errText(e, 'x') }; }
+        return { st, err };
+      });
+      expect(r.st.status).toBe(st);
+      expect(r.err.code).toBe(st === 'denied' ? 'PERMISSION_DENIED' : 'RESTRICTED');
+      expect(r.err.text).toContain('リマインダー');
+      if (st === 'denied') expect(r.err.cal).toBe('カレンダーへのアクセスが許可されていません。');
+    });
+  }
+
+  test('許可後にリストを取得（型の全欄）、空リストも成功', async ({ page }) => {
+    await mock(page, { remPerm: 'notDetermined', remAfter: 'granted', remLists: [L] });
+    await page.goto('/');
+    const r = await page.evaluate(async () => { const n = await import('/js/native.js'); const a = await n.call('requestReminderPermission', {}); return { a, l: await n.call('listReminderLists', {}) }; });
+    expect(r.a).toEqual({ status: 'granted' });
+    expect(r.l.lists[0]).toEqual(L);
+    await mock(page, { remPerm: 'granted', remLists: [] });
+    await page.goto('/');
+    expect(await page.evaluate(async () => (await import('/js/native.js')).call('listReminderLists', {}))).toEqual({ lists: [] });
   });
 });

@@ -39,3 +39,13 @@ export function errText(e, fallback) {
     default: return fallback;
   }
 }
+
+// タスク（リマインダー）専用の表示用日本語。予定側の errText の文言は変えない。
+export function reminderErrText(e, fallback) {
+  switch (errCode(e)) {
+    case 'PERMISSION_DENIED': return 'リマインダーへのアクセスが許可されていません。';
+    case 'RESTRICTED': return 'この端末ではリマインダーへのアクセスが制限されています。';
+    case 'CANCELLED': return 'リマインダーの取得を取り消しました。';
+    default: return fallback;
+  }
+}
