@@ -311,7 +311,7 @@ test.describe('ネイティブ（偽装）', () => {
     await expect(page.locator('[data-cal]')).toHaveCount(2);
     expect(await calls(page, 'requestPermission')).toHaveLength(1);
     await expect(page.locator('[data-cal][aria-checked="true"]')).toHaveCount(2);
-    await expect(page.locator('#m-cal-ip .cahead', { hasText: 'Google' })).toBeVisible();
+    await expect(page.locator('#m-cal-ip .calsec', { hasText: 'Google' })).toBeVisible();
     await expect(page.locator('#m-cal-ip .cro')).toHaveText('表示のみ');
     await expect(page.locator('#lk-status')).toContainText('最終読み込み：');
     const ls = await page.evaluate(() => JSON.parse(localStorage.getItem('duo-native-cal')));

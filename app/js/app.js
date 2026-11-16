@@ -463,7 +463,7 @@ const allBtn = (cls = 'allbtn', st = '') => `<button type="button" class="${cls}
 const chead = () => {
   if (PS.on && monthAll()) return `<div class="chead pasting">${pasteBand()}</div>`;
   const inBand = POS.post === 'closed' && POS.band;
-  return `<div class="cahead">${navBtn(-1)}<h2 id="ctitle">${periodTitle()}${state.view === 'day' ? rkSpan(state.selected, 'hrk') : ''}</h2>${navBtn(1)}${state.view === 'month' && !inBand ? allBtn() : ''}</div>`;
+  return `<div class="chead">${navBtn(-1)}<h2 id="ctitle">${periodTitle()}${state.view === 'day' ? rkSpan(state.selected, 'hrk') : ''}</h2>${navBtn(1)}${state.view === 'month' && !inBand ? allBtn() : ''}</div>`;
 };
 
 function card(e) {
@@ -2898,7 +2898,7 @@ function renderCalScreen() {
   const box = $('#m-cal');
   if (!box) return;
   // Duo
-  let h = `<h3 class="cahead dhead"><span>Duo（この端末だけ）</span><button type="button" id="m-cedit" class="chbtn">${calEdit ? '完了' : '編集'}</button></h3>`;
+  let h = `<h3 class="calsec dhead"><span>Duo（この端末だけ）</span><button type="button" id="m-cedit" class="chbtn">${calEdit ? '完了' : '編集'}</button></h3>`;
   h += calEdit ? calEditRows() : state.categories.map((c) => calRow(`data-cvis="${esc(c.id)}"`, !c.hidden, c.color, c.name)).join('');
   $('#m-cal-duo').innerHTML = h;
   // iPhone（アカウント別）
@@ -2911,12 +2911,12 @@ function renderCalScreen() {
     if (X.perm === 'granted') {
       const gs = groupBySource(X.calendars);
       if (!gs.length) h += `<p class="cnote">${X.listed ? '表示できる iPhone のカレンダーがありません。' : '読み込み中…'}</p>`;
-      for (const g of gs) h += `<h3 class="cahead">${esc(g.heading)}</h3>${g.items.map((c) => calRow(`data-cal="${esc(c.id)}"`, link.calendarIds.includes(c.id), c.color, c.title, c.allowsModify ? '' : '<small class="cro">表示のみ</small>')).join('')}`;
-    } else if (X.perm === 'notDetermined') h += `<h3 class="cahead">iPhone</h3><p class="cnote">iPhone のカレンダーを出すには、アクセスを許可してください。</p><button type="button" class="cbtn" id="lk-req"${dis}>許可する</button>`;
-    else if (X.perm === 'denied') h += `<h3 class="cahead">iPhone</h3><p class="cnote" role="alert">${steps}</p><button type="button" class="cbtn" id="lk-settings">設定を開く</button>`;
-    else if (X.perm === 'restricted') h += '<h3 class="cahead">iPhone</h3><p class="cnote" role="alert">この端末ではカレンダーへのアクセスが制限されています。端末の管理者に確認してください。</p>';
-    else if (X.perm === 'writeOnly') h += `<h3 class="cahead">iPhone</h3><p class="cnote" role="alert">予定を表示するにはフルアクセスが必要です。設定アプリで許可すると使えます。</p><button type="button" class="cbtn" id="lk-req"${dis}>フルアクセスを許可</button><button type="button" class="cbtn" id="lk-settings">設定を開く</button>`;
-    else h += '<h3 class="cahead">iPhone</h3><p class="cnote" role="alert">カレンダーの状態を確認できませんでした。</p>';
+      for (const g of gs) h += `<h3 class="calsec">${esc(g.heading)}</h3>${g.items.map((c) => calRow(`data-cal="${esc(c.id)}"`, link.calendarIds.includes(c.id), c.color, c.title, c.allowsModify ? '' : '<small class="cro">表示のみ</small>')).join('')}`;
+    } else if (X.perm === 'notDetermined') h += `<h3 class="calsec">iPhone</h3><p class="cnote">iPhone のカレンダーを出すには、アクセスを許可してください。</p><button type="button" class="cbtn" id="lk-req"${dis}>許可する</button>`;
+    else if (X.perm === 'denied') h += `<h3 class="calsec">iPhone</h3><p class="cnote" role="alert">${steps}</p><button type="button" class="cbtn" id="lk-settings">設定を開く</button>`;
+    else if (X.perm === 'restricted') h += '<h3 class="calsec">iPhone</h3><p class="cnote" role="alert">この端末ではカレンダーへのアクセスが制限されています。端末の管理者に確認してください。</p>';
+    else if (X.perm === 'writeOnly') h += `<h3 class="calsec">iPhone</h3><p class="cnote" role="alert">予定を表示するにはフルアクセスが必要です。設定アプリで許可すると使えます。</p><button type="button" class="cbtn" id="lk-req"${dis}>フルアクセスを許可</button><button type="button" class="cbtn" id="lk-settings">設定を開く</button>`;
+    else h += '<h3 class="calsec">iPhone</h3><p class="cnote" role="alert">カレンダーの状態を確認できませんでした。</p>';
   }
   $('#m-cal-ip').innerHTML = h;
   // リマインダー（段の表示は既存の設定と一覧を使う。全オフの意味の修正は後の PR）
@@ -2928,8 +2928,8 @@ function renderCalScreen() {
       const shown = shownIds();
       const groups = [];
       for (const l of lists) { const k = l.source || 'リマインダー'; let g = groups.find((x) => x.k === k); if (!g) groups.push(g = { k, items: [] }); g.items.push(l); }
-      rb.innerHTML = groups.map((g) => `<h3 class="cahead">${esc(g.k)}（リマインダー）</h3>${g.items.map((l) => calRow(`data-tkshow="${esc(l.id)}"`, shown.has(l.id), l.color, l.title, l.allowsModify === false ? '<small class="cro">表示のみ</small>' : '')).join('')}`).join('');
-    } else rb.innerHTML = `<h3 class="cahead">リマインダー</h3><p class="cnote">${RM.state === 'denied' ? '設定アプリで許可すると使えます。' : RM.state === 'notDetermined' ? 'リマインダーのアクセスを許可すると選べます。' : 'リマインダーの許可後に選べます。'}</p>${RM.state === 'denied' ? '<button type="button" class="cbtn" data-act="remsettings">設定を開く</button>' : RM.state === 'notDetermined' ? '<button type="button" class="cbtn" id="m-remreq">許可する</button>' : ''}`;
+      rb.innerHTML = groups.map((g) => `<h3 class="calsec">${esc(g.k)}（リマインダー）</h3>${g.items.map((l) => calRow(`data-tkshow="${esc(l.id)}"`, shown.has(l.id), l.color, l.title, l.allowsModify === false ? '<small class="cro">表示のみ</small>' : '')).join('')}`).join('');
+    } else rb.innerHTML = `<h3 class="calsec">リマインダー</h3><p class="cnote">${RM.state === 'denied' ? '設定アプリで許可すると使えます。' : RM.state === 'notDetermined' ? 'リマインダーのアクセスを許可すると選べます。' : 'リマインダーの許可後に選べます。'}</p>${RM.state === 'denied' ? '<button type="button" class="cbtn" data-act="remsettings">設定を開く</button>' : RM.state === 'notDetermined' ? '<button type="button" class="cbtn" id="m-remreq">許可する</button>' : ''}`;
   }
   // 新しい予定の追加先
   const d = destInfo(destNow()), open = !$('#m-destpop').hidden;

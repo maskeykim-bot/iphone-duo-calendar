@@ -947,8 +947,8 @@ body[data-layout=spread] dialog#menu,body[data-layout=desk] dialog#menu{height:a
 body.settings-open .ctl.band [data-act=menu] .bi svg{display:none}
 body.settings-open .ctl.band [data-act=menu] .bi::after{content:"×";font-size:26px;line-height:1}
 /* 第15版 PR8: 設定 › カレンダー（アカウント別の段。見出し32・行40・青✓・色丸14・表示のみ札） */
-.cahead{margin:0;height:32px;line-height:32px;padding:0 20px;font-size:12px;font-weight:400;color:#8C918B;border-top:1px solid #ECE9E1}
-#m-cal>div:first-child .cahead:first-child{border-top:0}
+.calsec{margin:0;height:32px;line-height:32px;padding:0 20px;font-size:12px;font-weight:400;color:#8C918B;border-top:1px solid #ECE9E1}
+#m-cal>div:first-child .calsec:first-child{border-top:0}
 .mscreens .menurows button.crow{display:flex;align-items:center;gap:10px;min-height:40px;height:40px;padding:0 20px 0 20px;font-size:16px;background:transparent;border:0;text-align:left}
 .crow .cdot{flex:none;width:14px;height:14px;border-radius:50%;display:inline-block}
 .crow .cname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -961,7 +961,7 @@ body.settings-open .ctl.band [data-act=menu] .bi::after{content:"×";font-size:2
 .cnote{margin:0;padding:4px 20px 6px;font-size:12px;line-height:1.4;color:#68716A}
 .mscreens .menurows button.cbtn{display:inline-block;width:auto;margin:2px 20px 8px 20px;min-height:40px;padding:0 16px;border:1px solid #DCD7CB;border-radius:20px;background:#fff;font-size:14px}
 /* 第15版 PR9: Duo 段の編集モード（赤−・並べ替え・追加） */
-.cahead.dhead{display:flex;align-items:center;justify-content:space-between}
+.calsec.dhead{display:flex;align-items:center;justify-content:space-between}
 .mscreens .menurows button.chbtn{flex:none;width:auto;min-width:44px;min-height:32px;height:32px;line-height:32px;padding:0 4px;text-align:right;border:0;background:transparent;font-size:14px;color:#4E7FC4}
 .crow.edit{display:flex;align-items:center;gap:6px;min-height:44px;padding:0 8px 0 12px}
 .mscreens .menurows .crow.edit button.cdel{flex:none;width:44px;height:44px;min-height:44px;padding:0;border:0;background:transparent;display:flex;align-items:center;justify-content:center}

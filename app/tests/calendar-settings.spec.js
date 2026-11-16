@@ -45,12 +45,12 @@ test.describe('設定 › カレンダー（PR8）', () => {
     await setup(page);
     await openMenu(page, 'calendar');
     await expect(rows(page)).toHaveCount(5);
-    const heads = await page.locator('#m-cal-ip .cahead').allTextContents();
+    const heads = await page.locator('#m-cal-ip .calsec').allTextContents();
     expect(heads).toEqual(expect.arrayContaining(['iCloud（caldav）', 'iCloud（local）', 'Gmail', 'Subscribed Calendars']));
-    await expect(page.locator('#m-cal-duo .cahead span')).toHaveText('Duo（この端末だけ）');
+    await expect(page.locator('#m-cal-duo .calsec span')).toHaveText('Duo（この端末だけ）');
     await expect(page.locator('[data-cal="cal-r"] .cro')).toHaveText('表示のみ');
     await expect(page.locator('[data-cal="cal-a"] .cro')).toHaveCount(0);
-    const m = await page.evaluate(() => ({ h: document.querySelector('#m-cal-ip .cahead').getBoundingClientRect().height, r: document.querySelector('[data-cal="cal-a"]').getBoundingClientRect().height, d: document.querySelector('[data-cal="cal-a"] .cdot').getBoundingClientRect().width }));
+    const m = await page.evaluate(() => ({ h: document.querySelector('#m-cal-ip .calsec').getBoundingClientRect().height, r: document.querySelector('[data-cal="cal-a"]').getBoundingClientRect().height, d: document.querySelector('[data-cal="cal-a"] .cdot').getBoundingClientRect().width }));
     expect(m).toEqual({ h: 32, r: 40, d: 14 });
     // 初回は全選択
     await expect(page.locator('#m-cal-ip [aria-checked="true"]')).toHaveCount(5);
