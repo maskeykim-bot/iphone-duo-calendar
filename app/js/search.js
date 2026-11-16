@@ -130,3 +130,14 @@ export const groupByDay = (items) => {
   }
   return g;
 };
+
+// メモ検索: 全期間・本文のAND検索（予定と同じ正規化）。新しい日付順・最大 LIMIT 件。予定の件数とは混ぜない。
+// 戻り値: { items: [{date, text}], total, capped, ts }
+export function searchMemos(memos, query) {
+  const ts = terms(query);
+  if (!ts.length) return { items: [], total: 0, capped: false, ts };
+  const hits = [];
+  for (const m of memos || []) if (m && typeof m.text === 'string') { const n = normalize(m.text); if (ts.every((t) => n.includes(t))) hits.push({ date: m.date, text: m.text }); }
+  hits.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  return { items: hits.slice(0, LIMIT), total: hits.length, capped: hits.length > LIMIT, ts };
+}

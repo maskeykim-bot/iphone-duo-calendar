@@ -3,7 +3,7 @@ import { SAMPLE } from './sample.js';
 import { initSwipe } from './swipe.js';
 import { occurrenceAt, parseOccId, planDelete, planEdit, editInfo, normRule } from './recur.js';
 import { bumpRevision, occBetween } from './occcache.js';
-import { LIMIT, groupByDay, highlight, excerpt, searchEvents } from './search.js';
+import { LIMIT, groupByDay, highlight, excerpt, searchEvents, searchMemos } from './search.js';
 import { backupName, buildBackup, countStats, localIso, planAppend, planMemos, validateBackup, MAX_BYTES } from './backup.js';
 import { CAT_IDS, LIMITS as CAT_LIMITS, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory } from './categories.js';
 import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAlarms, encAlarm, fireAt, nextNotifyText, normNotify, pastForNotify, planNotifications, MAX_PENDING, WINDOW_DAYS } from './notify.js';
@@ -489,7 +489,7 @@ function weekInner(w, { mode, cur, sel, today, cap, time }) {
     const es = eventsOnDay(wev, k), d = parseKey(k), dow = d.getDay();
     const r = rkOf(k), label = d.getDate() === 1 ? (state.rokuyo ? `${d.getMonth() + 1}/1` : `${d.getMonth() + 1}月1日`) : d.getDate(); // 六曜オンの1日は「11/1」（左の六曜とぶつかるため）
     const dots = mode === 'simple' ? `<span class="dots">${es.slice(0, cap).map((e) => `<i class="dot ${catCls(e)}"${catSty(e)}></i>`).join('')}</span>` : '';
-    html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}${dow === 6 ? ' sat' : dow === 0 ? ' sun' : ''}" data-date="${k}" aria-label="${dayLabel(k)}${r ? `、${r.name}` : ''}、予定${es.length}件${xCount(es)}" aria-pressed="${k === sel}">${r ? `<span class="rk" aria-hidden="true">${r.name}</span>` : ''}<span class="num${state.rokuyo && d.getDate() === 1 ? ' sd' : ''}">${label}</span>${dots}</button>`;
+    html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}${dow === 6 ? ' sat' : dow === 0 ? ' sun' : ''}" data-date="${k}" aria-label="${dayLabel(k)}${r ? `、${r.name}` : ''}、予定${es.length}件${xCount(es)}" aria-pressed="${k === sel}">${r ? `<span class="rk" aria-hidden="true">${r.name}</span>` : ''}<span class="num${state.rokuyo && d.getDate() === 1 ? ' sd' : ''}">${label}</span>${memoMark(k)}${dots}</button>`;
     const extra = mode === 'simple' ? es.length - cap : hidden[col];
     if (extra > 0) html += `<button type="button" class="plus" data-jump="${k}" style="right:calc(${6 - col} * 100% / 7)" aria-label="${dayLabel(k)}の予定をすべて見る（ほか${extra}件）">+${extra}</button>`;
   });
@@ -802,12 +802,27 @@ const gearBtn = () => (POS.band ? '' : `<button type="button" class="sset" data-
 const paneNav = (side, dir) => `<button type="button" data-act="${dir > 0 ? 'next' : 'prev'}" data-pane="${side}" aria-label="${dir > 0 ? '次' : '前'}の${state.pages[side] === 'time' && tmode(side) === 'week' ? '週' : '日'}">${dir > 0 ? '›' : '‹'}</button>`;
 // 時間・タスク・メモの見出し: 日付（たたくと小さな月）｜（右は 今日・検索・＋）｜（時間のみ）カプセル ｜ 前・次（左右とも）。帯がなければ左は設定もここ。
 function dateHead(side, id) {
-  return `<div class="rhead dh"><h2 class="rdate"><button type="button" class="datebtn" data-act="mini" data-pane="${side}" aria-haspopup="dialog" aria-expanded="${MM.open === side}" aria-label="日付を選ぶ: ${esc(dayLabel(state.selected))}">${dayTitle(state.selected)}</button></h2>${side === 'right' ? rctl() : ''}${id === 'time' ? timeCapsule(side) : ''}<div class="sctl">${paneNav(side, -1)}${paneNav(side, 1)}${side === 'left' ? gearBtn() : ''}</div></div>`;
+  return `<div class="rhead dh"><h2 class="rdate"><button type="button" class="datebtn" data-act="mini" data-pane="${side}" aria-haspopup="dialog" aria-expanded="${MM.open === side}" aria-label="日付を選ぶ: ${esc(dayLabel(state.selected))}">${dayTitle(state.selected)}</button></h2>${side === 'right' ? rctl() : ''}${id === 'time' ? timeCapsule(side) : id === 'memo' ? memoCapsule(side) : ''}<div class="sctl">${paneNav(side, -1)}${paneNav(side, 1)}${side === 'left' ? gearBtn() : ''}</div></div>`;
 }
 // 小さな月（幅 280・高さ 260、1マス 40×36）。選んでいる日は共通。六曜は出さない。メモの印は memoMark の差込口。
 const MM = { open: null, ym: '' };
-const memoMark = (k) => (memoDayHas(k) ? '<i class="mline" aria-hidden="true"></i>' : ''); // 日付下の短い線（メモの保存は後続のPR）
-const memoDayHas = () => false;
+// メモがある日の印（日付下の短い線 12×2）。全期間のキーを1回読んで Set で持ち、保存・削除・読み込みで無効化する。
+const MK = { set: null, gen: 0, loading: false, failed: false };
+const memoDayHas = (k) => !!MK.set && MK.set.has(k);
+const memoMark = (k) => (memoDayHas(k) ? '<i class="mline" aria-hidden="true"></i>' : '');
+function ensureMarks() {
+  if (MK.set || MK.loading || MK.failed) return;
+  const g = MK.gen; MK.loading = true;
+  db.memoDates('1000-01-01', '9999-12-31').then((ks) => { if (g !== MK.gen) return; MK.set = new Set(ks); MK.loading = false; render(); }, () => { if (g === MK.gen) { MK.loading = false; MK.failed = true; } });
+}
+function invalidateMarks() { MK.set = null; MK.gen++; MK.loading = false; MK.failed = false; }
+function patchMark(k, has) {
+  if (MK.set) { if (has === MK.set.has(k)) return; has ? MK.set.add(k) : MK.set.delete(k); } else { invalidateMarks(); ensureMarks(); return; }
+  root.querySelectorAll(`.day[data-date="${k}"], .mmc[data-mmday="${k}"]`).forEach((b) => {
+    const i = b.querySelector('.mline');
+    if (has && !i) { const n = document.createElement('i'); n.className = 'mline'; n.setAttribute('aria-hidden', 'true'); const dots = b.querySelector('.dots'); b.insertBefore(n, dots); } else if (!has && i) i.remove();
+  });
+}
 function miniMonth(side) {
   if (MM.open !== side) return '';
   const d = parseKey(MM.ym || state.selected);
@@ -834,11 +849,42 @@ function timeBody(side, w) {
 // ページ id 付きの描画。side＝'left'|'right'、id＝'month'|'time'|'task'|'memo'。
 // ---------- 日付メモ（左右ページ・縦の下パネルで同じ日に同じ本文。保存は memos.js） ----------
 let memoComposing = false, renderPending = false, rendering = false;
-const memoSaid = new Set();
+const memoSaid = new Set(), memoSynced = new Map();
 function memoBody(where) {
   const k = state.selected, e = memoStore.get(k);
-  return `<div class="memopage padb" data-memo-wrap="${where}"><textarea class="memota" data-memo="${k}" data-where="${where}" aria-label="${esc(dayLabel(k))}のメモ" placeholder="この日のメモ" spellcheck="false"${e?.loaded ? '' : ' readonly'}></textarea><div class="memost" data-memost="${k}">自動で保存</div></div>`;
+  if (ML.open[where]) return `${where === 'bottom' ? memoTools(where) : ''}${memoListHtml(where)}`;
+  return `${where === 'bottom' ? memoTools(where) : ''}<div class="memopage padb" data-memo-wrap="${where}"><textarea class="memota" data-memo="${k}" data-where="${where}" aria-label="${esc(dayLabel(k))}のメモ" placeholder="この日のメモ" spellcheck="false"${e?.loaded ? '' : ' readonly'}></textarea><div class="memost" data-memost="${k}">自動で保存</div></div>`;
 }
+// ---- メモの一覧（メモがある日を新しい順・1行56・検索欄） ----
+const ML = { open: { left: false, right: false, bottom: false }, q: { left: '', right: '', bottom: '' }, rows: null, seq: 0, failed: false };
+const memoTools = (where) => `<div class="mtools"><button type="button" class="mlbtn" data-act="memolist" data-where="${where}" aria-pressed="${ML.open[where]}" aria-label="メモの一覧${ML.open[where] ? '（表示中）' : ''}"><span aria-hidden="true">一覧</span></button></div>`;
+const memoCapsule = (side) => `<button type="button" class="spanbtn" data-act="memolist" data-where="${side}" aria-pressed="${ML.open[side]}" aria-label="メモの一覧${ML.open[side] ? '（表示中）' : ''}"><span aria-hidden="true">一覧</span></button>`;
+function memoRowsHtml(where) {
+  if (ML.failed) return '<p class="smsg">メモを読み込めませんでした。</p>';
+  if (!ML.rows) return '<p class="smsg" role="status">読み込んでいます…</p>';
+  const q = ML.q[where], rows = q.trim() ? searchMemos(ML.rows, q) : { items: ML.rows, ts: [] };
+  if (!rows.items.length) return `<p class="smsg">${q.trim() ? '該当するメモはありません。' : 'メモはまだありません。'}</p>`;
+  return rows.items.map((m) => {
+    const first = (m.text.split('\n').find((l) => l.trim()) || '').trim();
+    return `<button type="button" class="mrow" data-mrow="${m.date}" aria-label="${esc(dayLabel(m.date))} ${esc(first)}"><b>${esc(m.date.slice(0, 4) === todayKey().slice(0, 4) ? dayLabel(m.date) : `${m.date.slice(0, 4)}年${dayLabel(m.date)}`)}</b><span>${rows.ts.length ? highlight(first, rows.ts, esc) : esc(first)}</span></button>`;
+  }).join('');
+}
+const memoListHtml = (where) => `<div class="memopage mlist padb" data-mlist-wrap="${where}"><div class="mlsb"><input type="search" class="mlq" data-mlq="${where}" placeholder="メモを検索" aria-label="メモを検索" value="${esc(ML.q[where])}" autocomplete="off" spellcheck="false"></div><div class="mlrows" data-mlist="${where}">${memoRowsHtml(where)}</div></div>`;
+function paintMemoLists() { root.querySelectorAll('[data-mlist]').forEach((el) => { el.innerHTML = memoRowsHtml(el.dataset.mlist); }); }
+async function loadMemoList() {
+  const seq = ++ML.seq;
+  try { await flushMemosNow(); const rows = await db.listMemoDays(); if (seq !== ML.seq) return; ML.rows = rows.filter((m) => m && typeof m.text === 'string' && m.text.trim()); ML.failed = false; } catch { if (seq !== ML.seq) return; ML.failed = true; }
+  paintMemoLists();
+}
+const invalidateMemoList = () => { ML.rows = null; ML.seq++; if (Object.values(ML.open).some(Boolean)) loadMemoList(); };
+const memoListUsed = () => Object.entries(ML.open).some(([w, o]) => o && root.querySelector(`[data-mlist="${w}"]`));
+root.addEventListener('input', (ev) => { const q = ev.target.closest?.('input.mlq'); if (q) { ML.q[q.dataset.mlq] = q.value; paintMemoLists(); } });
+root.addEventListener('click', (ev) => {
+  const r = ev.target.closest?.('[data-mrow]'); if (!r) return;
+  const where = r.closest('[data-mlist-wrap]')?.dataset.mlistWrap; if (where) ML.open[where] = false;
+  set({ selected: r.dataset.mrow }); say(`${dayLabel(r.dataset.mrow)}のメモを開きました。`);
+  root.querySelector('textarea.memota')?.focus({ preventScroll: true });
+});
 const memoStatusHtml = (e, k) => e?.failed ? `<span class="merr">${SAVE_FAILED}</span><button type="button" data-act="memoretry" data-mdate="${k}">再試行</button>` : e?.loadFailed ? '<span class="merr">メモを読み込めませんでした。</span>' : '自動で保存';
 function paintMemo(k) {
   const e = memoStore.get(k);
@@ -847,6 +893,7 @@ function paintMemo(k) {
     if (e?.loaded && !memoComposing && ta.value !== e.text) ta.value = e.text;
   });
   root.querySelectorAll(`.memost[data-memost="${k}"]`).forEach((el) => { el.innerHTML = memoStatusHtml(e, k); });
+  if (e?.loaded && !memoStore.dirty(k) && !e.failed) { patchMark(k, !/^\s*$/.test(e.text)); if (memoSynced.get(k) !== e.text) { memoSynced.set(k, e.text); if (ML.rows || Object.values(ML.open).some(Boolean)) invalidateMemoList(); } }
   if (e?.failed && !memoSaid.has(k)) { memoSaid.add(k); say(SAVE_FAILED); } else if (!e?.failed) memoSaid.delete(k);
 }
 setMemoHook(paintMemo);
@@ -991,6 +1038,8 @@ function render() {
   root.innerHTML = { home: () => closed('home'), browse: () => closed('browse'), open, desk, spread }[kind]();
   rendering = false;
   fillMemos(memoKeep);
+  ensureMarks();
+  if (memoListUsed() && !ML.rows && !ML.failed) loadMemoList();
   lastKind = kind;
   root.querySelectorAll('[data-scroll]').forEach((el) => { el.scrollTop = scrolls[`${kind}:${el.dataset.scroll}${el.dataset.pane || ''}`] || 0; });
   restoreAll(anchor);
@@ -1055,6 +1104,7 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'today') set({ selected: todayKey() }); // 今日へ戻るのは選択日だけ。表示（一覧・日・週・月）は保つ
   else if (d.act === 'prev') move(-1, d.pane);
   else if (d.act === 'next') move(1, d.pane);
+  else if (d.act === 'memolist') { const w = d.where; ML.open[w] = !ML.open[w]; render(); if (ML.open[w]) { loadMemoList(); root.querySelector(`[data-mlq="${w}"]`)?.focus({ preventScroll: true }); } }
   else if (d.act === 'memoretry') memoStore.flushMemo(d.mdate);
   else if (d.act === 'sample') loadSample();
   else if (d.act === 'search') openSearch(b);
@@ -1941,13 +1991,15 @@ CT.body.addEventListener('click', (ev) => {
 
 // ---------- 検索 ----------
 const SR = { q: $('#sr-q'), clear: $('#sr-clear'), range: $('#sr-range'), xrange: $('#sr-xrange'), body: $('#sr-body') };
-let srSeq = 0, srTimer = 0, srToday = todayKey(), srItems = [], srSnap = null;
+let srSeq = 0, srTimer = 0, srToday = todayKey(), srItems = [], srSnap = null, srMemos = [], srMemoSeq = 0;
 const ymd = (k) => k.replaceAll('-', '/');
 function openSearch(from) {
   srToday = todayKey();
   // 検索開始時点の成功キャッシュと範囲を固定する（検索のために3年分を取りに行かない）。
   srSnap = extActive() ? { events: [...visExt()], range: X.cache?.range || null } : null;
   SR.q.value = '';
+  srMemos = []; const ms = ++srMemoSeq; // メモは全期間。未保存分を書いてから読む（失敗しても予定の検索は使える）
+  flushMemosNow().then(() => db.listMemos()).then((m) => { if (ms === srMemoSeq) { srMemos = m; if (SR.q.value.trim()) renderSearch(true, true); } }, () => {});
   renderSearch(true);
   openPanel(searchDlg, from);
   SR.q.focus({ preventScroll: true });
@@ -1960,7 +2012,14 @@ function hitHtml(e, ts) {
   const ex = !inTP && e.notes ? excerpt(e.notes, ts) : '';
   return `<button type="button" class="hit ${catCls(e)}"${catSty(e)} data-hit="${esc(e.id)}"${repLabel(e, `${dayLabel(dayOf(e.start))} ${time} ${e.title}`)}><span class="hmeta">${esc(time)} · ${esc(tagText(e))}</span><strong>${xi(e)}${rep(e)}${hl(e.title)}</strong>${e.place ? `<span class="hplace">${hl(e.place)}</span>` : ''}${ex ? `<span class="hnote">${hl(ex)}</span>` : ''}</button>`;
 }
-function renderSearch(initial = false) {
+function memoHitHtml(m, ts) {
+  const yr = Number(srToday.slice(0, 4)), lab = Number(m.date.slice(0, 4)) === yr ? dayLabel(m.date) : `${m.date.slice(0, 4)}年${dayLabel(m.date)}`;
+  const ex = excerpt(m.text, ts) || m.text.slice(0, 80);
+  return `<button type="button" class="mhit" data-mhit="${m.date}" aria-label="${esc(`${lab}のメモ ${ex}`)}"><span class="hmeta">${esc(lab)}</span><span class="hnote">${highlight(ex, ts, esc)}</span></button>`;
+}
+function renderSearch(initial = false, quiet = false) {
+  const say2 = (m) => { if (!quiet) say(m); };
+  const mres = searchMemos(srMemos, SR.q.value);
   const res = searchEvents(state.events, SR.q.value, srToday, srSnap ? searchExt(srSnap.events, SR.q.value, srToday) : []);
   SR.clear.hidden = !SR.q.value;
   SR.range.textContent = `検索範囲：${ymd(res.range.from)}–${ymd(res.range.to)}・最大${LIMIT}件`;
@@ -1968,14 +2027,16 @@ function renderSearch(initial = false) {
   if (srSnap) SR.xrange.textContent = srSnap.range ? `iPhoneの検索範囲：${ymdSlash(srSnap.range.from)}–${ymdSlash(lastDay(srSnap.range.to))}（読み込み済み）` : 'iPhoneの予定はまだ読み込まれていません。';
   srItems = res.items;
   const yr = Number(srToday.slice(0, 4));
-  if (!res.ts.length) { SR.body.innerHTML = '<p class="smsg">探したい予定の言葉を入力してください。予定名・メモ・場所から探せます。</p>'; if (!initial) say('検索語を消しました。'); return; }
-  if (!res.total) { SR.body.innerHTML = '<p class="smsg">該当する予定はありません。検索語や検索範囲を確認してください。</p>'; say('該当する予定はありません。'); return; }
+  if (!res.ts.length) { SR.body.innerHTML = '<p class="smsg">探したい予定の言葉を入力してください。予定名・メモ・場所から探せます。</p>'; if (!initial) say2('検索語を消しました。'); return; }
+  if (!res.total && !mres.total) { SR.body.innerHTML = '<p class="smsg">該当する予定はありません。検索語や検索範囲を確認してください。</p>'; say2('該当する予定はありません。'); return; }
   const groups = groupByDay(res.items).map((g) => {
     const label = Number(g.key.slice(0, 4)) === yr ? dayLabel(g.key) : `${g.key.slice(0, 4)}年${dayLabel(g.key)}`;
     return `<section class="hgroup"><h3>${label}</h3>${g.items.map((e) => hitHtml(e, res.ts)).join('')}</section>`;
   }).join('');
-  SR.body.innerHTML = `<p class="small hcount">${res.total}件の予定</p>${res.capped ? `<p class="small">${LIMIT}件を表示しています。検索語を追加して絞り込んでください</p>` : ''}${groups}`;
-  say(`${res.total}件の予定が見つかりました。`);
+  const evHtml = res.total ? `<p class="small hcount">${res.total}件の予定</p>${res.capped ? `<p class="small">${LIMIT}件を表示しています。検索語を追加して絞り込んでください</p>` : ''}${groups}` : '<p class="smsg">該当する予定はありません。検索語や検索範囲を確認してください。</p>';
+  const mHtml = mres.total ? `<section class="ssec" data-sec="memo" aria-label="メモ"><h2 class="srhead">メモ</h2><p class="small hcount">${mres.total}件のメモ（全期間・最大${LIMIT}件）</p>${mres.capped ? `<p class="small">${LIMIT}件を表示しています。検索語を追加して絞り込んでください</p>` : ''}${mres.items.map((m) => memoHitHtml(m, mres.ts)).join('')}</section>` : '';
+  SR.body.innerHTML = `<section class="ssec" data-sec="events">${evHtml}</section>${mHtml}`;
+  say2(`${res.total}件の予定${mres.total ? `、${mres.total}件のメモ` : ''}が見つかりました。`);
 }
 SR.q.addEventListener('input', () => {
   clearTimeout(srTimer);
@@ -1988,6 +2049,14 @@ SR.q.addEventListener('input', () => {
 SR.clear.addEventListener('click', () => { clearTimeout(srTimer); srSeq++; SR.q.value = ''; renderSearch(); SR.q.focus({ preventScroll: true }); });
 $('#sr-close').addEventListener('click', () => closePanel(searchDlg));
 SR.body.addEventListener('click', (ev) => {
+  const mh = ev.target.closest('[data-mhit]');
+  if (mh) {
+    const k = mh.dataset.mhit;
+    closePanel(searchDlg, false);
+    set({ selected: k, view: 'day', home: false });
+    say(`${dayLabel(k)}へ移動しました。`);
+    return;
+  }
   const b = ev.target.closest('[data-hit]');
   if (!b) return;
   const e = srItems.find((x) => String(x.id) === b.dataset.hit);
@@ -2130,7 +2199,8 @@ async function finishImport(kind) {
     renderBackup();
     return;
   }
-  memoStore.invalidateAll(); // 成功後: 下書きと表示中の本文を捨て、DB の内容を読み直す（印のキャッシュは未導入）
+  memoStore.invalidateAll(); // 成功後: 下書きと表示中の本文を捨て、DB の内容を読み直す
+  invalidateMarks(); memoSynced.clear(); ML.rows = null; ML.seq++; ML.failed = false;
   state.events = await db.listEvents();
   bumpRevision();
   try { setCategories(await db.listCategories()); } catch { /* 直前の一覧で続ける */ }

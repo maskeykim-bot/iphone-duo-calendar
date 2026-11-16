@@ -68,7 +68,7 @@ test.describe('検索', () => {
   test('繰り返しの各回が複数の日付グループで出る', async ({ page }) => {
     await search(page, 'ジム');
     await expect(hits(page)).toHaveCount(104); // 毎週月曜、検索範囲（今日〜2028/11/12）内の全回
-    await expect(page.locator('#sr-body')).toContainText('104件の予定');
+    await expect(page.locator('#sr-body [data-sec="events"]')).toContainText('104件の予定');
     await expect(page.locator('#sr-body .hgroup h3').first()).toHaveText('11月16日（月）');
     await expect(page.locator('#sr-body .hgroup h3').nth(1)).toHaveText('11月23日（月）');
     await expect(hits(page).first().locator('.rep')).toHaveCount(1);
@@ -80,7 +80,7 @@ test.describe('検索', () => {
     await seed(page, [ev('d1', '毎日ストレッチ', '2026-11-13T06:00', '2026-11-13T06:30', { recurrence: { freq: 'daily', interval: 1, byDay: [], count: null, until: null } })]);
     await searchBtn(page).click();
     await search(page, 'ストレッチ');
-    await expect(page.locator('#sr-body')).toContainText('200件を表示しています');
+    await expect(page.locator('#sr-body [data-sec="events"]')).toContainText('200件を表示しています');
     await expect(hits(page)).toHaveCount(200);
   });
 
