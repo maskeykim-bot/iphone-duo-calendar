@@ -1,4 +1,5 @@
 import * as db from './db.js';
+import { isoFromInput, inputFromIso, stateFromInput, setStartDate, setStartTime, setAll } from './datetime.js';
 import { SAMPLE } from './sample.js';
 import { initSwipe } from './swipe.js';
 import { initDirectInput, dayRange, rangeText, minutesAt, dragRange, tapRange, moveHandle, spanText, hm as hmText, snap15, edgeZone, edgeVelocity, createDwell, createFrameLoop } from './direct-input.js';
@@ -1565,6 +1566,29 @@ function saveDraft() {
   try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ editing, ...readForm() })); } catch { /* 無視 */ }
 }
 function clearDraft() { try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* 無視 */ } }
+// 日時の編集状態（js/datetime.js）。入力欄の文字は従来どおり保存の入口で、状態は触っていない値を丸めず保つための裏付け。
+let dt = null, dt0End = '';
+function syncDtFromForm(ev) {
+  const t = ev?.target;
+  if (!dt || (t !== F.start && t !== F.end) || ev.type !== 'input') return; // 入力中に確定した形になった時点で追う（change で欄を書き換えると、次の欄へ移る操作と衝突する）
+  const all = F.all.checked;
+  const norm = (iso, end) => (all ? `${iso.slice(0, 10)}T${end ? '23:59' : '00:00'}` : iso);
+  const s = isoFromInput(F.start.value, all), e = isoFromInput(F.end.value, all);
+  if (t === F.start && s) {
+    const ns = norm(s, false);
+    let n = dt;
+    if (ns.slice(0, 10) !== n.start.slice(0, 10)) n = setStartDate(n, ns.slice(0, 10));
+    if (!all && ns.slice(11) !== n.start.slice(11)) n = setStartTime(n, +ns.slice(11, 13), +ns.slice(14, 16));
+    dt = n;
+    // 終了欄を手で直していなければ、長さ（複数日なら日数）を保って終了も動かす。
+    if (!e || norm(e, true) === dt0End) F.end.value = inputFromIso(dt.end, all);
+  } else if (t === F.end && e) {
+    // 手入力の終了は検証側（validateDraft）が判定する。ここでは値を写すだけで日付を進めない。
+    const ne = norm(e, true), o = dt.end, f = dt.touched;
+    dt = { ...dt, end: ne, touched: { ...f, endDate: f.endDate || ne.slice(0, 10) !== o.slice(0, 10), endHour: f.endHour || ne.slice(11, 13) !== o.slice(11, 13), endMin: f.endMin || ne.slice(14, 16) !== o.slice(14, 16) } };
+  }
+  dt0End = dt.end;
+}
 function applyAllDayUi() {
   const all = F.all.checked;
   F.start.placeholder = all ? '2026/11/12' : '2026/11/12 10:00';
@@ -1613,6 +1637,8 @@ function showEditor(values, id, focus = true) {
   applyExtUi();
   R.err.textContent = '';
   applyAllDayUi();
+  dt = stateFromInput(values.start, values.end, values.all, extEd?.before.rawEnd);
+  dt0End = dt ? dt.end : '';
   setRepeatOpen(!!values.ropen);
   destSel = extEd ? null : normDest(values.dest);
   { const d0 = destEff(); lastCat = d0.type === 'duo' ? d0.id : lastCatOk(); }
@@ -1800,7 +1826,8 @@ function closeEditor() {
   closePanel(dlg);
 }
 function onFormChange(ev) {
-  if (AL.sel.includes(ev?.target)) return; // 通知の選択は onAlarmChange が扱う（input で作り直すと選択が戻ってしまう）
+  if (AL.sel.includes(ev?.target)) return;
+  syncDtFromForm(ev); // 通知の選択は onAlarmChange が扱う（input で作り直すと選択が戻ってしまう）
   if (F.rfreq.value === 'weekly' && (autoDays || !rsel.length)) { rsel = [startDow()]; autoDays = true; }
   if (F.rend.value === 'until' && !F.runtil.value.trim()) F.runtil.value = startKey().replaceAll('-', '/');
   updateRepeatUi();
@@ -1821,10 +1848,19 @@ R.panel.addEventListener('click', (ev) => {
 });
 F.all.addEventListener('change', () => {
   const all = F.all.checked;
-  for (const [el, t] of [[F.start, '10:00'], [F.end, '11:00']]) {
-    const v = el.value.trim();
-    if (all && /^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}$/.test(v)) el.value = v.slice(0, 10);
-    else if (!all && /^\d{4}\/\d{2}\/\d{2}$/.test(v)) el.value = `${v} ${t}`;
+  // 終日にする前の時刻は状態が覚えていて、OFF で戻る（10:07 も 10:07 のまま）。
+  const sTxt = isoFromInput(F.start.value, !all), eTxt = isoFromInput(F.end.value, !all);
+  if (dt && sTxt && eTxt) {
+    dt = { ...dt, start: all ? sTxt : `${sTxt.slice(0, 10)}T00:00`, end: all ? eTxt : `${eTxt.slice(0, 10)}T23:59`, all: !all };
+    dt = setAll(dt, all);
+    F.start.value = inputFromIso(dt.start, all); F.end.value = inputFromIso(dt.end, all);
+    dt0End = dt.end;
+  } else {
+    for (const [el, t] of [[F.start, '10:00'], [F.end, '11:00']]) {
+      const v = el.value.trim();
+      if (all && /^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}$/.test(v)) el.value = v.slice(0, 10);
+      else if (!all && /^\d{4}\/\d{2}\/\d{2}$/.test(v)) el.value = `${v} ${t}`;
+    }
   }
   applyAllDayUi();
   alarms = convertAlarms(alarms, all, loadNotify());

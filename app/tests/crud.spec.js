@@ -11,6 +11,21 @@ test.describe('予定の追加・編集・削除', () => {
     await expect(page.getByRole('button', { name: 'サンプルを入れる' })).toHaveCount(0);
   });
 
+  test('開始を変えると長さを保って終了も動く。終日の ON/OFF で 10:07 に戻る', async ({ page }) => {
+    await openApp(page);
+    await page.locator('[data-act="add"]:visible').first().click();
+    const dlg = page.locator('#editor');
+    await dlg.locator('#f-start').fill('2026/11/12 10:07');
+    await dlg.locator('#f-end').fill('2026/11/12 11:43');
+    await dlg.locator('#f-start').fill('2026/11/12 14:07');
+    await expect(dlg.locator('#f-end')).toHaveValue('2026/11/12 15:43');
+    await dlg.locator('#f-all').setChecked(true);
+    await expect(dlg.locator('#f-start')).toHaveValue('2026/11/12');
+    await dlg.locator('#f-all').setChecked(false);
+    await expect(dlg.locator('#f-start')).toHaveValue('2026/11/12 14:07');
+    await expect(dlg.locator('#f-end')).toHaveValue('2026/11/12 15:43');
+  });
+
   test('追加 → 編集 → 削除（確認あり）', async ({ page }) => {
     await openApp(page);
     await addEvent(page, { title: '歯医者', cat: 'private', place: '駅前' });
