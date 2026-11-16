@@ -247,7 +247,7 @@ test.describe('schema v1 → v2 移行', () => {
         g.onsuccess = () => res({ version: r.result.version, rows: g.result });
       };
     }));
-    expect(raw.version).toBe(3);
+    expect(raw.version).toBe(4);
     expect(raw.rows).toHaveLength(3);
     for (const row of raw.rows) {
       expect(row.notes).toBe('');

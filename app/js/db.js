@@ -1,9 +1,9 @@
 // IndexedDB データ層。schema を変えるときは SCHEMA_VERSION を上げ、MIGRATIONS に追記する。
-import { withDefaults } from './util.js';
+import { withDefaults, isKey } from './util.js';
 import { planNotifyBackfill } from './notify.js';
 import { CAT_IDS, DEFAULTS_NEW, LEGACY, UNCATEGORIZED, legacyToId, sortCategories } from './categories.js';
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 const BASE_NAME = 'duo-calendar';
 
 // v2 の既定値（v1→v3 を1回で上がるとき、v2 と v3 のカーソルが並行して走るので、どちらでも補う）。
@@ -61,6 +61,13 @@ const MIGRATIONS = {
       cur.update(v);
       cur.continue();
     };
+  },
+  // v4: 日付メモ。ストアを作るだけで、既存の events / categories / meta には触れない（冪等）。
+  4(db) {
+    if (!db.objectStoreNames.contains('memos')) {
+      const s = db.createObjectStore('memos', { keyPath: 'id' });
+      s.createIndex('date', 'date');
+    }
   },
 };
 
@@ -154,6 +161,52 @@ export const applyImport = ({ catPuts = [], eventPuts = [], replace = false, out
   eventPuts.forEach((e) => events.put(e));
   if (outbox) readOutbox(meta, (cur) => { const next = outbox(cur); meta.put({ key: OUTBOX, items: next }); set(next); });
 });
+
+// ---------- 日付メモ（memos ストア。1日1件、id = date。日付文字列はそのまま使い UTC 変換しない） ----------
+// Memo = { id: 'YYYY-MM-DD', date: 'YYYY-MM-DD', text: string, createdAt: ms, updatedAt: ms, ink: null }
+// 空白（全角含む）だけの本文はメモなし扱い（保存せず削除）。
+export const isBlankMemo = (text) => typeof text !== 'string' || /^\s*$/.test(text);
+export function makeMemo(date, text, now = Date.now(), prev = null) {
+  if (!isKey(date)) throw new Error('invalid memo date');
+  if (typeof text !== 'string') throw new Error('invalid memo text');
+  return { id: date, date, text, createdAt: prev?.createdAt ?? now, updatedAt: now, ink: null };
+}
+const MEMO = ['memos'];
+export async function getMemo(date) {
+  if (!isKey(date)) return null;
+  const db = await open();
+  return (await wrap(db.transaction('memos').objectStore('memos').get(date))) ?? null;
+}
+// 本文が空白だけなら削除。戻り値は保存したメモ（削除したときは null）。作成時刻は既存を引き継ぐ。
+export const putMemo = (date, text, now = Date.now()) => run(MEMO, 'readwrite', ({ memos }, set) => {
+  if (!isKey(date)) throw new Error('invalid memo date');
+  if (isBlankMemo(text)) { memos.delete(date); set(null); return; }
+  memos.get(date).onsuccess = (ev) => {
+    const m = makeMemo(date, text, now, ev.target.result);
+    memos.put(m);
+    set(m);
+  };
+});
+export const deleteMemo = (date) => run(MEMO, 'readwrite', ({ memos }) => {
+  if (!isKey(date)) throw new Error('invalid memo date');
+  memos.delete(date);
+});
+// from〜to（両端を含む）の範囲でメモがある日付を昇順で。date 索引の範囲キーを使う。
+export async function memoDates(from, to) {
+  if (!isKey(from) || !isKey(to) || from > to) return [];
+  const db = await open();
+  return wrap(db.transaction('memos').objectStore('memos').index('date').getAllKeys(IDBKeyRange.bound(from, to)));
+}
+// 全メモを新しい日付順（prev カーソル）で。
+export async function listMemoDays() {
+  const db = await open();
+  return new Promise((resolve, reject) => {
+    const out = [];
+    const req = db.transaction('memos').objectStore('memos').index('date').openCursor(null, 'prev');
+    req.onsuccess = () => { const c = req.result; if (!c) return resolve(out); out.push(c.value); c.continue(); };
+    req.onerror = () => reject(req.error);
+  });
+}
 
 // ---------- iPhone への反映の送信待ち（meta ストア。バックアップには出さない） ----------
 export async function getOutbox() {

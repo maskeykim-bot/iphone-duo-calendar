@@ -12,9 +12,10 @@ test.describe('永続化', () => {
       const r = indexedDB.open('duo-calendar');
       r.onsuccess = () => res({ version: r.result.version, stores: [...r.result.objectStoreNames] });
     }));
-    expect(meta.version).toBe(3);
+    expect(meta.version).toBe(4);
     expect(meta.stores).toContain('events');
     expect(meta.stores).toContain('categories');
+    expect(meta.stores).toContain("memos");
   });
 
   test('削除も再読込後に反映される', async ({ page }) => {
@@ -96,5 +97,90 @@ test.describe('永続化', () => {
     await page.reload();
     await page.waitForSelector('html[data-ready]');
     await expect(page.locator('#editor')).toBeHidden();
+  });
+
+  // 日付メモ（v4）。別名の DB を旧版で作ってから、新しい db.js のインスタンスで開く。
+  const migrate = (page, from) => page.evaluate(async (from) => {
+    const name = `duo-calendar-mg${from}`;
+    await new Promise((res, rej) => {
+      const r = indexedDB.open(name, from);
+      r.onupgradeneeded = () => {
+        const db = r.result;
+        const ev = db.createObjectStore('events', { keyPath: 'id' });
+        ev.createIndex('start', 'start');
+        db.createObjectStore('meta', { keyPath: 'key' });
+        const base = { id: 'e1', title: '旧予定', start: '2026-11-12T09:00', end: '2026-11-12T10:00', all: false };
+        ev.put(from >= 3 ? { ...base, categoryId: 'cat-work', notes: '', recurrence: null, exdates: [], overrides: {} } : { ...base, cat: 'work' });
+        db.objectStoreNames.contains('meta') && r.transaction.objectStore('meta').put({ key: 'nativeOutbox', items: [{ k: 1 }] });
+        if (from >= 3) {
+          const c = db.createObjectStore('categories', { keyPath: 'id' });
+          c.createIndex('order', 'order');
+          c.put({ id: 'cat-work', name: '仕事', color: '#000', order: 0, hidden: false, createdAt: 1, updatedAt: 1 });
+        }
+      };
+      r.onsuccess = () => { r.result.close(); res(); };
+      r.onerror = () => rej(r.error);
+    });
+    const m = await import(`/js/db.js?mg${from}`);
+    m.configure(`mg${from}`);
+    const events = await m.listEvents();
+    const outbox = await m.getOutbox();
+    const cats = await m.listCategories();
+    await m.putMemo('2026-11-12', '移行後のメモ');
+    const db = await new Promise((res) => { const r = indexedDB.open(name); r.onsuccess = () => res(r.result); });
+    const info = { version: db.version, stores: [...db.objectStoreNames], idx: [...db.transaction('memos').objectStore('memos').indexNames] };
+    db.close();
+    return { events, outbox, cats, memo: await m.getMemo('2026-11-12'), info };
+  }, from);
+
+  for (const from of [1, 2, 3]) {
+    test(`v${from} → v4 で既存データを保ち memos ができる`, async ({ page }) => {
+      await openApp(page);
+      const r = await migrate(page, from);
+      expect(r.info.version).toBe(4);
+      expect(r.info.stores).toEqual(expect.arrayContaining(['events', 'categories', 'meta', 'memos']));
+      expect(r.info.idx).toEqual(['date']);
+      expect(r.events.map((e) => e.title)).toEqual(['旧予定']);
+      expect(r.outbox).toEqual([{ k: 1 }]);
+      expect(r.cats.length).toBeGreaterThan(0);
+      expect(r.memo.text).toBe('移行後のメモ');
+    });
+  }
+
+  test('メモ: 1日1件・端日・範囲・空白削除・降順・abort・再読込', async ({ page }) => {
+    await openApp(page);
+    const r = await page.evaluate(async () => {
+      const m = await import('/js/db.js');
+      const out = {};
+      await m.putMemo('2026-01-01', 'a', 1000);
+      await m.putMemo('2026-01-01', 'b', 2000);
+      out.one = await m.getMemo('2026-01-01');
+      await m.putMemo('2026-12-31', 'end');
+      await m.putMemo('2026-02-28', 'mid');
+      out.range = await m.memoDates('2026-01-01', '2026-12-31');
+      out.edge = await m.memoDates('2026-01-02', '2026-12-30');
+      out.inv = await m.memoDates('2026-12-31', '2026-01-01');
+      out.list = (await m.listMemoDays()).map((x) => x.date);
+      out.blank = await m.putMemo('2026-02-28', ' 　\n ');
+      out.afterBlank = await m.getMemo('2026-02-28');
+      await m.deleteMemo('2026-12-31');
+      out.afterDel = await m.memoDates('2026-01-01', '2026-12-31');
+      try { await m.putMemo('2026-02-30', 'x'); out.bad = 'ok'; } catch { out.bad = 'throw'; }
+      out.badGet = await m.getMemo('2026-13-01');
+      return out;
+    });
+    expect(r.one).toMatchObject({ id: '2026-01-01', date: '2026-01-01', text: 'b', createdAt: 1000, updatedAt: 2000, ink: null });
+    expect(r.range).toEqual(['2026-01-01', '2026-02-28', '2026-12-31']);
+    expect(r.edge).toEqual(['2026-02-28']);
+    expect(r.inv).toEqual([]);
+    expect(r.list).toEqual(['2026-12-31', '2026-02-28', '2026-01-01']);
+    expect(r.blank).toBeNull();
+    expect(r.afterBlank).toBeNull();
+    expect(r.afterDel).toEqual(['2026-01-01']);
+    expect(r.bad).toBe('throw');
+    expect(r.badGet).toBeNull();
+    await page.reload();
+    await page.waitForSelector('html[data-ready]');
+    expect(await page.evaluate(async () => (await (await import('/js/db.js')).listMemoDays()).length)).toBe(1);
   });
 });

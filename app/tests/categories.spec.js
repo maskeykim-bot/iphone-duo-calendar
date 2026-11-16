@@ -74,7 +74,7 @@ test.describe('DB v2 → v3 移行', () => {
     ]);
     expect(cats.slice(0, 4).map((c) => c.id)).toEqual([CAT_IDS.work, CAT_IDS.private, CAT_IDS.golf, CAT_IDS.economy]);
     const r = await raw(page, 'duo-calendar-mig3');
-    expect(r.version).toBe(3);
+    expect(r.version).toBe(4);
     expect(r.rows).toHaveLength(v2.length);
     for (const row of r.rows) { expect(typeof row.categoryId).toBe('string'); expect(row).not.toHaveProperty('cat'); }
     const by = Object.fromEntries(r.rows.map((x) => [x.id, x]));
