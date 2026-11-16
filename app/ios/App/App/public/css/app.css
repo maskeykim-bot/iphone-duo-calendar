@@ -192,21 +192,23 @@ input[type=checkbox]{display:inline-block;width:20px;min-height:20px;vertical-al
 .scroll,.scroll button,.agenda,.agenda button,.list,.list button,.remaining,.hero,.hero button,.page,.page button{touch-action:pan-y pinch-zoom}
 .agenda,.remaining,.hero,.page{overflow-x:clip}
 
-/* 開いた縦: 全幅の月。寸法は JS の --head-h/--wd-h/--grid-h（safe と画面から計算）。操作は画面座標で浮かせる */
+/* 開いた縦: 全幅の月。見出しは上 safe の帯の中（#app の上 padding は 0）。寸法は JS の --head-h/--wd-h/--grid-h（safe と画面から計算）。操作は画面座標で浮かせる */
+body[data-posture=portrait] #app{padding-top:0}
 .shell.portrait{display:block;padding:0;gap:0}
-.pcol{display:flex;flex-direction:column;height:calc(var(--grid-top) - var(--content-y) + var(--grid-h));min-height:0}
+.pcol{display:flex;flex-direction:column;height:calc(var(--grid-top) + var(--grid-h));min-height:0}
 .portrait .calendar{flex:1 1 auto;min-height:0}
-.portrait .chead{height:var(--head-h);min-height:0;flex:none;align-items:flex-start;padding-top:calc(24px * var(--ry,1))}
-.portrait .chead h2{flex:0 1 auto;padding:0 4px;line-height:44px;white-space:nowrap}
+.portrait .chead{position:relative;height:var(--head-h);min-height:0;flex:none;display:block;padding:0}
+.portrait .chead>*{position:absolute;top:calc(var(--hc) - 22px);margin:0}
+.portrait .chead [data-act=prev]{left:calc(120px * var(--ux))}
+.portrait .chead [data-act=next]{left:calc(376px * var(--ux))}
+.portrait .chead .allbtn{left:calc(432px * var(--ux))}
+.portrait .chead h2{left:calc(270px * var(--ux));transform:translateX(-50%);flex:none;padding:0;width:max-content;max-width:calc(200px * var(--ux));overflow:hidden;line-height:44px;font-size:20px;white-space:nowrap}
 .portrait .weekdays{height:var(--wd-h);padding:0;align-items:center}
 .portrait .week.named,.portrait .week.simple{flex:0 0 max(var(--week-h),var(--need,101px))}
 .portrait .week.all{height:max(var(--week-h),var(--need,0px))}
 .portrait .listview{padding:var(--head-h) 16px 0;min-height:0}
 .portrait .scroll:not(.msc):not(.all)>.daylist,.portrait .weekview{padding:0 12px 4px}
-.pbtn{position:fixed;z-index:6}
-.pbtn.psettings,.pbtn.psearch{width:44px;height:44px;min-width:44px;min-height:44px;border-radius:22px;top:var(--set-y)}
-.pbtn.psettings{left:var(--set-x)}.pbtn.psearch{left:var(--search-x)}
-.pbtn.ptoday{left:var(--today-x);top:var(--controls-y)}.pbtn.padd{left:var(--add-x);top:var(--controls-y)}
+.hline{position:fixed;left:0;right:0;top:calc(var(--head-h) - 1px);height:1px;background:#E3E0D7;pointer-events:none;z-index:5}
 /* 開いた縦の週: 1日1ブロックの縦リスト（左に日付、右に時刻＋全文タイトル） */
 .vlist .weekrow{display:grid;grid-template-columns:100px minmax(0,1fr);column-gap:12px;padding:8px 12px;align-items:start}
 .vlist .wd{font-size:15px;min-height:44px;padding:0;display:flex;align-items:center}
@@ -442,10 +444,13 @@ input,select,textarea,.date-text{font-size:16px}
 .chead button{flex:none;min-width:44px;padding:0;font-size:22px}
 .listview{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
 
-.shell.closed{display:grid;grid-template-columns:minmax(0,1fr) var(--rail-w,84px);grid-template-rows:minmax(0,1fr);gap:0;padding:0}
-.mpane{display:flex;flex-direction:column;min-width:0;min-height:0;margin:0 2px 0 4px}
+.shell.closed{display:flex;flex-direction:column;gap:0;padding:0}
+.mpane{display:flex;flex-direction:column;flex:1;min-width:0;min-height:0;margin:0}
+.closed.fb .chead{padding:0 48px 6px}
+.closed.home.fb .mpane{padding-top:calc(var(--head-h) - 6px)}
 .closed .calendar{flex:1}
 .closed .chead{height:var(--head-h);min-height:0;align-items:flex-end;padding-bottom:6px;flex:none}
+.closed.fb .chead{padding-bottom:6px}
 .closed .weekdays{height:var(--wd-h);padding-bottom:0;align-items:center}
 .closed .week.named,.closed .week.simple{flex:0 0 max(var(--week-h),var(--need,85px))}
 .closed .week.all{height:max(var(--week-h),var(--need,0px))}
@@ -453,14 +458,23 @@ input,select,textarea,.date-text{font-size:16px}
 .closed .remaining .list{padding-bottom:calc(var(--end-pad-closed,56px) + 4px)}
 .closed .scroll:not(.msc):not(.all)>.daylist,.closed .weekview{padding:0 4px}
 
-.rail{display:flex;flex-direction:column;align-items:center;justify-content:space-between;min-height:0;overflow:auto;gap:12px;
- padding:calc(176px * var(--ry,1)) 0 calc(32px * var(--ry,1));background:#F0EDE5;touch-action:manipulation}
-.rtop,.rbot{display:flex;flex-direction:column;align-items:center;flex:none}
-.rtop{gap:10px}.rbot{gap:max(12px,calc(14px * var(--ry,1)))}
+/* 帯・見出し・下段の操作（位置と大きさは JS の inline: left/top/width/height と --v）。押せる範囲 56（帯）／44（見出し）／48（下段） */
+.bandbg{position:fixed;top:0;bottom:0;z-index:4;background:var(--paper);border-left:1px solid #C9C6BC;pointer-events:none}
+.ctl{pointer-events:none}
+.cb{position:fixed;z-index:6;display:flex;align-items:center;justify-content:center;min-width:0;min-height:0;padding:0;border-radius:0;background:transparent;pointer-events:auto;touch-action:manipulation;font-size:14px;font-weight:700;line-height:1}
+.cb:hover{background:transparent}
+.cb .bi{display:flex;align-items:center;justify-content:center;width:var(--v,48px);height:var(--v,48px);border-radius:50%;background:var(--card);box-shadow:inset 0 0 0 1px var(--line)}
+.cb:hover .bi{background:#ecebe2}
+.cb.cadd .bi{background:var(--green);color:#fff;font-size:26px;font-weight:400;box-shadow:none}
+.cb.cadd:hover .bi{background:#386351}
+.cb.cadd:focus-visible,.cb:focus-visible{outline-offset:-2px}
+.cb.allbtn{position:fixed}
 .rbtn{display:flex;align-items:center;justify-content:center;flex:none;width:48px;height:48px;min-width:48px;min-height:48px;padding:0;border-radius:24px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);font-size:14px;font-weight:700;line-height:1}
 .rbtn:hover{background:#ecebe2}
 .rbtn.radd{background:var(--green);color:#fff;font-size:26px;font-weight:400;box-shadow:none}
 .rbtn.radd:hover{background:#386351}
+.rbtn.s44{width:44px;height:44px;min-width:44px;min-height:44px;border-radius:22px;font-size:12px}
+.rbtn.s44.radd{font-size:22px}
 
 /* 浮動タブ: 紙の半透明＋ぼかし。座標は JS の --tabs-x/-y/-w（画面座標） */
 .tabs{position:fixed;z-index:6;left:var(--tabs-x);top:var(--tabs-y);width:var(--tabs-w);height:46px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-radius:23px;
@@ -485,7 +499,8 @@ input,select,textarea,.date-text{font-size:16px}
 .spread .rp{left:var(--right-start);width:calc(var(--right-end) - var(--right-start))}
 .spread .page :focus-visible{outline-offset:-3px}
 /* 左の見出し: 年（薄色）月 ｜ 前・次・設定（各44角） */
-.shead{display:flex;align-items:flex-start;flex:none;height:var(--head-h);padding-top:calc(24px * var(--ry,1));min-height:0}
+.shead{display:flex;align-items:flex-start;flex:none;height:var(--head-h);padding-top:var(--hpt,24px);min-height:0}
+.sset{display:flex;align-items:center;justify-content:center}
 .shead h2{flex:1;min-width:0;margin:0;font:20px/44px Georgia,'Hiragino Mincho ProN',serif;font-weight:700;white-space:nowrap;overflow:hidden;text-align:left}
 .shead h2 .yr{font-weight:400;color:#9a9d96}
 .sctl{display:flex;flex:none}
@@ -498,14 +513,15 @@ input,select,textarea,.date-text{font-size:16px}
 .spread .listview{padding:0 4px;min-height:0;overflow:auto}
 .spread .agenda{border:0;padding:0 8px}
 .spread .agenda .list{padding-bottom:0}
-.spread .rpad{flex:none;height:var(--head-h)}
+.spread .rpad{flex:none;display:flex;justify-content:flex-end;align-items:flex-start;min-height:var(--head-h);padding-top:var(--hpt,24px)}
 .spread .weekpage{flex:1}
 /* 右の日見出し・1日/3日 */
-.rhead{display:flex;align-items:flex-start;flex:none;height:var(--head-h);padding-top:calc(24px * var(--ry,1));min-height:0}
-.rhead h2{flex:1;min-width:0;margin:0;font:20px/44px -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:clip}
-.spanbtn{flex:none;min-width:44px;height:44px;padding:0 2px;background:transparent}
+.rhead{display:flex;align-items:flex-start;flex-wrap:wrap;flex:none;min-height:var(--head-h);padding-top:var(--hpt,24px)}
+.rctl{display:flex;gap:4px;flex:none;margin-right:4px}
+.rhead h2{flex:1 1 150px;min-width:150px;margin:0;font:20px/44px -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:clip}
+.spanbtn{flex:none;min-width:60px;width:60px;height:44px;padding:0;background:transparent}
 .spanbtn:hover{background:transparent}
-.spanbtn span{display:flex;align-items:center;justify-content:center;min-width:88px;height:32px;padding:0 12px;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);font-size:14px}
+.spanbtn span{display:flex;align-items:center;justify-content:center;min-width:60px;width:60px;height:32px;padding:0;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);font-size:14px}
 /* 終日段（28px）: 月の線帯とは別 CSS。カテゴリの淡色地＋本色の太字 */
 .allday{display:flex;align-items:center;flex:none;height:28px;margin-bottom:max(4px,calc(32px * var(--ry,1) - 28px));min-width:0}
 .adl{flex:none;width:50px;font-size:11px;color:var(--muted)}
@@ -537,13 +553,6 @@ input,select,textarea,.date-text{font-size:16px}
 .nowl{position:absolute;z-index:3;left:0;right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:0;pointer-events:none}
 .nowl:before{content:'';position:absolute;left:calc(50px + var(--i) * (100% - 50px) / var(--n));width:calc((100% - 50px) / var(--n));top:-.75px;height:1.5px;background:#D64541}
 .nowt{position:absolute;left:0;top:-11px;width:46px;height:22px;border-radius:11px;background:#D64541;color:#fff;font-size:11px;font-weight:700;line-height:22px;text-align:center;font-variant-numeric:tabular-nums}
-/* 右端 76px の操作列（背景は左ページ色。操作は JS の --sr-*-y） */
-.spread .rail.srail{position:fixed;z-index:5;top:0;bottom:0;left:var(--right-end);right:0;display:block;padding:0;overflow:visible;background:#F0EDE5}
-.srail .rbtn,.srail .cap{position:absolute;left:14px}
-.srail .rtoday{top:var(--sr-today-y)}
-.srail .radd{top:var(--sr-add-y)}
-.srail .cap{top:var(--sr-cap-y);width:48px;height:144px;border-radius:24px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);display:flex;flex-direction:column;overflow:hidden}
-.srail .cap button{flex:none;width:48px;height:48px;min-height:48px;padding:0;border-radius:0;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center}
 body[data-layout=spread] .toastbar{left:var(--left-start);right:auto;width:calc(var(--left-end) - var(--left-start));margin:0}
 .menurows .tlz{display:flex;gap:4px;margin:2px 0 6px}.menurows .tlz button{flex:1;min-width:0;font-size:13px;padding:4px 6px}
 
