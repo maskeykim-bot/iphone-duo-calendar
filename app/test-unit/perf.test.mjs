@@ -86,7 +86,7 @@ test('性能(PR34): 31日に貼り付けた単発を足した月の展開・検�
   const src = { title: '会議 貼付', categoryId: 'work', all: false, start: '2026-11-02T10:00', end: '2026-11-02T11:00', place: '', notes: '', alarms: [] };
   const days = Array.from({ length: 31 }, (_, i) => `2026-11-${String(i % 30 + 1).padStart(2, '0')}`.replace(/-(\d)$/, '-0$1')).slice(0, 30).concat('2026-12-01');
   let n = 0;
-  const plan = planPaste(src, days, { cals: [], enabled: false, defaultCalendarId: '', defaultCatId: () => 'other', newId: () => `p${++n}`, pastedAt: 1 });
+  const plan = planPaste(src, days, { cals: [], enabled: false, destCalendarId: '', defaultCatId: () => 'other', newId: () => `p${++n}`, pastedAt: 1 });
   assert.equal(plan.items.length, 31);
   const set = [...manyRecurring(fresh()), ...plan.items.map((i) => i.event)];
   bumpRevision();

@@ -5,7 +5,7 @@ import { occurrenceAt } from '../js/recur.js';
 import { toDisplay } from '../js/iphone.js';
 
 let n = 0;
-const ctxOf = (o = {}) => ({ cals: [], enabled: true, defaultCalendarId: '', defaultCatId: () => 'cat-def', newId: () => `id${++n}`, pastedAt: 1000, ...o });
+const ctxOf = (o = {}) => ({ cals: [], enabled: true, destCalendarId: '', defaultCatId: () => 'cat-def', newId: () => `id${++n}`, pastedAt: 1000, ...o });
 const cal = (id, w = true, extra = {}) => ({ id, allowsModify: w, ...extra });
 const duo = (o = {}) => ({ id: 'd1', title: 'T', categoryId: 'c9', all: false, start: '2026-11-02T09:00', end: '2026-11-02T10:00', place: 'P', notes: 'N', recurrence: null, exdates: [], overrides: {}, alarms: [{ before: 10 }], ...o });
 const ext = (raw, c) => toDisplay({ id: 'x1', itemId: 'i', externalId: 'e', eventId: 'v', calendarId: 'k1', ...raw }, c);
@@ -45,9 +45,9 @@ test('linked：元のカレンダー→設定既定→OS既定→先頭、不可
   const cals = [cal('c1'), cal('c2'), cal('c3', true, { isDefault: true })];
   const pick = (o) => planPaste(src, ['2026-11-10'], ctxOf(o));
   assert.equal(pick({ cals }).calendarId, 'c2');
-  assert.equal(pick({ cals: [cal('c1'), cal('c2', false), cal('c3', true, { isDefault: true })], defaultCalendarId: 'c1' }).calendarId, 'c1');
-  assert.equal(pick({ cals: [cal('c1'), cal('c2', false), cal('c3', true, { isDefault: true })], defaultCalendarId: 'gone' }).calendarId, 'c3');
-  assert.equal(pick({ cals: [cal('c1'), cal('c2', false), cal('c3')] }).calendarId, 'c1');
+  assert.equal(pick({ cals: [cal('c1'), cal('c2', false), cal('c3', true, { isDefault: true })], destCalendarId: 'c1' }).calendarId, 'c1');
+  assert.equal(pick({ cals: [cal('c1'), cal('c2', false), cal('c3', true, { isDefault: true })], destCalendarId: 'gone' }).kind, 'duo');
+  assert.equal(pick({ cals: [cal('c1'), cal('c2', false), cal('c3')] }).kind, 'duo'); // 元が書けず設定の追加先も無ければ Duo のまま
   for (const o of [{ cals: [cal('c2', false)] }, { cals, enabled: false }, { cals: [] }]) assert.equal(pick(o).kind, 'duo');
   const r = pick({ cals }), it = r.items[0];
   assert.equal(r.kind, 'linked');
@@ -124,9 +124,9 @@ test('変更済みの回は変更後の単発・親の通知は継承', () => {
 
 test('通常予定の追加既定にコピー先が左右されない（planPaste は入力・既定を変えない）', () => {
   const cals = [cal('c1', true, { isDefault: true }), cal('c2')];
-  const ctx = ctxOf({ cals, defaultCalendarId: 'c1' });
+  const ctx = ctxOf({ cals, destCalendarId: 'c1' });
   planPaste(duo({ nativeLink: { state: 'linked', calendarId: 'c2' } }), ['2026-11-10'], ctx);
-  assert.equal(ctx.defaultCalendarId, 'c1'); assert.deepEqual(cals.map((c) => c.id), ['c1', 'c2']);
+  assert.equal(ctx.destCalendarId, 'c1'); assert.deepEqual(cals.map((c) => c.id), ['c1', 'c2']);
 });
 
 // ---- PR33: コピー開始と貼る日の選択 ----

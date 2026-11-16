@@ -1,9 +1,17 @@
 // iPhone カレンダー連携の純粋ロジック（DOM・ネイティブ呼び出しなし）。
 import { addDays, addMonths, dayOf, newId, weekStart } from './util.js';
 import { normalize, searchRange, terms } from './search.js';
+import { CAT_IDS } from './categories.js';
 import { expand, isFirstOccurrence, normRule, occurrenceAt, ruleEq } from './recur.js';
 
-export const DEFAULTS = { version: 1, enabled: false, calendarIds: [], selectionInitialized: false, defaultCalendarId: null, addByDefault: true };
+export const DEFAULTS = { version: 1, enabled: false, calendarIds: [], selectionInitialized: false, defaultCalendarId: null, addByDefault: true, defaultDest: null, enabledMig: true };
+
+// 新しい予定の追加先 { type:'duo'|'iphone', id }。不正は null（未設定＝移行前）。
+export function normDest(d) {
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return null;
+  if ((d.type !== 'duo' && d.type !== 'iphone') || typeof d.id !== 'string' || !d.id) return null;
+  return { type: d.type, id: d.id };
+}
 
 export function normSettings(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return { ...DEFAULTS };
@@ -14,7 +22,9 @@ export function normSettings(v) {
     calendarIds: ids,
     selectionInitialized: v.selectionInitialized === true,
     defaultCalendarId: typeof v.defaultCalendarId === 'string' && v.defaultCalendarId ? v.defaultCalendarId : null,
-    addByDefault: v.addByDefault !== false,
+    addByDefault: v.addByDefault !== false, // 旧設定。defaultDest へ移行するまでの読み取り専用（以後は参照しない）
+    defaultDest: normDest(v.defaultDest),
+    enabledMig: v.enabledMig === true, // 旧「連携オフ」を一度だけ移した版印（保存済みの旧設定には無い）
   };
 }
 
@@ -218,6 +228,51 @@ export function pickAddCal(cals, sel, defId) {
   if (ok(sel)) return sel;
   if (ok(defId)) return defId;
   return w.find((c) => c.isDefault)?.id || w[0]?.id || '';
+}
+
+// 追加先の解決（表示中のものだけ）。dest が表示中・書込可ならそのまま。
+// 非表示・消失・読取専用・連携オフは代替へ：同じ source の表示中 → 表示中の「その他」→ 表示中の Duo 先頭。全部非表示だけ「その他」を仮選択。
+// ctx: { cats, cals, ids（表示するカレンダー id）, usable（カレンダー連携が使える）}。
+export function resolveDest(dest, ctx) {
+  const d = normDest(dest), cats = ctx.cats || [], cals = ctx.cals || [], ids = ctx.ids || [];
+  const w = ctx.usable ? writable(cals) : [];
+  const vis = cats.filter((c) => !c.hidden);
+  if (d?.type === 'duo' && vis.some((c) => c.id === d.id)) return d;
+  if (d?.type === 'iphone' && w.some((c) => c.id === d.id && ids.includes(c.id))) return d;
+  if (d?.type === 'iphone') {
+    const cur = cals.find((c) => c.id === d.id);
+    const alt = cur && groupBySource(w).find((g) => g.sourceId === cur.sourceId)?.items.find((c) => ids.includes(c.id));
+    if (alt) return { type: 'iphone', id: alt.id };
+  } else if (vis[0]) return { type: 'duo', id: vis[0].id };
+  const other = cats.find((c) => c.id === CAT_IDS.other);
+  if (other && !other.hidden) return { type: 'duo', id: other.id };
+  if (vis[0]) return { type: 'duo', id: vis[0].id };
+  return { type: 'duo', id: other ? other.id : cats[0]?.id || CAT_IDS.other };
+}
+
+// 旧設定からの一度きりの移行計画（純粋）。戻り値は設定へ足す patch か null。
+// ctx: { perm（null=未確認）, cals（一覧取得後のみ配列。未取得は null）, cats }。カテゴリ未読込・取得遅延では何も決めない。
+// ・defaultDest 未設定のみ：旧 addByDefault（許可あり・書込可カレンダーあり）→ iPhone、それ以外は Duo。連携していた端末の権限なしは Duo（未連携は接続時まで決めない）。
+// ・旧「連携オフ」で許可あり：enabled=true／calendarIds=[]／selectionInitialized=true（予定は出ない。✓ で出す）。enabledMig で再実行しない。
+export function planLinkMigration(link, ctx) {
+  const cats = ctx.cats || [];
+  if (!cats.length) return null;
+  const granted = ctx.perm === 'granted' && Array.isArray(ctx.cals);
+  const patch = {};
+  if (!link.defaultDest) {
+    const vis = cats.find((c) => !c.hidden) || cats.find((c) => c.id === CAT_IDS.other) || cats[0];
+    const duo = { type: 'duo', id: vis.id };
+    let dest = null;
+    if (link.addByDefault === false) dest = duo;
+    else if (granted) dest = writable(ctx.cals).length ? { type: 'iphone', id: pickAddCal(ctx.cals, '', link.defaultCalendarId) } : duo;
+    else if (link.enabled && ctx.perm && ctx.perm !== 'granted') dest = duo; // 連携していた端末の権限なし。未連携は接続時に決める
+    if (dest) patch.defaultDest = dest;
+  }
+  if (!link.enabledMig && granted) {
+    patch.enabledMig = true;
+    if (!link.enabled) Object.assign(patch, { enabled: true, calendarIds: [], selectionInitialized: true });
+  }
+  return Object.keys(patch).length ? patch : null;
 }
 
 // カレンダー一覧をソース別にグループ化（sourceId → title → id の順、同名 source は sourceType を併記）。

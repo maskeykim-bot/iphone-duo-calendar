@@ -1062,6 +1062,7 @@ const CALS3 = [
   { id: 'cal-b', title: '家族', color: '#d93025', sourceId: 's-g', source: 'Google', sourceType: 'caldav', allowsModify: true, isDefault: true },
   { id: 'cal-c', title: '祝日', color: '#0b8043', sourceId: 's-s', source: 'Subscribed Calendars', sourceType: 'subscribed', allowsModify: false, isDefault: false },
 ];
+const lk = (page) => page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith('duo-native-cal'))) || 'null'));
 const openNew = (page) => page.locator('[data-act="add"]:visible').first().click();
 
 test.describe('新規の標準オン（第13版 PR5）', () => {
@@ -1123,15 +1124,54 @@ test.describe('新規の標準オン（第13版 PR5）', () => {
     await openNew(page);
     await expect(page.locator('#f-xadd')).not.toBeChecked();
     const st = await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith('duo-native-cal')))));
-    expect(st).toMatchObject({ addByDefault: false, defaultCalendarId: 'cal-a' });
+    expect(st.defaultDest.type).toBe('duo'); // 第15版 PR4: 追加先は defaultDest 一つ。旧 addByDefault は参照しない
   });
 
   test('旧設定（addByDefault なし）は標準オン／不正値もオン', async ({ page }) => {
     await mock(page, { cals: CALS3, events: [] });
-    await page.addInitScript(() => localStorage.setItem('duo-native-cal', JSON.stringify({ version: 1, enabled: true, calendarIds: ['cal-a'], selectionInitialized: true, defaultCalendarId: null, addByDefault: 'no' })));
+    await page.addInitScript(() => localStorage.setItem('duo-native-cal', JSON.stringify({ version: 1, enabled: true, calendarIds: ['cal-a', 'cal-b'], selectionInitialized: true, defaultCalendarId: null, addByDefault: 'no' })));
     await openApp(page);
     await openNew(page);
     await expect(page.locator('#f-xadd')).toBeChecked();
+    expect(await lk(page)).toMatchObject({ defaultDest: { type: 'iphone', id: 'cal-b' }, defaultCalendarId: null }); // 旧キーも残す
+  });
+
+  test('第15版 PR4: 旧設定の既定カレンダーが非表示（オフ）なら初期選択にならず、保存値は変えない', async ({ page }) => {
+    await mock(page, { cals: CALS3, events: [] });
+    await page.addInitScript(() => { if (!localStorage.getItem('duo-native-cal')) localStorage.setItem('duo-native-cal', JSON.stringify({ version: 1, enabled: true, calendarIds: ['cal-a'], selectionInitialized: true, defaultCalendarId: 'cal-b', addByDefault: true })); });
+    await openApp(page);
+    await openNew(page);
+    await expect(page.locator('#f-xadd')).not.toBeChecked(); // cal-b は非表示。同じ source に代わりが無いので Duo の表示中へ
+    expect(await lk(page)).toMatchObject({ defaultDest: { type: 'iphone', id: 'cal-b' } });
+  });
+
+  test('第15版 PR4: 旧オフ＋許可ありは有効化・全カレンダー未選択へ一度だけ移し、予定は出ない。再起動で繰り返さない', async ({ page }) => {
+    await mock(page, { cals: CALS3, events: [{ id: 'e1', calendarId: 'cal-a', title: '外部', start: '2026-11-16T10:00', end: '2026-11-16T11:00', allDay: false }] });
+    await page.addInitScript(() => { if (!localStorage.getItem('duo-native-cal')) localStorage.setItem('duo-native-cal', JSON.stringify({ version: 1, enabled: false, calendarIds: ['cal-a'], selectionInitialized: true, defaultCalendarId: null, addByDefault: true })); });
+    await openApp(page);
+    await expect.poll(async () => (await lk(page)).enabledMig).toBe(true);
+    expect(await lk(page)).toMatchObject({ enabled: true, calendarIds: [], selectionInitialized: true, defaultDest: { type: 'iphone' } });
+    await page.evaluate(() => { const k = 'duo-native-cal', v = JSON.parse(localStorage.getItem(k)); v.calendarIds = ['cal-a']; localStorage.setItem(k, JSON.stringify(v)); });
+    await page.reload();
+    await openApp(page);
+    await page.waitForTimeout(400);
+    expect(await lk(page)).toMatchObject({ enabled: true, calendarIds: ['cal-a'] }); // 再起動で ids を空に戻さない
+  });
+
+  test('第15版 PR4: 権限なしの連携端末は Duo に確定、取得が遅れる間は既定先を決めない', async ({ page }) => {
+    await mock(page, { cals: CALS3, events: [], perm: 'denied' });
+    await page.addInitScript(() => { if (!localStorage.getItem('duo-native-cal')) localStorage.setItem('duo-native-cal', JSON.stringify({ version: 1, enabled: true, calendarIds: ['cal-a'], selectionInitialized: true, defaultCalendarId: 'cal-a', addByDefault: true })); });
+    await openApp(page);
+    await expect.poll(async () => (await lk(page)).defaultDest?.type).toBe('duo');
+  });
+
+  test('第15版 PR4: 一覧の取得が終わるまで defaultDest を保存しない', async ({ page }) => {
+    await mock(page, { cals: CALS3, events: [] });
+    await page.addInitScript(() => { if (!localStorage.getItem('duo-native-cal')) localStorage.setItem('duo-native-cal', JSON.stringify({ version: 1, enabled: true, calendarIds: ['cal-a', 'cal-b'], selectionInitialized: true, defaultCalendarId: 'cal-a', addByDefault: true })); });
+    await page.addInitScript(() => { const o = window.Capacitor; const f = o.nativePromise; o.nativePromise = async (p, m, a) => { if (m === 'listCalendars') await new Promise((r) => setTimeout(r, 4000)); return f(p, m, a); }; });
+    await openApp(page);
+    expect((await lk(page)).defaultDest ?? null).toBeNull();
+    await expect.poll(async () => (await lk(page)).defaultDest?.id, { timeout: 9000 }).toBe('cal-a');
   });
 
   test('下書きの明示 xadd:false を優先。候補が消えたら先頭へ', async ({ page }) => {
@@ -1240,7 +1280,7 @@ test.describe('貼付のまとめ確定と再試行（PR31）', () => {
     window.__mock.createEventsFail = fail;
     let n = 0;
     const src = { title: '貼る', categoryId: 'work', all: false, start: '2026-11-12T10:00', end: '2026-11-12T11:00', place: '', notes: '', alarms: [{ before: 30 }], nativeLink: { state: 'linked', calendarId: 'cal-1' }, ...source };
-    const plan = planPaste(src, days, { cals: window.__mock.cals, enabled: true, defaultCalendarId: 'cal-1', defaultCatId: () => 'other', newId: () => `x${++n}`, pastedAt: 1 });
+    const plan = planPaste(src, days, { cals: window.__mock.cals, enabled: true, destCalendarId: 'cal-1', defaultCatId: () => 'other', newId: () => `x${++n}`, pastedAt: 1 });
     window.__r = window.pasteCommit(plan);
     return null;
   }, { days, fail, source });
@@ -1308,7 +1348,7 @@ test.describe('貼付のまとめ確定と再試行（PR31）', () => {
     const r = await page.evaluate(async () => {
       const { planPaste } = await import('/js/paste.js');
       let n = 0;
-      const plan = planPaste({ title: 't', categoryId: 'work', start: '2026-11-12T10:00', end: '2026-11-12T11:00', nativeLink: { state: 'linked', calendarId: 'cal-1' } }, ['2026-11-16', '2026-11-17'], { cals: window.__mock.cals, enabled: true, defaultCalendarId: 'cal-1', defaultCatId: () => 'other', newId: () => `y${++n}`, pastedAt: 1 });
+      const plan = planPaste({ title: 't', categoryId: 'work', start: '2026-11-12T10:00', end: '2026-11-12T11:00', nativeLink: { state: 'linked', calendarId: 'cal-1' } }, ['2026-11-16', '2026-11-17'], { cals: window.__mock.cals, enabled: true, destCalendarId: 'cal-1', defaultCatId: () => 'other', newId: () => `y${++n}`, pastedAt: 1 });
       plan.items[1].event.id = undefined; // IndexedDB が拒否する
       return window.pasteCommit(plan);
     });
@@ -1390,7 +1430,7 @@ test.describe('貼付の取消（PR32）', () => {
     window.__mock.createEventsFail = fail;
     let n = 0;
     const src = { title: '貼る', categoryId: 'work', all: false, start: '2026-11-12T10:00', end: '2026-11-12T11:00', place: '', notes: '', alarms: [{ before: 30 }], nativeLink: { state: 'linked', calendarId: 'cal-1' }, ...source };
-    const plan = planPaste(src, days, { cals: window.__mock.cals, enabled: true, defaultCalendarId: 'cal-1', defaultCatId: () => 'other', newId: () => `x${++n}`, pastedAt: 1 });
+    const plan = planPaste(src, days, { cals: window.__mock.cals, enabled: true, destCalendarId: 'cal-1', defaultCatId: () => 'other', newId: () => `x${++n}`, pastedAt: 1 });
     return await window.pasteCommit(plan);
   }, { days, fail, source });
   const mine = async (page) => (await dbEvents(page)).filter((e) => e.title === '貼る');

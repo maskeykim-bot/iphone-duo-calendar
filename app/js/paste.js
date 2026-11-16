@@ -1,7 +1,6 @@
 // コピーした予定の「型紙」と貼付計画（純粋関数。DOM・DB・ネイティブに触れない）。
 // 計画は入力を変更しない。実際の書込み（DB・createEvents）は後続の PR が行う。
 import { addDays, dayOf, isKey, parseKey } from './util.js';
-import { pickAddCal } from './iphone.js';
 
 export const PASTE_MAX = 31; // 一度に貼れる日数
 
@@ -32,14 +31,16 @@ export function pasteTarget(src, ctx) {
   }
   const l = src.nativeLink || ctx.srcLink;
   if (l?.state === 'linked' && on) {
-    const id = pickAddCal(cals, l.calendarId, ctx.defaultCalendarId);
+    // 書込可能な元のカレンダー優先。代替のみ設定の追加先（iPhone）→ 表示中の Duo。
+    const ok = (id) => id && cals.some((c) => c.id === id && c.allowsModify);
+    const id = ok(l.calendarId) ? l.calendarId : ok(ctx.destCalendarId) ? ctx.destCalendarId : '';
     if (id) return { kind: 'linked', calendarId: id };
   }
   return { kind: 'duo', calendarId: '' };
 }
 
 // src: Duoの予定（繰り返しは occurrenceAt 後の回。nativeLink は src か ctx.srcLink）または toDisplay の ext。
-// days: 貼る日（YYYY-MM-DD）。ctx={cals,enabled,defaultCalendarId,defaultCatId:()=>id,newId:()=>id,pastedAt:number}。
+// days: 貼る日（YYYY-MM-DD）。ctx={cals,enabled,destCalendarId（設定の追加先が iPhone のときだけ id）,destCatId?,catVisible?,defaultCatId:()=>id,newId:()=>id,pastedAt:number}。
 // 戻り値 { ok, error?, kind, calendarId, items:[{day, event?, native?}] }。event は Duo に書く予定、native は createEvents の要素。
 export function planPaste(src, days, ctx) {
   const list = [...new Set(Array.isArray(days) ? days : [])];
@@ -55,9 +56,10 @@ export function planPaste(src, days, ctx) {
       return { day, native: { requestId: ctx.newId(), copyFrom: from, start: r.start, end: r.end, all: r.all } };
     }
     const ro = t.kind === 'ext-ro';
+    const demoted = t.kind === 'duo' && !isExt(src) && (src.nativeLink || ctx.srcLink)?.state === 'linked'; // 元の iPhone カレンダーにも設定の追加先にも書けず Duo のみ
     const r = shiftTo({ start: src.start, end: ro ? src.rawEnd || src.end : src.end, all: src.all }, day, 'duo');
     const ev = {
-      id: ctx.newId(), title: src.title, categoryId: ro ? ctx.defaultCatId() : src.categoryId, all: r.all, start: r.start, end: r.end,
+      id: ctx.newId(), title: src.title, categoryId: ro ? ctx.defaultCatId() : demoted && ctx.catVisible && !ctx.catVisible(src.categoryId) ? ctx.destCatId || ctx.defaultCatId() : src.categoryId, all: r.all, start: r.start, end: r.end,
       place: ro ? '' : src.place || '', notes: ro ? '' : src.notes || '', recurrence: null, exdates: [], overrides: {},
       alarms: !ro && Array.isArray(src.alarms) ? src.alarms.map((a) => ({ ...a })) : [], updatedAt: ctx.pastedAt,
     };

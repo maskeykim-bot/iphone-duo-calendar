@@ -14,7 +14,7 @@ import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.j
 import { DELETE_UNDO_MS, checkReminderAccess, requestReminderAccess, taskAccessHtml, createReminderLoader, tasksHtml, HIST_DAYS, createAddController, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDoneController, TASK_CONFLICT, createDeleteController, TASK_DELETED, TASK_DELETE_CONFLICT, normRemSettings, shownListIds, pruneRemSettings, resolveAddList, filterByLists, dueCounts } from './reminders.js';
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
 import { call, errCode, errReason, errText, haptic, listen, nativeAvailable, reminderErrText } from './native.js';
-import { makeVisible, buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, pickAddCal, planNativeOps, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
+import { makeVisible, buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, pickAddCal, planLinkMigration, planNativeOps, resolveDest, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
 import {
   DOW, addDays, addMonths, assignSharedLanes, dayLabel, dayOf, dkey, eventsOnDay, isKey, isMulti,
   monthWeeks, newId, nowStamp, pad, parseInput, parseKey, ruleSummary, setFirstDay, timeLabel, toInput, todayKey, validateDraft, weekStart, weekdayHeads,
@@ -334,10 +334,20 @@ function setLink(patch) {
   link = { ...link, ...patch };
   try { localStorage.setItem(LINK_KEY, JSON.stringify(link)); linkSaveFailed = false; } catch { linkSaveFailed = true; }
 }
+// 新しい予定の追加先（defaultDest）を、表示中のものへ解決する。未設定（移行前）は Duo の表示中先頭。
+const destNow = () => resolveDest(link.defaultDest, { cats: state.categories, cals: X.calendars, ids: link.calendarIds, usable: extActive() });
+const destCalId = () => { const d = destNow(); return d.type === 'iphone' ? d.id : ''; };
+const setDest = (d) => setLink({ defaultDest: d });
+// 旧設定の一度きりの移行（許可・一覧取得後に確定。保存したら再実行しない）。旧キー（addByDefault 等）は消さない。
+function migrateLinkOnce() {
+  const patch = planLinkMigration(link, { perm: X.perm, cals: X.listed ? X.calendars : null, cats: state.categories });
+  if (patch) setLink(patch);
+}
+const linkMigPending = () => !link.enabledMig || !link.defaultDest;
 // perm: null（未確認）| granted | denied | restricted | notDetermined | writeOnly
 // iPhone への反映の送信待ち（meta.nativeOutbox の写し）。items は更新のたびに新しい配列にする。
 const OBX = { items: [], inflight: null, timer: 0, chain: Promise.resolve() };
-const X = { avail: NATIVE, perm: null, calendars: [], cache: null, status: 'idle', stale: false, gen: 0, inflight: null, inflightKey: '', failKey: '', vis: null, visFor: null };
+const X = { avail: NATIVE, perm: null, listed: false, calendars: [], cache: null, status: 'idle', stale: false, gen: 0, inflight: null, inflightKey: '', failKey: '', vis: null, visFor: null };
 const extActive = () => NATIVE && X.avail && link.enabled && X.perm === 'granted';
 // 表示用の外部予定（アプリ予定のリンクと一致するものは除外）。入力が変わるまで使い回す。
 function visExt() {
@@ -1616,7 +1626,7 @@ function updateXUi() {
     xSig = sig;
     F.xcal.innerHTML = cals.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}（${esc(c.source)}）</option>`).join('');
   }
-  const want = pickAddCal(X.calendars, xSel, link.defaultCalendarId);
+  const want = pickAddCal(X.calendars, xSel, destCalId());
   F.xcal.value = want;
   const wc = cals.find((c) => c.id === want);
   $('#xcal-dot').style.background = wc ? wc.color : 'transparent';
@@ -1650,7 +1660,7 @@ function openEditor(id, from, day = state.selected, startMin = null, opts = {}) 
   const dd = day.replaceAll('-', '/');
   const values = cur
     ? valuesFrom(cur)
-    : { title: '', categoryId: opts.direct ? lastCatOk() : defaultCatId(), all: !!opts.all, start: opts.all ? dd : `${dd} ${t0}`, end: opts.all ? (opts.endDay || day).replaceAll('-', '/') : `${dd} ${t1}`, place: '', notes: '', rfreq: 'none', rbyday: [], rend: 'none', rcount: '10', runtil: '', ropen: false, alarms: defaultAlarms(!!opts.all, loadNotify()), xadd: extActive() && link.addByDefault && writable(X.calendars).length > 0 };
+    : { title: '', categoryId: opts.direct ? lastCatOk() : defaultCatId(), all: !!opts.all, start: opts.all ? dd : `${dd} ${t0}`, end: opts.all ? (opts.endDay || day).replaceAll('-', '/') : `${dd} ${t1}`, place: '', notes: '', rfreq: 'none', rbyday: [], rend: 'none', rcount: '10', runtil: '', ropen: false, alarms: defaultAlarms(!!opts.all, loadNotify()), xadd: extActive() && destNow().type === 'iphone' };
   showEditor(values, cur ? id : null);
   saveDraft();
 }
@@ -2673,11 +2683,11 @@ async function checkPerm() {
 async function refreshCalendars() {
   const r = await call('listCalendars');
   const cals = (Array.isArray(r?.calendars) ? r.calendars : []).map((c) => ({ ...c, color: safeColor(c.color) }));
-  X.calendars = cals;
+  X.calendars = cals; X.listed = true;
+  if (X.perm === 'granted') migrateLinkOnce();
   const known = new Set(cals.map((c) => c.id));
   const patch = { calendarIds: link.calendarIds.filter((id) => known.has(id)) };
   if (!link.selectionInitialized) { patch.calendarIds = cals.map((c) => c.id); patch.selectionInitialized = true; } // 初回は全選択
-  if (link.defaultCalendarId && !cals.some((c) => c.id === link.defaultCalendarId && c.allowsModify)) patch.defaultCalendarId = null;
   setLink(patch);
 }
 // 必要な範囲が取得済みでなければ取得する（同じ範囲の連続要求は統合、失敗した範囲は自動では再試行しない）。
@@ -2761,6 +2771,7 @@ async function resumeExt() {
   if (!NATIVE || !X.avail) return;
   const p = await checkPerm();
   if (['granted', 'writeOnly'].includes(p)) requestFlush(0);
+  if (p === 'granted' && !link.enabled && linkMigPending()) { try { await refreshCalendars(); } catch { /* 取得できなければ次回 */ } } else if (p && p !== 'granted') migrateLinkOnce();
   if (!link.enabled) { if (linkDlg.open) renderLink(); return; }
   if (p !== 'granted') { if (p) dropLink('カレンダーへのアクセスを確認してください。'); return; }
   try { await refreshCalendars(); } catch { /* 取得できなくても直前の一覧で続ける */ }
@@ -2794,11 +2805,11 @@ function renderLink() {
     h += '<section class="card"><p class="berr" role="alert">iPhone のカレンダーに反映するには、フルアクセスの許可が必要です。設定 ＞ プライバシーとセキュリティ ＞ カレンダー ＞ Duo で『フルアクセス』を許可してください。</p><button type="button" class="solid" id="lk-req">フルアクセスを許可</button><button type="button" id="lk-settings">設定を開く</button></section>';
   }
   if (on) {
-    const wc = writable(X.calendars), noW = !wc.length, defId = pickAddCal(X.calendars, '', link.defaultCalendarId);
-    h += `<section class="card newcard"><h3>新しい予定</h3><label class="swl"><span id="lk-add-l">iPhone のカレンダーにも追加</span><input type="checkbox" role="switch" id="lk-add" class="swc" aria-labelledby="lk-add-l"${link.addByDefault && !noW ? ' checked' : ''}${noW ? ' disabled' : ''}></label>`;
+    const wc = writable(X.calendars).filter((c) => link.calendarIds.includes(c.id)), noW = !wc.length, dn = destNow(), dOn = dn.type === 'iphone', defId = dOn ? dn.id : pickAddCal(wc, '', '');
+    h += `<section class="card newcard"><h3>新しい予定</h3><label class="swl"><span id="lk-add-l">iPhone のカレンダーにも追加</span><input type="checkbox" role="switch" id="lk-add" class="swc" aria-labelledby="lk-add-l"${dOn && !noW ? ' checked' : ''}${noW ? ' disabled' : ''}></label>`;
     if (noW) h += '<p class="small">書き込めるカレンダーがありません。</p>';
     else {
-      if (link.addByDefault) h += `<label class="xcal"><span class="xcal-t">追加先カレンダー</span><select id="lk-defcal">${wc.map((c) => `<option value="${esc(c.id)}"${c.id === defId ? ' selected' : ''}>${esc(c.title)}（${esc(c.source)}）</option>`).join('')}</select></label>`;
+      if (dOn) h += `<label class="xcal"><span class="xcal-t">追加先カレンダー</span><select id="lk-defcal">${wc.map((c) => `<option value="${esc(c.id)}"${c.id === defId ? ' selected' : ''}>${esc(c.title)}（${esc(c.source)}）</option>`).join('')}</select></label>`;
       h += '<p class="small">新しい予定を作るとき、このカレンダーにも追加します。予定ごとに変えられます。</p>';
     }
     h += '</section>';
@@ -2830,6 +2841,7 @@ async function lkToggle() {
   LK.body.querySelector('#lk-req, #lk-settings, #lk-sw')?.focus({ preventScroll: true });
 }
 async function enableLink() {
+  if (!link.enabledMig) setLink({ enabledMig: true }); // 利用者が今つないだ。旧「オフ」の移行は不要
   try { await refreshCalendars(); } catch { lk.err = 'カレンダーの一覧を読み込めませんでした。もう一度お試しください。'; return; }
   setLink({ enabled: true });
   lk.want = false;
@@ -2855,8 +2867,12 @@ LK.body.addEventListener('click', async (ev) => {
   else if (b.id === 'lk-reload') { X.failKey = ''; loadExt(true); renderLink(); }
 });
 LK.body.addEventListener('change', (ev) => {
-  if (ev.target.id === 'lk-add') { setLink({ addByDefault: ev.target.checked }); renderLink(); return; }
-  if (ev.target.id === 'lk-defcal') { setLink({ defaultCalendarId: ev.target.value }); return; }
+  if (ev.target.id === 'lk-add') {
+    const wc = writable(X.calendars).filter((c) => link.calendarIds.includes(c.id));
+    setDest(ev.target.checked && wc.length ? { type: 'iphone', id: pickAddCal(wc, '', '') } : { type: 'duo', id: defaultCatId() });
+    renderLink(); return;
+  }
+  if (ev.target.id === 'lk-defcal') { setDest({ type: 'iphone', id: ev.target.value }); return; }
   const cb = ev.target.closest('[data-cal]');
   if (!cb) return;
   const ids = new Set(link.calendarIds);
@@ -3807,6 +3823,7 @@ async function initNative() {
   const p = await checkPerm();
   if (p === null) return;
   if (['granted', 'writeOnly'].includes(p)) requestFlush(0);
+  if (p === 'granted' && !link.enabled && linkMigPending()) { try { await refreshCalendars(); } catch { /* 取得できなければ次回 */ } } else if (p !== 'granted') migrateLinkOnce();
   if (link.enabled) {
     if (p === 'granted') { try { await refreshCalendars(); } catch { /* 一覧は後で再取得 */ } loadExt(true); } else dropLink('カレンダーへのアクセスを確認してください。');
   }
@@ -4166,7 +4183,7 @@ document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && PS.on 
 // 確定: 計画を作って pasteCommit へ（Duo 分は1回の保存、iPhone 分は createEvents）。保存に失敗したら選択を残して再度押せる。
 async function confirmPaste({ src, srcLink, days }) {
   if (PS.busy) return;
-  const plan = planPaste(src, days, { cals: X.calendars, enabled: extActive(), defaultCalendarId: link.defaultCalendarId, defaultCatId, newId, pastedAt: Date.now(), srcLink });
+  const plan = planPaste(src, days, { cals: X.calendars, enabled: extActive(), destCalendarId: destCalId(), destCatId: (() => { const d = destNow(); return d.type === 'duo' ? d.id : ''; })(), catVisible: (id) => state.categories.some((c) => c.id === id && !c.hidden), defaultCatId, newId, pastedAt: Date.now(), srcLink });
   if (!plan.ok) { notice(plan.error === 'too-many' ? `一度に貼り付けられるのは${PASTE_MAX}日までです` : '貼り付ける日を選んでください'); return; }
   PS.busy = 1;
   root.querySelectorAll('[data-pa]').forEach((b) => { b.disabled = true; });
@@ -4284,7 +4301,7 @@ async function boot() {
     origins.set(dlg, root.querySelector('[data-act="add"]'));
     showEditor({
       title: draft.title || '', categoryId: draftCat(draft), all: !!draft.all, start: draft.start || '', end: draft.end || '', place: draft.place || '', notes: draft.notes || '',
-      rfreq: draft.rfreq, rbyday: Array.isArray(draft.rbyday) ? draft.rbyday : [], rend: draft.rend, rcount: draft.rcount, runtil: draft.runtil, ropen: !!draft.ropen, autoDays: draft.autoDays, xadd: draft.xadd === false ? false : draft.xadd === true || (extActive() && link.addByDefault && writable(X.calendars).length > 0), xcal: draft.xcal || '',
+      rfreq: draft.rfreq, rbyday: Array.isArray(draft.rbyday) ? draft.rbyday : [], rend: draft.rend, rcount: draft.rcount, runtil: draft.runtil, ropen: !!draft.ropen, autoDays: draft.autoDays, xadd: draft.xadd === false ? false : draft.xadd === true || (extActive() && destNow().type === 'iphone'), xcal: draft.xcal || '',
       alarms: Array.isArray(draft.alarms) ? draft.alarms : id ? undefined : defaultAlarms(!!draft.all, loadNotify()),
     }, id, false);
     edBase = null; // 復元した下書きは未保存の変更として扱う
