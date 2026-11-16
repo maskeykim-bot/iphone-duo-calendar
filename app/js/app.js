@@ -1311,6 +1311,7 @@ function render() {
   const kind = layoutKind();
   updateLayoutMetrics();
   updateDiagnostics();
+  if (menuDlg.open) placeMenu();
   const scrolls = {};
   const anchor = root.querySelector('.scroll.all') ? anchorRec : null;
   root.querySelectorAll('[data-scroll]').forEach((el) => { scrolls[`${lastKind}:${el.dataset.scroll}${el.dataset.pane || ''}`] = el.scrollTop; });
@@ -1464,6 +1465,8 @@ catsDlg.addEventListener('close', () => {
     saveDraft();
   }
 });
+menuDlg.addEventListener('close', () => { document.body.classList.remove('settings-open'); });
+menuDlg.addEventListener('cancel', (ev) => { ev.preventDefault(); menuBack(); });
 for (const d of [dlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, catsDlg, notifyDlg, taskDlg]) {
   d.addEventListener('close', () => {
     syncInert();
@@ -2285,10 +2288,32 @@ $('#dodelete').addEventListener('click', () => {
 });
 
 // ---------- その他メニュー ----------
+const MENU_TITLES = { root: '設定', general: '一般', display: '表示形式', calendar: 'カレンダー', reminders: 'リマインダー', google: 'Google カレンダー', details: '詳細' };
+let menuScreen = 'root';
+function showMenuScreen(name, focus = true, opener = null) {
+  menuScreen = name;
+  menuDlg.querySelectorAll('[data-screen]').forEach((el) => { el.hidden = el.dataset.screen !== name; });
+  $('#m-title').textContent = MENU_TITLES[name];
+  const back = $('#m-back');
+  back.textContent = name === 'root' ? '×' : '‹';
+  back.setAttribute('aria-label', name === 'root' ? '設定を閉じる' : '設定に戻る');
+  document.body.classList.toggle('settings-open', menuDlg.open);
+  menuDlg.querySelector('.mscreens').scrollTop = 0;
+  if (focus) (opener?.isConnected ? opener : menuDlg.querySelector(`[data-screen="${name}"] button:not([hidden])`) || back).focus({ preventScroll: true });
+}
+// 下層なら1つ戻り（戻り先の行へフォーカス）、一番上なら閉じる。
+function menuBack() {
+  if (menuScreen === 'root') { closePanel(menuDlg); return; }
+  const prev = menuScreen;
+  showMenuScreen('root', true, menuDlg.querySelector(`[data-go="${prev}"]`));
+}
 function openMenu(from) {
+  if (menuDlg.open) { closePanel(menuDlg); return; } // 帯の設定ボタン（×）でも閉じる
   $('#m-desk').hidden = L.w < 600 || L.h < 600;
   $('#m-link').hidden = !(NATIVE && X.avail);
   $('#m-notify').hidden = !NATIVE;
+  $('#m-reminders').hidden = !NATIVE;
+  $('#m-gset').hidden = !NATIVE;
   $('#m-desk').textContent = state.desk ? '卓上表示をやめる' : '卓上表示';
   $('#m-week').textContent = `週の始まり: ${state.weekStart === 1 ? '月曜（日曜にする）' : '日曜（月曜にする）'}`;
   $('#m-sample').hidden = !(state.loaded && state.events.length === 0);
@@ -2303,20 +2328,19 @@ function openMenu(from) {
   updateDiagnostics();
   openPanel(menuDlg, from);
   placeMenu(from);
-  menuDlg.querySelector('button:not([hidden])').focus({ preventScroll: true });
+  showMenuScreen('root');
 }
-// メニューは起点の直下8pxに置き、安全矩形（可視範囲）の内側にクランプ。収まらなければ起点の上へ。
-function placeMenu(from) {
-  const S = safe(), w = Math.min(240, L.w - 24), r = from?.getBoundingClientRect?.();
-  let maxL = L.w - S.right - 12 - w;
-  if (layoutKind() === 'spread') maxL = Math.min(maxL, L.w / 2 - 10 - w); // 見開きのメニューは左ページ（折り目の保護域の外）に収める
-  const left = Math.max(S.left + (layoutKind() === 'spread' ? 8 : 12), Math.min(r ? r.right - w : maxL, maxL));
+// 設定は白いシート（角丸22）。閉じた／開いた縦は画面幅いっぱい（帯があれば帯の手前まで）、開いた横は左ページ内（折り目と右ページを残す）、卓上は下ペイン。
+function placeMenu() {
+  const S = safe(), kind = layoutKind();
   const vy = parseFloat(de.style.getPropertyValue('--vy')) || 0, vb = parseFloat(de.style.getPropertyValue('--vb')) || 0;
-  const topMin = Math.max(vy, S.top) + 12, botMax = window.innerHeight - Math.max(vb, S.bottom) - 12;
-  const mh = Math.min(menuDlg.scrollHeight, botMax - topMin);
-  let top = r ? r.bottom + 8 : topMin;
-  if (top + mh > botMax) top = Math.max(topMin, r && r.top - 8 - mh >= topMin ? r.top - 8 - mh : botMax - mh);
-  Object.assign(menuDlg.style, { left: `${left}px`, top: `${top}px`, right: 'auto', bottom: 'auto', width: `${w}px`, maxHeight: `${Math.max(88, botMax - top)}px` });
+  const left = S.left + 8;
+  let right = (POS.post === 'closed' && POS.bg ? POS.bg.x : L.w - S.right) - 8;
+  if (kind === 'spread') right = Math.min(right, L.w / 2 - 10);
+  const topMin = Math.max(vy, S.top) + (kind === 'open' ? 90 : 12);
+  const top = kind === 'desk' ? Math.max(L.h / 2 + 20, topMin) : topMin;
+  const bottom = Math.max(vb, S.bottom) + 12;
+  Object.assign(menuDlg.style, { left: `${left}px`, top: `${top}px`, right: 'auto', bottom: `${bottom}px`, width: `${Math.max(200, right - left)}px`, maxWidth: 'none', height: 'auto', maxHeight: 'none' });
 }
 // 月の時刻は現在の姿勢用（閉じた／それ以外）。文字の大きさは全姿勢共通。
 const timeKey = () => (['home', 'browse'].includes(layoutKind()) ? 'monthTimeClosed' : 'monthTimeOpen');
@@ -2344,7 +2368,7 @@ function syncTaskMenu(reset = false) {
     + `<div role="radiogroup" aria-label="タスクの追加先"><div class="eyebrow">タスクの追加先</div><button type="button" role="radio" aria-checked="${auto}" data-tkadd="">自動（iPhone の既定）</button>${add}</div>`;
 }
 function tkChanged(reload) {
-  RM.sig = ''; render(); syncTaskMenu(); placeMenu(origins.get(menuDlg));
+  RM.sig = ''; render(); syncTaskMenu();
   if (reload) loadTasks();
 }
 function syncRokuyoMenu() { $('#m-rokuyo').setAttribute('aria-checked', String(state.rokuyo)); }
@@ -2375,7 +2399,11 @@ menuDlg.addEventListener('click', (ev) => {
   const mb0 = ev.target.closest('[data-m="tkmonth"]');
   if (mb0) { setRemSettings({ ...remSet, monthTasks: !remSet.monthTasks }); syncTaskMenu(); render(); say(`月にタスクを${remSet.monthTasks ? '表示します' : '表示しません'}。`); return; }
   const tl = ev.target.closest('[data-m="tklists"]');
-  if (tl) { const p = $('#m-tkpanel'); p.hidden = !p.hidden; tl.setAttribute('aria-expanded', String(!p.hidden)); syncTaskMenu(); placeMenu(origins.get(menuDlg)); return; }
+  if (tl) { const p = $('#m-tkpanel'); p.hidden = !p.hidden; tl.setAttribute('aria-expanded', String(!p.hidden)); syncTaskMenu(); return; }
+  const go = ev.target.closest('[data-go]');
+  if (go) { showMenuScreen(go.dataset.go, true); return; }
+  if (ev.target.closest('#m-back')) { menuBack(); return; }
+  if (ev.target.closest('#m-gset')) { openSettings(); return; }
   const mb = ev.target.closest('[data-mode]');
   if (mb) { closePanel(menuDlg); const m = mb.dataset.mode; set(m === 'all' ? { monthExpand: true } : { style: m, monthExpand: false }); return; }
   const b = ev.target.closest('[data-m]');
@@ -3992,7 +4020,7 @@ document.addEventListener('keydown', (ev) => {
   if (scopeDlg.open) cancelScope();
   else if (xrDlg.open) closePanel(xrDlg);
   else if (confirmDlg.open) cancelConfirm();
-  else if (menuDlg.open) closePanel(menuDlg);
+  else if (menuDlg.open) menuBack();
   else if (xdDlg.open) closePanel(xdDlg);
   else if (taskDlg.open) dismissPopup(false);
   else if (linkDlg.open) closePanel(linkDlg);

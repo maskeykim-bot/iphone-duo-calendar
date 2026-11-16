@@ -170,7 +170,7 @@ test.describe('見開き: 折り目の保護域（文字・罫線・チップ・
       await pagePick(page, 'left', '時間').click(); await pagePick(page, 'right', '月').click(); await check('時間/月');
       await showView(page, '月'); await check('月2');
       // 全部の月
-      await openMenu(page);
+      await openMenu(page, 'display');
       await page.locator('#menu').getByRole('button', { name: '月の表現', exact: true }).click();
       await page.locator('#m-variant').getByRole('button', { name: '全部', exact: true }).click();
       await check('全部');
@@ -307,7 +307,7 @@ test.describe('見開き: 右ページの時間軸', () => {
     expect((await center()).h).toBe(31);
     expect(Math.round(await hh(page))).toBe(31);
     await page.reload(); await page.waitForSelector('html[data-ready]');
-    await openMenu(page);
+    await openMenu(page, 'display');
     await page.locator('#menu').getByRole('button', { name: '時間軸を拡大' }).click();
     expect((await center()).h).toBeGreaterThan(60);
   });

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, seed, ev, tab, layout, setStyle, SIZES, chip } from './helpers.js';
+import { openApp, seed, ev, tab, layout, setStyle, SIZES, chip, openMenu } from './helpers.js';
 
 // 第10版 ①: 寸法の唯一の入力（innerWidth/innerHeight と safe-area）→ 判定・CSS変数・診断行。
 // 画面サイズ・折り目は決め打ちしない: どの値も viewport と safe からの計算で検証する。
@@ -16,7 +16,6 @@ const setSafe = (page, { t = 0, r = 0, b = 0, l = 0 }) => page.evaluate(([t, r, 
   s.setProperty('--sat', `${t}px`); s.setProperty('--sar', `${r}px`); s.setProperty('--sab', `${b}px`); s.setProperty('--sal', `${l}px`);
 }, [t, r, b, l]);
 const diag = (page) => page.evaluate(() => document.querySelector('#layout-diagnostics').textContent);
-const openMenu = (page) => page.getByRole('button', { name: '設定' }).click();
 
 test.describe('姿勢の判定（600 は閉じた判定のブレークポイント。機種寸法ではない）', () => {
   for (const [name, size, kinds] of SIZES5) {
@@ -101,7 +100,7 @@ test.describe('診断行（設定メニュー）', () => {
   for (const [name, size] of SIZES5) {
     test(`${name}: メニューに W×H・DPR・safe が出る`, async ({ page }) => {
       await openApp(page, size);
-      await openMenu(page);
+      await openMenu(page, 'details');
       const d = page.locator('#layout-diagnostics');
       await expect(d).toBeVisible();
       await expect(d).toHaveText(`${size.width}×${size.height} px · DPR 1 · safe 上0 右0 下0 左0 px`);
@@ -112,7 +111,7 @@ test.describe('診断行（設定メニュー）', () => {
   }
   test('safe だけが変わっても（resize なしで）診断も寸法変数も追随する', async ({ page }) => {
     await openApp(page, SIZES.openPortrait);
-    await openMenu(page);
+    await openMenu(page, 'details');
     await setSafe(page, { t: 47, b: 34 });
     await expect(page.locator('#layout-diagnostics')).toHaveText('626×890 px · DPR 1 · safe 上47 右0 下34 左0 px');
     expect(await cssVar(page, 'content-y')).toBe(47);
@@ -121,7 +120,7 @@ test.describe('診断行（設定メニュー）', () => {
   });
   test('メニュー表示中の resize・キーボード相当の高さ縮小でも生の値に追随する', async ({ page }) => {
     await openApp(page, SIZES.openPortrait669);
-    await openMenu(page);
+    await openMenu(page, 'details');
     await page.setViewportSize({ width: 669, height: 640 }); // キーボード相当
     await expect(page.locator('#layout-diagnostics')).toHaveText('669×640 px · DPR 1 · safe 上0 右0 下0 左0 px');
     await page.setViewportSize({ width: 951, height: 669 });
@@ -132,7 +131,7 @@ test.describe('診断行（設定メニュー）', () => {
       test.use({ deviceScaleFactor: dpr });
       test(`DPR ${dpr} を表示（CSS px は割らない）`, async ({ page }) => {
         await openApp(page, SIZES.closedPortrait);
-        await openMenu(page);
+        await openMenu(page, 'details');
         await expect(page.locator('#layout-diagnostics')).toHaveText(`466×678 px · DPR ${dpr} · safe 上0 右0 下0 左0 px`);
         expect(await cssVar(page, 'layout-w')).toBe(466);
       });
@@ -214,7 +213,7 @@ test.describe('月の文字「大」・時刻の出し入れ', () => {
     await seed(page, six);
     await setStyle(page, '予定名');
     await expect(chip(page, '2026-11-12')).toHaveCount(5);
-    await openMenu(page);
+    await openMenu(page, 'display');
     await menuBtn(page, /^月の文字/).click();
     await expect(chip(page, '2026-11-12')).toHaveCount(4);
     await expect(page.locator('.plus[data-jump="2026-11-12"]')).toHaveText('+2');
@@ -229,7 +228,7 @@ test.describe('月の文字「大」・時刻の出し入れ', () => {
     await setStyle(page, '予定名');
     await expect(chip(page, '2026-11-12')).toHaveCount(3);
     // 標準へ戻す
-    await openMenu(page);
+    await openMenu(page, 'display');
     await menuBtn(page, /^月の文字/).click();
     await expect(chip(page, '2026-11-12')).toHaveCount(4);
   });
@@ -242,7 +241,7 @@ test.describe('月の文字「大」・時刻の出し入れ', () => {
     const s = chip(page, '2026-11-12');
     await expect(s).toHaveText('大小0');
     await expect(s).toHaveAttribute('aria-label', /09:00 – 09:30 大小0/);
-    await openMenu(page);
+    await openMenu(page, 'display');
     const t = menuBtn(page, '月表示に時刻を出す');
     await expect(t).toHaveAttribute('aria-pressed', 'false');
     await t.click();
@@ -257,7 +256,7 @@ test.describe('月の文字「大」・時刻の出し入れ', () => {
     // 開いた画面も既定オフ（保存済みの閉じ側「入」とは別）→ オンにするとオンのみ
     await page.setViewportSize(SIZES.openPortrait669);
     await setStyle(page, '予定名');
-    await openMenu(page);
+    await openMenu(page, 'display');
     await expect(t).toHaveAttribute('aria-pressed', 'false');
     await expect(chip(page, '2026-11-12')).toHaveText('大小0');
     await t.click();
@@ -273,7 +272,7 @@ test.describe('月の文字「大」・時刻の出し入れ', () => {
     await tab(page, '月').click().catch(() => {});
     await setStyle(page, '予定名');
     await expect(chip(page, '2026-11-12').first()).not.toHaveText(/\d:\d\d/);
-    await openMenu(page);
+    await openMenu(page, 'display');
     await menuBtn(page, '月表示に時刻を出す').click();
     await expect(chip(page, '2026-11-12').filter({ hasText: '早朝' })).toHaveText('3:00 早朝');
     await expect(chip(page, '2026-11-12').filter({ hasText: '昼前' })).toHaveText('10:00 昼前');
@@ -285,7 +284,7 @@ test.describe('月の文字「大」・時刻の出し入れ', () => {
   test('旧い保存値（新キーなし）でも既定で補完される', async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem('duo.ui.v1', JSON.stringify({ view: 'month', style: 'named', home: false, weekStart: 1 })));
     await openApp(page, SIZES.closedPortrait);
-    await openMenu(page);
+    await openMenu(page, 'display');
     await expect(page.locator('#menu').getByRole('button', { name: '月表示に時刻を出す' })).toHaveAttribute('aria-pressed', 'false');
     await expect(page.locator('#menu').getByRole('button', { name: /^月の文字: 標準/ })).toHaveAttribute('aria-pressed', 'false');
   });

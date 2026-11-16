@@ -159,7 +159,7 @@ test.describe('通知の再予約', () => {
     await page.reload();
     await page.waitForSelector('html[data-ready]');
     const base = await count(page, 'notifySync');
-    await openMenu(page);
+    await openMenu(page, 'calendar');
     await page.locator('#menu').getByRole('button', { name: 'カテゴリ' }).click();
     await page.locator('[data-cat-vis="n-cat"]').click();
     await expect.poll(() => count(page, 'notifySync'), { timeout: 5000 }).toBe(base + 1);

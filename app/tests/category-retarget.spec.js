@@ -162,6 +162,7 @@ test.describe('第15版 PR2: 最後の表示カテゴリ', () => {
     await page.reload(); await page.waitForSelector('html[data-ready]');
     const before = await cats(page);
     await page.locator('[data-act="menu"]:visible').first().click();
+    await page.locator('#menu [data-go="calendar"]').click();
     await page.locator('[data-m="cats"]').click();
     const sw = page.locator('#cat-body [data-cat-vis][aria-checked=true]');
     await expect(sw).toHaveCount(1);

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, loadSample, addEvent, tab, layout, findTextOverlaps, pickDay, modeStates, setStyle, seed, ev, SIZES } from './helpers.js';
+import { openApp, loadSample, addEvent, tab, layout, findTextOverlaps, pickDay, modeStates, setStyle, seed, ev, SIZES, openMenu } from './helpers.js';
 
 const box = (loc) => loc.boundingBox();
 const inside = (a, o, tol = 1) => a.y >= o.y - tol && a.y + a.height <= o.y + o.height + tol && a.x >= o.x - tol && a.x + a.width <= o.x + o.width + tol;
@@ -82,7 +82,7 @@ for (const size of PORTRAITS) {
 
     test('日曜始まり: 2027年2月は5週、列は日曜から。月送りで下段・週数以外は動かない', async ({ page }) => {
       await openApp(page, size);
-      await page.getByRole('button', { name: '設定' }).first().click();
+      await openMenu(page, 'general');
       await page.locator('#menu').getByRole('button', { name: /^週の始まり/ }).click();
       for (let i = 0; i < 3; i++) await page.getByRole('button', { name: '次の月' }).click();
       await expect(page.locator('#ctitle')).toHaveText('2027年 2月');

@@ -72,6 +72,7 @@ async function setup(page, cfg) {
   await mock(page, cfg);
   await openApp(page);
   await page.locator('[data-act="menu"]:visible').first().click();
+  await page.locator('#menu [data-go="calendar"]').click();
   await page.locator('[data-m="link"]').click();
   await page.locator('#lk-sw').click();
   await expect(page.locator('#lk-sw')).toHaveAttribute('aria-checked', 'true');

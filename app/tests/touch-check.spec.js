@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES } from './helpers.js';
+import { openApp, SIZES, openMenu } from './helpers.js';
 
 // 第11版 PR12: 実機確認用タッチ確認モード（通常時は何も変わらない・保存しない）。
 for (const [name, size] of [['closed', SIZES.closedPortrait], ['spread', SIZES.openLandscape]]) {
   test(`タッチ確認 ${name}`, async ({ page }) => {
     await openApp(page, size);
     await expect(page.locator('#touch-check')).toHaveCount(0);
-    await page.getByRole('button', { name: '設定' }).click();
+    await openMenu(page, 'details');
     await page.locator('#touch-check-open').click();
     const L = page.locator('#touch-check');
     await expect(L).toBeVisible();
@@ -33,7 +33,7 @@ for (const [name, size] of [['closed', SIZES.closedPortrait], ['spread', SIZES.o
 }
 test('再読込でオフ', async ({ page }) => {
   await openApp(page, SIZES.closedPortrait);
-  await page.getByRole('button', { name: '設定' }).click();
+  await openMenu(page, 'details');
   await page.locator('#touch-check-open').click();
   await page.reload(); await page.waitForSelector('html[data-ready]');
   await expect(page.locator('#touch-check')).toHaveCount(0);

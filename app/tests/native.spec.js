@@ -142,6 +142,7 @@ const DETAILS = [
 const calls = (page, m) => page.evaluate((m) => window.__mock.calls.filter((c) => !m || c.method === m), m);
 const openLinkPanel = async (page) => {
   await page.locator('[data-act="menu"]:visible').first().click();
+  await page.locator('#menu [data-go="calendar"]').click();
   await page.locator('[data-m="link"]').click();
   await expect(page.locator('#link')).toBeVisible();
 };
@@ -285,6 +286,7 @@ test.describe('ネイティブ（偽装）', () => {
     await mock(page, { checkReject: true });
     await openApp(page);
     await page.locator('[data-act="menu"]:visible').first().click();
+    await page.locator('#menu [data-go="calendar"]').click();
     await expect(page.locator('[data-m="link"]')).toBeHidden();
   });
 
@@ -292,8 +294,9 @@ test.describe('ネイティブ（偽装）', () => {
     await mock(page);
     await openApp(page);
     await page.locator('[data-act="menu"]:visible').first().click();
-    const labels = await page.locator('#menu button:visible').allTextContents();
-    expect(labels.indexOf('iPhone カレンダー連携')).toBe(labels.indexOf('バックアップ') - 1);
+    await page.locator('#menu [data-go="calendar"]').click();
+    const labels = await page.locator('#menu [data-screen="calendar"] button:visible').allTextContents();
+    expect(labels.indexOf('iPhone カレンダー連携')).toBe(labels.indexOf('カテゴリ') + 1);
     await page.locator('[data-m="link"]').click();
     await expect(page.locator('#lk-sw')).toHaveAttribute('aria-checked', 'false');
     expect(await calls(page, 'listEvents')).toHaveLength(0);
@@ -370,7 +373,7 @@ test.describe('ネイティブ（偽装）', () => {
     expect(await dent.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(217, 48, 37)'); // カレンダーの色 #d93025
     await expect(page.locator('.bar', { hasText: '<b>旅行</b>' })).toHaveCount(1); // 11/14(土)〜15(日)は月曜始まりでは同じ週なので1本（週境界の分割は month-all.spec.js で確認）。HTML は文字として表示
     // 凡例は設定メニューの中
-    await openMenu(page);
+    await openMenu(page, 'calendar');
     await expect(page.locator('#menu .xlegend')).toHaveText('▦ iPhoneの予定（カレンダーの色）');
     await expect(page.locator('#menu .legend span')).toHaveCount(5); // 新規の既定カテゴリ5つ（仕事・プライベート・家族・外出・その他）
     await page.keyboard.press('Escape');

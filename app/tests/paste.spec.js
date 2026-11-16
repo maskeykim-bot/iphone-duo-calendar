@@ -60,6 +60,7 @@ async function boot(page, size = SIZES.openPortrait669, { ext = false, query = '
   await seed(page, SEED);
   if (ext) {
     await page.locator('[data-act="menu"]:visible').first().click();
+    await page.locator('#menu [data-go="calendar"]').click();
     await page.locator('[data-m="link"]').click();
     await page.locator('#lk-sw').click();
     await expect(page.locator('#lk-sw')).toHaveAttribute('aria-checked', 'true');

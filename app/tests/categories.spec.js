@@ -2,11 +2,12 @@ import { test, expect } from '@playwright/test';
 import { CAT_IDS, LEGACY, DEFAULTS_NEW } from '../js/categories.js';
 import { openApp, seed, dbEvents, ev, tab, catId, SIZES, openMenu, addEvent, pickDest } from './helpers.js';
 // カテゴリの凡例は設定メニューの中（月には常設しない）
-const legendCheck = async (page, fn) => { await openMenu(page); await fn(page.locator('#menu .legend')); await page.keyboard.press('Escape'); };
+const legendCheck = async (page, fn) => { await openMenu(page, 'calendar'); await fn(page.locator('#menu .legend')); await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); };
 
 const dbCats = (page) => page.evaluate(async () => (await import('/js/db.js')).listCategories());
 const openCats = async (page) => {
   await page.locator('[data-act="menu"]:visible').first().click();
+  await page.locator('#menu [data-go="calendar"]').click();
   await page.locator('[data-m="cats"]').click();
   await expect(page.locator('#cats')).toBeVisible();
 };

@@ -49,7 +49,7 @@ test.describe('月にタスクを表示', () => {
     await openApp(page, OPEN);
     await expect(page.locator('.day[data-date="2026-11-12"]').first()).toBeVisible();
     await expect(page.locator('.tkn')).toHaveCount(0);
-    await openMenu(page);
+    await openMenu(page, 'reminders');
     await expect(page.locator('#m-tkmonth')).toHaveAttribute('aria-checked', 'false');
     await page.locator('#m-tkmonth').click();
     await expect(page.locator('#m-tkmonth')).toHaveAttribute('aria-checked', 'true');
@@ -125,7 +125,7 @@ test.describe('リストの表示と追加先', () => {
     const lp = page.locator('.page.rp');
     await expect(lp.locator('[data-key="rm:b1"]')).toBeVisible();
     await expect(lp.locator('[data-key="rm:c1"]')).toBeVisible();
-    await openMenu(page);
+    await openMenu(page, 'reminders');
     await page.locator('#m-tklists').click();
     const p = page.locator('#m-tkpanel');
     await expect(p.locator('[data-tkshow=""]')).toHaveAttribute('aria-checked', 'true');
@@ -138,6 +138,7 @@ test.describe('リストの表示と追加先', () => {
     await expect.poll(async () => (await listCalls(page)).at(-1)).toEqual(['B']);
     expect((await stored(page)).lists).toEqual(['B']);
     await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape'); // 下層から戻り、設定を閉じる
     await expect(lp.locator('[data-key="rm:b1"]')).toBeVisible();
     await expect(lp.locator('[data-key="rm:a1"]')).toHaveCount(0);
     // 追加先は既定（A）のまま、表示は B だけ。追加は A へ送られる
@@ -150,19 +151,20 @@ test.describe('リストの表示と追加先', () => {
     await mock(page);
     await openApp(page, OPEN);
     await page.locator('.pgr [data-pick="task"]').first().click();
-    await openMenu(page);
+    await openMenu(page, 'reminders');
     await page.locator('#m-tklists').click();
     const p = page.locator('#m-tkpanel');
     await p.locator('[data-tkadd="B"]').click();
     await expect(p.locator('[data-tkadd="B"]')).toHaveAttribute('aria-checked', 'true');
     expect((await stored(page)).addTo).toBe('B');
     await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape'); // 下層から戻り、設定を閉じる
     const lp = page.locator('.page.rp');
     await lp.locator('[data-act="remadd"]').click();
     await lp.locator('input.remin').fill('家のこと');
     await lp.locator('input.remin').press('Enter');
     await expect.poll(() => page.evaluate(() => window.__m.calls.filter((c) => c[0] === 'createReminder').map((c) => c[1].listId))).toEqual(['B']);
-    await openMenu(page);
+    await openMenu(page, 'reminders');
     await page.locator('#m-tklists').click();
     await p.locator('[data-tkshow="A"]').click(); await p.locator('[data-tkshow="B"]').click();
     await p.locator('[data-tkshow="C"]').click(); // 最後の1つ（C）は外せない
@@ -183,10 +185,11 @@ test.describe('リストの表示と追加先', () => {
     ] });
     await openApp(page, OPEN);
     await page.locator('.pgr [data-pick="task"]').first().click();
-    await openMenu(page);
+    await openMenu(page, 'reminders');
     await page.locator('#m-tklists').click();
     await expect(page.locator('#m-tkpanel [data-tkadd=""]')).toHaveAttribute('aria-checked', 'true');
     await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape'); // 下層から戻り、設定を閉じる
     const lp = page.locator('.page.rp');
     await lp.locator('[data-act="remadd"]').click();
     await lp.locator('input.remin').fill('x');
@@ -205,6 +208,7 @@ test.describe('リストの表示と追加先', () => {
     await page.setViewportSize(SIZES.openLandscape);
     await page.waitForSelector('html[data-ready]');
     await openMenu(page);
+    await expect(page.locator('#m-reminders')).toBeHidden(); // ネイティブ以外はリマインダーの入口を出さない
     await expect(page.locator('#m-tk')).toBeHidden();
   });
 });

@@ -4,6 +4,7 @@ test.use({ hasTouch: true, isMobile: true });
 test('タッチで終われる', async ({ page }) => {
   await openApp(page, SIZES.closedPortrait);
   await page.getByRole('button', { name: '設定' }).tap();
+  await page.locator('#menu [data-go="details"]').tap();
   await page.locator('#touch-check-open').tap();
   await expect(page.locator('#touch-check')).toBeVisible();
   await page.getByRole('button', { name: 'タッチ確認を終わる' }).tap();

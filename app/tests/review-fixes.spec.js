@@ -62,6 +62,7 @@ test.describe('非表示カテゴリと新しい予定', () => {
 test.describe('同名カテゴリ', () => {
   const openCats = async (page) => {
     await page.locator('[data-act="menu"]:visible').first().click();
+    await page.locator('#menu [data-go="calendar"]').click();
     await page.locator('[data-m="cats"]').click();
     await expect(page.locator('#cats')).toBeVisible();
   };

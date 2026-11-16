@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { OPEN_SIZES, SIZES, loadSample, openApp, setStyle, tab } from './helpers.js';
+import { OPEN_SIZES, SIZES, loadSample, openApp, setStyle, tab, openMenu } from './helpers.js';
 
 // 第10版 ②: 閉じた画面（月領域＋操作列）・4タブ・操作列。画面サイズは固定せず、同じ検査を複数の大きさで通す。
 const CLOSED = [SIZES.closedPortrait, SIZES.closedLandscape];
@@ -153,7 +153,7 @@ test('閉じた縦で、月の表現は設定の「月の表現」から選ぶ�
   await expect(page.locator('.week.simple').first()).toBeVisible();
   await page.reload(); await page.waitForSelector('html[data-ready]');
   await expect(page.locator('.week.simple').first()).toBeVisible();
-  await page.getByRole('button', { name: '設定' }).click();
+  await openMenu(page, 'display');
   await page.locator('#menu').getByRole('button', { name: '月の表現', exact: true }).click();
   await expect(page.locator('#m-variant').getByRole('button', { name: '手帳' })).toHaveAttribute('aria-pressed', 'true');
 });
@@ -162,18 +162,18 @@ test('メニューにカテゴリの色の説明があり、月には常設の�
   await openApp(page, SIZES.closedPortrait);
   await tab(page, '月').click();
   await expect(page.locator('.calendar .legend')).toHaveCount(0);
-  await page.getByRole('button', { name: '設定' }).click();
+  await openMenu(page, 'calendar');
   await expect(page.locator('#menu [aria-label="カテゴリ凡例"]')).toBeVisible();
 });
 
 test('卓上表示の入口はメニュー（上部ボタンは無い）。入って、メニューから出られる', async ({ page }) => {
   await openApp(page, SIZES.openPortrait);
   await expect(page.getByRole('button', { name: '卓上', exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: '設定' }).click();
+  await openMenu(page, 'general');
   await page.locator('#menu').getByRole('button', { name: '卓上表示', exact: true }).click();
   await expect(page.locator('body')).toHaveAttribute('data-layout', 'desk');
   await expect(tabsGroup(page).getByRole('button')).toHaveCount(4);
-  await page.getByRole('button', { name: '設定' }).click();
+  await openMenu(page, 'general');
   await page.locator('#menu').getByRole('button', { name: '卓上表示をやめる' }).click();
   await expect(page.locator('body')).not.toHaveAttribute('data-layout', 'desk');
 });

@@ -262,7 +262,8 @@ dialog#confirm,dialog#scope,dialog#xretry,dialog#discard{top:auto;bottom:calc(va
 .row.danger{color:var(--danger)}
 .row:disabled{opacity:.45;cursor:default}
 #sc-note{margin:8px 0 0}
-dialog#menu{z-index:12;inset:56px 16px auto auto;margin:0;width:240px;--pw:240px;max-width:calc(100% - 32px);max-height:none;padding:8px;border-radius:16px;box-shadow:0 12px 30px #132c3340}
+dialog#menu{z-index:12;margin:0;padding:0;border-radius:22px;box-shadow:0 12px 30px #132c3340;background:#fff;overflow:hidden}
+dialog#menu[open]{display:flex;flex-direction:column}
 .menurows button{display:block;width:100%;text-align:left;min-height:44px}
 
 /* 検索 */
@@ -316,13 +317,12 @@ body[data-layout=spread] dialog{--pt:max(24px,calc(var(--rt) + 12px));--pb:max(2
  top:var(--pt);bottom:var(--pb);left:var(--right-start);right:calc(var(--layout-w) - var(--right-end));margin:0;width:auto;max-width:none;max-height:calc(100% - var(--pt) - var(--pb));box-shadow:none}
 body[data-layout=spread] dialog.full{height:calc(100% - var(--pt) - var(--pb))}
 body[data-layout=spread] dialog#scope,body[data-layout=spread] dialog#confirm,body[data-layout=spread] dialog#xretry,body[data-layout=spread] dialog#discard{top:auto;bottom:var(--pb);left:var(--right-start);right:calc(var(--layout-w) - var(--right-end));max-height:calc(100% - var(--pt) - var(--pb))}
-body[data-layout=spread] dialog#menu{inset:56px auto auto var(--left-start);width:240px;max-width:240px;max-height:none;border:1px solid #c9c6ba;box-shadow:none}
+body[data-layout=spread] dialog#menu{border:1px solid #c9c6ba;box-shadow:none}
 /* ハーフフォールド: 下ペインのみ（保護帯の下、左右16、下12） */
 body[data-layout=desk] dialog{--dt:max(calc(50% + 20px),calc(var(--rt) + 12px));--db:calc(var(--rb) + 12px);
  top:var(--dt);bottom:var(--db);left:calc(var(--rl) + 16px);right:calc(var(--rr) + 16px);margin:0;width:auto;max-width:none;max-height:calc(100% - var(--dt) - var(--db))}
 body[data-layout=desk] dialog.full{height:calc(100% - var(--dt) - var(--db))}
 body[data-layout=desk] dialog#scope,body[data-layout=desk] dialog#confirm,body[data-layout=desk] dialog#xretry,body[data-layout=desk] dialog#discard{top:auto;overflow:auto}
-body[data-layout=desk] dialog#menu{inset:56px 16px auto auto;width:240px;max-width:240px;max-height:none}
 body[data-layout=desk] .formhead,body[data-layout=desk] .phead{height:44px;min-height:44px}
 html[data-kb] body[data-layout=spread] dialog,html[data-kb] body[data-layout=desk] dialog{margin:0}
 
@@ -921,3 +921,28 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .destpop .dopt .dck{flex:none;width:18px;color:#2E8B57;font-weight:700}
 .destpop .dopt.hid .dn{color:#A8ABA4}.destpop .dopt.hid .cdot{opacity:.4}
 .destpop .dopt:focus-visible{outline:2px solid #294E42;outline-offset:-2px}
+
+/* 第15版 PR7: 設定の階層（白いシート・48pt行） */
+body[data-layout=spread] dialog#menu,body[data-layout=desk] dialog#menu{height:auto;max-width:none;max-height:none}
+.mhead{flex:none;display:flex;align-items:center;justify-content:space-between;height:68px;padding:0 12px 0 20px;border-bottom:1px solid #ECE9E1}
+.mhead h2{margin:0;font-size:17px;font-weight:700}
+.mclose{width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border-radius:50%;border:1px solid #DCD7CB;background:#fff;font-size:24px;line-height:1}
+.mscreens{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
+.mscreens .menurows{padding:0 0 12px}
+.mscreens .menurows[hidden]{display:none}
+.mscreens .menurows>button,.mscreens .menurows .tlz button,.mscreens .menurows .tkpanel button{min-height:48px;padding-left:20px;padding-right:20px;border-radius:0}
+.srow{display:flex!important;align-items:center;gap:6px;height:48px;min-height:48px;padding:0 20px 0 32px!important;font-size:16px;background:transparent;border:0;text-align:left}
+.srow[hidden]{display:none!important}
+.sic{flex:none;display:inline-flex;width:20px;height:20px;color:#68716A}
+.sic .gl{font-size:19px;line-height:20px;font-weight:700}
+.sname{flex:1;min-width:0;margin-left:6px}
+.shint{font-size:11px;color:#A8ABA4;white-space:nowrap}
+.sch{color:#A8ABA4;font-size:20px;width:16px;text-align:right}
+.ssep{margin:6px 0;border:0;border-top:1px solid #ECE9E1}
+.sfoot{margin:14px 20px;font-size:11px;color:#A8ABA4}
+.mscreens .swnote{padding:0 20px}
+.mscreens .mlegend{margin:6px 20px 2px}
+#m-gset{margin:8px 20px;width:calc(100% - 40px)}
+/* 帯の設定ボタンは開いている間 × にする（閉じる／戻るの入口） */
+body.settings-open .ctl.band [data-act=menu] .bi svg{display:none}
+body.settings-open .ctl.band [data-act=menu] .bi::after{content:"×";font-size:26px;line-height:1}

@@ -26,7 +26,7 @@ export async function loadSample(page) {
   const b = page.getByRole('button', { name: 'サンプルを入れる' }).first();
   if (await b.isVisible()) await b.click();
   else { // 月だけの画面（開いた縦など）は設定メニューから入れる
-    await openMenu(page);
+    await openMenu(page, 'details');
     await page.locator('#menu').getByRole('button', { name: 'サンプルを入れる' }).click();
   }
   await expect(page.getByRole('status')).toHaveText('サンプルの予定を入れました。');
@@ -62,12 +62,12 @@ export async function addEvent(page, f) {
 
 // 月の表現（手帳／予定名／全部）は設定メニューの「月の表現」から選ぶ。開いた縦には「手帳」がない。選ぶとメニューは閉じる。
 export async function setStyle(page, name) {
-  await page.getByRole('button', { name: '設定' }).first().click();
+  await openMenu(page, 'display');
   const mode = page.locator('#menu').getByRole('button', { name: '月の表現', exact: true });
-  if (!(await mode.isVisible())) { await page.keyboard.press('Escape'); return; }
+  if (!(await mode.isVisible())) { await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await expect(page.locator('#menu')).toBeHidden(); return; }
   await mode.click();
   const b = page.locator('#m-variant').getByRole('button', { name, exact: true });
-  if (await b.count()) await b.click(); else await page.keyboard.press('Escape');
+  if (await b.count()) await b.click(); else { await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); }
   await expect(page.locator('#menu')).toBeHidden();
 }
 // 日セルは日付の位置を押す（予定名の帯・短冊が中央に重なるため）。
@@ -223,13 +223,18 @@ export async function textInGutter(page, l, r) {
 
 // ---- 第10版 ② ----
 // 設定メニューを開く／閉じる。月の表現・卓上・凡例の入口はここ。
-export async function openMenu(page) {
+// screen を渡すと、その階層（一般・表示形式・カレンダー・リマインダー・詳細 など）まで進む。
+export async function openMenu(page, screen) {
   await page.getByRole('button', { name: '設定' }).first().click();
   await expect(page.locator('#menu')).toBeVisible();
+  if (screen) {
+    await page.locator(`#menu [data-go="${screen}"]`).click();
+    await expect(page.locator(`#menu [data-screen="${screen}"]`)).toBeVisible();
+  }
 }
 // メニューの「月の表現」を開いて、各ボタンの状態（aria-pressed）を返してメニューを閉じる。無いときは null。
 export async function modeStates(page) {
-  await openMenu(page);
+  await openMenu(page, 'display');
   const mode = page.locator('#menu').getByRole('button', { name: '月の表現', exact: true });
   let out = null;
   if (await mode.isVisible()) {
@@ -237,12 +242,13 @@ export async function modeStates(page) {
     out = await page.locator('#m-variant button').evaluateAll((bs) => Object.fromEntries(bs.map((b) => [b.textContent, b.getAttribute('aria-pressed') === 'true'])));
   }
   await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
   await expect(page.locator('#menu')).toBeHidden();
   return out;
 }
 // 卓上表示の入／切（メニューから）。
 export async function toggleDesk(page) {
-  await openMenu(page);
+  await openMenu(page, 'general');
   await page.locator('#menu').getByRole('button', { name: /^卓上表示/ }).click();
 }
 
