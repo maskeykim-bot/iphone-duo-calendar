@@ -661,3 +661,11 @@ input.swc:checked::after,.xsw input[type=checkbox]:checked::after{transform:tran
 input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .xcal{display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px}
 .xcal .cdot{width:8px;height:8px;border-radius:50%;flex:none}.xcal select{flex:1;min-width:0;font-size:16px}
+
+.menurows .swrow{display:flex;align-items:center;justify-content:space-between;gap:8px;height:44px}
+.menurows .swrow[aria-checked=true]{background:none;color:inherit}
+.menurows .rkswitch{position:relative;flex:none;width:51px;height:31px;border-radius:16px;background:#c9c6ba;transition:background .15s}
+.menurows .rkswitch::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0003;transition:transform .15s}
+.menurows .swrow[aria-checked=true] .rkswitch{background:var(--green)}
+.menurows .swrow[aria-checked=true] .rkswitch::after{transform:translateX(20px)}
+.menurows .swnote{margin:0 0 6px;padding:0 12px;font-size:12px;line-height:1.4;color:#68716A}

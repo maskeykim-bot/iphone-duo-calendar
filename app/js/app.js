@@ -43,6 +43,7 @@ function loadUi() {
     // 同（開いた画面・見開き・卓上。既定は切）。第10版は既定「入」の値を自動保存していたため、monthTimeV=11 の印がない保存値の true は旧既定とみなして切に戻す
     monthTimeOpen: s.monthTimeV === 11 ? s.monthTimeOpen === true : false,
     monthTextSize: s.monthTextSize === 'large' ? 'large' : 'normal', // 月の文字: 標準 / 大
+    rokuyo: s.rokuyo !== false, // 六曜を表示（既定オン。boolean の false だけが切。未保存・破損・欠落はオン）
   };
 }
 const state = { ...loadUi(), events: [], categories: [], loaded: false };
@@ -63,8 +64,8 @@ function saveNotify(n) {
 }
 const chipTime = (iso) => iso.slice(11).replace(/^0/, ''); // 月チップの時刻は先頭の0なし（3:00 / 10:00）
 function saveUi() {
-  const { selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize } = state;
-  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTimeV: 11, monthTextSize })); } catch { /* 保存不可でも動作は続ける */ }
+  const { selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize, rokuyo } = state;
+  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTimeV: 11, monthTextSize, rokuyo })); } catch { /* 保存不可でも動作は続ける */ }
 }
 function set(patch) { Object.assign(state, patch); if ('weekStart' in patch) setFirstDay(state.weekStart); saveUi(); render(); }
 
@@ -1477,6 +1478,7 @@ function openMenu(from) {
   $('#m-sample').hidden = !(state.loaded && state.events.length === 0);
   syncMonthMenu();
   syncModeMenu();
+  syncRokuyoMenu();
   $('#m-tlz').hidden = !root.querySelector('.tl');
   const cats = state.categories.filter((c) => !c.hidden);
   $('#m-legend').hidden = !cats.length;
@@ -1507,6 +1509,7 @@ function syncMonthMenu() {
   z.setAttribute('aria-pressed', String(state.monthTextSize === 'large'));
   z.textContent = `月の文字: ${state.monthTextSize === 'large' ? '大（標準にする）' : '標準（大にする）'}`;
 }
+function syncRokuyoMenu() { $('#m-rokuyo').setAttribute('aria-checked', String(state.rokuyo)); }
 // 月の表現（手帳｜予定名｜全部）。月表示のときだけ。1回選ぶと閉じる。
 function syncModeMenu() {
   const on = state.view === 'month' && !listShown();
@@ -1531,6 +1534,7 @@ menuDlg.addEventListener('click', (ev) => {
   else if (m === 'sample') { closePanel(menuDlg); loadSample(); }
   else if (m === 'mode') { const v = $('#m-variant'); v.hidden = !v.hidden; b.setAttribute('aria-expanded', String(!v.hidden)); if (!v.hidden) v.querySelector('button')?.focus({ preventScroll: true }); }
   else if (m === 'mtime') { set({ [timeKey()]: !state[timeKey()] }); syncMonthMenu(); say(`月表示の時刻を${state[timeKey()] ? '出します' : '出しません'}。`); }
+  else if (m === 'rokuyo') { set({ rokuyo: !state.rokuyo }); syncRokuyoMenu(); say(`六曜を${state.rokuyo ? '出します' : '出しません'}。`); }
   else if (m === 'msize') { set({ monthTextSize: state.monthTextSize === 'large' ? 'normal' : 'large' }); syncMonthMenu(); say(`月の文字を${state.monthTextSize === 'large' ? '大' : '標準'}にしました。`); }
   else if (m === 'tlin' || m === 'tlout') { setHh(TL.hh * (m === 'tlin' ? 1.25 : 0.8)); say(`時間軸を${m === 'tlin' ? '拡大' : '縮小'}しました（1時間 ${Math.round(TL.hh)}px）。`); }
   else closePanel(menuDlg);
