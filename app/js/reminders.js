@@ -26,6 +26,24 @@ export async function createReminder(call, { requestId, listId, title, notes = '
   return r.reminder;
 }
 
+// 差分更新（第14版 PR18）。patch は変えた欄だけ（title/notes/listId/due。省略＝変更なし、due:null＝期限なし）。
+// expectModifiedAt は読み込んだ時の modifiedAt（予定の expectModified とは別）。conflicted は差分上書きした印。
+export async function updateReminder(call, target, expectModifiedAt, patch = {}) {
+  const o = { itemId: target.itemId, expectModifiedAt: expectModifiedAt ?? null, patch: { ...patch } };
+  if (target.externalId) o.externalId = target.externalId;
+  const r = await call('updateReminder', o);
+  if (!r || !r.reminder) throw { code: 'UNAVAILABLE' };
+  return { reminder: r.reminder, conflicted: r.conflicted === true };
+}
+// 完了／戻し（同じ API）。衝突確認なし。
+export async function setReminderDone(call, target, done) {
+  const o = { itemId: target.itemId, done: !!done };
+  if (target.externalId) o.externalId = target.externalId;
+  const r = await call('setReminderDone', o);
+  if (!r || !r.reminder) throw { code: 'UNAVAILABLE' };
+  return r.reminder;
+}
+
 // ---- 第14版 PR15: 分類・読込・表示（タスク本文は保存しない。メモリ上だけ） ----
 export const HIST_DAYS = 30;
 const pad2 = (n) => String(n).padStart(2, '0');

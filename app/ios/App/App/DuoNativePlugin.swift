@@ -20,6 +20,8 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         CAPPluginMethod(name: "listReminderLists", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "listReminders", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "createReminder", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "updateReminder", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setReminderDone", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "listCalendars", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "listEvents", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getEvent", returnType: CAPPluginReturnPromise),
@@ -524,6 +526,177 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
                 return
             }
             self.saveRemCreated(requestId, itemId: itemId, fp: fp)
+            call.resolve(["reminder": self.serializeReminder(r, f, self.makeCalendar())])
+        }
+    }
+
+    // MARK: - リマインダーの更新・完了（第14版 PR18）
+
+    private enum RemLookup { case found(EKReminder), notFound, ambiguous }
+
+    /// itemId 優先、見つからなければ externalId（複数一致は曖昧）。findReminder を共用する。queue 上で呼ぶ。
+    private func resolveReminder(itemId: String, externalId: String) -> RemLookup {
+        if let r = findReminder(itemId: itemId) { return .found(r) }
+        guard !externalId.isEmpty else { return .notFound }
+        let hits = store.calendarItems(withExternalIdentifier: externalId).compactMap { $0 as? EKReminder }
+        if hits.count == 1 { return .found(hits[0]) }
+        return hits.isEmpty ? .notFound : .ambiguous
+    }
+
+    /// 更新の衝突（1 秒超の変更）。予定の expectModified とは別。
+    private func isRemConflict(_ r: EKReminder, expect: Double?) -> Bool {
+        guard let e = expect, let m = r.lastModifiedDate else { return false }
+        return m.timeIntervalSince1970 * 1000 >= e + 1000
+    }
+
+    @objc func updateReminder(_ call: CAPPluginCall) {
+        guard ensureReminderAccess(call) else { return }
+        let f = makeFormatter()
+        let allowedTop: Set<String> = ["itemId", "externalId", "expectModifiedAt", "patch"]
+        guard Set(call.options.keys.compactMap { $0 as? String }).isSubset(of: allowedTop),
+              let itemId = call.getString("itemId"), !itemId.isEmpty,
+              let patch = call.options["patch"] as? [String: Any],
+              Set(patch.keys).isSubset(of: ["title", "notes", "listId", "due"]) else {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        let externalId = call.getString("externalId") ?? ""
+        // expectModifiedAt: 数値（MS）または null（衝突を確かめない）。キーなしは不正。
+        guard let rawExpect = call.options["expectModifiedAt"], rawExpect is NSNull || rawExpect is NSNumber else {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        let expect = (rawExpect as? NSNumber)?.doubleValue
+        var newTitle: String? = nil
+        if let t = patch["title"] {
+            guard let ts = t as? String, !ts.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, ts.count <= 1000 else {
+                call.reject("invalid arguments", "INVALID_ARGUMENT")
+                return
+            }
+            newTitle = ts
+        }
+        var notesGiven = false
+        var newNotes = ""
+        if let n = patch["notes"] {
+            if let ns = n as? String { newNotes = ns }
+            else if !(n is NSNull) {
+                call.reject("invalid arguments", "INVALID_ARGUMENT")
+                return
+            }
+            notesGiven = true
+        }
+        var newListId: String? = nil
+        if let l = patch["listId"] {
+            guard let ls = l as? String, !ls.isEmpty else {
+                call.reject("invalid arguments", "INVALID_ARGUMENT")
+                return
+            }
+            newListId = ls
+        }
+        let dueGiven = patch["due"] != nil
+        let due = parseReminderDue(patch["due"])
+        if due.invalid {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            let r: EKReminder
+            switch self.resolveReminder(itemId: itemId, externalId: externalId) {
+            case .ambiguous:
+                call.reject("target is ambiguous", "UNAVAILABLE")
+                return
+            case .notFound:
+                call.reject("reminder not found", "NOT_FOUND")
+                return
+            case .found(let x):
+                r = x
+            }
+            if !(r.calendar?.allowsContentModifications ?? false) {
+                call.reject("reminder is read only", "READ_ONLY")
+                return
+            }
+            // 繰返しは完了以外を編集できない。
+            if r.hasRecurrenceRules {
+                call.reject("recurring reminder is not editable", "NOT_EDITABLE")
+                return
+            }
+            var target: EKCalendar? = nil
+            if let lid = newListId {
+                guard let c = self.store.calendar(withIdentifier: lid), c.allowedEntityTypes.contains(.reminder) else {
+                    call.reject("list not found", "LIST_NOT_FOUND")
+                    return
+                }
+                guard c.allowsContentModifications else {
+                    call.reject("list is read only", "READ_ONLY")
+                    return
+                }
+                target = c
+            }
+            let conflicted = self.isRemConflict(r, expect: expect)
+            // 最新オブジェクトの、指定された欄だけを差分で書く（未知の欄は触らない）。
+            var changed = false
+            if let t = newTitle, t != r.title { r.title = t; changed = true }
+            if notesGiven {
+                let cur = r.notes ?? ""
+                if newNotes != cur { r.notes = newNotes.isEmpty ? nil : newNotes; changed = true }
+            }
+            if let c = target, c.calendarIdentifier != r.calendar?.calendarIdentifier { r.calendar = c; changed = true }
+            if dueGiven {
+                let cal = self.makeCalendar()
+                let cur = self.serializeDue(r.dueDateComponents, cal).due
+                let curKey = (cur?["date"] as? String).map { $0 + (cur?["time"] != nil ? "T" + (cur?["time"] as! String) : "") } ?? ""
+                if curKey != due.key || (r.dueDateComponents == nil) != (due.dc == nil) {
+                    r.dueDateComponents = due.dc
+                    changed = true
+                }
+            }
+            if changed {
+                do { try self.store.save(r, commit: true) } catch {
+                    call.reject("could not save the reminder", "UNAVAILABLE", error)
+                    return
+                }
+            }
+            call.resolve(["reminder": self.serializeReminder(r, f, self.makeCalendar()), "conflicted": conflicted])
+        }
+    }
+
+    @objc func setReminderDone(_ call: CAPPluginCall) {
+        guard ensureReminderAccess(call) else { return }
+        let f = makeFormatter()
+        let allowedTop: Set<String> = ["itemId", "externalId", "done"]
+        guard Set(call.options.keys.compactMap { $0 as? String }).isSubset(of: allowedTop),
+              let itemId = call.getString("itemId"), !itemId.isEmpty,
+              let done = call.options["done"] as? Bool else {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        let externalId = call.getString("externalId") ?? ""
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            let r: EKReminder
+            switch self.resolveReminder(itemId: itemId, externalId: externalId) {
+            case .ambiguous:
+                call.reject("target is ambiguous", "UNAVAILABLE")
+                return
+            case .notFound:
+                call.reject("reminder not found", "NOT_FOUND")
+                return
+            case .found(let x):
+                r = x
+            }
+            if !(r.calendar?.allowsContentModifications ?? false) {
+                call.reject("reminder is read only", "READ_ONLY")
+                return
+            }
+            // 衝突確認なし。繰返しも完了は可（OS が次回へ進める）。戻しも同じ API。
+            if r.isCompleted != done {
+                r.isCompleted = done
+                do { try self.store.save(r, commit: true) } catch {
+                    call.reject("could not save the reminder", "UNAVAILABLE", error)
+                    return
+                }
+            }
             call.resolve(["reminder": self.serializeReminder(r, f, self.makeCalendar())])
         }
     }

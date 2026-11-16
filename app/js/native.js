@@ -47,6 +47,8 @@ export function reminderErrText(e, fallback) {
     case 'RESTRICTED': return 'この端末ではリマインダーへのアクセスが制限されています。';
     case 'CANCELLED': return 'リマインダーの取得を取り消しました。';
     case 'READ_ONLY': return 'このリストには追加できません。';
+    case 'NOT_FOUND': return 'このリマインダーは削除されています。';
+    case 'NOT_EDITABLE': return 'この繰り返しのリマインダーは完了のみ変更できます。';
     case 'LIST_NOT_FOUND': return '追加先のリストが見つかりません。';
     default: return fallback;
   }
