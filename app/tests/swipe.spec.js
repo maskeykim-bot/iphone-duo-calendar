@@ -101,7 +101,7 @@ test.describe('判定', () => {
     await unchanged(page, s, { x0: 10, dx: -150 });
     await unchanged(page, s, { x0: s.width - 10, dx: -150 });
     await unchanged(page, s, { y0: 25 }); // ヘッダー（ロゴ・タブの段）
-    await unchanged(page, s, { target: '.padd', dx: -150 }); // 追加ボタン
+    await unchanged(page, s, { target: '.cadd', dx: -150 }); // 追加ボタン（下段）
   });
   test('編集ダイアログ表示中のスワイプは無効', async ({ page }) => {
     const s = SIZES.openPortrait;

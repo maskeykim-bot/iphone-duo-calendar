@@ -16,7 +16,7 @@ const setSafe = (page, { t = 0, r = 0, b = 0, l = 0 }) => page.evaluate(([t, r, 
   s.setProperty('--sat', `${t}px`); s.setProperty('--sar', `${r}px`); s.setProperty('--sab', `${b}px`); s.setProperty('--sal', `${l}px`);
 }, [t, r, b, l]);
 const diag = (page) => page.evaluate(() => document.querySelector('#layout-diagnostics').textContent);
-const openMenu = (page) => page.getByRole('button', { name: 'その他' }).click();
+const openMenu = (page) => page.getByRole('button', { name: '設定' }).click();
 
 test.describe('姿勢の判定（600 は閉じた判定のブレークポイント。機種寸法ではない）', () => {
   for (const [name, size, kinds] of SIZES5) {
@@ -41,15 +41,18 @@ test.describe('姿勢の判定（600 は閉じた判定のブレークポイン�
 
 test.describe('寸法変数（safe=0 では 06 の基準位置に一致する）', () => {
   const near = (a, b, tol = 0.02) => expect(Math.abs(a - b)).toBeLessThanOrEqual(tol);
+  // 第12版 PR4（safe=0）: 閉じた = 本文 [0,W]・q=H/678・見出し下端 76q・grid top 92q・タブ幅 min(286,C-128)（帯なし）、
+  // 開いた縦 = head 82・grid top 106・タブ 270・下段 top H-70p（p=H/951）、開いた横 = q=H/669・左月 [8,f-10]・タブ top 611q。
+  const q6 = (h) => h / 678, p9 = (h) => h / 951;
   const CASES = [
-    // [size, 月の列幅, grid-top, tabs-x, tabs-y, fold-x, left-end]
-    [SIZES.closedPortrait, 53.71, 102, 57, 606, null, 380, 'browse'],
-    [SIZES.openPortrait, 89.43, 93.59, 178, 824.51, null, 626, 'open'],
-    [SIZES.openPortrait669, 95.57, 100, 199.5, 881, null, 669, 'open'],
-    [SIZES.openLandscape, 61, 89.83, 86.5, 571.73, 445, 435, 'spread'],
-    [SIZES.openLandscape951, 65.36, 96, 101.75, 611, 475.5, 465.5, 'spread'],
+    // [size, 月の列幅, grid-top, tabs-x, tabs-y, fold-x, left-end, tabs-w]
+    [SIZES.closedPortrait, 466 / 7, 92 * q6(678), 90, 678 - 56 * q6(678) - 23, null, 466, 286],
+    [SIZES.openPortrait, 626 / 7, 106, 178, 890 - 70 * p9(890), null, 626, 270],
+    [SIZES.openPortrait669, 669 / 7, 106, 199.5, 951 - 70 * p9(951), null, 669, 270],
+    [SIZES.openLandscape, 61, 96 * (626 / 669), 86.5, 611 * (626 / 669), 445, 435, 270],
+    [SIZES.openLandscape951, 65.36, 96, 101.75, 611, 475.5, 465.5, 270],
   ];
-  for (const [size, c, gt, tx, ty, fold, leftEnd] of CASES) {
+  for (const [size, c, gt, tx, ty, fold, leftEnd, tw] of CASES) {
     test(`${size.width}×${size.height}`, async ({ page }) => {
       await openApp(page, size);
       near(await cssVar(page, 'month-col-w'), c);
@@ -57,21 +60,25 @@ test.describe('寸法変数（safe=0 では 06 の基準位置に一致する）
       near(await cssVar(page, 'tabs-x'), tx, 0.1);
       near(await cssVar(page, 'tabs-y'), ty, 0.02);
       near(await cssVar(page, 'left-end'), leftEnd, 0.02);
-      expect(await cssVar(page, 'tabs-w')).toBe(270);
+      expect(await cssVar(page, 'tabs-w')).toBe(tw);
       expect(await cssVar(page, 'layout-w')).toBe(size.width);
       expect(await cssVar(page, 'layout-h')).toBe(size.height);
       if (fold !== null) near(await cssVar(page, 'fold-x'), fold);
       near(await cssVar(page, 'fold-x'), size.width / 2);
     });
   }
-  test('safe 上47 下34（626×890）: 内容は安全矩形の内側、下端は H-下safe を越えない', async ({ page }) => {
+  test('safe 上47 下34（626×890）: 内容は安全矩形の内側、見出しは上 safe に足さず head=max(T,82)', async ({ page }) => {
     await openApp(page, SIZES.openPortrait);
     await setSafe(page, { t: 47, b: 34 });
     await expect.poll(() => cssVar(page, 'content-y')).toBe(47);
     expect(await cssVar(page, 'content-h')).toBe(809);
-    near(await cssVar(page, 'grid-top'), 132.07, 0.02);
-    near(await cssVar(page, 'tabs-y'), 796.45, 0.02);
+    near(await cssVar(page, 'head-h'), 82);
+    near(await cssVar(page, 'grid-top'), 106, 0.02);
+    near(await cssVar(page, 'tabs-y'), 890 - 34 - 70 * ((890 - 34) / 951), 0.02);
     expect(await cssVar(page, 'tabs-y') + 46).toBeLessThanOrEqual(890 - 34);
+    await setSafe(page, { t: 100 });
+    await expect.poll(() => cssVar(page, 'head-h')).toBe(100);
+    near(await cssVar(page, 'grid-top'), 124, 0.02);
   });
   test('safe 左右47（890×626）でも折り目は 445 のまま・左はsafe内側へ', async ({ page }) => {
     await openApp(page, SIZES.openLandscape);

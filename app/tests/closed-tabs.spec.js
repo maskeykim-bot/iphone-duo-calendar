@@ -58,14 +58,14 @@ for (const size of CLOSED) {
     test('操作列: 設定・検索・今日・＋は各48px、タブは各44以上×46、どれも最前面に届き重ならない', async ({ page }) => {
       await openApp(page, size);
       await tab(page, '月').click();
-      const rail = page.locator('.rail');
+      const rail = page.locator('.ctl'); // safe=0 は帯なし: 設定・検索は見出し、今日・＋は下段（いずれも .ctl）
       const btns = rail.getByRole('button');
       await expect(btns).toHaveCount(4);
       const all = [];
       for (let i = 0; i < 4; i++) {
         const b = btns.nth(i), r = await box(b);
-        expect(Math.abs(r.w - 48), `rail ${i} 幅`).toBeLessThan(0.5);
-        expect(Math.abs(r.h - 48), `rail ${i} 高さ`).toBeLessThan(0.5);
+        expect(r.w, `rail ${i} 幅`).toBeGreaterThanOrEqual(44 - 0.5); // 見出しは44、下段は48
+        expect(r.h, `rail ${i} 高さ`).toBeGreaterThanOrEqual(44 - 0.5);
         expect(await reachable(page, b), `rail ${i} が届く`).toBe(true);
         all.push(r);
       }
@@ -78,8 +78,8 @@ for (const size of CLOSED) {
         all.push(r);
       }
       for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) expect(hits(all[i], all[j]), `重なり ${i}/${j}`).toBe(false);
-      // 設定（その他）は押すとメニュー、検索は検索パネル
-      await page.getByRole('button', { name: 'その他' }).click();
+      // 設定は押すとメニュー、検索は検索パネル
+      await page.getByRole('button', { name: '設定' }).click();
       await expect(page.locator('#menu')).toBeVisible();
       await page.keyboard.press('Escape');
       await page.getByRole('button', { name: '予定を検索' }).click();
@@ -91,10 +91,10 @@ for (const size of CLOSED) {
       await tab(page, '月').click();
       await page.evaluate(() => { const s = document.documentElement.style; s.setProperty('--sat', '47px'); s.setProperty('--sab', '34px'); s.setProperty('--sal', '47px'); s.setProperty('--sar', '47px'); });
       await expect.poll(() => page.evaluate(() => document.querySelector('.mpane').getBoundingClientRect().left)).toBeGreaterThanOrEqual(47);
-      await expect.poll(() => page.evaluate(() => document.querySelector('.rail').getBoundingClientRect().bottom <= innerHeight - 34 + 0.5 && document.querySelector('.tabs').getBoundingClientRect().bottom <= innerHeight - 34 + 0.5)).toBe(true);
+      await expect.poll(() => page.evaluate(() => document.querySelector('.ctl').lastElementChild.getBoundingClientRect().bottom <= innerHeight - 34 + 0.5 && document.querySelector('.tabs').getBoundingClientRect().bottom <= innerHeight - 34 + 0.5)).toBe(true);
       const { W, H } = await page.evaluate(() => ({ W: innerWidth, H: innerHeight }));
       const rects = [];
-      for (const loc of [page.locator('.tabs'), ...[0, 1, 2, 3].map((i) => page.locator('.rail').getByRole('button').nth(i))]) rects.push(await box(loc));
+      for (const loc of [page.locator('.tabs'), ...[0, 1, 2, 3].map((i) => page.locator('.ctl').getByRole('button').nth(i))]) rects.push(await box(loc));
       for (const r of rects) {
         expect(r.l).toBeGreaterThanOrEqual(47 - 0.5); expect(r.r).toBeLessThanOrEqual(W - 47 + 0.5);
         expect(r.t).toBeGreaterThanOrEqual(47 - 0.5); expect(r.b).toBeLessThanOrEqual(H - 34 + 0.5);
@@ -110,33 +110,34 @@ for (const size of CLOSED) {
       await sc.evaluate((el) => { el.scrollTop = el.scrollHeight; });
       const last = await box(page.locator('.scroll.msc .week').last());
       const tabTop = (await box(page.locator('.tabs'))).t;
-      expect(last.b).toBeLessThanOrEqual(tabTop + 0.5);
+      expect(last.b).toBeLessThanOrEqual(tabTop + 1); // scrollTop は整数に丸まるため最大1px
       // 曜日の行はスクロールの外
       expect(await page.evaluate(() => !document.querySelector('.scroll.msc').contains(document.querySelector('.weekdays')))).toBe(true);
     });
   });
 }
 
-test('閉じた縦 466×678: 週高85・曜日82〜102・月領域は x4〜380・タブ y606', async ({ page }) => {
+test('閉じた縦 466×678（safe=0・帯なし）: 本文は全幅・q=H/678（曜日 76q・grid 92q）・タブ 286 幅 中心 y622', async ({ page }) => {
   await openApp(page, SIZES.closedPortrait);
   await tab(page, '月').click();
+  const q = 678 / 678;
   const wk = await box(page.locator('.scroll.msc .week').first());
-  expect(Math.abs(wk.h - 85)).toBeLessThan(0.3);
-  expect(Math.abs(wk.t - 102)).toBeLessThan(0.3);
+  expect(Math.abs(wk.t - 92 * q)).toBeLessThan(0.3);
+  expect(Math.abs(wk.h - 500 * q / 6)).toBeLessThan(0.5);
   const wd = await box(page.locator('.weekdays'));
-  expect(Math.abs(wd.t - 82)).toBeLessThan(0.3);
+  expect(Math.abs(wd.t - 76 * q)).toBeLessThan(0.3);
   const t = await box(page.locator('.tabs'));
-  expect(Math.abs(t.t - 606)).toBeLessThan(0.3);
-  expect(Math.abs(t.w - 270)).toBeLessThan(0.3);
+  expect(Math.abs(t.w - 286)).toBeLessThan(0.3);
+  expect(Math.abs(t.t + t.h / 2 - 622)).toBeLessThan(0.3);
+  expect(Math.abs(t.l - 90)).toBeLessThan(0.3);
   const pane = await box(page.locator('.mpane'));
-  expect(Math.abs(pane.l - 4)).toBeLessThan(0.3);
-  expect(Math.abs(pane.r - 380)).toBeLessThan(0.3);
-  const rail = await box(page.locator('.rail'));
-  expect(Math.abs(rail.l - 382)).toBeLessThan(0.3);
-  // 操作列の縦位置（今日 536〜584・＋ 598〜646・設定 176〜224・検索 234〜282）
-  const ys = [];
-  for (let i = 0; i < 4; i++) ys.push((await box(page.locator('.rail').getByRole('button').nth(i))).t);
-  expect(ys.map(Math.round)).toEqual([176, 234, 536, 598]);
+  expect(Math.abs(pane.l)).toBeLessThan(0.3);
+  expect(Math.abs(pane.r - 466)).toBeLessThan(0.3);
+  await expect(page.locator('.rail')).toHaveCount(0); // 本文内の縦の操作列はない
+  // 下段: 今日 x8・＋ x410（各48）、中心 y622
+  const today = await box(page.getByRole('button', { name: '今日に戻る' })), add = await box(page.getByRole('button', { name: '予定を追加' }));
+  expect([today.l, today.w, add.l, add.w].map(Math.round)).toEqual([8, 48, 410, 48]);
+  expect(Math.round(today.t + 24)).toBe(622);
 });
 
 test('閉じた縦で、月の表現は設定の「月の表現」から選ぶ。全部・手帳が保存され、リロード後も復元される', async ({ page }) => {
@@ -152,7 +153,7 @@ test('閉じた縦で、月の表現は設定の「月の表現」から選ぶ�
   await expect(page.locator('.week.simple').first()).toBeVisible();
   await page.reload(); await page.waitForSelector('html[data-ready]');
   await expect(page.locator('.week.simple').first()).toBeVisible();
-  await page.getByRole('button', { name: 'その他' }).click();
+  await page.getByRole('button', { name: '設定' }).click();
   await page.locator('#menu').getByRole('button', { name: '月の表現', exact: true }).click();
   await expect(page.locator('#m-variant').getByRole('button', { name: '手帳' })).toHaveAttribute('aria-pressed', 'true');
 });
@@ -161,18 +162,18 @@ test('メニューにカテゴリの色の説明があり、月には常設の�
   await openApp(page, SIZES.closedPortrait);
   await tab(page, '月').click();
   await expect(page.locator('.calendar .legend')).toHaveCount(0);
-  await page.getByRole('button', { name: 'その他' }).click();
+  await page.getByRole('button', { name: '設定' }).click();
   await expect(page.locator('#menu [aria-label="カテゴリ凡例"]')).toBeVisible();
 });
 
 test('卓上表示の入口はメニュー（上部ボタンは無い）。入って、メニューから出られる', async ({ page }) => {
   await openApp(page, SIZES.openPortrait);
   await expect(page.getByRole('button', { name: '卓上', exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'その他' }).click();
+  await page.getByRole('button', { name: '設定' }).click();
   await page.locator('#menu').getByRole('button', { name: '卓上表示', exact: true }).click();
   await expect(page.locator('body')).toHaveAttribute('data-layout', 'desk');
   await expect(tabsGroup(page).getByRole('button')).toHaveCount(4);
-  await page.getByRole('button', { name: 'その他' }).click();
+  await page.getByRole('button', { name: '設定' }).click();
   await page.locator('#menu').getByRole('button', { name: '卓上表示をやめる' }).click();
   await expect(page.locator('body')).not.toHaveAttribute('data-layout', 'desk');
 });

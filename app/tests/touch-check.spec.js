@@ -6,7 +6,7 @@ for (const [name, size] of [['closed', SIZES.closedPortrait], ['spread', SIZES.o
   test(`タッチ確認 ${name}`, async ({ page }) => {
     await openApp(page, size);
     await expect(page.locator('#touch-check')).toHaveCount(0);
-    await page.getByRole('button', { name: 'その他' }).click();
+    await page.getByRole('button', { name: '設定' }).click();
     await page.locator('#touch-check-open').click();
     const L = page.locator('#touch-check');
     await expect(L).toBeVisible();
@@ -27,13 +27,13 @@ for (const [name, size] of [['closed', SIZES.closedPortrait], ['spread', SIZES.o
     await expect(page.locator('#touch-check')).toHaveCount(0);
     expect(await page.evaluate(() => document.body.dataset.layout)).toBe(before.split('|')[0]);
     // 通常操作に戻る
-    await page.getByRole('button', { name: 'その他' }).click();
+    await page.getByRole('button', { name: '設定' }).click();
     await expect(page.locator('#menu')).toBeVisible();
   });
 }
 test('再読込でオフ', async ({ page }) => {
   await openApp(page, SIZES.closedPortrait);
-  await page.getByRole('button', { name: 'その他' }).click();
+  await page.getByRole('button', { name: '設定' }).click();
   await page.locator('#touch-check-open').click();
   await page.reload(); await page.waitForSelector('html[data-ready]');
   await expect(page.locator('#touch-check')).toHaveCount(0);

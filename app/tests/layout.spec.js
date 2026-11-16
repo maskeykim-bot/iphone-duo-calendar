@@ -102,19 +102,19 @@ test.describe('レイアウト（4サイズ）', () => {
   });
 
   for (const size of [SIZES.openLandscape, SIZES.openLandscape951]) {
-    test(`${size.width}×${size.height} 開いた横: 見開き（左見出し1行・右は時間軸・76px 操作列・日の右ページは5件がスクロールなし）`, async ({ page }) => {
+    test(`${size.width}×${size.height} 開いた横: 見開き（左見出し1行・右は時間軸・本文内に縦の操作列なし・日の右ページは5件がスクロールなし）`, async ({ page }) => {
       await openApp(page, size);
       await loadSample(page);
       expect(await layout(page)).toBe('spread');
       const f = size.width / 2;
       const head = await box(page.locator('.shead'));
       expect(head.height).toBeLessThanOrEqual(80);
-      // 全幅の追加バーはなく、48px 角の＋は右端 76px の列
+      // 全幅の追加バーはなく、＋は（safe=0 では帯がないので）右見出しの44角。右の縦の操作列（旧 76px）はない
       const plus = await box(page.getByRole('button', { name: '予定を追加' }));
       expect(plus.width).toBeLessThanOrEqual(48);
       expect(plus.height).toBeLessThanOrEqual(48);
-      const rail = await box(page.locator('.srail'));
-      expect(Math.round(size.width - rail.x)).toBe(76);
+      await expect(page.locator('.srail, .rail')).toHaveCount(0);
+      const rail = { x: size.width - 16 }; // 右本文の終端 E = W-R-16（R=0）
       // 左ページは中心−10まで、右ページは中心+10から
       const lp = await box(page.locator('.page.lp')), rp = await box(page.locator('.page.rp'));
       expect(lp.x + lp.width).toBeLessThanOrEqual(f - 10 + 0.5);

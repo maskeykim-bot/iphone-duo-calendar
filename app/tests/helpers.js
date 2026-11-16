@@ -53,7 +53,7 @@ export async function addEvent(page, f) {
 
 // 月の表現（手帳／予定名／全部）は設定メニューの「月の表現」から選ぶ。開いた縦には「手帳」がない。選ぶとメニューは閉じる。
 export async function setStyle(page, name) {
-  await page.getByRole('button', { name: 'その他' }).first().click();
+  await page.getByRole('button', { name: '設定' }).first().click();
   const mode = page.locator('#menu').getByRole('button', { name: '月の表現', exact: true });
   if (!(await mode.isVisible())) { await page.keyboard.press('Escape'); return; }
   await mode.click();
@@ -104,10 +104,10 @@ export async function findTextOverlaps(page, { ignoreApp = false } = {}) {
       if (cs.visibility === 'hidden' || cs.display === 'none') continue;
       const range = document.createRange();
       range.selectNodeContents(n);
-      const inFloat = !!el.closest('.tabs, .rail');
+      const inFloat = !!el.closest('.tabs, .ctl');
       for (const r0 of range.getClientRects()) {
         // 浮動タブ・操作列は月の下に重ねて浮かせる設計。その下に隠れた文字（中心がタブ内）は見えないので対象外。
-        if (!inFloat) { const hit = document.elementFromPoint(Math.min(Math.max((r0.left + r0.right) / 2, 0), vw - 1), Math.min(Math.max((r0.top + r0.bottom) / 2, 0), vh - 1)); if (hit?.closest('.tabs, .rail')) continue; }
+        if (!inFloat) { const hit = document.elementFromPoint(Math.min(Math.max((r0.left + r0.right) / 2, 0), vw - 1), Math.min(Math.max((r0.top + r0.bottom) / 2, 0), vh - 1)); if (hit?.closest('.tabs, .ctl')) continue; }
         let r = { l: Math.max(r0.left, 0), t: Math.max(r0.top, 0), r: Math.min(r0.right, vw), b: Math.min(r0.bottom, vh) };
         for (let a = el; a && a !== document.documentElement; a = a.parentElement) {
           const s = getComputedStyle(a);
@@ -117,7 +117,7 @@ export async function findTextOverlaps(page, { ignoreApp = false } = {}) {
           }
         }
         if (r.r - r.l < 1 || r.b - r.t < 1) continue;
-        items.push({ ...r, node: n, text, heading: !!el.closest('h1,h2,h3,.date,.logo,.stitle'), el });
+        items.push({ ...r, node: n, text, heading: !!el.closest('h1,h2,h3,.date,.logo,.stitle'), el, float: inFloat });
       }
     }
     const bad = [];
@@ -125,6 +125,7 @@ export async function findTextOverlaps(page, { ignoreApp = false } = {}) {
       for (let j = i + 1; j < items.length; j++) {
         const a = items[i], b = items[j];
         if (a.node === b.node) continue; // 同一テキストの折返し・省略記号の分割矩形
+        if (a.float !== b.float) continue; // 浮動タブ・浮動の操作は月・一覧の上に重ねる設計（末尾余白でスクロールすれば外せる）。浮動どうしは検査する
         const w = Math.min(a.r, b.r) - Math.max(a.l, b.l);
         const h = Math.min(a.b, b.b) - Math.max(a.t, b.t);
         if (w <= 0 || h <= 0) continue;
@@ -211,9 +212,9 @@ export async function textInGutter(page, l, r) {
 }
 
 // ---- 第10版 ② ----
-// 設定メニュー（その他）を開く／閉じる。月の表現・卓上・凡例の入口はここ。
+// 設定メニューを開く／閉じる。月の表現・卓上・凡例の入口はここ。
 export async function openMenu(page) {
-  await page.getByRole('button', { name: 'その他' }).first().click();
+  await page.getByRole('button', { name: '設定' }).first().click();
   await expect(page.locator('#menu')).toBeVisible();
 }
 // メニューの「月の表現」を開いて、各ボタンの状態（aria-pressed）を返してメニューを閉じる。無いときは null。

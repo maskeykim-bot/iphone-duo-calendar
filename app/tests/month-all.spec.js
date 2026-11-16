@@ -186,9 +186,9 @@ test.describe('月「全部」表示', () => {
     await openApp(page, SIZES.closedPortrait, '?ns=mall&nosw');
     await tab(page, '月').click();
     await setStyle(page, '全部');
-    await page.getByRole('button', { name: 'その他' }).click();
+    await page.getByRole('button', { name: '設定' }).click();
     await page.getByRole('button', { name: /^週の始まり/ }).click(); // 日曜へ
-    const open = async () => { await page.getByRole('button', { name: 'その他' }).click(); await page.getByRole('button', { name: 'バックアップ' }).click(); };
+    const open = async () => { await page.getByRole('button', { name: '設定' }).click(); await page.getByRole('button', { name: 'バックアップ' }).click(); };
     await open();
     const p = info.outputPath('mall.json');
     const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'JSONを書き出す' }).click()]);
@@ -320,7 +320,7 @@ test.describe('週の始まり（月曜が既定）', () => {
   test('設定で日曜始まりに切り替え: 見出し・月グリッド・週表示・保存', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await tab(page, '月').click();
-    await page.getByRole('button', { name: 'その他' }).click();
+    await page.getByRole('button', { name: '設定' }).click();
     await expect(page.getByRole('button', { name: /^週の始まり: 月曜/ })).toBeVisible();
     await page.getByRole('button', { name: /^週の始まり/ }).click();
     await expect(page.locator('.weekdays span')).toHaveText(['日', '月', '火', '水', '木', '金', '土']);
@@ -335,7 +335,7 @@ test.describe('週の始まり（月曜が既定）', () => {
     await expect(page.locator('.weekdays span').first()).toHaveText('日');
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')).weekStart)).toBe(0);
     // 月曜へ戻す
-    await page.getByRole('button', { name: 'その他' }).click();
+    await page.getByRole('button', { name: '設定' }).click();
     await expect(page.getByRole('button', { name: /^週の始まり: 日曜/ })).toBeVisible();
     await page.getByRole('button', { name: /^週の始まり/ }).click();
     await expect(page.locator('.weekdays span').first()).toHaveText('月');

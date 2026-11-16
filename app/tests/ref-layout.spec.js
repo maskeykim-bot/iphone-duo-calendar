@@ -32,7 +32,7 @@ for (const [name, size, kind] of POSTURES) {
     // 中心・四隅（内1px）で当該ボタンに届く＝操作列・タブ・他のボタンと重ならない
     const hits = await page.evaluate(({ x, y, width: w, height: h }) => [[w / 2, h / 2], [1, 1], [w - 1, 1], [1, h - 1], [w - 1, h - 1]].map(([dx, dy]) => !!document.elementFromPoint(x + dx, y + dy)?.closest('.allbtn')), box);
     expect(hits).toEqual([true, true, true, true, true]);
-    const rects = await page.evaluate(() => { const a = document.querySelector('.allbtn').getBoundingClientRect(); return [...document.querySelectorAll('.chead button:not(.allbtn), .chead h2, .sctl button:not(.allbtn), .shead h2, .rail, .tabs')].map((e) => { const r = e.getBoundingClientRect(); return Math.min(a.right, r.right) - Math.max(a.left, r.left) > 0.5 && Math.min(a.bottom, r.bottom) - Math.max(a.top, r.top) > 0.5; }); });
+    const rects = await page.evaluate(() => { const a = document.querySelector('.allbtn').getBoundingClientRect(); return [...document.querySelectorAll('.chead button:not(.allbtn), .chead h2, .sctl button:not(.allbtn), .shead h2, .ctl button:not(.allbtn), .tabs')].map((e) => { const r = e.getBoundingClientRect(); return Math.min(a.right, r.right) - Math.max(a.left, r.left) > 0.5 && Math.min(a.bottom, r.bottom) - Math.max(a.top, r.top) > 0.5; }); });
     expect(rects.some(Boolean)).toBe(false);
     await b.click();
     await expect(b).toHaveAttribute('aria-pressed', 'true');
@@ -98,12 +98,14 @@ for (const [name, size, kind] of POSTURES) {
 
 for (const [name, size] of POSTURES.slice(3)) {
   for (const scheme of ['light', 'dark']) {
-    test(`${name} ${scheme}: 見開き 操作列76・時間軸1時間60・左右ページの背景が違う`, async ({ page }) => {
+    test(`${name} ${scheme}: 見開き 縦の操作列なし・時間軸は右端 E まで・1時間60・左右ページの背景が違う`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });
       await openApp(page, size);
-      const rail = await page.locator('.srail').boundingBox();
-      expect(rail.width).toBe(76);
-      expect(rail.x + rail.width).toBeLessThanOrEqual(size.width);
+      await expect(page.locator('.srail, .rail')).toHaveCount(0);
+      const rp = await page.locator('.rp').boundingBox();
+      expect(rp.x + rp.width).toBeCloseTo(size.width - 16, 0); // E = W-R-16（safe=0）
+      const tlr = await page.locator('.tl .hl').first().boundingBox();
+      expect(tlr.x + tlr.width).toBeCloseTo(size.width - 16, 0);
       const hl = await page.evaluate(() => { const l = [...document.querySelectorAll('.tl .hl:not(.half)')]; return l[1].getBoundingClientRect().top - l[0].getBoundingClientRect().top; });
       expect(hl).toBeCloseTo(60, 1);
       const bgi = await page.locator('.shell.spread').evaluate((e) => getComputedStyle(e).backgroundImage); // 左右の色は shell のグラデーションが折り目で接する

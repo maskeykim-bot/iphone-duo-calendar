@@ -20,32 +20,33 @@ for (const size of PORTRAITS) {
       await expect(page.locator('.agenda')).toHaveCount(0);
       await expect(page.locator('.foot, .top, .brand')).toHaveCount(0);
       const W = size.width, H = size.height, rx = W / 669, ry = H / 951;
-      // 月グリッド: 全幅・上端 100ry・高さ 780ry
+      // 月グリッド（第12版）: 全幅・上端 head+24=106・下端 H-71p（p=H/951）。見出しは上 safe の帯の中（safe=0 は通常の82）
       const sc = await box(page.locator('.calendar .scroll'));
       expect(near(sc.x, 0) && near(sc.width, W)).toBe(true);
-      expect(near(sc.y, 100 * ry, 1)).toBe(true);
-      expect(near(sc.height, 780 * ry, 1)).toBe(true);
+      expect(near(sc.y, 106, 1)).toBe(true);
+      expect(near(sc.y + sc.height, H - 71 * ry, 1)).toBe(true);
       const wd = await box(page.locator('.weekdays'));
-      expect(near(wd.y, 72 * ry, 1) && near(wd.height, 28 * ry, 1)).toBe(true);
+      expect(near(wd.y, 82, 1) && near(wd.height, 24, 1)).toBe(true);
       // 操作の位置と大きさ
-      const set = await box(page.getByRole('button', { name: 'その他' }));
+      const set = await box(page.getByRole('button', { name: '設定' }));
       const search = await box(page.getByRole('button', { name: '予定を検索' }));
       const today = await box(page.getByRole('button', { name: '今日に戻る' }));
       const add = await box(page.getByRole('button', { name: '予定を追加' }));
       const tabs = await box(page.locator('.tabs'));
-      expect(near(set.x, 20 * rx) && near(set.y, 24 * ry) && near(set.width, 44) && near(set.height, 44)).toBe(true);
-      expect(near(search.x, 480 * rx) && near(search.y, 24 * ry) && near(search.width, 44)).toBe(true);
-      expect(near(today.x, 20 * rx) && near(today.y, 881 * ry, 1) && near(today.width, 48)).toBe(true);
-      expect(near(add.x, W - 20 * rx - 48) && near(add.y, 881 * ry, 1) && near(add.width, 48)).toBe(true);
+      expect(near(set.x, 20 * rx) && near(set.y, 24) && near(set.width, 44) && near(set.height, 44)).toBe(true);
+      expect(near(search.x, 484 * rx) && near(search.y, 24) && near(search.width, 44)).toBe(true);
+      expect(search.x + search.width).toBeLessThanOrEqual(540 * rx + 0.5); // 右上の予約（時刻・電池）に入らない
+      expect(near(today.x, 20) && near(today.y, H - 70 * ry, 1) && near(today.width, 48)).toBe(true);
+      expect(near(add.x, W - 20 - 48) && near(add.y, H - 70 * ry, 1) && near(add.width, 48)).toBe(true);
       expect(near(tabs.x + tabs.width / 2, W / 2) && tabs.width >= 176 && near(tabs.height, 46)).toBe(true);
-      expect(near(tabs.y, 881 * ry, 1)).toBe(true);
+      expect(near(tabs.y, H - 70 * ry, 1)).toBe(true);
       for (const [a, b] of [[today, tabs], [tabs, add], [today, add], [set, search]]) expect(noOverlap(a, b)).toBe(true);
       expect(add.y + add.height).toBeLessThanOrEqual(H);
       // 月グリッドは下段の上で終わる（隠れる週がない）
       expect(sc.y + sc.height).toBeLessThanOrEqual(Math.min(today.y, tabs.y, add.y) + 1);
-      // 見出しは画面中央・操作と別の枠
+      // 見出しの題名は中心 270rx（右上の予約を避けるため画面中央ではない）・操作と別の枠
       const title = await box(page.locator('#ctitle'));
-      expect(near(title.x + title.width / 2, W / 2, 1)).toBe(true);
+      expect(near(title.x + title.width / 2, 270 * rx, 1)).toBe(true);
       expect(noOverlap(title, set) && noOverlap(title, search)).toBe(true);
       for (const n of ['前の月', '次の月']) { const b = await box(page.getByRole('button', { name: n })); expect(b.width).toBeGreaterThanOrEqual(44); expect(b.height).toBeGreaterThanOrEqual(44); expect(noOverlap(b, set) && noOverlap(b, search)).toBe(true); }
       // 予定名つきのチップ・帯
@@ -68,7 +69,7 @@ for (const size of PORTRAITS) {
         for (let i = 0; i < Math.abs(fwd); i++) await btn.click();
         await expect(page.locator('.week')).toHaveCount(weeks);
         const hs = await page.locator('.week').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
-        const G = 780 * ry;
+        const G = size.height - 71 * ry - 106;
         for (const h of hs) { expect(h).toBeGreaterThanOrEqual(101 - 0.5); expect(near(h, Math.max(G / weeks, 101), 1)).toBe(true); }
         const sc = page.locator('.calendar .scroll');
         await sc.evaluate((el) => { el.scrollTop = el.scrollHeight; });
@@ -81,7 +82,7 @@ for (const size of PORTRAITS) {
 
     test('日曜始まり: 2027年2月は5週、列は日曜から。月送りで下段・週数以外は動かない', async ({ page }) => {
       await openApp(page, size);
-      await page.getByRole('button', { name: 'その他' }).first().click();
+      await page.getByRole('button', { name: '設定' }).first().click();
       await page.locator('#menu').getByRole('button', { name: /^週の始まり/ }).click();
       for (let i = 0; i < 3; i++) await page.getByRole('button', { name: '次の月' }).click();
       await expect(page.locator('#ctitle')).toHaveText('2027年 2月');
@@ -161,16 +162,16 @@ test.describe('開いた縦: safe area・キーボード・下書き', () => {
       await page.addStyleTag({ content: ':root{--sat:47px;--sab:34px;--sar:0px;--sal:0px}' });
       await page.evaluate(() => window.dispatchEvent(new Event('resize')));
       await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--content-y'))).toBe('47px');
-      const V = size.height - 47 - 34, ry = V / 951;
-      const set = await box(page.getByRole('button', { name: 'その他' }));
+      const ry = (size.height - 34) / 951; // p=(H-B)/951。上 safe は見出しに足さない（head=max(T,82)=82）
+      const set = await box(page.getByRole('button', { name: '設定' }));
       const add = await box(page.getByRole('button', { name: '予定を追加' }));
       const tabs = await box(page.locator('.tabs'));
       const sc = await box(page.locator('.calendar .scroll'));
-      expect(set.y).toBeGreaterThanOrEqual(47);
-      expect(near(set.y, 47 + 24 * ry, 1)).toBe(true);
+      expect(near(set.y, 24, 1)).toBe(true); // 帯の中（中心 y=head*46/82=46）
       expect(add.y + add.height).toBeLessThanOrEqual(size.height - 34 + 0.5);
       expect(tabs.y + tabs.height).toBeLessThanOrEqual(size.height - 34 + 0.5);
-      expect(sc.y).toBeGreaterThanOrEqual(47 + 72 * ry - 1);
+      expect(near(sc.y, 106, 1)).toBe(true);
+      expect(near(tabs.y, size.height - 34 - 70 * ry, 1)).toBe(true);
       expect(sc.y + sc.height).toBeLessThanOrEqual(tabs.y + 1);
       expect(await findTextOverlaps(page)).toEqual([]);
     });

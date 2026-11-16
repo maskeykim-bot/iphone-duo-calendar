@@ -128,14 +128,14 @@ test.describe('検索とバックアップの表示', () => {
         expect(await layout(page)).toBe('spread');
         expect(await textInGutter(page)).toEqual([]);
         const r = await page.locator('#search').boundingBox();
-        // 右ページ（中心+10 〜 右端−76）の内側
+        // 右ページ（中心+10 〜 右本文の終端 E=W-R-16）の内側
         expect(r.x).toBeGreaterThanOrEqual(size.width / 2 + 10 - 0.5);
-        expect(r.x + r.width).toBeLessThanOrEqual(size.width - 76 + 0.5);
+        expect(r.x + r.width).toBeLessThanOrEqual(size.width - 16 + 0.5);
         expect(r.y).toBeGreaterThanOrEqual(24);
         expect(r.y + r.height).toBeLessThanOrEqual(size.height - 24 + 0.5);
       }
       await page.getByRole('button', { name: '閉じる' }).first().click();
-      await page.getByRole('button', { name: 'その他' }).click();
+      await page.getByRole('button', { name: '設定' }).click();
       await page.getByRole('button', { name: 'バックアップ' }).click();
       await expect(page.locator('#backup')).toBeVisible();
       expect(await findTextOverlaps(page)).toEqual([]);
@@ -151,14 +151,14 @@ test.describe('検索とバックアップの表示', () => {
     await openApp(page, SIZES.openLandscape);
     await seed(page, SEED);
     expect(await textInGutter(page)).toEqual([]);
-    await page.getByRole('button', { name: 'その他' }).click();
+    await page.getByRole('button', { name: '設定' }).click();
     expect(await textInGutter(page)).toEqual([]);
   });
 });
 
 // ---- バックアップ ----
 const openBackup = async (page) => {
-  await page.getByRole('button', { name: 'その他' }).click();
+  await page.getByRole('button', { name: '設定' }).click();
   await page.getByRole('button', { name: 'バックアップ' }).click();
   await expect(page.locator('#backup')).toBeVisible();
 };

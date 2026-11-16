@@ -1,4 +1,4 @@
-// 第10版 ④: 見開き（開いた横）の右ページ時間軸・折り目の保護域・76px の操作列・非対称 safe。
+// 第10版 ④: 見開き（開いた横）の右ページ時間軸・折り目の保護域・操作列なし（第12版 PR4: 帯 or 見出し）・非対称 safe。
 // 画面サイズ・折り目は固定せず、innerWidth/2 を実測して検査する。
 import { test, expect } from '@playwright/test';
 import { openApp, loadSample, tab, layout, seed, ev, openMenu, SIZES } from './helpers.js';
@@ -65,7 +65,7 @@ async function foldHits(page) {
 async function focusHits(page) {
   return page.evaluate(() => {
     const f = window.innerWidth / 2, A = f - 10, B = f + 10, hits = [];
-    for (const el of document.querySelectorAll('.page button:not([hidden]), .rail button, .tabs button')) {
+    for (const el of document.querySelectorAll('.page button:not([hidden]), .ctl button, .tabs button')) {
       const q0 = el.getBoundingClientRect();
       if (q0.width < 1 || q0.height < 1) continue;
       el.focus({ preventScroll: true });
@@ -85,7 +85,7 @@ async function focusHits(page) {
 
 test.describe('見開き: 判定・背景・操作列', () => {
   for (const size of SPREADS) {
-    test(`${size.width}×${size.height}: spread 判定・背景は中心で直接接続・76px 列・操作は 48px 以上で重ならない`, async ({ page }) => {
+    test(`${size.width}×${size.height}: spread 判定・背景は中心で直接接続・縦の操作列なし・操作は 44px 以上で重ならない（safe=0 は帯なしの見出し配置）`, async ({ page }) => {
       await openApp(page, size);
       await loadSample(page);
       expect(await layout(page)).toBe('spread');
@@ -97,23 +97,28 @@ test.describe('見開き: 判定・背景・操作列', () => {
       expect(parseFloat(bg.fold)).toBe(f);
       expect(bg.img).toMatch(/240, 237, 229/);
       expect(bg.img).toMatch(/255, 253, 250/);
-      // 操作列の各ボタン 48×48 以上・中心と四隅(内1px)がそのボタンに届く・互いに重ならない
-      const names = ['今日に戻る', '月を開く', '一覧を開く', '予定を検索', '予定を追加'];
+      // safe=0 は帯がない（R<56）: 今日・検索・＋は右見出し（44角）。縦の列はない。中心と四隅(内1px)がそのボタンに届き、互いに重ならない
+      await expect(page.locator('.srail, .rail, .cap')).toHaveCount(0);
+      const names = ['今日に戻る', '予定を検索', '予定を追加'];
       const rects = [];
       for (const n of names) {
-        const b = page.locator('.srail').getByRole('button', { name: n });
+        const b = page.locator('.rhead').getByRole('button', { name: n });
         const r = await b.boundingBox();
-        expect(r.width).toBeGreaterThanOrEqual(48 - 0.5);
-        expect(r.height).toBeGreaterThanOrEqual(48 - 0.5);
+        expect(r.width).toBeGreaterThanOrEqual(44 - 0.5);
+        expect(r.height).toBeGreaterThanOrEqual(44 - 0.5);
+        expect(r.x).toBeGreaterThanOrEqual(f + 10 - 0.5);
         const ok = await b.evaluate((el) => { const q = el.getBoundingClientRect(); return [[.5, .5], [0, 0], [1, 0], [0, 1], [1, 1]].every(([a, c]) => { const x = q.left + 8 + a * (q.width - 16), y = q.top + 8 + c * (q.height - 16); return el.contains(document.elementFromPoint(x, y)); }); });
         expect(ok).toBe(true);
         rects.push(r);
       }
+      const span = await page.locator('.rhead .spanbtn').boundingBox();
+      rects.push(span);
+      expect(span.x + span.width).toBeCloseTo(size.width - 16, 0); // 右端 E
       for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
         const a = rects[i], b = rects[j];
         expect(a.x + a.width <= b.x + 0.5 || b.x + b.width <= a.x + 0.5 || a.y + a.height <= b.y + 0.5 || b.y + b.height <= a.y + 0.5).toBe(true);
       }
-      for (const n of ['前の月', '次の月', 'その他']) { const r = await page.getByRole('button', { name: n }).first().boundingBox(); expect(r.width).toBeGreaterThanOrEqual(44); expect(r.height).toBeGreaterThanOrEqual(44); expect(r.x + r.width).toBeLessThanOrEqual(f - 10 + 0.5); }
+      for (const n of ['前の月', '次の月', '設定']) { const r = await page.getByRole('button', { name: n }).first().boundingBox(); expect(r.width).toBeGreaterThanOrEqual(44); expect(r.height).toBeGreaterThanOrEqual(44); expect(r.x + r.width).toBeLessThanOrEqual(f - 10 + 0.5); }
       const tabs = await page.locator('.tabs').boundingBox();
       expect(tabs.x + tabs.width).toBeLessThanOrEqual(f - 10 + 0.5);
       for (const b of await page.locator('.tabs button').all()) { const r = await b.boundingBox(); expect(r.width).toBeGreaterThanOrEqual(44); expect(r.height).toBeGreaterThanOrEqual(46 - 0.5); }
@@ -126,17 +131,17 @@ test.describe('見開き: 判定・背景・操作列', () => {
     await withSafe(page);
     const W = 890, H = 626;
     expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--fold-x'))).toBe(`${W / 2}px`);
-    const lp = await page.locator('.page.lp').boundingBox(), rp = await page.locator('.page.rp').boundingBox(), rail = await page.locator('.srail').boundingBox();
+    const lp = await page.locator('.page.lp').boundingBox(), rp = await page.locator('.page.rp').boundingBox();
     expect(lp.x).toBeGreaterThanOrEqual(SAFE.left + 8 - 0.5);
     expect(lp.x + lp.width).toBeCloseTo(W / 2 - 10, 0);
     expect(rp.x).toBeCloseTo(W / 2 + 10, 0);
     expect(rp.y).toBeGreaterThanOrEqual(SAFE.top - 0.5);
     expect(rp.y + rp.height).toBeLessThanOrEqual(H - SAFE.bottom + 0.5);
-    expect(rp.x + rp.width).toBeCloseTo(W - SAFE.right - 76, 0);
-    for (const n of ['今日に戻る', '予定を追加']) { const r = await page.locator('.srail').getByRole('button', { name: n }).boundingBox(); expect(r.y + r.height).toBeLessThanOrEqual(H - SAFE.bottom + 0.5); expect(r.x + r.width).toBeLessThanOrEqual(W - SAFE.right + 0.5); }
+    expect(rp.x + rp.width).toBeCloseTo(W - SAFE.right - 16, 0); // E = W-R-16
+    for (const n of ['今日に戻る', '予定を追加']) { const r = await page.locator('.rhead').getByRole('button', { name: n }).boundingBox(); expect(r.y + r.height).toBeLessThanOrEqual(H - SAFE.bottom + 0.5); expect(r.x + r.width).toBeLessThanOrEqual(W - SAFE.right + 0.5); }
     const tabs = await page.locator('.tabs').boundingBox();
     expect(tabs.y + tabs.height).toBeLessThanOrEqual(H - SAFE.bottom + 0.5);
-    expect(rail.x + rail.width).toBeCloseTo(W, 0); // 列の背景は画面端まで
+    await expect(page.locator('.srail')).toHaveCount(0);
     expect(await foldHits(page)).toEqual([]);
   });
 });
@@ -155,8 +160,8 @@ test.describe('見開き: 折り目の保護域（文字・罫線・チップ・
       await page.locator('[data-act="tl3"]').click();
       await tab(page, '週').click(); await check('週');
       await tab(page, '日').click(); await check('日');
-      await page.locator('.srail').getByRole('button', { name: '一覧を開く' }).click(); await check('一覧');
-      await page.locator('.srail').getByRole('button', { name: '月を開く' }).click(); await check('月2');
+      await tab(page, '一覧').click(); await check('一覧');
+      await tab(page, '月').click(); await check('月2');
       // 全部の月
       await openMenu(page);
       await page.locator('#menu').getByRole('button', { name: '月の表現', exact: true }).click();

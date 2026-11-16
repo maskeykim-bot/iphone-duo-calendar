@@ -49,7 +49,7 @@ test.describe('スクリーンショット', () => {
     await expect(page.locator('#sr-body .hit').first()).toBeVisible();
     await shot(page, 'search-closed');
     await page.locator('#sr-close').click();
-    await page.getByRole('button', { name: 'その他' }).click();
+    await page.getByRole('button', { name: '設定' }).click();
     await page.getByRole('button', { name: 'バックアップ' }).click();
     await shot(page, 'backup');
     await page.setInputFiles('#bk-file', { name: 'duo-calendar-backup-2026-11-13.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T09:41:00+09:00', events: [...SEED.slice(0, 2), ev('n1', '新しい予定', '2026-12-01T10:00', '2026-12-01T11:00')] })) });
@@ -112,3 +112,44 @@ for (const [posture, size] of V10) {
     await shot(page, `v10-${posture}-${size.width}x${size.height}-month-all-light-scroll-end`);
   });
 }
+
+// ---- 第12版 PR4: safe 帯を使うB案。safe は document.documentElement.style の --sat 等で注入（OS の時刻・電池の合成はしない） ----
+const V12 = [
+  ['closed-466x678-safe-r84', SIZES.closedPortrait, { r: 84 }, 'closed'], ['closed-466x678-safe-0', SIZES.closedPortrait, {}, 'closed'],
+  ['spread-951x669-safe-r84', SIZES.openLandscape951, { r: 84 }, 'spread'], ['spread-951x669-safe-0', SIZES.openLandscape951, {}, 'spread'],
+  ['spread-890x626-safe-r84', SIZES.openLandscape, { r: 84 }, 'spread'], ['spread-890x626-safe-0', SIZES.openLandscape, {}, 'spread'],
+  ['portrait-669x951-safe-t82', SIZES.openPortrait669, { t: 82 }, 'portrait'], ['portrait-669x951-safe-0', SIZES.openPortrait669, {}, 'portrait'],
+];
+async function v12Setup(page, size, safe, kind, theme) {
+  await page.emulateMedia({ colorScheme: theme });
+  await openApp(page, size);
+  await seed(page, V10SEED);
+  if (kind === 'closed') await tab(page, '月').click();
+  await setStyle(page, '予定名');
+  await page.evaluate(([t, r, b, l]) => { const s = document.documentElement.style; s.setProperty('--sat', `${t}px`); s.setProperty('--sar', `${r}px`); s.setProperty('--sab', `${b}px`); s.setProperty('--sal', `${l}px`); }, [safe.t ?? 0, safe.r ?? 0, safe.b ?? 0, safe.l ?? 0]);
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--sar'))).toBe(`${safe.r ?? 0}px`);
+  await page.evaluate(async () => { await document.fonts.ready; await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); });
+}
+for (const [name, size, safe, kind] of V12) {
+  for (const theme of ['light', 'dark']) {
+    test(`v12-pr4 ${name} ${theme}`, async ({ page }) => {
+      await v12Setup(page, size, safe, kind, theme);
+      // 全操作が見える状態（設定・検索・今日・＋・全・前後・タブ）が画面内に出ていること
+      for (const n of ['設定', '予定を検索', '今日に戻る', '予定を追加', '全部の予定を表示', '前の月', '次の月']) await expect(page.getByRole('button', { name: n, exact: true }).first()).toBeVisible();
+      await shot(page, `v12-pr4-${name}${theme === 'dark' ? '-dark' : ''}`);
+    });
+  }
+}
+test('v12-pr4 代表の全部on／末尾と設定表示', async ({ page }) => {
+  await v12Setup(page, SIZES.closedPortrait, { r: 84 }, 'closed', 'light');
+  await page.locator('[data-act="allmonth"]').click();
+  await expect(page.locator('[data-act="allmonth"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  await page.locator('.scroll.all').evaluate((e) => { e.scrollTop = e.scrollHeight; });
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  await shot(page, 'v12-pr4-closed-466x678-safe-r84-all-end');
+  await page.locator('[data-act="allmonth"]').click();
+  await page.locator('.ctl').getByRole('button', { name: '設定', exact: true }).click();
+  await expect(page.locator('#menu')).toBeVisible();
+  await shot(page, 'v12-pr4-closed-466x678-safe-r84-settings');
+});
