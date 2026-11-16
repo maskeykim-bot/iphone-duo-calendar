@@ -42,6 +42,19 @@ async function mock(page, cfg = {}) {
             if (method === 'deleteEvent') return opts.missing ? { deleted: true, missing: true } : { deleted: true };
             return { itemId: opts.itemId, externalId: opts.externalId ?? '', eventId: opts.eventId ?? 'x', modifiedAt: 1763100001000, calendarId: opts.calendarId, occurrenceDate: opts.occurrenceStart ?? null };
           }
+          case 'updateExternalEvent': case 'deleteExternalEvent': {
+            // ext 専用の独立した分岐（requestId は不要）。Swift の契約の写しであり実動作の証明ではない。
+            if (M.extErr) throw { code: M.extErr, reason: M.extReason, message: 'x' };
+            if (!(opts.itemId || opts.externalId || opts.eventId) || !['this', 'future', 'all'].includes(opts.span) || !opts.occurrenceStart || !opts.currentStart) throw { code: 'INVALID_ARGUMENT', message: 'x' };
+            if (method === 'deleteExternalEvent') {
+              if (M.extConflict && !opts.force) throw { code: 'CONFLICT', message: 'x' };
+              return M.extMissing ? { deleted: true, missing: true } : { deleted: true };
+            }
+            if ('recurrence' in opts) throw { code: 'INVALID_ARGUMENT', message: 'x' };
+            if (opts.span === 'all' && ('start' in opts || 'end' in opts || 'all' in opts) && !opts.base) throw { code: 'INVALID_ARGUMENT', message: 'x' };
+            if (M.extMissing) throw { code: 'NOT_FOUND', message: 'x' };
+            return { itemId: M.extNewItem ?? opts.itemId, externalId: opts.externalId ?? '', eventId: opts.eventId ?? 'x', modifiedAt: 1763100002000, calendarId: opts.calendarId ?? 'cal-1', occurrenceDate: opts.occurrenceStart, conflicted: !!M.extConflict, alarmsApplied: Math.min((opts.alarms ?? []).length, M.extAlarmCap ?? 2) };
+          }
           case 'getEvent': {
             if (M.getErr) throw { code: M.getErr, message: 'x' };
             if (!(opts.itemId || opts.externalId || opts.eventId) || !opts.occurrenceStart || !opts.currentStart) throw { code: 'INVALID_ARGUMENT', message: 'x' };
@@ -895,5 +908,44 @@ test.describe('getEvent / listCalendars の契約（偽装。Swift 実動作の�
       await page.evaluate((c) => { window.__mock.getErr = c; }, code);
       expect((await get(page, { itemId: 'it-1', occurrenceStart: '2026-11-12T15:00', currentStart: '2026-11-12T15:00' })).code).toBe(code);
     }
+  });
+});
+
+test.describe('updateExternalEvent / deleteExternalEvent の契約（偽装。Swift 実動作の証明ではない）', () => {
+  const T = { itemId: 'it-w', externalId: 'ex-w', eventId: 'w1', occurrenceStart: '2026-11-16T09:00', currentStart: '2026-11-16T09:00' };
+  const run = (page, m, o) => page.evaluate(async ([m, o]) => { const n = await import('/js/native.js'); try { return { ok: await n.call(m, o) }; } catch (e) { return { code: n.errCode(e), reason: n.errReason(e), text: n.errText(e, '') }; } }, [m, o]);
+  test.beforeEach(async ({ page }) => { await openApp(page); await mock(page); await page.reload(); });
+
+  test('update: requestId なしで通り、conflicted・alarmsApplied・ID変更が返る', async ({ page }) => {
+    await page.evaluate(() => { window.__mock.extConflict = true; window.__mock.extNewItem = 'it-new'; window.__mock.extAlarmCap = 1; });
+    const r = (await run(page, 'updateExternalEvent', { ...T, span: 'this', expectModified: 1, title: 'x', alarms: [{ before: 5 }, { before: 10 }] })).ok;
+    expect(r.conflicted).toBe(true); expect(r.alarmsApplied).toBe(1); expect(r.itemId).toBe('it-new');
+    for (const k of ['itemId', 'externalId', 'eventId', 'modifiedAt', 'calendarId', 'occurrenceDate']) expect(r).toHaveProperty(k);
+  });
+  test('update: recurrence はキーがあれば null でも INVALID_ARGUMENT、all の日時は base 必須', async ({ page }) => {
+    expect((await run(page, 'updateExternalEvent', { ...T, span: 'this', recurrence: null })).code).toBe('INVALID_ARGUMENT');
+    expect((await run(page, 'updateExternalEvent', { ...T, span: 'all', start: '2026-11-17T09:00' })).code).toBe('INVALID_ARGUMENT');
+    expect((await run(page, 'updateExternalEvent', { ...T, span: 'all', start: '2026-11-17T09:00', base: { start: '2026-11-16T09:00', end: '2026-11-16T10:00', all: false } })).ok.conflicted).toBe(false);
+    expect((await run(page, 'updateExternalEvent', { occurrenceStart: T.occurrenceStart, currentStart: T.currentStart, span: 'this' })).code).toBe('INVALID_ARGUMENT');
+    expect((await run(page, 'updateExternalEvent', { ...T, span: 'x' })).code).toBe('INVALID_ARGUMENT');
+  });
+  test('エラーコード・NOT_EDITABLE の理由と日本語、NOT_FOUND', async ({ page }) => {
+    await page.evaluate(() => { window.__mock.extErr = 'NOT_EDITABLE'; window.__mock.extReason = 'invitee'; });
+    const e = await run(page, 'updateExternalEvent', { ...T, span: 'this', title: 'x' });
+    expect(e.code).toBe('NOT_EDITABLE'); expect(e.reason).toBe('invitee'); expect(e.text).toContain('iPhone');
+    for (const code of ['READ_ONLY', 'CALENDAR_NOT_FOUND', 'WRITE_ONLY', 'PERMISSION_DENIED', 'RESTRICTED', 'UNAVAILABLE']) {
+      await page.evaluate((c) => { window.__mock.extErr = c; }, code);
+      expect((await run(page, 'updateExternalEvent', { ...T, span: 'this', title: 'x' })).code).toBe(code);
+    }
+    await page.evaluate(() => { window.__mock.extErr = null; window.__mock.extMissing = true; });
+    expect((await run(page, 'updateExternalEvent', { ...T, span: 'this', title: 'x' })).code).toBe('NOT_FOUND');
+  });
+  test('delete: 競合は force なしで CONFLICT、force で削除、不存在は missing', async ({ page }) => {
+    await page.evaluate(() => { window.__mock.extConflict = true; });
+    expect((await run(page, 'deleteExternalEvent', { ...T, span: 'future', expectModified: 1 })).code).toBe('CONFLICT');
+    expect((await run(page, 'deleteExternalEvent', { ...T, span: 'future', expectModified: 1, force: true })).ok).toEqual({ deleted: true });
+    await page.evaluate(() => { window.__mock.extConflict = false; window.__mock.extMissing = true; });
+    expect((await run(page, 'deleteExternalEvent', { ...T, span: 'all' })).ok).toEqual({ deleted: true, missing: true });
+    expect((await run(page, 'deleteExternalEvent', { span: 'all', occurrenceStart: T.occurrenceStart, currentStart: T.currentStart })).code).toBe('INVALID_ARGUMENT');
   });
 });

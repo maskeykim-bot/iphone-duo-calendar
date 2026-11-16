@@ -22,6 +22,9 @@ export function listen(eventName, cb) {
 
 export const errCode = (e) => (e && typeof e === 'object' && typeof e.code === 'string' ? e.code : '');
 
+// NOT_EDITABLE / READ_ONLY の理由（Capacitor は data に載せる。reason の直下にも対応）。
+export const errReason = (e) => (e && typeof e === 'object' ? (e.reason ?? e.data?.reason ?? null) : null);
+
 // 表示用日本語（message は直接出さない）。
 export function errText(e, fallback) {
   switch (errCode(e)) {
@@ -31,6 +34,7 @@ export function errText(e, fallback) {
     case 'CALENDAR_NOT_FOUND': return '追加先のカレンダーが見つかりません。';
     case 'READ_ONLY': return 'このカレンダーには追加できません。';
     case 'NOT_FOUND': return 'iPhone のカレンダーに元の予定が見つかりません。';
+    case 'NOT_EDITABLE': return 'この予定は iPhone のカレンダー側でしか変更できません。';
     case 'CONFLICT': return 'iPhone のカレンダー側でも変更されています。';
     default: return fallback;
   }
