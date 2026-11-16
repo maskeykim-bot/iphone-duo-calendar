@@ -3,8 +3,8 @@ import { test, expect } from '@playwright/test';
 import { openApp, SIZES, tab, seed, ev, dbEvents, setStyle, openMenu } from './helpers.js';
 
 const CALS = [
-  { id: 'cal-1', title: '家族', color: '#d93025', sourceId: 's-g', source: 'Google', sourceType: 'caldav', allowsModify: true },
-  { id: 'cal-2', title: '祝日', color: '#0b8043', sourceId: 's-s', source: 'Subscribed Calendars', sourceType: 'subscribed', allowsModify: false },
+  { id: 'cal-1', title: '家族', color: '#d93025', sourceId: 's-g', source: 'Google', sourceType: 'caldav', allowsModify: true, isDefault: true },
+  { id: 'cal-2', title: '祝日', color: '#0b8043', sourceId: 's-s', source: 'Subscribed Calendars', sourceType: 'subscribed', allowsModify: false, isDefault: false },
 ];
 const EVENTS = [
   { id: 'e1@2026-11-12T15:00', eventId: 'e1', calendarId: 'cal-1', title: '歯医者', start: '2026-11-12T15:00', end: '2026-11-12T16:00', all: false, place: '渋谷', notes: '保険証\n持参', recurring: false, requestId: null },
@@ -42,6 +42,13 @@ async function mock(page, cfg = {}) {
             if (method === 'deleteEvent') return opts.missing ? { deleted: true, missing: true } : { deleted: true };
             return { itemId: opts.itemId, externalId: opts.externalId ?? '', eventId: opts.eventId ?? 'x', modifiedAt: 1763100001000, calendarId: opts.calendarId, occurrenceDate: opts.occurrenceStart ?? null };
           }
+          case 'getEvent': {
+            if (M.getErr) throw { code: M.getErr, message: 'x' };
+            if (!(opts.itemId || opts.externalId || opts.eventId) || !opts.occurrenceStart || !opts.currentStart) throw { code: 'INVALID_ARGUMENT', message: 'x' };
+            const d = c.details.find((x) => (x.itemId === opts.itemId || x.externalId === opts.externalId || x.eventId === opts.eventId) && (x.occurrenceDate ?? x.start) === opts.occurrenceStart);
+            if (!d) throw { code: 'NOT_FOUND', message: 'x' };
+            return clone(d);
+          }
           case 'openInCalendar': return { opened: M.opened };
           case 'shareFile': return M.share;
           case 'notifyStatus': return { status: M.notif };
@@ -61,8 +68,19 @@ async function mock(page, cfg = {}) {
         }
       },
     };
-  }, { cals: CALS, events: EVENTS, ...cfg });
+  }, { cals: CALS, events: EVENTS, details: DETAILS, ...cfg });
 }
+// getEvent（Detail）の偽装 fixture。RawEvent に詳細を足した形（契約は design/IMPL_PLAN_V13.md PR1）。
+const DETAIL_BASE = { calendarId: 'cal-1', all: false, place: '', notes: '', recurring: false, requestId: null, modifiedAt: 1763100000000, occurrenceDate: null,
+  alarms: [], alarmsExtra: 0, rule: null, ruleText: '', detached: false, allowsModify: true, sourceType: 'caldav', hasAttendees: false, isOrganizer: false, hasUrl: false, editable: true, reason: null, seriesStart: null };
+const DETAILS = [
+  { ...DETAIL_BASE, id: 'e1@2026-11-12T15:00', eventId: 'e1', itemId: 'it-1', externalId: 'ex-1', title: '歯医者', start: '2026-11-12T15:00', end: '2026-11-12T16:00', alarms: [{ before: 30 }], seriesStart: '2026-11-12T15:00' },
+  { ...DETAIL_BASE, id: 'w1@2026-11-16T09:00', eventId: 'w1', itemId: 'it-w', externalId: 'ex-w', title: '定例', start: '2026-11-16T09:00', end: '2026-11-16T10:00', recurring: true, occurrenceDate: '2026-11-16T09:00',
+    rule: { freq: 'weekly', byDay: [1], count: 10 }, ruleText: '毎週', alarms: [{ before: 10 }, { before: 60 }], alarmsExtra: 1, seriesStart: '2026-11-02T09:00' },
+  { ...DETAIL_BASE, id: 'w1@2026-11-19T09:00', eventId: 'w1', itemId: 'it-w', externalId: 'ex-w', title: '定例', start: '2026-11-19T09:00', end: '2026-11-19T10:00', recurring: false, detached: true, occurrenceDate: '2026-11-16T09:00', seriesStart: null },
+  { ...DETAIL_BASE, id: 'b1@2026-11-20T00:00', eventId: 'b1', itemId: 'it-b', externalId: 'ex-b', calendarId: 'cal-2', title: '誕生日', all: true, start: '2026-11-20T00:00', end: '2026-11-20T00:00', allowsModify: false, sourceType: 'birthdays', editable: false, reason: 'birthdays', alarms: [{ day: 1, at: '09:00' }] },
+  { ...DETAIL_BASE, id: 'm1@2026-11-21T10:00', eventId: 'm1', itemId: 'it-m', externalId: 'ex-m', title: '会議', start: '2026-11-21T10:00', end: '2026-11-21T11:00', recurring: true, occurrenceDate: '2026-11-21T10:00', rule: null, ruleText: '2週間ごと', hasAttendees: true, isOrganizer: true, editable: false, reason: 'organizerWithAttendees' },
+];
 const calls = (page, m) => page.evaluate((m) => window.__mock.calls.filter((c) => !m || c.method === m), m);
 const openLinkPanel = async (page) => {
   await page.locator('[data-act="menu"]:visible').first().click();
@@ -850,5 +868,32 @@ test.describe('端末をまたぐ照合（ekIdentifier）', () => {
     await expect(page.locator('#deletetitle')).toContainText('『会食』も削除されます');
     await page.locator('#dodelete').click();
     await expect.poll(async () => (await sent(page, 'deleteEvent')).length).toBe(1);
+  });
+});
+
+test.describe('getEvent / listCalendars の契約（偽装。Swift 実動作の証明ではない）', () => {
+  const get = (page, o) => page.evaluate(async (o) => { const n = await import('/js/native.js'); try { return { ok: await n.call('getEvent', o) }; } catch (e) { return { code: n.errCode(e) }; } }, o);
+  test('Detail の全フィールドと null、listCalendars の isDefault', async ({ page }) => {
+    await openApp(page); await mock(page); await page.reload();
+    const cals = await page.evaluate(async () => (await (await import('/js/native.js')).call('listCalendars')).calendars);
+    expect(cals.map((c) => c.isDefault)).toEqual([true, false]);
+    const { ok: d } = await get(page, { itemId: 'it-1', occurrenceStart: '2026-11-12T15:00', currentStart: '2026-11-12T15:00' });
+    for (const k of ['id', 'eventId', 'calendarId', 'title', 'start', 'end', 'all', 'place', 'notes', 'recurring', 'requestId', 'itemId', 'externalId', 'occurrenceDate', 'modifiedAt', 'alarms', 'alarmsExtra', 'rule', 'ruleText', 'detached', 'allowsModify', 'sourceType', 'hasAttendees', 'isOrganizer', 'hasUrl', 'editable', 'reason', 'seriesStart']) expect(d, k).toHaveProperty(k);
+    expect(d.rule).toBeNull(); expect(d.reason).toBeNull(); expect(d.editable).toBe(true);
+  });
+  test('動かした回は occurrenceStart で引ける・理由・規則・引数不正・NOT_FOUND・権限エラー', async ({ page }) => {
+    await openApp(page); await mock(page); await page.reload();
+    const moved = (await get(page, { externalId: 'ex-w', occurrenceStart: '2026-11-16T09:00', currentStart: '2026-11-19T09:00' })).ok;
+    expect(moved.rule).toBeTruthy(); // 偽装は先頭一致。動かした回の引数が currentStart として渡ることだけを確認
+    expect((await calls(page, 'getEvent')).at(-1).opts.currentStart).toBe('2026-11-19T09:00');
+    expect((await get(page, { itemId: 'it-b', occurrenceStart: '2026-11-20T00:00', currentStart: '2026-11-20T00:00' })).ok.reason).toBe('birthdays');
+    const m = (await get(page, { itemId: 'it-m', occurrenceStart: '2026-11-21T10:00', currentStart: '2026-11-21T10:00' })).ok;
+    expect(m.rule).toBeNull(); expect(m.ruleText).toContain('2週間'); expect(m.reason).toBe('organizerWithAttendees');
+    expect((await get(page, { occurrenceStart: 'x', currentStart: 'x' })).code).toBe('INVALID_ARGUMENT');
+    expect((await get(page, { itemId: 'zzz', occurrenceStart: '2026-11-12T15:00', currentStart: '2026-11-12T15:00' })).code).toBe('NOT_FOUND');
+    for (const code of ['WRITE_ONLY', 'PERMISSION_DENIED', 'RESTRICTED', 'UNAVAILABLE']) {
+      await page.evaluate((c) => { window.__mock.getErr = c; }, code);
+      expect((await get(page, { itemId: 'it-1', occurrenceStart: '2026-11-12T15:00', currentStart: '2026-11-12T15:00' })).code).toBe(code);
+    }
   });
 });

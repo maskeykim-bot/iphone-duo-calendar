@@ -17,6 +17,7 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         CAPPluginMethod(name: "openSettings", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "listCalendars", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "listEvents", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getEvent", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "createEvent", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "updateEvent", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "deleteEvent", returnType: CAPPluginReturnPromise),
@@ -222,6 +223,7 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         queue.async { [weak self] in
             guard let self = self else { return }
             var items: [(sourceId: String, title: String, id: String, dict: [String: Any])] = []
+            let defaultId = self.store.defaultCalendarForNewEvents?.calendarIdentifier
             for c in self.store.calendars(for: .event) {
                 let src = c.source
                 let sourceId = src?.sourceIdentifier ?? ""
@@ -232,7 +234,8 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
                     "sourceId": sourceId,
                     "source": src?.title ?? "",
                     "sourceType": src != nil ? self.sourceTypeString(src!.sourceType) : "unknown",
-                    "allowsModify": c.allowsContentModifications
+                    "allowsModify": c.allowsContentModifications,
+                    "isDefault": defaultId != nil && c.calendarIdentifier == defaultId
                 ]
                 items.append((sourceId, c.title, c.calendarIdentifier, dict))
             }
@@ -272,49 +275,253 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             var seen = Set<String>()
             var out: [[String: Any]] = []
             for ev in self.store.events(matching: predicate) {
-                guard let start = ev.startDate, let rawEnd = ev.endDate else { continue }
-                var end = rawEnd
-                var startOut = start
+                guard let r = self.serializeEvent(ev, f, cal) else { continue }
                 if ev.isAllDay {
-                    // JS 契約: 終日の end は「含む最終日」の 00:00。EventKit の排他的 end（翌日 00:00）なら前日へ戻す。
-                    startOut = cal.startOfDay(for: start)
-                    let sod = cal.startOfDay(for: rawEnd)
-                    if rawEnd == sod && rawEnd > start {
-                        end = cal.date(byAdding: .day, value: -1, to: sod) ?? sod
-                    } else {
-                        end = sod
-                    }
-                    if end < startOut { end = startOut }
                     // 取得範囲との重なりを再確認（[from, to)）。
-                    if startOut >= to || end < cal.startOfDay(for: from) { continue }
+                    if r.start >= to || r.end < cal.startOfDay(for: from) { continue }
                 }
-                let eventId = ev.eventIdentifier ?? ""
-                let startStr = f.string(from: startOut)
-                let id = "\(eventId)@\(startStr)"
+                guard let id = r.dict["id"] as? String else { continue }
                 if !seen.insert(id).inserted { continue }
-                var requestId: Any = NSNull()
-                if let u = ev.url?.absoluteString, u.hasPrefix(DuoNativePlugin.urlPrefix) {
-                    requestId = String(u.dropFirst(DuoNativePlugin.urlPrefix.count))
-                }
-                out.append([
-                    "id": id,
-                    "eventId": eventId,
-                    "calendarId": ev.calendar?.calendarIdentifier ?? "",
-                    "title": ev.title ?? "",
-                    "start": startStr,
-                    "end": f.string(from: end),
-                    "all": ev.isAllDay,
-                    "place": ev.location ?? "",
-                    "notes": ev.notes ?? "",
-                    "recurring": ev.hasRecurrenceRules,
-                    "requestId": requestId,
-                    "itemId": ev.calendarItemIdentifier,
-                    "externalId": ev.calendarItemExternalIdentifier ?? "",
-                    "occurrenceDate": self.stampOrNull(ev.occurrenceDate, f),
-                    "modifiedAt": self.msOrNull(ev.lastModifiedDate)
-                ])
+                out.append(r.dict)
             }
             call.resolve(["events": out])
+        }
+    }
+
+    /// list / get 共通の直列化（RawEvent）。終日の end は「含む最終日」の 00:00（EventKit 内部は排他的 end）。
+    /// 返す start / end は直列化後の Date（範囲の再確認用）。
+    private func serializeEvent(_ ev: EKEvent, _ f: DateFormatter, _ cal: Calendar) -> (dict: [String: Any], start: Date, end: Date)? {
+        guard let start = ev.startDate, let rawEnd = ev.endDate else { return nil }
+        var end = rawEnd
+        var startOut = start
+        if ev.isAllDay {
+            startOut = cal.startOfDay(for: start)
+            let sod = cal.startOfDay(for: rawEnd)
+            if rawEnd == sod && rawEnd > start {
+                end = cal.date(byAdding: .day, value: -1, to: sod) ?? sod
+            } else {
+                end = sod
+            }
+            if end < startOut { end = startOut }
+        }
+        let eventId = ev.eventIdentifier ?? ""
+        let startStr = f.string(from: startOut)
+        var requestId: Any = NSNull()
+        if let u = ev.url?.absoluteString, u.hasPrefix(DuoNativePlugin.urlPrefix) {
+            requestId = String(u.dropFirst(DuoNativePlugin.urlPrefix.count))
+        }
+        let dict: [String: Any] = [
+            "id": "\(eventId)@\(startStr)",
+            "eventId": eventId,
+            "calendarId": ev.calendar?.calendarIdentifier ?? "",
+            "title": ev.title ?? "",
+            "start": startStr,
+            "end": f.string(from: end),
+            "all": ev.isAllDay,
+            "place": ev.location ?? "",
+            "notes": ev.notes ?? "",
+            "recurring": ev.hasRecurrenceRules,
+            "requestId": requestId,
+            "itemId": ev.calendarItemIdentifier,
+            "externalId": ev.calendarItemExternalIdentifier ?? "",
+            "occurrenceDate": stampOrNull(ev.occurrenceDate, f),
+            "modifiedAt": msOrNull(ev.lastModifiedDate)
+        ]
+        return (dict, startOut, end)
+    }
+
+    /// 通知の逆変換。変換できるものを最大2件。絶対日時・場所・範囲外・分単位でない・3件目以降は extra に数える。
+    private func reverseAlarms(_ ev: EKEvent) -> (alarms: [[String: Any]], extra: Int) {
+        var out: [[String: Any]] = []
+        var extra = 0
+        for a in ev.alarms ?? [] {
+            if a.absoluteDate != nil || a.structuredLocation != nil || a.proximity != .none { extra += 1; continue }
+            let off = a.relativeOffset
+            guard off == off.rounded(), Int(off) % 60 == 0 else { extra += 1; continue }
+            let o = Int(off)
+            var item: [String: Any]? = nil
+            if ev.isAllDay {
+                // day = ceil(-offset/86400)、at = offset + day*86400（day 0〜30）。
+                let day = Int((Double(-o) / 86400).rounded(.up))
+                let sec = o + day * 86400
+                if day >= 0, day <= 30, sec >= 0, sec < 86400 {
+                    item = ["day": day, "at": String(format: "%02d:%02d", sec / 3600, (sec % 3600) / 60)]
+                }
+            } else if o <= 0, -o / 60 <= 40320 {
+                item = ["before": -o / 60]
+            }
+            if let it = item, out.count < 2 { out.append(it) } else { extra += 1 }
+        }
+        return (out, extra)
+    }
+
+    /// 規則の逆変換。完全に Duo の規則で表せるときだけ rule、そうでなければ nil（ruleText は常に付ける）。
+    private func reverseRule(_ ev: EKEvent, _ cal: Calendar) -> (rule: Any, text: String) {
+        let rules = ev.recurrenceRules ?? []
+        guard let r = rules.first else { return (NSNull(), "") }
+        let unit: String
+        let each: String
+        switch r.frequency {
+        case .daily: unit = "daily"; each = "日"
+        case .weekly: unit = "weekly"; each = "週間"
+        case .monthly: unit = "monthly"; each = "か月"
+        case .yearly: unit = "yearly"; each = "年"
+        @unknown default: unit = ""; each = ""
+        }
+        let plainEach: String = { switch r.frequency {
+            case .daily: return "毎日"
+            case .weekly: return "毎週"
+            case .monthly: return "毎月"
+            case .yearly: return "毎年"
+            @unknown default: return "繰り返し" } }()
+        var text = r.interval > 1 ? "\(r.interval)\(each)ごと" : plainEach
+        if rules.count > 1 { text += "（ほか\(rules.count - 1)件の規則）" }
+
+        func empty(_ a: [NSNumber]?) -> Bool { return a == nil || a!.isEmpty }
+        let anchor = ev.startDate ?? Date()
+        let comps = cal.dateComponents([.month, .day], from: anchor)
+        var ok = rules.count == 1 && !unit.isEmpty && r.interval == 1
+            && empty(r.weeksOfTheYear) && empty(r.daysOfTheYear) && empty(r.setPositions)
+        var byDay: [Int]? = nil
+        if ok {
+            switch r.frequency {
+            case .daily:
+                ok = (r.daysOfTheWeek ?? []).isEmpty && empty(r.daysOfTheMonth) && empty(r.monthsOfTheYear)
+            case .weekly:
+                ok = empty(r.daysOfTheMonth) && empty(r.monthsOfTheYear)
+                let days = r.daysOfTheWeek ?? []
+                if ok, days.contains(where: { $0.weekNumber != 0 }) { ok = false }
+                if ok, !days.isEmpty { byDay = Array(Set(days.map { $0.dayOfTheWeek.rawValue - 1 })).sorted() }
+            case .monthly:
+                ok = (r.daysOfTheWeek ?? []).isEmpty && empty(r.monthsOfTheYear)
+                if ok, let dm = r.daysOfTheMonth, !dm.isEmpty { ok = dm.count == 1 && dm[0].intValue == comps.day }
+            case .yearly:
+                ok = (r.daysOfTheWeek ?? []).isEmpty
+                if ok, let dm = r.daysOfTheMonth, !dm.isEmpty { ok = dm.count == 1 && dm[0].intValue == comps.day }
+                if ok, let mo = r.monthsOfTheYear, !mo.isEmpty { ok = mo.count == 1 && mo[0].intValue == comps.month }
+            @unknown default:
+                ok = false
+            }
+        }
+        guard ok else { return (NSNull(), text) }
+        var d: [String: Any] = ["freq": unit]
+        if let b = byDay { d["byDay"] = b }
+        if let e = r.recurrenceEnd {
+            if e.occurrenceCount > 0 {
+                d["count"] = e.occurrenceCount
+            } else if let ed = e.endDate {
+                let df = DateFormatter()
+                df.calendar = Calendar(identifier: .gregorian)
+                df.locale = Locale(identifier: "en_US_POSIX")
+                df.timeZone = TimeZone.current
+                df.dateFormat = "yyyy-MM-dd"
+                d["until"] = df.string(from: ed)
+            }
+        }
+        return (d, text)
+    }
+
+    /// iPhone 由来（ext）の予定の特定。URL は使わない。itemId → externalId → eventId の順で系列を取り、
+    /// occurrenceStart と currentStart それぞれの前後 [-1日, +2日] の窓の和集合から occurrenceDate で回を選ぶ。
+    /// externalId が複数なら選ばず曖昧。動かした回を start では同定しない。呼ぶのは EventKit の直列 queue 上。
+    private func findExtTarget(itemId: String, externalId: String, eventId: String,
+                               occ: String, occDate: Date, curDate: Date, _ f: DateFormatter) -> Found {
+        var base: EKEvent? = nil
+        if !itemId.isEmpty, let it = store.calendarItem(withIdentifier: itemId) as? EKEvent {
+            base = it
+        } else if !externalId.isEmpty {
+            let items = store.calendarItems(withExternalIdentifier: externalId).compactMap { $0 as? EKEvent }
+            if items.count == 1 { base = items[0] } else if items.count > 1 { return .ambiguous }
+        }
+        if base == nil, !eventId.isEmpty, let e = store.event(withIdentifier: eventId) { base = e }
+        guard let b = base else { return .notFound }
+        let ext = b.calendarItemExternalIdentifier ?? ""
+        var seen = Set<String>()
+        var matches: [EKEvent] = []
+        for d in [occDate, curDate] {
+            let p = store.predicateForEvents(withStart: d.addingTimeInterval(-86400), end: d.addingTimeInterval(86400 * 2), calendars: nil)
+            for e in store.events(matching: p) {
+                let same = e.calendarItemIdentifier == b.calendarItemIdentifier
+                    || (!ext.isEmpty && e.calendarItemExternalIdentifier == ext)
+                guard same, let od = e.occurrenceDate ?? e.startDate else { continue }
+                let stamp = f.string(from: od)
+                guard stamp == occ || (e.isAllDay && stamp.prefix(10) == occ.prefix(10)) else { continue }
+                let key = e.calendarItemIdentifier + "@" + stamp
+                if seen.insert(key).inserted { matches.append(e) }
+            }
+        }
+        if matches.count == 1 { return .found(matches[0]) }
+        if matches.count > 1 { return .ambiguous }
+        if !b.hasRecurrenceRules { return .found(b) }
+        return .notFound
+    }
+
+    @objc func getEvent(_ call: CAPPluginCall) {
+        guard ensureAccess(call) else { return }
+        let f = makeFormatter()
+        let itemId = call.getString("itemId") ?? ""
+        let externalId = call.getString("externalId") ?? ""
+        let eventId = call.getString("eventId") ?? ""
+        guard !(itemId.isEmpty && externalId.isEmpty && eventId.isEmpty),
+              let occ = call.getString("occurrenceStart"), let occDate = parse(occ, f),
+              let cur = call.getString("currentStart"), let curDate = parse(cur, f) else {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            switch self.findExtTarget(itemId: itemId, externalId: externalId, eventId: eventId,
+                                      occ: occ, occDate: occDate, curDate: curDate, f) {
+            case .notFound:
+                call.reject("event not found", "NOT_FOUND")
+            case .ambiguous:
+                call.reject("event is ambiguous", "UNAVAILABLE")
+            case .found(let ev):
+                let cal = self.makeCalendar()
+                guard let r = self.serializeEvent(ev, f, cal) else {
+                    call.reject("event not found", "NOT_FOUND")
+                    return
+                }
+                var d = r.dict
+                let al = self.reverseAlarms(ev)
+                let rr = self.reverseRule(ev, cal)
+                let calendar = ev.calendar
+                let sourceType = calendar?.source != nil ? self.sourceTypeString(calendar!.source.sourceType) : "unknown"
+                let allowsModify = calendar?.allowsContentModifications ?? false
+                let hasAttendees = !(ev.attendees ?? []).isEmpty
+                let isOrganizer = ev.organizer?.isCurrentUser ?? false
+                var reason: Any = NSNull()
+                if sourceType == "birthdays" || calendar?.type == .birthday {
+                    reason = "birthdays"
+                } else if !allowsModify {
+                    reason = "readOnlyCalendar"
+                } else if hasAttendees {
+                    reason = isOrganizer ? "organizerWithAttendees" : "invitee"
+                }
+                // 系列の先頭は EventKit から一意に取れたときだけ（規則からは推測しない）。
+                var seriesStart: Any = NSNull()
+                if !ev.hasRecurrenceRules {
+                    seriesStart = d["start"] as Any
+                } else if !ev.isDetached,
+                          let head = self.store.calendarItem(withIdentifier: ev.calendarItemIdentifier) as? EKEvent,
+                          head.hasRecurrenceRules, let hs = head.startDate {
+                    seriesStart = f.string(from: head.isAllDay ? cal.startOfDay(for: hs) : hs)
+                }
+                d["alarms"] = al.alarms
+                d["alarmsExtra"] = al.extra
+                d["rule"] = rr.rule
+                d["ruleText"] = rr.text
+                d["detached"] = ev.isDetached
+                d["allowsModify"] = allowsModify
+                d["sourceType"] = sourceType
+                d["hasAttendees"] = hasAttendees
+                d["isOrganizer"] = isOrganizer
+                d["hasUrl"] = ev.url != nil
+                d["editable"] = reason is NSNull
+                d["reason"] = reason
+                d["seriesStart"] = seriesStart
+                call.resolve(d)
+            }
         }
     }
 
