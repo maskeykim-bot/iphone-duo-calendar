@@ -53,3 +53,10 @@ export function reminderErrText(e, fallback) {
     default: return fallback;
   }
 }
+
+// 触覚（PR27）。kind: 'light'（刻みの変化）| 'warning'。非ネイティブ・失敗は無操作。不正な kind は INVALID_ARGUMENT で拒否。
+export function haptic(kind = 'light') {
+  if (kind !== 'light' && kind !== 'warning') return Promise.reject({ code: 'INVALID_ARGUMENT', message: 'kind' });
+  if (!nativeAvailable()) return Promise.resolve({ performed: false });
+  return call('selectionHaptic', { kind }).then((r) => ({ performed: !!r?.performed }), () => ({ performed: false }));
+}

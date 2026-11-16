@@ -1,7 +1,7 @@
 import * as db from './db.js';
 import { SAMPLE } from './sample.js';
 import { initSwipe } from './swipe.js';
-import { initDirectInput, dayRange, rangeText, minutesAt, dragRange, tapRange, moveHandle, spanText, hm as hmText, snap15 } from './direct-input.js';
+import { initDirectInput, dayRange, rangeText, minutesAt, dragRange, tapRange, moveHandle, spanText, hm as hmText, snap15, edgeZone, edgeVelocity, createDwell, createFrameLoop } from './direct-input.js';
 import { occurrenceAt, parseOccId, planDelete, planEdit, editInfo, normRule } from './recur.js';
 import { bumpRevision, occBetween } from './occcache.js';
 import { LIMIT, groupByDay, highlight, excerpt, searchEvents, searchMemos } from './search.js';
@@ -12,7 +12,7 @@ import { rokuyoOf } from './rokuyo.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS } from './pages.js';
 import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.js';
 import { DELETE_UNDO_MS, checkReminderAccess, requestReminderAccess, taskAccessHtml, createReminderLoader, tasksHtml, HIST_DAYS, createAddController, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDoneController, TASK_CONFLICT, createDeleteController, TASK_DELETED, TASK_DELETE_CONFLICT, normRemSettings, shownListIds, pruneRemSettings, resolveAddList, filterByLists, dueCounts } from './reminders.js';
-import { call, errCode, errReason, errText, listen, nativeAvailable, reminderErrText } from './native.js';
+import { call, errCode, errReason, errText, haptic, listen, nativeAvailable, reminderErrText } from './native.js';
 import { buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, pickAddCal, planNativeOps, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
 import {
   DOW, addDays, addMonths, assignSharedLanes, dayLabel, dayOf, dkey, eventsOnDay, isKey, isMulti,
@@ -131,13 +131,14 @@ function reveal(el) {
   else if (a.bottom > b.bottom - pad) sc.scrollTop += a.bottom - (b.bottom - pad);
 }
 let vpRaf = 0;
+let directCtl = null; // 直接入力の制御（回転で取り消す）
 function vpSchedule() { cancelAnimationFrame(vpRaf); vpRaf = requestAnimationFrame(vpTick); }
 function vpTick() {
   const changed = measureL();
   const { kb } = updateVars();
   const sc = safeChanged();
   updateDiagnostics();
-  if (changed || sc) render();
+  if (changed || sc) { directCtl?.cancel('rotate'); render(); }
   const a = document.activeElement;
   if (kb && isTextEl(a)) {
     const d = a.closest('dialog');
@@ -3638,30 +3639,79 @@ function directOrigin(t) {
 }
 const dragAt = (y, o) => { const col = colOf(o.pane, o.day); return col ? minAtY(y, col, o.pane) : null; };
 const DIR = { anchor: 0 };
-initDirectInput({
+// 端スクロール（PR27）。時間軸＝上下40ptで毎秒120pt、月＝上下40ptに600ms滞在で前後の月。タイマー・rAF は終了・取消・回転で必ず解放する。
+const EG = { x: 0, y: 0, tl: null, carry: 0, origin: null };
+const feel = (kind = 'light') => { haptic(kind).catch(() => {}); };
+const monthBounds = () => {
+  const ws = [...monthScope().querySelectorAll('.week')].map((w) => w.getBoundingClientRect()).filter((r) => r.height > 0);
+  return ws.length ? { top: Math.min(...ws.map((r) => r.top)), bottom: Math.max(...ws.map((r) => r.bottom)) } : null;
+};
+function timeRecalc() {
+  if (DF.mode !== 'drag' || EG.origin?.kind !== 'time') return;
+  const m = dragAt(EG.y, EG.origin); if (m == null) return;
+  const r = dragRange(DIR.anchor, m);
+  if (r.start !== DF.start || r.end !== DF.end) { Object.assign(DF, r); paintDraft(); feel('light'); }
+}
+const edgeLoop = createFrameLoop((dt) => {
+  const o = EG.origin;
+  if (!o || o.kind !== 'time' || DF.mode !== 'drag') return;
+  const tl = EG.tl?.isConnected ? EG.tl : (EG.tl = colOf(o.pane, o.day)?.closest('.tl') ?? null);
+  if (!tl) return;
+  const rc = tl.getBoundingClientRect(), v = edgeVelocity(EG.y, rc.top, rc.bottom);
+  if (!v) { EG.carry = 0; return; }
+  const d = v * dt + EG.carry, w = Math.trunc(d);
+  EG.carry = d - w;
+  if (!w) return;
+  const before = tl.scrollTop; tl.scrollTop = before + w;
+  if (tl.scrollTop !== before) timeRecalc();
+});
+const monthDwell = createDwell({
+  fire: (dir) => {
+    if (MR.mode !== 'drag') return;
+    swipePane = null; swipeMove(dir);
+    requestAnimationFrame(() => { // 移動後の画面で、指の下の日へ終了日を合わせる（起点 MR.anchor は日付キーのまま保持）
+      if (MR.mode !== 'drag') return;
+      const k = dayAtPoint(EG.x, EG.y, monthScope());
+      if (k && k !== MR.cur) { MR.cur = k; feel('light'); }
+      paintRange();
+    });
+  },
+});
+function monthEdgeUpdate() {
+  const b = monthBounds();
+  monthDwell.update(b ? edgeZone(EG.y, b.top, b.bottom) : 0);
+}
+function stopEdge() { edgeLoop.stop(); monthDwell.stop(); EG.tl = null; EG.carry = 0; EG.origin = null; }
+directCtl = initDirectInput({
   root, swipe: swipeCtl,
   classify: (t) => directOrigin(t),
-  onStart: ({ origin: o, y }) => {
-    if (o.kind === 'month') { Object.assign(MR, { mode: 'drag', anchor: o.day, cur: o.day, side: o.side }); paintRange(); return; }
+  onStart: ({ origin: o, x, y }) => {
+    EG.x = x; EG.y = y; EG.origin = o; EG.carry = 0; EG.tl = null;
+    if (o.kind === 'month') {
+      Object.assign(MR, { mode: 'drag', anchor: o.day, cur: o.day, side: o.side }); paintRange(); feel('light');
+      monthEdgeUpdate(); return;
+    }
     if (o.kind !== 'time') return;
     const m = dragAt(y, o); if (m == null) return;
     DIR.anchor = m;
     Object.assign(DF, { mode: 'drag', day: o.day, pane: o.pane, anchor: m }, dragRange(m, m));
-    paintDraft();
+    paintDraft(); feel('light');
+    edgeLoop.start();
   },
   onMove: ({ x, y, origin: o }) => {
+    EG.x = x; EG.y = y;
     if (o.kind === 'month') {
       if (MR.mode !== 'drag') return;
       const k = dayAtPoint(x, y, monthScope());
-      if (k && k !== MR.cur) { MR.cur = k; paintRange(); }
+      if (k && k !== MR.cur) { MR.cur = k; paintRange(); feel('light'); }
+      monthEdgeUpdate();
       return;
     }
     if (o.kind !== 'time' || DF.mode !== 'drag') return;
-    const m = dragAt(y, o); if (m == null) return;
-    const r = dragRange(DIR.anchor, m);
-    if (r.start !== DF.start || r.end !== DF.end) { Object.assign(DF, r); paintDraft(); }
+    timeRecalc();
   },
   onEnd: ({ x, y, origin: o }) => {
+    stopEdge();
     if (o.kind === 'month') {
       if (MR.mode !== 'drag') return;
       const k = dayAtPoint(x, y, monthScope()); if (k) MR.cur = k;
@@ -3672,9 +3722,11 @@ initDirectInput({
     const m = dragAt(y, o); if (m != null) Object.assign(DF, dragRange(DIR.anchor, m));
     openDraft();
   },
-  onCancel: () => { if (DF.mode === 'drag') clearDraftBox(); if (MR.mode === 'drag') clearRange(); },
+  onCancel: () => { stopEdge(); if (DF.mode === 'drag') clearDraftBox(); if (MR.mode === 'drag') clearRange(); },
 });
-
+// 回転・ページ破棄では入力中の枠を取り消す（指の下の座標系が変わるため）。
+window.addEventListener('orientationchange', () => directCtl?.cancel('rotate'));
+window.addEventListener('pagehide', () => directCtl?.cancel('pagehide'));
 
 // ---------- 月の期間入力（PR26）。MR は描画だけの状態（DB・native へは書かない） ----------
 // mode: 'drag'＝長押しドラッグ中／'kbd'＝VoiceOver 等のボタン操作／'sheet'＝編集シート中。日付キーで持つので、再描画・全表示の仮想化にも追従する。

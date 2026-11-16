@@ -56,6 +56,49 @@ export function rangeText(from, to) {
   return `${m(start)}月${d(start)}日〜${m(end) === m(start) ? '' : `${m(end)}月`}${d(end)}日（${days}日間）`;
 }
 
+// ---- 端スクロール（PR27）。DOM非依存の純関数＋注入できるループ ----
+export const EDGE = 40, EDGE_RATE = 120, MONTH_DWELL_MS = 600;
+// 領域 [top,bottom) の上端・下端 EDGE に入っていれば -1（上）/ +1（下）、そうでなければ 0。
+export function edgeZone(y, top, bottom, edge = EDGE) {
+  if (!(bottom > top)) return 0;
+  const e = Math.min(edge, (bottom - top) / 2);
+  if (y < top + e) return -1;
+  if (y > bottom - e) return 1;
+  return 0;
+}
+// 時間軸の自動スクロール速度（pt/秒、符号つき）。毎秒120pt（基準60pt/時＝1秒に2時間）。一定速度。
+export const edgeVelocity = (y, top, bottom, rate = EDGE_RATE) => edgeZone(y, top, bottom) * rate;
+// 領域の端に居続けたら一度だけ fire(dir) する。端を離れる／反対側へ移ると仕切り直し。発火後は離れて入り直すまで再発火しない。
+export function createDwell({ fire, ms = MONTH_DWELL_MS, setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
+  let zone = 0, timer = 0, fired = false;
+  const stop = () => { clearTimer(timer); timer = 0; zone = 0; fired = false; };
+  return {
+    stop,
+    get zone() { return zone; },
+    update(z) {
+      if (z === zone) return;
+      clearTimer(timer); timer = 0; zone = z; fired = false;
+      if (z) timer = setTimer(() => { timer = 0; if (zone === z && !fired) { fired = true; fire?.(z); } }, ms);
+    },
+  };
+}
+// 毎フレーム step(dtSec) を呼ぶループ。start/stop で開始・解放（stop 後は何も呼ばない）。
+export function createFrameLoop(step, { raf = (f) => requestAnimationFrame(f), caf = (h) => cancelAnimationFrame(h), now = () => performance.now() } = {}) {
+  let h = 0, t = 0, on = false;
+  const tick = (ts) => {
+    if (!on) return;
+    const n = typeof ts === 'number' ? ts : now();
+    const dt = Math.min(0.1, Math.max(0, (n - t) / 1000)); t = n;
+    step(dt);
+    if (on) h = raf(tick);
+  };
+  return {
+    get active() { return on; },
+    start() { if (on) return; on = true; t = now(); h = raf(tick); },
+    stop() { on = false; if (h) caf(h); h = 0; },
+  };
+}
+
 // ---- 状態機械（DOM非依存。タイマーと時計を注入できる） ----
 export function createPressMachine({ onConfirm, onMove, onEnd, onCancel, onRelease, holdMs = HOLD_MS, slop = SLOP,
   now = () => performance.now(), setTimer = setTimeout, clearTimer = clearTimeout } = {}) {

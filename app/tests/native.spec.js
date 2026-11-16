@@ -81,6 +81,9 @@ async function mock(page, cfg = {}) {
             M.pending = items.filter((i) => { const keep = i.fireDate > '2026-11-14T00:00'; if (!keep) skipped++; return keep; });
             return { scheduled: M.pending.length, removed, skipped };
           }
+          case 'selectionHaptic': // Swift の契約の写し: kind は light|warning だけ。main で UIFeedbackGenerator を鳴らす。
+            if (!['light', 'warning'].includes(opts.kind)) throw { code: 'INVALID_ARGUMENT', message: 'x' };
+            return { performed: true };
           case 'notifyClear': { const n = M.pending.length; M.pending = []; return { removed: n }; }
           case 'notifyTest': if (!['granted', 'provisional', 'ephemeral'].includes(M.notif)) throw { code: 'PERMISSION_DENIED', message: 'x' }; return { scheduled: true };
           default: throw { code: 'UNAVAILABLE', message: method };
@@ -139,6 +142,15 @@ test.describe('通知ブリッジ契約（偽装。Swift 実動作の証明で�
       return [a.status, b.status, c.status];
     });
     expect(r).toEqual(['notDetermined', 'denied', 'denied']);
+  });
+
+  test('selectionHaptic: light/warning は performed、kind 不正は INVALID_ARGUMENT。native.js の haptic 経由', async ({ page }) => {
+    await mock(page); await openApp(page);
+    const o = await page.evaluate(async () => {
+      const { haptic, call, errCode } = await import('./js/native.js');
+      return { a: await haptic('light'), b: await haptic('warning'), c: await call('selectionHaptic', { kind: 'x' }).catch(errCode), d: await call('selectionHaptic', {}).catch(errCode), e: await haptic('x').catch(errCode) };
+    });
+    expect(o).toEqual({ a: { performed: true }, b: { performed: true }, c: 'INVALID_ARGUMENT', d: 'INVALID_ARGUMENT', e: 'INVALID_ARGUMENT' });
   });
 
   test('notifySync: 件数・skipped・removed、61件と構造不正は INVALID_ARGUMENT、未許可は PERMISSION_DENIED', async ({ page }) => {

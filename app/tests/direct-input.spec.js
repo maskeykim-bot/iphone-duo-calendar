@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, loadSample, SIZES, tab, seed, ev } from './helpers.js';
+import { openApp, loadSample, SIZES, tab, seed, ev, period } from './helpers.js';
 
 // PR24: 共通制御（DOM 接続）。画面への本接続は次PR。ここでは initDirectInput を単体の場にぶら下げて確認する。
 const setup = (page) => page.evaluate(async () => {
@@ -264,5 +264,199 @@ test.describe('月の期間入力 その他', () => {
     await expect(page.locator('#f-start')).toHaveValue('2026/11/12');
     await expect(page.locator('#f-end')).toHaveValue('2026/11/14');
     expect(await dbCount(page)).toBe(0);
+  });
+});
+
+// ---- PR27: 端スクロールと触覚 ----
+const HAPTIC_MOCK = () => {
+  const M = window.__hap = { calls: [] };
+  window.Capacitor = {
+    isNativePlatform: () => true, getPlatform: () => 'ios', nativeCallback: () => 'cb',
+    nativePromise: async (plugin, method, opts) => {
+      M.calls.push({ method, opts: JSON.parse(JSON.stringify(opts)) });
+      if (method === 'selectionHaptic') return { performed: true };
+      throw { code: 'UNAVAILABLE', message: method };
+    },
+  };
+};
+const tlRect = (page, nth = 0) => page.locator('.tl').nth(nth).evaluate((t) => { const r = t.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, st: t.scrollTop }; });
+const scrollOf = (page) => page.locator('.tlcol').first().evaluate((c) => c.closest('.tl').scrollTop);
+
+test.describe('端スクロール: 時間軸', () => {
+  test.beforeEach(async ({ page }) => { await openApp(page, SIZES.openLandscape951); await expect(page.locator('.tlcol').first()).toBeVisible(); });
+
+  test('下端40ptで毎秒約120ptずつ進み、枠が伸びる。中央へ戻すと止まり、逆は上へ戻る。離した後は動かない', async ({ page }) => {
+    const p = await pointAt(page, 10 * 60 + 5);
+    const tl = await tlRect(page);
+    await press(page, p);
+    const s0 = await scrollOf(page);
+    await page.mouse.move(p.x, tl.bottom - 20, { steps: 4 });
+    await page.waitForTimeout(1000);
+    const s1 = await scrollOf(page);
+    expect(s1 - s0).toBeGreaterThan(60); expect(s1 - s0).toBeLessThan(180); // 約1秒で120pt（フレームのばらつきを許す）
+    const end1 = await page.evaluate(() => window.__t = document.querySelector('.dbox .ds').textContent);
+    expect(end1).toMatch(/^10:00〜/); expect(end1).not.toBe('10:00〜10:30（30分）');
+    await page.mouse.move(p.x, (tl.top + tl.bottom) / 2, { steps: 4 }); // 中央へ → 止まる
+    await page.waitForTimeout(150);
+    const s2 = await scrollOf(page); await page.waitForTimeout(400);
+    expect(await scrollOf(page)).toBe(s2);
+    await page.mouse.move(p.x, tl.top + 15, { steps: 4 }); // 上端 → 逆戻り（枠は縮む）
+    await page.waitForTimeout(700);
+    expect(await scrollOf(page)).toBeLessThan(s2);
+    await page.mouse.move(p.x, tl.bottom - 20, { steps: 3 });
+    await page.mouse.up();
+    await expect(page.locator('#editor')).toBeVisible();
+    await expect(page.locator('#f-start')).toHaveValue('2026/11/12 10:00');
+    const s3 = await scrollOf(page); await page.waitForTimeout(400);
+    expect(await scrollOf(page)).toBe(s3); // ループ解放
+    expect(await dbCount(page)).toBe(0);
+  });
+
+  test('ペン: 長押しなしで即入力。端以外では動かしてもスクロールしない', async ({ page }) => {
+    const p = await pointAt(page, 10 * 60 + 5);
+    const s0 = await scrollOf(page);
+    const fire = (type, y) => page.evaluate(({ type, x, y }) => {
+      const el = type === 'pointerdown' ? document.elementFromPoint(x, y) : window;
+      el.dispatchEvent(new PointerEvent(type, { pointerId: 7, pointerType: 'pen', isPrimary: true, clientX: x, clientY: y, bubbles: true, cancelable: true, button: 0 }));
+    }, { type, x: p.x, y });
+    await fire('pointerdown', p.y);
+    await expect(page.locator('.dbox')).toHaveCount(1); // 350ms 待たず確定
+    await fire('pointermove', p.y + 60);
+    await page.waitForTimeout(300);
+    expect(await scrollOf(page)).toBe(s0);
+    await expect(page.locator('.dbox .ds')).not.toHaveText('10:00〜10:30（30分）');
+    await fire('pointerup', p.y + 60);
+    await expect(page.locator('#editor')).toBeVisible();
+  });
+
+  test('回転（viewport 変更）で取り消され、枠が消え、スクロールも止まる。離しても何も開かない', async ({ page }) => {
+    const p = await pointAt(page, 10 * 60 + 5);
+    const tl = await tlRect(page);
+    await press(page, p);
+    await page.mouse.move(p.x, tl.bottom - 20, { steps: 3 });
+    await page.waitForTimeout(200);
+    await page.evaluate(() => window.dispatchEvent(new Event('orientationchange')));
+    await expect(page.locator('.dbox')).toHaveCount(0);
+    const s = await scrollOf(page); await page.waitForTimeout(400);
+    expect(await scrollOf(page)).toBe(s);
+    await page.mouse.up();
+    await expect(page.locator('#editor')).toBeHidden();
+    expect(await dbCount(page)).toBe(0);
+  });
+
+  test('reduced motion でも端スクロールは働く', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const p = await pointAt(page, 10 * 60 + 5);
+    const tl = await tlRect(page);
+    await press(page, p);
+    const s0 = await scrollOf(page);
+    await page.mouse.move(p.x, tl.bottom - 20, { steps: 3 });
+    await page.waitForTimeout(600);
+    expect(await scrollOf(page)).toBeGreaterThan(s0 + 30);
+    await page.mouse.up();
+    await expect(page.locator('#editor')).toBeVisible();
+  });
+});
+
+test.describe('端スクロール: 月（滞在で前後の月）', () => {
+  test.beforeEach(async ({ page }) => { await openApp(page, SIZES.closedPortrait); await tab(page, '月').click(); await expect(page.locator('.day[data-date="2026-11-18"]').first()).toBeVisible(); });
+  const gridEdge = (page) => page.evaluate(() => { const ws = [...document.querySelectorAll('.week')].map((w) => w.getBoundingClientRect()); return { top: Math.min(...ws.map((r) => r.top)), bottom: Math.max(...ws.map((r) => r.bottom)) }; });
+
+  test('下端に600ms滞在で次の月へ1回だけ。起点の日付は保持され、離れて入り直すと再び進む', async ({ page }) => {
+    const a = await dayCenter(page, '2026-11-18'), g = await gridEdge(page);
+    const before = await period(page);
+    await monthPress(page, a);
+    await page.mouse.move(a.x, g.bottom - 12, { steps: 5 });
+    await page.waitForTimeout(300);
+    expect(await period(page)).toBe(before); // 600ms 未満では動かない
+    await page.waitForTimeout(500);
+    const after = await period(page);
+    expect(after).not.toBe(before);
+    await expect(page.locator('.mrtag')).toContainText('11月18日〜');
+    await page.waitForTimeout(900); // 居続けても2回目は進まない
+    expect(await period(page)).toBe(after);
+    const g2 = await gridEdge(page);
+    await page.mouse.move(a.x, (g2.top + g2.bottom) / 2, { steps: 4 });
+    await page.mouse.move(a.x, g2.bottom - 12, { steps: 4 }); // 入り直し
+    await page.waitForTimeout(800);
+    expect(await period(page)).not.toBe(after);
+    await page.mouse.up();
+    await expect(page.locator('#editor')).toBeVisible();
+    await expect(page.locator('#f-all')).toBeChecked();
+    await expect(page.locator('#f-start')).toHaveValue('2026/11/18');
+    expect(await dbCount(page)).toBe(0);
+  });
+
+  test('上端に滞在で前の月、reduced motion でも動く。離した後はタイマーが残らない', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const a = await dayCenter(page, '2026-11-18'), g = await gridEdge(page);
+    const before = await period(page);
+    await monthPress(page, a);
+    await page.mouse.move(a.x, g.top + 12, { steps: 5 });
+    await page.waitForTimeout(300);
+    await page.mouse.up(); // 滞在中に離す → 発火しない
+    await expect(page.locator('#editor')).toBeVisible();
+    await page.waitForTimeout(700);
+    expect(await period(page)).toBe(before);
+    await page.keyboard.press('Escape');
+    await monthPress(page, a);
+    await page.mouse.move(a.x, g.top + 12, { steps: 5 });
+    await page.waitForTimeout(800);
+    expect(await period(page)).not.toBe(before);
+    await page.mouse.up();
+  });
+
+  test('回転で取り消すと滞在タイマーも解放され月は動かない', async ({ page }) => {
+    const a = await dayCenter(page, '2026-11-18'), g = await gridEdge(page);
+    const before = await period(page);
+    await monthPress(page, a);
+    await page.mouse.move(a.x, g.bottom - 12, { steps: 5 });
+    await page.evaluate(() => window.dispatchEvent(new Event('orientationchange')));
+    await expect(page.locator('.day.msel')).toHaveCount(0);
+    await page.waitForTimeout(900);
+    expect(await period(page)).toBe(before);
+    await page.mouse.up();
+  });
+});
+
+test.describe('触覚', () => {
+  test('ネイティブ: 長押し確定と刻み変更だけ light を呼ぶ（同じ刻みでは呼ばない）', async ({ page }) => {
+    await page.addInitScript(HAPTIC_MOCK);
+    await openApp(page, SIZES.openLandscape951); await expect(page.locator('.tlcol').first()).toBeVisible();
+    const hap = () => page.evaluate(() => window.__hap.calls.filter((c) => c.method === 'selectionHaptic').map((c) => c.opts.kind));
+    const p = await pointAt(page, 10 * 60 + 5), hh = await hhOfCol(page, '.tlcol');
+    await press(page, p);
+    expect(await hap()).toEqual(['light']);
+    await page.mouse.move(p.x, p.y + 3); // 同じ刻み
+    await page.waitForTimeout(100);
+    expect(await hap()).toEqual(['light']);
+    await page.mouse.move(p.x, p.y + hh * 0.5, { steps: 4 }); // +30分 = 2刻み以上
+    await page.waitForTimeout(100);
+    const n = (await hap()).length;
+    expect(n).toBeGreaterThanOrEqual(2); expect(n).toBeLessThanOrEqual(5);
+    await page.mouse.up();
+  });
+  test('ネイティブ: 月の長押しと日の変化で light', async ({ page }) => {
+    await page.addInitScript(HAPTIC_MOCK);
+    await openApp(page, SIZES.closedPortrait); await tab(page, '月').click();
+    const a = await dayCenter(page, '2026-11-18'), b = await dayCenter(page, '2026-11-19');
+    await monthPress(page, a);
+    const cnt = () => page.evaluate(() => window.__hap.calls.filter((c) => c.method === 'selectionHaptic').length);
+    expect(await cnt()).toBe(1);
+    await page.mouse.move(b.x, b.y, { steps: 3 });
+    await expect.poll(cnt).toBe(2);
+    await page.mouse.up();
+  });
+  test('非ネイティブでは何も呼ばず入力は普通に動く。kind 不正は INVALID_ARGUMENT', async ({ page }) => {
+    await openApp(page, SIZES.openLandscape951); await expect(page.locator('.tlcol').first()).toBeVisible();
+    const p = await pointAt(page, 10 * 60 + 5);
+    await press(page, p);
+    await expect(page.locator('.dbox')).toHaveCount(1);
+    await page.mouse.up();
+    const r = await page.evaluate(async () => {
+      const { haptic } = await import('./js/native.js');
+      return { a: await haptic('light'), b: await haptic('warning'), c: await haptic('bad').catch((e) => e.code), d: await haptic(undefined) };
+    });
+    expect(r).toEqual({ a: { performed: false }, b: { performed: false }, c: 'INVALID_ARGUMENT', d: { performed: false } });
   });
 });

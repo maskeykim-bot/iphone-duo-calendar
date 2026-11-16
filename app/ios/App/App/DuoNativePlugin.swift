@@ -37,7 +37,8 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         CAPPluginMethod(name: "requestNotifyPermission", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "notifySync", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "notifyClear", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "notifyTest", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "notifyTest", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "selectionHaptic", returnType: CAPPluginReturnPromise)
     ]
 
     private let store = EKEventStore()
@@ -2265,6 +2266,26 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
                 }
             }
             finished.wait()
+        }
+    }
+
+    // 触覚（第14版 PR27）。kind は 'light'（UISelectionFeedbackGenerator）/ 'warning'（UINotificationFeedbackGenerator）。main で実行する。
+    @objc func selectionHaptic(_ call: CAPPluginCall) {
+        guard let kind = call.getString("kind"), kind == "light" || kind == "warning" else {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        DispatchQueue.main.async {
+            if kind == "light" {
+                let g = UISelectionFeedbackGenerator()
+                g.prepare()
+                g.selectionChanged()
+            } else {
+                let g = UINotificationFeedbackGenerator()
+                g.prepare()
+                g.notificationOccurred(.warning)
+            }
+            call.resolve(["performed": true])
         }
     }
 

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createPressMachine, minutesAt, dragRange, dayAt, dayRange, rangeText, snap15 } from '../js/direct-input.js';
+import { createPressMachine, minutesAt, dragRange, dayAt, dayRange, rangeText, snap15, edgeZone, edgeVelocity, createDwell, createFrameLoop } from '../js/direct-input.js';
 
 function rig(extra = {}) {
   let t = 0, timers = [];
@@ -102,4 +102,35 @@ test('rangeText: 同月・月またぎ・1日・逆方向', () => {
   assert.equal(rangeText('2026-11-18', '2026-11-20'), '11月18日〜20日（3日間）');
   assert.equal(rangeText('2026-12-02', '2026-11-30'), '11月30日〜12月2日（3日間）');
   assert.equal(rangeText('2026-11-18', '2026-11-18'), '11月18日（1日）');
+});
+
+// ---- PR27: 端スクロール ----
+test('edgeZone/edgeVelocity: 上下40ptで毎秒±120pt、中央は0', () => {
+  assert.equal(edgeZone(100, 100, 500), -1); assert.equal(edgeZone(139, 100, 500), -1); assert.equal(edgeZone(140, 100, 500), 0);
+  assert.equal(edgeZone(460, 100, 500), 0); assert.equal(edgeZone(461, 100, 500), 1);
+  assert.equal(edgeVelocity(120, 100, 500), -120); assert.equal(edgeVelocity(480, 100, 500), 120); assert.equal(edgeVelocity(300, 100, 500), 0);
+  assert.equal(edgeZone(10, 100, 100), 0);
+});
+function dw() {
+  let timers = [], n = 0; const fired = [];
+  const d = createDwell({ fire: (z) => fired.push(z), setTimer: (f, ms) => { timers.push({ f, ms, id: ++n }); return n; }, clearTimer: (id) => { timers = timers.filter((t) => t.id !== id); } });
+  return { d, fired, timers: () => timers, run: () => { const t = timers.shift(); t?.f(); } };
+}
+test('createDwell: 滞在600msで1回だけ。居続けても再発火せず、離れて入り直すと再び', () => {
+  const r = dw(); r.d.update(1);
+  assert.equal(r.timers()[0].ms, 600); r.run(); assert.deepEqual(r.fired, [1]);
+  r.d.update(1); assert.equal(r.timers().length, 0);
+  r.d.update(0); r.d.update(1); r.run(); assert.deepEqual(r.fired, [1, 1]);
+});
+test('createDwell: 滞在前に離れる／反対側へ移るとタイマー解放、stop で空', () => {
+  const r = dw(); r.d.update(1); r.d.update(0); assert.equal(r.timers().length, 0);
+  r.d.update(-1); assert.equal(r.timers().length, 1); r.d.update(1); assert.equal(r.timers().length, 1);
+  r.d.stop(); assert.equal(r.timers().length, 0); assert.equal(r.fired.length, 0);
+});
+test('createFrameLoop: dt を渡し、stop 後は呼ばず rAF も残さない', () => {
+  let cb = null, id = 0, t = 0; const dts = [];
+  const l = createFrameLoop((dt) => dts.push(dt), { raf: (f) => { cb = f; return ++id; }, caf: () => { cb = null; }, now: () => t });
+  l.start(); l.start(); t = 500; cb(500); t = 516; cb(516);
+  assert.equal(dts[0], 0.1); assert.ok(Math.abs(dts[1] - 0.016) < 1e-9);
+  l.stop(); assert.equal(cb, null); assert.equal(l.active, false);
 });
