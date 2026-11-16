@@ -18,10 +18,11 @@ const full = () => ev('F', '2026-11-02T10:00', '2026-11-02T11:00', R('weekly', {
   overrides: { '2026-11-16T10:00': { title: '変更', categoryId: 'c-fam', all: false, start: '2026-11-16T14:00', end: '2026-11-16T15:00', place: '', notes: '', alarms: [{ before: 10 }, { before: 60 }], extra: { a: 1 } } },
 });
 
-test('バージョンは 3、schema と settings の形', () => {
+const DP = { left: 'month', right: 'time', portraitBottom: 'time', portraitShown: false };
+test('バージョンは 4、schema と settings の形', () => {
   const bk = buildBackup([], { ...settings, monthExpand: true, notify: { enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } } }, new Date(), cats);
-  assert.equal(bk.version, VERSION); assert.equal(VERSION, 3); assert.equal(bk.schema, 3);
-  assert.deepEqual(bk.settings, { view: 'month', style: 'simple', desk: false, monthExpand: true, notify: { enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } } });
+  assert.equal(bk.version, VERSION); assert.equal(VERSION, 4); assert.equal(bk.schema, 4);
+  assert.deepEqual(bk.settings, { view: 'month', style: 'simple', desk: false, monthExpand: true, rokuyo: true, pages: DP, notify: { enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } } });
   assert.equal(bk.categories.length, 2);
 });
 
@@ -51,7 +52,7 @@ test('表示用の項目（recurring / occKey / parentId / moved / origin）は�
 test('設定の往復（view/style/desk/monthExpand/notify）。未知のキーは無視', () => {
   const notify = { enabled: false, showTitle: true, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '09:30' } };
   const v = roundtrip([], { view: 'week', style: 'named', desk: true, monthExpand: true, weekStart: 0, notify });
-  assert.deepEqual(v.data.settings, { view: 'week', style: 'named', desk: true, monthExpand: true, weekStart: 0, notify });
+  assert.deepEqual(v.data.settings, { view: 'week', style: 'named', desk: true, monthExpand: true, rokuyo: true, pages: DP, weekStart: 0, notify });
   const w = validateBackup(file({ events: [], settings: { view: 'day', weekStart: 1, bogus: 1 } }));
   assert.deepEqual(w.data.settings, { view: 'day', weekStart: 1 });
   assert.equal(validateBackup(file({ events: [], settings: { weekStart: 2 } })).ok, false);
@@ -169,8 +170,8 @@ test('終了日より後の個別変更キーは捨てられ report.dropped=1（
   assert.equal(w.report.dropped, 2);
 });
 
-test('version: 4 → 拒否、1 → 受理、未知のトップレベルキー（ink）は無視して件数だけ数える', () => {
-  assert.equal(validateBackup(file({ version: 4, events: [] })).ok, false);
+test('version: 5 → 拒否、1 → 受理、未知のトップレベルキー（ink）は無視して件数だけ数える', () => {
+  assert.equal(validateBackup(file({ version: 5, events: [] })).ok, false);
   assert.equal(validateBackup(JSON.stringify({ app: 'duo-calendar', version: 1, exportedAt: '2026-11-12T09:41:00+09:00', events: [] })).ok, true);
   const v = validateBackup(file({ events: [], ink: [{ a: 1 }, { a: 2 }], other: 1 }));
   assert.equal(v.ok, true); assert.equal(v.report.ink, 2);
@@ -216,4 +217,60 @@ test('同じ ekIdentifier の予定は別 id・別 requestId でも追加の読�
   const b = ev('B', '2026-11-20T10:00', '2026-11-20T11:00', null, { title: '別名', nativeLink: { ...link, requestId: 'other' } });
   const p = planAppend([a], [b]);
   assert.equal(p.add.length, 0); assert.equal(p.dup, 1);
+});
+
+// ---------- v4: メモ・六曜・pages（第14版 PR10） ----------
+import { planMemos } from '../js/backup.js';
+const memo = (date, text, extra = {}) => ({ id: date, date, text, createdAt: 1000, updatedAt: 2000, ...extra });
+const f4 = (o) => file({ version: 4, events: [], ...o });
+
+test('v4: メモ・rokuyo・pages を書き出して往復する。タスクは含まれない', () => {
+  const bk = buildBackup([], { ...settings, rokuyo: false, pages: { left: 'memo', right: 'month', portraitBottom: 'memo', portraitShown: true } }, new Date(), cats, [{ ...memo('2026-11-20', 'b'), ink: null }, memo('2026-11-02', 'a')]);
+  assert.deepEqual(bk.memos.map((m) => m.date), ['2026-11-02', '2026-11-20']);
+  assert.equal(bk.settings.rokuyo, false); assert.equal(bk.settings.pages.left, 'memo');
+  assert.equal('tasks' in bk, false); assert.equal(JSON.stringify(bk).includes('"task"'), false);
+  const v = validateBackup(JSON.stringify(bk));
+  assert.equal(v.ok, true); assert.equal(v.data.memos.length, 2); assert.equal(v.data.settings.rokuyo, false); assert.deepEqual(v.data.settings.pages, bk.settings.pages);
+});
+
+test('v1〜3 は memos なし(null)、v4 の空配列は [] （置換で消す）', () => {
+  for (const version of [1, 2, 3]) assert.equal(validateBackup(file({ version, events: [], memos: [memo('2026-11-02', 'x')] })).data.memos, null);
+  assert.equal(validateBackup(f4({})).data.memos, null);
+  assert.deepEqual(validateBackup(f4({ memos: [] })).data.memos, []);
+});
+
+test('v4: rokuyo は全組合せ。不正はエラー、欠落は未指定（現在値保持）', () => {
+  for (const r of [true, false]) assert.equal(validateBackup(f4({ settings: { rokuyo: r } })).data.settings.rokuyo, r);
+  assert.equal(validateBackup(f4({ settings: { rokuyo: 'yes' } })).ok, false);
+  assert.equal('rokuyo' in validateBackup(f4({ settings: { view: 'day' } })).data.settings, false);
+  for (const left of ['month', 'time', 'task', 'memo']) for (const right of ['month', 'time', 'task', 'memo']) {
+    if (left === right) continue;
+    assert.equal(validateBackup(f4({ settings: { pages: { left, right, portraitBottom: 'task', portraitShown: true } } })).data.settings.pages.right, right);
+  }
+});
+
+test('v4: pages が不正ならその設定だけ捨てる（他は読む）', () => {
+  for (const pages of ['x', [], { left: 'zzz' }, { left: 'month', right: 'month' }, { portraitBottom: 'month' }, { portraitShown: 'yes' }]) {
+    const v = validateBackup(f4({ settings: { view: 'day', pages } }));
+    assert.equal(v.ok, true); assert.equal('pages' in v.data.settings, false); assert.equal(v.data.settings.view, 'day');
+  }
+});
+
+test('v4: メモの不正は読み込み全体を拒否', () => {
+  const bad = [
+    memo('2026-13-40', 'x'), memo('2026-11-02', 'x', { id: '2026-11-03' }), memo('2026-11-02', ''), memo('2026-11-02', '  \n'), memo('2026-11-02', 5),
+    memo('2026-11-02', 'x', { createdAt: 'a' }), memo('2026-11-02', 'x', { updatedAt: -1 }), memo('2026-11-02', 'x', { updatedAt: NaN }),
+  ];
+  for (const m of bad) assert.equal(validateBackup(f4({ memos: [memo('2026-11-01', 'ok'), m] })).ok, false);
+  assert.equal(validateBackup(f4({ memos: [memo('2026-11-02', 'a'), memo('2026-11-02', 'b')] })).ok, false);
+  assert.equal(validateBackup(f4({ memos: {} })).ok, false);
+});
+
+test('planMemos: 同日同文は追加なし、異文は空行で連結して1件、新しい日は追加', () => {
+  const cur = [memo('2026-11-02', 'A', { createdAt: 5 })];
+  const p = planMemos(cur, [memo('2026-11-02', 'A'), memo('2026-11-03', 'N')], 9);
+  assert.deepEqual([p.same, p.added, p.merged], [1, 1, 0]);
+  const q = planMemos(cur, [memo('2026-11-02', 'B')], 9);
+  assert.equal(q.puts.length, 1); assert.equal(q.puts[0].text, 'A\n\nB'); assert.equal(q.puts[0].createdAt, 5); assert.equal(q.puts[0].updatedAt, 9);
+  assert.equal(planAppend([], [], cur, [memo('2026-11-02', 'B')]).memo.merged, 1);
 });

@@ -551,7 +551,7 @@ test.describe('ネイティブ（偽装）', () => {
     expect(s[0].opts.mime).toBe('application/json');
     expect(s[0].opts.name).toMatch(/^duo-calendar-backup-\d{4}-\d{2}-\d{2}\.json$/);
     const json = JSON.parse(s[0].opts.text);
-    expect(json).toMatchObject({ app: 'duo-calendar', version: 3 });
+    expect(json).toMatchObject({ app: 'duo-calendar', version: 4 });
     expect(JSON.stringify(json)).not.toMatch(/歯医者/);
     expect(json.events[0].nativeLink).toEqual({ state: 'linked', requestId: 'r1', eventId: 'zzz', calendarId: 'cal-1' });
     // キャンセル（completed:false）は通知しない

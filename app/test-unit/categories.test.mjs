@@ -147,7 +147,7 @@ test('バックアップ v2（旧 cat）→ 固定 id に変換、ファイル�
   assert.deepEqual(r.data.categories.map((c) => c.name).sort(), ['ゴルフ', 'プライベート', '経済指標'].sort());
   assert.equal(r.data.categories.find((c) => c.id === CAT_IDS.economy).color, LEGACY.economy.color);
   assert.equal(r.data.hasCategories, false);
-  assert.equal(validateBackup(JSON.stringify({ ...file, version: 4 })).ok, false);
+  assert.equal(validateBackup(JSON.stringify({ ...file, version: 5 })).ok, false);
 });
 
 test('バックアップ: categoryId とカテゴリ一覧が往復する。不正なカテゴリは拒否', () => {

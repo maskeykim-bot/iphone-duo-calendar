@@ -4,7 +4,7 @@ import { initSwipe } from './swipe.js';
 import { occurrenceAt, parseOccId, planDelete, planEdit, editInfo, normRule } from './recur.js';
 import { bumpRevision, occBetween } from './occcache.js';
 import { LIMIT, groupByDay, highlight, excerpt, searchEvents } from './search.js';
-import { backupName, buildBackup, countStats, localIso, planAppend, validateBackup, MAX_BYTES } from './backup.js';
+import { backupName, buildBackup, countStats, localIso, planAppend, planMemos, validateBackup, MAX_BYTES } from './backup.js';
 import { CAT_IDS, LIMITS as CAT_LIMITS, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory } from './categories.js';
 import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAlarms, encAlarm, fireAt, nextNotifyText, normNotify, pastForNotify, planNotifications, MAX_PENDING, WINDOW_DAYS } from './notify.js';
 import { rokuyoOf } from './rokuyo.js';
@@ -876,7 +876,9 @@ root.addEventListener('compositionend', (ev) => {
   if (renderPending) { renderPending = false; render(); }
 });
 root.addEventListener('focusout', (ev) => { if (memoComposing && ev.target.closest?.('textarea.memota')) { memoComposing = false; if (renderPending) { renderPending = false; setTimeout(render, 0); } } });
-const flushMemosNow = () => { memoSync(); memoStore.flushAll(); };
+const flushMemosNow = () => { memoSync(); return memoStore.flushAll(); };
+// バックアップの前後: 未保存のメモを保存し終えるまで待つ。保存できなかった日があれば false。
+const flushMemosAwait = async () => { try { const r = await flushMemosNow(); return r.every((x) => x !== false) && !memoStore.anyDirty(); } catch { return false; } };
 document.addEventListener('visibilitychange', () => { if (document.hidden) flushMemosNow(); });
 window.addEventListener('pagehide', flushMemosNow);
 function renderPage(side, id) {
@@ -2014,7 +2016,7 @@ function renderBackup() {
   const dis = bk.busy ? ' disabled' : '';
   const st = countStats(state.events);
   if (bk.stage === 'main') {
-    BK.body.innerHTML = `<section class="card"><h3>書き出し</h3><p>予定${st.total}件・うち繰り返し${st.recurring}件／設定も含めて保存</p><button type="button" class="solid" id="bk-export"${dis}>JSONを書き出す</button><p class="small">iPhoneでは共有シートの『ファイルに保存』で残せます。</p>${bk.msg ? `<p class="bmsg">${esc(bk.msg)}</p>` : ''}</section>
+    BK.body.innerHTML = `<section class="card"><h3>書き出し</h3><p>予定${st.total}件・うち繰り返し${st.recurring}件／設定も含めて保存（日付のメモも含みます。タスクは含みません）</p><button type="button" class="solid" id="bk-export"${dis}>JSONを書き出す</button><p class="small">iPhoneでは共有シートの『ファイルに保存』で残せます。</p>${bk.msg ? `<p class="bmsg">${esc(bk.msg)}</p>` : ''}</section>
       <section class="card"><h3>読み込み</h3><p>書き出したJSONファイルから予定を戻します。</p><button type="button" id="bk-pick"${dis}>JSONファイルを選ぶ</button>${bk.busy ? '<p class="small" role="status">ファイルを検証しています…</p>' : ''}${bk.err ? `<p class="berr" role="alert">${esc(bk.err)}</p>` : ''}</section>`;
   } else if (bk.stage === 'invalid') {
     BK.body.innerHTML = `<section class="card"><h3>読み込めませんでした</h3><p class="berr" role="alert">このファイルは読み込めません。DuoのバックアップJSONを選んでください。</p><p class="small">ファイル：${esc(bk.name)}</p><p class="small">理由：${esc(bk.reason)}</p><p class="small">今の予定は変更していません。</p><button type="button" id="bk-pick">ファイルを選び直す</button><button type="button" id="bk-back" class="row cancel">戻る</button></section>`;
@@ -2023,10 +2025,10 @@ function renderBackup() {
     BK.body.innerHTML = `<section class="card"><h3>この内容を読み込みますか？</h3>
       <dl class="facts"><dt>ファイル</dt><dd>${esc(bk.name)}</dd><dt>書き出し日時</dt><dd>${esc(fmtStamp(bk.data.exportedAt))}</dd>
       <dt>ファイルの予定</dt><dd>${f.total}件（繰り返し${f.recurring}件・個別変更／削除指定${f.exceptions}件）</dd>
-      <dt>現在の予定</dt><dd>${st.total}件</dd><dt>追加見込み</dt><dd>${p.add.length}件（重複${p.dup}件・競合${p.conflict}件）</dd></dl>
+      <dt>現在の予定</dt><dd>${st.total}件</dd><dt>追加見込み</dt><dd>${p.add.length}件（重複${p.dup}件・競合${p.conflict}件）</dd>${bk.data.memos ? `<dt>メモ</dt><dd>ファイル${bk.data.memos.length}件／現在${bk.curMemos.length}件／追加${p.memo.added}件・連結${p.memo.merged}件</dd>` : ''}</dl>
       ${p.conflict ? `<p class="small">競合${p.conflict}件は現在の予定を残します</p>` : ''}${catLine()}</section>
       <button type="button" class="row" id="bk-add"${dis}>追加（同じ予定は重複させない）<small>今の予定と設定を残します</small></button>
-      <button type="button" class="row" id="bk-replace"${dis}>置き換え<small>今の予定はすべて消えて、このファイルの内容になります。設定も置き換わります</small></button>
+      <button type="button" class="row" id="bk-replace"${dis}>置き換え<small>今の予定はすべて消えて、このファイルの内容になります。設定も置き換わります（メモも、ファイルにメモの項目があれば置き換わります）</small></button>
       <button type="button" class="row cancel" id="bk-cancel"${dis}>キャンセル</button>${bk.err ? `<p class="berr" role="alert">${esc(bk.err)}</p>` : ''}`;
   } else {
     BK.body.innerHTML = `<section class="card"><h3>今の予定${st.total}件を削除して、${bk.data.events.length}件に置き換えますか？</h3><p>元に戻せません。必要なら先に書き出してください。</p>${NATIVE ? '<p class="small">iPhoneの予定と連携設定は変更しません。復元後、iPhoneにも追加済みの予定はこの端末のiPhoneの予定と照合し直します。見つからない予定は、最初に変更・削除するときに結びつきが外れます。</p>' : ''}
@@ -2054,7 +2056,8 @@ function catLine() {
 async function doExport() {
   bk.err = ''; bk.msg = '';
   try {
-    const text = JSON.stringify(buildBackup(state.events, { ...state, notify: loadNotify() }, new Date(), state.categories), null, 2);
+    if (!await flushMemosAwait()) { bk.err = '保存できていないメモがあるため書き出せません。メモの再試行をしてからもう一度お試しください。'; say(bk.err); renderBackup(); return; }
+    const text = JSON.stringify(buildBackup(state.events, { ...state, notify: loadNotify() }, new Date(), state.categories, await db.listMemos()), null, 2);
     const file = new File([text], backupName(), { type: 'application/json' });
     if (NATIVE) {
       // ネイティブは共有シート（shareFile）を優先。失敗したときだけ従来の共有／ダウンロードへ。
@@ -2078,13 +2081,15 @@ async function doExport() {
 async function onPicked(file) {
   bk = { stage: 'main', busy: true, msg: '', err: '' };
   renderBackup();
-  let res;
+  let res, curMemos = [];
   try {
+    if (!await flushMemosAwait()) { bk = { stage: 'main', busy: false, msg: '', err: '保存できていないメモがあるため読み込めません。メモの再試行をしてからもう一度お試しください。' }; renderBackup(); return; }
+    curMemos = await db.listMemos();
     if (file.size > MAX_BYTES) res = { ok: false, reason: 'ファイルが大きすぎます（上限10MiB）' };
     else res = validateBackup(await file.text(), { categories: state.categories });
   } catch { res = { ok: false, reason: 'ファイルを読み取れません' }; }
   if (!res.ok) bk = { stage: 'invalid', busy: false, name: file.name, reason: res.reason };
-  else bk = { stage: 'confirm', busy: false, name: file.name, data: res.data, report: res.report, plan: planAppend(state.events, res.data.events), err: '' };
+  else bk = { stage: 'confirm', busy: false, name: file.name, data: res.data, report: res.report, curMemos, plan: planAppend(state.events, res.data.events, curMemos, res.data.memos || []), err: '' };
   renderBackup();
   BK.body.querySelector('button')?.focus({ preventScroll: true });
 }
@@ -2101,18 +2106,22 @@ async function finishImport(kind) {
   bk = { ...bk, busy: true, err: '' };
   renderBackup();
   try {
+    // メモは確定時点の DB を基に計画し直す（確認画面の後に打った分も保つ）。
+    if (!await flushMemosAwait()) throw new Error('memo unsaved');
+    const memoNow = Date.now(), curMemos = await db.listMemos();
+    const mp = kind === 'add' ? planMemos(curMemos, data.memos || [], memoNow) : null;
     // カテゴリと予定を1トランザクションで。参照先のカテゴリが無い予定は未分類に付け替える。
     const now = Date.now(), cin = data.categories.map((c) => ({ ...c, createdAt: c.createdAt || now, updatedAt: c.updatedAt || now }));
     if (kind === 'add') {
       const fx = fixEventCategories(plan.add, mergeCategories(state.categories, cin, 'add').categories, now);
       const cur = new Map(state.categories.map((c) => [c.id, c]));
       const same = (c) => cur.get(c.id)?.name === c.name && cur.get(c.id)?.color === c.color;
-      await db.applyImport({ catPuts: fx.categories.filter((c) => !cur.has(c.id) || !same(c)), eventPuts: fx.events });
+      await db.applyImport({ catPuts: fx.categories.filter((c) => !cur.has(c.id) || !same(c)), eventPuts: fx.events, memoPuts: mp.puts });
     } else {
       let cats = data.hasCategories ? mergeCategories([], cin, 'replace').categories : mergeCategories(state.categories, cin, 'add').categories;
       if (!cats.length) cats = state.categories;
       const fx = fixEventCategories(data.events, cats, now);
-      OBX.items = await db.applyImport({ catPuts: fx.categories, eventPuts: fx.events, replace: true, outbox: (cur) => keepAfterReplace(cur, fx.events) });
+      OBX.items = await db.applyImport({ catPuts: fx.categories, eventPuts: fx.events, replace: true, outbox: (cur) => keepAfterReplace(cur, fx.events), ...(data.memos ? { memoReplace: true, memoPuts: data.memos } : {}) });
     }
   } catch {
     try { state.events = await db.listEvents(); } catch { /* 無視 */ }
@@ -2121,14 +2130,15 @@ async function finishImport(kind) {
     renderBackup();
     return;
   }
+  memoStore.invalidateAll(); // 成功後: 下書きと表示中の本文を捨て、DB の内容を読み直す（印のキャッシュは未導入）
   state.events = await db.listEvents();
   bumpRevision();
   try { setCategories(await db.listCategories()); } catch { /* 直前の一覧で続ける */ }
   let msg;
-  if (kind === 'add') msg = `${plan.add.length}件を追加しました（重複${plan.skipped}件を除外）。`;
+  if (kind === 'add') msg = `${plan.add.length}件を追加しました（重複${plan.skipped}件を除外）。${data.memos?.length ? `メモは追加${plan.memo.added}件・連結${plan.memo.merged}件。` : ''}`;
   else {
-    msg = `${data.events.length}件の予定${data.settings ? 'と設定' : ''}に置き換えました。${dupLinks ? `同じiPhone連携の印を持つ予定があったため、${dupLinks}件の結びつきを外しました。` : ''}`;
-    if (data.settings) { const { notify, ...ui } = data.settings; Object.assign(state, ui); setFirstDay(state.weekStart); if (notify) saveNotify(notify); }
+    msg = `${data.events.length}件の予定${data.settings ? 'と設定' : ''}に置き換えました。${data.memos?.length ? `メモ${data.memos.length}件。` : ''}${dupLinks ? `同じiPhone連携の印を持つ予定があったため、${dupLinks}件の結びつきを外しました。` : ''}`;
+    if (data.settings) { const { notify, ...ui } = data.settings; Object.assign(state, ui); saveUi(); setFirstDay(state.weekStart); if (notify) saveNotify(notify); }
   }
   // 復元した linked の予定は、この端末の iPhone の予定と照合し直す（代わりの照合は復元直後の予定だけ）。
   for (const e of (kind === 'add' ? plan.add : data.events)) if (e.nativeLink?.state === 'linked') RESTORED.add(e.id);

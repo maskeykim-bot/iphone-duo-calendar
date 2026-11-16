@@ -1,7 +1,7 @@
 // 開いた横（見開き）の左右ページと、開いた縦の下パネルが何を出すかの状態。描画は持たない。
 export const PAGE_IDS = ['month', 'time', 'task', 'memo'];
 export const DEFAULT_PAGES = { left: 'month', right: 'time', portraitBottom: 'time', portraitShown: false };
-const BOTTOM_IDS = ['time', 'task', 'memo'];
+export const BOTTOM_IDS = ['time', 'task', 'memo'];
 const ok = (v) => PAGE_IDS.includes(v);
 const firstFree = (taken, prefer) => [prefer, ...PAGE_IDS].find((id) => !taken.includes(id));
 

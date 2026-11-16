@@ -190,12 +190,13 @@ test.describe('バックアップ', () => {
     await dl.saveAs(p);
     const j = JSON.parse(readFileSync(p, 'utf8'));
     expect(j.app).toBe('duo-calendar');
-    expect(j.version).toBe(3);
-    expect(j.schema).toBe(3);
+    expect(j.version).toBe(4);
+    expect(j.schema).toBe(4);
     expect(j.categories.length).toBeGreaterThanOrEqual(5);
     expect(j.exportedAt).toMatch(/^2026-11-12T09:41:00\+09:00$/);
     expect(j.events).toHaveLength(7);
-    expect(j.settings).toEqual({ view: 'month', style: 'simple', desk: false, monthExpand: false, weekStart: 1, notify: { enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } } });
+    expect(j.settings).toEqual({ view: 'month', style: 'simple', desk: false, monthExpand: false, rokuyo: true, pages: { left: 'month', right: 'time', portraitBottom: 'time', portraitShown: false }, weekStart: 1, notify: { enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } } });
+    expect(j.memos).toEqual([]);
   });
 
   test('往復: 書き出して別の DB へ置き換え読み込み → 同一内容', async ({ page }, info) => {
@@ -305,7 +306,7 @@ test.describe('バックアップ', () => {
     const p = info.outputPath('v3.json');
     await exportFile(page, p);
     const j = JSON.parse(readFileSync(p, 'utf8'));
-    expect(j.settings).toEqual({ view: 'week', style: 'named', desk: true, monthExpand: true, weekStart: 1, notify: { enabled: true, showTitle: false, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '07:30' } } });
+    expect(j.settings).toEqual({ view: 'week', style: 'named', desk: true, monthExpand: true, rokuyo: true, pages: { left: 'month', right: 'time', portraitBottom: 'time', portraitShown: false }, weekStart: 1, notify: { enabled: true, showTitle: false, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '07:30' } } });
     expect(j.categories.find((c) => c.id === 'my-cat')).toMatchObject({ name: '自作カテゴリ', color: '#5e4c8e', hidden: true });
     const src = await dbEvents(page);
     expect(src[0].nativeLink).toEqual(LINK);
@@ -380,7 +381,7 @@ test.describe('バックアップ', () => {
     ['壊れた JSON', '{"app": "duo-calendar", "events": [', '壊れた'],
     ['形式違い', { hello: 'world' }, '未対応の形式'],
     ['別アプリ', { app: 'other', version: 2, events: [] }, '未対応の形式'],
-    ['将来版', { app: 'duo-calendar', version: 4, exportedAt: '2026-11-13T00:00:00Z', events: [] }, '未対応のバージョン'],
+    ['将来版', { app: 'duo-calendar', version: 5, exportedAt: '2026-11-13T00:00:00Z', events: [] }, '未対応のバージョン'],
     ['events が配列でない', { app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T00:00:00Z', events: {} }, 'events'],
     ['不正な日時', { app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T00:00:00Z', events: [{ ...SEED[0], start: '2026-13-40T10:00' }] }, '不正な日時'],
     ['必須欠落', { app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T00:00:00Z', events: [{ id: 'x', start: '2026-11-12T10:00', end: '2026-11-12T11:00' }] }, '予定名'],
@@ -400,4 +401,97 @@ test.describe('バックアップ', () => {
       expect(await dbEvents(page)).toEqual(before);
     });
   }
+});
+
+
+// ---- メモ・表示設定のバックアップ（第14版 PR10） ----
+const dbMemos = (page) => page.evaluate(async () => (await import('/js/db.js')).listMemos());
+const putMemoDb = (page, d, t) => page.evaluate(async ([d, t]) => (await import('/js/db.js')).putMemo(d, t, 1700000000000), [d, t]);
+const M = (date, text) => ({ id: date, date, text, createdAt: 1000, updatedAt: 2000 });
+const V4 = (o) => ({ app: 'duo-calendar', version: 4, exportedAt: '2026-11-13T00:00:00Z', events: [], ...o });
+
+test.describe('メモ・設定のバックアップ', () => {
+  test('書き出しに保存前のメモと六曜・pages が入り、タスクは入らない', async ({ page }, info) => {
+    await openApp(page, SIZES.openLandscape);
+    await page.evaluate(() => { const k = 'duo.ui.v1'; const u = JSON.parse(localStorage.getItem(k) || '{}'); u.rokuyo = false; u.pages = { left: 'memo', right: 'month', portraitBottom: 'task', portraitShown: true }; localStorage.setItem(k, JSON.stringify(u)); });
+    await page.reload(); await page.waitForSelector('html[data-ready]');
+    const ta = page.locator('textarea.memota').first();
+    await ta.fill('保存前のメモ'); // 1秒の自動保存より前に書き出す
+    const p = info.outputPath('m.json');
+    await exportFile(page, p);
+    const j = JSON.parse(readFileSync(p, 'utf8'));
+    expect(j.memos.map((m) => m.text)).toEqual(['保存前のメモ']);
+    expect(j.memos[0].id).toBe(j.memos[0].date);
+    expect(j.settings.rokuyo).toBe(false);
+    expect(j.settings.pages).toEqual({ left: 'memo', right: 'month', portraitBottom: 'task', portraitShown: true });
+    expect(Object.keys(j).filter((k) => /task|reminder/i.test(k))).toEqual([]);
+  });
+
+  test('置き換え: メモ・rokuyo・pages が復元され、下書きは失効する', async ({ page }) => {
+    await openApp(page);
+    await putMemoDb(page, '2026-11-01', '古いメモ');
+    await page.evaluate(() => localStorage.setItem('duo.memo.draft.v1:2026-11-01', JSON.stringify({ date: '2026-11-01', text: '古い下書き', at: 1 })));
+    await openBackup(page);
+    await pick(page, 'r.json', V4({ memos: [M('2026-12-05', '戻るメモ')], settings: { rokuyo: false, pages: { left: 'task', right: 'memo', portraitBottom: 'memo', portraitShown: true } } }));
+    await page.locator('#bk-replace').click();
+    await page.locator('#bk-rdo').click();
+    await expect(page.locator('#backup')).toBeHidden();
+    expect((await dbMemos(page)).map((m) => [m.date, m.text])).toEqual([['2026-12-05', '戻るメモ']]);
+    const ui = await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')));
+    expect(ui.rokuyo).toBe(false); expect(ui.pages).toEqual({ left: 'task', right: 'memo', portraitBottom: 'memo', portraitShown: true });
+    expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('duo.memo.draft')))).toEqual([]);
+  });
+
+  test('置き換え: memos 欠落（v3）は既存メモを保持、v4 の空配列は消す。設定欠落は現在値保持', async ({ page }) => {
+    await openApp(page);
+    await putMemoDb(page, '2026-11-01', '残る');
+    await openBackup(page);
+    await pick(page, 'v3.json', { ...V4({}), version: 3, settings: { view: 'day' } });
+    await page.locator('#bk-replace').click(); await page.locator('#bk-rdo').click();
+    await expect(page.locator('#backup')).toBeHidden();
+    expect((await dbMemos(page)).map((m) => m.text)).toEqual(['残る']);
+    expect((await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')))).rokuyo).toBe(true);
+    await openBackup(page);
+    await pick(page, 'v4e.json', V4({ memos: [] }));
+    await page.locator('#bk-replace').click(); await page.locator('#bk-rdo').click();
+    await expect(page.locator('#backup')).toBeHidden();
+    expect(await dbMemos(page)).toEqual([]);
+  });
+
+  test('追加: 同日同文は増えず、異文は空行で連結して1件', async ({ page }) => {
+    await openApp(page);
+    await putMemoDb(page, '2026-11-01', 'A'); await putMemoDb(page, '2026-11-02', 'S');
+    await openBackup(page);
+    await pick(page, 'a.json', V4({ memos: [M('2026-11-01', 'B'), M('2026-11-02', 'S'), M('2026-11-03', 'N')] }));
+    await page.locator('#bk-add').click();
+    await expect(page.locator('#backup')).toBeHidden();
+    expect((await dbMemos(page)).map((m) => [m.date, m.text])).toEqual([['2026-11-01', 'A\n\nB'], ['2026-11-02', 'S'], ['2026-11-03', 'N']]);
+  });
+
+  test('不正なメモ・v5 は読み込み全体を拒否し、何も変えない', async ({ page }) => {
+    await openApp(page);
+    await putMemoDb(page, '2026-11-01', '守る');
+    for (const f of [V4({ memos: [M('2026-11-02', 'a'), M('2026-11-02', 'b')] }), V4({ memos: [{ ...M('2026-11-02', 'a'), id: 'x' }] }), V4({ memos: [M('2026-11-02', 'a'), { ...M('2026-11-03', 'b'), updatedAt: 'z' }] }), V4({ version: 5 }), V4({ settings: { rokuyo: 'x' } })]) {
+      await openBackup(page);
+      await pick(page, 'bad.json', f);
+      await expect(page.locator('#backup')).toContainText('読み込めませんでした');
+      await page.locator('#bk-back').click(); await page.keyboard.press('Escape');
+    }
+    expect((await dbMemos(page)).map((m) => m.text)).toEqual(['守る']);
+  });
+
+  test('失敗時は予定もメモも変わらない（rollback）', async ({ page }) => {
+    await openApp(page);
+    await seed(page, SEED);
+    await putMemoDb(page, '2026-11-01', '守る');
+    const before = await dbEvents(page);
+    await openBackup(page);
+    await pick(page, 'f.json', V4({ events: [ev('n1', '新', '2026-12-01T10:00', '2026-12-01T11:00')], memos: [M('2026-12-05', '新メモ')] }));
+    await page.locator('#bk-replace').click();
+    await page.evaluate(() => { const o = IDBObjectStore.prototype.put; IDBObjectStore.prototype.put = function (...a) { if (this.name === 'memos') throw new Error('boom'); return o.apply(this, a); }; });
+    await page.locator('#bk-rdo').click();
+    await expect(page.locator('#bk-body')).toContainText('読み込みに失敗しました');
+    expect(await dbEvents(page)).toEqual(before);
+    expect((await dbMemos(page)).map((m) => m.text)).toEqual(['守る']);
+  });
 });

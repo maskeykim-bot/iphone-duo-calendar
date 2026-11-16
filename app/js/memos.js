@@ -75,7 +75,14 @@ export function createMemoStore({ db = realDb, storage = globalThis.localStorage
     }
     return done;
   }
-  return { flushMemo, flushAll, setText, loadMemo, recoverMemoDraft, get: (d) => E.get(d) || null, dirty: (d) => !!E.get(d) && dirty(E.get(d)), anyDirty: () => [...E.values()].some(dirty), reset: () => { E.forEach((e) => clearTimeout(e.timer)); E.clear(); } };
+  // 読み込み後: 全日付の状態と下書きを捨てる（DB の内容が正）。呼ぶ前に flush 済みであること。
+  function invalidateAll() {
+    const keys = [];
+    try { for (let i = 0; i < storage.length; i++) { const k = storage.key(i); if (k && k.startsWith(DRAFT_PREFIX)) keys.push(k); } } catch { /* 無視 */ }
+    keys.forEach((k) => { try { storage.removeItem(k); } catch { /* 無視 */ } });
+    E.forEach((e) => clearTimeout(e.timer)); E.clear();
+  }
+  return { invalidateAll, flushMemo, flushAll, setText, loadMemo, recoverMemoDraft, get: (d) => E.get(d) || null, dirty: (d) => !!E.get(d) && dirty(E.get(d)), anyDirty: () => [...E.values()].some(dirty), reset: () => { E.forEach((e) => clearTimeout(e.timer)); E.clear(); } };
 }
 
 // 本番用の単一ストア。onChange は app.js が設定する。

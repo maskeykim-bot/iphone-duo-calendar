@@ -155,8 +155,11 @@ export const applyCategoryChanges = ({ catPuts = [], catDels = [], eventPuts = [
 });
 // バックアップの読み込み: カテゴリと予定を1トランザクションで。replace のときは両方を clear してから put。
 // outbox（任意）: 送信待ちの更新関数。同じトランザクションで meta に書き、新しい送信待ちを返す。
-export const applyImport = ({ catPuts = [], eventPuts = [], replace = false, outbox = null }) => run(['events', 'categories', 'meta'], 'readwrite', ({ events, categories, meta }, set) => {
+// memoPuts（任意）: 書くメモ。memoReplace のときは先にメモを全部消す。予定・カテゴリ・メモ・送信待ちは同じトランザクション。
+export const applyImport = ({ catPuts = [], eventPuts = [], replace = false, outbox = null, memoPuts = [], memoReplace = false }) => run(['events', 'categories', 'meta', 'memos'], 'readwrite', ({ events, categories, meta, memos }, set) => {
   if (replace) { events.clear(); categories.clear(); }
+  if (memoReplace) memos.clear();
+  memoPuts.forEach((m) => memos.put(m));
   catPuts.forEach((c) => categories.put(c));
   eventPuts.forEach((e) => events.put(e));
   if (outbox) readOutbox(meta, (cur) => { const next = outbox(cur); meta.put({ key: OUTBOX, items: next }); set(next); });
@@ -196,6 +199,11 @@ export async function memoDates(from, to) {
   if (!isKey(from) || !isKey(to) || from > to) return [];
   const db = await open();
   return wrap(db.transaction('memos').objectStore('memos').index('date').getAllKeys(IDBKeyRange.bound(from, to)));
+}
+// 全メモを日付の昇順で（バックアップ用）。
+export async function listMemos() {
+  const db = await open();
+  return wrap(db.transaction('memos').objectStore('memos').index('date').getAll());
 }
 // 全メモを新しい日付順（prev カーソル）で。
 export async function listMemoDays() {
