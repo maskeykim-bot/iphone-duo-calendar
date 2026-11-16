@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { CAT_IDS, LEGACY, DEFAULTS_NEW } from '../js/categories.js';
-import { openApp, seed, dbEvents, ev, tab, catId, SIZES, openMenu } from './helpers.js';
+import { openApp, seed, dbEvents, ev, tab, catId, SIZES, openMenu, addEvent, pickDest } from './helpers.js';
 // カテゴリの凡例は設定メニューの中（月には常設しない）
 const legendCheck = async (page, fn) => { await openMenu(page); await fn(page.locator('#menu .legend')); await page.keyboard.press('Escape'); };
 
@@ -21,8 +21,10 @@ test.describe('新規インストールの既定カテゴリ', () => {
     ]);
     expect(cats.map((c) => c.id)).toEqual(DEFAULTS_NEW.map((c) => c.id));
     await page.getByRole('button', { name: '予定を追加' }).click();
-    await expect(page.locator('#f-cat option')).toHaveText(['仕事', 'プライベート', '家族', '外出', 'その他', 'カテゴリを編集…']);
-    await expect(page.locator('#f-cat')).toHaveValue(CAT_IDS.work);
+    await expect(page.locator('#f-cat')).toBeHidden(); // 新規はカレンダー1行
+    await expect(page.locator('#dest-name')).toHaveText('仕事');
+    await page.locator('#f-dest').click();
+    await expect(page.locator('#dest-pop .dopt .dn')).toHaveText(['仕事', 'プライベート', '家族', '外出', 'その他']);
   });
 });
 
@@ -183,7 +185,7 @@ test.describe('カテゴリ編集パネル', () => {
     await tab(page, '月').click();
     await legendCheck(page, (l) => expect(l.locator('span')).toHaveText(['家族', '仕事', 'プライベート', '外出', 'その他']));
     await page.getByRole('button', { name: '予定を追加' }).click();
-    await expect(page.locator('#f-cat')).toHaveValue(CAT_IDS.family); // 新規の既定は先頭
+    await expect(page.locator('#dest-name')).toHaveText('家族'); // 新規の既定は先頭
   });
 
   test('非表示: 月・日の表示から隠す（予定は消さない）。凡例からも外れ、戻すと再び出る', async ({ page }) => {
@@ -285,8 +287,9 @@ test.describe('カテゴリ編集パネル', () => {
 
   test('編集シートの「カテゴリを編集…」から作ったカテゴリは、編集中の予定にそのまま入る', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
-    await page.getByRole('button', { name: '予定を追加' }).click();
-    await page.locator('#f-title').fill('ヨガ教室');
+    await addEvent(page, { title: 'ヨガ教室' });
+    await page.locator('[data-event]').first().click();
+    await page.locator('#editor').waitFor();
     await page.locator('#f-cat').selectOption({ label: 'カテゴリを編集…' });
     await expect(page.locator('#cats')).toBeVisible();
     await expect(page.locator('#f-cat')).toHaveValue(CAT_IDS.work); // 選択は「編集…」に残らない
@@ -307,7 +310,7 @@ test.describe('カテゴリ編集パネル', () => {
     await openApp(page);
     await page.getByRole('button', { name: '予定を追加' }).click();
     await page.locator('#f-title').fill('散歩');
-    await page.locator('#f-cat').selectOption(catId('private'));
+    await pickDest(page, 'duo', catId('private'));
     await page.locator('#editor').getByRole('button', { name: '保存' }).click();
     expect((await dbEvents(page))[0].categoryId).toBe(CAT_IDS.private);
   });

@@ -904,3 +904,20 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 @keyframes catshake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
 .sw.shake{animation:catshake .2s linear}
 @media (prefers-reduced-motion:reduce){.sw.shake{animation:none;outline:2px solid var(--green)}}
+/* 新規予定のカレンダー選択（1行 + ポップオーバー） */
+.destrow{position:relative;margin-top:12px}.destrow[hidden]{display:none}
+.destbtn{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:44px;padding:0 12px;border-radius:10px;background:#fff;border:1px solid #DCD7CB;font-size:16px;text-align:left}
+.destbtn .dlbl{flex:none}.destbtn .dval{display:flex;align-items:center;gap:6px;min-width:0;color:#68716A;font-size:14px}
+.destbtn .dval #dest-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.destbtn .cdot.big{width:12px;height:12px}
+.destpop{position:absolute;left:0;top:calc(100% + 4px);z-index:20;box-sizing:border-box;width:min(296px,100%);max-height:min(320px,50vh);overflow:auto;padding:6px 0;border-radius:14px;background:#fff;border:1px solid #DCD7CB;box-shadow:0 8px 24px #0002}
+.destpop[hidden]{display:none}
+.destpop h4{margin:0;padding:0 14px;min-height:26px;display:flex;align-items:center;font-size:12px;font-weight:600;color:#68716A}
+.destpop .dnote{margin:2px 14px 6px;font-size:12px;color:#68716A}
+.destpop .dopt{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:0 14px;border:0;background:transparent;font-size:15px;text-align:left}
+.destpop .dopt .dn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.destpop .dopt .cdot{width:12px;height:12px}
+.destpop .dopt .dhid{flex:none;font-size:11px;color:#A8ABA4}
+.destpop .dopt .dck{flex:none;width:18px;color:#2E8B57;font-weight:700}
+.destpop .dopt.hid .dn{color:#A8ABA4}.destpop .dopt.hid .cdot{opacity:.4}
+.destpop .dopt:focus-visible{outline:2px solid #294E42;outline-offset:-2px}

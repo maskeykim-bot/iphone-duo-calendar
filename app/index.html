@@ -27,6 +27,10 @@
       <p id="ext-gone" class="gonebar" hidden>この予定は見つかりません。カレンダーで確認してください。</p>
       <label>予定名<input id="f-title" name="title" maxlength="80" placeholder="例：プロジェクト定例" required></label>
       <label id="cat-l">カテゴリ<select id="f-cat" name="cat"></select></label>
+      <div id="dest-l" class="destrow" hidden>
+        <button type="button" id="f-dest" class="destbtn" aria-haspopup="listbox" aria-expanded="false" aria-controls="dest-pop"><span class="dlbl">カレンダー</span><span class="dval"><i id="dest-dot" class="cdot big" aria-hidden="true"></i><span id="dest-name"></span><span aria-hidden="true">›</span></span></button>
+        <div id="dest-pop" class="destpop" role="listbox" aria-label="カレンダー" hidden></div>
+      </div>
       <label id="ecal-l" class="ecal" hidden>カレンダー<select id="f-ecal" name="ecal"></select></label>
       <label class="check"><input id="f-all" name="all" type="checkbox">終日</label>
       <div class="pair">
@@ -65,11 +69,6 @@
           </div>
           <p id="rerror" class="error" role="alert"></p>
         </div>
-      </div>
-      <div id="xadd" class="xadd" hidden>
-        <label class="check xsw"><span>iPhone のカレンダーにも追加</span><input id="f-xadd" type="checkbox" role="switch"></label>
-        <label id="xcal-l" class="xcal" hidden><i id="xcal-dot" class="cdot" aria-hidden="true"></i><span class="xcal-t">追加先カレンダー</span><select id="f-xcal"></select></label>
-        <p id="xnote" class="small"></p>
       </div>
       <label>場所<input id="f-place" name="place" maxlength="200" placeholder="場所を追加"></label>
       <label>メモ<textarea id="f-notes" name="notes" maxlength="4000" rows="3" placeholder="メモを追加"></textarea></label>

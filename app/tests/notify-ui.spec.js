@@ -290,7 +290,7 @@ test.describe('Web・iPhone との結びつき', () => {
   test('linked でフルアクセスあり: 案内文が出て、行は操作できる', async ({ page }) => {
     const L = ev('l1', 'リンク', '2026-11-13T10:00', '2026-11-13T11:00', { alarms: [{ before: 30 }], nativeLink: { v: 2, state: 'linked', requestId: 'r', calendarId: 'c', itemId: 'i', eventId: 'e' } });
     await mock(page, { cal: 'granted' });
-    await page.addInitScript(() => localStorage.setItem('duo-native-cal', JSON.stringify({ enabled: true, calendarIds: [] })));
+    await page.addInitScript(() => localStorage.setItem('duo-native-cal', JSON.stringify({ enabled: true, calendarIds: ['c'] })));
     await openApp(page, SIZES.closedPortrait, '?nosw');
     await seed(page, [L]);
     await openEv(page, '2026-11-13', 'l1');

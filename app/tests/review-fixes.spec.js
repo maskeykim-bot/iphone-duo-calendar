@@ -25,16 +25,20 @@ test.describe('非表示カテゴリと新しい予定', () => {
     await openApp(page);
     await hideCat(page, CAT_IDS.work);
     await page.getByRole('button', { name: '予定を追加' }).click();
-    await expect(page.locator('#f-cat')).toHaveValue(CAT_IDS.private);
-    await expect(page.locator('#f-cat option')).toHaveCount(6);
-    await expect(page.locator(`#f-cat option[value="${CAT_IDS.work}"]`)).toHaveText('仕事（非表示）');
+    await expect(page.locator('#dest-name')).toHaveText('プライベート');
+    await page.locator('#f-dest').click();
+    await expect(page.locator('#dest-pop .dopt')).toHaveCount(5);
+    const w = page.locator(`#dest-pop .dopt[data-did="${CAT_IDS.work}"]`);
+    await expect(w).toContainText('仕事');
+    await expect(w.locator('.dhid')).toHaveText('非表示');
+    await expect(page.locator('#dest-pop .dopt').last()).toHaveAttribute('data-did', CAT_IDS.work); // 非表示は後ろ
   });
-  test('非表示のカテゴリに保存 → 4秒の知らせ →「表示する」で戻る', async ({ page }) => {
+  test('非表示のカテゴリに保存 → 6秒の知らせ →「表示する」で戻る', async ({ page }) => {
     await openApp(page);
     await hideCat(page, CAT_IDS.work);
     await addEvent(page, { title: '隠れる予定', cat: 'work' });
     const note = page.locator('#hidden-notice');
-    await expect(note).toContainText('非表示のカテゴリに保存しました');
+    await expect(note).toContainText('「仕事」は非表示なので、カレンダーには出ません');
     await tab(page, '日').click();
     await expect(page.locator('.tlev')).toHaveCount(0);
     await note.getByRole('button', { name: '表示する' }).click();
@@ -43,12 +47,12 @@ test.describe('非表示カテゴリと新しい予定', () => {
     expect(await dbEvents(page)).toHaveLength(1);
     await expect(page.locator('.tlev')).toContainText('隠れる予定');
   });
-  test('知らせは4秒で消え、表示中のカテゴリへの保存では出ない', async ({ page }) => {
+  test('知らせは6秒で消え、表示中のカテゴリへの保存では出ない', async ({ page }) => {
     await openApp(page);
     await hideCat(page, CAT_IDS.work);
     await addEvent(page, { title: 'A', cat: 'work' });
     await expect(page.locator('#hidden-notice')).toBeVisible();
-    await page.waitForTimeout(4300);
+    await page.waitForTimeout(6300);
     await expect(page.locator('#hidden-notice')).toHaveCount(0);
     await addEvent(page, { title: 'B', cat: 'family' });
     await expect(page.locator('#hidden-notice')).toHaveCount(0);

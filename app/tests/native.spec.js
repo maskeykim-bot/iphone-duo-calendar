@@ -1,6 +1,10 @@
 // 第7版: iPhone カレンダー連携。window.Capacitor を偽装して、DuoNative の契約どおりに呼ばれ表示されることを確認する。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, tab, seed, ev, dbEvents, setStyle, openMenu } from './helpers.js';
+import { openApp, SIZES, tab, seed, ev, dbEvents, setStyle, openMenu, pickDest } from './helpers.js';
+// 新規予定のカレンダー選択: 種別の先頭を選ぶ（第15版 PR5）
+const pickKind = async (page, type) => { await page.locator('#f-dest').click(); await page.locator(`#dest-pop .dopt[data-dtype="${type}"]`).first().click(); };
+const toIphone = (page) => pickKind(page, 'iphone');
+const toDuo = (page) => pickKind(page, 'duo');
 
 const CALS = [
   { id: 'cal-1', title: '家族', color: '#d93025', sourceId: 's-g', source: 'Google', sourceType: 'caldav', allowsModify: true, isDefault: true },
@@ -150,7 +154,7 @@ test.describe('Web 版（Capacitor なし）', () => {
     await expect(page.locator('#link')).toBeHidden();
     await page.keyboard.press('Escape');
     await page.locator('[data-act="add"]:visible').first().click();
-    await expect(page.locator('#xadd')).toBeHidden();
+    await expect(page.locator('#xadd')).toHaveCount(0);
   });
 });
 
@@ -411,25 +415,28 @@ test.describe('ネイティブ（偽装）', () => {
     await openApp(page);
     await enable(page);
     await page.locator('[data-act="add"]:visible').first().click();
-    const x = page.locator('#f-xadd');
-    await expect(x).toBeVisible();
-    await expect(x).toBeChecked(); // 第13版 PR5: 標準オン
+    await expect(page.locator('#dest-l')).toBeVisible();
+    await expect(page.locator('#f-cat')).toBeHidden();
+    await expect(page.locator('#f-xadd')).toHaveCount(0); // 旧スイッチは新規シートから無くなる
+    await expect(page.locator('#dest-name')).toHaveText('家族（Google）'); // 設定の追加先（iPhone の既定）
     // 書込可のみ（家族）。読み取り専用の祝日は出ない
-    await expect(page.locator('#f-xcal')).toBeVisible();
-    await expect(page.locator('#f-xcal option')).toHaveText(['家族（Google）']);
+    await page.locator('#f-dest').click();
+    await expect(page.locator('#dest-pop .dopt[data-dtype="iphone"] .dn')).toHaveText(['家族']);
+    await page.keyboard.press('Escape'); // 一覧だけ閉じ、シートは残る
+    await expect(page.locator('#dest-pop')).toBeHidden();
+    await expect(page.locator('#editor')).toBeVisible();
+    await expect(page.locator('#f-dest')).toBeFocused();
     // 第11版 PR9: 繰り返しありでも選べる（無効化しない）
     await page.locator('#rtoggle').click();
     await page.locator('#f-rfreq').selectOption('daily');
-    await expect(x).toBeEnabled();
-    await expect(x).toBeChecked();
-    await expect(page.locator('#xnote')).toHaveText('');
+    await expect(page.locator('#dest-name')).toHaveText('家族（Google）');
     await page.locator('#f-rfreq').selectOption('none');
-    await x.uncheck();
+    await toDuo(page);
     await page.locator('#f-title').fill('会食');
     await page.locator('#f-start').fill('2026/11/20 19:00');
     await page.locator('#f-end').fill('2026/11/20 21:00');
     await page.locator('#f-place').fill('銀座');
-    await x.check();
+    await toIphone(page);
     await page.locator('#editor [type=submit]').click();
     await expect(page.locator('#editor')).toBeHidden();
     await expect(page.getByRole('status')).toHaveText('予定を保存し、iPhoneのカレンダーにも追加しました。');
@@ -448,7 +455,7 @@ test.describe('ネイティブ（偽装）', () => {
     // 編集には案内
     await page.locator('.tlev', { hasText: '会食' }).click();
     await expect(page.locator('#xlinked')).toContainText('iPhoneにも追加済み。Duo で変えた内容は iPhone のカレンダーにも反映されます。');
-    await expect(page.locator('#xadd')).toBeHidden();
+    await expect(page.locator('#xadd')).toHaveCount(0);
   });
 
   test('終日の追加: end は最終日 00:00。失敗してもアプリ予定は残り、再試行は同じ requestId', async ({ page }) => {
@@ -461,7 +468,7 @@ test.describe('ネイティブ（偽装）', () => {
     await page.locator('#f-all').check();
     await page.locator('#f-start').fill('2026/11/25');
     await page.locator('#f-end').fill('2026/11/26');
-    await page.locator('#f-xadd').check();
+    await toIphone(page);
     await page.locator('#editor [type=submit]').click();
     const r = page.locator('#xretry');
     await expect(r).toBeVisible();
@@ -487,7 +494,7 @@ test.describe('ネイティブ（偽装）', () => {
     await page.locator('#f-end').fill('2026/11/20 20:00');
     await page.locator('#rtoggle').click();
     await page.locator('#f-rfreq').selectOption('weekly');
-    await page.locator('#f-xadd').check();
+    await toIphone(page);
     await page.locator('#editor [type=submit]').click();
     const r = page.locator('#xretry');
     await expect(r).toBeVisible();
@@ -508,7 +515,7 @@ test.describe('ネイティブ（偽装）', () => {
     await enable(page);
     await page.locator('[data-act="add"]:visible').first().click();
     await page.locator('#f-title').fill('v2戻り');
-    await page.locator('#f-xadd').check();
+    await toIphone(page);
     await page.locator('#editor [type=submit]').click();
     await expect(page.getByRole('status')).toHaveText('予定を保存し、iPhoneのカレンダーにも追加しました。');
     const saved = (await dbEvents(page)).find((e) => e.title === 'v2戻り');
@@ -522,7 +529,7 @@ test.describe('ネイティブ（偽装）', () => {
     await page.evaluate(() => { window.__mock.createErr = 'WRITE_ONLY'; });
     await page.locator('[data-act="add"]:visible').first().click();
     await page.locator('#f-title').fill('許可不足');
-    await page.locator('#f-xadd').check();
+    await toIphone(page);
     await page.locator('#editor [type=submit]').click();
     const r = page.locator('#xretry');
     await expect(r).toBeVisible();
@@ -540,7 +547,7 @@ test.describe('ネイティブ（偽装）', () => {
     await page.locator('#f-start').fill('2026/12/05 10:00');
     await page.locator('#f-end').fill('2026/12/05 11:00');
     await page.locator('#f-al0').selectOption('b30');
-    await page.locator('#f-xadd').check();
+    await toIphone(page);
     await page.locator('#editor [type=submit]').click();
     await expect(page.locator('#xretry')).toBeVisible();
     // 再試行の選択中は pending のまま（通知は iPhone 側の予定）
@@ -935,7 +942,7 @@ test.describe('ネイティブ（偽装）第11版 PR7: iPhone へ反映', () =>
     await enable(page);
     await page.locator('[data-act="add"]:visible').first().click();
     await page.locator('#f-title').fill('通知付き');
-    await page.locator('#f-xadd').check();
+    await toIphone(page);
     await page.locator('#editor [type=submit]').click();
     await expect(page.getByRole('status')).toHaveText('予定を保存し、iPhoneのカレンダーにも追加しました。');
     const [c] = await sent(page, 'createEvent');
@@ -1071,20 +1078,20 @@ test.describe('新規の標準オン（第13版 PR5）', () => {
     await openApp(page);
     await enable(page);
     await openNew(page);
-    await expect(page.locator('#f-xadd')).toBeChecked();
-    await expect(page.locator('#f-xcal')).toHaveValue('cal-b');
-    const ys = await page.evaluate(() => ['.repeat', '#xadd', '#f-place'].map((q) => document.querySelector(q).getBoundingClientRect().top));
-    expect(ys[0]).toBeLessThan(ys[1]); expect(ys[1]).toBeLessThan(ys[2]);
-    const sw = await page.locator('#f-xadd').boundingBox();
-    expect([Math.round(sw.width), Math.round(sw.height)]).toEqual([51, 31]);
-    await page.locator('#f-xcal').selectOption('cal-a');
+    await expect(page.locator('#dest-name')).toHaveText('家族（Google）');
+    const ys = await page.evaluate(() => ['#f-title', '#dest-l', '#f-all'].map((q) => document.querySelector(q).getBoundingClientRect().top));
+    expect(ys[0]).toBeLessThan(ys[1]); expect(ys[1]).toBeLessThan(ys[2]); // タイトルの下・終日の上に1行
+    const bt = await page.locator('#f-dest').boundingBox();
+    expect(Math.round(bt.height)).toBeGreaterThanOrEqual(44);
+    await pickDest(page, 'iphone', 'cal-a');
+    await expect(page.locator('#dest-name')).toHaveText('仕事（iCloud）');
     await page.locator('#close').click();
     await expect(page.locator('#editor')).toBeHidden();
     await page.evaluate(() => sessionStorage.clear());
     await page.reload();
     await expect(page.locator('#lk-sw, [data-act="add"]').first()).toBeAttached();
     await openNew(page);
-    await expect(page.locator('#f-xcal')).toHaveValue('cal-b');
+    await expect(page.locator('#dest-name')).toHaveText('家族（Google）');
     // 設定は暗黙に変わらない
     expect((await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith('duo-native-cal')))))).defaultCalendarId).toBeFalsy();
   });
@@ -1094,14 +1101,15 @@ test.describe('新規の標準オン（第13版 PR5）', () => {
     await openApp(page);
     await enable(page);
     await openNew(page);
-    await page.locator('#f-xadd').uncheck();
-    await expect(page.locator('#f-xcal')).toBeHidden();
+    await toDuo(page);
+    await expect(page.locator('#dest-name')).toHaveText('仕事');
     await page.locator('#f-title').fill('Duoだけ');
     await page.locator('#editor [type=submit]').click();
     await expect(page.locator('#editor')).toBeHidden();
     expect(await calls(page, 'createEvent')).toHaveLength(0);
     await openNew(page);
-    await expect(page.locator('#f-xadd')).toBeChecked();
+    await expect(page.locator('#dest-name')).toHaveText('家族（Google）'); // 一時選択は次へ持ち越さない
+    expect((await lk(page)).defaultDest).toMatchObject({ type: 'iphone', id: 'cal-b' });
   });
 
   test('設定カード: オフにすると標準オフが再起動後も残り、既定先を永続化', async ({ page }) => {
@@ -1113,7 +1121,7 @@ test.describe('新規の標準オン（第13版 PR5）', () => {
     await page.locator('#lk-defcal').selectOption('cal-a');
     await page.locator('#lk-close').click();
     await openNew(page);
-    await expect(page.locator('#f-xcal')).toHaveValue('cal-a');
+    await expect(page.locator('#dest-name')).toHaveText('仕事（iCloud）');
     await page.locator('#close').click();
     await openLinkPanel(page);
     await page.locator('#lk-add').uncheck();
@@ -1122,7 +1130,7 @@ test.describe('新規の標準オン（第13版 PR5）', () => {
     await page.evaluate(() => sessionStorage.clear());
     await page.reload();
     await openNew(page);
-    await expect(page.locator('#f-xadd')).not.toBeChecked();
+    await expect(page.locator('#dest-name')).toHaveText('仕事');
     const st = await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith('duo-native-cal')))));
     expect(st.defaultDest.type).toBe('duo'); // 第15版 PR4: 追加先は defaultDest 一つ。旧 addByDefault は参照しない
   });
@@ -1132,7 +1140,7 @@ test.describe('新規の標準オン（第13版 PR5）', () => {
     await page.addInitScript(() => localStorage.setItem('duo-native-cal', JSON.stringify({ version: 1, enabled: true, calendarIds: ['cal-a', 'cal-b'], selectionInitialized: true, defaultCalendarId: null, addByDefault: 'no' })));
     await openApp(page);
     await openNew(page);
-    await expect(page.locator('#f-xadd')).toBeChecked();
+    await expect(page.locator('#dest-name')).toHaveText('家族（Google）');
     expect(await lk(page)).toMatchObject({ defaultDest: { type: 'iphone', id: 'cal-b' }, defaultCalendarId: null }); // 旧キーも残す
   });
 
@@ -1141,7 +1149,7 @@ test.describe('新規の標準オン（第13版 PR5）', () => {
     await page.addInitScript(() => { if (!localStorage.getItem('duo-native-cal')) localStorage.setItem('duo-native-cal', JSON.stringify({ version: 1, enabled: true, calendarIds: ['cal-a'], selectionInitialized: true, defaultCalendarId: 'cal-b', addByDefault: true })); });
     await openApp(page);
     await openNew(page);
-    await expect(page.locator('#f-xadd')).not.toBeChecked(); // cal-b は非表示。同じ source に代わりが無いので Duo の表示中へ
+    await expect(page.locator('#dest-name')).toHaveText('その他'); // cal-b は非表示。同じ source に代わりが無いので Duo の「その他」へ（設計11 §1.1）
     expect(await lk(page)).toMatchObject({ defaultDest: { type: 'iphone', id: 'cal-b' } });
   });
 
@@ -1179,11 +1187,11 @@ test.describe('新規の標準オン（第13版 PR5）', () => {
     await openApp(page);
     await enable(page);
     await openNew(page);
-    await page.locator('#f-xadd').uncheck();
+    await toDuo(page);
     await page.locator('#f-title').fill('下書き');
     await page.reload();
     await expect(page.locator('#f-title')).toHaveValue('下書き');
-    await expect(page.locator('#f-xadd')).not.toBeChecked();
+    await expect(page.locator('#dest-name')).toHaveText('仕事');
   });
 
   test('設定の既定先が消えていたら iPhone の既定へ', async ({ page }) => {
@@ -1191,14 +1199,17 @@ test.describe('新規の標準オン（第13版 PR5）', () => {
     await page.addInitScript(() => localStorage.setItem('duo-native-cal', JSON.stringify({ version: 1, enabled: true, calendarIds: ['cal-a'], selectionInitialized: true, defaultCalendarId: 'cal-gone' })));
     await openApp(page);
     await openNew(page);
-    await expect(page.locator('#f-xcal')).toHaveValue('cal-b');
+    await expect(page.locator('#dest-name')).toHaveText('その他'); // 既定先 cal-b は表示対象外（calendarIds=[cal-a]）なので「その他」;
   });
 
   test('書込先なし: パネルは disabled＋案内、新規シートは段を隠す。未連携では出ない', async ({ page }) => {
     await mock(page, { cals: [CALS3[2]], events: [] });
     await openApp(page);
     await openNew(page);
-    await expect(page.locator('#xadd')).toBeHidden();
+    await expect(page.locator('#dest-l')).toBeVisible(); // 未連携は Duo のカテゴリだけ
+    await page.locator('#f-dest').click();
+    await expect(page.locator('#dest-pop .dopt[data-dtype="iphone"]')).toHaveCount(0);
+    await page.keyboard.press('Escape');
     await page.locator('#close').click();
     await enable(page);
     await openLinkPanel(page);
@@ -1206,7 +1217,8 @@ test.describe('新規の標準オン（第13版 PR5）', () => {
     await expect(page.locator('.newcard')).toContainText('書き込めるカレンダーがありません');
     await page.locator('#lk-close').click();
     await openNew(page);
-    await expect(page.locator('#xadd')).toBeHidden();
+    await page.locator('#f-dest').click();
+    await expect(page.locator('#dest-pop .dopt[data-dtype="iphone"]')).toHaveCount(0); // 書込先なし
   });
 
   test('追加失敗: Duo に保存・通知は Duo へ戻り、シート選択は設定に残らない', async ({ page }) => {
@@ -1215,7 +1227,7 @@ test.describe('新規の標準オン（第13版 PR5）', () => {
     await enable(page);
     await page.evaluate(() => { window.__mock.createErr = 'PERMISSION_DENIED'; });
     await openNew(page);
-    await page.locator('#f-xcal').selectOption('cal-a');
+    await pickDest(page, 'iphone', 'cal-a');
     await page.locator('#f-title').fill('失敗');
     await page.locator('#editor [type=submit]').click();
     await expect(page.getByRole('status')).toContainText('iPhoneのカレンダーには追加できませんでした');

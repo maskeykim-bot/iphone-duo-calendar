@@ -34,10 +34,19 @@ export async function loadSample(page) {
 export const tab = (page, name) => page.getByRole('button', { name, exact: true });
 export const layout = (page) => page.evaluate(() => document.body.dataset.layout);
 
+// 新規予定のカレンダー選択（1行 → 一覧）。type は 'duo'（カテゴリ id）か 'iphone'（カレンダー id）。
+export async function pickDest(page, type, id) {
+  const dlg = page.locator('#editor');
+  await dlg.locator('#f-dest').click();
+  await dlg.locator(`#dest-pop .dopt[data-dtype="${type}"][data-did="${id}"]`).click();
+  await expect(dlg.locator('#dest-pop')).toBeHidden();
+}
 export async function fillEditor(page, f) {
   const dlg = page.locator('#editor');
   if (f.title !== undefined) await dlg.locator('#f-title').fill(f.title);
-  if (f.cat) await dlg.locator('#f-cat').selectOption(catId(f.cat));
+  // 新規は「カレンダー」1行から、既存予定の編集（PR6 まで旧経路）は従来のカテゴリ選択から
+  if (f.cat) { if (await dlg.locator('#f-dest').isVisible()) await pickDest(page, 'duo', catId(f.cat)); else await dlg.locator('#f-cat').selectOption(catId(f.cat)); }
+  if (f.cal) await pickDest(page, 'iphone', f.cal);
   if (f.all !== undefined) await dlg.locator('#f-all').setChecked(f.all);
   if (f.start !== undefined) await dlg.locator('#f-start').fill(f.start);
   if (f.end !== undefined) await dlg.locator('#f-end').fill(f.end);
