@@ -103,7 +103,8 @@ export function createReminderLoader(call, { pick } = {}) {
         const l = await call('listReminderLists', {});
         if (g !== gen) return null;
         const lists = Array.isArray(l?.lists) ? l.lists : [];
-        const reminders = await listReminders(call, (pick ? pick(lists) : lists.map((x) => x.id)), completedSinceStamp(now, days));
+        const ids = pick ? pick(lists) : lists.map((x) => x.id);
+        const reminders = ids.length ? await listReminders(call, ids, completedSinceStamp(now, days)) : [];
         if (g !== gen) return null;
         return { lists, reminders };
       } catch (e) {
@@ -159,9 +160,14 @@ export const REM_TEXT = {
   settings: '設定を開く',
   restricted: 'この端末ではリマインダーへのアクセスが制限されています。',
   web: 'タスクは iPhone のアプリで使えます。',
+  off: 'リマインダーの同期がオフです。設定のカレンダーでオンにすると使えます。',
 };
 
 // state: null（確認中）| 'unavailable' | 'notDetermined' | 'denied' | 'restricted'。granted は呼び出し側が通常のページを出す。
+export function taskOffHtml(where) {
+  const w = String(where).replace(/[^a-z]/g, '');
+  return `<div class="pagewait padb remgate" data-wait="task" data-remstate="off" data-where="${w}"><p class="remtx">${REM_TEXT.off}</p></div>`;
+}
 export function taskAccessHtml(state, where, native) {
   const w = String(where).replace(/[^a-z]/g, '');
   let body;
@@ -360,33 +366,44 @@ export function createDeleteController(call, { delay = DELETE_UNDO_MS, onChange,
 }
 
 // ---- 第14版 PR23: タスクのリスト設定と月の件数（設定は端末内 duo-native-rem。バックアップには入れない） ----
-// lists: null＝すべて（新しいリストも自動で入る）| id 配列＝選んだリストだけ。addTo: ''＝自動（OS 既定→書ける先頭）| リスト id。monthTasks: 初期 off。
-export const REM_SETTINGS_DEFAULT = { lists: null, addTo: '', monthTasks: false };
+// enabled: リマインダーの同期（false の間は一覧を取得しない。欠落・不正は true）。
+// lists: null＝初回未選択（最初の一覧取得の成功で全 id を保存する）| id 配列＝選んだリスト（[] は意図した全オフ）。以後に増えたリストは選ばない。
+// addTo: ''＝自動（選択中で書ける: OS 既定→先頭）| リスト id。monthTasks: 初期 off。
+export const REM_SETTINGS_DEFAULT = { enabled: true, lists: null, addTo: '', monthTasks: false };
 export function normRemSettings(raw) {
   const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
   const lists = Array.isArray(o.lists) ? [...new Set(o.lists.filter((x) => typeof x === 'string' && x))] : null;
-  return { lists, addTo: typeof o.addTo === 'string' ? o.addTo : '', monthTasks: o.monthTasks === true };
+  return { enabled: o.enabled !== false, lists, addTo: typeof o.addTo === 'string' ? o.addTo : '', monthTasks: o.monthTasks === true };
 }
-// 表示するリストの id（実在するものだけ）。選択が空・全部消えたら「すべて」に戻す（何も見えない状態にしない）。
+// 表示するリストの id（実在するものだけ）。未初期化（null）の間だけ全件、選択済みは [] でも空のまま（全オフを全件へ戻さない）。
 export function shownListIds(s, lists) {
   const all = (Array.isArray(lists) ? lists : []).filter((l) => l && typeof l.id === 'string').map((l) => l.id);
   if (!s || !Array.isArray(s.lists)) return all;
-  const have = new Set(all), keep = s.lists.filter((id) => have.has(id));
-  return keep.length ? keep : all;
+  const have = new Set(all);
+  return s.lists.filter((id) => have.has(id));
 }
-// 消えたリストの id を設定から除く。リスト一覧が空（取得の一時的な空）の時は触らない。変化がなければ同じ object を返す。
+// 初回の一覧取得が成功（空でない）した時、未初期化なら全 id を選択として保存する。それ以外は同じ object を返す。
+export function initRemLists(s, lists) {
+  if (!s || Array.isArray(s.lists)) return s;
+  const ids = shownListIds(s, lists);
+  return ids.length ? { ...s, lists: ids } : s;
+}
+// 消えたリストの id を設定から除く（全部消えても [] のまま。全件には戻さない）。リスト一覧が空（取得の一時的な空）の時は触らない。変化がなければ同じ object を返す。
 export function pruneRemSettings(s, lists) {
   const ids = new Set((Array.isArray(lists) ? lists : []).map((l) => l?.id));
   if (!ids.size) return s;
   let lists2 = s.lists, addTo = s.addTo;
-  if (Array.isArray(s.lists)) { const k = s.lists.filter((id) => ids.has(id)); if (k.length !== s.lists.length) lists2 = k.length ? k : null; }
+  if (Array.isArray(s.lists)) { const k = s.lists.filter((id) => ids.has(id)); if (k.length !== s.lists.length) lists2 = k; }
   if (addTo && !ids.has(addTo)) addTo = '';
   return lists2 === s.lists && addTo === s.addTo ? s : { ...s, lists: lists2, addTo };
 }
-// 追加先。設定の先が実在して書ける時だけそれ、それ以外は自動（OS 既定→書ける先頭）。表示するリストとは独立。
-export function resolveAddList(lists, addTo) {
-  const ok = (Array.isArray(lists) ? lists : []).find((l) => l && l.id === addTo && l.allowsModify !== false);
-  return addTo && ok ? ok.id : pickAddList(lists);
+// 追加先。選択（✓）中で書けるリストだけが候補。設定の先が候補ならそれ、なければ自動（OS 既定→候補の先頭）。候補がなければ null（追加不可）。
+// selected 省略時は一覧の全件を候補とする。
+export function resolveAddList(lists, addTo, selected) {
+  const sel = selected === undefined ? null : new Set(selected);
+  const cand = (Array.isArray(lists) ? lists : []).filter((l) => l && typeof l.id === 'string' && l.allowsModify !== false && (!sel || sel.has(l.id)));
+  const ok = addTo && cand.find((l) => l.id === addTo);
+  return ok ? ok.id : pickAddList(cand);
 }
 // 表示するリストのタスクだけ。
 export function filterByLists(reminders, shown) {

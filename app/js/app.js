@@ -11,7 +11,7 @@ import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAl
 import { rokuyoOf } from './rokuyo.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS } from './pages.js';
 import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.js';
-import { DELETE_UNDO_MS, checkReminderAccess, requestReminderAccess, taskAccessHtml, createReminderLoader, tasksHtml, HIST_DAYS, createAddController, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDoneController, TASK_CONFLICT, createDeleteController, TASK_DELETED, TASK_DELETE_CONFLICT, normRemSettings, shownListIds, pruneRemSettings, resolveAddList, filterByLists, dueCounts } from './reminders.js';
+import { DELETE_UNDO_MS, checkReminderAccess, requestReminderAccess, taskAccessHtml, taskOffHtml, initRemLists, createReminderLoader, tasksHtml, HIST_DAYS, createAddController, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDoneController, TASK_CONFLICT, createDeleteController, TASK_DELETED, TASK_DELETE_CONFLICT, normRemSettings, shownListIds, pruneRemSettings, resolveAddList, filterByLists, dueCounts } from './reminders.js';
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
 import { call, errCode, errReason, errText, haptic, listen, nativeAvailable, reminderErrText } from './native.js';
 import { makeVisible, buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normDest, normSettings, pickAddCal, planLinkMigration, planNativeOps, resolveDest, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
@@ -1055,10 +1055,10 @@ function loadRemSettings() { try { return normRemSettings(JSON.parse(localStorag
 let remSet = loadRemSettings();
 function setRemSettings(next) { remSet = next; try { localStorage.setItem(REM_KEY, JSON.stringify(remSet)); } catch { /* 無視 */ } }
 const shownIds = () => new Set(shownListIds(remSet, RM.data?.lists));
-const addList = () => resolveAddList(RM.data?.lists, remSet.addTo);
+const addList = () => resolveAddList(RM.data?.lists, remSet.addTo, shownListIds(remSet, RM.data?.lists));
 // 月の「✓N」: 設定オン・許可済み・読み込み済みの時だけ。閉じた画面（browse）には出さない。
 function monthTaskCounts(kind) {
-  if (kind === 'browse' || !remSet.monthTasks || !NATIVE || RM.state !== 'granted' || !RM.data) return null;
+  if (kind === 'browse' || !remSet.enabled || !remSet.monthTasks || !NATIVE || RM.state !== 'granted' || !RM.data) return null;
   const over = doneCtl.pending(), ids = delCtl.ids();
   const list = ids.size ? RM.data.reminders.filter((x) => !ids.has(x.itemId)) : RM.data.reminders;
   return dueCounts(list, shownIds(), over);
@@ -1109,24 +1109,25 @@ function toggleDone(id) {
   say(now ? '完了にしました。' : '未完了に戻しました。');
 }
 function taskBody(where) {
+  if (NATIVE && !remSet.enabled) return taskOffHtml(where);
   if (RM.state === 'granted') return tasksHtml(RM.data ? { ...RM.data, reminders: filterByLists(RM.data.reminders, shownIds()).filter((x) => !delCtl.has(x.itemId)) } : RM.data, { selected: state.selected, doneOpen: RM.doneOpen, histDays: RM.histDays, loading: !RM.err, error: RM.err, busyMore: RM.more, pending: doneCtl.pending(), add: RM.data ? { draft: RM.add, listId: addList() } : null });
   return taskAccessHtml(RM.state, where, NATIVE);
 }
 // 許可がなくなったら、メモリ上のタスクも読込も捨てる（本文はどこにも保存していない）。
 function dropTasks() { doneCtl.reset(); delCtl.reset(); tkDrop?.(); remLoader.cancel(); clearTimeout(RM.timer); RM.data = null; RM.err = false; RM.sig = ''; RM.more = false; RM.doneOpen = false; RM.histDays = HIST_DAYS; RM.add = newDraft(); }
 async function loadTasks() {
-  if (!NATIVE || RM.state !== 'granted') return;
+  if (!NATIVE || RM.state !== 'granted' || !remSet.enabled) return; // 同期オフの間は一覧を取得しない
   try {
     const r = await remLoader.load(RM.histDays);
-    if (!r || RM.state !== 'granted') return;
+    if (!r || RM.state !== 'granted' || !remSet.enabled) return; // オフ前に始めた応答は捨てる
     RM.err = false; RM.more = false;
-    const pr = pruneRemSettings(remSet, r.lists); if (pr !== remSet) { setRemSettings(pr); RM.sig = ''; } // 消えたリストの id を除く
+    const pr = pruneRemSettings(initRemLists(remSet, r.lists), r.lists); if (pr !== remSet) { setRemSettings(pr); RM.sig = ''; } // 消えたリストの id を除く
     const sig = JSON.stringify(r);
     if (sig === RM.sig && RM.data) return;
     RM.sig = sig; RM.data = r; render();
     if (calScreenOpen()) renderCalScreen();
   } catch (e) {
-    if (RM.state !== 'granted') return;
+    if (RM.state !== 'granted' || !remSet.enabled) return;
     RM.more = false;
     if (e?.code === 'PERMISSION_DENIED') { refreshReminderAccess(); return; }
     if (!RM.data) { RM.err = true; render(); }
@@ -2322,7 +2323,7 @@ function openMenu(from) {
   syncMonthMenu();
   syncModeMenu();
   syncRokuyoMenu();
-  syncTaskMenu(true);
+  syncTaskMenu();
   $('#m-tlz').hidden = !root.querySelector('.tl');
   const cats = state.categories.filter((c) => !c.hidden);
   $('#m-legend').hidden = !cats.length;
@@ -2352,22 +2353,22 @@ function syncMonthMenu() {
   z.setAttribute('aria-pressed', String(state.monthTextSize === 'large'));
   z.textContent = `月の文字: ${state.monthTextSize === 'large' ? '大（標準にする）' : '標準（大にする）'}`;
 }
-// タスクの設定（ネイティブ版のみ）。月の件数のスイッチ／表示するリスト／追加先。
-function syncTaskMenu(reset = false) {
+// タスクの設定（ネイティブ版のみ）。月の件数のスイッチだけ。リストの✓・同期・追加先はカレンダーのリマインダー段。
+function syncTaskMenu() {
   $('#m-tk').hidden = !NATIVE;
   if (!NATIVE) return;
   $('#m-tkmonth').setAttribute('aria-checked', String(remSet.monthTasks));
-  const b = $('#m-tklists'), p = $('#m-tkpanel');
-  if (reset) { p.hidden = true; b.setAttribute('aria-expanded', 'false'); }
-  if (p.hidden) return;
-  const lists = RM.state === 'granted' && RM.data ? RM.data.lists : null;
-  if (!lists) { p.innerHTML = '<p class="swnote">リマインダーの許可後に選べます。</p>'; return; }
-  const shown = shownIds(), addId = addList(), auto = !remSet.addTo || resolveAddList(lists, remSet.addTo) !== remSet.addTo;
-  const dot = (l) => `<i class="tkdot" style="background:${/^#[0-9a-fA-F]{6}$/.test(l.color || '') ? l.color : '#68716A'}" aria-hidden="true"></i>`;
-  const show = lists.map((l) => `<button type="button" role="checkbox" aria-checked="${shown.has(l.id)}" data-tkshow="${esc(l.id)}">${dot(l)}<span>${esc(l.title || '（名前なし）')}${l.allowsModify === false ? '（読み取り専用）' : ''}</span></button>`).join('');
-  const add = lists.filter((l) => l.allowsModify !== false).map((l) => `<button type="button" role="radio" aria-checked="${!auto && addId === l.id}" data-tkadd="${esc(l.id)}">${dot(l)}<span>${esc(l.title || '（名前なし）')}</span></button>`).join('');
-  p.innerHTML = `<div role="group" aria-label="表示するリスト"><div class="eyebrow">表示するリスト</div><button type="button" role="checkbox" aria-checked="${remSet.lists === null}" data-tkshow="">すべて</button>${show}</div>`
-    + `<div role="radiogroup" aria-label="タスクの追加先"><div class="eyebrow">タスクの追加先</div><button type="button" role="radio" aria-checked="${auto}" data-tkadd="">自動（iPhone の既定）</button>${add}</div>`;
+}
+// リマインダーの同期の入切。オフ: 送り待ちの完了/削除はここで1回だけ送ってから捨て、読込世代を進めて遅れて返る応答も捨てる（EventKit のデータは触らない）。選択・追加先は残す。
+function setRemSync(on) {
+  if (remSet.enabled === on) return;
+  if (!on) delCtl.flush();
+  setRemSettings({ ...remSet, enabled: on });
+  if (!on) dropTasks();
+  RM.sig = ''; render(); syncTaskMenu();
+  if (calScreenOpen()) renderCalScreen();
+  if (on) { if (RM.state === 'granted') loadTasks(); else refreshReminderAccess(); }
+  say(on ? 'リマインダーの同期をオンにしました。' : 'リマインダーの同期をオフにしました。');
 }
 function tkChanged(reload) {
   RM.sig = ''; render(); syncTaskMenu();
@@ -2384,25 +2385,18 @@ function syncModeMenu() {
   $('#m-variant').innerHTML = on ? variantBtns(isPortrait() ? 'portrait' : layoutKind()) : '';
 }
 menuDlg.addEventListener('click', (ev) => {
-  const ts = ev.target.closest('[data-tkshow]'), ta = ev.target.closest('[data-tkadd]');
+  const ts = ev.target.closest('[data-tkshow]'), ta = ev.target.closest('[data-tkadd]'), tsync = ev.target.closest('#m-remsync');
+  if (tsync) { setRemSync(!remSet.enabled); return; }
   if (ts || ta) {
     const lists = RM.data?.lists || [];
     if (ta) { setRemSettings({ ...remSet, addTo: ta.dataset.tkadd }); tkChanged(false); say('タスクの追加先を変えました。'); return; }
-    const id = ts.dataset.tkshow, all = lists.map((l) => l.id);
-    let next;
-    if (!id) next = null;
-    else {
-      const cur = new Set(shownListIds(remSet, lists));
-      if (cur.has(id)) cur.delete(id); else cur.add(id);
-      if (!cur.size) { say('表示するリストは1つ以上選んでください。'); return; }
-      next = all.every((x) => cur.has(x)) ? null : all.filter((x) => cur.has(x));
-    }
-    setRemSettings({ ...remSet, lists: next }); tkChanged(true); say('表示するリストを変えました。'); return;
+    const id = ts.dataset.tkshow;
+    const cur = new Set(shownListIds(remSet, lists));
+    if (cur.has(id)) cur.delete(id); else cur.add(id);
+    setRemSettings({ ...remSet, lists: lists.map((l) => l.id).filter((x) => cur.has(x)) }); tkChanged(true); say(cur.has(id) ? 'リストを表示します。' : 'リストを表示しません。'); return; // 全オフも可
   }
   const mb0 = ev.target.closest('[data-m="tkmonth"]');
   if (mb0) { setRemSettings({ ...remSet, monthTasks: !remSet.monthTasks }); syncTaskMenu(); render(); say(`月にタスクを${remSet.monthTasks ? '表示します' : '表示しません'}。`); return; }
-  const tl = ev.target.closest('[data-m="tklists"]');
-  if (tl) { const p = $('#m-tkpanel'); p.hidden = !p.hidden; tl.setAttribute('aria-expanded', String(!p.hidden)); syncTaskMenu(); return; }
   if (calClick(ev)) return;
   const cv = ev.target.closest('[data-cvis]'), cc = ev.target.closest('[data-cal]');
   if (cv) { calToggleCat(cv.dataset.cvis, cv); return; }
@@ -2919,17 +2913,27 @@ function renderCalScreen() {
     else h += '<h3 class="calsec">iPhone</h3><p class="cnote" role="alert">カレンダーの状態を確認できませんでした。</p>';
   }
   $('#m-cal-ip').innerHTML = h;
-  // リマインダー（段の表示は既存の設定と一覧を使う。全オフの意味の修正は後の PR）
+  // リマインダー段: 同期スイッチ／リストの✓／新しいタスクの追加先／固定の履歴表示
   const rb = $('#m-cal-rem');
   if (!NATIVE) rb.innerHTML = '';
   else {
-    const lists = RM.state === 'granted' && RM.data ? RM.data.lists : null;
-    if (lists) {
+    const sw = `<button type="button" id="m-remsync" class="swrow" role="switch" aria-checked="${remSet.enabled}"><span>リマインダーを同期</span><i class="rkswitch" aria-hidden="true"></i></button>`;
+    const lists = remSet.enabled && RM.state === 'granted' && RM.data ? RM.data.lists : null;
+    let body = '';
+    if (!remSet.enabled) body = '<p class="cnote">同期をオフにしています。オンにするとタスクとリストを読み込みます。</p>';
+    else if (lists) {
       const shown = shownIds();
       const groups = [];
       for (const l of lists) { const k = l.source || 'リマインダー'; let g = groups.find((x) => x.k === k); if (!g) groups.push(g = { k, items: [] }); g.items.push(l); }
-      rb.innerHTML = groups.map((g) => `<h3 class="calsec">${esc(g.k)}（リマインダー）</h3>${g.items.map((l) => calRow(`data-tkshow="${esc(l.id)}"`, shown.has(l.id), l.color, l.title, l.allowsModify === false ? '<small class="cro">表示のみ</small>' : '')).join('')}`).join('');
-    } else rb.innerHTML = `<h3 class="calsec">リマインダー</h3><p class="cnote">${RM.state === 'denied' ? '設定アプリで許可すると使えます。' : RM.state === 'notDetermined' ? 'リマインダーのアクセスを許可すると選べます。' : 'リマインダーの許可後に選べます。'}</p>${RM.state === 'denied' ? '<button type="button" class="cbtn" data-act="remsettings">設定を開く</button>' : RM.state === 'notDetermined' ? '<button type="button" class="cbtn" id="m-remreq">許可する</button>' : ''}`;
+      body = groups.map((g) => `<h3 class="calsec">${esc(g.k)}（リマインダー）</h3>${g.items.map((l) => calRow(`data-tkshow="${esc(l.id)}"`, shown.has(l.id), l.color, l.title, l.allowsModify === false ? '<small class="cro">表示のみ</small>' : '')).join('')}`).join('');
+      const addId = addList(), cand = lists.filter((l) => l.allowsModify !== false && shown.has(l.id));
+      const auto = !remSet.addTo || addId !== remSet.addTo;
+      body += '<h3 class="calsec">新しいタスクの追加先</h3>';
+      if (!cand.length) body += '<p class="cnote">追加できるリストがありません。✓を付けた書き込み可のリストが必要です。</p>';
+      else body += `<div role="radiogroup" aria-label="新しいタスクの追加先" class="tkpanel"><button type="button" role="radio" aria-checked="${auto}" data-tkadd="">自動（iPhone の既定）</button>${cand.map((l) => `<button type="button" role="radio" aria-checked="${!auto && addId === l.id}" data-tkadd="${esc(l.id)}">${calDot(l.color)}<span>${esc(l.title || '（名前なし）')}</span></button>`).join('')}</div>`;
+      body += `<p class="cnote" id="m-remhist">完了したタスク：${HIST_DAYS}日分を表示</p>`;
+    } else body = `<p class="cnote">${RM.state === 'denied' ? '設定アプリで許可すると使えます。' : RM.state === 'notDetermined' ? 'リマインダーのアクセスを許可すると選べます。' : RM.state === 'restricted' ? 'この端末ではリマインダーへのアクセスが制限されています。' : 'リマインダーを読み込み中です。'}</p>${RM.state === 'denied' ? '<button type="button" class="cbtn" data-act="remsettings">設定を開く</button>' : RM.state === 'notDetermined' ? '<button type="button" class="cbtn" id="m-remreq">許可する</button>' : ''}`;
+    rb.innerHTML = `<h3 class="calsec">リマインダー</h3>${sw}${body}`;
   }
   // 新しい予定の追加先
   const d = destInfo(destNow()), open = !$('#m-destpop').hidden;
