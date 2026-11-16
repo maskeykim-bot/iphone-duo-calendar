@@ -1160,7 +1160,15 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
 
     /// 繰り返しの系列の先頭（all の操作対象）。EventKit から一意に取れたときだけ。取れなければ nil。
     private func seriesHead(_ ev: EKEvent) -> EKEvent? {
-        guard ev.hasRecurrenceRules, !ev.isDetached,
+        if ev.isDetached {
+            // 個別に変えた回: 同じ externalId で、個別変更でない繰り返しの親が1件だけのときその親を使う。複数なら選ばない。
+            let ext = ev.calendarItemExternalIdentifier ?? ""
+            guard !ext.isEmpty else { return nil }
+            let heads = store.calendarItems(withExternalIdentifier: ext).compactMap { $0 as? EKEvent }
+                .filter { !$0.isDetached && $0.hasRecurrenceRules && $0.startDate != nil && $0.endDate != nil }
+            return heads.count == 1 ? heads[0] : nil
+        }
+        guard ev.hasRecurrenceRules,
               let head = store.calendarItem(withIdentifier: ev.calendarItemIdentifier) as? EKEvent,
               head.hasRecurrenceRules, head.startDate != nil, head.endDate != nil,
               head.calendarItemIdentifier == ev.calendarItemIdentifier else { return nil }
@@ -1345,10 +1353,10 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             case .found(let e):
                 ev = e
             }
-            let recurring = ev.hasRecurrenceRules
+            let recurring = ev.hasRecurrenceRules || (span == "all" && ev.isDetached)
             // all の繰り返しは一意な系列の先頭を対象にする。取れなければ憶測しない。
             var useHead = false
-            if span == "all" && recurring {
+            if span == "all" && (recurring || ev.isDetached) {
                 guard let head = self.seriesHead(ev) else {
                     call.reject("series head is unavailable", "UNAVAILABLE")
                     return
@@ -1463,8 +1471,8 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             case .found(let e):
                 ev = e
             }
-            let recurring = ev.hasRecurrenceRules
-            if span == "all" && recurring {
+            let recurring = ev.hasRecurrenceRules || (span == "all" && ev.isDetached)
+            if span == "all" && (recurring || ev.isDetached) {
                 guard let head = self.seriesHead(ev) else {
                     call.reject("series head is unavailable", "UNAVAILABLE")
                     return

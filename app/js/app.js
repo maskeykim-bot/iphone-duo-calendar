@@ -1993,12 +1993,17 @@ async function reconcileLinks() {
     applyEvents(ack.events);
   } catch { /* 照合の失敗は表示を止めない。次の読込で再試行 */ }
 }
+// 同じ iPhone の予定か（表示用 id は開始を含むので使わない）。itemId、なければ eventId＋回の日時。
+function sameExt(a, b) {
+  const same = a.itemId && b.itemId ? a.itemId === b.itemId : a.eventId === b.eventId;
+  return same && (!b.recurring || (a.occurrenceDate || '') === (b.occurrenceDate || ''));
+}
 function afterExt() {
   render();
   if (linkDlg.open) renderLink();
   if (xdDlg.open && xdCur && !visExt().some((x) => x.id === xdCur.id)) $('#xd-err').textContent = 'この予定は見つかりません。カレンダーで確認してください。';
   if (dlg.open) updateXUi();
-  if (dlg.open && extEd) $('#ext-gone').hidden = X.status !== 'ok' || visExt().some((x) => x.id === extEd.before.id); // 入力・基準値は変えない。注意帯だけ
+  if (dlg.open && extEd) $('#ext-gone').hidden = X.status !== 'ok' || visExt().some((x) => sameExt(x, extEd.before)); // 入力・基準値は変えない。注意帯だけ
 }
 function dropLink(msg) {
   setLink({ enabled: false });
@@ -2195,7 +2200,7 @@ $('#xd-edit').addEventListener('click', () => {
   const s = xdReady();
   if (!s) return;
   const b = s.before;
-  extEd = { before: b, detail: s.detail, cal: s.cal, alarms0: '' };
+  extEd = { before: b, detail: s.detail, cal: s.cal, alarms0: '', touched: false };
   origins.set(dlg, origins.get(xdDlg));
   closePanel(xdDlg, false);
   showEditor({
@@ -2285,7 +2290,7 @@ function submitExt(ev) {
   const x = extEd;
   if (!x || extBusy) return;
   const after = { title: ev.title, place: ev.place, notes: ev.notes, start: ev.start, end: ev.end, all: ev.all, calendarId: F.ecal.value };
-  if (JSON.stringify(alarms ?? null) !== x.alarms0) after.alarms = Array.isArray(alarms) ? alarms : [];
+  if (x.touched) after.alarms = Array.isArray(alarms) ? alarms : [];
   if (x.before.recurring) { openScopeExt('edit', after); return; }
   runExtSave('only', after);
 }
@@ -2628,6 +2633,7 @@ function onAlarmChange(i) {
   const vals = [0, 1].filter((j) => !AL.row[j].hidden).map((j) => decAlarm(AL.sel[j].value));
   vals[i] = decAlarm(AL.sel[i].value);
   const next = vals.filter(Boolean);
+  if (extEd) extEd.touched = true;
   alarms = alarmsDup(next) ? next.filter((a, j) => next.findIndex((b) => encAlarm(b) === encAlarm(a)) === j) : next;
   updateAlarmUi();
   saveDraft();

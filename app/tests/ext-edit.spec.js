@@ -14,6 +14,8 @@ const mk = (o) => ({ ...BASE, id: `${o.eventId}@${o.start}`, itemId: `it-${o.eve
 const DETAILS = [
   mk({ eventId: 'e1', title: '歯医者', start: '2026-11-12T15:00', end: '2026-11-12T16:00', place: '渋谷', notes: '保険証', alarms: [{ before: 30 }], seriesStart: '2026-11-12T15:00' }),
   mk({ eventId: 'w1', title: '定例', start: '2026-11-12T09:00', end: '2026-11-12T10:00', recurring: true, occurrenceDate: '2026-11-12T09:00', rule: { freq: 'weekly', byDay: [4], count: 10 }, ruleText: '毎週', alarms: [{ before: 10 }, { before: 20 }], alarmsExtra: 1, seriesStart: '2026-11-05T09:00' }),
+  mk({ eventId: 'd1', title: '個別の回', start: '2026-11-12T17:00', end: '2026-11-12T18:00', recurring: true, detached: true, occurrenceDate: '2026-11-12T16:00', rule: { freq: 'weekly', byDay: [4], count: 10 }, ruleText: '毎週', seriesStart: '2026-11-05T16:00' }),
+  mk({ eventId: 'x1', title: '特別な通知', start: '2026-11-12T18:30', end: '2026-11-12T19:00', alarms: [{ before: 10 }], alarmsExtra: 2, seriesStart: '2026-11-12T18:30' }),
   mk({ eventId: 'm1', title: '会議', start: '2026-11-12T11:00', end: '2026-11-12T12:00', hasAttendees: true, isOrganizer: true, editable: false, reason: 'organizerWithAttendees' }),
   mk({ eventId: 'i1', title: '招待', start: '2026-11-12T12:00', end: '2026-11-12T13:00', hasAttendees: true, isOrganizer: false, editable: false, reason: 'invitee' }),
   mk({ eventId: 'b1', title: '誕生日', calendarId: 'cal-2', all: true, start: '2026-11-12T00:00', end: '2026-11-12T00:00', allowsModify: false, sourceType: 'birthdays', editable: false, reason: 'birthdays' }),
@@ -335,6 +337,45 @@ test.describe('編集（09 §2）', () => {
     await page.locator('#scrim').click({ position: { x: 5, y: 5 } });
     await expect(page.locator('#editor')).toBeHidden(); // 元に戻せば確認なし
     expect(await calls(page, 'updateExternalEvent')).toHaveLength(0);
+  });
+
+  test('編集中に iPhone 側で開始だけ変わっても注意帯は出ない（itemId で判定）。削除されたときだけ出る', async ({ page }) => {
+    await setup(page);
+    await edit(page, '歯医者');
+    await page.locator('#f-title').fill('E');
+    const n0 = (await calls(page, 'listEvents')).length;
+    await page.evaluate((evs) => {
+      window.__mock.events = evs.map((e) => (e.eventId === 'e1' ? { ...e, id: `${e.eventId}@2026-11-12T16:00`, start: '2026-11-12T16:00', end: '2026-11-12T17:00', occurrenceDate: null } : e));
+      window.__mock.listeners.calendarChanged({});
+    }, EVENTS);
+    await expect.poll(async () => (await calls(page, 'listEvents')).length).toBeGreaterThan(n0);
+    await page.waitForTimeout(600);
+    await expect(page.locator('#ext-gone')).toBeHidden();
+    await page.evaluate((evs) => { window.__mock.events = evs.filter((e) => e.eventId !== 'e1'); window.__mock.listeners.calendarChanged({}); }, EVENTS);
+    await expect(page.locator('#ext-gone')).toBeVisible();
+  });
+
+  test('通知の行を触らず終日に切り替えて保存しても alarms は送らない。行を変えたときは送る', async ({ page }) => {
+    await setup(page);
+    await edit(page, '特別な通知');
+    await page.locator('#f-all').check();
+    await page.locator('#form [type=submit]').click();
+    await expect(page.locator('#editor')).toBeHidden();
+    let u = await calls(page, 'updateExternalEvent');
+    expect(u).toHaveLength(1);
+    expect(u[0].opts.all).toBe(true);
+    expect(u[0].opts).not.toHaveProperty('alarms');
+  });
+
+  test('個別に変えた回から「すべて」を選ぶと span=all で送る（契約）', async ({ page }) => {
+    await setup(page);
+    await edit(page, '個別の回');
+    await page.locator('#f-title').fill('全部');
+    await page.locator('#form [type=submit]').click();
+    await page.locator('#scope [data-scope=all]').click();
+    await expect(page.locator('#editor')).toBeHidden();
+    const u = await calls(page, 'updateExternalEvent');
+    expect(u[0].opts).toMatchObject({ span: 'all', eventId: 'd1', itemId: 'it-d1', occurrenceStart: '2026-11-12T16:00', currentStart: '2026-11-12T17:00' });
   });
 
   test('開いている間に対象が消えたら注意帯。入力・基準値は変わらず、保存は押せて元の値で送る', async ({ page }) => {
