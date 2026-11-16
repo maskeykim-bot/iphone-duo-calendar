@@ -187,3 +187,14 @@ test('backup: 設定の既定を未保存でも書き出し、alarms が往復�
   assert.equal(v.ok, true);
   assert.deepEqual(v.data.events[0].alarms, [{ before: 1440 }, { before: 0 }]);
 });
+
+test('planNotifications: 31日×通知2つ → 近い順60件で補充後も同じ順序（前面発火後の再計画）', () => {
+  const evs = Array.from({ length: 31 }, (_, i) => al({ id: `d${String(i).padStart(2, '0')}`, s: `2026-11-${String(15 + i > 30 ? 30 : 15 + i).padStart(2, '0')}T10:00`, e: '2026-11-30T23:00', alarms: [{ before: 30 }, { before: 5 }] }));
+  const got = plan(evs);
+  assert.equal(got.length, 60);
+  assert.deepEqual(got.map((x) => x.fireDate), [...got.map((x) => x.fireDate)].sort());
+  // 最初の通知が鳴った後（時刻が進む）の再計画で、次の通知が繰り上がって60件に補充される
+  const later = plan(evs, new Date(2026, 10, 15, 9, 31));
+  assert.equal(later.length, 60);
+  assert.ok(!later.some((x) => x.fireDate === got[0].fireDate));
+});

@@ -2565,6 +2565,10 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
     // MARK: NotificationHandlerProtocol
 
     public func willPresent(notification: UNNotification) -> UNNotificationPresentationOptions {
+        // 前面で鳴った Duo の通知だけ JS へ知らせ、予約を補充させる（本文・予定識別子は渡さない）。
+        if notification.request.identifier.hasPrefix(Self.notifyPrefix) {
+            notifyListeners("notificationPresented", data: [:])
+        }
         return [.banner, .list, .sound]
     }
 

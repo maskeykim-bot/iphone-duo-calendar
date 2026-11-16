@@ -130,6 +130,27 @@ test.describe('通知の再予約', () => {
     await next(5);
   });
 
+  test('前面で通知が鳴ったら notificationPresented で再予約し、連続発火は1回に間引く', async ({ page }) => {
+    await mock(page);
+    await openApp(page, SIZES.closedPortrait, '?nosw');
+    await seed(page, [A]);
+    await expect.poll(() => count(page, 'notifySync')).toBe(1);
+    await page.evaluate(() => { const l = window.__mock.listeners.notificationPresented; l({}); l({}); l({}); });
+    await expect.poll(() => count(page, 'notifySync'), { timeout: 5000 }).toBe(2);
+    await settle(page, 1200);
+    expect(await count(page, 'notifySync')).toBe(2);
+  });
+
+  test('通知オフなら notificationPresented でも予約せず clear のまま', async ({ page }) => {
+    await mock(page);
+    await page.addInitScript(() => localStorage.setItem('duo-notify', JSON.stringify({ enabled: false })));
+    await openApp(page, SIZES.closedPortrait, '?nosw');
+    await settle(page);
+    await page.evaluate(() => window.__mock.listeners.notificationPresented({}));
+    await settle(page, 1200);
+    expect(await count(page, 'notifySync')).toBe(0);
+  });
+
   test('カテゴリの保存・削除・undo の後に再予約する', async ({ page }) => {
     await mock(page);
     await openApp(page, SIZES.closedPortrait, '?nosw');

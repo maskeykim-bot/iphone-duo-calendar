@@ -3789,6 +3789,7 @@ async function initNative() {
   // 連携オフ・カレンダー権限なしでも通知は動くので、購読は権限確認より前に行う。
   listen('calendarChanged', () => { clearTimeout(extTimer); extTimer = setTimeout(() => { if (extActive()) loadExt(true); }, 300); if (RM.state === 'granted') scheduleTasks(); });
   listen('notificationTapped', onNotifyTap);
+  listen('notificationPresented', () => requestNotifySync('fired')); // 前面で鳴ったら次の予約を補充（既存の debounce・直列・世代処理）
   refreshReminderAccess(); // 予定の権限確認とは独立（下の早期 return に影響されない）。状態確認のみ
   listen('timeChanged', () => { X.cache = null; bumpRevision(); requestNotifySync('time'); if (RM.state === 'granted') scheduleTasks(); if (extActive()) loadExt(true); else render(); });
   const p = await checkPerm();
