@@ -7,7 +7,7 @@ import { normNotify, planNotifications } from '../js/notify.js';
 import { R, ev } from './fixtures.mjs';
 
 const NOW = new Date(2026, 10, 14, 9, 0);
-const S = normNotify(null);
+const S = normNotify({ enabled: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } }); // 通知オン・既定ありの設定（新規の既定はオフ・なし）
 const hid = new Set(['c-hid']);
 const cals = [{ id: 'A' }, { id: 'B' }];
 const link = (o = {}) => ({ enabled: true, calendarIds: ['A'], ...o });

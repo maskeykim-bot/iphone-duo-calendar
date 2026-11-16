@@ -273,3 +273,12 @@ export async function enableCalendars(page, { close = true } = {}) {
   await expect(page.locator('#menu [data-cal]').first()).toBeVisible();
   if (close) { await page.locator('#m-back').click(); await page.locator('#m-back').click(); await expect(page.locator('#menu')).toBeHidden(); }
 }
+
+// 通知オン・既定ありの端末（旧版からの移行済み相当）にする。第15版 PR12 で新規の既定はオフ・なしになったので、通知が要るテストは明示する。
+export async function notifyOn(page, cfg = {}) {
+  await page.addInitScript((c) => {
+    if (localStorage.getItem('duo-notify-policy.v15')) return;
+    localStorage.setItem('duo-notify', JSON.stringify({ version: 1, enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' }, ...c }));
+    localStorage.setItem('duo-notify-policy.v15', 'test');
+  }, cfg);
+}

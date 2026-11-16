@@ -1,10 +1,11 @@
 // 第11版 PR3: 通知の再予約（全起点・debounce・世代・直列化）。DuoNative は偽装で、Swift の実動作の証明ではない。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, seed, ev, addEvent, loadSample, openMenu } from './helpers.js';
+import { notifyOn, openApp, SIZES, seed, ev, addEvent, loadSample, openMenu } from './helpers.js';
 
 const A = ev('a1', '会議', '2026-11-13T10:00', '2026-11-13T11:00', { alarms: [{ before: 30 }] });
 
 async function mock(page, cfg = {}) {
+  await notifyOn(page);
   await page.addInitScript((c) => {
     const M = window.__mock = { notif: c.notif ?? 'granted', calls: [], pending: [], active: 0, maxActive: 0, statusDelay: c.statusDelay ?? 0, syncDelay: c.syncDelay ?? 0, syncFail: c.syncFail ?? 0, listeners: {} };
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));

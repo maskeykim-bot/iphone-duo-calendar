@@ -1,6 +1,6 @@
 // 第7版: iPhone カレンダー連携。window.Capacitor を偽装して、DuoNative の契約どおりに呼ばれ表示されることを確認する。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, tab, seed, ev, dbEvents, setStyle, openMenu, pickDest, enableCalendars } from './helpers.js';
+import { notifyOn, openApp, SIZES, tab, seed, ev, dbEvents, setStyle, openMenu, pickDest, enableCalendars } from './helpers.js';
 // 新規予定のカレンダー選択: 種別の先頭を選ぶ（第15版 PR5）
 const pickKind = async (page, type) => { await page.locator('#f-dest').click(); await page.locator(`#dest-pop .dopt[data-dtype="${type}"]`).first().click(); };
 const toIphone = (page) => pickKind(page, 'iphone');
@@ -18,6 +18,7 @@ const EVENTS = [
 ];
 
 async function mock(page, cfg = {}) {
+  await notifyOn(page);
   await page.addInitScript((c) => {
     const M = window.__mock = { perm: c.perm ?? 'granted', afterRequest: c.afterRequest ?? 'granted', calls: [], cals: c.cals, events: c.events, createFail: 0, opened: true, share: { completed: true }, created: {}, listeners: {}, notif: c.notif ?? 'notDetermined', notifAfter: c.notifAfter ?? 'granted', pending: [], remPerm: c.remPerm ?? 'notDetermined', remAfter: c.remAfter ?? 'granted', remLists: c.remLists ?? [] };
     const clone = (o) => JSON.parse(JSON.stringify(o ?? {}));

@@ -161,7 +161,7 @@ export function checkSettings(s) {
   if (s.notify != null) {
     const n = s.notify;
     if (!isObj(n) || (n.enabled !== undefined && typeof n.enabled !== 'boolean') || (n.showTitle !== undefined && typeof n.showTitle !== 'boolean')
-      || (n.defaultTimed !== undefined && !okTimed(n.defaultTimed)) || (n.defaultAllDay !== undefined && !okAllDay(n.defaultAllDay))) return { error: '設定の通知が不正です' };
+      || (n.defaultTimed != null && !okTimed(n.defaultTimed)) || (n.defaultAllDay != null && !okAllDay(n.defaultAllDay))) return { error: '設定の通知が不正です' };
     out.notify = {};
     for (const k of ['enabled', 'showTitle', 'defaultTimed', 'defaultAllDay']) if (n[k] !== undefined) out.notify[k] = deepClean(n[k]);
   }

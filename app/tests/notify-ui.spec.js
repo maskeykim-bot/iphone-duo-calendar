@@ -1,8 +1,9 @@
 // 第11版 PR4: 通知の画面（編集シートの行・通知パネル・ベル・タップ）。DuoNative は偽装で、Swift の実動作の証明ではない。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, seed, ev, dbEvents, openMenu, pickDay as pick } from './helpers.js';
+import { notifyOn, openApp, SIZES, seed, ev, dbEvents, openMenu, pickDay as pick } from './helpers.js';
 
 async function mock(page, cfg = {}) {
+  await notifyOn(page);
   await page.addInitScript((c) => {
     const M = window.__mock = { notif: c.notif ?? 'granted', after: c.after ?? 'granted', cal: c.cal ?? 'denied', calls: [], pending: [], listeners: {} };
     window.Capacitor = {

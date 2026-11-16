@@ -1,136 +1,122 @@
-// 第11版 PR10: 一度だけの既定通知付与（実 IndexedDB）。DuoNative は偽装で、Swift の実動作の証明ではない。
+// 第15版 PR12: 通知の既定「なし」への一度きりの移行（実 IndexedDB / localStorage）。旧・自動30分付与は行わない。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, ev, dbEvents, openMenu } from './helpers.js';
+import { openApp, SIZES, ev, dbEvents } from './helpers.js';
 
-const F = ev('fut', '未来', '2026-11-20T10:00', '2026-11-20T11:00');
-const P = ev('past', '過去', '2026-11-01T10:00', '2026-11-01T11:00');
-const E = ev('empty', 'なし', '2026-11-21T10:00', '2026-11-21T11:00', { alarms: [] });
-const L = ev('link', '連携', '2026-11-22T10:00', '2026-11-22T11:00', { nativeLink: { state: 'unlinked', v: 2 } });
-const I = ev('iph', 'iPhone', '2026-11-23T10:00', '2026-11-23T11:00', { origin: 'iphone' });
-const AD = ev('ad', '終日', '2026-11-24T00:00', '2026-11-24T23:59', { all: true });
-const REND = ev('rend', '打切り', '2026-11-01T10:00', '2026-11-01T11:00', { recurrence: { freq: 'daily', interval: 1, byDay: null, count: 3, until: null } });
-const REC = ev('rec', '毎週', '2026-11-02T10:00', '2026-11-02T11:00', { recurrence: { freq: 'weekly', interval: 1, byDay: null, count: null, until: null } });
-const ALL = [F, P, E, L, I, AD, REND, REC];
-
-const marker = (page) => page.evaluate(async () => {
+const NK = 'duo-notify', PK = 'duo-notify-policy.v15';
+const lsNotify = (page) => page.evaluate((k) => JSON.parse(localStorage.getItem(k) || 'null'), NK);
+const lsPolicy = (page) => page.evaluate((k) => localStorage.getItem(k), PK);
+const reload = async (page) => { await page.reload(); await page.waitForSelector('html[data-ready]'); };
+const alarmsOf = async (page) => Object.fromEntries((await dbEvents(page)).map((e) => [e.id, e.alarms]));
+// 初回起動の後に、端末を「旧版のまま」へ戻す（localStorage 全消去と、旧い meta の印の削除）
+const rewind = (page) => page.evaluate(async () => {
+  localStorage.clear();
   const db = await new Promise((res) => { const r = indexedDB.open('duo-calendar'); r.onsuccess = () => res(r.result); });
-  return new Promise((res) => { const g = db.transaction('meta').objectStore('meta').get('notifyBackfillV1'); g.onsuccess = () => { db.close(); res(g.result?.value ?? null); }; });
-});
-const clearMarker = (page) => page.evaluate(async () => {
-  const db = await new Promise((res) => { const r = indexedDB.open('duo-calendar'); r.onsuccess = () => res(r.result); });
-  await new Promise((res) => { const t = db.transaction('meta', 'readwrite'); t.objectStore('meta').delete('notifyBackfillV1'); t.oncomplete = res; });
+  await new Promise((res) => { const t = db.transaction('meta', 'readwrite'); t.objectStore('meta').clear(); t.oncomplete = res; });
   db.close();
 });
-const alarmsOf = async (page) => Object.fromEntries((await dbEvents(page)).map((e) => [e.id, e.alarms]));
-const EXPECT = { fut: [{ before: 30 }], past: undefined, empty: [], link: undefined, iph: undefined, ad: [{ day: 0, at: '08:00' }], rend: undefined, rec: [{ before: 30 }] };
+const F = ev('fut', '未来', '2026-11-20T10:00', '2026-11-20T11:00');
+const E = ev('empty', 'なし', '2026-11-21T10:00', '2026-11-21T11:00', { alarms: [] });
+const A = ev('al', '通知あり', '2026-11-22T10:00', '2026-11-22T11:00', { alarms: [{ before: 30 }, { before: 5 }] });
+const AD = ev('ad', '終日', '2026-11-24T00:00', '2026-11-24T23:59', { all: true, alarms: [{ day: 1, at: '09:00' }] });
+const REC = ev('rec', '毎週', '2026-11-02T10:00', '2026-11-02T11:00', { recurrence: { freq: 'weekly', interval: 1, byDay: null, count: null, until: null }, overrides: { '2026-11-09T10:00': { title: 'x', start: '2026-11-09T10:00', end: '2026-11-09T11:00', alarms: [{ before: 10 }] } } });
+const ALL = [F, E, A, AD, REC];
 
-async function rearm(page, list = ALL) { // 起動済みの DB に予定を入れ、マーカーを消して、次の起動で移行を走らせる
-  await openApp(page, SIZES.closedPortrait, '?nosw');
-  await page.evaluate(async (l) => { await (await import('/js/db.js')).putMany(l); }, list);
-  await clearMarker(page);
-}
-
-test.describe('一度だけの既定通知付与', () => {
-  test('初回起動は空 DB でもマーカーを記録。対象だけに固定既定が付き、2回目は変わらない', async ({ page }) => {
+test.describe('通知の既定の一度きり移行', () => {
+  test('まっさらな端末：オフ・既定なし、印あり。予定へ何も付けない', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait, '?nosw');
-    expect(await marker(page)).toMatch(/^\d{4}-\d\d-\d\dT/);
-    await rearm(page);
-    await page.reload(); await page.waitForSelector('html[data-ready]');
-    expect(await alarmsOf(page)).toEqual(EXPECT);
-    const m = await marker(page);
-    await page.evaluate(async () => { const db = await import('/js/db.js'); const [e] = (await db.listEvents()).filter((x) => x.id === 'fut'); await db.putEvent({ ...e, alarms: [{ before: 5 }] }); });
-    await page.reload(); await page.waitForSelector('html[data-ready]');
-    expect((await alarmsOf(page)).fut).toEqual([{ before: 5 }]); // 2回目は何もしない
-    expect(await marker(page)).toBe(m);
+    expect(await lsNotify(page)).toEqual({ version: 1, enabled: false, showTitle: true, defaultTimed: null, defaultAllDay: null });
+    expect(await lsPolicy(page)).not.toBeNull();
   });
 
-  test('途中で失敗したら予定もマーカーもロールバックし、次の起動で再実行', async ({ page }) => {
-    await rearm(page);
-    await page.addInitScript(() => {
-      if (sessionStorage.getItem('bfFail')) return;
-      sessionStorage.setItem('bfFail', '1');
-      const put = IDBObjectStore.prototype.put;
-      IDBObjectStore.prototype.put = function (v, k) { if (this.name === 'meta' && v?.key === 'notifyBackfillV1') throw new Error('boom'); return put.call(this, v, k); };
-    });
-    await page.reload(); await page.waitForSelector('html[data-ready]');
-    expect(await marker(page)).toBeNull();
+  test('旧版の設定だけ（enabled 未保存）：オン、既定なし、showTitle 保持', async ({ page }) => {
+    await page.addInitScript(([k]) => { if (!localStorage.getItem(k)) localStorage.setItem(k, JSON.stringify({ showTitle: false, defaultTimed: { before: 15 } })); }, [NK]);
+    await openApp(page, SIZES.closedPortrait, '?nosw');
+    expect(await lsNotify(page)).toEqual({ version: 1, enabled: true, showTitle: false, defaultTimed: null, defaultAllDay: null });
+  });
+
+  test('保存済み enabled:false は尊重（既存端末でも）', async ({ page }) => {
+    await page.addInitScript(([k]) => { if (!localStorage.getItem(k)) localStorage.setItem(k, JSON.stringify({ enabled: false, defaultTimed: { before: 30 } })); }, [NK]);
+    await openApp(page, SIZES.closedPortrait, '?nosw');
+    expect((await lsNotify(page)).enabled).toBe(false);
+    expect((await lsNotify(page)).defaultTimed).toBeNull();
+  });
+
+  test('予定だけがある旧端末（設定も印も無し）：オン。既存のアラームは完全不変で、再起動でも変わらない', async ({ page }) => {
+    await openApp(page, SIZES.closedPortrait, '?nosw');
+    await page.evaluate(async (l) => { await (await import('/js/db.js')).putMany(l); }, ALL);
+    const before = await dbEvents(page);
+    await rewind(page);
+    await reload(page);
+    expect((await lsNotify(page)).enabled).toBe(true);
+    expect(await dbEvents(page)).toEqual(before);
     expect((await alarmsOf(page)).fut).toBeUndefined();
-    await page.reload(); await page.waitForSelector('html[data-ready]');
-    expect(await alarmsOf(page)).toEqual(EXPECT);
-    expect(await marker(page)).not.toBeNull();
+    await reload(page);
+    expect(await dbEvents(page)).toEqual(before);
+    expect(await lsNotify(page)).toEqual({ version: 1, enabled: true, showTitle: true, defaultTimed: null, defaultAllDay: null });
   });
 
-  test('2タブが同時に起動しても一度だけ（後続は何も書かない）', async ({ page, context }) => {
-    await rearm(page);
-    const r = await page.evaluate(async () => { const db = await import('/js/db.js'); return Promise.all([db.backfillNotifyOnce(new Date()), db.backfillNotifyOnce(new Date())]); });
-    expect(r.map((x) => x.ran).sort()).toEqual([false, true]);
-    expect(r.find((x) => x.ran).count).toBe(3);
-    expect(await alarmsOf(page)).toEqual(EXPECT);
-  });
-
-  test('バックアップの追加・置換では付与しない（ファイルの値のまま）。置換でもマーカーは残る', async ({ page }) => {
+  test('メモだけがある旧端末も既存とみなす（オン）', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait, '?nosw');
-    const m = await marker(page);
-    const n = ev('imp', '復元', '2026-11-25T10:00', '2026-11-25T11:00');
-    const n2 = ev('imp2', '復元2', '2026-11-26T10:00', '2026-11-26T11:00', { alarms: [] });
-    const pick = async (events, btn) => {
-      const json = await page.evaluate(async (events) => {
-        const [{ buildBackup }, db] = await Promise.all([import('/js/backup.js'), import('/js/db.js')]);
-        return JSON.stringify(buildBackup(events, {}, new Date(), await db.listCategories()));
-      }, events);
-      await openMenu(page);
-      await page.getByRole('button', { name: 'バックアップ' }).click();
-      await page.setInputFiles('#bk-file', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(json) });
-      await page.locator(btn).click();
-      if (btn === '#bk-replace') await page.locator('#bk-rdo').click();
-      await expect(page.locator('#backup')).toBeHidden();
-    };
-    await pick([n], '#bk-add');
-    expect((await alarmsOf(page)).imp).toBeUndefined();
-    await pick([n, n2], '#bk-replace');
-    expect(await alarmsOf(page)).toEqual({ imp: undefined, imp2: [] });
-    await page.reload(); await page.waitForSelector('html[data-ready]');
-    expect(await alarmsOf(page)).toEqual({ imp: undefined, imp2: [] }); // 再起動でも付かない
-    expect(await marker(page)).toBe(m);
+    await page.evaluate(async () => { const db = await new Promise((res) => { const r = indexedDB.open('duo-calendar'); r.onsuccess = () => res(r.result); }); await new Promise((res) => { const t = db.transaction('memos', 'readwrite'); t.objectStore('memos').put({ id: 'm1', date: '2026-11-12', text: 'メモ' }); t.oncomplete = res; }); db.close(); });
+    await rewind(page);
+    await reload(page);
+    expect((await lsNotify(page)).enabled).toBe(true);
+  });
+
+  test('印があれば再移行しない（利用者が選んだ既定は保たれる）', async ({ page }) => {
+    await openApp(page, SIZES.closedPortrait, '?nosw');
+    await page.evaluate((k) => localStorage.setItem(k, JSON.stringify({ version: 1, enabled: true, showTitle: true, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '09:00' } })), NK);
+    await reload(page);
+    expect(await lsNotify(page)).toEqual({ version: 1, enabled: true, showTitle: true, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '09:00' } });
+  });
+
+  test('設定の書込に失敗したら印を書かず、次の起動で再試行（既存の判定を誤らない）', async ({ page }) => {
+    await page.addInitScript(([k]) => { if (!localStorage.getItem(k)) localStorage.setItem(k, JSON.stringify({ showTitle: true })); }, [NK]);
+    await openApp(page, SIZES.closedPortrait, '?nosw');
+    await page.evaluate(([p]) => localStorage.removeItem(p), [PK]);
+    await page.addInitScript(([n]) => { if (sessionStorage.getItem('f')) return; sessionStorage.setItem('f', '1'); const s = Storage.prototype.setItem; Storage.prototype.setItem = function (k, v) { if (k === n) throw new Error('quota'); return s.call(this, k, v); }; }, [NK]);
+    await reload(page);
+    expect(await lsPolicy(page)).toBeNull();
+    await reload(page); // 失敗の仕掛けは1回だけ
+    expect(await lsPolicy(page)).not.toBeNull();
+    expect((await lsNotify(page)).enabled).toBe(true);
   });
 });
 
 test.describe('移行と通知の同期（偽装ネイティブ）', () => {
-  const mock = (page, notif) => page.addInitScript((notif) => {
+  const mock = (page) => page.addInitScript(() => {
     const M = window.__mock = { calls: [], pending: [] };
     window.Capacitor = {
-      isNativePlatform: () => true, getPlatform: () => 'ios',
-      nativeCallback: () => 'cb-1',
+      isNativePlatform: () => true, getPlatform: () => 'ios', nativeCallback: () => 'cb-1',
       nativePromise: async (plugin, method, opts) => {
         M.calls.push({ method, opts: JSON.parse(JSON.stringify(opts ?? {})) });
         switch (method) {
           case 'checkPermission': return { status: 'denied' };
-          case 'notifyStatus': return { status: notif };
+          case 'notifyStatus': return { status: 'granted' };
           case 'notifySync': M.pending = opts.items; return { scheduled: opts.items.length, removed: 0, skipped: 0 };
+          case 'notifyClear': return { removed: 0 };
           default: throw { code: 'UNAVAILABLE', message: method };
         }
       },
     };
-  }, notif);
+  });
   const count = (page, m) => page.evaluate((m) => window.__mock.calls.filter((c) => c.method === m).length, m);
 
-  test('付与後の起動で notifySync は1回だけ送り、付与した予定が含まれる。許可は要求しない', async ({ page }) => {
-    await rearm(page, [F]);
-    await mock(page, 'granted');
-    await page.reload(); await page.waitForSelector('html[data-ready]');
-    await expect.poll(() => page.evaluate(() => window.__mock.pending.map((i) => i.id))).toEqual(['duo.fut@2026-11-20T10:00#0']);
-    await page.waitForTimeout(900);
-    expect(await count(page, 'notifySync')).toBe(1);
+  test('既存端末は移行後も既存アラームが予約され、許可は要求しない', async ({ page }) => {
+    await openApp(page, SIZES.closedPortrait, '?nosw');
+    await page.evaluate(async (l) => { await (await import('/js/db.js')).putMany(l); }, [A]);
+    await rewind(page);
+    await mock(page);
+    await reload(page);
+    await expect.poll(() => page.evaluate(() => window.__mock.pending.map((i) => i.id))).toEqual(['duo.al@2026-11-22T10:00#0', 'duo.al@2026-11-22T10:00#1']);
     expect(await count(page, 'requestNotifyPermission')).toBe(0);
   });
 
-  test('未許可でも移行は行い、許可は要求しない', async ({ page }) => {
-    await rearm(page, [F]);
-    await mock(page, 'notDetermined');
-    await page.reload(); await page.waitForSelector('html[data-ready]');
+  test('まっさらな端末は予約0（オフ）で、許可は要求しない', async ({ page }) => {
+    await mock(page);
+    await openApp(page, SIZES.closedPortrait, '?nosw');
     await page.waitForTimeout(900);
-    expect((await alarmsOf(page)).fut).toEqual([{ before: 30 }]);
-    expect(await count(page, 'notifySync')).toBe(0);
+    expect(await page.evaluate(() => window.__mock.pending.length)).toBe(0);
     expect(await count(page, 'requestNotifyPermission')).toBe(0);
   });
 });

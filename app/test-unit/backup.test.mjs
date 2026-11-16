@@ -26,6 +26,13 @@ test('バージョンは 4、schema と settings の形', () => {
   assert.equal(bk.categories.length, 2);
 });
 
+test('設定の通知: 既定 null と旧オブジェクトの両方を通す', () => {
+  const n = { enabled: true, showTitle: false, defaultTimed: null, defaultAllDay: null };
+  assert.deepEqual(roundtrip([], { view: 'month', style: 'simple', notify: n }).data.settings.notify, n);
+  const old = { enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } };
+  assert.deepEqual(roundtrip([], { view: 'month', style: 'simple', notify: old }).data.settings.notify, old);
+});
+
 test('全項目を持つ予定の往復で項目が一つも落ちない（nativeLink 往復の回帰を含む）', () => {
   const src = full();
   const v = roundtrip([src, ev('plain', '2026-11-20T10:00', '2026-11-20T11:00', null)]);

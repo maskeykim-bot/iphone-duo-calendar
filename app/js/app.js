@@ -7,7 +7,7 @@ import { bumpRevision, occBetween } from './occcache.js';
 import { LIMIT, groupByDay, highlight, excerpt, searchEvents, searchMemos } from './search.js';
 import { backupName, buildBackup, countStats, localIso, planAppend, planMemos, validateBackup, MAX_BYTES } from './backup.js';
 import { CAT_IDS, LIMITS as CAT_LIMITS, canHideCategory, defaultDeleteTarget, ensureOneVisible, supplementForReplace, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, RETARGET_TOAST, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory } from './categories.js';
-import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAlarms, encAlarm, fireAt, nextNotifyText, normNotify, pastForNotify, planNotifications, MAX_PENDING, WINDOW_DAYS } from './notify.js';
+import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAlarms, encAlarm, fireAt, nextNotifyText, normNotify, pastForNotify, planNotifications, planNotifyPolicy, MAX_PENDING, WINDOW_DAYS } from './notify.js';
 import { rokuyoOf } from './rokuyo.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS } from './pages.js';
 import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.js';
@@ -69,11 +69,35 @@ function setCategories(list) {
 if (params.has('desk')) state.desk = params.get('desk') === '1';
 // 通知の設定。localStorage['duo-notify' + suffix]、バックアップの settings.notify に出し入れする。未保存でも既定（時刻あり30分前／終日は当日 8:00）を返す。
 const NOTIFY_KEY = `duo-notify${suffix}`;
+// 保存できなかったときは、この実行中だけ実効値をメモリに保つ（notifyMem）。
+const NOTIFY_POLICY_KEY = `duo-notify-policy.v15${suffix}`;
+const LS_EVIDENCE = (() => { // 起動の最初（この起動の保存より前）に既存端末の証拠を採る
+  try { return [UI_KEY, DRAFT_KEY, NOTIFY_KEY, `duo-native-cal${suffix}`, `duo-native-rem${suffix}`].some((k) => localStorage.getItem(k) !== null); } catch { return false; }
+})();
+let notifyMem = null;
 function loadNotify() {
+  if (notifyMem) return normNotify(notifyMem);
   try { return normNotify(JSON.parse(localStorage.getItem(NOTIFY_KEY) || 'null')); } catch { return normNotify(null); }
 }
 function saveNotify(n) {
-  try { localStorage.setItem(NOTIFY_KEY, JSON.stringify(normNotify({ ...loadNotify(), ...n }))); } catch { /* 保存不可でも続ける */ }
+  const next = normNotify({ ...loadNotify(), ...n });
+  try { localStorage.setItem(NOTIFY_KEY, JSON.stringify(next)); notifyMem = null; } catch { notifyMem = next; /* 保存不可でも続ける */ }
+}
+// 通知の既定を「なし」にする一度きりの移行（PR12）。設定の書込成功後にだけ印を書く。失敗時は実効値を保ち次回再試行。
+async function applyNotifyPolicy() {
+  let done = false;
+  try { done = localStorage.getItem(NOTIFY_POLICY_KEY) !== null; } catch { done = false; }
+  if (done) return;
+  let existing = LS_EVIDENCE;
+  try { const ev = await db.readLegacyEvidence(); existing = existing || ev.events > 0 || ev.memos > 0 || ev.meta > 0 || ev.legacyCats > 0; } catch { /* 証拠が読めなければ LS の証拠だけで判断 */ }
+  let stored = null;
+  try { stored = JSON.parse(localStorage.getItem(NOTIFY_KEY) || 'null'); } catch { stored = null; }
+  const next = planNotifyPolicy(stored, existing);
+  try {
+    localStorage.setItem(NOTIFY_KEY, JSON.stringify(next));
+    localStorage.setItem(NOTIFY_POLICY_KEY, new Date().toISOString());
+    notifyMem = null;
+  } catch { notifyMem = next; }
 }
 const chipTime = (iso) => iso.slice(11).replace(/^0/, ''); // 月チップの時刻は先頭の0なし（3:00 / 10:00）
 function saveUi() {
@@ -3900,7 +3924,7 @@ function openNotify(from) {
 function optHtml(opts, cur) { return opts.map((o) => `<option value="${esc(o.value)}"${o.value === cur ? ' selected' : ''}>${esc(o.label)}</option>`).join(''); }
 function renderNotify() {
   const n = loadNotify(), on = n.enabled, dis = nt.busy ? ' disabled' : '';
-  const tOpts = alarmOptions(false).slice(1), aOpts = alarmOptions(true, [n.defaultAllDay]).slice(1);
+  const tOpts = alarmOptions(false, [n.defaultTimed]), aOpts = alarmOptions(true, [n.defaultAllDay]);
   const tCur = encAlarm(n.defaultTimed), aCur = encAlarm(n.defaultAllDay);
   const lbl = (opts, cur) => (opts.find((o) => o.value === cur) || opts[0]).label;
   let h = `<div class="swrow nsw"><span id="nt-swl">予定の通知</span><button type="button" role="switch" id="nt-sw" class="sw" aria-checked="${on}" aria-labelledby="nt-swl"${dis}><span class="knob" aria-hidden="true"></span><span class="swt">${on ? 'オン' : 'オフ'}</span></button></div>`;
@@ -4499,6 +4523,7 @@ setInterval(() => { if (!anyPanel() && listShown()) render(); else updateNow(); 
 async function boot() {
   updateVars();
   render();
+  await applyNotifyPolicy(); // 既存端末の証拠は、カテゴリ移行や新しい印より前に採る
   let rt = null; // カテゴリの一度きり移行（取得より前）。失敗は印なしでロールバック済み。次の起動で再実行。戻り値は PR12 が移行前の証拠として使う
   try { rt = await db.migrateCategoriesOnce(new Date()); } catch { rt = null; }
   boot.retarget = rt;

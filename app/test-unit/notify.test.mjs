@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ALLDAY_DAYS, MAX_PENDING, NOTIFY_DEFAULTS, TIMED_BEFORE, WINDOW_DAYS, alarmsFor, defaultAlarms, fireAt, normNotify, notifyText, planNotifications } from '../js/notify.js';
+import { planNotifyPolicy, ALLDAY_DAYS, MAX_PENDING, NOTIFY_DEFAULTS, TIMED_BEFORE, WINDOW_DAYS, alarmsFor, defaultAlarms, fireAt, normNotify, notifyText, planNotifications } from '../js/notify.js';
 import { alarmsOk } from '../js/alarms.js';
 import { validateDraft } from '../js/util.js';
 import { buildBackup, validateBackup } from '../js/backup.js';
 import { R, ev, manyRecurring } from './fixtures.mjs';
 
 const NOW = new Date(2026, 10, 14, 9, 0); // 2026-11-14 09:00 ローカル
-const S = normNotify(null);
+const S = normNotify({ enabled: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } }); // 通知オン・既定ありの設定（新規の既定はオフ・なし）
 const al = (x) => ev(x.id, x.s, x.e, x.rec ?? null, { alarms: x.alarms, ...(x.extra || {}) });
 const planR = (events, now = NOW, s = S, o) => planNotifications(events, now, s, o);
 const plan = (events, now, s, o) => planR(events, now, s, o).items;
@@ -18,22 +18,32 @@ test('定数', () => {
   assert.equal(MAX_PENDING, 60); assert.equal(WINDOW_DAYS, 30);
 });
 
-test('normNotify: 未保存・null・不正値 → 30分前／当日08:00', () => {
-  for (const v of [undefined, null, 5, 'x', [], {}]) {
-    const n = normNotify(v);
-    assert.deepEqual(n, { version: 1, enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } });
+test('normNotify: 未保存・null・不正値 → オフ・既定なし', () => {
+  for (const v of [undefined, null, {}, [], 'x', 5]) {
+    assert.deepEqual(normNotify(v), { version: 1, enabled: false, showTitle: true, defaultTimed: null, defaultAllDay: null });
   }
-  assert.deepEqual(normNotify({ defaultTimed: { before: 7 } }).defaultTimed, { before: 30 });
-  assert.deepEqual(normNotify({ defaultAllDay: { day: 3, at: '08:00' } }).defaultAllDay, { day: 0, at: '08:00' });
-  assert.deepEqual(normNotify({ defaultAllDay: { day: 1, at: '25:00' } }).defaultAllDay, { day: 0, at: '08:00' });
-  const ok = normNotify({ enabled: false, showTitle: false, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '07:30' } });
-  assert.deepEqual(ok, { version: 1, enabled: false, showTitle: false, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '07:30' } });
-  assert.equal(normNotify({ enabled: 'no' }).enabled, true);
+  assert.equal(normNotify({ defaultTimed: { before: 7 } }).defaultTimed, null);
+  assert.equal(normNotify({ defaultAllDay: { day: 3, at: '08:00' } }).defaultAllDay, null);
+  assert.equal(normNotify({ defaultAllDay: { day: 1, at: '25:00' } }).defaultAllDay, null);
+  const ok = normNotify({ enabled: true, showTitle: false, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '07:30' } });
+  assert.deepEqual(ok, { version: 1, enabled: true, showTitle: false, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '07:30' } });
+  assert.equal(normNotify({ enabled: 'no' }).enabled, false);
   assert.notEqual(normNotify(null), normNotify(null)); // 毎回新しいオブジェクト
   assert.ok(Object.isFrozen(NOTIFY_DEFAULTS));
 });
 
-test('defaultAlarms: 時刻あり→[{before:30}]、終日→[{day:0,at:08:00}]', () => {
+test('planNotifyPolicy: 既定は常になし。enabled は保存値優先、未保存は既存=オン・新規=オフ。showTitle は保持', () => {
+  assert.deepEqual(planNotifyPolicy(null, false), { version: 1, enabled: false, showTitle: true, defaultTimed: null, defaultAllDay: null });
+  assert.equal(planNotifyPolicy(null, true).enabled, true);
+  assert.equal(planNotifyPolicy({ enabled: false, defaultTimed: { before: 30 } }, true).enabled, false); // 保存済み false を尊重
+  assert.equal(planNotifyPolicy({ enabled: true }, false).enabled, true);
+  assert.equal(planNotifyPolicy({ showTitle: false }, true).showTitle, false);
+  assert.deepEqual(planNotifyPolicy({ enabled: true, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '09:00' } }, true), { version: 1, enabled: true, showTitle: true, defaultTimed: null, defaultAllDay: null });
+});
+
+test('defaultAlarms: 既定なし→[]、既定あり→その値', () => {
+  assert.deepEqual(defaultAlarms(false, normNotify(null)), []);
+  assert.deepEqual(defaultAlarms(true, normNotify(null)), []);
   assert.deepEqual(defaultAlarms(false, S), [{ before: 30 }]);
   assert.deepEqual(defaultAlarms(true, S), [{ day: 0, at: '08:00' }]);
   assert.deepEqual(defaultAlarms(false, { defaultTimed: { before: 5 } }), [{ before: 5 }]);
@@ -184,7 +194,7 @@ test('validateDraft: alarms の検証と undefined 保持', () => {
 
 test('backup: 設定の既定を未保存でも書き出し、alarms が往復する', () => {
   const bk = buildBackup([], { view: 'month', style: 'simple', desk: false });
-  assert.deepEqual(bk.settings.notify, { enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } });
+  assert.deepEqual(bk.settings.notify, { enabled: false, showTitle: true, defaultTimed: null, defaultAllDay: null });
   assert.equal(alarmsOk([{ before: 0 }, { day: 7, at: '08:00' }]), true);
   const e = ev('A', '2026-11-20T10:00', '2026-11-20T11:00', null, { alarms: [{ before: 1440 }, { before: 0 }] });
   const v = validateBackup(JSON.stringify(buildBackup([e], { view: 'month', style: 'simple' }, new Date(), [{ id: 'c-work', name: '仕事', color: '#2f5f8a', order: 0, hidden: false, createdAt: 1, updatedAt: 2 }])));
@@ -268,7 +278,7 @@ test('PR36 作らない：通知オフ・全部過去・なし・iPhone由来／
 });
 
 test('PR36 showTitle:false でも refresh の文面は同じ・max指定は max-1＋1', () => {
-  const r = planR(many(61), NOW, { showTitle: false });
+  const r = planR(many(61), NOW, { ...S, showTitle: false });
   assert.equal(r.items[59].title, 'Duo カレンダーを開いてください');
   assert.equal(planR(many(61), NOW, S, { max: 5 }).items.length, 5);
 });

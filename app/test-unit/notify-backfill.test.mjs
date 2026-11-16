@@ -1,47 +1,10 @@
-// 第11版 PR10: 一度だけの既定通知付与の計画（純粋関数）と、未来の回の判定。
+// 未来の回の判定（hasFutureOccurrence）。第15版 PR12 で一括付与は廃止（付与の計画関数は削除）。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { planNotifyBackfill } from '../js/notify.js';
 import { hasFutureOccurrence } from '../js/recur.js';
 import { R, ev } from './fixtures.mjs';
 
 const NOW = new Date(2026, 10, 14, 9, 0); // 2026-11-14 09:00 ローカル
-const plan = (list, now = NOW) => planNotifyBackfill(list, now);
-const ids = (list, now) => plan(list, now).map((e) => e.id);
-const T = [{ before: 30 }], A = [{ day: 0, at: '08:00' }];
-
-test('単発: end > now のみ対象（end == now は対象外）。固定既定を付ける', () => {
-  const out = plan([
-    ev('fut', '2026-11-20T10:00', '2026-11-20T11:00'), ev('past', '2026-11-01T10:00', '2026-11-01T11:00'),
-    ev('eq', '2026-11-14T08:00', '2026-11-14T09:00'), ev('run', '2026-11-14T08:00', '2026-11-14T09:01'),
-  ].map((e) => e), NOW);
-  assert.deepEqual(out.map((e) => e.id), ['fut', 'run']);
-  assert.deepEqual(out[0].alarms, T);
-});
-test('終日・複数日: 最終日23:59 の end 境界。終日は当日08:00', () => {
-  const a = (id, s, e) => ev(id, s, e, null, { all: true });
-  const out = plan([a('today', '2026-11-14T00:00', '2026-11-14T23:59'), a('yday', '2026-11-13T00:00', '2026-11-13T23:59'), a('multi', '2026-11-10T00:00', '2026-11-15T23:59')]);
-  assert.deepEqual(out.map((e) => e.id), ['today', 'multi']);
-  assert.deepEqual(out[0].alarms, A);
-});
-test('対象外: null・[]・既存配列・iPhone 由来・nativeLink あり（unlinked も）', () => {
-  const f = (id, x) => ev(id, '2026-11-20T10:00', '2026-11-20T11:00', null, x);
-  assert.deepEqual(ids([f('n', { alarms: null }), f('e', { alarms: [] }), f('a', { alarms: [{ before: 5 }] }), f('i', { origin: 'iphone' }),
-    f('l', { nativeLink: { state: 'linked' } }), f('u', { nativeLink: { state: 'unlinked' } }), f('ok', {})]), ['ok']);
-});
-test('入力を変更しない。2回目（付与後）は何も返さない', () => {
-  const src = [ev('x', '2026-11-20T10:00', '2026-11-20T11:00')];
-  const once = plan(src);
-  assert.equal(src[0].alarms, undefined);
-  assert.deepEqual(plan(once), []);
-});
-test('系列: 親にだけ付け override・exdates は触らない', () => {
-  const p = ev('r', '2026-11-01T10:00', '2026-11-01T11:00', R('daily'), { overrides: { '2026-11-20T10:00': { title: 'x', start: '2026-11-20T10:00', end: '2026-11-20T11:00', alarms: [] } } });
-  const [o] = plan([p]);
-  assert.deepEqual(o.alarms, T);
-  assert.deepEqual(o.overrides, p.overrides);
-});
-
 const fut = (p, now = NOW) => hasFutureOccurrence(p, now);
 test('系列: 無期限は常に残る。開始が過去でも終了が未来の回（日またぎ）', () => {
   assert.equal(fut(ev('d', '2020-01-01T09:00', '2020-01-01T10:00', R('daily'))), true);

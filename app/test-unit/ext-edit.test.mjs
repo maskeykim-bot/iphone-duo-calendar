@@ -2,7 +2,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { toDisplay, extEditable, extSpan, extCanMove, buildExtArgs, buildExtDeleteArgs, offsetToAlarm, alarmToOffset, headDates } from '../js/iphone.js';
-import { planNotifyBackfill } from '../js/notify.js';
 import { ev } from './fixtures.mjs';
 
 const CAL = { id: 'c1', title: '仕事', source: 'iCloud', sourceType: 'caldav', color: '#112233', allowsModify: true };
@@ -179,13 +178,4 @@ test('すべて: NY の夏時間をまたぐ（壁時計を保つ）', { skip: p
   // 先頭が夏時間の前日、長さの差が夏時間の夜をまたぐ: 1 時間の予定を 2 時間へ
   const head2 = { start: '2026-03-07T23:30', end: '2026-03-08T00:30', all: false };
   assert.equal(headDates(head2, { start: '2026-03-14T23:30', end: '2026-03-15T00:30', all: false }, { start: '2026-03-14T23:30', end: '2026-03-15T01:30', all: false }).end, '2026-03-08T01:30');
-});
-
-test('一括付与（notify-backfill）は ext 風の入力を変更しない', () => {
-  const x = toDisplay(raw({ start: '2099-01-01T09:00', end: '2099-01-01T10:00' }), CAL);
-  const dup = JSON.stringify(x);
-  assert.deepEqual(planNotifyBackfill([x, { ...x, id: 'ip:2' }], new Date(2026, 10, 14, 9, 0)), []);
-  assert.equal(JSON.stringify(x), dup);
-  const own = ev('own', '2099-01-01T09:00', '2099-01-01T10:00');
-  assert.deepEqual(planNotifyBackfill([x, own], new Date(2026, 10, 14, 9, 0)).map((e) => e.id), ['own']);
 });
