@@ -87,7 +87,8 @@ async function mock(page, cfg = {}) {
 const DETAIL_BASE = { calendarId: 'cal-1', all: false, place: '', notes: '', recurring: false, requestId: null, modifiedAt: 1763100000000, occurrenceDate: null,
   alarms: [], alarmsExtra: 0, rule: null, ruleText: '', detached: false, allowsModify: true, sourceType: 'caldav', hasAttendees: false, isOrganizer: false, hasUrl: false, editable: true, reason: null, seriesStart: null };
 const DETAILS = [
-  { ...DETAIL_BASE, id: 'e1@2026-11-12T15:00', eventId: 'e1', itemId: 'it-1', externalId: 'ex-1', title: '歯医者', start: '2026-11-12T15:00', end: '2026-11-12T16:00', alarms: [{ before: 30 }], seriesStart: '2026-11-12T15:00' },
+  { ...DETAIL_BASE, id: 'e1@2026-11-12T15:00', eventId: 'e1', itemId: 'it-1', externalId: 'ex-1', title: '歯医者', start: '2026-11-12T15:00', end: '2026-11-12T16:00', place: '渋谷', notes: '保険証\n持参', alarms: [{ before: 30 }], seriesStart: '2026-11-12T15:00' },
+  { ...DETAIL_BASE, id: 'e2@2026-11-23T00:00', eventId: 'e2', itemId: 'it-2', externalId: 'ex-2', calendarId: 'cal-2', title: '勤労感謝の日', all: true, start: '2026-11-23T00:00', end: '2026-11-23T00:00', allowsModify: false, sourceType: 'subscribed', editable: false, reason: 'readOnlyCalendar' },
   { ...DETAIL_BASE, id: 'w1@2026-11-16T09:00', eventId: 'w1', itemId: 'it-w', externalId: 'ex-w', title: '定例', start: '2026-11-16T09:00', end: '2026-11-16T10:00', recurring: true, occurrenceDate: '2026-11-16T09:00',
     rule: { freq: 'weekly', byDay: [1], count: 10 }, ruleText: '毎週', alarms: [{ before: 10 }, { before: 60 }], alarmsExtra: 1, seriesStart: '2026-11-02T09:00' },
   { ...DETAIL_BASE, id: 'w1@2026-11-19T09:00', eventId: 'w1', itemId: 'it-w', externalId: 'ex-w', title: '定例', start: '2026-11-19T09:00', end: '2026-11-19T10:00', recurring: false, detached: true, occurrenceDate: '2026-11-16T09:00', seriesStart: null },
@@ -280,7 +281,10 @@ test.describe('ネイティブ（偽装）', () => {
     await expect(d).toContainText('2026/11/12 15:00');
     await expect(d).toContainText('渋谷');
     await expect(d).toContainText('保険証');
-    await expect(d.getByRole('button', { name: /削除|保存|編集/ })).toHaveCount(0);
+    // 書けるカレンダー: 削除・編集が出る（第13版）。保存ボタンは出ない
+    await expect(d.getByRole('button', { name: '編集', exact: true })).toBeVisible();
+    await expect(d.getByRole('button', { name: '削除', exact: true })).toBeVisible();
+    await expect(d.getByRole('button', { name: /保存/ })).toHaveCount(0);
     await expect(page.locator('#editor')).toBeHidden();
     await d.locator('#xd-open').click();
     expect((await calls(page, 'openInCalendar'))[0].opts).toEqual({ start: '2026-11-12T15:00' });
@@ -297,6 +301,10 @@ test.describe('ネイティブ（偽装）', () => {
     await expect(d).toContainText('終日');
     await expect(d).toContainText('場所なし');
     await expect(d).toContainText('メモなし');
+    // 読み取り専用のカレンダー: 編集・削除なし、理由と大きい「カレンダーで開く」だけ
+    await expect(d.locator('#xd-note')).toHaveText('このカレンダーは読み取り専用のため、Duo では変更できません。');
+    await expect(d.getByRole('button', { name: /削除|保存|編集/ })).toHaveCount(0);
+    await expect(d.locator('#xd-open')).toBeVisible();
   });
 
   test('iPhone にも追加: createEvent の引数・リンク保存・二重表示なし', async ({ page }) => {
