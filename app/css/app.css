@@ -1038,3 +1038,20 @@ body.settings-open .ctl.band [data-act=menu] .bi::after{content:"×";font-size:2
 .dcell.tod .n{border:1.5px solid #294E42}
 .dcell.sel .n{background:#294E42;color:#fff;font-weight:700;border:0}
 .dcell:disabled{color:#C9C6BC}
+
+/* 数字の短縮入力（長押し）・大文字（設計12 §4・6） */
+.dcap.editing,.tcap.editing{display:none}
+.capin{box-sizing:border-box;height:32px;border:2px solid #294E42;border-radius:8px;background:#fff;color:#293B35;font-size:16px;font-weight:700;text-align:center;padding:0 6px;min-width:0}
+.capin.dcap-in{flex:1 1 120px;min-width:120px}
+.capin.tcap-in{flex:none;width:58px}
+.capin:focus-visible{outline:2px solid #294E42;outline-offset:1px}
+@keyframes dtshake{0%,100%{transform:translateX(0)}20%{transform:translateX(-5px)}40%{transform:translateX(5px)}60%{transform:translateX(-4px)}80%{transform:translateX(3px)}}
+.dcap.shake,.tcap.shake{animation:dtshake .2s linear}
+.tlab[role=slider]:focus-visible{outline:2px solid #294E42;outline-offset:2px;border-radius:4px}
+.dtbox.dtlarge .tpop,.dtbox.dtlarge .dpop{max-height:min(52vh,420px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.dtbox.dtlarge .hgrid,.dtbox.dtlarge .mgrid{grid-template-columns:repeat(4,minmax(52px,1fr))}
+.dtbox.dtlarge .tcell{height:44px;min-width:52px;font-size:18px}
+.dtbox.dtlarge .mcell{height:44px}
+.dtbox.dtlarge .tcap{width:72px;height:40px;font-size:18px}
+.dtbox.dtlarge .capin.tcap-in{width:72px;height:40px;font-size:18px}
+.dtbox.dtlarge .dcap,.dtbox.dtlarge .capin.dcap-in{height:40px;font-size:17px}

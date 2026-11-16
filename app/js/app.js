@@ -1611,6 +1611,8 @@ const tui = createTimeUi({
 function applyAllDayUi() {
   const all = F.all.checked;
   $('#dtbox').classList.toggle('allday', all);
+  // 大文字（月の文字「大」またはシステムの文字サイズが大きいとき）は時を4列×6行・52pt以上に組み替える
+  $('#dtbox').classList.toggle('dtlarge', state.monthTextSize === 'large' || parseFloat(getComputedStyle(document.documentElement).fontSize) > 17);
   tui.close();
   dui.close();
   tui.render();

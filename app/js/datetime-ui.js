@@ -1,6 +1,6 @@
 // 時刻のカプセル・長さのチップ・時分のマス（設計12 §1–2）。状態の計算は datetime.js、保存は app.js。
 // ここは表示と操作だけ。開くのは一度に一つ。開いて閉じただけでは何も変えない。
-import { splitIso, durationMin, endDayOffset } from './datetime.js';
+import { splitIso, durationMin, endDayOffset, parseTimeDigits, parseDateDigits, digitsOnly } from './datetime.js';
 import { DOW, addDays, addMonths, parseKey, todayKey, weekStart, weekdayHeads } from './util.js';
 
 const p2 = (n) => String(n).padStart(2, '0');
@@ -15,8 +15,87 @@ export const oddMinute = (mi) => (mi % 5 === 0 ? '' : `いま ${p2(mi)}分`);
 export const HOURS = Array.from({ length: 24 }, (_, i) => i);
 export const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5);
 
+
+// ---------- 数字の短縮入力（長押しで文字の欄になる。設計12 §4） ----------
+export const LONG_PRESS_MS = 500, SHAKE_MS = 200, MOVE_TOL = 10;
+// cap: カプセルのボタン。opts: { cls, label, commit(digits) → boolean（読めたら適用して true）, same?(digits) }
+// 確定は Enter／欄を離れたとき。Escape は取り消し。読めない値は元に戻して 0.2 秒揺らす（文は出さない）。
+// 未確定の数字は保存しない（状態へは確定のときだけ渡す）。触っただけ・同じ値の確定は何も変えない。
+export function attachDigitEntry(cap, opts) {
+  let input = null, timer = 0, down = null, swallow = false, swallowTimer = 0;
+  const clearTimer = () => { clearTimeout(timer); timer = 0; down = null; };
+  function shake() {
+    cap.classList.add('shake');
+    setTimeout(() => cap.classList.remove('shake'), SHAKE_MS);
+  }
+  function end(focusCap) {
+    if (!input) return;
+    const el = input; input = null;
+    el.remove();
+    cap.classList.remove('editing');
+    if (focusCap) cap.focus({ preventScroll: true });
+  }
+  function enter(first = '') {
+    if (input) return; // touch と click の二重発火でも欄は一つ
+    if (opts.blocked?.()) return;
+    const el = document.createElement('input');
+    el.type = 'text'; el.inputMode = 'numeric'; el.pattern = '[0-9]*'; el.autocomplete = 'off'; el.enterKeyHint = 'done';
+    el.className = `capin ${opts.cls}`;
+    el.maxLength = 12;
+    el.setAttribute('aria-label', `${opts.label}、数字で入力`);
+    el.value = digitsOnly(first);
+    input = el;
+    cap.after(el);
+    cap.classList.add('editing');
+    el.addEventListener('input', () => { const v = digitsOnly(el.value); if (v !== el.value) el.value = v; });
+    el.addEventListener('keydown', (ev) => {
+      if (ev.isComposing || ev.keyCode === 229) return; // IME の変換確定の Enter では確定しない
+      if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); commit(true); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); end(true); }
+    });
+    el.addEventListener('blur', () => { if (input === el) commit(false); });
+    for (const type of ['pointerdown', 'pointerup', 'click', 'touchstart', 'touchend']) el.addEventListener(type, (ev) => ev.stopPropagation());
+    el.focus({ preventScroll: true });
+    el.setSelectionRange(el.value.length, el.value.length);
+  }
+  function commit(focusCap) {
+    if (!input) return;
+    const d = digitsOnly(input.value);
+    end(focusCap);
+    if (!d) return; // 何も打っていない = 取り消し
+    if (opts.same?.(d)) return;
+    if (!opts.commit(d)) shake();
+  }
+  cap.addEventListener('pointerdown', (ev) => {
+    if (!ev.isPrimary || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
+    clearTimer();
+    down = { x: ev.clientX, y: ev.clientY };
+    timer = setTimeout(() => {
+      timer = 0;
+      swallow = true; clearTimeout(swallowTimer); swallowTimer = setTimeout(() => { swallow = false; }, 1500); // 指を離したあとの click は押下にしない
+      enter();
+    }, LONG_PRESS_MS);
+  });
+  cap.addEventListener('pointermove', (ev) => { if (down && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) > MOVE_TOL) clearTimer(); });
+  // 長押し前の離す／キャンセル（スクロール開始など）は押下を取り消すだけ。長押し後のキャンセルは欄をそのまま残す。
+  cap.addEventListener('pointerup', clearTimer);
+  cap.addEventListener('pointercancel', clearTimer);
+  cap.addEventListener('contextmenu', (ev) => { if (swallow || timer) ev.preventDefault(); });
+  // click は部品の開閉。長押しで欄を出した直後の click は先に捨てる（キャプチャで止めて開閉側へ渡さない）。
+  cap.addEventListener('click', (ev) => {
+    if (swallow) { swallow = false; ev.stopImmediatePropagation(); ev.preventDefault(); }
+  }, true);
+  // キーボード: 数字キーで欄を開く（打った数字から始まる）。
+  cap.addEventListener('keydown', (ev) => {
+    if (ev.ctrlKey || ev.metaKey || ev.altKey || ev.isComposing) return;
+    if (/^[0-9]$/.test(ev.key)) { ev.preventDefault(); enter(ev.key); }
+  });
+  return { enter, isEditing: () => !!input, cancel: () => end(false) };
+}
+
 // els: { start, end（時刻カプセル）, badge, dur（長さの行）, pop, rows: {start,end}, hours, mins, minNote }
 // api: { get() → 編集状態または null, setTime(which, h, m), setDuration(min), buzz() }
+// 時・分の見出しは adjustable（スライダー）: 上下キー／VoiceOver の上下スワイプで 1時間・5分ずつ動く。
 export function createTimeUi(els, api) {
   let open = null; // 'start' | 'end' | null
   const caps = { start: els.start, end: els.end };
@@ -41,6 +120,8 @@ export function createTimeUi(els, api) {
       const cur = splitIso(st[open]);
       els.hours.querySelectorAll('[data-h]').forEach((c) => c.setAttribute('aria-pressed', String(Number(c.dataset.h) === cur.h)));
       els.mins.querySelectorAll('[data-m]').forEach((c) => c.setAttribute('aria-pressed', String(Number(c.dataset.m) === cur.mi)));
+      sl.h.setAttribute('aria-valuenow', String(cur.h)); sl.h.setAttribute('aria-valuetext', `${cur.h}時`);
+      sl.m.setAttribute('aria-valuenow', String(Math.floor(cur.mi / 5) * 5)); sl.m.setAttribute('aria-valuetext', `${p2(cur.mi)}分`);
       const note = oddMinute(cur.mi);
       els.minNote.textContent = note; els.minNote.hidden = !note;
     }
@@ -51,7 +132,11 @@ export function createTimeUi(els, api) {
     if (which) els.rows[which].after(els.pop);
     render();
   }
-  function close() { if (open) show(null); }
+  function close(focusCap = false) {
+    const was = open;
+    if (open) show(null);
+    if (focusCap && was) caps[was].focus({ preventScroll: true });
+  }
 
   els.hours.innerHTML = HOURS.map((h) => `<button type="button" class="tcell ${hourUsual(h) ? 'usual' : 'rare'}" data-h="${h}" aria-label="${h}時" aria-pressed="false">${h}</button>`).join('');
   els.mins.innerHTML = MINUTES.map((m) => `<button type="button" class="tcell mcell" data-m="${m}" aria-label="${p2(m)}分" aria-pressed="false">${p2(m)}</button>`).join('');
@@ -59,6 +144,11 @@ export function createTimeUi(els, api) {
 
   for (const k of ['start', 'end']) {
     caps[k].addEventListener('click', () => { if (api.get()?.all) return; show(open === k ? null : k); });
+    attachDigitEntry(caps[k], {
+      blocked: () => !!api.get()?.all, cls: 'tcap-in', label: `${k === 'start' ? '開始' : '終了'}の時刻`,
+      same: (d) => { const t = parseTimeDigits(d), st = api.get(); if (!t || !st) return false; const c = splitIso(st[k]); return t.h === c.h && t.m === c.mi; },
+      commit: (d) => { const t = parseTimeDigits(d); if (!t || !api.get() || api.get().all) return false; close(); api.setTime(k, t.h, t.m); return true; },
+    });
   }
   els.hours.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-h]');
@@ -71,9 +161,36 @@ export function createTimeUi(els, api) {
     const b = ev.target.closest('[data-m]');
     if (!b || !open) return;
     api.buzz();
-    api.setTime(open, null, Number(b.dataset.m));
-    close();
+    const w = open;
+    api.setTime(w, null, Number(b.dataset.m));
+    close(true);
   });
+  // adjustable: 時・分の見出し（role=slider）。上下で 1時間／5分。5分刻みでない分は次の5分の位置へ。
+  const sl = { h: els.hours.previousElementSibling, m: els.mins.previousElementSibling };
+  for (const [k, el, lab] of [['h', sl.h, '時'], ['m', sl.m, '分']]) {
+    el.setAttribute('role', 'slider'); el.tabIndex = 0; el.setAttribute('aria-label', lab);
+    el.setAttribute('aria-valuemin', '0'); el.setAttribute('aria-valuemax', k === 'h' ? '23' : '55');
+    el.setAttribute('aria-orientation', 'vertical');
+    el.addEventListener('keydown', (ev) => {
+      const up = ev.key === 'ArrowUp' || ev.key === 'ArrowRight' || ev.key === 'PageUp', dn = ev.key === 'ArrowDown' || ev.key === 'ArrowLeft' || ev.key === 'PageDown';
+      if (ev.key === 'Escape' && open) { ev.preventDefault(); ev.stopPropagation(); close(true); return; }
+      if (!up && !dn || !open) return;
+      ev.preventDefault(); ev.stopPropagation();
+      const st = api.get(); if (!st) return;
+      const cur = splitIso(st[open]);
+      if (k === 'h') {
+        const h = Math.min(23, Math.max(0, cur.h + (up ? 1 : -1)));
+        if (h === cur.h) return;
+        api.buzz(); api.setTime(open, h, null);
+      } else {
+        const m = up ? Math.min(55, (Math.floor(cur.mi / 5) + 1) * 5) : Math.max(0, (Math.ceil(cur.mi / 5) - 1) * 5);
+        if (m === cur.mi) return;
+        api.buzz(); api.setTime(open, null, m);
+      }
+      render();
+    });
+  }
+  els.pop.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && open) { ev.preventDefault(); ev.stopPropagation(); close(true); } });
   els.dur.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-min]');
     if (!b) return;
@@ -144,19 +261,35 @@ export function createDateUi(els, api) {
     }
     render();
   }
-  function close() { if (open) show(null); }
+  function close(focusCap = false) {
+    const was = open;
+    if (open) show(null);
+    if (focusCap && was) caps[was].focus({ preventScroll: true });
+  }
   function pick(k) {
     if (!open) return;
     const w = open;
     api.buzz();
     show(null);
     api.pick(w, k);
+    caps[w].focus({ preventScroll: true }); // 閉じたらカプセルへフォーカスを戻す
   }
   function nav(n) { vm = addMonths(vm, n); render(); }
 
   for (const w of ['start', 'end']) {
     caps[w].addEventListener('click', () => { if (!api.get()) return; show(open === w ? null : w); });
+    attachDigitEntry(caps[w], {
+      cls: 'dcap-in', label: `${w === 'start' ? '開始' : '終了'}の日付`,
+      same: (d) => { const st = api.get(), cur = dayOfSt(st, w); return !!cur && parseDateDigits(d, Number(cur.slice(0, 4))) === cur; },
+      commit: (d) => {
+        const st = api.get(), cur = dayOfSt(st, w);
+        const k = cur ? parseDateDigits(d, Number(cur.slice(0, 4))) : null;
+        if (!k || (w === 'end' && k < dayOfSt(st, 'start'))) return false; // 存在しない日・開始より前の終了日は元のまま
+        close(); api.pick(w, k); return true;
+      },
+    });
   }
+  els.pop.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && open) { ev.preventDefault(); ev.stopPropagation(); close(true); } });
   els.prev.addEventListener('click', () => nav(-1));
   els.next.addEventListener('click', () => nav(1));
   els.chips.addEventListener('click', (ev) => { const b = ev.target.closest('[data-day]'); if (b && !b.disabled) pick(b.dataset.day); });

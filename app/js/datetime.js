@@ -139,3 +139,30 @@ export function resultPair(st) {
 }
 // 終了までの暦日数（0=当日、1=翌日）
 export const endDayOffset = (st) => dayDiff(st.start, st.end);
+
+// ---------- 数字の短縮入力（設計12 §4） ----------
+// 全角数字・コロン・スラッシュ等を除いた数字だけにする。
+export const digitsOnly = (s) => String(s ?? '').normalize('NFKC').replace(/\D/g, '');
+// 時刻: 「9」→9:00、「21」→21:00、「930」→9:30、「1430」→14:30。読めなければ null（2560・1332・24 など）。
+export function parseTimeDigits(text) {
+  const d = digitsOnly(text);
+  let h, m;
+  if (d.length === 1 || d.length === 2) { h = +d; m = 0; }
+  else if (d.length === 3) { h = +d.slice(0, 1); m = +d.slice(1); }
+  else if (d.length === 4) { h = +d.slice(0, 2); m = +d.slice(2); }
+  else return null;
+  return clampN(h, 23) && clampN(m, 59) ? { h, m } : null;
+}
+// 日付: 「1114」→11月14日、「930」→9月30日、「20270105」→2027年1月5日。
+// 年のない形は baseYear（編集中の値の年）を使う。来年へ送るなどの推測はしない。0230 のような存在しない日は null。
+export function parseDateDigits(text, baseYear) {
+  const d = digitsOnly(text);
+  let y, mo, dd;
+  if (d.length === 8) { y = +d.slice(0, 4); mo = +d.slice(4, 6); dd = +d.slice(6); }
+  else if (d.length === 4) { y = baseYear; mo = +d.slice(0, 2); dd = +d.slice(2); }
+  else if (d.length === 3) { y = baseYear; mo = +d.slice(0, 1); dd = +d.slice(1); }
+  else return null;
+  if (!Number.isInteger(y) || y < 1000 || y > 9999 || mo < 1 || mo > 12 || dd < 1) return null;
+  const k = `${String(y).padStart(4, '0')}-${p2(mo)}-${p2(dd)}`;
+  return isDay(k) ? k : null;
+}

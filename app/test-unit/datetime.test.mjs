@@ -111,3 +111,33 @@ test('PR17: 終了日を選ぶ。開始より前は無視、同じ日で終了�
   assert.equal(pickEndDate(st, '2026-11-15').end, '2026-11-15T09:00');
   assert.equal(pickEndDate(mk('2026-11-12T00:00', '2026-11-12T23:59', true), '2026-11-14').end, '2026-11-14T23:59');
 });
+
+// 第15版 PR18: 数字の短縮入力
+import { parseTimeDigits, parseDateDigits, digitsOnly } from '../js/datetime.js';
+
+test('時刻の短縮入力: 9→9:00 / 21→21:00 / 930 / 1430 / 0930、全角・コロン付きも読む', () => {
+  assert.deepEqual(parseTimeDigits('9'), { h: 9, m: 0 });
+  assert.deepEqual(parseTimeDigits('21'), { h: 21, m: 0 });
+  assert.deepEqual(parseTimeDigits('930'), { h: 9, m: 30 });
+  assert.deepEqual(parseTimeDigits('1430'), { h: 14, m: 30 });
+  assert.deepEqual(parseTimeDigits('0930'), { h: 9, m: 30 });
+  assert.deepEqual(parseTimeDigits('０９：３０'), { h: 9, m: 30 });
+  assert.deepEqual(parseTimeDigits('2359'), { h: 23, m: 59 });
+  assert.deepEqual(parseTimeDigits('0'), { h: 0, m: 0 });
+});
+test('時刻の短縮入力: 読めない値は null（2560・24・空・5桁）', () => {
+  for (const s of ['2560', '1260', '24', '', 'ab', '12345', '960', '2400']) assert.equal(parseTimeDigits(s), null, s);
+});
+test('日付の短縮入力: 年なしは編集中の値の年。11月でも 0105 は同年の1月5日（来年へ送らない）', () => {
+  assert.equal(parseDateDigits('1114', 2026), '2026-11-14');
+  assert.equal(parseDateDigits('0105', 2026), '2026-01-05');
+  assert.equal(parseDateDigits('930', 2026), '2026-09-30');
+  assert.equal(parseDateDigits('20270105', 2026), '2027-01-05');
+  assert.equal(parseDateDigits('0229', 2028), '2028-02-29');
+});
+test('日付の短縮入力: 存在しない日・桁違いは null（0230・1332・0229平年・13月・0日）', () => {
+  for (const s of ['0230', '1332', '1301', '0100', '', '12', '12345', '2026023']) assert.equal(parseDateDigits(s, 2026), null, s);
+  assert.equal(parseDateDigits('0229', 2027), null);
+  assert.equal(parseDateDigits('20270230', 2026), null);
+  assert.equal(digitsOnly('１２/３'), '123');
+});
