@@ -1,0 +1,12 @@
+{
+ "file": "rokuyo-table.js",
+ "sha256": "b0612a2626e1eb4bd7694fef40c1baecbcaa246ad1c0a975f4e7f09f41f60a20",
+ "verifiedBy": "npm run verify",
+ "checks": [
+  "B_nao_2000_2050",
+  "C_koyomi8_2000_2050",
+  "A_yoko_saku",
+  "A2_cgi_saku",
+  "outOfRange"
+ ]
+}
