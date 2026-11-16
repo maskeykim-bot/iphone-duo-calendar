@@ -117,22 +117,94 @@ function retarget(e, from, to, now) {
   if (!hit) return null;
   return { ...e, categoryId: e.categoryId === from ? to : e.categoryId, ...(e.overrides ? { overrides: ov } : {}), updatedAt: now };
 }
+// 旧固定 id（ゴルフ・経済指標）を others へ付け替えた複製。参照がなければ null（親と overrides）。
+function retargetAll(e, froms, to, now) {
+  let hit = froms.has(e.categoryId);
+  const ov = {};
+  for (const [k, o] of Object.entries(e.overrides || {})) {
+    if (o && froms.has(o.categoryId)) { hit = true; ov[k] = { ...o, categoryId: to }; } else ov[k] = o;
+  }
+  if (!hit) return null;
+  return { ...e, categoryId: froms.has(e.categoryId) ? to : e.categoryId, ...(e.overrides ? { overrides: ov } : {}), updatedAt: now };
+}
+
+// 一度きりの移行計画（純粋）。入力は変更しない。
+// 既定5つを不足分だけ追加／旧ゴルフ・経済指標の予定（親と overrides）を「その他」へ／旧2カテゴリを削除／残る hidden を全て false。
+// moved は変更した親の数。予定は削除・id 変更しない。
+export function planCategoryRetarget(categories, events, now = Date.now()) {
+  const have = new Map(categories.map((c) => [c.id, c]));
+  const legacy = new Set([CAT_IDS.golf, CAT_IDS.economy]);
+  let next = categories.reduce((m, c) => Math.max(m, c.order ?? 0), -1) + 1;
+  const catPuts = [];
+  for (const d of DEFAULTS_NEW) {
+    if (!have.has(d.id)) catPuts.push({ ...d, order: next++, hidden: false, createdAt: now, updatedAt: now });
+  }
+  for (const c of categories) {
+    if (!legacy.has(c.id) && c.hidden) catPuts.push({ ...c, hidden: false, updatedAt: now });
+  }
+  const eventPuts = events.map((e) => retargetAll(e, legacy, CAT_IDS.other, now)).filter(Boolean);
+  const catDels = categories.filter((c) => legacy.has(c.id)).map((c) => c.id);
+  return { catPuts, catDels, eventPuts, moved: eventPuts.length };
+}
+// 表示の下限: 最後の1つは隠せない。hidden を true にしてよいか。
+export const canHideCategory = (list, id) => {
+  const c = list.find((x) => x.id === id);
+  if (!c || c.hidden) return true;
+  return list.some((x) => x.id !== id && !x.hidden);
+};
+// 全部 hidden なら sortCategories 先頭だけ false にする。他の hidden は尊重。{ list, changed:[変更した項目] }（入力は変更しない）。
+export function ensureOneVisible(list, now = Date.now()) {
+  if (!list.length || list.some((c) => !c.hidden)) return { list, changed: [] };
+  const first = sortCategories(list)[0];
+  const fixed = { ...first, hidden: false, updatedAt: now };
+  return { list: list.map((c) => (c.id === first.id ? fixed : c)), changed: [fixed] };
+}
+// 置換の復元用: 取り込んだ一覧に不足する家族/外出/その他を補い、予定が参照する仕事/プライベートも補う。
+export function supplementForReplace(list, events, now = Date.now()) {
+  const have = new Set(list.map((c) => c.id));
+  const used = new Set();
+  for (const e of events) { used.add(e.categoryId); for (const o of Object.values(e.overrides || {})) if (o?.categoryId) used.add(o.categoryId); }
+  const must = new Set([CAT_IDS.family, CAT_IDS.out, CAT_IDS.other]);
+  let next = list.reduce((m, c) => Math.max(m, c.order ?? 0), -1) + 1;
+  const added = [];
+  for (const d of DEFAULTS_NEW) {
+    if (have.has(d.id) || !(must.has(d.id) || used.has(d.id))) continue;
+    added.push({ ...d, order: next++, hidden: false, createdAt: now, updatedAt: now });
+  }
+  return { list: [...list, ...added], added };
+}
+export const RETARGET_TOAST = 'ゴルフ・経済指標の予定を「その他」に移しました';
+
 export const countByCategory = (events) => {
   const m = new Map();
   for (const e of events) m.set(e.categoryId, (m.get(e.categoryId) || 0) + 1);
   return m;
 };
 
-// カテゴリ削除の計画。予定は消さず targetId へ付け替える。最後の1件は削除できない。
-// → { ok:true, catDels:[id], eventPuts:[...] } | { ok:false, error }
+// 削除時の予定の既定の移し先: 「その他」（削除対象でなければ）。無ければ並びで最初の別カテゴリ。無ければ ''。
+export function defaultDeleteTarget(categories, id) {
+  const others = sortCategories(categories.filter((c) => c.id !== id));
+  return (others.find((c) => c.id === CAT_IDS.other) || others[0])?.id || '';
+}
+
+// カテゴリ削除の計画。予定は消さず targetId（省略時は defaultDeleteTarget）へ付け替える。最後の1件は削除できない。
+// 削除後に表示中のカテゴリが無くなるときは移し先を表示にする（catPuts）。
+// → { ok:true, catDels:[id], eventPuts:[...], catPuts:[...], targetId } | { ok:false, error }
 export function planDeleteCategory(categories, events, id, targetId, now = Date.now()) {
   if (!categories.some((c) => c.id === id)) return { ok: false, error: 'カテゴリが見つかりません。' };
   if (categories.length <= 1) return { ok: false, error: 'カテゴリは1つ以上必要です。' };
+  if (!targetId) targetId = defaultDeleteTarget(categories, id);
   const eventPuts = events.map((e) => retarget(e, id, targetId, now)).filter(Boolean);
   if (eventPuts.length) {
     if (targetId === id || !categories.some((c) => c.id === targetId)) return { ok: false, error: '予定の移し先を選んでください。' };
   }
-  return { ok: true, catDels: [id], eventPuts };
+  const rest = categories.filter((c) => c.id !== id);
+  const catPuts = [];
+  if (!rest.some((c) => !c.hidden)) {
+    const t = rest.find((c) => c.id === targetId) || sortCategories(rest)[0];
+    catPuts.push({ ...t, hidden: false, updatedAt: now });
+  }
+  return { ok: true, catDels: [id], eventPuts, catPuts, targetId };
 }
 
 // バックアップのカテゴリを現在のものに合わせる。

@@ -262,7 +262,8 @@ dialog#confirm,dialog#scope,dialog#xretry,dialog#discard{top:auto;bottom:calc(va
 .row.danger{color:var(--danger)}
 .row:disabled{opacity:.45;cursor:default}
 #sc-note{margin:8px 0 0}
-dialog#menu{z-index:12;inset:56px 16px auto auto;margin:0;width:240px;--pw:240px;max-width:calc(100% - 32px);max-height:none;padding:8px;border-radius:16px;box-shadow:0 12px 30px #132c3340}
+dialog#menu{z-index:12;margin:0;padding:0;border-radius:22px;box-shadow:0 12px 30px #132c3340;background:#fff;overflow:hidden}
+dialog#menu[open]{display:flex;flex-direction:column}
 .menurows button{display:block;width:100%;text-align:left;min-height:44px}
 
 /* 検索 */
@@ -316,13 +317,12 @@ body[data-layout=spread] dialog{--pt:max(24px,calc(var(--rt) + 12px));--pb:max(2
  top:var(--pt);bottom:var(--pb);left:var(--right-start);right:calc(var(--layout-w) - var(--right-end));margin:0;width:auto;max-width:none;max-height:calc(100% - var(--pt) - var(--pb));box-shadow:none}
 body[data-layout=spread] dialog.full{height:calc(100% - var(--pt) - var(--pb))}
 body[data-layout=spread] dialog#scope,body[data-layout=spread] dialog#confirm,body[data-layout=spread] dialog#xretry,body[data-layout=spread] dialog#discard{top:auto;bottom:var(--pb);left:var(--right-start);right:calc(var(--layout-w) - var(--right-end));max-height:calc(100% - var(--pt) - var(--pb))}
-body[data-layout=spread] dialog#menu{inset:56px auto auto var(--left-start);width:240px;max-width:240px;max-height:none;border:1px solid #c9c6ba;box-shadow:none}
+body[data-layout=spread] dialog#menu{border:1px solid #c9c6ba;box-shadow:none}
 /* ハーフフォールド: 下ペインのみ（保護帯の下、左右16、下12） */
 body[data-layout=desk] dialog{--dt:max(calc(50% + 20px),calc(var(--rt) + 12px));--db:calc(var(--rb) + 12px);
  top:var(--dt);bottom:var(--db);left:calc(var(--rl) + 16px);right:calc(var(--rr) + 16px);margin:0;width:auto;max-width:none;max-height:calc(100% - var(--dt) - var(--db))}
 body[data-layout=desk] dialog.full{height:calc(100% - var(--dt) - var(--db))}
 body[data-layout=desk] dialog#scope,body[data-layout=desk] dialog#confirm,body[data-layout=desk] dialog#xretry,body[data-layout=desk] dialog#discard{top:auto;overflow:auto}
-body[data-layout=desk] dialog#menu{inset:56px 16px auto auto;width:240px;max-width:240px;max-height:none}
 body[data-layout=desk] .formhead,body[data-layout=desk] .phead{height:44px;min-height:44px}
 html[data-kb] body[data-layout=spread] dialog,html[data-kb] body[data-layout=desk] dialog{margin:0}
 
@@ -645,8 +645,7 @@ body[data-layout=home] dialog#xdetail::before,body[data-layout=browse] dialog#xd
 .xdact .primary{flex:1 1 auto;background:#294E42;color:#fff}
 #xd-open.small{min-height:44px;width:auto;margin:0;padding:0 8px;background:transparent;border:0;color:#68716A;font-size:13px}
 .xdreason{margin:0 0 6px;font-size:13px;line-height:1.4;color:#68716A}
-.ecal[hidden],#cat-l[hidden],.rfix[hidden]{display:none}
-.ecal select{min-height:44px}
+.rfix[hidden]{display:none}
 .rfix{margin-top:12px}
 .rfixrow{margin:0;min-height:44px;display:flex;align-items:center;font-size:15px;color:#68716A}
 .gonebar{margin:0 0 8px;min-height:36px;display:flex;align-items:center;padding:0 12px;border-radius:8px;background:#F6EDE0;color:#7A5A2E;font-size:13px}
@@ -901,3 +900,176 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .week .pghost.cont{border-left-style:none;border-radius:0 3.5px 3.5px 0}
 .week .pghost.more{border-right-style:none;border-radius:3.5px 0 0 3.5px}
 .week .pghost.cont.more{border-radius:0}
+@keyframes catshake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.sw.shake{animation:catshake .2s linear}
+@media (prefers-reduced-motion:reduce){.sw.shake{animation:none;outline:2px solid var(--green)}}
+/* 新規予定のカレンダー選択（1行 + ポップオーバー） */
+.destrow{position:relative;margin-top:12px}.destrow[hidden]{display:none}
+.destbtn{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:44px;padding:0 12px;border-radius:10px;background:#fff;border:1px solid #DCD7CB;font-size:16px;text-align:left}
+.destbtn .dlbl{flex:none}.destbtn .dval{display:flex;align-items:center;gap:6px;min-width:0;color:#68716A;font-size:14px}
+.destbtn .dval #dest-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.destbtn .cdot.big{width:12px;height:12px}
+.destpop{position:absolute;left:0;top:calc(100% + 4px);z-index:20;box-sizing:border-box;width:min(296px,100%);max-height:min(320px,50vh);overflow:auto;padding:6px 0;border-radius:14px;background:#fff;border:1px solid #DCD7CB;box-shadow:0 8px 24px #0002}
+.destpop[hidden]{display:none}
+.destbtn:disabled{opacity:.6}.destbtn:disabled .dval>span:last-child{visibility:hidden}
+.destpop h4{margin:0;padding:0 14px;min-height:26px;display:flex;align-items:center;font-size:12px;font-weight:600;color:#68716A}
+.destpop .dnote{margin:2px 14px 6px;font-size:12px;color:#68716A}
+.destpop .dopt{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:0 14px;border:0;background:transparent;font-size:15px;text-align:left}
+.destpop .dopt .dn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.destpop .dopt .cdot{width:12px;height:12px}
+.destpop .dopt .dhid{flex:none;font-size:11px;color:#A8ABA4}
+.destpop .dopt .dck{flex:none;width:18px;color:#2E8B57;font-weight:700}
+.destpop .dopt.hid .dn{color:#A8ABA4}.destpop .dopt.hid .cdot{opacity:.4}
+.destpop .dopt:focus-visible{outline:2px solid #294E42;outline-offset:-2px}
+
+/* 第15版 PR7: 設定の階層（白いシート・48pt行） */
+body[data-layout=spread] dialog#menu,body[data-layout=desk] dialog#menu{height:auto;max-width:none;max-height:none}
+.mhead{flex:none;display:flex;align-items:center;justify-content:space-between;height:68px;padding:0 12px 0 20px;border-bottom:1px solid #ECE9E1}
+.mhead h2{margin:0;font-size:17px;font-weight:700}
+.mclose{width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border-radius:50%;border:1px solid #DCD7CB;background:#fff;font-size:24px;line-height:1}
+.mscreens{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
+.mscreens .menurows{padding:0 0 12px}
+.mscreens .menurows[hidden]{display:none}
+.mscreens .menurows>button,.mscreens .menurows .tlz button,.mscreens .menurows .tkpanel button{min-height:48px;padding-left:20px;padding-right:20px;border-radius:0}
+.srow{display:flex!important;align-items:center;gap:6px;height:48px;min-height:48px;padding:0 20px 0 32px!important;font-size:16px;background:transparent;border:0;text-align:left}
+.srow[hidden]{display:none!important}
+.sic{flex:none;display:inline-flex;width:20px;height:20px;color:#68716A}
+.sic .gl{font-size:19px;line-height:20px;font-weight:700}
+.sname{flex:1;min-width:0;margin-left:6px}
+.shint{font-size:11px;color:#A8ABA4;white-space:nowrap}
+.sch{color:#A8ABA4;font-size:20px;width:16px;text-align:right}
+.ssep{margin:6px 0;border:0;border-top:1px solid #ECE9E1}
+.sfoot{margin:14px 20px;font-size:11px;color:#A8ABA4}
+.mscreens .swnote{padding:0 20px}
+.mscreens .mlegend{margin:6px 20px 2px}
+/* Google の追加手順 */
+.gsteps{margin:4px 20px 6px;padding-left:20px;font-size:13px;line-height:1.5;color:#3A423C}
+#m-gset{margin:8px 20px;width:calc(100% - 40px)}
+/* 帯の設定ボタンは開いている間 × にする（閉じる／戻るの入口） */
+body.settings-open .ctl.band [data-act=menu] .bi svg{display:none}
+body.settings-open .ctl.band [data-act=menu] .bi::after{content:"×";font-size:26px;line-height:1}
+/* 第15版 PR8: 設定 › カレンダー（アカウント別の段。見出し32・行40・青✓・色丸14・表示のみ札） */
+.calsec{margin:0;height:32px;line-height:32px;padding:0 20px;font-size:12px;font-weight:400;color:#8C918B;border-top:1px solid #ECE9E1}
+#m-cal>div:first-child .calsec:first-child{border-top:0}
+.mscreens .menurows button.crow{display:flex;align-items:center;gap:10px;min-height:40px;height:40px;padding:0 20px 0 20px;font-size:16px;background:transparent;border:0;text-align:left}
+.crow .cdot{flex:none;width:14px;height:14px;border-radius:50%;display:inline-block}
+.crow .cname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crow .cro{flex:none;font-size:11px;color:#A8ABA4}
+.crow .cck{flex:none;width:20px;text-align:right;color:#4E7FC4;font-weight:700}
+.crow.off .cname{color:#A8ABA4}
+.crow.off .cdot{opacity:.4}
+.crow.shake{animation:catshake .2s linear}
+@media (prefers-reduced-motion:reduce){.crow.shake{animation:none;outline:2px solid #4E7FC4}}
+.cnote{margin:0;padding:4px 20px 6px;font-size:12px;line-height:1.4;color:#68716A}
+.mscreens .menurows button.cbtn{display:inline-block;width:auto;margin:2px 20px 8px 20px;min-height:40px;padding:0 16px;border:1px solid #DCD7CB;border-radius:20px;background:#fff;font-size:14px}
+/* 第15版 PR9: Duo 段の編集モード（赤−・並べ替え・追加） */
+.calsec.dhead{display:flex;align-items:center;justify-content:space-between}
+.mscreens .menurows button.chbtn{flex:none;width:auto;min-width:44px;min-height:32px;height:32px;line-height:32px;padding:0 4px;text-align:right;border:0;background:transparent;font-size:14px;color:#4E7FC4}
+.crow.edit{display:flex;align-items:center;gap:6px;min-height:44px;padding:0 8px 0 12px}
+.mscreens .menurows .crow.edit button.cdel{flex:none;width:44px;height:44px;min-height:44px;padding:0;border:0;background:transparent;display:flex;align-items:center;justify-content:center}
+.cdel span{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#C8453B;color:#fff;font-size:18px;line-height:1;font-weight:700}
+.cdel:disabled span{opacity:.35}
+.mscreens .menurows .crow.edit button.cmain{flex:1;min-width:0;display:flex;align-items:center;gap:10px;height:44px;min-height:44px;padding:0;border:0;background:transparent;text-align:left;font-size:16px}
+.crow.edit .mv button{min-width:44px;min-height:44px;height:44px;padding:0;border:0;background:transparent;font-size:18px;color:#68716A}
+.crow.edit .mv button:disabled{opacity:.3}
+.mscreens .menurows button.crow.addrow{color:#4E7FC4}
+.crow.addrow .cplus{flex:none;width:14px;text-align:center}
+.calbox{margin:0 16px 8px;padding:10px 12px;border:1px solid #ECE9E1;border-radius:12px;background:#fff}
+.calbox p{margin:0 0 6px}
+#m-cal-duo .undobar{margin:6px 16px 8px}
+.mscreens .menurows button.destrow{display:flex;align-items:center;gap:8px;height:48px;font-size:16px;border-top:1px solid #ECE9E1;background:transparent;border-left:0;border-right:0;border-bottom:0}
+.destrow .dname{flex:1;min-width:0}
+.destrow .cdot{flex:none;width:12px;height:12px;border-radius:50%}
+.destrow .dval{font-size:14px;color:#68716A;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.destpop{margin:0 12px 6px;border:1px solid #ECE9E1;border-radius:14px;overflow:hidden;background:#fff}
+.destpop h4{margin:0;padding:6px 14px 2px;font-size:12px;font-weight:400;color:#8C918B}
+.destpop .dopt{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:0 14px;border:0;background:transparent;text-align:left;font-size:15px}
+.destpop .dopt .cdot{flex:none;width:12px;height:12px;border-radius:50%}
+.destpop .dopt .dn{flex:1;min-width:0}
+.destpop .dopt.hid .dn{color:#A8ABA4}.destpop .dopt.hid .cdot{opacity:.4}
+.destpop .dopt .dhid{font-size:11px;color:#A8ABA4}
+.destpop .dopt .dck{width:18px;text-align:right;color:#2E6B5A;font-weight:700}
+#m-cal-foot{padding:8px 20px 0;font-size:12px;color:#68716A}
+#m-cal-foot button{min-height:32px;padding:0 12px;border:1px solid #DCD7CB;border-radius:16px;background:#fff;font-size:12px;width:auto}
+
+/* 日時（設計12 §1–2）。日付は文字の欄のまま、時刻はカプセルと時分のマス */
+.dtbox{position:relative;margin-top:12px;padding:0 10px;background:#fff;border:1px solid var(--line);border-radius:10px}
+.dtrow{display:flex;align-items:center;gap:8px;min-height:44px}
+.dtrow+.dtrow{border-top:1px solid #eeeae0}
+.dtk{flex:none;width:2.4em;font-size:13px}
+.dcap{flex:1 1 120px;min-width:120px;height:32px;padding:0 8px;border:0;border-radius:8px;background:#F0EDE5;font-size:14px;color:#293B35;white-space:nowrap}
+.dcap.open{background:#294E42;color:#fff}
+.tcap{position:relative;flex:none;width:58px;height:32px;padding:0;border:0;border-radius:8px;background:#F0EDE5;font-size:15px;font-weight:700;color:#293B35}
+.tcap.open{background:#294E42;color:#fff}
+.tcap[hidden]{display:none}
+.dbadge{position:absolute;left:-6px;top:-9px;height:16px;padding:0 6px;border-radius:8px;background:#87500F;color:#fff;font-size:11px;line-height:16px;pointer-events:none}
+.dbadge[hidden]{display:none}
+.dtrow.dlen{min-height:36px}
+.durs{display:flex;flex-wrap:wrap;gap:6px;padding:4px 0}
+.dchip{height:26px;min-width:44px;padding:0 10px;border:1px solid #DCD7CB;border-radius:13px;background:#fff;font-size:12px}
+.dchip[aria-pressed=true]{background:#DDE7E2;border-color:#294E42;font-weight:700}
+.tpop{padding:8px 0 10px;border-top:1px solid #eeeae0}
+.tlab{margin:6px 0 4px;font-size:12px;color:#68716A}
+.tnote{margin-left:8px;color:#294E42;font-weight:700}
+.tgrid{display:grid;gap:4px}
+.hgrid{grid-template-columns:repeat(6,minmax(0,1fr))}
+.mgrid{grid-template-columns:repeat(6,minmax(0,1fr))}
+.tcell{min-width:0;height:34px;padding:0;border:0;border-radius:8px;background:#F0EDE5;font-size:15px}
+.mcell{height:32px}
+.tcell.usual{color:#293B35}.tcell.rare{color:#A8ABA4}
+.tcell[aria-pressed=true]{background:#294E42;color:#fff;font-weight:700}
+.dtbox.allday .tcap,.dtbox.allday .dbadge,.dtbox.allday #row-d,.dtbox.allday #tpop{display:none}
+
+/* 日付のチップと小さな月（設計12 §3） */
+.dpop{padding:8px 0 10px;border-top:1px solid #eeeae0}
+.dpchips{display:flex;gap:6px;flex-wrap:wrap}
+.dpchip{height:28px;padding:0 12px;border:1px solid #DCD7CB;border-radius:14px;background:#fff;color:#294E42;font-size:13px}
+.dpchip:disabled{color:#C9C6BC}
+.dpmh{display:flex;align-items:center;justify-content:space-between;margin-top:4px}
+.dpnav{width:44px;height:44px;padding:0;border:0;background:none;font-size:22px;color:#294E42}
+.dpmt{font-size:15px;font-weight:700}
+.dpwk,.dpgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.dpwk span{text-align:center;font-size:12px;color:#68716A}.dpwk .hol{color:#B43C3C}
+.dpgrid{touch-action:pan-y}
+.dcell{height:38px;min-width:0;padding:0;border:0;background:none;font-size:15px;color:#293B35;display:flex;align-items:center;justify-content:center}
+.dcell .n{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;box-sizing:border-box}
+.dcell.hol{color:#B43C3C}
+.dcell.out{color:#C9C6BC}
+.dcell.tod .n{border:1.5px solid #294E42}
+.dcell.sel .n{background:#294E42;color:#fff;font-weight:700;border:0}
+.dcell:disabled{color:#C9C6BC}
+
+/* 数字の短縮入力（長押し）・大文字（設計12 §4・6） */
+.dcap.editing,.tcap.editing{display:none}
+.capin{box-sizing:border-box;height:32px;border:2px solid #294E42;border-radius:8px;background:#fff;color:#293B35;font-size:16px;font-weight:700;text-align:center;padding:0 6px;min-width:0}
+.capin.dcap-in{flex:1 1 120px;min-width:120px}
+.capin.tcap-in{flex:none;width:58px}
+.capin:focus-visible{outline:2px solid #294E42;outline-offset:1px}
+@keyframes dtshake{0%,100%{transform:translateX(0)}20%{transform:translateX(-5px)}40%{transform:translateX(5px)}60%{transform:translateX(-4px)}80%{transform:translateX(3px)}}
+.dcap.shake,.tcap.shake{animation:dtshake .2s linear}
+.tlab[role=slider]:focus-visible{outline:2px solid #294E42;outline-offset:2px;border-radius:4px}
+.dtbox.dtlarge .tpop,.dtbox.dtlarge .dpop{max-height:min(52vh,420px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.dtbox.dtlarge .hgrid,.dtbox.dtlarge .mgrid{grid-template-columns:repeat(4,minmax(52px,1fr))}
+.dtbox.dtlarge .tcell{height:44px;min-width:52px;font-size:18px}
+.dtbox.dtlarge .mcell{height:44px}
+.dtbox.dtlarge .tcap{width:72px;height:40px;font-size:18px}
+.dtbox.dtlarge .capin.tcap-in{width:72px;height:40px;font-size:18px}
+.dtbox.dtlarge .dcap,.dtbox.dtlarge .capin.dcap-in{height:40px;font-size:17px}
+
+/* ===== 第15版 PR19: 繰り返しの終了日・タスクの期限（予定の日付・時刻と同じ部品） ===== */
+.dtrow.runtil{margin-top:8px;padding:0 10px;background:#fff;border:1px solid var(--line);border-radius:10px}
+.dtrow.runtil .dtk{width:4em}
+.dpfield,.tpfield{margin-top:4px}
+.dpclear{display:block;margin:6px 0 0;height:36px;padding:0 12px;border:1px solid #DCD7CB;border-radius:14px;background:#fff;color:#294E42;font-size:13px}
+.tkwrap .tkrow{margin-top:8px;padding:0 10px;background:#fff;border:1px solid var(--line);border-radius:10px}
+.tkwrap .tkrow .dtk{width:3em}
+.tkwrap .tkrow .tkton{flex:1;margin-top:0}
+#tk-body .tkrow .tkck input{display:inline-block;width:22px;min-height:22px;margin:0}
+.rmchipl{border:0;background:none;color:inherit;font:inherit;padding:0 2px;position:relative;min-height:24px}
+.rmchipl::before{content:'';position:absolute;inset:-10px -4px}
+.rmdp{margin:6px 0 0;padding:8px 10px 10px;background:#fff;border:1px solid var(--line);border-radius:10px}
+.rmdpt{margin-top:6px}
+.rmtimeon{padding:0 10px;min-height:32px;position:relative;color:#68716A}
+.rmtimeon.on{color:#294E42;border-color:#294E42}
+.rmtimeon:disabled{color:#C9C6BC}
+.rmdp .tpop{margin-top:6px}

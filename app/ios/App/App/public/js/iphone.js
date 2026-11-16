@@ -1,9 +1,17 @@
 // iPhone カレンダー連携の純粋ロジック（DOM・ネイティブ呼び出しなし）。
 import { addDays, addMonths, dayOf, newId, weekStart } from './util.js';
 import { normalize, searchRange, terms } from './search.js';
+import { CAT_IDS } from './categories.js';
 import { expand, isFirstOccurrence, normRule, occurrenceAt, ruleEq } from './recur.js';
 
-export const DEFAULTS = { version: 1, enabled: false, calendarIds: [], selectionInitialized: false, defaultCalendarId: null, addByDefault: true };
+export const DEFAULTS = { version: 1, enabled: false, calendarIds: [], selectionInitialized: false, defaultCalendarId: null, addByDefault: true, defaultDest: null, enabledMig: true };
+
+// 新しい予定の追加先 { type:'duo'|'iphone', id }。不正は null（未設定＝移行前）。
+export function normDest(d) {
+  if (!d || typeof d !== 'object' || Array.isArray(d)) return null;
+  if ((d.type !== 'duo' && d.type !== 'iphone') || typeof d.id !== 'string' || !d.id) return null;
+  return { type: d.type, id: d.id };
+}
 
 export function normSettings(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return { ...DEFAULTS };
@@ -14,7 +22,25 @@ export function normSettings(v) {
     calendarIds: ids,
     selectionInitialized: v.selectionInitialized === true,
     defaultCalendarId: typeof v.defaultCalendarId === 'string' && v.defaultCalendarId ? v.defaultCalendarId : null,
-    addByDefault: v.addByDefault !== false,
+    addByDefault: v.addByDefault !== false, // 旧設定。defaultDest へ移行するまでの読み取り専用（以後は参照しない）
+    defaultDest: normDest(v.defaultDest),
+    enabledMig: v.enabledMig === true, // 旧「連携オフ」を一度だけ移した版印（保存済みの旧設定には無い）
+  };
+}
+
+// 表示条件（画面・検索・通知で共通）。ctx: { events（全親）, hiddenCats:Set, link:{enabled,calendarIds}, perm, calendars }。
+// linked/pending は追加先 calendarId の ✓（連携が有効で許可が取れているとき）が正。id が端末に無ければ非表示のまま。
+// それ以外（unlinked・Duo のみ・連携オフ）は実効 categoryId（繰り返しの回の個別変更を含む）の hidden で判定する。
+export function makeVisible(ctx) {
+  const hid = ctx.hiddenCats || new Set(), byId = new Map();
+  for (const e of ctx.events || []) byId.set(e.id, e);
+  const ids = new Set(ctx.link?.calendarIds || []);
+  const known = ctx.calendars?.length ? new Set(ctx.calendars.map((c) => c.id)) : null;
+  const calOn = !!ctx.link?.enabled && (ctx.perm == null || ctx.perm === 'granted');
+  return (e) => {
+    const l = (byId.get(e.parentId ?? e.id) || e).nativeLink;
+    if (calOn && l && (l.state === 'linked' || l.state === 'pending') && l.calendarId) return ids.has(l.calendarId) && (!known || known.has(l.calendarId));
+    return !hid.has(e.categoryId);
   };
 }
 
@@ -204,6 +230,51 @@ export function pickAddCal(cals, sel, defId) {
   return w.find((c) => c.isDefault)?.id || w[0]?.id || '';
 }
 
+// 追加先の解決（表示中のものだけ）。dest が表示中・書込可ならそのまま。
+// 非表示・消失・読取専用・連携オフは代替へ：同じ source の表示中 → 表示中の「その他」→ 表示中の Duo 先頭。全部非表示だけ「その他」を仮選択。
+// ctx: { cats, cals, ids（表示するカレンダー id）, usable（カレンダー連携が使える）}。
+export function resolveDest(dest, ctx) {
+  const d = normDest(dest), cats = ctx.cats || [], cals = ctx.cals || [], ids = ctx.ids || [];
+  const w = ctx.usable ? writable(cals) : [];
+  const vis = cats.filter((c) => !c.hidden);
+  if (d?.type === 'duo' && vis.some((c) => c.id === d.id)) return d;
+  if (d?.type === 'iphone' && w.some((c) => c.id === d.id && ids.includes(c.id))) return d;
+  if (d?.type === 'iphone') {
+    const cur = cals.find((c) => c.id === d.id);
+    const alt = cur && groupBySource(w).find((g) => g.sourceId === cur.sourceId)?.items.find((c) => ids.includes(c.id));
+    if (alt) return { type: 'iphone', id: alt.id };
+  } else if (vis[0]) return { type: 'duo', id: vis[0].id };
+  const other = cats.find((c) => c.id === CAT_IDS.other);
+  if (other && !other.hidden) return { type: 'duo', id: other.id };
+  if (vis[0]) return { type: 'duo', id: vis[0].id };
+  return { type: 'duo', id: other ? other.id : cats[0]?.id || CAT_IDS.other };
+}
+
+// 旧設定からの一度きりの移行計画（純粋）。戻り値は設定へ足す patch か null。
+// ctx: { perm（null=未確認）, cals（一覧取得後のみ配列。未取得は null）, cats }。カテゴリ未読込・取得遅延では何も決めない。
+// ・defaultDest 未設定のみ：旧 addByDefault（許可あり・書込可カレンダーあり）→ iPhone、それ以外は Duo。連携していた端末の権限なしは Duo（未連携は接続時まで決めない）。
+// ・旧「連携オフ」で許可あり：enabled=true／calendarIds=[]／selectionInitialized=true（予定は出ない。✓ で出す）。enabledMig で再実行しない。
+export function planLinkMigration(link, ctx) {
+  const cats = ctx.cats || [];
+  if (!cats.length) return null;
+  const granted = ctx.perm === 'granted' && Array.isArray(ctx.cals);
+  const patch = {};
+  if (!link.defaultDest) {
+    const vis = cats.find((c) => !c.hidden) || cats.find((c) => c.id === CAT_IDS.other) || cats[0];
+    const duo = { type: 'duo', id: vis.id };
+    let dest = null;
+    if (link.addByDefault === false) dest = duo;
+    else if (granted) dest = writable(ctx.cals).length ? { type: 'iphone', id: pickAddCal(ctx.cals, '', link.defaultCalendarId) } : duo;
+    else if (link.enabled && ctx.perm && ctx.perm !== 'granted') dest = duo; // 連携していた端末の権限なし。未連携は接続時に決める
+    if (dest) patch.defaultDest = dest;
+  }
+  if (!link.enabledMig && granted) {
+    patch.enabledMig = true;
+    if (!link.enabled) Object.assign(patch, { enabled: true, calendarIds: [], selectionInitialized: true });
+  }
+  return Object.keys(patch).length ? patch : null;
+}
+
 // カレンダー一覧をソース別にグループ化（sourceId → title → id の順、同名 source は sourceType を併記）。
 export function groupBySource(cals) {
   const sorted = [...cals].sort((a, b) => String(a.sourceId).localeCompare(String(b.sourceId)) || String(a.title).localeCompare(String(b.title), 'ja') || String(a.id).localeCompare(String(b.id)));
@@ -267,6 +338,8 @@ export function planNativeOps(prev, plan, scope, occKey, form, ctx = {}) {
   if (span !== 'this' || !recurring) {
     if (!ruleEq(after.recurrence, prev.recurrence)) payload.recurrence = after.recurrence ? normRule(after.recurrence) : null;
   }
+  // 別の iPhone カレンダーへの移動は単発か「すべて」だけ（この回・これ以降では系列を分けない）。返る calendarId で結びつきを更新する。
+  if (ctx.moveTo && ctx.moveTo !== link.calendarId && (span === 'all' || (span === 'this' && !recurring))) payload.calendarId = ctx.moveTo;
   if (!Object.keys(payload).length) return { ops: [], plan };
   const op = { ...base, kind: 'update', payload };
   if (span === 'future') {
@@ -292,8 +365,12 @@ export function mergeOps(list, ops, inflight = null) {
   for (const n of ops) {
     if (n.kind === 'update') {
       const i = out.findIndex((o) => o.kind === 'update' && o.opId !== inflight && !o.newParentId && !n.newParentId && o.eventKey === n.eventKey && o.span === n.span && o.occurrenceStart === n.occurrenceStart);
-      if (i >= 0) out[i] = { ...out[i], link: n.link, payload: { ...out[i].payload, ...n.payload } };
-      else out.push(n);
+      if (i >= 0) {
+        const payload = { ...out[i].payload, ...n.payload };
+        if (payload.calendarId !== undefined && payload.calendarId === n.link?.calendarId) delete payload.calendarId; // 未送信のまま元の先へ戻した
+        if (Object.keys(payload).length) out[i] = { ...out[i], link: n.link, payload };
+        else out.splice(i, 1);
+      } else out.push(n);
     } else {
       out = out.filter((o) => o.opId === inflight || !covers_(n, o));
       if (n.kind === 'delete' && !out.some((o) => o.kind === 'delete' && o.eventKey === n.eventKey && o.span === n.span && o.occurrenceStart === n.occurrenceStart)) out.push(n);

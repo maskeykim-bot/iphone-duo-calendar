@@ -7,8 +7,7 @@ export { ALLDAY_DAYS, TIMED_BEFORE };
 export const MAX_PENDING = 60;
 export const WINDOW_DAYS = 30;
 export const NOTIFY_DEFAULTS = Object.freeze({
-  version: 1, enabled: true, showTitle: true,
-  defaultTimed: Object.freeze({ before: 30 }), defaultAllDay: Object.freeze({ day: 0, at: '08:00' }),
+  version: 1, enabled: false, showTitle: true, defaultTimed: null, defaultAllDay: null, // 新規は通知オフ・既定なし（第15版 PR12）
 });
 
 // 保存値の正しい項目だけ採用し、無い・不正な項目は既定にする。常に新しいオブジェクトを返す。
@@ -18,15 +17,22 @@ export function normNotify(v) {
     version: 1,
     enabled: typeof o.enabled === 'boolean' ? o.enabled : NOTIFY_DEFAULTS.enabled,
     showTitle: typeof o.showTitle === 'boolean' ? o.showTitle : NOTIFY_DEFAULTS.showTitle,
-    defaultTimed: { before: okTimed(o.defaultTimed) ? o.defaultTimed.before : NOTIFY_DEFAULTS.defaultTimed.before },
-    defaultAllDay: okAllDay(o.defaultAllDay) ? { day: o.defaultAllDay.day, at: o.defaultAllDay.at } : { ...NOTIFY_DEFAULTS.defaultAllDay },
+    defaultTimed: okTimed(o.defaultTimed) ? { before: o.defaultTimed.before } : null, // null=なし
+    defaultAllDay: okAllDay(o.defaultAllDay) ? { day: o.defaultAllDay.day, at: o.defaultAllDay.at } : null,
   };
+}
+
+// 旧既定の一度きりの移行（第15版 PR12）。stored=保存済み設定（無ければ null）、existing=既存端末の証拠があるか。
+// enabled は保存済みの真偽値を優先、未保存なら既存端末はオン・新規はオフ。showTitle は保持。既定は両方なし。
+export function planNotifyPolicy(stored, existing) {
+  const o = stored !== null && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+  return { ...normNotify(o), enabled: typeof o.enabled === 'boolean' ? o.enabled : !!existing, defaultTimed: null, defaultAllDay: null };
 }
 
 // 新規予定の初期値（既定は新規作成のときに写すだけ）。
 export const defaultAlarms = (all, s) => {
-  const n = normNotify(s);
-  return all ? [{ ...n.defaultAllDay }] : [{ ...n.defaultTimed }];
+  const n = normNotify(s), d = all ? n.defaultAllDay : n.defaultTimed;
+  return d ? [{ ...d }] : [];
 };
 
 // 回の alarms（未定義・null は予約なし）。
@@ -104,7 +110,7 @@ function hasBeyondWindow(targets, limit) {
 
 // 予約する通知の一覧。{ items, truncated }。
 // 実通知が上限（max）または30日窓で切れるときは、実通知を max-1 件にして最後に duo.refresh を1件足す。切れないときは実通知だけ最大 max 件。
-export function planNotifications(events, now, s, { days = WINDOW_DAYS, max = MAX_PENDING } = {}) {
+export function planNotifications(events, now, s, { days = WINDOW_DAYS, max = MAX_PENDING, visible = null } = {}) {
   const n = normNotify(s);
   if (!n.enabled) return { items: [], truncated: false };
   const today = dkey(now);
@@ -112,6 +118,7 @@ export function planNotifications(events, now, s, { days = WINDOW_DAYS, max = MA
   const targets = events.filter((e) => !excluded(e) && (e.recurrence || (e.alarms || []).length));
   const pool = [];
   for (const occ of expand(targets, today, addDays(today, days + 7))) {
+    if (visible && !visible(occ)) continue; // 非表示（展開後の実効カテゴリ）は予約しない
     const parentId = occ.parentId ?? occ.id;
     alarmsFor(occ).forEach((alarm, i) => {
       const fire = fireAt(occ, alarm);
@@ -164,7 +171,7 @@ const uniq = (list) => { const seen = new Set(); return list.filter((a) => { con
 export function convertAlarms(alarms, toAll, s) {
   if (!Array.isArray(alarms) || !alarms.length) return alarms;
   const n = normNotify(s);
-  return uniq(alarms.map((a) => (toAll ? (a.before !== undefined ? { day: a.before >= 1440 ? 1 : 0, at: '08:00' } : a) : (a.before !== undefined ? a : { ...n.defaultTimed }))));
+  return uniq(alarms.map((a) => (toAll ? (a.before !== undefined ? { day: a.before >= 1440 ? 1 : 0, at: '08:00' } : a) : (a.before !== undefined ? a : { ...(n.defaultTimed || { before: 30 }) }))));
 }
 // 画面の読み上げ・ベル用。
 export const alarmsAria = (alarms) => (Array.isArray(alarms) && alarms.length ? `通知 ${alarms.map(alarmLabel).join('、')}` : '');
@@ -181,17 +188,4 @@ export function pastForNotify(occ, alarms, now) {
   if (!occ.all) return occ.start <= stamp;
   const fs = alarms.map((a) => fireAt(occ, a)).filter(Boolean);
   return fs.length > 0 && fs.every((f) => f <= stamp);
-}
-
-// 一度だけの既定通知の付与（第11版 PR10）。付与後の予定（alarms を入れた新しいオブジェクト）だけを返す。
-// 対象：Duo だけの予定（origin が iphone でなく nativeLink が無い）で alarms が未定義、かつ現在以降に回が残るもの。
-// 値は固定（利用者が変えた新規用の既定には読み替えない）。null・[]・既存の配列・過去は触らない。親にだけ付ける。
-export function planNotifyBackfill(events, now) {
-  const out = [];
-  for (const e of events) {
-    if (e.origin === 'iphone' || e.nativeLink || e.alarms !== undefined) continue;
-    if (!hasFutureOccurrence(e, now)) continue;
-    out.push({ ...e, alarms: e.all ? [{ day: 0, at: '08:00' }] : [{ before: 30 }] });
-  }
-  return out;
 }

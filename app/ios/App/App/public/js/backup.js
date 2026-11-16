@@ -4,7 +4,7 @@ import { expand, normRule } from './recur.js';
 import { alarmsOk, okAllDay, okTimed } from './alarms.js';
 import { normNotify } from './notify.js';
 import { PAGE_IDS, BOTTOM_IDS, normalizePages } from './pages.js';
-import { CAT_IDS, LEGACY, UNCATEGORIZED, legacyToId, validateCategory } from './categories.js';
+import { CAT_IDS, DEFAULTS_NEW, LEGACY, UNCATEGORIZED, legacyToId, validateCategory } from './categories.js';
 
 export const APP = 'duo-calendar';
 export const VERSION = 4;
@@ -161,7 +161,7 @@ export function checkSettings(s) {
   if (s.notify != null) {
     const n = s.notify;
     if (!isObj(n) || (n.enabled !== undefined && typeof n.enabled !== 'boolean') || (n.showTitle !== undefined && typeof n.showTitle !== 'boolean')
-      || (n.defaultTimed !== undefined && !okTimed(n.defaultTimed)) || (n.defaultAllDay !== undefined && !okAllDay(n.defaultAllDay))) return { error: '設定の通知が不正です' };
+      || (n.defaultTimed != null && !okTimed(n.defaultTimed)) || (n.defaultAllDay != null && !okAllDay(n.defaultAllDay))) return { error: '設定の通知が不正です' };
     out.notify = {};
     for (const k of ['enabled', 'showTitle', 'defaultTimed', 'defaultAllDay']) if (n[k] !== undefined) out.notify[k] = deepClean(n[k]);
   }
@@ -193,7 +193,7 @@ export function validateBackup(text, current = {}) {
   if (!Array.isArray(obj.events)) return { ok: false, reason: '予定の一覧（events）がありません' };
   if (obj.events.length > MAX_EVENTS) return { ok: false, reason: `予定が多すぎます（上限${MAX_EVENTS}件）` };
   if (typeof obj.exportedAt !== 'string' || Number.isNaN(Date.parse(obj.exportedAt))) return { ok: false, reason: '書き出し日時が不正です' };
-  const report = { dropped: 0, fallbackCount: 0, legacyAdded: 0, ink: Array.isArray(obj.ink) ? obj.ink.length : 0 };
+  const report = { dropped: 0, fallbackCount: 0, legacyAdded: 0, retargeted: 0, ink: Array.isArray(obj.ink) ? obj.ink.length : 0 };
   let settings = null;
   if (obj.settings != null) {
     const r = checkSettings(obj.settings);
@@ -214,22 +214,26 @@ export function validateBackup(text, current = {}) {
       const r = validateCategory(deepClean(c));
       if (!r.ok) return { ok: false, reason: `カテゴリ${i + 1}件目: ${r.error}` };
       if (catIds.has(r.value.id)) return { ok: false, reason: `カテゴリ${i + 1}件目: idが重複しています` };
+      if (r.value.id === CAT_IDS.golf || r.value.id === CAT_IDS.economy) continue; // 旧2カテゴリは取り込まない（予定は「その他」へ）
       catIds.add(r.value.id); categories.push(r.value);
     }
   }
   const known = new Set([...catIds, ...(current.categories || []).map((c) => c.id)]);
   const legacyUsed = new Set();
-  let usedNone = false;
+  let usedNone = false, usedOther = false;
   // categoryId を確定する。旧 cat は固定 id に変換、知らない参照は未分類へ（fell=true）。
   const resolve = (o) => {
     const { cat, categoryId, ...rest } = o;
-    let id = goodCatId(categoryId) ? categoryId : null, fell = false;
-    if (id === null) {
+    let id = goodCatId(categoryId) ? categoryId : null, fell = false, moved = false;
+    if (id === CAT_IDS.golf || id === CAT_IDS.economy) { id = CAT_IDS.other; moved = true; }
+    else if (id === null) {
       const lid = legacyToId(cat);
-      if (lid) { legacyUsed.add(cat); id = lid; } else { id = CAT_IDS.none; fell = true; }
+      if (lid === CAT_IDS.golf || lid === CAT_IDS.economy) { id = CAT_IDS.other; moved = true; }
+      else if (lid) { legacyUsed.add(cat); id = lid; } else { id = CAT_IDS.none; fell = true; }
     } else if (!known.has(id) && !Object.values(CAT_IDS).includes(id)) { id = CAT_IDS.none; fell = true; }
     if (id === CAT_IDS.none) usedNone = true;
-    return { rest, id, fell };
+    if (id === CAT_IDS.other && moved) usedOther = true;
+    return { rest, id, fell, moved };
   };
   const ids = new Set(), events = [];
   let exceptions = 0;
@@ -257,7 +261,7 @@ export function validateBackup(text, current = {}) {
     // 検証を通ったので整形する。未知の項目は残し、不正な alarms / nativeLink はその項目だけ捨てる。
     const main = resolve(shapeIn(e));
     const out = shape({ ...main.rest, categoryId: main.id });
-    let fell = main.fell;
+    let fell = main.fell, moved = main.moved;
     report.dropped += checkOptional(out);
     const keys = out.recurrence ? validKeys(out) : new Set();
     const ov = {};
@@ -265,6 +269,7 @@ export function validateBackup(text, current = {}) {
       if (!keys.has(k)) { report.dropped++; continue; }
       const x = resolve(shapeIn(o));
       if (x.fell) fell = true;
+      if (x.moved) moved = true;
       const oo = bodyDefaults({ ...x.rest, categoryId: x.id });
       report.dropped += checkOptional(oo);
       ov[k] = oo;
@@ -272,12 +277,14 @@ export function validateBackup(text, current = {}) {
     out.overrides = ov;
     out.exdates = [...new Set(out.exdates)];
     if (fell) report.fallbackCount++;
+    if (moved) report.retargeted++;
     events.push(out);
   }
   // 旧 cat が指す固定カテゴリがファイルにも現在にも無ければ LEGACY の定義で追加予定に入れる。
   const have = new Set([...catIds, ...(current.categories || []).map((c) => c.id)]);
   const addCat = (c) => { catIds.add(c.id); categories.push({ ...c, order: categories.length, hidden: false, createdAt: 0, updatedAt: 0 }); };
   for (const key of legacyUsed) if (!have.has(LEGACY[key].id)) { addCat(LEGACY[key]); report.legacyAdded++; }
+  if (usedOther && !have.has(CAT_IDS.other)) addCat(DEFAULTS_NEW.find((d) => d.id === CAT_IDS.other));
   if (usedNone && !have.has(CAT_IDS.none)) addCat(UNCATEGORIZED);
   return { ok: true, data: { version: obj.version, exportedAt: obj.exportedAt, events, memos, settings, categories, hasCategories }, report };
 }

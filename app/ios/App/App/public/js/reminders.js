@@ -1,3 +1,4 @@
+import { monthPopParts, hourCellsHtml, minCellsHtml, splitHm, oddMinute, monthOf } from './datetime-ui.js';
 // タスク（iPhone のリマインダー）: 許可の確認と案内。状態確認だけでは許可を求めない。
 export const REM_STATES = ['notDetermined', 'granted', 'denied', 'restricted'];
 const norm = (s) => (REM_STATES.includes(s) ? s : 'denied');
@@ -22,7 +23,7 @@ export async function listReminders(call, listIds, completedSince) {
 // listId は '' で OS 既定→書ける先頭。優先度・繰返し・URL は送れない。本文は保存しない。
 export async function createReminder(call, { requestId, listId, title, notes = '', due = null, notify }) {
   const o = { requestId, listId, title, notes, due };
-  if (typeof notify === 'boolean') o.notify = notify; // 省略＝既定（期限ありなら通知あり、期限なしはなし）
+  if (typeof notify === 'boolean') o.notify = notify; // 省略＝通知なし（第15版）。明示 true だけ期限の時刻（日付のみは 8:00）に付ける
   const r = await call('createReminder', o);
   if (!r || !r.reminder) throw { code: 'UNAVAILABLE' };
   return r.reminder;
@@ -103,7 +104,8 @@ export function createReminderLoader(call, { pick } = {}) {
         const l = await call('listReminderLists', {});
         if (g !== gen) return null;
         const lists = Array.isArray(l?.lists) ? l.lists : [];
-        const reminders = await listReminders(call, (pick ? pick(lists) : lists.map((x) => x.id)), completedSinceStamp(now, days));
+        const ids = pick ? pick(lists) : lists.map((x) => x.id);
+        const reminders = ids.length ? await listReminders(call, ids, completedSinceStamp(now, days)) : [];
         if (g !== gen) return null;
         return { lists, reminders };
       } catch (e) {
@@ -159,9 +161,14 @@ export const REM_TEXT = {
   settings: '設定を開く',
   restricted: 'この端末ではリマインダーへのアクセスが制限されています。',
   web: 'タスクは iPhone のアプリで使えます。',
+  off: 'リマインダーの同期がオフです。設定のカレンダーでオンにすると使えます。',
 };
 
 // state: null（確認中）| 'unavailable' | 'notDetermined' | 'denied' | 'restricted'。granted は呼び出し側が通常のページを出す。
+export function taskOffHtml(where) {
+  const w = String(where).replace(/[^a-z]/g, '');
+  return `<div class="pagewait padb remgate" data-wait="task" data-remstate="off" data-where="${w}"><p class="remtx">${REM_TEXT.off}</p></div>`;
+}
 export function taskAccessHtml(state, where, native) {
   const w = String(where).replace(/[^a-z]/g, '');
   let body;
@@ -187,19 +194,19 @@ export function createAddController(call) {
   return {
     get busy() { return busy; },
     // -> { ok:true, reminder } | { ok:false, code } | { ok:false, busy|empty|nolist:true }
-    async submit({ title, listId, due = null, notify }) {
+    async submit({ title, listId, due = null, time = '', notify }) {
       if (busy) return { ok: false, busy: true };
       const t = String(title ?? '').trim();
       if (!t) return { ok: false, empty: true };
       if (!listId) return { ok: false, nolist: true };
-      const dueV = due ? { date: due } : null;
-      const nv = dueV && notify === false ? false : undefined; // 既定ON（省略）。明示オフだけ送る。期限なしは送らない
+      const dueV = due ? (time ? { date: due, time } : { date: due }) : null; // 日付のみ／時刻あり／なしを区別して送る
+      const nv = dueV && notify === true ? true : undefined; // 既定なし（省略）。明示オンだけ送る。期限なしは送らない
       const fp = JSON.stringify([listId, t, dueV, nv ?? null]);
-      if (!pend || pend.fp !== fp) pend = { requestId: newRequestId(), fp };
-      const req = pend;
+      if (!pend || pend.fp !== fp) pend = { requestId: newRequestId(), fp, args: { listId, title: t, due: dueV, notify: nv } };
+      const req = pend; // 再試行は最初に送った引数のまま（requestId と内容を一致させる）
       busy = true;
       try {
-        const reminder = await createReminder(call, { requestId: req.requestId, listId, title: t, notes: '', due: dueV, notify: nv });
+        const reminder = await createReminder(call, { requestId: req.requestId, ...req.args, notes: '' });
         if (pend === req) pend = null;
         return { ok: true, reminder };
       } catch (e) {
@@ -214,17 +221,32 @@ export function addRowHtml(d, { selected, noList = false } = {}) {
   if (noList) return `<div class="rmadd off"><button type="button" class="rmaddbtn" disabled aria-describedby="rmaddwhy">＋ タスクを追加</button><p class="rmwhy" id="rmaddwhy">書き込めるリストがないため、追加できません。</p></div>`;
   if (!d.open) return `<div class="rmadd"><button type="button" class="rmaddbtn" data-act="remadd">＋ タスクを追加</button></div>`;
   const due = d.due === undefined ? selected : d.due;
+  const time = due ? d.time || '' : '';
+  const label = due ? `期限 ${mdLabel(due)}${time ? ` ${time}` : ''}` : '期限なし';
   const chip = due
-    ? `<span class="rmchip"><span>期限 ${mdLabel(due)}</span><button type="button" class="rmchipx" data-act="remdue0" aria-label="期限をなしにする">×</button></span>`
-    : `<button type="button" class="rmchip rmchip0" data-act="remdue1" aria-label="期限を選んでいる日にする">期限なし</button>`;
-  const on = d.notify !== false;
+    ? `<span class="rmchip"><button type="button" class="rmchipl" data-act="remdue2" aria-expanded="${!!d.pop}" aria-label="期限を選ぶ: ${escH(label)}">${escH(label)}</button><button type="button" class="rmchipx" data-act="remdue0" aria-label="期限をなしにする">×</button></span>`
+    : `<button type="button" class="rmchip rmchip0" data-act="remdue2" aria-expanded="${!!d.pop}" aria-label="期限を選ぶ">期限なし</button>`;
+  const on = d.notify === true;
   const nchip = due
     ? `<button type="button" class="rmchip rmnote${on ? ' on' : ''}" data-act="remnote" role="switch" aria-checked="${on}" aria-label="通知">${on ? '通知あり' : '通知なし'}</button>`
     : '';
   return `<div class="rmadd open"><div class="rmaddin"><input type="text" class="remin" enterkeyhint="done" autocomplete="off" aria-label="タスクの題名" placeholder="タスクを入力"${d.busy ? ' readonly aria-busy="true"' : ''}>${chip}${nchip}</div>`
-    + `<p class="rmwhy" id="rmnotewhy">${due ? (on ? '期限の日の 8:00 に通知します。' : '通知しません。') : '期限がないタスクは通知されません。'}</p>`
+    + (d.pop ? addDuePopHtml(d, due, time) : '')
+    + `<p class="rmwhy" id="rmnotewhy">${due ? (on ? (time ? '期限の時刻に通知します。' : '期限の日の 8:00 に通知します。') : '通知しません。') : '期限がないタスクは通知されません。'}</p>`
     + `${d.err ? `<p class="rmwhy err" role="alert">${escH(d.err)}</p>` : ''}</div>`;
 }
+// 期限の部品（予定と同じ日付の小さな月＋「時刻を入れる」）。d.pop = { vm }
+function addDuePopHtml(d, due, time) {
+  const m = monthPopParts(d.pop.vm || monthOf(due || todayKeyLocal()), { cur: due || '', attr: 'data-act="remdp"' });
+  const cur = splitHm(time), odd = cur ? oddMinute(cur.mi) : '';
+  return `<div class="dpop rmdp"><div class="dpchips">${m.chips}</div>`
+    + `<div class="dpmh"><button type="button" class="dpnav" data-act="remdpn" data-n="-1" aria-label="前の月">‹</button><span class="dpmt" aria-live="polite">${m.title}</span><button type="button" class="dpnav" data-act="remdpn" data-n="1" aria-label="次の月">›</button></div>`
+    + `<div class="dpwk">${m.heads}</div><div class="dpgrid">${m.grid}</div>`
+    + `<div class="rmdpt"><button type="button" class="rmchip rmtimeon${time ? ' on' : ''}" data-act="remtimeon" role="switch" aria-checked="${!!time}"${due ? '' : ' disabled'}>時刻を入れる</button></div>`
+    + (time ? `<div class="tpop"><p class="tlab">時</p><div class="tgrid hgrid">${hourCellsHtml(cur, 'data-act="remth"')}</div><p class="tlab">分${odd ? ` <span class="tnote">${odd}</span>` : ''}</p><div class="tgrid mgrid">${minCellsHtml(cur, 'data-act="remtm"')}</div></div>` : '')
+    + `</div>`;
+}
+const todayKeyLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
 // ---- 第14版 PR19: タスクの編集と完了（本文は保存しない。メモリ上だけ） ----
 export const NOTE_NEED_DUE = '期限を入れると通知できます。';
@@ -273,13 +295,14 @@ export function taskEditorHtml(ed) {
   const opts = ed.lists.map((l) => `<option value="${escH(l.id)}"${l.id === f.listId ? ' selected' : ''}>${escH(l.title || '')}</option>`).join('');
   const meta = (r.priority > 0 ? '<span class="rmpri" aria-label="優先度あり">!</span> 優先度あり　' : '') + (r.recurring ? '繰り返し（リマインダーで変更できます）' : '');
   const why = ed.lock === 'ro' ? '<p class="small" role="note">読み取り専用のリストのため変更できません。</p>' : ed.lock === 'rec' ? '<p class="small" role="note">繰り返しのタスクは完了だけ変更できます。</p>' : '';
-  return `<label>題名<input id="tk-title" maxlength="200" value="${escH(f.title)}"${dis}></label>`
-    + `<div class="pair"><label>期限<input id="tk-date" type="date" value="${escH(f.date)}"${dis}></label><label>時刻<input id="tk-time" type="time" value="${escH(f.time)}"${dis}></label></div>`
+  return `<div class="tkwrap"><label>題名<input id="tk-title" maxlength="200" value="${escH(f.title)}"${dis}></label>`
+    + `<div class="dtrow tkrow" id="tk-daterow"><span class="dtk">期限</span><button type="button" id="tk-date" class="dcap" aria-haspopup="true" aria-expanded="false" value="${escH(f.date)}"${dis}></button></div>`
+    + `<div class="dtrow tkrow" id="tk-timerow"><label class="tkck tkton"><input id="tk-timeon" type="checkbox" role="switch"${dis}> 時刻を入れる</label><button type="button" id="tk-time" class="tcap" aria-haspopup="true" aria-expanded="false" value="${escH(f.time)}"${dis}${f.time ? '' : ' hidden'}></button></div>`
     + `<div class="tknote"><label class="tkck"><input id="tk-notify" type="checkbox"${dis}> 通知する</label><p class="small" id="tk-notewhy" role="note"></p>`
     + `${r.alarmsExtra > 0 ? `<p class="small tkextra" role="note">${NOTE_EXTRA}</p>` : ''}</div>`
     + `<label>リスト<select id="tk-list"${dis}>${opts}</select></label>`
     + `<label>メモ<textarea id="tk-notes"${dis}>${escH(f.notes)}</textarea></label>`
-    + (meta ? `<p class="small tkmeta">${meta}</p>` : '') + why;
+    + (meta ? `<p class="small tkmeta">${meta}</p>` : '') + why + '</div>';
 }
 
 // 完了の丸（即 native へ。1.5 秒後に完了段へ移す。再 tap は同じタスク内で直列化。失敗は表示を戻す）。
@@ -360,33 +383,44 @@ export function createDeleteController(call, { delay = DELETE_UNDO_MS, onChange,
 }
 
 // ---- 第14版 PR23: タスクのリスト設定と月の件数（設定は端末内 duo-native-rem。バックアップには入れない） ----
-// lists: null＝すべて（新しいリストも自動で入る）| id 配列＝選んだリストだけ。addTo: ''＝自動（OS 既定→書ける先頭）| リスト id。monthTasks: 初期 off。
-export const REM_SETTINGS_DEFAULT = { lists: null, addTo: '', monthTasks: false };
+// enabled: リマインダーの同期（false の間は一覧を取得しない。欠落・不正は true）。
+// lists: null＝初回未選択（最初の一覧取得の成功で全 id を保存する）| id 配列＝選んだリスト（[] は意図した全オフ）。以後に増えたリストは選ばない。
+// addTo: ''＝自動（選択中で書ける: OS 既定→先頭）| リスト id。monthTasks: 初期 off。
+export const REM_SETTINGS_DEFAULT = { enabled: true, lists: null, addTo: '', monthTasks: false };
 export function normRemSettings(raw) {
   const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
   const lists = Array.isArray(o.lists) ? [...new Set(o.lists.filter((x) => typeof x === 'string' && x))] : null;
-  return { lists, addTo: typeof o.addTo === 'string' ? o.addTo : '', monthTasks: o.monthTasks === true };
+  return { enabled: o.enabled !== false, lists, addTo: typeof o.addTo === 'string' ? o.addTo : '', monthTasks: o.monthTasks === true };
 }
-// 表示するリストの id（実在するものだけ）。選択が空・全部消えたら「すべて」に戻す（何も見えない状態にしない）。
+// 表示するリストの id（実在するものだけ）。未初期化（null）の間だけ全件、選択済みは [] でも空のまま（全オフを全件へ戻さない）。
 export function shownListIds(s, lists) {
   const all = (Array.isArray(lists) ? lists : []).filter((l) => l && typeof l.id === 'string').map((l) => l.id);
   if (!s || !Array.isArray(s.lists)) return all;
-  const have = new Set(all), keep = s.lists.filter((id) => have.has(id));
-  return keep.length ? keep : all;
+  const have = new Set(all);
+  return s.lists.filter((id) => have.has(id));
 }
-// 消えたリストの id を設定から除く。リスト一覧が空（取得の一時的な空）の時は触らない。変化がなければ同じ object を返す。
+// 初回の一覧取得が成功（空でない）した時、未初期化なら全 id を選択として保存する。それ以外は同じ object を返す。
+export function initRemLists(s, lists) {
+  if (!s || Array.isArray(s.lists)) return s;
+  const ids = shownListIds(s, lists);
+  return ids.length ? { ...s, lists: ids } : s;
+}
+// 消えたリストの id を設定から除く（全部消えても [] のまま。全件には戻さない）。リスト一覧が空（取得の一時的な空）の時は触らない。変化がなければ同じ object を返す。
 export function pruneRemSettings(s, lists) {
   const ids = new Set((Array.isArray(lists) ? lists : []).map((l) => l?.id));
   if (!ids.size) return s;
   let lists2 = s.lists, addTo = s.addTo;
-  if (Array.isArray(s.lists)) { const k = s.lists.filter((id) => ids.has(id)); if (k.length !== s.lists.length) lists2 = k.length ? k : null; }
+  if (Array.isArray(s.lists)) { const k = s.lists.filter((id) => ids.has(id)); if (k.length !== s.lists.length) lists2 = k; }
   if (addTo && !ids.has(addTo)) addTo = '';
   return lists2 === s.lists && addTo === s.addTo ? s : { ...s, lists: lists2, addTo };
 }
-// 追加先。設定の先が実在して書ける時だけそれ、それ以外は自動（OS 既定→書ける先頭）。表示するリストとは独立。
-export function resolveAddList(lists, addTo) {
-  const ok = (Array.isArray(lists) ? lists : []).find((l) => l && l.id === addTo && l.allowsModify !== false);
-  return addTo && ok ? ok.id : pickAddList(lists);
+// 追加先。選択（✓）中で書けるリストだけが候補。設定の先が候補ならそれ、なければ自動（OS 既定→候補の先頭）。候補がなければ null（追加不可）。
+// selected 省略時は一覧の全件を候補とする。
+export function resolveAddList(lists, addTo, selected) {
+  const sel = selected === undefined ? null : new Set(selected);
+  const cand = (Array.isArray(lists) ? lists : []).filter((l) => l && typeof l.id === 'string' && l.allowsModify !== false && (!sel || sel.has(l.id)));
+  const ok = addTo && cand.find((l) => l.id === addTo);
+  return ok ? ok.id : pickAddList(cand);
 }
 // 表示するリストのタスクだけ。
 export function filterByLists(reminders, shown) {

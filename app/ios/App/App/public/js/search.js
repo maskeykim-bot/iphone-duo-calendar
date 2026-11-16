@@ -97,7 +97,7 @@ const byStartId = (a, b) => (a.start === b.start ? collator.compare(String(a.id)
 
 // 戻り値: { items（開始日時昇順・同時刻はID順・最大LIMIT件）, total, capped, range }
 // 親予定ごとに1回だけ一致判定し、一致した親だけ展開する。個別変更（overrides）の回は、変更後の項目で別に判定する。
-export function searchEvents(events, query, today, extra = []) {
+export function searchEvents(events, query, today, extra = [], visible = null) {
   const ts = terms(query);
   const range = searchRange(today);
   if (!ts.length) return { items: [], total: 0, capped: false, range, ts };
@@ -117,6 +117,7 @@ export function searchEvents(events, query, today, extra = []) {
       }
     }
   }
+  if (visible) { const keep = hits.filter(visible); hits.length = 0; hits.push(...keep); } // 展開後の回で判定
   hits.push(...extra); // 外部（iPhone）予定: 呼び出し側で同じ正規化・AND・範囲で絞り済み
   hits.sort(byStartId);
   return { items: hits.slice(0, LIMIT), total: hits.length, capped: hits.length > LIMIT, range, ts };
