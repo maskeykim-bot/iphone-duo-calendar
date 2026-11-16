@@ -448,11 +448,49 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         return (dc, key, false)
     }
 
+    // MARK: - リマインダーの通知（第14版 PR21）
+
+    /// 既定通知の時刻。時刻つき期限はその時刻ちょうど、日付のみは当日 8:00（端末ローカル）。期限なしは nil。
+    private func reminderDefaultFire(_ dc: DateComponents?) -> Date? {
+        guard let dc = dc, dc.year != nil, dc.month != nil, dc.day != nil else { return nil }
+        let cal = makeCalendar()
+        let s = serializeDue(dc, cal)
+        guard let due = s.due, let date = s.date else { return nil }
+        if due["time"] != nil { return date }
+        var p = cal.dateComponents([.year, .month, .day], from: date)
+        p.hour = 8; p.minute = 0
+        return cal.date(from: p)
+    }
+
+    /// 指定時刻の既定通知（絶対時刻・場所なし）か。
+    private func isDefaultAlarm(_ a: EKAlarm, at fire: Date?) -> Bool {
+        guard let fire = fire, a.structuredLocation == nil, let d = a.absoluteDate else { return false }
+        return abs(d.timeIntervalSince(fire)) < 1
+    }
+
+    /// 通知を整える。oldFire に一致する既定通知だけ外し、newFire があれば足す（既にあれば重複させない）。未知の通知は残す。
+    /// 変更があれば true。
+    @discardableResult
+    private func reconcileReminderAlarm(_ r: EKReminder, oldFire: Date?, remove: Bool, newFire: Date?) -> Bool {
+        var changed = false
+        var list = r.alarms ?? []
+        if remove {
+            let kept = list.filter { !isDefaultAlarm($0, at: oldFire) }
+            if kept.count != list.count { list = kept; changed = true }
+        }
+        if let nf = newFire, !list.contains(where: { isDefaultAlarm($0, at: nf) }) {
+            list.append(EKAlarm(absoluteDate: nf))
+            changed = true
+        }
+        if changed { r.alarms = list.isEmpty ? nil : list }
+        return changed
+    }
+
     @objc func createReminder(_ call: CAPPluginCall) {
         guard ensureReminderAccess(call) else { return }
         let f = makeFormatter()
-        // 優先度・繰返し・URL・通知などは受け付けない（通知の既定は PR21）。
-        let allowed: Set<String> = ["requestId", "listId", "title", "notes", "due"]
+        // 優先度・繰返し・URL などは受け付けない。notify は PR21（省略 true）。
+        let allowed: Set<String> = ["requestId", "listId", "title", "notes", "due", "notify"]
         guard Set(call.options.keys.compactMap { $0 as? String }).isSubset(of: allowed),
               let requestId = call.getString("requestId"), !requestId.isEmpty, requestId.count <= 100,
               let listId = call.getString("listId"),
@@ -472,8 +510,24 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             call.reject("invalid arguments", "INVALID_ARGUMENT")
             return
         }
+        var notifyArg: Bool? = nil
+        if let n = call.options["notify"], !(n is NSNull) {
+            guard let b = n as? Bool else {
+                call.reject("invalid arguments", "INVALID_ARGUMENT")
+                return
+            }
+            notifyArg = b
+        }
+        // 期限なしに通知は付けられない。省略時は期限があれば true。
+        if notifyArg == true && due.dc == nil {
+            call.reject("notify requires a due date", "INVALID_ARGUMENT")
+            return
+        }
+        let notify = due.dc != nil && (notifyArg ?? true)
         let title = rawTitle
-        let fp = sha256Hex([listId, title, notes, due.key].joined(separator: "\u{1F}"))
+        var fpParts = [listId, title, notes, due.key]
+        if due.dc != nil && !notify { fpParts.append("notify:false") }  // 旧記録（既定 true）と同じ指紋を保つ
+        let fp = sha256Hex(fpParts.joined(separator: "\u{1F}"))
         queue.async { [weak self] in
             guard let self = self else { return }
             // 1) 記録済みの requestId は作り直さない（内容が違えばエラー）。
@@ -515,6 +569,7 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             r.title = title
             if !notes.isEmpty { r.notes = notes }
             r.dueDateComponents = due.dc
+            if notify { self.reconcileReminderAlarm(r, oldFire: nil, remove: false, newFire: self.reminderDefaultFire(due.dc)) }
             do {
                 try self.store.save(r, commit: true)
             } catch {
@@ -557,7 +612,7 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         guard Set(call.options.keys.compactMap { $0 as? String }).isSubset(of: allowedTop),
               let itemId = call.getString("itemId"), !itemId.isEmpty,
               let patch = call.options["patch"] as? [String: Any],
-              Set(patch.keys).isSubset(of: ["title", "notes", "listId", "due"]) else {
+              Set(patch.keys).isSubset(of: ["title", "notes", "listId", "due", "notify"]) else {
             call.reject("invalid arguments", "INVALID_ARGUMENT")
             return
         }
@@ -600,6 +655,18 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             call.reject("invalid arguments", "INVALID_ARGUMENT")
             return
         }
+        var notifyPatch: Bool? = nil
+        if let n = patch["notify"], !(n is NSNull) {
+            guard let b = n as? Bool else {
+                call.reject("invalid arguments", "INVALID_ARGUMENT")
+                return
+            }
+            notifyPatch = b
+        }
+        if notifyPatch == true && dueGiven && due.dc == nil {
+            call.reject("notify requires a due date", "INVALID_ARGUMENT")
+            return
+        }
         queue.async { [weak self] in
             guard let self = self else { return }
             let r: EKReminder
@@ -620,6 +687,11 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             // 繰返しは完了以外を編集できない。
             if r.hasRecurrenceRules {
                 call.reject("recurring reminder is not editable", "NOT_EDITABLE")
+                return
+            }
+            // 期限なしのまま notify=true は不可（既存の期限を使うので queue 上で判定）。
+            if notifyPatch == true && !dueGiven && self.reminderDefaultFire(r.dueDateComponents) == nil {
+                call.reject("notify requires a due date", "INVALID_ARGUMENT")
                 return
             }
             var target: EKCalendar? = nil
@@ -648,9 +720,21 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
                 let cur = self.serializeDue(r.dueDateComponents, cal).due
                 let curKey = (cur?["date"] as? String).map { $0 + (cur?["time"] != nil ? "T" + (cur?["time"] as! String) : "") } ?? ""
                 if curKey != due.key || (r.dueDateComponents == nil) != (due.dc == nil) {
+                    let oldFire = self.reminderDefaultFire(r.dueDateComponents)
+                    let newFire = self.reminderDefaultFire(due.dc)
+                    // 旧期限に一致する既定通知だけを新期限へ移す（なければ補わない）。未知の通知は残す。
+                    let hadDefault = (r.alarms ?? []).contains { self.isDefaultAlarm($0, at: oldFire) }
                     r.dueDateComponents = due.dc
                     changed = true
+                    if hadDefault || notifyPatch == true {
+                        self.reconcileReminderAlarm(r, oldFire: oldFire, remove: true, newFire: notifyPatch == false ? nil : newFire)
+                    }
                 }
+            }
+            if let n = notifyPatch {
+                // 明示操作。期限（変更後）に対する既定通知を足す／その通知だけ外す。
+                let fire = self.reminderDefaultFire(r.dueDateComponents)
+                if self.reconcileReminderAlarm(r, oldFire: fire, remove: !n, newFire: n ? fire : nil) { changed = true }
             }
             if changed {
                 do { try self.store.save(r, commit: true) } catch {

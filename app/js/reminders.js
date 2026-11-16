@@ -20,13 +20,15 @@ export async function listReminders(call, listIds, completedSince) {
 
 // 追加（第14版 PR16）。UI へはまだ公開しない。同じ requestId の再試行は同じ内容で呼ぶこと（異内容は INVALID_ARGUMENT）。
 // listId は '' で OS 既定→書ける先頭。優先度・繰返し・URL は送れない。本文は保存しない。
-export async function createReminder(call, { requestId, listId, title, notes = '', due = null }) {
-  const r = await call('createReminder', { requestId, listId, title, notes, due });
+export async function createReminder(call, { requestId, listId, title, notes = '', due = null, notify }) {
+  const o = { requestId, listId, title, notes, due };
+  if (typeof notify === 'boolean') o.notify = notify; // 省略＝既定（期限ありなら通知あり、期限なしはなし）
+  const r = await call('createReminder', o);
   if (!r || !r.reminder) throw { code: 'UNAVAILABLE' };
   return r.reminder;
 }
 
-// 差分更新（第14版 PR18）。patch は変えた欄だけ（title/notes/listId/due。省略＝変更なし、due:null＝期限なし）。
+// 差分更新（第14版 PR18）。patch は変えた欄だけ（title/notes/listId/due/notify。notify は利用者が操作した時だけ。省略＝変更なし、due:null＝期限なし）。
 // expectModifiedAt は読み込んだ時の modifiedAt（予定の expectModified とは別）。conflicted は差分上書きした印。
 export async function updateReminder(call, target, expectModifiedAt, patch = {}) {
   const o = { itemId: target.itemId, expectModifiedAt: expectModifiedAt ?? null, patch: { ...patch } };
