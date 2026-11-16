@@ -27,6 +27,7 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         CAPPluginMethod(name: "listEvents", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getEvent", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "createEvent", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "createEvents", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "updateEvent", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "deleteEvent", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "updateExternalEvent", returnType: CAPPluginReturnPromise),
@@ -1252,6 +1253,30 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         ]
     }
 
+    /// 作成内容の指紋（createEvent / createEvents で共有）。alarms 未指定なら旧版と同じ原文（legacy と同じ）。
+    private func createFingerprints(calendarId: String, title: String, startRaw: String, endRaw: String, allDay: Bool,
+                                    place: String, notes: String, offsets: [TimeInterval]?, recCanon: String?) -> (fp: String, legacy: String) {
+        let baseFingerprint = [calendarId, title, startRaw, endRaw, allDay ? "1" : "0", place, notes].joined(separator: "\u{1F}")
+        var fingerprint = baseFingerprint
+        if let offs = offsets {
+            fingerprint += "\u{1E}alarms:" + offs.map { String(Int($0)) }.sorted().joined(separator: ",")
+        }
+        // 単発（recurrence なし）は従来と同じ原文のまま。規則ありだけ正規化した規則を足す。
+        if let c = recCanon { fingerprint += "\u{1E}rec:" + c }
+        return (sha256Hex(fingerprint), sha256Hex(baseFingerprint))
+    }
+
+    /// 保存する開始・終了。終日は開始日 00:00〜最終日 23:59:59（JS の end は最終日 00:00）。
+    private func createDates(start: Date, end: Date, allDay: Bool, cal: Calendar) -> (Date, Date) {
+        guard allDay else { return (start, end) }
+        let startDate = cal.startOfDay(for: start)
+        let lastDay = cal.startOfDay(for: end)
+        let nextDay = cal.date(byAdding: .day, value: 1, to: lastDay) ?? lastDay.addingTimeInterval(86400)
+        var endDate = nextDay.addingTimeInterval(-1)
+        if endDate < startDate { endDate = startDate }
+        return (startDate, endDate)
+    }
+
     @objc func createEvent(_ call: CAPPluginCall) {
         migrateCreatedAsync()
         guard ensureAccess(call) else { return }
@@ -1291,15 +1316,10 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             recCanon = c
         }
         // alarms 未指定なら旧版と同じ原文（旧版の記録と同じハッシュになる）。指定ありは offsets を足す（[] も区別する）。
-        let baseFingerprint = [calendarId, title, call.getString("start") ?? "", call.getString("end") ?? "", allDay ? "1" : "0", place, notes].joined(separator: "\u{1F}")
-        var fingerprint = baseFingerprint
-        if let offs = offsets {
-            fingerprint += "\u{1E}alarms:" + offs.map { String(Int($0)) }.sorted().joined(separator: ",")
-        }
-        // 単発（recurrence なし）は従来と同じ原文のまま。規則ありだけ正規化した規則を足す。
-        if let c = recCanon { fingerprint += "\u{1E}rec:" + c }
-        let fp = sha256Hex(fingerprint)
-        let legacyFp = sha256Hex(baseFingerprint)
+        let fps = createFingerprints(calendarId: calendarId, title: title, startRaw: call.getString("start") ?? "", endRaw: call.getString("end") ?? "",
+                                     allDay: allDay, place: place, notes: notes, offsets: offsets, recCanon: recCanon)
+        let fp = fps.fp
+        let legacyFp = fps.legacy
 
         queue.async { [weak self] in
             guard let self = self else { return }
@@ -1331,16 +1351,7 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
                 return
             }
             let cal = self.makeCalendar()
-            var startDate = start
-            var endDate = end
-            if allDay {
-                // 終日: 開始日 00:00〜最終日の終わり（最終日 23:59:59）。JS の end は最終日 00:00。
-                startDate = cal.startOfDay(for: start)
-                let lastDay = cal.startOfDay(for: end)
-                let nextDay = cal.date(byAdding: .day, value: 1, to: lastDay) ?? lastDay.addingTimeInterval(86400)
-                endDate = nextDay.addingTimeInterval(-1)
-                if endDate < startDate { endDate = startDate }
-            }
+            let (startDate, endDate) = self.createDates(start: start, end: end, allDay: allDay, cal: cal)
             let marker = DuoNativePlugin.urlPrefix + requestId
             // 2) 保存直後にクラッシュして記録だけ無い場合: URL 識別で既存の作成物を回収する。
             let probe = self.store.predicateForEvents(withStart: startDate.addingTimeInterval(-86400), end: endDate.addingTimeInterval(86400 * 2), calendars: [calendar])
@@ -1387,6 +1398,147 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             }
             self.saveCreated(requestId, itemId: event.calendarItemIdentifier, eventId: newId, fp: fp)
             call.resolve(self.createdReply(event, itemId: event.calendarItemIdentifier, eventId: newId, calendarId: calendarId, f))
+        }
+    }
+
+    /// 型A（Duo の予定の iPhone 側）をまとめて作る。全件の入力検査 → queue 上で各件 save(commit:false) → commit 1回 → 記録。
+    /// 型B（copyFrom）は PR30 まで未対応で INVALID_ARGUMENT。recurrence キーは拒否。
+    @objc func createEvents(_ call: CAPPluginCall) {
+        migrateCreatedAsync()
+        guard ensureAccess(call) else { return }
+        let f = makeFormatter()
+        struct Item {
+            let requestId: String, calendarId: String, title: String, startRaw: String, endRaw: String
+            let start: Date, end: Date, allDay: Bool, place: String, notes: String, offsets: [TimeInterval]?
+        }
+        guard let rawItems = call.getArray("items"), rawItems.count >= 1, rawItems.count <= 31 else {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        var items: [Item] = []
+        var seen = Set<String>()
+        for raw in rawItems {
+            guard let d = raw as? [String: Any],
+                  d["recurrence"] == nil, d["copyFrom"] == nil,
+                  let requestId = d["requestId"] as? String, !requestId.isEmpty, requestId.count <= 100,
+                  seen.insert(requestId).inserted,
+                  let calendarId = d["calendarId"] as? String, !calendarId.isEmpty,
+                  let title = d["title"] as? String,
+                  let startRaw = d["start"] as? String, let endRaw = d["end"] as? String,
+                  let start = parse(startRaw, f), let end = parse(endRaw, f), end >= start else {
+                call.reject("invalid arguments", "INVALID_ARGUMENT")
+                return
+            }
+            if let a = d["all"], !(a is NSNull), !(a is Bool || a is NSNumber) {
+                call.reject("invalid arguments", "INVALID_ARGUMENT")
+                return
+            }
+            let allDay = (d["all"] as? Bool) ?? false
+            var offsets: [TimeInterval]? = nil
+            if let a = d["alarms"], !(a is NSNull) {
+                guard let arr = a as? [Any] else {
+                    call.reject("invalid arguments", "INVALID_ARGUMENT")
+                    return
+                }
+                let parsed = parseAlarms(arr, allDay: allDay)
+                if parsed.invalid {
+                    call.reject("invalid arguments", "INVALID_ARGUMENT")
+                    return
+                }
+                offsets = parsed.offsets
+            }
+            items.append(Item(requestId: requestId, calendarId: calendarId, title: title, startRaw: startRaw, endRaw: endRaw,
+                              start: start, end: end, allDay: allDay, place: (d["place"] as? String) ?? "",
+                              notes: (d["notes"] as? String) ?? "", offsets: offsets))
+        }
+
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            let cal = self.makeCalendar()
+            var results = [[String: Any]?](repeating: nil, count: items.count)
+            var pending: [(index: Int, event: EKEvent, fp: String)] = []
+            func fail(_ i: Int, _ code: String) { results[i] = ["requestId": items[i].requestId, "ok": false, "code": code] }
+            func succeed(_ i: Int, _ reply: [String: Any]) {
+                var r = reply
+                r.removeValue(forKey: "occurrenceDate")
+                r["requestId"] = items[i].requestId
+                r["ok"] = true
+                results[i] = r
+            }
+            let records = self.loadCreated()
+            for (i, it) in items.enumerated() {
+                let fps = self.createFingerprints(calendarId: it.calendarId, title: it.title, startRaw: it.startRaw, endRaw: it.endRaw,
+                                                  allDay: it.allDay, place: it.place, notes: it.notes, offsets: it.offsets, recCanon: nil)
+                // 1) 記録済み: 作り直さない（内容違いは失敗）
+                if let done = records[it.requestId] {
+                    let doneFp = done["fp"] as? String
+                    let doneItem = done["itemId"] as? String ?? ""
+                    let migrated = doneItem.isEmpty
+                    guard doneFp == fps.fp || (migrated && it.offsets != nil && doneFp == fps.legacy) else {
+                        fail(i, "INVALID_ARGUMENT")
+                        continue
+                    }
+                    let eid = done["eventId"] as? String ?? ""
+                    let ev = eid.isEmpty ? nil : self.store.event(withIdentifier: eid)
+                    let reply = self.createdReply(ev, itemId: doneItem, eventId: eid, calendarId: it.calendarId, f)
+                    if migrated, let newItem = reply["itemId"] as? String, !newItem.isEmpty {
+                        self.saveCreated(it.requestId, itemId: newItem, eventId: eid, fp: doneFp ?? fps.fp)
+                    }
+                    succeed(i, reply)
+                    continue
+                }
+                guard let calendar = self.store.calendar(withIdentifier: it.calendarId) else { fail(i, "CALENDAR_NOT_FOUND"); continue }
+                guard calendar.allowsContentModifications else { fail(i, "READ_ONLY"); continue }
+                let (startDate, endDate) = self.createDates(start: it.start, end: it.end, allDay: it.allDay, cal: cal)
+                let marker = DuoNativePlugin.urlPrefix + it.requestId
+                // 2) URL の印で既存の作成物を回収
+                let probe = self.store.predicateForEvents(withStart: startDate.addingTimeInterval(-86400), end: endDate.addingTimeInterval(86400 * 2), calendars: [calendar])
+                var recovered = false
+                for ev in self.store.events(matching: probe) where ev.url?.absoluteString == marker {
+                    let existing = ev.eventIdentifier ?? ""
+                    if !existing.isEmpty {
+                        self.saveCreated(it.requestId, itemId: ev.calendarItemIdentifier, eventId: existing, fp: fps.fp)
+                        succeed(i, self.createdReply(ev, itemId: ev.calendarItemIdentifier, eventId: existing, calendarId: it.calendarId, f))
+                        recovered = true
+                        break
+                    }
+                }
+                if recovered { continue }
+                // 3) 作成（保存は commit:false）
+                let event = EKEvent(eventStore: self.store)
+                event.calendar = calendar
+                event.title = it.title
+                event.isAllDay = it.allDay
+                event.startDate = startDate
+                event.endDate = endDate
+                if !it.place.isEmpty { event.location = it.place }
+                if !it.notes.isEmpty { event.notes = it.notes }
+                event.url = URL(string: marker)
+                if let offs = it.offsets { event.alarms = offs.map { EKAlarm(relativeOffset: $0) } }
+                do {
+                    try self.store.save(event, span: .thisEvent, commit: false)
+                    pending.append((i, event, fps.fp))
+                } catch {
+                    fail(i, "UNAVAILABLE")
+                }
+            }
+            // 4) commit は1回。失敗なら reset して保存待ち全件を UNAVAILABLE
+            if !pending.isEmpty {
+                do {
+                    try self.store.commit()
+                    for p in pending {
+                        let newId = p.event.eventIdentifier ?? ""
+                        if newId.isEmpty { fail(p.index, "UNAVAILABLE"); continue }
+                        // 5) 記録は commit 成功後
+                        self.saveCreated(items[p.index].requestId, itemId: p.event.calendarItemIdentifier, eventId: newId, fp: p.fp)
+                        succeed(p.index, self.createdReply(p.event, itemId: p.event.calendarItemIdentifier, eventId: newId, calendarId: items[p.index].calendarId, f))
+                    }
+                } catch {
+                    self.store.reset()
+                    for p in pending { fail(p.index, "UNAVAILABLE") }
+                }
+            }
+            call.resolve(["results": results.map { $0 ?? [:] }])
         }
     }
 

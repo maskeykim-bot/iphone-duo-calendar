@@ -41,6 +41,22 @@ async function mock(page, cfg = {}) {
             if (M.createErr) throw { code: M.createErr, message: 'x' };
             if (c.v2) { const n = M.created[opts.requestId]; return { itemId: `item-${n}`, externalId: `ext-${n}`, eventId: n, modifiedAt: 1763100000000, calendarId: opts.calendarId, occurrenceDate: null }; }
             return { eventId: M.created[opts.requestId] };
+          case 'createEvents': {
+            // Swift の契約の写し（型Aのみ）。1〜31件・rid重複／recurrence／copyFrom は全体 INVALID_ARGUMENT。件ごとの失敗は M.createEventsFail[rid]、commit 一括失敗は M.commitFail。
+            const its = opts.items;
+            if (!Array.isArray(its) || its.length < 1 || its.length > 31 || new Set(its.map((i) => i?.requestId)).size !== its.length
+              || its.some((i) => !i || !i.requestId || !i.calendarId || 'recurrence' in i || 'copyFrom' in i || i.end < i.start)) throw { code: 'INVALID_ARGUMENT', message: 'x' };
+            const fl = M.createEventsFail ?? {};
+            const out = its.map((i) => {
+              if (M.created[i.requestId]) return { done: true, i };
+              if (fl[i.requestId]) return { err: fl[i.requestId], i };
+              return { fresh: true, i };
+            });
+            const fresh = out.filter((o) => o.fresh);
+            if (M.commitFail && fresh.length) return { results: out.map((o) => ({ requestId: o.i.requestId, ok: false, code: o.err ?? (o.done ? 'OK' : 'UNAVAILABLE') })).map((r, k) => (out[k].done ? { requestId: r.requestId, ok: true, ...mk(out[k].i) } : r)) };
+            function mk(i) { const n = M.created[i.requestId] ?? (M.created[i.requestId] = `new-${Object.keys(M.created).length + 1}`); return { itemId: `item-${n}`, externalId: `ext-${n}`, eventId: n, modifiedAt: 1763100000000, calendarId: i.calendarId }; }
+            return { results: out.map((o) => (o.err ? { requestId: o.i.requestId, ok: false, code: o.err } : { requestId: o.i.requestId, ok: true, ...mk(o.i) })) };
+          }
           case 'updateEvent': case 'deleteEvent': {
             if (M.opErr) throw { code: M.opErr, message: 'x' };
             if (M.needForce && method === 'updateEvent' && !opts.force) throw { code: 'CONFLICT', message: 'x' };
@@ -142,6 +158,39 @@ test.describe('通知ブリッジ契約（偽装。Swift 実動作の証明で�
       return [a.status, b.status, c.status];
     });
     expect(r).toEqual(['notDetermined', 'denied', 'denied']);
+  });
+
+  test('第14版 PR29: createEvents の契約（型A・rid別失敗・commit一括失敗・再試行で二重なし・不正は全体拒否）', async ({ page }) => {
+    await mock(page);
+    await page.goto('/');
+    const r = await page.evaluate(async () => {
+      const { call, errCode } = await import('./js/native.js');
+      const A = (n, x = {}) => ({ requestId: `r${n}`, calendarId: 'cal-1', title: `t${n}`, start: '2026-11-20T10:00', end: '2026-11-20T11:00', all: false, place: '', notes: '', alarms: [{ before: 10 }], ...x });
+      const M = window.__mock;
+      const ok = await call('createEvents', { items: [A(1), A(2), A(3, { all: true, alarms: [{ day: 0, at: '09:00' }] })] });
+      M.createEventsFail = { r5: 'READ_ONLY' };
+      const part = await call('createEvents', { items: [A(4), A(5), A(6)] });
+      M.createEventsFail = {};
+      const retry = await call('createEvents', { items: [A(5), A(4)] });
+      const bad = {};
+      bad.empty = await call('createEvents', { items: [] }).catch(errCode);
+      bad.dup = await call('createEvents', { items: [A(7), A(7)] }).catch(errCode);
+      bad.rec = await call('createEvents', { items: [A(8, { recurrence: null })] }).catch(errCode);
+      bad.b = await call('createEvents', { items: [A(9, { copyFrom: {} })] }).catch(errCode);
+      bad.many = await call('createEvents', { items: Array.from({ length: 32 }, (_, i) => A(100 + i)) }).catch(errCode);
+      M.commitFail = true;
+      const cf = await call('createEvents', { items: [A(20), A(21)] });
+      return { ok, part, retry, bad, cf, created: Object.keys(M.created) };
+    });
+    expect(r.ok.results.map((x) => x.ok)).toEqual([true, true, true]);
+    expect(r.ok.results[0]).toMatchObject({ requestId: 'r1', itemId: expect.any(String), externalId: expect.any(String), eventId: expect.any(String), calendarId: 'cal-1' });
+    expect(r.part.results.map((x) => x.ok)).toEqual([true, false, true]);
+    expect(r.part.results[1]).toEqual({ requestId: 'r5', ok: false, code: 'READ_ONLY' });
+    expect(r.retry.results.map((x) => [x.requestId, x.ok])).toEqual([['r5', true], ['r4', true]]);
+    expect(r.retry.results[1].eventId).toBe(r.part.results[0].eventId);
+    expect(r.bad).toEqual({ empty: 'INVALID_ARGUMENT', dup: 'INVALID_ARGUMENT', rec: 'INVALID_ARGUMENT', b: 'INVALID_ARGUMENT', many: 'INVALID_ARGUMENT' });
+    expect(r.cf.results).toEqual([{ requestId: 'r20', ok: false, code: 'UNAVAILABLE' }, { requestId: 'r21', ok: false, code: 'UNAVAILABLE' }]);
+    expect(r.created).not.toContain('r20');
   });
 
   test('selectionHaptic: light/warning は performed、kind 不正は INVALID_ARGUMENT。native.js の haptic 経由', async ({ page }) => {
