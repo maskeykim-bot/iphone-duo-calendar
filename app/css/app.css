@@ -713,3 +713,29 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .mmc .mline{position:absolute;left:50%;top:26px;width:12px;height:2px;margin-left:-6px;border-radius:1px;background:#8a7e5c}
 .rhead.dh .spanbtn{margin-right:8px}
 .rhead.dh .sctl{margin-left:auto}
+
+/* 開いた縦の下パネル（月の下）。基準 y520〜873: 地 #FFFDFA・上端線 #C9C6BC。位置は JS の --pnl-top/--pnl-h、横は --ux 比 */
+.pnl{position:fixed;left:var(--content-x);width:var(--content-w);top:var(--pnl-top);height:var(--pnl-h);box-sizing:border-box;z-index:4;background:#FFFDFA;border-top:1px solid #C9C6BC;overflow:hidden;display:block}
+.pnl.up{top:var(--grid-top);height:var(--pnl-up-h)}
+.pnl.enter,.pnl.leave.go{transform:translateY(100%)}
+.pnl-anim .pnl{transition:transform .25s ease}
+.pnl-anim .pcol{transition:height .25s ease}
+.pnl-anim .portrait .week{transition:flex-basis .25s ease,height .25s ease}
+.pnl.leave{transition:transform .25s ease;pointer-events:none}
+.pgrip{position:absolute;left:50%;top:0;width:100px;height:44px;margin-left:-50px;padding:0;background:transparent;touch-action:none}
+.pgrip:hover{background:transparent}
+.pgrip i{position:absolute;left:32px;top:5px;width:36px;height:5px;border-radius:2.5px;background:#C9C6BC}
+.pdate{position:absolute;left:calc(20px * var(--ux));top:12px;height:44px;margin:0;max-width:calc(50% - 70px);overflow:hidden;white-space:nowrap;font:700 17px/44px -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif}
+.pswitch{position:absolute;right:calc(20px * var(--ux) + 56px);top:12px;width:168px;height:44px;display:grid;grid-template-columns:repeat(3,56px)}
+.pswitch:before{content:'';position:absolute;left:0;right:0;top:6px;height:32px;border-radius:16px;background:#F0EDE4}
+.pswitch button{position:relative;height:44px;min-height:44px;padding:0;background:transparent;border-radius:0}
+.pswitch button:hover{background:transparent}
+.pswitch .pill{display:flex;align-items:center;justify-content:center;width:56px;height:32px;border-radius:16px;font-size:13px;font-weight:700;color:var(--ink)}
+.pswitch button[aria-pressed=true] .pill{background:var(--green);color:#fff}
+.pclose{position:absolute;right:calc(20px * var(--ux));top:12px;width:44px;height:44px;min-height:44px;padding:0;border-radius:50%;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);font-size:22px;line-height:1}
+.pbody2{position:absolute;left:calc(20px * var(--ux));right:calc(20px * var(--ux));top:60px;bottom:0;display:flex;flex-direction:column;min-height:0}
+.pbody2 .tl,.pbody2 .pagewait{flex:1;min-height:0}
+.pbody2 .pagewait{overflow-y:auto}
+.cb.cpnl.on .bi{background:var(--green);color:#fff;box-shadow:none}
+.pgrab{position:fixed;left:var(--content-x);width:var(--content-w);top:calc(var(--grid-top) + var(--grid-h) - 10px);height:10px;z-index:5;touch-action:none}
+@media (prefers-reduced-motion:reduce){.pnl-anim .pnl,.pnl-anim .pcol,.pnl-anim .portrait .week{transition:none}}

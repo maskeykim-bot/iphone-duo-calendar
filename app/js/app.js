@@ -151,6 +151,9 @@ function layoutKind() {
 }
 // 開いた縦（通常の開いた状態で縦長）。月は全幅、週は日別の縦リスト。
 const isPortrait = () => layoutKind() === 'open' && L.h >= L.w;
+// 開いた縦の下パネル（月タブのときだけ使える）。設定（pages.portraitShown / portraitBottom）は他のタブへ移っても消さない。
+const panelAvail = () => layoutKind() === 'open' && isPortrait() && state.view === 'month' && !listShown();
+const panelOn = () => panelAvail() && state.pages.portraitShown;
 // 「一覧」（今日と次の予定のリスト）を本文に出しているか。閉じた画面は home、開いた画面は「一覧」を選んだとき。
 function listShown() { const k = layoutKind(); return k === 'home' || (state.home === true && k !== 'browse' && k !== 'spread'); }
 // 見開きでは左右のページ（pages）が表示を決める。月の部品が見る「表示」は常に月（従来の日・週・一覧は時間ページの中で描く）。
@@ -159,13 +162,14 @@ const viewNow = () => (layoutKind() === 'spread' ? 'month' : state.view);
 // ---------- 寸法の唯一の入力 → CSS 変数（座標はすべて画面座標 CSS px） ----------
 // 入力: 安定寸法 L（innerWidth/innerHeight）・safe area・週数。折り目は常にビューポート中心 L.w/2。
 let lastSafe = null;
+let portraitWeekH = 0; // 下パネル表示中の開いた縦の月の1週の高さ（0＝パネルなし）
 let spreadWeekH = 0; // 開いた横の月の1週の高さ（updateLayoutMetrics が決める。段数の上限計算に使う）
 const safeKey = (S) => `${S.top}/${S.right}/${S.bottom}/${S.left}`;
 function safeChanged() { const k = safeKey(safe()); const c = k !== lastSafe; lastSafe = k; return c; }
 const r2 = (n) => Math.round(n * 100) / 100;
 // 帯（safe area）に置く操作。右の帯は閉じた画面・開いた横の右 safe、開いた縦は上 safe。84/82 など機種の値は書かない（safe() の値だけが基準）。
 const HIT_BAND = 56, VIS_BAND = 48, HIT_HDR = 44;
-const POS = { post: 'closed', band: false, bg: null, hbar: false, set: null, search: null, all: null, today: null, add: null, ux: 1 };
+const POS = { post: 'closed', band: false, bg: null, hbar: false, set: null, search: null, all: null, today: null, add: null, pnl: null, ux: 1 };
 function updateLayoutMetrics() {
   const S = safe(); lastSafe = safeKey(S);
   const kind = layoutKind(), W = L.w, H = L.h;
@@ -174,7 +178,9 @@ function updateLayoutMetrics() {
   const post = kind === 'home' || kind === 'browse' ? 'closed' : kind === 'open' && isPortrait() ? 'portrait' : 'landscape';
   const n = monthWeeks(state.selected).length;
   const v = { 'layout-w': W, 'layout-h': H, 'content-x': x0, 'content-y': y0, 'content-w': U, 'content-h': V, 'fold-x': W / 2 };
-  const pos = { post, band: false, bg: null, hbar: false, set: null, search: null, all: null, today: null, add: null, ux: 1 };
+  const pos = { post, band: false, bg: null, hbar: false, set: null, search: null, all: null, today: null, add: null, pnl: null, ux: 1 };
+  portraitWeekH = 0;
+  for (const k of ['pnl-top', 'pnl-h', 'pnl-up-h']) de.style.removeProperty(`--${k}`);
   const box = (x, y, s, vs) => ({ x, y, s, v: vs });
   let left, right, c, headH, gridTop, G, tabsCx, tabsY, ctrlY, rightStart = 0, swRx = 0, tabsW = 270, q = V / 678, hc = 0;
   const bandOk = R >= HIT_BAND;
@@ -213,6 +219,14 @@ function updateLayoutMetrics() {
     pos.today = box(Ls + 20, rowTop, 48, 48); pos.add = box(W - R - 20 - 48, rowTop, 48, 48);
     q = p;
     v['content-y'] = T; v['content-h'] = V;
+    if (panelAvail()) pos.pnl = box(Ls + 80, rowTop, 48, 48); // 今日の丸の右、間12
+    if (panelOn()) {
+      // 下パネル: マスは通常の高さ比 414/774、パネルは マスの下端〜（操作段の上端−8p）。基準 y520〜873。
+      G = G * 414 / 774;
+      const pb = rowTop - 8 * p;
+      v['pnl-top'] = gridTop + G; v['pnl-h'] = Math.max(0, pb - gridTop - G); v['pnl-up-h'] = Math.max(0, pb - gridTop);
+      portraitWeekH = G / n;
+    }
   } else {
     // 開いた横: 左月 [Ls+8, f-10]、右本文 [f+10, E]、E = W-R-16。
     q = V / 669;
@@ -340,6 +354,7 @@ function tabs() {
 }
 const todayBtn = '<button type="button" class="today" data-act="today">今日に戻る</button>';
 const ICON_SEARCH = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15 15l5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+const ICON_PNL = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="3.5" y="4" width="17" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 13h17" stroke="currentColor" stroke-width="1.8"/></svg>';
 // 設定の入口（歯車）。名前は「設定」に統一。
 const ICON_GEAR = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M10.3 3.2h3.4l.5 2.3 1.6.9 2.2-.8 1.7 3-1.7 1.6v1.8l1.7 1.6-1.7 3-2.2-.8-1.6.9-.5 2.3h-3.4l-.5-2.3-1.6-.9-2.2.8-1.7-3 1.7-1.6v-1.8L4.3 8.8l1.7-3 2.2.8 1.6-.9z"/><circle cx="12" cy="12" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>';
 const hdr = `<button type="button" class="iconbtn" data-act="search" aria-label="予定を検索">${ICON_SEARCH}</button><button type="button" class="iconbtn" data-act="menu" aria-label="設定" aria-haspopup="dialog">${ICON_GEAR}</button>`;
@@ -352,6 +367,7 @@ const CTL = {
   search: () => `<button type="button" class="cb csearch" data-act="search" aria-label="予定を検索"${posStyle(POS.search)}><span class="bi">${ICON_SEARCH}</span></button>`,
   all: () => allBtn('allbtn cb call', posStyle(POS.all)),
   today: () => `<button type="button" class="cb ctoday" data-act="today" aria-label="今日に戻る"${posStyle(POS.today)}><span class="bi" aria-hidden="true">${todayLabel()}</span></button>`,
+  pnl: () => { const on = state.pages.portraitShown; return `<button type="button" class="cb cpnl${on ? ' on' : ''}" data-act="pnltoggle" aria-label="${on ? '下の段を隠す' : '下の段を表示'}"${posStyle(POS.pnl)}><span class="bi">${ICON_PNL}</span></button>`; },
   add: () => `<button type="button" class="cb cadd" data-act="add" aria-label="予定を追加"${posStyle(POS.add)}><span class="bi" aria-hidden="true">＋</span></button>`,
 };
 const monthAll = () => viewNow() === 'month' && !listShown();
@@ -361,7 +377,7 @@ function ctl() {
   let h = '';
   if (POS.post === 'closed') {
     h = POS.band ? CTL.set() + CTL.search() + (monthAll() ? CTL.all() : '') + CTL.today() + CTL.add() : CTL.set() + CTL.search() + CTL.today() + CTL.add();
-  } else if (POS.post === 'portrait') h = CTL.set() + CTL.search() + CTL.today() + CTL.add();
+  } else if (POS.post === 'portrait') h = CTL.set() + CTL.search() + CTL.today() + (POS.pnl ? CTL.pnl() : '') + CTL.add();
   else if (POS.band) h = CTL.set() + CTL.search() + CTL.today() + CTL.add();
   return `${bg}<div class="ctl${POS.band ? ' band' : ''}" role="group" aria-label="操作">${h}</div>`;
 }
@@ -444,6 +460,12 @@ function monthCfg(kind) {
     const fit = Math.max(1, Math.floor((spreadWeekH - LANE_TOP - 14) / LANE_STEP) + 1);
     const cap = Math.min(nominal, fit);
     return { cap, allCap: cap, time: state.monthTimeOpen };
+  }
+  if (kind === 'portrait' && portraitWeekH > 0) {
+    // 下パネル表示中の縦: 6/5週は3段、4週は5段（大文字は1件減）。1週の高さに収まる段数まで下げ、あふれは +N。
+    const n = monthWeeks(state.selected).length, nominal = (n >= 6 ? 3 : n === 5 ? 3 : 5) - (large ? 1 : 0);
+    const fit = Math.max(1, Math.floor((portraitWeekH - LANE_TOP - 14) / LANE_STEP) + 1);
+    return { cap: Math.min(nominal, fit), allCap: large ? 4 : 5, time: state.monthTimeOpen };
   }
   return { cap: (closed ? 4 : 5) - (large ? 1 : 0), allCap: large ? 4 : 5, time: closed ? state.monthTimeClosed : state.monthTimeOpen };
 }
@@ -608,8 +630,80 @@ function closed(kind) {
 }
 // 開いた縦: 全幅の月（下に予定一覧は置かない）。見出し（設定・前・題名・次・全・検索）は上 safe の帯の中、下に 今日・タブ・＋。
 function open() {
-  return `<div class="shell open portrait"><div class="pcol">${listShown() ? listView() : calendar('portrait')}</div><div class="hline" aria-hidden="true"></div>${ctl()}${tabs()}</div>`;
+  return `<div class="shell open portrait"><div class="pcol">${listShown() ? listView() : calendar('portrait')}</div><div class="hline" aria-hidden="true"></div>${panelOn() ? bottomPanel() : panelAvail() ? '<div class="pgrab" data-grab="1" aria-hidden="true"></div>' : ''}${ctl()}${tabs()}</div>`;
 }
+// ---------- 開いた縦の下パネル（上は月、下は 時間｜タスク｜メモ） ----------
+const PN = { expand: false, swallow: 0 }; // expand: メモ入力中にマスの上端まで広げる（口だけ。入力は後続の版）
+const BOTTOM_LABELS = { time: '時間', task: 'タスク', memo: 'メモ' };
+function bottomBody(id) {
+  if (id === 'time') return timelineHtml(tlKeys(1), Math.max(0, safeW() - 40 * POS.ux - 50), 'bottom');
+  return `<div class="pagewait padb" data-wait="${id}"><p class="small pad">${PAGE_NAMES[id]}のページは準備中です。</p></div>`;
+}
+const safeW = () => L.w - safe().left - safe().right;
+function bottomPanel() {
+  const id = state.pages.portraitBottom;
+  const sw = Object.keys(BOTTOM_LABELS).map((k, i) => `<button type="button" data-pnl="${k}" aria-pressed="${k === id}" aria-description="3個中${i + 1}番目"><span class="pill">${BOTTOM_LABELS[k]}</span></button>`).join('');
+  return `<section class="pnl${PN.expand ? ' up' : ''}" data-panel="${id}" aria-label="下の段">
+    <button type="button" class="pgrip" data-act="pnlgrip" aria-label="下の段を隠す"><i aria-hidden="true"></i></button>
+    <h3 class="pdate">${dayTitle(state.selected)}</h3>
+    <div class="pswitch" role="group" aria-label="下の段の種類">${sw}</div>
+    <button type="button" class="pclose" data-act="pnlhide" aria-label="下の段を隠す"><span aria-hidden="true">×</span></button>
+    <div class="pbody2">${bottomBody(id)}</div>
+  </section>`;
+}
+// 下の段の出し入れ（0.25秒。マスの高さ・パネルの出入りを動かす。表示状態は pages に保存）。
+function animatePanel(old, leaving) {
+  if (reduced()) return;
+  const names = ['--grid-h', '--week-h'], nw = names.map((n) => de.style.getPropertyValue(n));
+  names.forEach((n, i) => de.style.setProperty(n, old[i]));
+  de.classList.add('pnl-anim'); void de.offsetHeight;
+  names.forEach((n, i) => de.style.setProperty(n, nw[i]));
+  const pnl = root.querySelector('.pnl');
+  if (pnl) { pnl.style.transition = 'none'; pnl.classList.add('enter'); void pnl.offsetHeight; pnl.style.transition = ''; pnl.classList.remove('enter'); }
+  if (leaving) {
+    leaving.classList.add('leave'); leaving.setAttribute('aria-hidden', 'true'); leaving.inert = true;
+    root.querySelector('.shell')?.appendChild(leaving); void leaving.offsetHeight; leaving.classList.add('go');
+  }
+  setTimeout(() => { de.classList.remove('pnl-anim'); leaving?.remove(); }, 280);
+}
+function setPanel(shown, from) {
+  if (state.pages.portraitShown === shown || !panelAvail()) return;
+  const old = ['--grid-h', '--week-h'].map((n) => de.style.getPropertyValue(n));
+  const leaving = shown ? null : root.querySelector('.pnl')?.cloneNode(true);
+  PN.expand = false;
+  set({ pages: { ...state.pages, portraitShown: shown } });
+  animatePanel(old, leaving);
+  root.querySelector(`[data-act="${from || 'pnltoggle'}"]`)?.focus({ preventScroll: true });
+  say(shown ? '下の段を表示しました。' : '下の段を隠しました。');
+}
+function pickBottom(id) {
+  set({ pages: selectPage(state.pages, 'portraitBottom', id) });
+  root.querySelector(`[data-pnl="${id}"]`)?.focus({ preventScroll: true });
+  say(`下の段を${BOTTOM_LABELS[id]}にしました。`);
+}
+// メモ入力中の拡大口: 下の段をマスの上端（y106）まで広げる。再描画せず class だけ切り替える（入力欄のフォーカスを保つ）。
+function setPanelExpand(on) { PN.expand = on; root.querySelector('.pnl')?.classList.toggle('up', on); }
+root.addEventListener('focusin', (ev) => { if (ev.target.closest?.('.pnl') && ev.target.matches('textarea, [contenteditable=true]')) setPanelExpand(true); });
+root.addEventListener('focusout', (ev) => { if (ev.target.closest?.('.pnl') && ev.target.matches('textarea, [contenteditable=true]')) setPanelExpand(false); });
+// つまみを下へ引く＝しまう／マスの下端から上へ引く＝出す。8px以内は押しただけ（つまみは click、下端は下のマスへ通す）。
+let pg = null;
+root.addEventListener('pointerdown', (ev) => {
+  const g = ev.target.closest?.('.pgrip, .pgrab');
+  if (!g || !ev.isPrimary) return;
+  pg = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, grab: g.classList.contains('pgrab') };
+});
+window.addEventListener('pointerup', (ev) => {
+  if (!pg || ev.pointerId !== pg.id) return;
+  const { x, y, grab } = pg, dy = ev.clientY - y; pg = null;
+  if (Math.abs(dy) > 8 || Math.abs(ev.clientX - x) > 8) {
+    PN.swallow = performance.now() + 400;
+    if (grab ? dy < -40 : dy > 40) setPanel(grab);
+  } else if (grab) {
+    const el = document.elementsFromPoint(ev.clientX, ev.clientY).find((e) => !e.closest('.pgrab'));
+    el?.closest('button')?.click();
+  }
+});
+window.addEventListener('pointercancel', () => { pg = null; });
 function desk() {
   return `<div class="shell desk"><div class="desktop"><header class="top">${brand}<div class="toolbar">${todayBtn}</div></header>${listShown() ? listView() : calendar('desk')}${tabs()}</div>
     <div class="foldband" role="separator" aria-label="折り目の保護領域">折り目の保護領域</div>
@@ -619,9 +713,9 @@ function desk() {
 // 折り目（ビューポート中心 ±10px）には何も置かない。左右ページは中心±10 で clip し、背景は中心で直接接続する。
 // 時間軸の状態はペイン（左 / 右）ごと: 1時間の高さ(px)・1日/3日・初期スクロールの判定キー。quiet はピンチ・ドラッグ直後の空きタップ抑止（共通）。
 const mkTl = () => ({ hh: 60, key: '' });
-const TLP = { left: mkTl(), right: mkTl() };
+const TLP = { left: mkTl(), right: mkTl(), bottom: mkTl() };
 const TLQ = { quiet: 0 };
-const paneOf = (el) => (el?.dataset?.pane === 'left' ? 'left' : 'right');
+const paneOf = (el) => (['left', 'bottom'].includes(el?.dataset?.pane) ? el.dataset.pane : 'right');
 const firstTl = () => root.querySelector('.tl');
 const HH_MIN = 31, HH_MAX = 80, TL_PAD = 12;
 const clampHh = (n) => Math.min(HH_MAX, Math.max(HH_MIN, n));
@@ -768,7 +862,7 @@ function initTimeline() {
   TLP.right.key = tls.length && [...tls].some((t) => paneOf(t) === 'right') ? TLP.right.key : '';
   tls.forEach((tl) => {
     const pane = paneOf(tl), T = TLP[pane];
-    const key = `${layoutKind()}|${state.view}|${state.home}|${state.pages.left}|${state.pages.right}|${state.selected}|${state.timeMode[pane]}`;
+    const key = `${layoutKind()}|${state.view}|${state.home}|${state.pages.left}|${state.pages.right}|${state.selected}|${state.timeMode[pane]}|${pane === 'bottom' ? state.pages.portraitBottom : ''}`;
     if (key !== T.key) { T.key = key; tl.scrollTop = Math.max(0, nowMin() - 60) * T.hh / 60; }
   });
   updateNow();
@@ -866,7 +960,7 @@ function pickPage(side, id) {
 }
 // ＋の行き先: 見開きでは最後に触ったページに合わせる。月・時間は予定、タスク・メモは入力の接続（後続の版）まで案内のみ。
 function addFromHere(b) {
-  const id = layoutKind() === 'spread' ? state.pages[state.lastSide] : 'month';
+  const id = layoutKind() === 'spread' ? state.pages[state.lastSide] : panelOn() ? state.pages.portraitBottom : 'month';
   if (id === 'task' || id === 'memo') { say(`${PAGE_NAMES[id]}の入力は準備中です。`); return; }
   openEditor(null, b);
 }
@@ -885,13 +979,17 @@ root.addEventListener('click', (ev) => {
   if (d.view) set({ view: d.view, home: false });
   else if (d.act === 'list') set({ home: true });
   else if (d.date) {
-    const compact = ['home', 'browse'].includes(layoutKind()) || isPortrait();
+    const compact = ['home', 'browse'].includes(layoutKind()) || (isPortrait() && !panelOn());
     // 閉じた画面・開いた縦では選択日サイド（一覧）が無いので、日付選択でその日の日表示へ進む。
     set(compact && state.view === 'month' ? { selected: d.date, view: 'day' } : { selected: d.date });
   } else if (d.jump) set({ selected: d.jump, view: 'day' });
   else if (d.event) openEditor(d.event, b);
   else if (d.new) openEditor(null, b, d.new);
   else if (d.act === 'add') addFromHere(b);
+  else if (d.act === 'pnltoggle') setPanel(!state.pages.portraitShown);
+  else if (d.act === 'pnlhide') setPanel(false);
+  else if (d.act === 'pnlgrip') { if (performance.now() >= PN.swallow) setPanel(false); }
+  else if (d.pnl) pickBottom(d.pnl);
   else if (d.act === 'allmonth') set({ monthExpand: !state.monthExpand });
   else if (d.act === 'today') set({ selected: todayKey() }); // 今日へ戻るのは選択日だけ。表示（一覧・日・週・月）は保つ
   else if (d.act === 'prev') move(-1, d.pane);
