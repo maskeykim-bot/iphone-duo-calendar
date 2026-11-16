@@ -3892,8 +3892,9 @@ function refreshNotifyPerm() {
   return p;
 }
 // notDetermined のときだけ iOS の許可ダイアログを要求する。許可状態が変わったら再予約。
-function askNotifyPerm() {
-  if (!NATIVE) return Promise.resolve();
+// 通知が全体オフのときは求めない（テスト通知だけ force で求める）。
+function askNotifyPerm({ force = false } = {}) {
+  if (!NATIVE || (!force && !loadNotify().enabled)) return Promise.resolve();
   const p = N.chain.then(async () => {
     try {
       const st = await call('notifyStatus');
@@ -3964,7 +3965,7 @@ NT.body.addEventListener('click', async (ev) => {
     NT.body.querySelector('#nt-showtitle')?.focus({ preventScroll: true });
   } else if (b.id === 'nt-test') {
     nt = { msg: '', err: '', busy: true }; renderNotify();
-    await askNotifyPerm();
+    await askNotifyPerm({ force: true });
     try { await call('notifyTest'); nt = { msg: '1分後にテスト通知を送ります。', err: '', busy: false }; } catch (e) { nt = { msg: '', err: errCode(e) === 'PERMISSION_DENIED' ? '通知が許可されていないため、テスト通知を送れません。' : 'テスト通知を送れませんでした。もう一度お試しください。', busy: false }; }
     renderNotify();
     NT.body.querySelector('#nt-test')?.focus({ preventScroll: true });
@@ -3978,6 +3979,7 @@ NT.body.addEventListener('change', (ev) => {
   notifySettingsChanged();
   renderNotify();
   NT.body.querySelector(`#${t.id}`)?.focus({ preventScroll: true });
+  if (t.value) askNotifyPerm().then(() => { if (notifyDlg.open) renderNotify(); }); // 「なし」では求めない。オフ中は askNotifyPerm 側で求めない
 });
 $('#nt-close').addEventListener('click', () => closePanel(notifyDlg));
 

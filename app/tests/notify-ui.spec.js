@@ -251,6 +251,36 @@ test.describe('通知パネル', () => {
     await expect.poll(() => count(page, 'requestNotifyPermission')).toBe(1);
   });
 
+  test('OFF 中は許可を求めない。OFF中の既定選択・保存でも0回、ON・ON中の既定選択・テスト通知で求める。なしの選択は求めない', async ({ page }) => {
+    await mock(page, { notif: 'notDetermined', after: 'granted' });
+    await page.addInitScript(() => localStorage.setItem('duo-notify', JSON.stringify({ version: 1, enabled: false, showTitle: true, defaultTimed: null, defaultAllDay: null })));
+    await openApp(page, SIZES.closedPortrait, '?nosw');
+    await openPanel(page);
+    await page.locator('#nt-dt').selectOption('b30');
+    await page.waitForTimeout(700);
+    expect(await count(page, 'requestNotifyPermission')).toBe(0);
+    expect(await count(page, 'notifySync')).toBe(0);
+    await page.locator('#nt-sw').click(); // ON: 許可を求め、付け済みを再予約する（既定は復活しない）
+    await expect.poll(() => count(page, 'requestNotifyPermission')).toBe(1);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo-notify')).defaultAllDay)).toBeNull();
+    await expect.poll(() => count(page, 'notifySync')).toBeGreaterThan(0);
+    await page.locator('#nt-da').selectOption('');
+    await page.locator('#nt-dt').selectOption('');
+    expect(await count(page, 'requestNotifyPermission')).toBe(1);
+  });
+
+  test('ON 中に既定を選ぶと許可を求める。OFF にすると notifyClear', async ({ page }) => {
+    await mock(page, { notif: 'notDetermined', after: 'granted' });
+    await page.addInitScript(() => localStorage.setItem('duo-notify', JSON.stringify({ version: 1, enabled: true, showTitle: true, defaultTimed: null, defaultAllDay: null })));
+    await openApp(page, SIZES.closedPortrait, '?nosw');
+    await openPanel(page);
+    expect(await count(page, 'requestNotifyPermission')).toBe(0);
+    await page.locator('#nt-da').selectOption('d0@08:00');
+    await expect.poll(() => count(page, 'requestNotifyPermission')).toBe(1);
+    await page.locator('#nt-sw').click();
+    await expect.poll(() => count(page, 'notifyClear')).toBeGreaterThan(0);
+  });
+
   test('Esc で閉じてフォーカスがメニューの起点へ戻る', async ({ page }) => {
     await mock(page);
     await openApp(page, SIZES.closedPortrait, '?nosw');
