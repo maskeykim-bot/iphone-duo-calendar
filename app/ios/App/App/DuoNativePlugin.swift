@@ -1402,7 +1402,8 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
     }
 
     /// 型A（Duo の予定の iPhone 側）をまとめて作る。全件の入力検査 → queue 上で各件 save(commit:false) → commit 1回 → 記録。
-    /// 型B（copyFrom）は PR30 まで未対応で INVALID_ARGUMENT。recurrence キーは拒否。
+    /// 型B（copyFrom: iPhone 予定を出席者なしで複製）は型Aの一括 commit の後に1件ずつ commit:true → 直ちに rid 記録（URL は利用者の値を残すため印なし）。
+    /// commit 成功〜記録直前に強制終了すると型Bは重複しうる（実機確認事項）。recurrence キーは拒否。
     @objc func createEvents(_ call: CAPPluginCall) {
         migrateCreatedAsync()
         guard ensureAccess(call) else { return }
@@ -1410,6 +1411,7 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         struct Item {
             let requestId: String, calendarId: String, title: String, startRaw: String, endRaw: String
             let start: Date, end: Date, allDay: Bool, place: String, notes: String, offsets: [TimeInterval]?
+            var copy: (itemId: String, externalId: String, eventId: String, occ: String, occDate: Date, cur: String, curDate: Date)? = nil
         }
         guard let rawItems = call.getArray("items"), rawItems.count >= 1, rawItems.count <= 31 else {
             call.reject("invalid arguments", "INVALID_ARGUMENT")
@@ -1419,11 +1421,9 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         var seen = Set<String>()
         for raw in rawItems {
             guard let d = raw as? [String: Any],
-                  d["recurrence"] == nil, d["copyFrom"] == nil,
+                  d["recurrence"] == nil,
                   let requestId = d["requestId"] as? String, !requestId.isEmpty, requestId.count <= 100,
                   seen.insert(requestId).inserted,
-                  let calendarId = d["calendarId"] as? String, !calendarId.isEmpty,
-                  let title = d["title"] as? String,
                   let startRaw = d["start"] as? String, let endRaw = d["end"] as? String,
                   let start = parse(startRaw, f), let end = parse(endRaw, f), end >= start else {
                 call.reject("invalid arguments", "INVALID_ARGUMENT")
@@ -1434,6 +1434,31 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
                 return
             }
             let allDay = (d["all"] as? Bool) ?? false
+            if let cf = d["copyFrom"] {
+                // 型B: 題名・場所・メモ・通知などの内容キーは持てない（元から複製する）。
+                guard let c = cf as? [String: Any],
+                      d["alarms"] == nil, d["title"] == nil, d["place"] == nil, d["notes"] == nil, d["calendarId"] == nil,
+                      let occ = c["occurrenceStart"] as? String, let occDate = parse(occ, f),
+                      let cur = c["currentStart"] as? String, let curDate = parse(cur, f) else {
+                    call.reject("invalid arguments", "INVALID_ARGUMENT")
+                    return
+                }
+                let iid = (c["itemId"] as? String) ?? "", eid = (c["externalId"] as? String) ?? "", evid = (c["eventId"] as? String) ?? ""
+                guard !(iid.isEmpty && eid.isEmpty && evid.isEmpty) else {
+                    call.reject("invalid arguments", "INVALID_ARGUMENT")
+                    return
+                }
+                var it = Item(requestId: requestId, calendarId: "", title: "", startRaw: startRaw, endRaw: endRaw,
+                              start: start, end: end, allDay: allDay, place: "", notes: "", offsets: nil)
+                it.copy = (iid, eid, evid, occ, occDate, cur, curDate)
+                items.append(it)
+                continue
+            }
+            guard let calendarId = d["calendarId"] as? String, !calendarId.isEmpty,
+                  let title = d["title"] as? String else {
+                call.reject("invalid arguments", "INVALID_ARGUMENT")
+                return
+            }
             var offsets: [TimeInterval]? = nil
             if let a = d["alarms"], !(a is NSNull) {
                 guard let arr = a as? [Any] else {
@@ -1467,6 +1492,7 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             }
             let records = self.loadCreated()
             for (i, it) in items.enumerated() {
+                if it.copy != nil { continue }
                 let fps = self.createFingerprints(calendarId: it.calendarId, title: it.title, startRaw: it.startRaw, endRaw: it.endRaw,
                                                   allDay: it.allDay, place: it.place, notes: it.notes, offsets: it.offsets, recCanon: nil)
                 // 1) 記録済み: 作り直さない（内容違いは失敗）
@@ -1537,6 +1563,54 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
                     self.store.reset()
                     for p in pending { fail(p.index, "UNAVAILABLE") }
                 }
+            }
+            // 型B: 型Aの commit の後に1件ずつ。書込可否は元のカレンダーで判定し、出席者ありでも複製できる。
+            for (i, it) in items.enumerated() {
+                guard let c = it.copy else { continue }
+                let fp = self.sha256Hex(["copy", c.itemId, c.externalId, c.eventId, c.occ, c.cur, it.startRaw, it.endRaw, it.allDay ? "1" : "0"].joined(separator: "\u{1F}"))
+                if let done = self.loadCreated()[it.requestId] {
+                    guard done["fp"] as? String == fp else { fail(i, "INVALID_ARGUMENT"); continue }
+                    let eid = done["eventId"] as? String ?? ""
+                    let ev = eid.isEmpty ? nil : self.store.event(withIdentifier: eid)
+                    succeed(i, self.createdReply(ev, itemId: done["itemId"] as? String ?? "", eventId: eid, calendarId: "", f))
+                    continue
+                }
+                let src: EKEvent
+                switch self.findExtTarget(itemId: c.itemId, externalId: c.externalId, eventId: c.eventId,
+                                          occ: c.occ, occDate: c.occDate, curDate: c.curDate, f) {
+                case .notFound: fail(i, "NOT_FOUND"); continue
+                case .ambiguous: fail(i, "UNAVAILABLE"); continue
+                case .found(let e): src = e
+                }
+                guard let calendar = src.calendar else { fail(i, "NOT_FOUND"); continue }
+                guard calendar.allowsContentModifications else { fail(i, "READ_ONLY"); continue }
+                let (startDate, endDate) = self.createDates(start: it.start, end: it.end, allDay: it.allDay, cal: cal)
+                let event = EKEvent(eventStore: self.store)
+                event.calendar = calendar
+                event.title = src.title
+                event.isAllDay = it.allDay
+                event.startDate = startDate
+                event.endDate = endDate
+                if let l = src.location, !l.isEmpty { event.location = l }
+                if let n = src.notes, !n.isEmpty { event.notes = n }
+                event.url = src.url
+                // 相対通知だけ写す（絶対・場所通知は省く）。終日の切替で意味が変わるときは写さない。出席者・繰返しは写さない。
+                if src.isAllDay == it.allDay {
+                    for a in src.alarms ?? [] where a.absoluteDate == nil && a.structuredLocation == nil && a.proximity == .none {
+                        event.addAlarm(EKAlarm(relativeOffset: a.relativeOffset))
+                    }
+                }
+                do {
+                    try self.store.save(event, span: .thisEvent, commit: true)
+                } catch {
+                    self.store.reset()
+                    fail(i, "UNAVAILABLE")
+                    continue
+                }
+                let newId = event.eventIdentifier ?? ""
+                if newId.isEmpty { fail(i, "UNAVAILABLE"); continue }
+                self.saveCreated(it.requestId, itemId: event.calendarItemIdentifier, eventId: newId, fp: fp)
+                succeed(i, self.createdReply(event, itemId: event.calendarItemIdentifier, eventId: newId, calendarId: calendar.calendarIdentifier, f))
             }
             call.resolve(["results": results.map { $0 ?? [:] }])
         }

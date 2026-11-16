@@ -45,10 +45,17 @@ async function mock(page, cfg = {}) {
             // Swift の契約の写し（型Aのみ）。1〜31件・rid重複／recurrence／copyFrom は全体 INVALID_ARGUMENT。件ごとの失敗は M.createEventsFail[rid]、commit 一括失敗は M.commitFail。
             const its = opts.items;
             if (!Array.isArray(its) || its.length < 1 || its.length > 31 || new Set(its.map((i) => i?.requestId)).size !== its.length
-              || its.some((i) => !i || !i.requestId || !i.calendarId || 'recurrence' in i || 'copyFrom' in i || i.end < i.start)) throw { code: 'INVALID_ARGUMENT', message: 'x' };
+              || its.some((i) => !i || !i.requestId || (!i.calendarId && !i.copyFrom) || 'recurrence' in i || i.end < i.start || (i.copyFrom && (!(i.copyFrom.itemId || i.copyFrom.externalId || i.copyFrom.eventId) || !i.copyFrom.occurrenceStart || !i.copyFrom.currentStart || 'title' in i || 'alarms' in i || 'calendarId' in i)))) throw { code: 'INVALID_ARGUMENT', message: 'x' };
             const fl = M.createEventsFail ?? {};
             const out = its.map((i) => {
               if (M.created[i.requestId]) return { done: true, i };
+              if (i.copyFrom) {
+                const d = c.details.find((x) => (x.itemId === i.copyFrom.itemId || x.externalId === i.copyFrom.externalId || x.eventId === i.copyFrom.eventId) && (x.occurrenceDate ?? x.start) === i.copyFrom.occurrenceStart);
+                if (!d) return { err: 'NOT_FOUND', i };
+                if (M.copyAmbiguous) return { err: 'UNAVAILABLE', i };
+                if (!d.allowsModify) return { err: 'READ_ONLY', i };
+                i.calendarId = d.calendarId ?? 'cal-1';
+              }
               if (fl[i.requestId]) return { err: fl[i.requestId], i };
               return { fresh: true, i };
             });
@@ -177,6 +184,7 @@ test.describe('通知ブリッジ契約（偽装。Swift 実動作の証明で�
       bad.dup = await call('createEvents', { items: [A(7), A(7)] }).catch(errCode);
       bad.rec = await call('createEvents', { items: [A(8, { recurrence: null })] }).catch(errCode);
       bad.b = await call('createEvents', { items: [A(9, { copyFrom: {} })] }).catch(errCode);
+      bad.b2 = await call('createEvents', { items: [{ requestId: 'b9', copyFrom: { itemId: 'x', occurrenceStart: 'a', currentStart: 'a' }, start: '2026-11-20T10:00', end: '2026-11-20T11:00', all: false, title: 'no' }] }).catch(errCode);
       bad.many = await call('createEvents', { items: Array.from({ length: 32 }, (_, i) => A(100 + i)) }).catch(errCode);
       M.commitFail = true;
       const cf = await call('createEvents', { items: [A(20), A(21)] });
@@ -188,9 +196,32 @@ test.describe('通知ブリッジ契約（偽装。Swift 実動作の証明で�
     expect(r.part.results[1]).toEqual({ requestId: 'r5', ok: false, code: 'READ_ONLY' });
     expect(r.retry.results.map((x) => [x.requestId, x.ok])).toEqual([['r5', true], ['r4', true]]);
     expect(r.retry.results[1].eventId).toBe(r.part.results[0].eventId);
-    expect(r.bad).toEqual({ empty: 'INVALID_ARGUMENT', dup: 'INVALID_ARGUMENT', rec: 'INVALID_ARGUMENT', b: 'INVALID_ARGUMENT', many: 'INVALID_ARGUMENT' });
+    expect(r.bad).toEqual({ empty: 'INVALID_ARGUMENT', dup: 'INVALID_ARGUMENT', rec: 'INVALID_ARGUMENT', b: 'INVALID_ARGUMENT', b2: 'INVALID_ARGUMENT', many: 'INVALID_ARGUMENT' });
     expect(r.cf.results).toEqual([{ requestId: 'r20', ok: false, code: 'UNAVAILABLE' }, { requestId: 'r21', ok: false, code: 'UNAVAILABLE' }]);
     expect(r.created).not.toContain('r20');
+  });
+
+  test('第14版 PR30: createEvents 型B（copyFrom）の契約・元特定失敗・READ_ONLY・同ridで再作成なし', async ({ page }) => {
+    await mock(page);
+    await page.goto('/');
+    const r = await page.evaluate(async () => {
+      const { call, errCode } = await import('./js/native.js');
+      const M = window.__mock;
+      const B = (n, id, occ, x = {}) => ({ requestId: `b${n}`, copyFrom: { itemId: id, occurrenceStart: occ, currentStart: occ }, start: '2026-11-25T10:00', end: '2026-11-25T11:00', all: false, ...x });
+      const A = { requestId: 'a1', calendarId: 'cal-1', title: 't', start: '2026-11-20T10:00', end: '2026-11-20T11:00', all: false, place: '', notes: '', alarms: [] };
+      const mixed = await call('createEvents', { items: [B(1, 'it-1', '2026-11-12T15:00'), A, B(2, 'it-2', '2026-11-23T00:00'), B(3, 'nope', '2026-11-12T15:00')] });
+      const again = await call('createEvents', { items: [B(1, 'it-1', '2026-11-12T15:00')] });
+      M.copyAmbiguous = true;
+      const amb = await call('createEvents', { items: [B(4, 'it-1', '2026-11-12T15:00')] });
+      M.copyAmbiguous = false;
+      const bad = await call('createEvents', { items: [B(5, '', '2026-11-12T15:00', { copyFrom: { occurrenceStart: 'x', currentStart: 'x' } })] }).catch(errCode);
+      return { mixed, again, amb, bad };
+    });
+    expect(r.mixed.results.map((x) => [x.requestId, x.ok, x.code])).toEqual([['b1', true, undefined], ['a1', true, undefined], ['b2', false, 'READ_ONLY'], ['b3', false, 'NOT_FOUND']]);
+    expect(r.mixed.results[0]).not.toHaveProperty('url');
+    expect(r.again.results[0].eventId).toBe(r.mixed.results[0].eventId);
+    expect(r.amb.results[0]).toEqual({ requestId: 'b4', ok: false, code: 'UNAVAILABLE' });
+    expect(r.bad).toBe('INVALID_ARGUMENT');
   });
 
   test('selectionHaptic: light/warning は performed、kind 不正は INVALID_ARGUMENT。native.js の haptic 経由', async ({ page }) => {
