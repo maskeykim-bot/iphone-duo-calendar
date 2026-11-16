@@ -507,7 +507,8 @@ input,select,textarea,.date-text{font-size:16px}
 .sctl button{min-width:44px;width:44px;height:44px;padding:0;font-size:22px;display:flex;align-items:center;justify-content:center}
 .spread .calendar{display:flex}
 .spread .weekdays{height:var(--wd-h);padding-bottom:0;align-items:center;background:transparent}
-.spread .week.named,.spread .week.simple{flex:0 0 max(var(--week-h),var(--need,85px))}
+.spread .scroll.msc,.spread .scroll.all{flex:none;height:var(--grid-h);--end-pad:0px}
+.spread .week.named,.spread .week.simple{flex:0 0 var(--week-h);overflow:hidden}
 .spread .week.all{height:max(var(--week-h),var(--need,0px))}
 .spread .scroll:not(.msc):not(.all)>.daylist,.spread .weekpage{padding:0 4px}
 .spread .listview{padding:0 4px;min-height:0;overflow:auto}
@@ -628,3 +629,35 @@ body[data-layout=home] dialog#xdetail::before,body[data-layout=browse] dialog#xd
 #touch-check .tc-end{position:absolute;left:50%;bottom:24%;transform:translateX(-50%);padding:10px 14px;font-size:14px;font-weight:700;border-radius:10px;border:0;background:#fff;color:#111}
 #touch-check .tc-dot{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:#ffd400;border:1px solid #000;pointer-events:none}
 #touch-check .tc-dot i{position:absolute;left:10px;top:-2px;font-style:normal;font-size:10px;white-space:nowrap;background:rgba(0,0,0,.65);padding:0 3px;border-radius:3px}
+
+/* ===== 第13版 PR4: iPhone の予定の編集・削除（09） ===== */
+.caltag{display:inline-flex;align-items:center;gap:6px;min-height:22px;max-width:50%;padding:0 10px;border-radius:11px;background:#eef0ea;font-size:12px;line-height:22px;color:#68716A;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.caltag[hidden]{display:none}
+.formhead .caltag{margin-left:auto;flex:0 1 auto}
+.xdcal.caltag{display:inline-flex;margin:0 0 8px}
+.xdt{font-size:17px;font-weight:700}
+.xdact{display:flex;gap:8px;margin:0 0 4px}
+.xdact[hidden]{display:none}
+.xdact button{min-height:44px;font-size:16px}
+.xdact .danger{flex:none;padding:0 16px;border:0;background:transparent;color:#C0392B}
+.xdact .primary{flex:1 1 auto;background:#294E42;color:#fff}
+#xd-open.small{min-height:44px;width:auto;margin:0;padding:0 8px;background:transparent;border:0;color:#68716A;font-size:13px}
+.xdreason{margin:0 0 6px;font-size:13px;line-height:1.4;color:#68716A}
+.ecal[hidden],#cat-l[hidden],.rfix[hidden]{display:none}
+.ecal select{min-height:44px}
+.rfix{margin-top:12px}
+.rfixrow{margin:0;min-height:44px;display:flex;align-items:center;font-size:15px;color:#68716A}
+.gonebar{margin:0 0 8px;min-height:36px;display:flex;align-items:center;padding:0 12px;border-radius:8px;background:#F6EDE0;color:#7A5A2E;font-size:13px}
+.gonebar[hidden]{display:none}
+#scope .row:disabled{color:#A8ABA4}
+#confirm .actions button[hidden]{display:none}
+.repeat[hidden]{display:none}
+
+.xsw,.swl{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px}
+input.swc,.xsw input[type=checkbox]{appearance:none;-webkit-appearance:none;flex:none;width:51px;height:31px;margin:0;border-radius:16px;background:#b9bdb3;position:relative;transition:background .15s;border:0}
+input.swc::after,.xsw input[type=checkbox]::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;transition:transform .15s}
+input.swc:checked,.xsw input[type=checkbox]:checked{background:var(--green)}
+input.swc:checked::after,.xsw input[type=checkbox]:checked::after{transform:translateX(20px)}
+input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
+.xcal{display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px}
+.xcal .cdot{width:8px;height:8px;border-radius:50%;flex:none}.xcal select{flex:1;min-width:0;font-size:16px}

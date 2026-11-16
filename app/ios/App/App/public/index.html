@@ -22,10 +22,12 @@
 
 <dialog id="editor" class="panel" aria-labelledby="edtitle">
   <form id="form" novalidate autocomplete="off">
-    <div class="formhead"><h2 id="edtitle">予定を追加</h2><button type="button" id="close" aria-label="閉じる">✕</button></div>
+    <div class="formhead"><h2 id="edtitle">予定を追加</h2><span id="ed-tag" class="caltag" hidden></span><button type="button" id="close" aria-label="閉じる">✕</button></div>
     <div class="fbody">
+      <p id="ext-gone" class="gonebar" hidden>この予定は見つかりません。カレンダーで確認してください。</p>
       <label>予定名<input id="f-title" name="title" maxlength="80" placeholder="例：プロジェクト定例" required></label>
-      <label>カテゴリ<select id="f-cat" name="cat"></select></label>
+      <label id="cat-l">カテゴリ<select id="f-cat" name="cat"></select></label>
+      <label id="ecal-l" class="ecal" hidden>カレンダー<select id="f-ecal" name="ecal"></select></label>
       <label class="check"><input id="f-all" name="all" type="checkbox">終日</label>
       <div class="pair">
         <label>開始<input id="f-start" name="start" class="date-text" inputmode="numeric" placeholder="2026/11/12 10:00"></label>
@@ -39,6 +41,11 @@
         <div id="al-perm" class="alperm" hidden><span class="alnote">iPhone の設定で通知がオフです</span><button type="button" id="al-settings" class="mini">設定を開く</button></div>
         <div id="al-xperm" class="alperm" hidden><span class="alnote13">通知を変えるには、カレンダーのフルアクセスが必要です</span><button type="button" id="al-xsettings" class="mini">設定を開く</button></div>
         <p id="al-ilink" class="alnote13" hidden>iPhone のカレンダーが通知します</p>
+        <p id="al-extra" class="alnote13" hidden></p>
+      </div>
+      <div id="rfix" class="rfix" hidden>
+        <p class="rfixrow">繰り返し · <span id="rfix-sum"></span></p>
+        <p class="alnote13">繰り返しの変更は iPhone のカレンダーで行ってください。</p>
       </div>
       <div class="repeat">
         <button type="button" id="rtoggle" class="rtoggle" aria-expanded="false" aria-controls="rpanel"><span class="tri" aria-hidden="true">▸</span> 繰り返し · <span id="rsum">なし</span></button>
@@ -59,12 +66,16 @@
           <p id="rerror" class="error" role="alert"></p>
         </div>
       </div>
+      <div id="xadd" class="xadd" hidden>
+        <label class="check xsw"><span>iPhone のカレンダーにも追加</span><input id="f-xadd" type="checkbox" role="switch"></label>
+        <label id="xcal-l" class="xcal" hidden><i id="xcal-dot" class="cdot" aria-hidden="true"></i><span class="xcal-t">追加先カレンダー</span><select id="f-xcal"></select></label>
+        <p id="xnote" class="small"></p>
+      </div>
       <label>場所<input id="f-place" name="place" maxlength="200" placeholder="場所を追加"></label>
       <label>メモ<textarea id="f-notes" name="notes" maxlength="4000" rows="3" placeholder="メモを追加"></textarea></label>
-      <div id="xadd" class="xadd" hidden>
-        <label class="check"><input id="f-xadd" type="checkbox">iPhone のカレンダーにも追加</label>
-        <label id="xcal-l" hidden>追加先カレンダー<select id="f-xcal"></select></label>
-        <p id="xnote" class="small"></p>
+      <div id="xext" class="xadd" hidden>
+        <p class="small">変更は iPhone のカレンダーに保存されます。</p>
+        <button type="button" id="xext-open" class="ghost">カレンダーで開く</button>
       </div>
       <div id="xlinked" class="xadd" hidden>
         <p class="small">iPhoneにも追加済み。Duo で変えた内容は iPhone のカレンダーにも反映されます。</p>
@@ -150,8 +161,9 @@
   <div id="xd-body" class="pbody"></div>
   <div class="pfoot">
     <p id="xd-err" class="error" role="alert"></p>
+    <p id="xd-note" class="small" role="note"></p>
+    <div id="xd-act" class="xdact" hidden><button type="button" id="xd-del" class="danger">削除</button><button type="button" id="xd-edit" class="primary">編集</button></div>
     <button type="button" class="primary wide" id="xd-open">カレンダーで開く</button>
-    <p id="xd-note" class="small">iPhoneのカレンダーで、この予定の日付を開きます。</p>
   </div>
 </dialog>
 <dialog id="xretry" aria-labelledby="xr-title">

@@ -3,7 +3,7 @@ import { addDays, addMonths, dayOf, newId, weekStart } from './util.js';
 import { normalize, searchRange, terms } from './search.js';
 import { expand, isFirstOccurrence, normRule, occurrenceAt, ruleEq } from './recur.js';
 
-export const DEFAULTS = { version: 1, enabled: false, calendarIds: [], selectionInitialized: false, defaultCalendarId: null };
+export const DEFAULTS = { version: 1, enabled: false, calendarIds: [], selectionInitialized: false, defaultCalendarId: null, addByDefault: true };
 
 export function normSettings(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return { ...DEFAULTS };
@@ -14,6 +14,7 @@ export function normSettings(v) {
     calendarIds: ids,
     selectionInitialized: v.selectionInitialized === true,
     defaultCalendarId: typeof v.defaultCalendarId === 'string' && v.defaultCalendarId ? v.defaultCalendarId : null,
+    addByDefault: v.addByDefault !== false,
   };
 }
 
@@ -194,6 +195,14 @@ export function searchExt(snapshot, query, today) {
 
 // 追加先に選べるカレンダー（書込可）。
 export const writable = (cals) => cals.filter((c) => c.allowsModify);
+// 新規の追加先：シート内の選択 → 設定の既定 → iPhone の既定 → 最初。どれも書けるカレンダーだけ。なければ ''。
+export function pickAddCal(cals, sel, defId) {
+  const w = writable(cals || []);
+  const ok = (id) => id && w.some((c) => c.id === id);
+  if (ok(sel)) return sel;
+  if (ok(defId)) return defId;
+  return w.find((c) => c.isDefault)?.id || w[0]?.id || '';
+}
 
 // カレンダー一覧をソース別にグループ化（sourceId → title → id の順、同名 source は sourceType を併記）。
 export function groupBySource(cals) {
@@ -295,3 +304,125 @@ export function mergeOps(list, ops, inflight = null) {
 
 // 置換の読み込み後も残す送信待ち: eventKey と requestId が両方一致するものだけ。
 export const keepAfterReplace = (list, events) => list.filter((o) => events.some((e) => e.id === o.eventKey && e.nativeLink?.requestId === o.link?.requestId));
+
+// ---------- iPhone 由来の予定（ext）の編集・削除（第13版 PR3）。DOM・ネイティブ呼び出し・DB 書込なしの純粋関数 ----------
+// ext は IndexedDB へ入れず、ここで作った引数を native の updateExternalEvent / deleteExternalEvent へ渡す。入力は変更しない。
+
+export const EDIT_REASONS = Object.freeze(['readOnlyCalendar', 'birthdays', 'invitee', 'organizerWithAttendees']);
+
+// 編集できるか。JS（カレンダー一覧）とネイティブ（getEvent の detail）のどちらかが拒否なら読み取り専用。
+// 詳細未取得は 'unavailable'、カレンダー不明は 'readOnlyCalendar'（どちらも許可しない）。誕生日は固有理由を優先。出席者ありは主催者でも拒否。
+export function extEditable(x, cal, detail) {
+  const no = (reason) => ({ editable: false, reason });
+  if (!x || !detail) return no('unavailable');
+  if (detail.reason === 'birthdays' || detail.sourceType === 'birthdays' || cal?.sourceType === 'birthdays') return no('birthdays');
+  if (!cal || cal.allowsModify !== true || detail.allowsModify !== true) return no('readOnlyCalendar');
+  if (detail.hasAttendees) return no(detail.isOrganizer ? 'organizerWithAttendees' : 'invitee');
+  if (detail.reason) return no(EDIT_REASONS.includes(detail.reason) ? detail.reason : 'readOnlyCalendar');
+  if (detail.editable === false) return no('readOnlyCalendar');
+  return { editable: true, reason: null };
+}
+
+// 範囲（'only'|'following'|'all'）→ native の span。繰り返しでない予定は常に 'this'。
+// following は、開いた回（occurrenceDate||start）の日付が系列の最初の回（detail.seriesStart）と同じなら all。先頭が分からなければ future。
+export function extSpan(x, scope, detail) {
+  if (!x.recurring) return 'this';
+  if (scope === 'all') return 'all';
+  if (scope === 'following') {
+    const ss = detail?.seriesStart;
+    return ss && dayOf(ss) === dayOf(x.occurrenceDate || x.start) ? 'all' : 'future';
+  }
+  return 'this';
+}
+
+// 場所の移動（calendarId の変更）は単発（繰り返しでない回）か all のときだけ。
+export const extCanMove = (x, span) => span === 'all' || (span === 'this' && !x.recurring);
+
+const toTarget = (x, span) => ({
+  itemId: x.itemId || '', externalId: x.externalId || '', eventId: x.eventId || '',
+  occurrenceStart: x.occurrenceDate || x.start, currentStart: x.start, span, expectModified: x.modifiedAt ?? null,
+});
+
+// 保存の引数。Target＋span＋expectModified と、変えた項目だけ。変更がなければ null。
+// before: toDisplay の結果（開いたときの値）。after: { title, place, notes, start, end, all, calendarId, alarms }。alarms は通知の行を触ったときだけ（undefined は未操作）。
+// end は表示用（終日は最終日 23:59）。送る end は native 規約: 終日は含む最終日の 00:00、時刻ありはそのまま。end が変わっていなければ開いたときの rawEnd をそのまま返す。
+// requestId・recurrence・カテゴリ・nativeLink は出さない（規則は変えない）。
+export function buildExtArgs(before, after, scope, detail) {
+  const span = extSpan(before, scope, detail);
+  const args = toTarget(before, span);
+  const p = {};
+  for (const f of ['title', 'place', 'notes']) if (after[f] !== undefined && (before[f] || '') !== (after[f] || '')) p[f] = after[f] || '';
+  const allA = !!after.all;
+  if (before.start !== after.start || before.end !== after.end || !!before.all !== allA) {
+    p.start = after.start; p.all = allA;
+    p.end = before.end === after.end && !!before.all === allA ? before.rawEnd : (allA ? `${dayOf(after.end)}T00:00` : after.end);
+    if (span === 'all') args.base = { start: before.start, end: before.rawEnd, all: !!before.all };
+  }
+  if (after.alarms !== undefined) p.alarms = Array.isArray(after.alarms) ? after.alarms.map((a) => ({ ...a })) : [];
+  if (after.calendarId && after.calendarId !== before.calId && extCanMove(before, span)) p.calendarId = after.calendarId;
+  if (!Object.keys(p).length) return null;
+  return { ...args, ...p };
+}
+
+// 削除の引数。force は食い違いの再確認後だけ true。
+export const buildExtDeleteArgs = (before, scope, detail, force = false) => {
+  const a = toTarget(before, extSpan(before, scope, detail));
+  return force ? { ...a, force: true } : a;
+};
+
+// ---------- 通知 ⇔ EventKit の相対秒（relativeOffset）。Swift の reverseAlarms / parseAlarms と同じ規則 ----------
+// 時刻あり: offset ≤ 0・分単位・40320 分以内 → {before}。終日: day = ceil(-offset/86400)、at = offset + day×86400（分単位・day 0〜30）→ {day, at}。変換できなければ null。
+export function offsetToAlarm(offset, allDay) {
+  if (!Number.isInteger(offset) || offset % 60 !== 0) return null;
+  if (!allDay) return offset <= 0 && -offset / 60 <= 40320 ? { before: -offset / 60 + 0 } : null;
+  const day = Math.ceil(-offset / 86400) + 0, sec = offset + day * 86400;
+  if (day < 0 || day > 30 || sec < 0 || sec >= 86400) return null;
+  return { day, at: `${String(Math.floor(sec / 3600)).padStart(2, '0')}:${String(Math.floor((sec % 3600) / 60)).padStart(2, '0')}` };
+}
+// 逆: Duo 形式 → 秒。表の外の値（20 分前など）も範囲内ならそのまま。不正は null。
+export function alarmToOffset(a, allDay) {
+  if (!a || typeof a !== 'object') return null;
+  if (!allDay) return Number.isInteger(a.before) && a.before >= 0 && a.before <= 40320 ? -a.before * 60 + 0 : null;
+  const m = typeof a.at === 'string' && /^([01]\d|2[0-3]):([0-5]\d)$/.exec(a.at);
+  if (!Number.isInteger(a.day) || a.day < 0 || a.day > 30 || !m) return null;
+  return -a.day * 86400 + Number(m[1]) * 3600 + Number(m[2]) * 60 + 0;
+}
+
+// ---------- 「すべて」の日時差分（Swift の resolveHeadDates と同じ仕様）----------
+// 開いた回の未変更値 base と新しい値 next から、系列の最初の回 head の新しい日時を求める（開いた回の絶対日付を先頭へ入れない）。
+// 日の差は暦、時刻ありの長さ・時刻の差は分（ローカル時刻の絶対）。head/base の end は終日なら含む最終日。不正（時刻ありで終了が開始より前）は null。
+const stampDate = (s) => new Date(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10), +s.slice(11, 13) || 0, +s.slice(14, 16) || 0);
+const stampOf2 = (d) => `${dkeyOf(d)}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+const dkeyOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const dayDiff = (a, b) => Math.round((Date.UTC(+dayOf(b).slice(0, 4), +dayOf(b).slice(5, 7) - 1, +dayOf(b).slice(8)) - Date.UTC(+dayOf(a).slice(0, 4), +dayOf(a).slice(5, 7) - 1, +dayOf(a).slice(8))) / 86400000);
+const minDiff = (a, b) => Math.round((stampDate(b) - stampDate(a)) / 60000);
+const plusMin = (s, m) => stampOf2(new Date(stampDate(s).getTime() + m * 60000));
+const shiftWall = (s, days) => `${addDays(dayOf(s), days)}T${s.slice(11, 16)}`;
+
+export function headDates(head, base, next) {
+  const targetAll = next.all ?? base.all;
+  const nStart = next.start ?? base.start;
+  let nEnd;
+  if (next.end != null) nEnd = next.end;
+  else if (next.start != null && !targetAll && !base.all) nEnd = plusMin(nStart, minDiff(base.start, base.end));
+  else if (next.start != null && targetAll && base.all) nEnd = `${addDays(dayOf(nStart), dayDiff(base.start, base.end))}T00:00`;
+  else if (targetAll !== !!base.all) nEnd = targetAll ? `${dayOf(nStart)}T00:00` : plusMin(nStart, 60);
+  else nEnd = base.end;
+  if (!targetAll && nEnd < nStart) return null;
+  const dayShift = dayDiff(base.start, nStart);
+  const headDay = addDays(dayOf(head.start), dayShift);
+  if (targetAll) {
+    const newLen = Math.max(0, dayDiff(nStart, nEnd));
+    let len = newLen;
+    if (base.all && head.all) len = Math.max(0, dayDiff(head.start, head.end) + newLen - dayDiff(base.start, base.end));
+    return { start: `${headDay}T00:00`, end: `${addDays(headDay, len)}T00:00`, all: true };
+  }
+  let hs;
+  if (base.all) hs = `${headDay}T${nStart.slice(11, 16)}`;
+  else hs = plusMin(shiftWall(head.start, dayShift), minDiff(shiftWall(base.start, dayShift), nStart));
+  const baseDur = base.all ? 0 : minDiff(base.start, base.end);
+  const newDur = minDiff(nStart, nEnd);
+  const headDur = head.all ? 0 : minDiff(head.start, head.end);
+  const dur = base.all ? newDur : Math.max(0, headDur + newDur - baseDur);
+  return { start: hs, end: plusMin(hs, dur), all: false };
+}
