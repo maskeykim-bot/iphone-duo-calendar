@@ -39,3 +39,24 @@ export function errText(e, fallback) {
     default: return fallback;
   }
 }
+
+// タスク（リマインダー）専用の表示用日本語。予定側の errText の文言は変えない。
+export function reminderErrText(e, fallback) {
+  switch (errCode(e)) {
+    case 'PERMISSION_DENIED': return 'リマインダーへのアクセスが許可されていません。';
+    case 'RESTRICTED': return 'この端末ではリマインダーへのアクセスが制限されています。';
+    case 'CANCELLED': return 'リマインダーの取得を取り消しました。';
+    case 'READ_ONLY': return 'このリストには追加できません。';
+    case 'NOT_FOUND': return 'このリマインダーは削除されています。';
+    case 'NOT_EDITABLE': return 'この繰り返しのリマインダーは完了のみ変更できます。';
+    case 'LIST_NOT_FOUND': return '追加先のリストが見つかりません。';
+    default: return fallback;
+  }
+}
+
+// 触覚（PR27）。kind: 'light'（刻みの変化）| 'warning'。非ネイティブ・失敗は無操作。不正な kind は INVALID_ARGUMENT で拒否。
+export function haptic(kind = 'light') {
+  if (kind !== 'light' && kind !== 'warning') return Promise.reject({ code: 'INVALID_ARGUMENT', message: 'kind' });
+  if (!nativeAvailable()) return Promise.resolve({ performed: false });
+  return call('selectionHaptic', { kind }).then((r) => ({ performed: !!r?.performed }), () => ({ performed: false }));
+}

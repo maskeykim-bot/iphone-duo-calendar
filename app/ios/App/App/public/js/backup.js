@@ -3,15 +3,18 @@ import { FREQS, LIMITS, isKey } from './util.js';
 import { expand, normRule } from './recur.js';
 import { alarmsOk, okAllDay, okTimed } from './alarms.js';
 import { normNotify } from './notify.js';
+import { PAGE_IDS, BOTTOM_IDS, normalizePages } from './pages.js';
 import { CAT_IDS, LEGACY, UNCATEGORIZED, legacyToId, validateCategory } from './categories.js';
 
 export const APP = 'duo-calendar';
-export const VERSION = 3;
-export const SCHEMA = 3; // 書き出した端末の IndexedDB SCHEMA_VERSION（参考情報）
-export const READABLE = [1, 2, 3];
+export const VERSION = 4;
+export const SCHEMA = 4; // 書き出した端末の IndexedDB SCHEMA_VERSION（参考情報）
+export const READABLE = [1, 2, 3, 4];
 export const MAX_BYTES = 10 * 1024 * 1024;
 export const MAX_EVENTS = 10000;
 export const MAX_EXCEPTIONS = 100000;
+export const MAX_MEMOS = 40000;
+export const MAX_MEMO_CHARS = 100000;
 const VIEWS = ['day', 'week', 'month'];
 const STYLES = { simple: 'simple', named: 'named', names: 'named' };
 const STAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
@@ -55,11 +58,13 @@ function shape(e) {
 export const exportEvent = shape;
 
 // categories: 現在のカテゴリ一覧。settings: { view, style, desk, monthExpand, weekStart(0|1), notify? }。
-export function buildBackup(events, settings = {}, now = new Date(), categories = []) {
-  const s = { view: settings.view, style: settings.style, desk: !!settings.desk, monthExpand: !!settings.monthExpand };
+// memos: 現在のメモ一覧（db.listMemos）。タスクはメモリのみなので含めない。
+const exportMemo = (m) => ({ id: m.date, date: m.date, text: m.text, createdAt: m.createdAt, updatedAt: m.updatedAt });
+export function buildBackup(events, settings = {}, now = new Date(), categories = [], memos = []) {
+  const s = { view: settings.view, style: settings.style, desk: !!settings.desk, monthExpand: !!settings.monthExpand, rokuyo: settings.rokuyo !== false, pages: normalizePages(settings.pages) };
   if (settings.weekStart === 0 || settings.weekStart === 1) s.weekStart = settings.weekStart;
   { const { version, ...n } = normNotify(settings.notify); void version; s.notify = n; } // 未保存でも既定込みで常に出す
-  return { app: APP, version: VERSION, schema: SCHEMA, exportedAt: localIso(now), categories: categories.map((c) => deepClean(c)), events: events.map(exportEvent), settings: s };
+  return { app: APP, version: VERSION, schema: SCHEMA, exportedAt: localIso(now), categories: categories.map((c) => deepClean(c)), events: events.map(exportEvent), memos: [...memos].sort((a, b) => (a.date < b.date ? -1 : 1)).map(exportMemo), settings: s };
 }
 export const countStats = (events) => ({
   total: events.length,
@@ -112,15 +117,42 @@ function checkOptional(o) {
   return dropped;
 }
 
+const pagesOk = (p) => isObj(p)
+  && (p.left === undefined || PAGE_IDS.includes(p.left)) && (p.right === undefined || PAGE_IDS.includes(p.right))
+  && !(p.left !== undefined && p.left === p.right)
+  && (p.portraitBottom === undefined || BOTTOM_IDS.includes(p.portraitBottom)) && (p.portraitShown === undefined || typeof p.portraitShown === 'boolean');
+// 日付メモの検証。{ memos } | { error }。1件でも不正なら全体を拒否する。
+const goodTime = (n) => typeof n === 'number' && Number.isFinite(n) && n >= 0;
+function checkMemos(list) {
+  if (!Array.isArray(list)) return { error: 'メモの一覧が不正です' };
+  if (list.length > MAX_MEMOS) return { error: `メモが多すぎます（上限${MAX_MEMOS}件）` };
+  const seen = new Set(), memos = [];
+  for (const [i, m] of list.entries()) {
+    const where = `メモ${i + 1}件目`;
+    if (!isObj(m)) return { error: `${where}: 形式が不正です` };
+    if (!isKey(m.date)) return { error: `${where}: 日付が不正です` };
+    if (m.id !== m.date) return { error: `${where}: idと日付が一致しません` };
+    if (seen.has(m.date)) return { error: `${where}: 日付が重複しています` };
+    seen.add(m.date);
+    if (typeof m.text !== 'string' || /^\s*$/.test(m.text) || m.text.length > MAX_MEMO_CHARS) return { error: `${where}: 本文が不正です` };
+    if (!goodTime(m.createdAt) || !goodTime(m.updatedAt)) return { error: `${where}: 時刻が不正です` };
+    memos.push({ id: m.date, date: m.date, text: m.text, createdAt: m.createdAt, updatedAt: m.updatedAt, ink: null });
+  }
+  return { memos };
+}
+
 // 設定の検証（未知のキーは無視）。{ value } | { error }
-function checkSettings(s) {
+export function checkSettings(s) {
   if (!isObj(s)) return { error: '設定が不正です' };
   if (s.view !== undefined && !VIEWS.includes(s.view)) return { error: '設定の表示モードが不正です' };
   if (s.style !== undefined && !Object.hasOwn(STYLES, s.style)) return { error: '設定の月表現が不正です' };
   if (s.desk !== undefined && typeof s.desk !== 'boolean') return { error: '設定の卓上指定が不正です' };
   if (s.monthExpand !== undefined && typeof s.monthExpand !== 'boolean') return { error: '設定の月の広げる表示が不正です' };
   if (s.weekStart !== undefined && s.weekStart !== 0 && s.weekStart !== 1) return { error: '設定の週の始まりが不正です' };
+  if (s.rokuyo !== undefined && typeof s.rokuyo !== 'boolean') return { error: '設定の六曜表示が不正です' };
   const out = {};
+  if (s.rokuyo !== undefined) out.rokuyo = s.rokuyo;
+  if (s.pages != null && pagesOk(s.pages)) out.pages = normalizePages(s.pages); // 不正な pages はその設定だけ捨てる
   if (s.weekStart !== undefined) out.weekStart = s.weekStart;
   if (s.view !== undefined) out.view = s.view;
   if (s.style !== undefined) out.style = STYLES[s.style];
@@ -167,6 +199,12 @@ export function validateBackup(text, current = {}) {
     const r = checkSettings(obj.settings);
     if (r.error) return { ok: false, reason: r.error };
     settings = r.value;
+  }
+  let memos = null; // null = ファイルにメモの項目がない（置換でも今のメモを残す）。v4 の空配列は「メモなし」
+  if (obj.version >= 4 && obj.memos !== undefined) {
+    const r = checkMemos(obj.memos);
+    if (r.error) return { ok: false, reason: r.error };
+    memos = r.memos;
   }
   const categories = [], catIds = new Set();
   const hasCategories = obj.categories !== undefined;
@@ -241,7 +279,7 @@ export function validateBackup(text, current = {}) {
   const addCat = (c) => { catIds.add(c.id); categories.push({ ...c, order: categories.length, hidden: false, createdAt: 0, updatedAt: 0 }); };
   for (const key of legacyUsed) if (!have.has(LEGACY[key].id)) { addCat(LEGACY[key]); report.legacyAdded++; }
   if (usedNone && !have.has(CAT_IDS.none)) addCat(UNCATEGORIZED);
-  return { ok: true, data: { version: obj.version, exportedAt: obj.exportedAt, events, settings, categories, hasCategories }, report };
+  return { ok: true, data: { version: obj.version, exportedAt: obj.exportedAt, events, memos, settings, categories, hasCategories }, report };
 }
 // 読み込み時に cat / categoryId を分ける前の複製（runtime・危険キーを除く）。
 const shapeIn = (o) => stripRuntime(o);
@@ -265,7 +303,19 @@ export function linkKeys(e) {
   if (isObj(l)) { if (l.requestId) out.push(`r:${l.requestId}`); if (l.ekIdentifier) out.push(`k:${l.ekIdentifier}`); }
   return out;
 }
-export function planAppend(current, incoming) {
+// メモの追加計画。同日同文は何もせず、異なる本文は空行で連結して1件に保つ。
+export function planMemos(current = [], incoming = [], now = Date.now()) {
+  const byDate = new Map(current.map((m) => [m.date, m]));
+  const puts = []; let added = 0, merged = 0, same = 0;
+  for (const m of incoming || []) {
+    const cur = byDate.get(m.date);
+    if (!cur) { puts.push(m); added++; continue; }
+    if (cur.text === m.text) { same++; continue; }
+    puts.push({ ...cur, text: `${cur.text}\n\n${m.text}`, updatedAt: now, ink: null }); merged++;
+  }
+  return { puts, added, merged, same };
+}
+export function planAppend(current, incoming, curMemos = [], inMemos = []) {
   const byId = new Map(current.map((e) => [e.id, e]));
   const keys = new Set(current.map(contentKey));
   const links = new Set(current.flatMap(linkKeys));
@@ -277,5 +327,5 @@ export function planAppend(current, incoming) {
     if (lk.some((x) => links.has(x)) || keys.has(k)) { dup++; continue; }
     keys.add(k); lk.forEach((x) => links.add(x)); add.push(e);
   }
-  return { add, dup, conflict, skipped: dup + conflict };
+  return { add, dup, conflict, skipped: dup + conflict, memo: planMemos(curMemos, inMemos) };
 }

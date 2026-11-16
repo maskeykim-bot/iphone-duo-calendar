@@ -57,4 +57,11 @@ export function initSwipe({ root, canStart, onSwipe }) {
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onCancel);
   });
+  // 外部（長押し確定）からの明示取消。以後の移動は swipe にならず、離したあとの click も抑止する。
+  return {
+    cancel() {
+      if (!g) return;
+      g.cancelled = true; g.moved = true;
+    },
+  };
 }
