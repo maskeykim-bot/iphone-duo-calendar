@@ -200,3 +200,37 @@ test('safe R84／非対称 safe でも、右の切替は右ページの利用幅
     expect(hit).toBe(true);
   }
 });
+
+// ---- 第15版 PR20 AE-4: 「全」は月のページだけを広げ、反対ページ・折り目・下端は変わらない ----
+import { seed, ev, findTextOverlaps, textInGutter } from './helpers.js';
+const AE4_SEED = Array.from({ length: 7 }, (_, i) => ev(`p${i}`, `予定${i + 1}`, `2026-11-12T${String(8 + i).padStart(2, '0')}:00`, `2026-11-12T${String(8 + i).padStart(2, '0')}:30`));
+for (const size of [SIZES.openLandscape951, SIZES.openLandscape]) {
+  for (const [l, r] of [['month', 'time'], ['month', 'task'], ['month', 'memo'], ['time', 'month'], ['memo', 'month'], ['task', 'month']]) { // 左右とも月は normalizePages が別種類へ直すため作れない（既存の「重複は別種類にする」）
+    test(`AE-4 ${size.width}: 左=${l} 右=${r} で「全」を入れても月でないページは寸法・スクロールが変わらない`, async ({ page }) => {
+      await openApp(page, size);
+      await seed(page, AE4_SEED);
+      await seedPages(page, { left: l, right: r });
+      const rects = () => page.locator('.page').evaluateAll((ps) => ps.map((p) => { const b = p.getBoundingClientRect(); return [b.x, b.y, b.width, b.height].map((v) => Math.round(v * 10) / 10); }));
+      const nonMonth = (side) => page.locator(`.page.${side === 'left' ? 'lp' : 'rp'}`);
+      const inner = async () => Object.fromEntries(await Promise.all([['left', l], ['right', r]].filter(([, k]) => k !== 'month').map(async ([sd]) => [sd, await nonMonth(sd).evaluate((p) => { const sc = [...p.querySelectorAll('*')].filter((e) => e.scrollHeight > e.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(e).overflowY)); return sc.map((e) => [e.className, e.scrollTop, Math.round(e.clientHeight)]); })])));
+      if (l === 'time' || r === 'time') await page.evaluate(() => { const t = document.querySelector('.tl'); if (t) t.scrollTop = 400; });
+      const before = { rects: await rects(), inner: await inner() };
+      await page.locator('.page.calendar .allbtn, .allbtn').first().click();
+      await expect(page.locator('.scroll.all').first()).toBeVisible();
+      expect(await page.locator('.scroll.all').count()).toBe(1);
+      const after = { rects: await rects(), inner: await inner() };
+      expect(after.rects).toEqual(before.rects); // ページの枠は不変
+      expect(after.inner).toEqual(before.inner); // 反対ページの寸法・スクロール位置は不変
+      // 月の拡張領域は自分のページ内、折り目（中心±10）と下の切替より上
+      const f = size.width / 2, sw = await page.locator('.pgsw').first().boundingBox();
+      for (const b of await page.locator('.scroll.all').evaluateAll((es) => es.map((e) => e.getBoundingClientRect().toJSON()))) {
+        expect(b.right <= f - 9.5 || b.left >= f + 9.5).toBe(true);
+        expect(b.bottom).toBeLessThanOrEqual(sw.y + 0.5);
+      }
+      expect(await textInGutter(page)).toEqual([]);
+      expect(await findTextOverlaps(page)).toEqual([]);
+      // 下端はステータス領域（画面の高さ）を越えない
+      expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1)).toBe(true);
+    });
+  }
+}

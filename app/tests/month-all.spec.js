@@ -377,3 +377,106 @@ test.describe('開いた横の「全」は1日5件', () => {
     });
   }
 });
+
+// ---- 第15版 PR20: 月の「全」の品質条件 AE-1〜5（実DOMの測定） ----
+const setUi = async (page, patch) => {
+  await page.evaluate((p) => { const s = JSON.parse(localStorage.getItem('duo.ui.v1') || '{}'); localStorage.setItem('duo.ui.v1', JSON.stringify({ ...s, ...p })); }, patch);
+  await page.reload(); await page.waitForSelector('html[data-ready]');
+};
+// 描いた短冊・帯が自分の週の枠に収まり、同じ週で重ならないこと。末週が内部スクロールで下端まで届くこと。
+async function measureAll(page) {
+  const sc = page.locator('.scroll.all').first();
+  await expect(sc).toBeVisible();
+  const out = { weeks: [], last: null };
+  const n = await sc.locator('.week.all').count();
+  for (let i = 0; i < n; i++) { // 週ごとにスクロールして描かせ、測る
+    await sc.evaluate((e, k) => { const w = e.children[k]; e.scrollTop = w.offsetTop; }, i);
+    await expect(sc.locator('.week.all').nth(i).locator('.day').first()).toBeVisible();
+    out.weeks.push(await sc.locator('.week.all').nth(i).evaluate((w) => {
+      const wr = w.getBoundingClientRect(), its = [...w.querySelectorAll('.bar,.strip')].map((e) => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; });
+      const lanes = new Set(its.map((r) => Math.round(r.t - wr.top))).size;
+      let overlap = false;
+      for (let a = 0; a < its.length; a++) for (let c = a + 1; c < its.length; c++) if (Math.min(its[a].r, its[c].r) - Math.max(its[a].l, its[c].l) > 1 && Math.min(its[a].b, its[c].b) - Math.max(its[a].t, its[c].t) > 1) overlap = true;
+      return { h: wr.height, inside: its.every((r) => r.b <= wr.bottom + 0.5), lanes, overlap, strips: w.querySelectorAll('.strip').length, bars: w.querySelectorAll('.bar').length };
+    }));
+  }
+  await sc.evaluate((e) => { e.scrollTop = e.scrollHeight; });
+  out.last = await sc.evaluate((e) => { const r = e.getBoundingClientRect(), w = e.lastElementChild.getBoundingClientRect(); return { gap: r.bottom - w.bottom, over: e.scrollHeight - e.clientHeight }; });
+  return out;
+}
+const AE_SEED = [
+  ...many(day(12), 7), // 通常 5 / 大 4 を超える日
+  ...many(day(26), 6, 'q'), // 6週月では最終週近く
+  ...many(day(30), 7, 'z'), // 月曜始まりの6週目
+  ev('b1', '帯A', day(10) + 'T00:00', day(14) + 'T23:59', { all: true }),
+  ev('b2', '帯B', day(11) + 'T00:00', day(13) + 'T23:59', { all: true }), // 12日は帯2本＋短冊
+];
+
+test.describe('AE-1/2/5 「全」の段数と描画（通常5・大4・5/6週・帯重複）', () => {
+  const cases = [];
+  for (const [sn, size] of [['見開き951', SIZES.openLandscape951], ['見開き890', SIZES.openLandscape], ['開いた縦', SIZES.openPortrait], ['閉じた縦', SIZES.closedPortrait]]) {
+    for (const large of [false, true]) for (const ws of [1, 0]) cases.push({ sn, size, large, ws });
+  }
+  for (const c of cases) {
+    test(`${c.sn} 文字${c.large ? '大' : '標準'} ${c.ws ? '月曜始まり(6週)' : '日曜始まり(5週)'}`, async ({ page }) => {
+      await openApp(page, c.size);
+      await seed(page, AE_SEED);
+      await setUi(page, { monthExpand: true, style: 'named', weekStart: c.ws, monthTextSize: c.large ? 'large' : 'normal', view: 'month', pages: { left: 'month', right: 'time', portraitBottom: 'time', portraitShown: false } });
+      if (c.sn === '閉じた縦') await tab(page, '月').click();
+      const cap = c.large ? 4 : 5;
+      const sc = page.locator('.scroll.all').first();
+      await expect(sc).toBeVisible();
+      expect(await page.locator('.week.all').count()).toBe(c.ws ? 6 : 5);
+      // 12日: 帯2本＋短冊。レーンは cap まで、残りは +N（予定9件）
+      await sc.evaluate((e) => { e.scrollTop = 0; });
+      const day12 = await page.locator('.week.all').evaluateAll((ws, k) => {
+        const w = ws.find((x) => x.querySelector(`[data-date="${k}"]`)); if (!w) return null;
+        const wr = w.getBoundingClientRect(), d = w.querySelector(`[data-date="${k}"]`).getBoundingClientRect(), cx = d.left + d.width / 2;
+        const hit = [...w.querySelectorAll('.bar,.strip')].filter((e) => { const r = e.getBoundingClientRect(); return r.left < cx && r.right > cx; });
+        const plus = w.querySelector(`.plus[data-jump="${k}"]`);
+        return { shown: hit.length, plus: plus ? Number(plus.textContent.replace('+', '')) : 0, lanes: new Set(hit.map((e) => Math.round(e.getBoundingClientRect().top - wr.top))).size };
+      }, day(12));
+      expect(day12.shown).toBe(cap);
+      expect(day12.shown + day12.plus).toBe(9);
+      expect(day12.lanes).toBe(cap);
+      const m = await measureAll(page);
+      for (const w of m.weeks) { expect(w.inside).toBe(true); expect(w.overlap).toBe(false); expect(w.lanes).toBeLessThanOrEqual(cap); }
+      expect(m.weeks.some((w) => w.lanes === cap)).toBe(true);
+      expect(m.last.gap).toBeGreaterThanOrEqual(-1); // 末週は領域からはみ出さない
+      if (m.last.over > 1 && c.sn !== '閉じた縦') expect(m.last.gap).toBeLessThanOrEqual(1); // あふれて内部スクロールするときは末週が下端まで届く
+      if (c.sn === '閉じた縦') { // 末尾までスクロールした末週の下端は、下のタブバーの上端より上（隠れない）
+        const tabTop = (await tab(page, '月').boundingBox()).y, lastB = await page.locator('.week.all').last().evaluate((e) => e.getBoundingClientRect().bottom);
+        expect(lastB).toBeLessThanOrEqual(tabTop + 1);
+      }
+      expect(await findTextOverlaps(page)).toEqual([]);
+    });
+  }
+});
+
+test.describe('AE-3 「全」の解除と再押下・状態保持', () => {
+  test('見開き: 解除→再押下で同じ週へ戻る。回転・再起動でも全のまま同じ週', async ({ page }) => {
+    await openApp(page, SIZES.openLandscape951);
+    await seed(page, [...AE_SEED, ...many(day(3), 7, 'a'), ...many(day(5), 7, 'b'), ...many(day(19), 7, 'c'), ...many(day(2), 7, 'd')]);
+    await setUi(page, { monthExpand: true, style: 'named', weekStart: 1, view: 'month' });
+    const sc = page.locator('.scroll.all').first();
+    const firstWk = () => sc.evaluate((s) => { const r = s.getBoundingClientRect(); for (const w of s.children) if (w.getBoundingClientRect().bottom > r.top + 2) return w.dataset.wk; return ''; });
+    await sc.evaluate((e) => { e.scrollTop = e.scrollHeight; });
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const wk = await firstWk();
+    expect(wk).not.toBe('2026-10-26');
+    await page.locator('.allbtn').click(); // 解除
+    await expect(page.locator('.scroll.all')).toHaveCount(0);
+    await page.locator('.allbtn').click(); // 再押下
+    await expect(sc).toBeVisible();
+    await expect.poll(async () => (await sc.evaluate((s, k) => { const r = s.getBoundingClientRect(), b = s.querySelector(`[data-wk="${k}"]`).getBoundingClientRect(); return b.bottom > r.top + 2 && b.top < r.bottom - 2; }, '2026-11-09'))).toBe(true); // 選択日(11/12)の週が見える
+    // 回転 → 戻す → 再起動
+    await page.setViewportSize(SIZES.openLandscape951.height ? { width: 669, height: 951 } : SIZES.openPortrait669);
+    await expect(page.locator('.scroll.all').first()).toBeVisible();
+    await page.setViewportSize(SIZES.openLandscape951);
+    await expect(page.locator('.scroll.all').first()).toBeVisible();
+    await page.reload(); await page.waitForSelector('html[data-ready]');
+    await expect(page.locator('.scroll.all').first()).toBeVisible();
+    await expect(page.locator('.allbtn')).toHaveAttribute('aria-pressed', 'true');
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')).monthExpand)).toBe(true);
+  });
+});
