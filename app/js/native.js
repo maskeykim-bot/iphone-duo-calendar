@@ -46,6 +46,8 @@ export function reminderErrText(e, fallback) {
     case 'PERMISSION_DENIED': return 'リマインダーへのアクセスが許可されていません。';
     case 'RESTRICTED': return 'この端末ではリマインダーへのアクセスが制限されています。';
     case 'CANCELLED': return 'リマインダーの取得を取り消しました。';
+    case 'READ_ONLY': return 'このリストには追加できません。';
+    case 'LIST_NOT_FOUND': return '追加先のリストが見つかりません。';
     default: return fallback;
   }
 }

@@ -19,6 +19,7 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         CAPPluginMethod(name: "requestReminderPermission", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "listReminderLists", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "listReminders", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "createReminder", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "listCalendars", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "listEvents", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getEvent", returnType: CAPPluginReturnPromise),
@@ -50,6 +51,8 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
     private static let createdKeyV1 = "duo.native.created.v1"
     private static let createdKey = "duo.native.created.v2"
     private static let createdMax = 500
+    // リマインダーの作成記録（本文は保存しない。requestId → [itemId, fp(SHA256), at]）。
+    private static let remCreatedKey = "duo.native.reminders.created.v1"
     private static let urlPrefix = "duo-calendar://created/"
     private static let fallbackColor = "#68716a"
     private static let maxShareBytes = 10 * 1024 * 1024
@@ -398,6 +401,130 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             let t1 = self.store.fetchReminders(matching: self.store.predicateForIncompleteReminders(withDueDateStarting: nil, ending: nil, calendars: lists)) { finish($0) }
             let t2 = self.store.fetchReminders(matching: self.store.predicateForCompletedReminders(withCompletionDateStarting: since, ending: nil, calendars: lists)) { finish($0) }
             self.remTokens = [t1, t2]
+        }
+    }
+
+    // MARK: - リマインダーの追加（第14版 PR16）
+
+    private func loadRemCreated() -> [String: [String: Any]] {
+        return (UserDefaults.standard.dictionary(forKey: DuoNativePlugin.remCreatedKey) as? [String: [String: Any]]) ?? [:]
+    }
+
+    /// 作成記録を保存する。上限を超えたら at の古い順に除く。本文は入れない。EventKit の直列 queue 上で呼ぶ。
+    private func saveRemCreated(_ requestId: String, itemId: String, fp: String) {
+        var all = loadRemCreated()
+        all[requestId] = ["itemId": itemId, "fp": fp, "at": Int(Date().timeIntervalSince1970)]
+        trimCreated(&all, keep: requestId)
+        UserDefaults.standard.set(all, forKey: DuoNativePlugin.remCreatedKey)
+    }
+
+    /// 識別子でリマインダーを探す（新設）。見つからなければ nil。後続 PR の更新・完了でも共用する。queue 上で呼ぶ。
+    private func findReminder(itemId: String) -> EKReminder? {
+        guard !itemId.isEmpty else { return nil }
+        return store.calendarItem(withIdentifier: itemId) as? EKReminder
+    }
+
+    /// due 引数 {date, time?} または null → DateComponents。不正は invalid。
+    private func parseReminderDue(_ raw: Any?) -> (dc: DateComponents?, key: String, invalid: Bool) {
+        guard let raw = raw, !(raw is NSNull) else { return (nil, "", false) }
+        guard let d = raw as? [String: Any], let date = d["date"] as? String else { return (nil, "", true) }
+        let parts = date.split(separator: "-", omittingEmptySubsequences: false)
+        guard parts.count == 3, parts[0].count == 4, parts[1].count == 2, parts[2].count == 2,
+              let y = Int(parts[0]), let m = Int(parts[1]), let day = Int(parts[2]) else { return (nil, "", true) }
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = makeCalendar().timeZone
+        var dc = DateComponents(calendar: cal, year: y, month: m, day: day)
+        guard let probe = cal.date(from: dc), cal.dateComponents([.year, .month, .day], from: probe) == DateComponents(year: y, month: m, day: day) else { return (nil, "", true) }
+        var key = date
+        if let t = d["time"], !(t is NSNull) {
+            guard let time = t as? String, time.count == 5, time[time.index(time.startIndex, offsetBy: 2)] == ":",
+                  let h = Int(time.prefix(2)), let mi = Int(time.suffix(2)), h >= 0, h < 24, mi >= 0, mi < 60 else { return (nil, "", true) }
+            dc.hour = h; dc.minute = mi
+            key += "T" + time
+        }
+        return (dc, key, false)
+    }
+
+    @objc func createReminder(_ call: CAPPluginCall) {
+        guard ensureReminderAccess(call) else { return }
+        let f = makeFormatter()
+        // 優先度・繰返し・URL・通知などは受け付けない（通知の既定は PR21）。
+        let allowed: Set<String> = ["requestId", "listId", "title", "notes", "due"]
+        guard Set(call.options.keys.compactMap { $0 as? String }).isSubset(of: allowed),
+              let requestId = call.getString("requestId"), !requestId.isEmpty, requestId.count <= 100,
+              let listId = call.getString("listId"),
+              let rawTitle = call.getString("title"), !rawTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              rawTitle.count <= 1000 else {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        let notesGiven = call.options["notes"]
+        if let g = notesGiven, !(g is NSNull), !(g is String) {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        let notes = call.getString("notes") ?? ""
+        let due = parseReminderDue(call.options["due"])
+        if due.invalid {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        let title = rawTitle
+        let fp = sha256Hex([listId, title, notes, due.key].joined(separator: "\u{1F}"))
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            // 1) 記録済みの requestId は作り直さない（内容が違えばエラー）。
+            if let done = self.loadRemCreated()[requestId] {
+                guard done["fp"] as? String == fp else {
+                    call.reject("requestId was used with different content", "INVALID_ARGUMENT")
+                    return
+                }
+                guard let r = self.findReminder(itemId: done["itemId"] as? String ?? "") else {
+                    // 作成済みだが今は無い（利用者が消した等）。作り直さない。
+                    call.reject("created reminder was not found", "UNAVAILABLE")
+                    return
+                }
+                call.resolve(["reminder": self.serializeReminder(r, f, self.makeCalendar())])
+                return
+            }
+            // 2) 追加先: 空なら OS 既定 → 書ける先頭。指定は毎回再検査する。
+            var target: EKCalendar? = nil
+            if listId.isEmpty {
+                if let d = self.store.defaultCalendarForNewReminders(), d.allowsContentModifications { target = d }
+                else { target = self.store.calendars(for: .reminder).first { $0.allowsContentModifications } }
+                guard target != nil else {
+                    call.reject("no writable reminder list", "LIST_NOT_FOUND")
+                    return
+                }
+            } else {
+                guard let c = self.store.calendar(withIdentifier: listId), c.allowedEntityTypes.contains(.reminder) else {
+                    call.reject("list not found", "LIST_NOT_FOUND")
+                    return
+                }
+                guard c.allowsContentModifications else {
+                    call.reject("list is read only", "READ_ONLY")
+                    return
+                }
+                target = c
+            }
+            let r = EKReminder(eventStore: self.store)
+            r.calendar = target
+            r.title = title
+            if !notes.isEmpty { r.notes = notes }
+            r.dueDateComponents = due.dc
+            do {
+                try self.store.save(r, commit: true)
+            } catch {
+                call.reject("could not save the reminder", "UNAVAILABLE", error)
+                return
+            }
+            let itemId = r.calendarItemIdentifier
+            guard !itemId.isEmpty else {
+                call.reject("saved reminder has no identifier", "UNAVAILABLE")
+                return
+            }
+            self.saveRemCreated(requestId, itemId: itemId, fp: fp)
+            call.resolve(["reminder": self.serializeReminder(r, f, self.makeCalendar())])
         }
     }
 

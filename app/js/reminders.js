@@ -18,6 +18,14 @@ export async function listReminders(call, listIds, completedSince) {
   return Array.isArray(r?.reminders) ? r.reminders : [];
 }
 
+// 追加（第14版 PR16）。UI へはまだ公開しない。同じ requestId の再試行は同じ内容で呼ぶこと（異内容は INVALID_ARGUMENT）。
+// listId は '' で OS 既定→書ける先頭。優先度・繰返し・URL は送れない。本文は保存しない。
+export async function createReminder(call, { requestId, listId, title, notes = '', due = null }) {
+  const r = await call('createReminder', { requestId, listId, title, notes, due });
+  if (!r || !r.reminder) throw { code: 'UNAVAILABLE' };
+  return r.reminder;
+}
+
 // ---- 第14版 PR15: 分類・読込・表示（タスク本文は保存しない。メモリ上だけ） ----
 export const HIST_DAYS = 30;
 const pad2 = (n) => String(n).padStart(2, '0');
