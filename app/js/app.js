@@ -3025,6 +3025,7 @@ async function runExtSave(scope, after) {
 // iPhone への追加（再試行は同じ requestId。別の予定を作らない）
 function openRetry(id, msg, canRetry) {
   xrId = id;
+  xrBatch = null;
   $('#xr-msg').textContent = msg;
   $('#xr-retry').hidden = !canRetry;
   openPanel(xrDlg, document.activeElement);
@@ -3058,6 +3059,21 @@ const applyEvents = (list) => {
 };
 // 復元時の一意照合用に、作成・同期時点のカレンダー名とアカウント名を残す。
 const calIdent = (cid) => { const c = X.calendars.find((x) => x.id === cid); return c ? { calName: c.title, calSource: c.source || '' } : {}; };
+// 作成結果 r から linked の結びつきを作る（単発・まとめで共有）。
+const HARD_CREATE = ['PERMISSION_DENIED', 'WRITE_ONLY', 'CALENDAR_NOT_FOUND', 'RESTRICTED', 'READ_ONLY'];
+function linkFrom(l, r) {
+  return cleanLink({
+    v: 2, state: 'linked', requestId: l.requestId, calendarId: r.calendarId || l.calendarId, itemId: r.itemId != null ? String(r.itemId) : undefined,
+    externalId: r.externalId != null ? String(r.externalId) : undefined, eventId: String(r.eventId), ekModified: Number.isFinite(r.modifiedAt) ? r.modifiedAt : undefined,
+    syncedAt: Date.now(), matchedBy: 'id', warn: null, ...calIdent(r.calendarId || l.calendarId),
+  });
+}
+// 作成の間に編集・削除されていたときに積む差分（e は作成開始時の予定、sent は送った本文）。
+function lateOps(id, e, sent, nl) {
+  const latest = state.events.find((x) => x.id === id);
+  const snap = { ...(latest || e), ...sent, id, nativeLink: withIdent({ ...nl, seriesStart: sent.start }) };
+  return planNativeOps(snap, { puts: latest ? [latest] : [], dels: latest ? [] : [id] }, 'all', null, latest || null, opsCtx()).ops;
+}
 async function createNative(id) {
   const e = state.events.find((x) => x.id === id), l = e?.nativeLink;
   if (!e || l?.state !== 'pending' || xBusy) return;
@@ -3069,18 +3085,12 @@ async function createNative(id) {
     if (Array.isArray(e.alarms)) args.alarms = e.alarms; // linked の通知は iPhone 側（EKAlarm）が鳴らす
     const r = await call('createEvent', args);
     if (!r?.eventId) throw new Error('no event id');
-    const nl = cleanLink({
-      v: 2, state: 'linked', requestId: l.requestId, calendarId: r.calendarId || l.calendarId, itemId: r.itemId != null ? String(r.itemId) : undefined,
-      externalId: r.externalId != null ? String(r.externalId) : undefined, eventId: String(r.eventId), ekModified: Number.isFinite(r.modifiedAt) ? r.modifiedAt : undefined,
-      syncedAt: Date.now(), matchedBy: 'id', warn: null, ...calIdent(r.calendarId || l.calendarId),
-    });
+    const nl = linkFrom(l, r);
     // 本文は読み直した最新のものを残し、結びつきだけ書く（作成中の編集を古いスナップショットで消さない）。
     const ack = await db.applyAck({ keys: [id], update: (raw) => (raw.nativeLink?.requestId === l.requestId && raw.nativeLink.state === 'pending' ? { ...raw, nativeLink: withIdent({ ...nl, seriesStart: raw.start }) } : null) });
     applyEvents(ack.events);
-    const latest = state.events.find((x) => x.id === id);
     // 作成の間に編集・削除されていたら、差分（または削除）を送信待ちへ積む。
-    const snap = { ...(latest || e), ...sent, id, nativeLink: withIdent({ ...nl, seriesStart: sent.start }) };
-    const { ops } = planNativeOps(snap, { puts: latest ? [latest] : [], dels: latest ? [] : [id] }, 'all', null, latest || null, opsCtx());
+    const ops = lateOps(id, e, sent, nl);
     if (ops.length) { OBX.items = await db.applyChangesWithOutbox({ outbox: (cur) => mergeOps(cur, ops, OBX.inflight) }); requestFlush(); }
     requestNotifySync('link');
     render();
@@ -3088,7 +3098,7 @@ async function createNative(id) {
     loadExt(true);
   } catch (err) {
     const msg = 'Duoに保存しました。iPhoneのカレンダーには追加できませんでした。';
-    const hard = ['PERMISSION_DENIED', 'WRITE_ONLY', 'CALENDAR_NOT_FOUND', 'RESTRICTED', 'READ_ONLY'].includes(errCode(err));
+    const hard = HARD_CREATE.includes(errCode(err));
     say(msg);
     if (hard) {
       // 再試行できない失敗はこの時点で確定。通知はDuo側に戻る。
@@ -3098,6 +3108,145 @@ async function createNative(id) {
       xrKeep = false;
     } else openRetry(id, msg, true);
   } finally { xBusy = false; }
+}
+
+
+// ---------- 貼り付けの確定とまとめ再試行（PR31） ----------
+// pasteCommit(plan): planPaste の結果を確定する。Duo 分を1トランザクション → createEvents（31件ずつ）→ 結果を同じ requestId／pending のものだけに反映。
+// iPhone だけの複製（型B）は DB に何も書かない。画面の接続は後続 PR。戻り値 { ok, done, failures, saveFailed?, busy? }。
+const PASTE_BATCH = 31;
+const pasteDay = (d) => `${+d.slice(5, 7)}月${+d.slice(8, 10)}日`;
+const sentOf = (e) => ({ title: e.title, start: e.start, end: e.end, all: !!e.all, place: e.place || '', notes: e.notes || '', ...(Array.isArray(e.alarms) ? { alarms: e.alarms } : {}) });
+const argsOf = (e) => ({ requestId: e.nativeLink.requestId, calendarId: e.nativeLink.calendarId, title: e.title, start: e.start, end: e.all ? `${dayOf(e.end)}T00:00` : e.end, all: !!e.all, place: e.place || '', notes: e.notes || '', ...(Array.isArray(e.alarms) ? { alarms: e.alarms } : {}) });
+const pendingEntry = (e) => ({ kind: 'A', id: e.id, rid: e.nativeLink.requestId, day: dayOf(e.start), e, sent: sentOf(e), item: argsOf(e) });
+let xrBatch = null; // 再試行ダイアログが抱える失敗分 { pend:[A entry], b:[B entry], canRetry, hard:[...] }
+
+async function sendEntries(entries) {
+  const res = new Map();
+  for (let i = 0; i < entries.length; i += PASTE_BATCH) {
+    const chunk = entries.slice(i, i + PASTE_BATCH);
+    try {
+      const r = await call('createEvents', { items: chunk.map((x) => x.item) });
+      const by = new Map((Array.isArray(r?.results) ? r.results : []).map((x) => [x?.requestId, x]));
+      for (const x of chunk) { const o = by.get(x.rid); res.set(x.rid, o?.ok && o.eventId ? o : { ok: false, code: o?.code || 'UNAVAILABLE' }); }
+    } catch (err) {
+      for (const x of chunk) res.set(x.rid, { ok: false, code: errCode(err) || 'UNAVAILABLE' });
+    }
+  }
+  return res;
+}
+// 結果を DB・表示へ反映して { done, failures } を返す。型A: 成功→linked／再試行不可→unlinked（1トランザクション）、再試行できる失敗は pending のまま。
+async function applyPasteResults(entries, res) {
+  const out = { done: 0, failures: [] };
+  const fail = (x, code, retry) => out.failures.push({ kind: x.kind, day: x.day, rid: x.rid, id: x.id, code, retry, entry: x });
+  const as = entries.filter((x) => x.kind === 'A');
+  const byId = new Map(as.map((x) => [x.id, x]));
+  const links = new Map();
+  const upd = (raw) => {
+    const x = byId.get(raw.id), r = res.get(x?.rid);
+    if (!x || raw.nativeLink?.requestId !== x.rid || raw.nativeLink.state !== 'pending') return null;
+    if (r.ok) { const nl = linkFrom(raw.nativeLink, r); links.set(x.id, nl); return { ...raw, nativeLink: withIdent({ ...nl, seriesStart: raw.start }) }; }
+    return HARD_CREATE.includes(r.code) ? { ...raw, nativeLink: { ...raw.nativeLink, state: 'unlinked', warn: null } } : null;
+  };
+  const keys = as.filter((x) => res.get(x.rid).ok || HARD_CREATE.includes(res.get(x.rid).code)).map((x) => x.id);
+  let acked = true;
+  if (keys.length) {
+    try { applyEvents((await db.applyAck({ keys, update: upd })).events); } catch { acked = false; }
+  }
+  const ops = [];
+  for (const x of entries) {
+    const r = res.get(x.rid);
+    if (x.kind === 'B') { if (r.ok) out.done++; else fail(x, r.code, !HARD_CREATE.includes(r.code)); continue; }
+    if (r.ok) {
+      if (!acked) { fail(x, 'UNAVAILABLE', true); continue; }
+      out.done++;
+      const nl = links.get(x.id) || linkFrom({ requestId: x.rid, calendarId: x.item.calendarId }, r);
+      ops.push(...lateOps(x.id, x.e, x.sent, nl));
+    } else fail(x, r.code, !acked || !HARD_CREATE.includes(r.code));
+  }
+  if (ops.length) { try { OBX.items = await db.applyChangesWithOutbox({ outbox: (cur) => mergeOps(cur, ops, OBX.inflight) }); requestFlush(); } catch { /* 差分は次の編集・起動で再計画される */ } }
+  return out;
+}
+const pasteDays = (xs) => {
+  const ds = [...new Set(xs.map((x) => x.day))].sort();
+  return ds.length > 3 ? `${ds.slice(0, 3).map(pasteDay).join('、')}ほか${ds.length - 3}日` : ds.map(pasteDay).join('、');
+};
+function pasteFailText(out) {
+  const a = out.failures.filter((f) => f.kind === 'A'), b = out.failures.filter((f) => f.kind === 'B');
+  return [
+    out.done ? `${out.done}件は貼り付けました。` : '',
+    a.length ? `${pasteDays(a)}は iPhone のカレンダーに入れられませんでした。Duo には保存してあります。` : '',
+    b.length ? `${pasteDays(b)}は貼り付けられませんでした。Duo にも入っていません。` : '',
+  ].filter(Boolean).join('');
+}
+function showPasteFail(out, canRetry, text = pasteFailText(out)) {
+  const keep = out.failures.filter((f) => f.retry);
+  xrBatch = { pend: keep.filter((f) => f.kind === 'A').map((f) => f.entry), b: keep.filter((f) => f.kind === 'B').map((f) => f.entry), canRetry };
+  xrId = null;
+  $('#xr-msg').textContent = text;
+  $('#xr-retry').hidden = !(canRetry && keep.length);
+  openPanel(xrDlg, document.activeElement);
+  ($('#xr-retry').hidden ? $('#xr-close') : $('#xr-retry')).focus({ preventScroll: true });
+  say(text);
+}
+// 送って反映し、通知・表示を1回だけ更新する。再試行できない失敗が残れば（またはまだ再試行の余地があれば）ダイアログで知らせる。
+async function runPaste(entries, { retried = false } = {}) {
+  const res = await sendEntries(entries);
+  const out = await applyPasteResults(entries, res);
+  requestNotifySync('link');
+  render();
+  if (out.done) loadExt(true);
+  if (out.failures.length) showPasteFail(out, !retried);
+  else say(`${out.done}日に貼り付けました。`);
+  return out;
+}
+async function pasteCommit(plan) {
+  if (!plan?.ok || !plan.items?.length) return { ok: false, done: 0, failures: [] };
+  if (xBusy) return { ok: false, busy: true, done: 0, failures: [] };
+  xBusy = true;
+  try {
+    const duoPuts = plan.items.filter((i) => i.event).map((i) => i.event);
+    if (duoPuts.length) {
+      try { await db.applyChanges({ puts: duoPuts, dels: [] }); } catch { say(SAVE_FAIL); return { ok: false, saveFailed: true, done: 0, failures: [] }; } // native は呼ばない
+      const ids = new Set(duoPuts.map((e) => e.id));
+      state.events = [...state.events.filter((e) => !ids.has(e.id)), ...duoPuts];
+      bumpRevision();
+    }
+    const entries = plan.items.filter((i) => i.native).map((i) => (i.event
+      ? { kind: 'A', id: i.event.id, rid: i.native.requestId, day: i.day, e: i.event, sent: sentOf(i.event), item: i.native }
+      : { kind: 'B', rid: i.native.requestId, day: i.day, item: i.native }));
+    if (duoPuts.some((e) => !e.nativeLink && hasDuoAlarms(e))) askNotifyPerm();
+    if (!entries.length) { requestNotifySync('edit'); render(); say(`${duoPuts.length}日に貼り付けました。`); return { ok: true, done: duoPuts.length, failures: [] }; }
+    const dn = duoPuts.length - entries.filter((x) => x.kind === 'A').length; // iPhone へ送らない Duo だけの分（混在は想定しない）
+    const out = await runPaste(entries);
+    out.done += dn;
+    return { ok: true, ...out, failures: out.failures.map(({ kind, day, code, retry }) => ({ kind, day, code, retry })) };
+  } finally { xBusy = false; }
+}
+window.pasteCommit = pasteCommit;
+// 閉じる・放棄: 残った pending を unlinked へ戻す（Duo の通知で鳴るように）。同じ requestId で pending のものだけ。
+async function abandonMany(list) {
+  const rids = new Map(list.map((x) => [x.id, x.rid]));
+  try {
+    const ack = await db.applyAck({ keys: [...rids.keys()], update: (raw) => (raw.nativeLink?.requestId === rids.get(raw.id) && raw.nativeLink.state === 'pending' ? { ...raw, nativeLink: { ...raw.nativeLink, state: 'unlinked', warn: null } } : null) });
+    applyEvents(ack.events);
+    if (ack.events.length) { requestNotifySync('link'); render(); }
+  } catch { say('保存できませんでした。もう一度お試しください。'); }
+}
+// 「再試行」: 失敗した分だけ同じ requestId で1回だけ。再び失敗したら閉じるだけにする。
+async function retryBatch(b) {
+  if (xBusy) { showPasteFail({ failures: [...b.pend.map((x) => ({ kind: 'A', day: x.day, retry: true, entry: x })), ...b.b.map((x) => ({ kind: 'B', day: x.day, retry: true, entry: x }))], done: 0 }, true, $('#xr-msg').textContent); return; }
+  xBusy = true;
+  let rec = [], out = null;
+  try {
+    // 作成中の本文は読み直す（保存待ちの予定が消えた・もう pending でないなら送らない）
+    const fresh = b.pend.map((x) => { const e = state.events.find((y) => y.id === x.id); return e?.nativeLink?.state === 'pending' && e.nativeLink.requestId === x.rid ? pendingEntry(e) : null; }).filter(Boolean);
+    rec = fresh.filter((x) => x.e.recurrence); // 繰り返しは createEvents に載せない（単発と同じ経路で）
+    const ents = [...fresh.filter((x) => !x.e.recurrence), ...b.b];
+    if (ents.length) out = await runPaste(ents, { retried: true });
+  } finally { xBusy = false; }
+  if (out?.failures.length) return;
+  for (const x of rec) { await createNative(x.id); if (xrDlg.open) break; }
 }
 
 // ---------- iPhone への反映（送信待ちを1件ずつ送る） ----------
@@ -3269,13 +3418,19 @@ async function onSendFail(op, link, e) {
   }
 }
 $('#xr-close').addEventListener('click', () => closePanel(xrDlg));
-$('#xr-retry').addEventListener('click', () => { xrKeep = true; closePanel(xrDlg); createNative(xrId); });
+$('#xr-retry').addEventListener('click', () => {
+  const b = xrBatch; xrBatch = null;
+  xrKeep = true; closePanel(xrDlg);
+  if (b) retryBatch(b); else createNative(xrId);
+});
 // 閉じる・Escape・通知タップなど「再試行しない」閉じ方はすべてここで確定する（pending を放置しない）。
 xrDlg.addEventListener('close', () => {
   syncInert();
-  const keep = xrKeep, id = xrId;
+  const keep = xrKeep, id = xrId, b = xrBatch;
   xrKeep = false;
-  if (keep || !id || xrDlg.open) return; // 再試行の閉じ方、または閉じたあと再び開いた（再失敗）なら確定しない
+  if (keep || xrDlg.open) return;
+  if (b) { xrBatch = null; if (b.pend.length) abandonMany(b.pend); return; }
+  if (!id) return; // 再試行の閉じ方、または閉じたあと再び開いた（再失敗）なら確定しない
   const l = state.events.find((x) => x.id === id)?.nativeLink;
   if (l?.state === 'pending') giveUpCreate(id, l.requestId);
 });
@@ -3515,8 +3670,16 @@ async function initNative() {
     if (p === 'granted') { try { await refreshCalendars(); } catch { /* 一覧は後で再取得 */ } loadExt(true); } else dropLink('カレンダーへのアクセスを確認してください。');
   }
   if (extActive() && !dlg.open) {
-    const pend = state.events.find((e) => e.nativeLink?.state === 'pending');
-    if (pend) openRetry(pend.id, 'iPhoneのカレンダーへの追加が完了していない予定があります。', true);
+    const pend = state.events.filter((e) => e.nativeLink?.state === 'pending');
+    if (pend.length === 1) openRetry(pend[0].id, 'iPhoneのカレンダーへの追加が完了していない予定があります。', true);
+    else if (pend.length) { // 全件を1つのダイアログにまとめる
+      xrId = null;
+      xrBatch = { pend: pend.map(pendingEntry), b: [], canRetry: true };
+      $('#xr-msg').textContent = `iPhoneのカレンダーへの追加が完了していない予定が${pend.length}件あります。`;
+      $('#xr-retry').hidden = false;
+      openPanel(xrDlg, document.activeElement);
+      $('#xr-retry').focus({ preventScroll: true });
+    }
   }
   if (dlg.open) updateXUi();
 }

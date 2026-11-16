@@ -43,7 +43,7 @@ async function mock(page, cfg = {}) {
             return { eventId: M.created[opts.requestId] };
           case 'createEvents': {
             // Swift の契約の写し（型Aのみ）。1〜31件・rid重複／recurrence／copyFrom は全体 INVALID_ARGUMENT。件ごとの失敗は M.createEventsFail[rid]、commit 一括失敗は M.commitFail。
-            const its = opts.items;
+            const its = Array.isArray(opts.items) ? clone({ a: opts.items }).a : opts.items; // 入力を書き換えない（Swift と同じ）
             if (!Array.isArray(its) || its.length < 1 || its.length > 31 || new Set(its.map((i) => i?.requestId)).size !== its.length
               || its.some((i) => !i || !i.requestId || (!i.calendarId && !i.copyFrom) || 'recurrence' in i || i.end < i.start || (i.copyFrom && (!(i.copyFrom.itemId || i.copyFrom.externalId || i.copyFrom.eventId) || !i.copyFrom.occurrenceStart || !i.copyFrom.currentStart || 'title' in i || 'alarms' in i || 'calendarId' in i)))) throw { code: 'INVALID_ARGUMENT', message: 'x' };
             const fl = M.createEventsFail ?? {};
@@ -1227,5 +1227,156 @@ test.describe('リマインダーの許可とリスト取得の契約（偽装�
     await mock(page, { remPerm: 'granted', remLists: [] });
     await page.goto('/');
     expect(await page.evaluate(async () => (await import('/js/native.js')).call('listReminderLists', {}))).toEqual({ lists: [] });
+  });
+});
+
+// 第14版 PR31: 貼付結果と失敗分の再試行（偽装。Swift 実動作の証明ではない）
+test.describe('貼付のまとめ確定と再試行（PR31）', () => {
+  const D3 = ['2026-11-16', '2026-11-17', '2026-11-18'];
+  // linked の Duo 予定を days へ貼る計画を作って確定する。新しい id は x1,x2,…（日ごとに 予定id・requestId の順）。
+  const paste = (page, days, { fail = {}, source = {} } = {}) => page.evaluate(async ({ days, fail, source }) => {
+    const { planPaste } = await import('/js/paste.js');
+    window.__mock.createEventsFail = fail;
+    let n = 0;
+    const src = { title: '貼る', categoryId: 'work', all: false, start: '2026-11-12T10:00', end: '2026-11-12T11:00', place: '', notes: '', alarms: [{ before: 30 }], nativeLink: { state: 'linked', calendarId: 'cal-1' }, ...source };
+    const plan = planPaste(src, days, { cals: window.__mock.cals, enabled: true, defaultCalendarId: 'cal-1', defaultCatId: () => 'other', newId: () => `x${++n}`, pastedAt: 1 });
+    window.__r = window.pasteCommit(plan);
+    return null;
+  }, { days, fail, source });
+  const states = async (page) => Object.fromEntries((await dbEvents(page)).filter((e) => e.title === '貼る').map((e) => [e.start.slice(0, 10), e.nativeLink?.state]));
+  const sends = async (page) => (await calls(page, 'createEvents')).map((c) => c.opts.items.map((i) => i.requestId));
+
+  test('3件中1件だけ UNAVAILABLE: 1回の createEvents・日付つきダイアログ・再試行は同じ requestId だけ', async ({ page }) => {
+    await mock(page);
+    await openApp(page);
+    await enable(page);
+    await paste(page, D3, { fail: { x4: 'UNAVAILABLE' } });
+    const r = page.locator('#xretry');
+    await expect(r).toBeVisible();
+    await expect(r).toContainText('11月17日は iPhone のカレンダーに入れられませんでした。Duo には保存してあります。');
+    expect(await sends(page)).toEqual([['x2', 'x4', 'x6']]);
+    expect(await states(page)).toEqual({ '2026-11-16': 'linked', '2026-11-17': 'pending', '2026-11-18': 'linked' });
+    await page.evaluate(() => { window.__mock.createEventsFail = {}; });
+    await page.locator('#xr-retry').click();
+    await expect.poll(async () => (await states(page))['2026-11-17']).toBe('linked');
+    expect(await sends(page)).toEqual([['x2', 'x4', 'x6'], ['x4']]);
+    await expect(r).toBeHidden();
+  });
+
+  test('「閉じる」で残りの pending は unlinked に戻り、通知（Duo）へ復帰する', async ({ page }) => {
+    await mock(page, { notif: 'granted' });
+    await openApp(page);
+    await enable(page);
+    await paste(page, D3, { fail: { x4: 'UNAVAILABLE' } });
+    await expect(page.locator('#xretry')).toBeVisible();
+    await page.locator('#xr-close').click();
+    await expect.poll(async () => (await states(page))['2026-11-17']).toBe('unlinked');
+    const id = (await dbEvents(page)).find((e) => e.start.startsWith('2026-11-17') && e.title === '貼る').id;
+    await expect.poll(() => page.evaluate(() => window.__mock.pending.map((i) => i.eventId))).toContain(id);
+    expect((await sends(page)).length).toBe(1); // 閉じただけでは再送しない
+  });
+
+  test('再試行できない失敗（READ_ONLY）は即 unlinked・再試行ボタンなし', async ({ page }) => {
+    await mock(page);
+    await openApp(page);
+    await enable(page);
+    await paste(page, D3, { fail: { x2: 'READ_ONLY' } });
+    await expect(page.locator('#xretry')).toContainText('11月16日');
+    await expect(page.locator('#xr-retry')).toBeHidden();
+    expect(await states(page)).toEqual({ '2026-11-16': 'unlinked', '2026-11-17': 'linked', '2026-11-18': 'linked' });
+  });
+
+  test('再試行も失敗 → 再試行ボタンは出ず、閉じると unlinked（requestId は同じ・送信は2回だけ）', async ({ page }) => {
+    await mock(page);
+    await openApp(page);
+    await enable(page);
+    await paste(page, D3, { fail: { x4: 'UNAVAILABLE' } });
+    await page.locator('#xr-retry').click();
+    await expect(page.locator('#xretry')).toBeVisible();
+    await expect(page.locator('#xr-retry')).toBeHidden();
+    expect((await states(page))['2026-11-17']).toBe('pending');
+    await page.locator('#xr-close').click();
+    await expect.poll(async () => (await states(page))['2026-11-17']).toBe('unlinked');
+    expect(await sends(page)).toEqual([['x2', 'x4', 'x6'], ['x4']]);
+  });
+
+  test('DB の保存に失敗したら native は1回も呼ばない', async ({ page }) => {
+    await mock(page);
+    await openApp(page);
+    await enable(page);
+    const r = await page.evaluate(async () => {
+      const { planPaste } = await import('/js/paste.js');
+      let n = 0;
+      const plan = planPaste({ title: 't', categoryId: 'work', start: '2026-11-12T10:00', end: '2026-11-12T11:00', nativeLink: { state: 'linked', calendarId: 'cal-1' } }, ['2026-11-16', '2026-11-17'], { cals: window.__mock.cals, enabled: true, defaultCalendarId: 'cal-1', defaultCatId: () => 'other', newId: () => `y${++n}`, pastedAt: 1 });
+      plan.items[1].event.id = undefined; // IndexedDB が拒否する
+      return window.pasteCommit(plan);
+    });
+    expect(r.saveFailed).toBe(true);
+    expect(await calls(page, 'createEvents')).toHaveLength(0);
+    expect((await dbEvents(page)).filter((e) => e.title === 't')).toHaveLength(0); // 1TX なので1件目も残らない
+  });
+
+  test('型B（iPhone だけ）の失敗は「Duo にも入っていません」。DB に書かず、再試行は同じ requestId', async ({ page }) => {
+    await mock(page);
+    await openApp(page);
+    await enable(page);
+    const before = (await dbEvents(page)).length;
+    await page.evaluate(async () => {
+      window.__mock.createEventsFail = { b2: 'UNAVAILABLE' };
+      const B = (day, n) => ({ requestId: `b${n}`, copyFrom: { itemId: 'it-1', occurrenceStart: '2026-11-12T15:00', currentStart: '2026-11-12T15:00' }, start: `${day}T15:00`, end: `${day}T16:00`, all: false });
+      window.pasteCommit({ ok: true, items: [{ day: '2026-11-16', native: B('2026-11-16', 1) }, { day: '2026-11-17', native: B('2026-11-17', 2) }] });
+    });
+    await expect(page.locator('#xretry')).toContainText('11月17日は貼り付けられませんでした。Duo にも入っていません。');
+    expect((await dbEvents(page)).length).toBe(before);
+    await page.evaluate(() => { window.__mock.createEventsFail = {}; });
+    await page.locator('#xr-retry').click();
+    await expect.poll(async () => (await sends(page)).length).toBe(2);
+    expect((await sends(page))[1]).toEqual(['b2']);
+    await expect(page.locator('#xretry')).toBeHidden();
+    expect((await dbEvents(page)).length).toBe(before);
+  });
+
+  test('日付の列挙は3件まで、ほかN日', async ({ page }) => {
+    await mock(page);
+    await openApp(page);
+    await enable(page);
+    const days = ['2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20'];
+    await paste(page, days, { fail: Object.fromEntries(days.map((_, i) => [`x${2 * i + 2}`, 'UNAVAILABLE'])) });
+    await expect(page.locator('#xr-msg')).toContainText('11月16日、11月17日、11月18日ほか2日は');
+  });
+
+  const pend = (n, i) => ev(`p${i}`, `未完了${i}`, `2026-12-${String(1 + (i % 28)).padStart(2, '0')}T10:00`, `2026-12-${String(1 + (i % 28)).padStart(2, '0')}T11:00`, { nativeLink: { state: 'pending', requestId: `q${i}`, calendarId: 'cal-1' } });
+  const startup = async (page, n) => {
+    await mock(page);
+    await openApp(page);
+    await seed(page, Array.from({ length: n }, (_, i) => pend(n, i)));
+    await enable(page);
+    await page.reload();
+    await page.waitForSelector('html[data-ready]');
+  };
+
+  test('起動時に pending が3件 → ダイアログ1つ「3件」→ 再試行で createEvents 1回', async ({ page }) => {
+    await startup(page, 3);
+    await expect(page.locator('#xretry')).toBeVisible();
+    await expect(page.locator('#xr-msg')).toContainText('3件');
+    await page.locator('#xr-retry').click();
+    await expect.poll(async () => (await dbEvents(page)).filter((e) => e.nativeLink?.state === 'linked').length).toBe(3);
+    expect(await sends(page)).toEqual([['q0', 'q1', 'q2']]);
+  });
+
+  test('起動時の pending が33件 → 31件＋2件の2回に分けて集計し、閉じれば全件 unlinked', async ({ page }) => {
+    await startup(page, 33);
+    await page.locator('#xr-retry').click();
+    await expect.poll(async () => (await dbEvents(page)).filter((e) => e.nativeLink?.state === 'linked').length).toBe(33);
+    expect((await sends(page)).map((s) => s.length)).toEqual([31, 2]);
+  });
+
+  test('起動時のダイアログを閉じると pending 全件が unlinked に戻り、再提示されない', async ({ page }) => {
+    await startup(page, 3);
+    await page.locator('#xr-close').click();
+    await expect.poll(async () => (await dbEvents(page)).filter((e) => e.nativeLink?.state === 'unlinked').length).toBe(3);
+    await page.reload();
+    await page.waitForSelector('html[data-ready]');
+    await expect(page.locator('#xretry')).toBeHidden();
   });
 });
