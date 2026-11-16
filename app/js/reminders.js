@@ -187,18 +187,19 @@ export function createAddController(call) {
   return {
     get busy() { return busy; },
     // -> { ok:true, reminder } | { ok:false, code } | { ok:false, busy|empty|nolist:true }
-    async submit({ title, listId, due = null }) {
+    async submit({ title, listId, due = null, notify }) {
       if (busy) return { ok: false, busy: true };
       const t = String(title ?? '').trim();
       if (!t) return { ok: false, empty: true };
       if (!listId) return { ok: false, nolist: true };
       const dueV = due ? { date: due } : null;
-      const fp = JSON.stringify([listId, t, dueV]);
+      const nv = dueV && notify === false ? false : undefined; // 既定ON（省略）。明示オフだけ送る。期限なしは送らない
+      const fp = JSON.stringify([listId, t, dueV, nv ?? null]);
       if (!pend || pend.fp !== fp) pend = { requestId: newRequestId(), fp };
       const req = pend;
       busy = true;
       try {
-        const reminder = await createReminder(call, { requestId: req.requestId, listId, title: t, notes: '', due: dueV });
+        const reminder = await createReminder(call, { requestId: req.requestId, listId, title: t, notes: '', due: dueV, notify: nv });
         if (pend === req) pend = null;
         return { ok: true, reminder };
       } catch (e) {
@@ -216,14 +217,22 @@ export function addRowHtml(d, { selected, noList = false } = {}) {
   const chip = due
     ? `<span class="rmchip"><span>期限 ${mdLabel(due)}</span><button type="button" class="rmchipx" data-act="remdue0" aria-label="期限をなしにする">×</button></span>`
     : `<button type="button" class="rmchip rmchip0" data-act="remdue1" aria-label="期限を選んでいる日にする">期限なし</button>`;
-  return `<div class="rmadd open"><div class="rmaddin"><input type="text" class="remin" enterkeyhint="done" autocomplete="off" aria-label="タスクの題名" placeholder="タスクを入力"${d.busy ? ' readonly aria-busy="true"' : ''}>${chip}</div>`
+  const on = d.notify !== false;
+  const nchip = due
+    ? `<button type="button" class="rmchip rmnote${on ? ' on' : ''}" data-act="remnote" role="switch" aria-checked="${on}" aria-label="通知">${on ? '通知あり' : '通知なし'}</button>`
+    : '';
+  return `<div class="rmadd open"><div class="rmaddin"><input type="text" class="remin" enterkeyhint="done" autocomplete="off" aria-label="タスクの題名" placeholder="タスクを入力"${d.busy ? ' readonly aria-busy="true"' : ''}>${chip}${nchip}</div>`
+    + `<p class="rmwhy" id="rmnotewhy">${due ? (on ? '期限の日の 8:00 に通知します。' : '通知しません。') : '期限がないタスクは通知されません。'}</p>`
     + `${d.err ? `<p class="rmwhy err" role="alert">${escH(d.err)}</p>` : ''}</div>`;
 }
 
 // ---- 第14版 PR19: タスクの編集と完了（本文は保存しない。メモリ上だけ） ----
+export const NOTE_NEED_DUE = '期限を入れると通知できます。';
+export const NOTE_EXTRA = 'iPhone で設定された、Duo では表示できない通知があります。変更せず残します。';
 export const TASK_NOTE = 'iPhone のリマインダーに保存されます。';
 export const TASK_CONFLICT = 'iPhone のリマインダー側でも変更されていたため、Duo の内容で上書きしました。';
 const normDue = (d) => (d && d.date ? (d.time ? { date: d.date, time: d.time } : { date: d.date }) : null);
+export const hasNotify = (r) => Array.isArray(r?.alarms) && r.alarms.length > 0;
 const sameDue = (a, b) => JSON.stringify(normDue(a)) === JSON.stringify(normDue(b));
 // 編集シートの初期状態。lock: 'ro'（書けないリスト）| 'rec'（繰り返し＝完了だけ）| null。
 export function openTaskEditor(r, lists = []) {
@@ -243,6 +252,8 @@ export function buildTaskPatch(orig, f) {
   if (f.listId && f.listId !== orig.listId) patch.listId = f.listId;
   const due = f.date ? (f.time ? { date: f.date, time: f.time } : { date: f.date }) : null;
   if (!sameDue(due, orig.due)) patch.due = due;
+  // 通知は利用者が操作した時だけ送る（表示しただけでは送らない）。期限なしには送れない。元と同じ値への操作も送らない。
+  if (typeof f.notify === 'boolean' && due && f.notify !== hasNotify(orig)) patch.notify = f.notify;
   return { patch };
 }
 // 保存。変更なしは呼ばない（noop）。優先度・繰返しは送らない。
@@ -264,6 +275,8 @@ export function taskEditorHtml(ed) {
   const why = ed.lock === 'ro' ? '<p class="small" role="note">読み取り専用のリストのため変更できません。</p>' : ed.lock === 'rec' ? '<p class="small" role="note">繰り返しのタスクは完了だけ変更できます。</p>' : '';
   return `<label>題名<input id="tk-title" maxlength="200" value="${escH(f.title)}"${dis}></label>`
     + `<div class="pair"><label>期限<input id="tk-date" type="date" value="${escH(f.date)}"${dis}></label><label>時刻<input id="tk-time" type="time" value="${escH(f.time)}"${dis}></label></div>`
+    + `<div class="tknote"><label class="tkck"><input id="tk-notify" type="checkbox"${dis}> 通知する</label><p class="small" id="tk-notewhy" role="note"></p>`
+    + `${r.alarmsExtra > 0 ? `<p class="small tkextra" role="note">${NOTE_EXTRA}</p>` : ''}</div>`
     + `<label>リスト<select id="tk-list"${dis}>${opts}</select></label>`
     + `<label>メモ<textarea id="tk-notes"${dis}>${escH(f.notes)}</textarea></label>`
     + (meta ? `<p class="small tkmeta">${meta}</p>` : '') + why;

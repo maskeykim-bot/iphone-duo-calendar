@@ -49,7 +49,7 @@ test.describe('タスクの続けて追加', () => {
     expect(await lp(page).locator('.rmaddbtn').evaluate((e) => e.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
     const i = await openAdd(page);
     expect(await i.evaluate((e) => e.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
-    await expect(lp(page).locator('.rmchip')).toContainText('期限 11/12');
+    await expect(lp(page).locator('.rmchip:not(.rmnote)')).toContainText('期限 11/12');
     await i.fill('牛乳'); await i.press('Enter');
     await expect(lp(page).locator('[data-key="rm:x1"]')).toBeVisible();
     await expect(i).toBeFocused(); await expect(i).toHaveValue('');
@@ -70,13 +70,13 @@ test.describe('タスクの続けて追加', () => {
     await mock(page); await ready(page);
     const i = await openAdd(page);
     await lp(page).locator('[data-act="remdue0"]').click();
-    await expect(lp(page).locator('.rmchip')).toContainText('期限なし');
+    await expect(lp(page).locator('.rmchip:not(.rmnote)')).toContainText('期限なし');
     await expect(i).toBeFocused();
     await i.fill('いつか'); await i.press('Enter');
     await expect(lp(page).locator('[data-key="rm:x1"]')).toBeVisible();
     expect((await creates(page))[0].due).toBeNull();
     await lp(page).locator('[data-act="remdue1"]').click();
-    await expect(lp(page).locator('.rmchip')).toContainText('期限 11/12');
+    await expect(lp(page).locator('.rmchip:not(.rmnote)')).toContainText('期限 11/12');
   });
 
   test('連打は1件だけ（保存中は排他）／保存中の入力は変えられない', async ({ page }) => {

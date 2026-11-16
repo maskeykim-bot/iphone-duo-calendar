@@ -10,7 +10,7 @@ import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAl
 import { rokuyoOf } from './rokuyo.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS } from './pages.js';
 import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.js';
-import { DELETE_UNDO_MS, checkReminderAccess, requestReminderAccess, taskAccessHtml, createReminderLoader, tasksHtml, HIST_DAYS, pickAddList, createAddController, openTaskEditor, taskEditorHtml, taskDirty, saveTask, createDoneController, TASK_CONFLICT, createDeleteController, TASK_DELETED, TASK_DELETE_CONFLICT } from './reminders.js';
+import { DELETE_UNDO_MS, checkReminderAccess, requestReminderAccess, taskAccessHtml, createReminderLoader, tasksHtml, HIST_DAYS, pickAddList, createAddController, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDoneController, TASK_CONFLICT, createDeleteController, TASK_DELETED, TASK_DELETE_CONFLICT } from './reminders.js';
 import { call, errCode, errReason, errText, listen, nativeAvailable, reminderErrText } from './native.js';
 import { buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, pickAddCal, planNativeOps, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
 import {
@@ -958,7 +958,7 @@ async function remSubmit() {
   const listId = pickAddList(RM.data?.lists);
   if (!a.title.trim() || !listId) return;
   a.busy = true; a.err = ''; i.readOnly = true; i.setAttribute('aria-busy', 'true');
-  const r = await addCtl.submit({ title: a.title, listId, due });
+  const r = await addCtl.submit({ title: a.title, listId, due, notify: a.notify });
   if (RM.add !== a) return; // 許可の取消などで下書きごと捨てられた
   a.busy = false;
   if (r.ok) {
@@ -974,7 +974,7 @@ async function remSubmit() {
   }
 }
 // ---------- タスク: リマインダー許可の案内（カレンダー権限・連携設定とは独立） ----------
-const newDraft = () => ({ open: false, title: '', due: undefined, busy: false, err: '' }); // due: undefined＝選んでいる日に従う／null＝期限なし
+const newDraft = () => ({ open: false, title: '', due: undefined, notify: undefined, busy: false, err: '' }); // due: undefined＝選んでいる日に従う／null＝期限なし
 const RM = { add: newDraft(), state: null, gen: 0, data: null, err: false, doneOpen: false, histDays: HIST_DAYS, more: false, timer: 0, sig: '' };
 let tkDrop = null; // 編集シートを閉じる口（シート側の定義後に設定）
 const remLoader = createReminderLoader(call);
@@ -1234,6 +1234,7 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'remck') toggleDone(d.id);
   else if (d.act === 'remedit') openTask(d.id, b);
   else if (d.act === 'remadd') openAdd();
+  else if (d.act === 'remnote') { RM.add.notify = RM.add.notify === false; RM.add.focus = true; render(); }
   else if (d.act === 'remdue0') { RM.add.due = null; RM.add.focus = true; render(); }
   else if (d.act === 'remdue1') { RM.add.due = undefined; RM.add.focus = true; render(); }
   else if (d.act === 'remdone') { RM.doneOpen = !RM.doneOpen; render(); root.querySelector('[data-act="remdone"]')?.focus({ preventScroll: true }); }
@@ -1693,9 +1694,18 @@ initPull(taskDlg);
 
 // ---------- タスク: 編集シート（PR19） ----------
 let TK = null; // { ed, busy }
-const tkForm = () => ({ title: $('#tk-title').value, date: $('#tk-date').value, time: $('#tk-time').value, listId: $('#tk-list').value, notes: $('#tk-notes').value });
+const tkForm = () => ({ title: $('#tk-title').value, date: $('#tk-date').value, time: $('#tk-time').value, listId: $('#tk-list').value, notes: $('#tk-notes').value, notify: TK?.notify });
 const taskIsDirty = () => !!TK && taskDirty(TK.ed, tkForm());
+// 通知の欄: 期限なしは通知不可。戻した時は利用者が操作した状態（なければ元の状態）を映す。
+function tkNotifyUi() {
+  const c = $('#tk-notify'), why = $('#tk-notewhy'); if (!c || !TK) return;
+  const hasDue = !!$('#tk-date').value;
+  c.disabled = !hasDue || !!TK.ed.lock;
+  c.checked = hasDue && (typeof TK.notify === 'boolean' ? TK.notify : hasNotify(TK.ed.orig));
+  why.textContent = !hasDue ? NOTE_NEED_DUE : c.checked ? ($('#tk-time').value ? '期限の時刻に通知します。' : '期限の日の 8:00 に通知します。') : '';
+}
 function tkUi() {
+  tkNotifyUi();
   const lock = !!TK.ed.lock, gone = TK.gone;
   $('#tk-save').hidden = lock || gone;
   $('#tk-del').hidden = lock || gone;
@@ -1707,7 +1717,7 @@ function tkUi() {
 function openTask(id, from) {
   const r = RM.data?.reminders.find((x) => x.itemId === id);
   if (!r || anyPanel()) return;
-  TK = { ed: openTaskEditor(r, RM.data.lists), busy: false, gone: false }; tkKey = r.itemId;
+  TK = { ed: openTaskEditor(r, RM.data.lists), busy: false, gone: false, notify: undefined }; tkKey = r.itemId;
   $('#tk-body').innerHTML = taskEditorHtml(TK.ed);
   tkUi();
   openPanel(taskDlg, from);
@@ -1721,6 +1731,8 @@ taskDlg.addEventListener('close', () => {
   const o = origins.get(taskDlg);
   if (key && !o?.isConnected) root.querySelector(`[data-key="rm:${CSS.escape(key)}"] .rmbody`)?.focus({ preventScroll: true });
 });
+$('#tk-body').addEventListener('change', (e) => { if (TK && e.target.id === 'tk-notify') { TK.notify = e.target.checked; tkNotifyUi(); } });
+$('#tk-body').addEventListener('input', (e) => { if (TK && (e.target.id === 'tk-date' || e.target.id === 'tk-time')) tkNotifyUi(); });
 $('#tk-close').addEventListener('click', () => dismissPopup(false));
 $('#tk-del').addEventListener('click', () => {
   if (!TK || TK.busy || TK.ed.lock || TK.gone) return;
