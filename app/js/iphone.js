@@ -338,6 +338,8 @@ export function planNativeOps(prev, plan, scope, occKey, form, ctx = {}) {
   if (span !== 'this' || !recurring) {
     if (!ruleEq(after.recurrence, prev.recurrence)) payload.recurrence = after.recurrence ? normRule(after.recurrence) : null;
   }
+  // 別の iPhone カレンダーへの移動は単発か「すべて」だけ（この回・これ以降では系列を分けない）。返る calendarId で結びつきを更新する。
+  if (ctx.moveTo && ctx.moveTo !== link.calendarId && (span === 'all' || (span === 'this' && !recurring))) payload.calendarId = ctx.moveTo;
   if (!Object.keys(payload).length) return { ops: [], plan };
   const op = { ...base, kind: 'update', payload };
   if (span === 'future') {
@@ -363,8 +365,12 @@ export function mergeOps(list, ops, inflight = null) {
   for (const n of ops) {
     if (n.kind === 'update') {
       const i = out.findIndex((o) => o.kind === 'update' && o.opId !== inflight && !o.newParentId && !n.newParentId && o.eventKey === n.eventKey && o.span === n.span && o.occurrenceStart === n.occurrenceStart);
-      if (i >= 0) out[i] = { ...out[i], link: n.link, payload: { ...out[i].payload, ...n.payload } };
-      else out.push(n);
+      if (i >= 0) {
+        const payload = { ...out[i].payload, ...n.payload };
+        if (payload.calendarId !== undefined && payload.calendarId === n.link?.calendarId) delete payload.calendarId; // 未送信のまま元の先へ戻した
+        if (Object.keys(payload).length) out[i] = { ...out[i], link: n.link, payload };
+        else out.splice(i, 1);
+      } else out.push(n);
     } else {
       out = out.filter((o) => o.opId === inflight || !covers_(n, o));
       if (n.kind === 'delete' && !out.some((o) => o.kind === 'delete' && o.eventKey === n.eventKey && o.span === n.span && o.occurrenceStart === n.occurrenceStart)) out.push(n);

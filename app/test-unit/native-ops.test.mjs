@@ -127,3 +127,32 @@ test('dedupe: 削除待ちの外部予定を隠す（範囲を守る）', () => 
   assert.equal(dedupe(ext, [], [del('future', '2026-11-06T09:00')]).length, 1);
   assert.equal(dedupe(ext, [], []).length, 2);
 });
+
+// ---- 第15版 PR6: 別の iPhone カレンダーへの移動 ----
+test('移動: ctx.moveTo が現在先と違えば payload.calendarId だけの update（日時・通知は載せない）', () => {
+  const p = single();
+  const r = planNativeOps(p, plan(p), 'all', null, { ...p }, { ...ctx, moveTo: 'c2' });
+  assert.equal(r.ops.length, 1);
+  assert.deepEqual([r.ops[0].kind, r.ops[0].span, r.ops[0].payload], ['update', 'this', { calendarId: 'c2' }]);
+  assert.equal(planNativeOps(p, plan(p), 'all', null, { ...p }, { ...ctx, moveTo: 'c1' }).ops.length, 0); // 同じ先は何も送らない
+});
+test('移動: 本文の変更と同時でも日時・alarms は変えたものだけ', () => {
+  const p = single();
+  const r = planNativeOps(p, plan({ ...p, title: '新' }), 'all', null, { ...p, title: '新' }, { ...ctx, moveTo: 'c2' });
+  assert.deepEqual(r.ops[0].payload, { title: '新', calendarId: 'c2' });
+});
+test('移動: 繰り返しは「すべて」だけ。この回・これ以降では calendarId を載せない', () => {
+  const p = series(), k = '2026-11-05T09:00';
+  const f = { title: 'x', all: false, start: k, end: '2026-11-05T10:00', place: '', notes: '', recurrence: p.recurrence };
+  assert.equal(planNativeOps(p, plan(p), 'only', k, f, { ...ctx, moveTo: 'c2' }).ops[0].payload.calendarId, undefined);
+  const all = planNativeOps(p, plan(p), 'all', k, { ...p }, { ...ctx, moveTo: 'c2' });
+  assert.deepEqual([all.ops[0].span, all.ops[0].payload], ['all', { calendarId: 'c2' }]);
+});
+test('mergeOps: 未送信のまま元の先へ戻すと calendarId が消え、空になった更新は捨てる', () => {
+  const p = single();
+  const a = planNativeOps(p, plan(p), 'all', null, { ...p }, { ...ctx, moveTo: 'c2' }).ops;
+  const back = [{ ...a[0], opId: 'o2', payload: { calendarId: 'c1' } }];
+  assert.deepEqual(mergeOps(mergeOps([], a), back), []);
+  const b = [{ ...a[0], opId: 'o3', payload: { title: 't', calendarId: 'c1' } }];
+  assert.deepEqual(mergeOps(mergeOps([], a), b)[0].payload, { title: 't' });
+});

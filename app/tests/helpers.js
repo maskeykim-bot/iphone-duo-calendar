@@ -44,8 +44,8 @@ export async function pickDest(page, type, id) {
 export async function fillEditor(page, f) {
   const dlg = page.locator('#editor');
   if (f.title !== undefined) await dlg.locator('#f-title').fill(f.title);
-  // 新規は「カレンダー」1行から、既存予定の編集（PR6 まで旧経路）は従来のカテゴリ選択から
-  if (f.cat) { if (await dlg.locator('#f-dest').isVisible()) await pickDest(page, 'duo', catId(f.cat)); else await dlg.locator('#f-cat').selectOption(catId(f.cat)); }
+  // 新規も既存予定の編集も「カレンダー」1行から選ぶ
+  if (f.cat) await pickDest(page, 'duo', catId(f.cat));
   if (f.cal) await pickDest(page, 'iphone', f.cal);
   if (f.all !== undefined) await dlg.locator('#f-all').setChecked(f.all);
   if (f.start !== undefined) await dlg.locator('#f-start').fill(f.start);

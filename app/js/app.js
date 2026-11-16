@@ -360,9 +360,16 @@ const catOf = (e) => resolveCategory(e.categoryId, state.categories);
 const catCls = (e) => (isX(e) ? 'ext' : '');
 // 色はカテゴリ一覧から inline の CSS 変数で（固定クラスは使わない）。iPhone の予定はカレンダーの色。
 const colorVars = (c) => `--cat:${c};--tint:${tint(c)};`;
-const catVar = (e) => (isX(e) ? `--cat:${e.color};` : colorVars(catOf(e).color));
+// iPhone に保存した予定（linked / pending）の色と札は保存先カレンダーのもの。未取得なら保存した名前と安全な色。
+const calOfLink = (e) => {
+  const l = e.nativeLink;
+  if (isX(e) || !l || (l.state !== 'linked' && l.state !== 'pending')) return null;
+  const c = X.calendars.find((x) => x.id === l.calendarId);
+  return { name: c ? c.title : l.calName || 'iPhone', color: c?.color || '#68716A' };
+};
+const catVar = (e) => { if (isX(e)) return `--cat:${e.color};`; const c = calOfLink(e); return colorVars(c ? c.color : catOf(e).color); };
 const catSty = (e) => ` style="${catVar(e)}"`;
-const tagText = (e) => (isX(e) ? subLabel(e) : catOf(e).name);
+const tagText = (e) => (isX(e) ? subLabel(e) : calOfLink(e)?.name ?? catOf(e).name);
 const xi = (e) => (isX(e) ? '<span class="xi" aria-hidden="true">▦</span>' : '');
 const xname = (e) => (isX(e) ? `iPhone、${e.calName}、` : '');
 
@@ -1453,7 +1460,7 @@ catsDlg.addEventListener('close', () => {
   clearTimeout(cs.timer);
   if (dlg.open) {
     dlg.inert = confirmDlg.open || scopeDlg.open || discardDlg.open;
-    if (cs.fromEditor) fillCatSelect(cs.created && state.categories.some((c) => c.id === cs.created) ? cs.created : state.categories.some((c) => c.id === lastCat) ? lastCat : defaultCatId());
+    updateXUi();
     saveDraft();
   }
 });
@@ -1472,8 +1479,8 @@ for (const d of [dlg, menuDlg, searchDlg, backupDlg, linkDlg, xdDlg, catsDlg, no
 let edBase = null; // 開いた時点のフォームの写し。null は「破棄確認が必要」（復元した下書き）
 let editing = null; // 描画ID（通常予定は id、繰り返しの回は parentId@occurrenceKey）
 const F = {
-  title: $('#f-title'), cat: $('#f-cat'), all: $('#f-all'), start: $('#f-start'), end: $('#f-end'), place: $('#f-place'), notes: $('#f-notes'),
-  rfreq: $('#f-rfreq'), rend: $('#f-rend'), rcount: $('#f-rcount'), runtil: $('#f-runtil'), dest: $('#f-dest'), ecal: $('#f-ecal'),
+  title: $('#f-title'), all: $('#f-all'), start: $('#f-start'), end: $('#f-end'), place: $('#f-place'), notes: $('#f-notes'),
+  rfreq: $('#f-rfreq'), rend: $('#f-rend'), rcount: $('#f-rcount'), runtil: $('#f-runtil'), dest: $('#f-dest'),
 };
 const R = { toggle: $('#rtoggle'), panel: $('#rpanel'), sum: $('#rsum'), desc: $('#rdesc'), days: $('#rdays-wrap'), end: $('#rend-wrap'), countL: $('#rcount-l'), untilL: $('#runtil-l'), err: $('#rerror') };
 let rsel = [], autoDays = true;
@@ -1493,8 +1500,7 @@ function resolve(id) {
 const startDow = () => { const t = parseInput(F.start.value, F.all.checked); return parseKey(t ? dayOf(t) : state.selected).getDay(); };
 const startKey = () => { const t = parseInput(F.start.value, F.all.checked); return t ? dayOf(t) : state.selected; };
 
-// カテゴリ選択（編集シート）。選択肢はカテゴリ一覧から作り、末尾に「カテゴリを編集…」を置く。
-const EDIT_CATS = '__edit-categories';
+// 直近に選んだ Duo のカテゴリ（時間軸の仮枠の色に使う）。保存先の選択はカレンダー1行（destSel）。
 let lastCat = '';
 const defaultCatId = () => (state.categories.find((c) => !c.hidden) ?? state.categories[0])?.id ?? CAT_IDS.none;
 // 旧下書き（categoryId / xadd / xcal）を追加先へ読み替える。判断できなければ null（設定の追加先に従う）。
@@ -1505,29 +1511,23 @@ function draftDest(d) {
   if (d.xadd === false) return { type: 'duo', id: draftCat(d) };
   return null;
 }
+// 既存予定の編集の下書き: 保存した dest を優先。古い下書きは categoryId を Duo の予定の先として読み替える。
+function draftEditDest(d, id) {
+  const n = normDest(d.dest);
+  if (n) return n;
+  const cur = resolve(id), l = cur?.p.nativeLink;
+  if (!cur || l?.state === 'linked' || l?.state === 'pending') return null;
+  return state.categories.some((c) => c.id === d.categoryId) ? { type: 'duo', id: d.categoryId } : null;
+}
 function draftCat(d) {
   const ids = state.categories.map((c) => c.id);
   if (ids.includes(d.categoryId)) return d.categoryId;
   const l = legacyToId(d.cat);
   return l && ids.includes(l) ? l : defaultCatId();
 }
-function fillCatSelect(id) {
-  const list = state.categories.map((c) => ({ id: c.id, name: c.hidden ? `${c.name}（非表示）` : c.name }));
-  let sel = list.some((c) => c.id === id) ? id : null;
-  if (!sel && id) { list.push({ id: CAT_IDS.none, name: UNCATEGORIZED.name }); sel = CAT_IDS.none; } // 参照先が無い予定
-  sel ??= defaultCatId();
-  F.cat.innerHTML = list.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('') + `<option value="${EDIT_CATS}">カテゴリを編集…</option>`;
-  F.cat.value = sel;
-  lastCat = sel;
-}
-F.cat.addEventListener('change', () => {
-  if (F.cat.value === EDIT_CATS) { F.cat.value = lastCat; openCategories(F.cat, true); return; }
-  lastCat = F.cat.value;
-});
-
 function readForm() {
   return {
-    title: F.title.value, categoryId: extEd ? CAT_IDS.none : isNewSheet() ? (destEff().type === 'duo' ? destEff().id : CAT_IDS.none) : F.cat.value === EDIT_CATS ? lastCat : F.cat.value, dest: isNewSheet() ? destSel : null, ecal: extEd ? F.ecal.value : '', all: F.all.checked, start: F.start.value, end: F.end.value, place: F.place.value, notes: F.notes.value,
+    title: F.title.value, categoryId: formCat(), dest: destSel, all: F.all.checked, start: F.start.value, end: F.end.value, place: F.place.value, notes: F.notes.value,
     rfreq: F.rfreq.value, rbyday: [...rsel], rend: F.rend.value, rcount: F.rcount.value, runtil: F.runtil.value, ropen: !R.panel.hidden, autoDays,
     alarms,
   };
@@ -1571,7 +1571,7 @@ function updateRepeatUi() {
 function showEditor(values, id, focus = true) {
   editing = id;
   $('#edtitle').textContent = id || extEd ? '予定を編集' : '予定を追加';
-  F.title.value = values.title; fillCatSelect(values.categoryId); F.all.checked = values.all;
+  F.title.value = values.title; F.all.checked = values.all;
   F.start.value = values.start; F.end.value = values.end; F.place.value = values.place; F.notes.value = values.notes || '';
   F.rfreq.value = ['daily', 'weekly', 'monthly', 'yearly'].includes(values.rfreq) ? values.rfreq : 'none';
   F.rend.value = ['count', 'until'].includes(values.rend) ? values.rend : 'none';
@@ -1586,7 +1586,8 @@ function showEditor(values, id, focus = true) {
   R.err.textContent = '';
   applyAllDayUi();
   setRepeatOpen(!!values.ropen);
-  destSel = !id && !extEd ? normDest(values.dest) : null;
+  destSel = extEd ? null : normDest(values.dest);
+  { const d0 = destEff(); lastCat = d0.type === 'duo' ? d0.id : lastCatOk(); }
   closeDestPop(false);
   alarms = Array.isArray(values.alarms) ? values.alarms.map((a) => ({ ...a })) : undefined;
   updateRepeatUi();
@@ -1602,21 +1603,15 @@ function showEditor(values, id, focus = true) {
 // iPhone の予定の編集シートの見た目（カテゴリ→カレンダー、繰り返しは表示だけ、札、案内）。extEd が null なら通常に戻す。
 function applyExtUi() {
   const x = extEd;
-  $('#cat-l').hidden = !!x; $('#ecal-l').hidden = !x;
   document.querySelector('#form .repeat').hidden = !!x;
   $('#rfix').hidden = !(x && x.before.recurring);
   $('#ed-tag').hidden = !x;
   $('#ext-gone').hidden = true;
-  $('#ecal-l').classList.remove('moved');
   if (!x) return;
   const b = x.before, d = x.detail;
   $('#ed-tag').innerHTML = `<i class="cdot" style="background:${esc(b.color)}" aria-hidden="true"></i>${esc(subLabel(b))}${b.recurring ? ' <span aria-hidden="true">↻</span>' : ''}`;
   const rule = d.rule && d.rule.freq ? ruleSummary(d.rule, b.start) : '';
   $('#rfix-sum').textContent = rule || d.ruleText || '繰り返し';
-  const cals = writable(X.calendars);
-  if (!cals.some((c) => c.id === b.calId)) { const c0 = X.calendars.find((c) => c.id === b.calId); if (c0) cals.unshift(c0); }
-  F.ecal.innerHTML = cals.map((c) => `<option value="${esc(c.id)}">● ${esc(c.title)}（${esc(c.source)}）</option>`).join('');
-  F.ecal.value = b.calId;
 }
 // 新規予定のカレンダー選択（1行）。destSel はシート内の一時選択（null = 設定の追加先に従う）。設定値は書き換えない。
 let destSel = null;
@@ -1626,15 +1621,56 @@ function destExists(d) {
   if (d.type === 'duo') return state.categories.some((c) => c.id === d.id);
   return extActive() && writable(X.calendars).some((c) => c.id === d.id);
 }
-const destEff = () => (destExists(destSel) ? destSel : destNow());
+// 既存予定の現在の保存先（新規は null）。ext と linked / pending は iPhone のカレンダー、それ以外は Duo のカテゴリ。
+function curDest() {
+  if (extEd) return { type: 'iphone', id: extEd.before.calId };
+  const cur = editing ? resolve(editing) : null;
+  if (!cur) return null;
+  const l = cur.p.nativeLink;
+  if (l && (l.state === 'linked' || l.state === 'pending')) return { type: 'iphone', id: l.calendarId };
+  return { type: 'duo', id: state.categories.some((c) => c.id === cur.p.categoryId) ? cur.p.categoryId : CAT_IDS.none };
+}
+// 現在先を変えられない: 追加中（pending）、読み取り専用、カレンダー不明・権限なし。表示だけして編集は禁止。
+function destLocked() {
+  const c = curDest();
+  if (!c || c.type !== 'iphone' || extEd) return false;
+  if (resolve(editing)?.p.nativeLink?.state === 'pending') return true;
+  const cal = X.calendars.find((x) => x.id === c.id);
+  return !(extActive() && cal && cal.allowsModify);
+}
+// iPhone の予定（ext / linked / pending）は Duo へ戻せない。移せるのは書き込める iPhone カレンダーだけ。
+const destAllowed = (d) => destExists(d) && (curDest()?.type !== 'iphone' || d.type === 'iphone');
+const destEff = () => {
+  if (isNewSheet()) return destExists(destSel) ? destSel : destNow();
+  return (destSel && !destLocked() && destAllowed(destSel) ? destSel : curDest()) || destNow();
+};
+// フォームの categoryId: Duo の先はそのカテゴリ。linked / pending のままなら既存を保持。Duo から iPhone へ移すときだけ none。
+function formCat() {
+  const d = destEff();
+  if (d.type === 'duo') return d.id;
+  const cur = !extEd && editing ? resolve(editing) : null;
+  if (cur && curDest()?.type === 'iphone') return state.categories.some((c) => c.id === cur.p.categoryId) ? cur.p.categoryId : CAT_IDS.none;
+  return CAT_IDS.none;
+}
+// 未取得のカレンダーは保存済みの名前と安全な色で表示する。
+function savedCal(id) {
+  if (extEd?.before.calId === id) return { name: extEd.before.calName, color: extEd.before.color };
+  const l = editing ? resolve(editing)?.p.nativeLink : null;
+  return l?.calendarId === id ? { name: l.calName } : null;
+}
 function destInfo(d) {
-  if (d.type === 'iphone') { const c = X.calendars.find((x) => x.id === d.id); if (c) return { name: `${c.title}（${c.source}）`, color: c.color, hidden: !link.calendarIds.includes(c.id) }; }
+  if (d.type === 'iphone') {
+    const c = X.calendars.find((x) => x.id === d.id);
+    if (c) return { name: `${c.title}（${c.source}）`, color: c.color, hidden: !link.calendarIds.includes(c.id) };
+    const sv = savedCal(d.id);
+    return { name: sv?.name || 'iPhone', color: sv?.color || '#68716A', hidden: false };
+  }
   const c = state.categories.find((x) => x.id === d.id);
   return { name: c ? c.name : UNCATEGORIZED.name, color: c ? c.color : '#5A5E62', hidden: !!c?.hidden };
 }
 function destGroups() {
   const byVis = (l) => [...l.filter((x) => !x.hidden), ...l.filter((x) => x.hidden)];
-  const gs = [{ head: 'Duo（この端末だけ）', items: byVis(state.categories.map((c) => ({ type: 'duo', id: c.id, name: c.name, color: c.color, hidden: !!c.hidden }))) }];
+  const gs = curDest()?.type === 'iphone' ? [] : [{ head: 'Duo（この端末だけ）', items: byVis(state.categories.map((c) => ({ type: 'duo', id: c.id, name: c.name, color: c.color, hidden: !!c.hidden }))) }];
   if (extActive()) {
     for (const g of groupBySource(writable(X.calendars))) {
       gs.push({ head: `iPhone ・ ${g.heading}`, items: byVis(g.items.map((c) => ({ type: 'iphone', id: c.id, name: c.title, color: c.color, hidden: !link.calendarIds.includes(c.id) }))) });
@@ -1673,6 +1709,7 @@ destPop.addEventListener('click', (ev) => {
   const b = ev.target.closest('.dopt');
   if (!b) return;
   destSel = { type: b.dataset.dtype, id: b.dataset.did };
+  if (destSel.type === 'duo') lastCat = destSel.id;
   closeDestPop();
   updateXUi();
   saveDraft();
@@ -1685,16 +1722,15 @@ destPop.addEventListener('keydown', (ev) => {
   o[(i + (ev.key === 'ArrowDown' ? 1 : o.length - 1)) % o.length].focus({ preventScroll: true });
 });
 document.addEventListener('pointerdown', (ev) => { if (!destPop.hidden && !ev.target.closest('#dest-l')) closeDestPop(false); });
-// 新規の通常予定だけ「カレンダー」1行を出す（旧カテゴリ行は既存予定の編集経路用に残す）。編集中のリンク済み予定には案内を出す。
+// すべての編集で「カレンダー」1行を出す。編集中のリンク済み予定には案内を出す。
 function updateXUi() {
   const cur = editing ? resolve(editing) : null;
   const linked = !!(editing && cur && cur.p.nativeLink?.state === 'linked');
   $('#xlinked').hidden = !linked;
   $('#xext').hidden = !extEd;
-  const isNew = isNewSheet();
-  $('#cat-l').hidden = !!extEd || isNew;
-  $('#dest-l').hidden = !isNew;
-  if (!isNew) { closeDestPop(false); return; }
+  const lock = destLocked();
+  F.dest.disabled = lock;
+  if (lock) closeDestPop(false);
   const d = destInfo(destEff());
   $('#dest-name').textContent = d.name;
   $('#dest-dot').style.background = d.color;
@@ -1771,7 +1807,7 @@ $('#close').addEventListener('click', () => fadeClose(dlg, closeEditor));
 
 // ---------- 予定のポップアップを閉じる（08 §5）: 幕タップ・下に引く・0.2秒のフェード ----------
 // 未保存の変更の有無（開閉だけの ropen、遅れて決まる既定の追加先、自動曜日は数えない）。
-function editSnap() { const { ropen, autoDays: _a, ...rest } = readForm(); if (isNewSheet()) rest.categoryId = ''; return JSON.stringify(rest); }
+function editSnap() { const { ropen, autoDays: _a, ...rest } = readForm(); if (isNewSheet()) rest.categoryId = ''; else rest.dest = destEff(); return JSON.stringify(rest); }
 const editorDirty = () => edBase == null || edBase !== editSnap();
 // 幕が受け持つポップアップ（最前面が編集シートか iPhone の予定詳細のときだけ）
 const popupTop = () => [dlg, xdDlg, taskDlg].find((d) => d.open && panels.every((p) => p === d || p === dlg || p === xdDlg || p === taskDlg || !p.open)) || null;
@@ -2005,11 +2041,13 @@ form.addEventListener('submit', async (ev) => {
   const item = { ...prev, ...r.event, id: prev ? prev.id : newId(), exdates: prev?.exdates ?? [], overrides: prev?.overrides ?? {}, updatedAt: Date.now() };
   if (!item.recurrence) { item.exdates = []; item.overrides = {}; }
   // 新規の通常予定だけ: アプリDBへ pending で確定してから、iPhone 側の作成を1回だけ呼ぶ。
-  const dsel = isNewSheet() ? destEff() : null;
-  const xwant = dsel?.type === 'iphone';
-  if (xwant && !destExists(dsel)) { $('#error').textContent = 'このカレンダーには追加できません。別のカレンダーを選んでください。'; return; }
-  if (xwant) { item.categoryId = CAT_IDS.none; item.nativeLink = { state: 'pending', requestId: newId(), calendarId: dsel.id }; }
-  const { ops, plan: splan } = prev ? planOps(prev, { puts: [item], dels: [] }, 'all', null, r.event) : { ops: [], plan: { puts: [item], dels: [] } };
+  const dsel = destEff();
+  const mv = prev ? moveKind(prev, dsel) : null;
+  const xwant = prev ? mv === 'toX' : dsel.type === 'iphone';
+  if ((xwant || mv === 'x2x') && !destExists(dsel)) { $('#error').textContent = 'このカレンダーには追加できません。別のカレンダーを選んでください。'; return; }
+  if (xwant && prev && !moveOk(prev)) { $('#error').textContent = MOVE_PARTIAL; return; }
+  if (xwant) toPending(item, dsel, prev);
+  const { ops, plan: splan } = prev ? planOps(prev, { puts: [item], dels: [] }, 'all', null, r.event, mv === 'x2x' ? { moveTo: dsel.id } : undefined) : { ops: [], plan: { puts: [item], dels: [] } };
   saving = true;
   try {
     await commit(splan, { ops });
@@ -2023,8 +2061,24 @@ form.addEventListener('submit', async (ev) => {
   closePanel(dlg);
   set({ selected: dayOf(item.start) });
   if (xwant) createNative(item.id); else say('予定を保存しました。');
-  hiddenNotice(xwant ? { type: 'iphone', id: dsel.id } : { type: 'duo', id: item.categoryId });
+  if (!prev || mv) hiddenNotice(xwant || mv === 'x2x' ? { type: 'iphone', id: dsel.id } : { type: 'duo', id: item.categoryId });
 });
+
+// 既存予定の保存先の変更。'toX' = Duo → iPhone（作成して結びつける）、'x2x' = iPhone → 別の iPhone（updateEvent で移動）、null = 変更なし。
+const MOVE_PARTIAL = 'この予定は一部の回が個別に変更されているため、iPhone のカレンダーへは移せません。';
+function moveKind(prev, d) {
+  const c = prev.nativeLink?.state === 'linked' || prev.nativeLink?.state === 'pending' ? { type: 'iphone', id: prev.nativeLink.calendarId } : { type: 'duo', id: prev.categoryId };
+  if (c.type === 'duo') return d.type === 'iphone' ? 'toX' : null;
+  return d.type === 'iphone' && d.id !== c.id ? 'x2x' : null;
+}
+// 個別の変更・削除指定を持つ系列は、そのまま iPhone へ作れない（「すべて」で保存するときは解除される）。
+const moveOk = (p) => !p.recurrence || (!(p.exdates || []).length && !Object.keys(p.overrides || {}).length);
+// Duo の予定を iPhone へ移す: 同じ予定のまま pending の結びつきを付ける。分類は none にし、元の分類は失敗時の復帰用に残す。
+function toPending(item, d, prev) {
+  if (prev) item.moveFromCat = prev.categoryId;
+  item.categoryId = CAT_IDS.none;
+  item.nativeLink = { state: 'pending', requestId: newId(), calendarId: d.id };
+}
 
 // 非表示のカテゴリ／カレンダーに保存したとき、6秒間だけ知らせて「表示する」で戻せる（予定が消えたように見えないように）。
 let hnTimer = 0;
@@ -2076,6 +2130,11 @@ function openScope(kind, cur, ev) {
       notes.push('繰り返しの変更は、これ以降またはすべてを選択してください。');
     } else notes.push('「この予定のみ」は日時・本文の個別変更です。繰り返しの設定は変わりません。');
     if (info.clears('following') || info.clears('all')) notes.push('「これ以降すべて」「すべて」を選ぶと、この範囲の個別変更と削除指定を解除します。');
+    if (moveKind(cur.p, destEff())) {
+      scopeDlg.querySelector('[data-scope="only"]').disabled = true;
+      scopeDlg.querySelector('[data-scope="following"]').disabled = true;
+      notes.push('カレンダーの変更は『すべて』でのみできます。');
+    }
   }
   $('#sc-note').textContent = notes.join(' ');
   const dn = dn0;
@@ -2106,8 +2165,11 @@ scopeDlg.addEventListener('click', async (ev) => {
     await runDelete({ scope, cur, duoOnly: !!dn?.duoOnly, fb: !!dn?.fallback }, scopeDlg); // 範囲の選択が確認（Duo だけの予定の「すべて」も即実行）
     return;
   }
+  const dsel = destEff(), mv = moveKind(cur.p, dsel);
   try {
-    const { ops, plan } = planOps(cur.p, planEdit(cur.p, cur.occKey, scope, form0, newId), scope, cur.occKey, form0);
+    let plan0 = planEdit(cur.p, cur.occKey, scope, form0, newId);
+    if (mv === 'toX' && scope === 'all') plan0 = { ...plan0, puts: plan0.puts.map((e) => { if (e.id !== cur.p.id) return e; const n = { ...e }; toPending(n, dsel, cur.p); return n; }) };
+    const { ops, plan } = planOps(cur.p, plan0, scope, cur.occKey, form0, mv === 'x2x' && scope === 'all' ? { moveTo: dsel.id } : undefined);
     await commit(plan, { ops });
   } catch {
     scopeDlg.close();
@@ -2119,7 +2181,8 @@ scopeDlg.addEventListener('click', async (ev) => {
   scopeDlg.close();
   closePanel(dlg);
   set({ selected: dayOf(form0.start) });
-  say('予定を保存しました。');
+  if (mv === 'toX' && scope === 'all') createNative(cur.p.id); else say('予定を保存しました。');
+  if (mv) hiddenNotice({ type: 'iphone', id: dsel.id });
 });
 
 // ---------- 削除（通常は確認のみ、繰り返しは範囲→確認） ----------
@@ -3128,7 +3191,7 @@ async function runExtDelete(scope, force, from) {
 function submitExt(ev) {
   const x = extEd;
   if (!x || extBusy) return;
-  const after = { title: ev.title, place: ev.place, notes: ev.notes, start: ev.start, end: ev.end, all: ev.all, calendarId: F.ecal.value };
+  const after = { title: ev.title, place: ev.place, notes: ev.notes, start: ev.start, end: ev.end, all: ev.all, calendarId: destEff().id };
   if (x.touched) after.alarms = Array.isArray(alarms) ? alarms : [];
   if (x.before.recurring) { openScopeExt('edit', after); return; }
   runExtSave('only', after);
@@ -3183,7 +3246,7 @@ let xrKeep = false; // 「再試行」を選んだ閉じ方だけ pending を保
 // 成功（または対象がもう無い）なら true。DB 失敗は false（pending のまま）。
 async function abandonCreate(id, requestId) {
   try {
-    const ack = await db.applyAck({ keys: [id], update: (raw) => (raw.nativeLink?.requestId === requestId && raw.nativeLink.state === 'pending' ? { ...raw, nativeLink: { ...raw.nativeLink, state: 'unlinked', warn: null } } : null) });
+    const ack = await db.applyAck({ keys: [id], update: (raw) => (raw.nativeLink?.requestId === requestId && raw.nativeLink.state === 'pending' ? (({ moveFromCat, ...rest }) => ({ ...rest, ...(moveFromCat !== undefined ? { categoryId: moveFromCat } : {}), nativeLink: { ...raw.nativeLink, state: 'unlinked', warn: null } }))(raw) : null) });
     applyEvents(ack.events);
     if (ack.events.length) { requestNotifySync('link'); render(); }
     return true;
@@ -3233,7 +3296,7 @@ async function createNative(id) {
     if (!r?.eventId) throw new Error('no event id');
     const nl = linkFrom(l, r);
     // 本文は読み直した最新のものを残し、結びつきだけ書く（作成中の編集を古いスナップショットで消さない）。
-    const ack = await db.applyAck({ keys: [id], update: (raw) => (raw.nativeLink?.requestId === l.requestId && raw.nativeLink.state === 'pending' ? { ...raw, nativeLink: withIdent({ ...nl, seriesStart: raw.start }) } : null) });
+    const ack = await db.applyAck({ keys: [id], update: (raw) => (raw.nativeLink?.requestId === l.requestId && raw.nativeLink.state === 'pending' ? (({ moveFromCat: _m, ...rest }) => ({ ...rest, nativeLink: withIdent({ ...nl, seriesStart: raw.start }) }))(raw) : null) });
     applyEvents(ack.events);
     // 作成の間に編集・削除されていたら、差分（または削除）を送信待ちへ積む。
     const ops = lateOps(id, e, sent, nl);
@@ -3531,6 +3594,7 @@ function buildArgs(op, link) {
     for (const k of ['title', 'place', 'notes']) if (k in p) a[k] = p[k];
     if ('start' in p) { a.start = p.start; a.end = p.all ? `${dayOf(p.end)}T00:00` : p.end; a.all = !!p.all; }
     if ('alarms' in p) a.alarms = p.alarms;
+    if ('calendarId' in p) a.moveCalendarId = p.calendarId;
     if ('recurrence' in p) a.recurrence = p.recurrence;
     if (op.newRequestId) a.newRequestId = op.newRequestId;
   }
@@ -3589,6 +3653,7 @@ async function onSendOk(op, link, res, conflict) {
     itemId: res.itemId != null ? String(res.itemId) : base.itemId, externalId: res.externalId != null ? String(res.externalId) : base.externalId,
     eventId: res.eventId != null ? String(res.eventId) : base.eventId, calendarId: res.calendarId || base.calendarId,
     ekModified: del ? now : Number.isFinite(res.modifiedAt) ? res.modifiedAt : base.ekModified, syncedAt: now, warn: null,
+    ...(op.kind === 'update' && op.payload?.calendarId ? { calName: undefined, calSource: undefined, ...calIdent(res.calendarId || op.payload.calendarId) } : {}), // 移動したら保存名も新しい先へ
   });
   const npLink = op.newParentId ? withIdent({ ...ids({ requestId: op.newRequestId, calendarId: link.calendarId }), seriesStart: op.occurrenceStart, matchedBy: 'id' }) : null;
   const moves = op.kind === 'update' && (op.span === 'all' || (op.span === 'this' && !op.occurrenceStart));
@@ -4379,7 +4444,7 @@ async function boot() {
     origins.set(dlg, root.querySelector('[data-act="add"]'));
     showEditor({
       title: draft.title || '', categoryId: draftCat(draft), all: !!draft.all, start: draft.start || '', end: draft.end || '', place: draft.place || '', notes: draft.notes || '',
-      rfreq: draft.rfreq, rbyday: Array.isArray(draft.rbyday) ? draft.rbyday : [], rend: draft.rend, rcount: draft.rcount, runtil: draft.runtil, ropen: !!draft.ropen, autoDays: draft.autoDays, dest: id ? null : draftDest(draft),
+      rfreq: draft.rfreq, rbyday: Array.isArray(draft.rbyday) ? draft.rbyday : [], rend: draft.rend, rcount: draft.rcount, runtil: draft.runtil, ropen: !!draft.ropen, autoDays: draft.autoDays, dest: id ? draftEditDest(draft, id) : draftDest(draft),
       alarms: Array.isArray(draft.alarms) ? draft.alarms : id ? undefined : defaultAlarms(!!draft.all, loadNotify()),
     }, id, false);
     edBase = null; // 復元した下書きは未保存の変更として扱う

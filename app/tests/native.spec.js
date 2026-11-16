@@ -73,6 +73,13 @@ async function mock(page, cfg = {}) {
             if (M.needForce && method === 'updateEvent' && !opts.force) throw { code: 'CONFLICT', message: 'x' };
             if (!opts.requestId || !['this', 'future', 'all'].includes(opts.span)) throw { code: 'INVALID_ARGUMENT', message: 'x' };
             if (method === 'deleteEvent') return opts.missing ? { deleted: true, missing: true } : { deleted: true };
+            if (opts.moveCalendarId !== undefined) { // 移動: Swift の契約の写し（存在する書込可の先だけ。繰り返しは all のみ。同じ先は何もしない）
+              const d = (M.cals || []).find((x) => x.id === opts.moveCalendarId);
+              if (!d) throw { code: 'CALENDAR_NOT_FOUND', message: 'x' };
+              if (!d.allowsModify) throw { code: 'READ_ONLY', message: 'x' };
+              if (M.moveIds) return { itemId: `moved-${opts.itemId}`, externalId: `moved-${opts.externalId ?? ''}`, eventId: `moved-${opts.eventId ?? 'x'}`, modifiedAt: 1763100002000, calendarId: opts.moveCalendarId, occurrenceDate: opts.occurrenceStart ?? null }; // 移動で識別子が変わる応答
+              return { itemId: opts.itemId, externalId: opts.externalId ?? '', eventId: opts.eventId ?? 'x', modifiedAt: 1763100002000, calendarId: opts.moveCalendarId, occurrenceDate: opts.occurrenceStart ?? null };
+            }
             return { itemId: opts.itemId, externalId: opts.externalId ?? '', eventId: opts.eventId ?? 'x', modifiedAt: 1763100001000, calendarId: opts.calendarId, occurrenceDate: opts.occurrenceStart ?? null };
           }
           case 'updateExternalEvent': case 'deleteExternalEvent': {
@@ -416,7 +423,7 @@ test.describe('ネイティブ（偽装）', () => {
     await enable(page);
     await page.locator('[data-act="add"]:visible').first().click();
     await expect(page.locator('#dest-l')).toBeVisible();
-    await expect(page.locator('#f-cat')).toBeHidden();
+    await expect(page.locator('#f-cat')).toHaveCount(0);
     await expect(page.locator('#f-xadd')).toHaveCount(0); // 旧スイッチは新規シートから無くなる
     await expect(page.locator('#dest-name')).toHaveText('家族（Google）'); // 設定の追加先（iPhone の既定）
     // 書込可のみ（家族）。読み取り専用の祝日は出ない
@@ -1567,5 +1574,162 @@ test.describe('貼付の取消（PR32）', () => {
     await page.evaluate(() => { document.querySelector('#native-toast').remove(); });
     expect(await mine(page)).toHaveLength(1);
     await page.waitForTimeout(6300); // 記録は6秒で静かに捨てられる
+  });
+});
+
+// ---------- 第15版 PR6: 既存予定の保存先の移動と、色・札を保存先カレンダーに揃える ----------
+const CALS6 = [...CALS, { id: 'cal-3', title: '仕事', color: '#1a73e8', sourceId: 's-i', source: 'iCloud', sourceType: 'caldav', allowsModify: true, isDefault: false }];
+const mock6 = (page, cfg = {}) => mock(page, { v2: true, cals: CALS6, ...cfg });
+const dbOne = async (page) => (await dbEvents(page))[0];
+
+test.describe('第15版 PR6: 既存予定のカレンダー移動', () => {
+  test('linked の編集: 旧カテゴリ行はなく、候補は iPhone のカレンダーだけ（Duo へは戻せない）', async ({ page }) => {
+    await mock6(page);
+    await openApp(page);
+    await seed(page, [linkedEv()]);
+    await enable(page);
+    await openLinked(page);
+    await expect(page.locator('#f-cat, #cat-l, #f-ecal, #ecal-l')).toHaveCount(0);
+    await expect(page.locator('#dest-name')).toHaveText('家族（Google）');
+    await page.locator('#f-dest').click();
+    await expect(page.locator('#dest-pop .dopt[data-dtype="duo"]')).toHaveCount(0);
+    await expect(page.locator('#dest-pop .dopt .dn')).toHaveText(['家族', '仕事']);
+  });
+
+  test('linked を別の iPhone カレンダーへ: updateEvent の moveCalendarId だけ（日時・通知は送らない）、二重作成なし、結びつきを返り値で更新', async ({ page }) => {
+    await mock6(page);
+    await openApp(page);
+    await seed(page, [linkedEv()]);
+    await enable(page);
+    await page.evaluate(() => { window.__mock.moveIds = true; });
+    await openLinked(page);
+    await pickDest(page, 'iphone', 'cal-3');
+    await page.locator('#editor [type=submit]').click();
+    await expect(page.locator('#editor')).toBeHidden();
+    await expect.poll(async () => (await sent(page, 'updateEvent')).length).toBe(1);
+    const [c] = await sent(page, 'updateEvent');
+    expect(c.opts).toMatchObject({ itemId: 'it-1', requestId: 'rq-1', calendarId: 'cal-1', moveCalendarId: 'cal-3', span: 'this', expectModified: 1763100000000 });
+    for (const k of ['start', 'end', 'all', 'alarms', 'title', 'place', 'notes', 'recurrence']) expect(c.opts).not.toHaveProperty(k);
+    expect(await sent(page, 'createEvent')).toHaveLength(0);
+    await expect.poll(async () => (await dbOne(page)).nativeLink.calendarId).toBe('cal-3');
+    const l = (await dbOne(page)).nativeLink;
+    expect(l).toMatchObject({ state: 'linked', itemId: 'moved-it-1', eventId: 'moved-ev-1', calName: '仕事' });
+    expect(await dbEvents(page)).toHaveLength(1);
+    expect(await page.evaluate(async () => (await import('/js/db.js')).getOutbox())).toEqual([]);
+    expect((await dbOne(page)).categoryId).toBe('d0c47a10-0000-4000-8000-000000000001'); // 既存の categoryId は保持（Duo→iPhone のときだけ none）
+  });
+
+  test('移さずに保存したら calendarId の移動は送らない。別カレンダーへ移したあと元へ戻すと変更なし', async ({ page }) => {
+    await mock6(page);
+    await openApp(page);
+    await seed(page, [linkedEv()]);
+    await enable(page);
+    await openLinked(page);
+    await pickDest(page, 'iphone', 'cal-3');
+    await pickDest(page, 'iphone', 'cal-1');
+    await page.locator('#editor [type=submit]').click();
+    await expect(page.locator('#editor')).toBeHidden();
+    await page.waitForTimeout(700);
+    expect(await sent(page, 'updateEvent')).toHaveLength(0);
+  });
+
+  test('移動の失敗（READ_ONLY）: 予定は消えず、結びつきだけ外れて案内が出る', async ({ page }) => {
+    await mock6(page);
+    await openApp(page);
+    await seed(page, [linkedEv()]);
+    await enable(page);
+    await page.evaluate(() => { window.__mock.opErr = 'READ_ONLY'; });
+    await openLinked(page);
+    await pickDest(page, 'iphone', 'cal-3');
+    await page.locator('#editor [type=submit]').click();
+    await expect(page.locator('#editor')).toBeHidden();
+    await expect.poll(async () => (await dbOne(page)).nativeLink.state).toBe('unlinked');
+    expect(await dbEvents(page)).toHaveLength(1);
+  });
+
+  test('移動の一時失敗は同じ内容で再送され、二重作成しない', async ({ page }) => {
+    await mock6(page);
+    await openApp(page);
+    await seed(page, [linkedEv()]);
+    await enable(page);
+    await page.evaluate(() => { window.__mock.opErr = 'UNAVAILABLE'; });
+    await openLinked(page);
+    await pickDest(page, 'iphone', 'cal-3');
+    await page.locator('#editor [type=submit]').click();
+    await expect.poll(async () => (await sent(page, 'updateEvent')).length).toBeGreaterThan(0);
+    const ob = await page.evaluate(async () => (await import('/js/db.js')).getOutbox());
+    expect(ob).toHaveLength(1);
+    expect(ob[0].payload).toEqual({ calendarId: 'cal-3' });
+    expect((await dbOne(page)).nativeLink.state).toBe('linked');
+    expect(await sent(page, 'createEvent')).toHaveLength(0);
+  });
+
+  test('Duo の予定を iPhone へ移す: createEvent を1回、同じ予定に linked を付けて categoryId は none。重複しない', async ({ page }) => {
+    await mock6(page);
+    await openApp(page);
+    await seed(page, [ev('D1', '歯科', '2026-11-12T10:00', '2026-11-12T11:00')]);
+    await enable(page);
+    await tab(page, '月').click();
+    await page.locator('[data-date="2026-11-12"]').click({ position: { x: 12, y: 10 } });
+    await page.locator('.tlev', { hasText: '歯科' }).click();
+    await expect(page.locator('#dest-name')).toHaveText('仕事');
+    await page.locator('#f-dest').click();
+    await expect(page.locator('#dest-pop .dopt[data-dtype="duo"]').first()).toBeVisible();
+    await page.locator('#dest-pop .dopt[data-dtype="iphone"][data-did="cal-3"]').click();
+    await page.locator('#editor [type=submit]').click();
+    await expect(page.locator('#editor')).toBeHidden();
+    await expect.poll(async () => (await sent(page, 'createEvent')).length).toBe(1);
+    const [c] = await sent(page, 'createEvent');
+    expect(c.opts).toMatchObject({ calendarId: 'cal-3', title: '歯科', start: '2026-11-12T10:00' });
+    await expect.poll(async () => (await dbOne(page)).nativeLink?.state).toBe('linked');
+    const e = await dbOne(page);
+    expect(await dbEvents(page)).toHaveLength(1);
+    expect(e).toMatchObject({ id: 'D1', categoryId: 'd0c47a10-0000-4000-8000-000000000000' });
+    expect(e.nativeLink.calendarId).toBe('cal-3');
+    expect(e).not.toHaveProperty('moveFromCat');
+    expect(await sent(page, 'updateEvent')).toHaveLength(0);
+  });
+
+  test('Duo → iPhone の作成に失敗: 予定は消えず、放棄すると元のカテゴリに戻る', async ({ page }) => {
+    await mock6(page);
+    await openApp(page);
+    await seed(page, [ev('D1', '歯科', '2026-11-12T10:00', '2026-11-12T11:00')]);
+    await enable(page);
+    await page.evaluate(() => { window.__mock.createFail = 1; });
+    await tab(page, '月').click();
+    await page.locator('[data-date="2026-11-12"]').click({ position: { x: 12, y: 10 } });
+    await page.locator('.tlev', { hasText: '歯科' }).click();
+    const before = (await dbOne(page)).categoryId;
+    await pickDest(page, 'iphone', 'cal-3');
+    await page.locator('#editor [type=submit]').click();
+    await expect(page.locator('#xretry')).toBeVisible();
+    expect(await dbEvents(page)).toHaveLength(1);
+    await page.locator('#xr-close').click();
+    await expect.poll(async () => (await dbOne(page)).nativeLink?.state).toBe('unlinked');
+    expect((await dbOne(page)).categoryId).toBe(before);
+    expect(await dbEvents(page)).toHaveLength(1);
+  });
+
+  test('色と札は保存先カレンダーのもの。未取得なら保存した名前と安全な色', async ({ page }) => {
+    await mock6(page);
+    await openApp(page);
+    await seed(page, [linkedEv({ nativeLink: { ...LINK, calName: '旧名' } })]);
+    await enable(page);
+    await tab(page, '月').click();
+    await page.locator('[data-date="2026-11-12"]').click({ position: { x: 12, y: 10 } });
+    const blk = page.locator('.tlev', { hasText: '会食' });
+    await expect(blk).toHaveAttribute('style', /--cat:#d93025/);
+    await expect(blk).toHaveAttribute('aria-label', /家族/);
+  });
+
+  test('移動の選択肢を選んだだけの途中で閉じると破棄確認。元に戻せば確認なし', async ({ page }) => {
+    await mock6(page);
+    await openApp(page);
+    await seed(page, [linkedEv()]);
+    await enable(page);
+    await openLinked(page);
+    await pickDest(page, 'iphone', 'cal-3');
+    await page.locator('#scrim').click({ position: { x: 5, y: 5 } });
+    await expect(page.locator('#discard')).toBeVisible();
   });
 });

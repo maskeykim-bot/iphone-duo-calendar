@@ -1,7 +1,7 @@
 // 第13版 PR4: iPhone の予定（ext）の編集・削除の画面。window.Capacitor を偽装して JS 側の動きを検査する。
 // 偽装は Swift の実動作の証明ではない（契約は design/IMPL_PLAN_V13.md PR1〜PR3）。
 import { test, expect } from '@playwright/test';
-import { openApp, tab, dbEvents } from './helpers.js';
+import { openApp, tab, dbEvents, pickDest } from './helpers.js';
 
 const CALS = [
   { id: 'cal-1', title: '家族', color: '#d93025', sourceId: 's-g', source: 'Google', sourceType: 'caldav', allowsModify: true, isDefault: true },
@@ -152,9 +152,14 @@ test.describe('編集（09 §2）', () => {
     await edit(page, '歯医者');
     await expect(page.locator('#edtitle')).toHaveText('予定を編集');
     await expect(page.locator('#ed-tag')).toContainText('iPhone · 家族');
-    await expect(page.locator('#cat-l')).toBeHidden();
-    await expect(page.locator('#ecal-l')).toBeVisible();
-    await expect(page.locator('#f-ecal option')).toHaveText(['● 家族（Google）', '● 仕事（iCloud）']);
+    await expect(page.locator('#cat-l')).toHaveCount(0); // 旧カテゴリ行・旧カレンダー選択は残さない
+    await expect(page.locator('#f-ecal')).toHaveCount(0);
+    await expect(page.locator('#f-dest')).toBeVisible();
+    await expect(page.locator('#dest-name')).toHaveText('家族（Google）');
+    await page.locator('#f-dest').click();
+    await expect(page.locator('#dest-pop h4')).toHaveText(['iPhone ・ Google', 'iPhone ・ iCloud']); // Duo のカテゴリへは移せない
+    await expect(page.locator('#dest-pop .dopt[data-dtype="duo"]')).toHaveCount(0);
+    await page.locator('#dest-pop .dopt[aria-selected="true"]').click();
     await expect(page.locator('#rfix')).toBeHidden();
     await expect(page.locator('#rtoggle')).toBeHidden();
     await expect(page.locator('#xext')).toContainText('変更は iPhone のカレンダーに保存されます。');
@@ -164,7 +169,7 @@ test.describe('編集（09 §2）', () => {
     expect(await page.evaluate(() => sessionStorage.getItem('duo.draft.v1'))).toBeNull(); // 本文を下書きにしない
     await page.locator('#f-title').fill('歯医者（定期）');
     expect(await page.evaluate(() => sessionStorage.getItem('duo.draft.v1'))).toBeNull();
-    await page.locator('#f-ecal').selectOption('cal-3');
+    await pickDest(page, 'iphone', 'cal-3');
     await page.locator('#form [type=submit]').click();
     await expect(page.locator('#editor')).toBeHidden();
     const u = await calls(page, 'updateExternalEvent');
@@ -201,7 +206,7 @@ test.describe('編集（09 §2）', () => {
     await expect(page.locator('#rfix')).toContainText('繰り返し · 毎週 木／10回');
     await expect(page.locator('#rfix')).toContainText('繰り返しの変更は iPhone のカレンダーで行ってください。');
     await expect(page.locator('#rtoggle')).toBeHidden();
-    await page.locator('#f-ecal').selectOption('cal-3');
+    await pickDest(page, 'iphone', 'cal-3');
     await page.locator('#form [type=submit]').click();
     const sc = page.locator('#scope');
     await expect(sc).toBeVisible();
@@ -326,13 +331,13 @@ test.describe('編集（09 §2）', () => {
   test('未保存の判定にカレンダーの変更を含む。外タップは破棄確認、取り消せば入力は残る', async ({ page }) => {
     await setup(page);
     await edit(page, '歯医者');
-    await page.locator('#f-ecal').selectOption('cal-3');
+    await pickDest(page, 'iphone', 'cal-3');
     await page.locator('#scrim').click({ position: { x: 5, y: 5 } });
     await expect(page.locator('#discard')).toBeVisible();
     await page.locator('#dc-keep').click();
     await expect(page.locator('#editor')).toBeVisible();
-    await expect(page.locator('#f-ecal')).toHaveValue('cal-3');
-    await page.locator('#f-ecal').selectOption('cal-1');
+    await expect(page.locator('#dest-name')).toHaveText(/仕事/);
+    await pickDest(page, 'iphone', 'cal-1');
     await page.waitForTimeout(500); // 幕のタップ直後の click 抑止（400ms）が切れてから
     await page.locator('#scrim').click({ position: { x: 5, y: 5 } });
     await expect(page.locator('#editor')).toBeHidden(); // 元に戻せば確認なし

@@ -47,7 +47,7 @@ test.describe('新規予定のカレンダー選択', () => {
     await setup(page);
     await openNew(page);
     await expect(page.locator('#dest-l')).toBeVisible();
-    await expect(page.locator('#f-cat')).toBeHidden();
+    await expect(page.locator('#f-cat')).toHaveCount(0);
     await expect(page.locator('#f-xadd, #f-xcal, #xadd')).toHaveCount(0);
     await expect(page.locator('#dest-name')).toHaveText('仕事');
     expect((await page.locator('#f-dest').boundingBox()).height).toBeGreaterThanOrEqual(44);

@@ -26,12 +26,10 @@
     <div class="fbody">
       <p id="ext-gone" class="gonebar" hidden>この予定は見つかりません。カレンダーで確認してください。</p>
       <label>予定名<input id="f-title" name="title" maxlength="80" placeholder="例：プロジェクト定例" required></label>
-      <label id="cat-l">カテゴリ<select id="f-cat" name="cat"></select></label>
-      <div id="dest-l" class="destrow" hidden>
+      <div id="dest-l" class="destrow">
         <button type="button" id="f-dest" class="destbtn" aria-haspopup="listbox" aria-expanded="false" aria-controls="dest-pop"><span class="dlbl">カレンダー</span><span class="dval"><i id="dest-dot" class="cdot big" aria-hidden="true"></i><span id="dest-name"></span><span aria-hidden="true">›</span></span></button>
         <div id="dest-pop" class="destpop" role="listbox" aria-label="カレンダー" hidden></div>
       </div>
-      <label id="ecal-l" class="ecal" hidden>カレンダー<select id="f-ecal" name="ecal"></select></label>
       <label class="check"><input id="f-all" name="all" type="checkbox">終日</label>
       <div class="pair">
         <label>開始<input id="f-start" name="start" class="date-text" inputmode="numeric" placeholder="2026/11/12 10:00"></label>

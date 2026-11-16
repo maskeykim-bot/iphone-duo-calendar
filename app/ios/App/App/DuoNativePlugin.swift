@@ -1807,6 +1807,12 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         let newRequestId = call.getString("newRequestId")
         let expect = (call.options["expectModified"] as? NSNumber)?.doubleValue
         let force = call.getBool("force") ?? false
+        // calendarId は結びつき先（照合・エラー判定用）。別のカレンダーへ移すときだけ moveCalendarId を渡す。
+        if has(call, "moveCalendarId") && (call.getString("moveCalendarId") ?? "").isEmpty {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        let moveCalendarId: String? = has(call, "moveCalendarId") ? call.getString("moveCalendarId") : nil
 
         queue.async { [weak self] in
             guard let self = self else { return }
@@ -1841,6 +1847,24 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             if span == "this" && wasRecurring && (recurrenceKeyed || recurrenceClear) {
                 call.reject("cannot change the rule of one occurrence", "INVALID_ARGUMENT")
                 return
+            }
+
+            // 移動は書込可能な存在する先だけ。繰り返しは all のみ（この回・これ以降では系列を分けない）。すでにその先なら何もしない。
+            var moveTo: EKCalendar? = nil
+            if let cid = moveCalendarId, cid != ev.calendar?.calendarIdentifier {
+                if wasRecurring && span != "all" {
+                    call.reject("cannot move one part of a series", "INVALID_ARGUMENT")
+                    return
+                }
+                guard let d = self.store.calendar(withIdentifier: cid) else {
+                    call.reject("calendar not found", "CALENDAR_NOT_FOUND")
+                    return
+                }
+                guard d.allowsContentModifications else {
+                    call.reject("calendar is read only", "READ_ONLY")
+                    return
+                }
+                moveTo = d
             }
 
             // 本文
@@ -1920,6 +1944,7 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
                 ev.url = URL(string: DuoNativePlugin.urlPrefix + nr)
             }
 
+            if let d = moveTo { ev.calendar = d }
             let ekSpan: EKSpan = (span == "this" || !wasRecurring) ? .thisEvent : .futureEvents
             do {
                 try self.store.save(ev, span: ekSpan, commit: true)

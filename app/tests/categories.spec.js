@@ -21,7 +21,7 @@ test.describe('新規インストールの既定カテゴリ', () => {
     ]);
     expect(cats.map((c) => c.id)).toEqual(DEFAULTS_NEW.map((c) => c.id));
     await page.getByRole('button', { name: '予定を追加' }).click();
-    await expect(page.locator('#f-cat')).toBeHidden(); // 新規はカレンダー1行
+    await expect(page.locator('#f-cat')).toHaveCount(0); // 新規はカレンダー1行
     await expect(page.locator('#dest-name')).toHaveText('仕事');
     await page.locator('#f-dest').click();
     await expect(page.locator('#dest-pop .dopt .dn')).toHaveText(['仕事', 'プライベート', '家族', '外出', 'その他']);
@@ -285,25 +285,16 @@ test.describe('カテゴリ編集パネル', () => {
     await expect(page.locator('[data-cat-add]')).toBeDisabled();
   });
 
-  test('編集シートの「カテゴリを編集…」から作ったカテゴリは、編集中の予定にそのまま入る', async ({ page }) => {
+  test('既存予定の編集もカレンダー1行。旧カテゴリ選択と「カテゴリを編集…」は無い', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await addEvent(page, { title: 'ヨガ教室' });
     await page.locator('[data-event]').first().click();
     await page.locator('#editor').waitFor();
-    await page.locator('#f-cat').selectOption({ label: 'カテゴリを編集…' });
-    await expect(page.locator('#cats')).toBeVisible();
-    await expect(page.locator('#f-cat')).toHaveValue(CAT_IDS.work); // 選択は「編集…」に残らない
-    await page.locator('[data-cat-add]').click();
-    await page.locator('#cat-name').fill('ヨガ');
-    await page.locator('#cat-close').click();
-    await page.locator('#cat-close').click(); // 閉じる
-    await expect(page.locator('#cats')).toBeHidden();
-    await expect(page.locator('#f-title')).toHaveValue('ヨガ教室');
-    await expect(page.locator('#f-cat option:checked')).toHaveText('ヨガ');
-    await page.locator('#editor').getByRole('button', { name: '保存' }).click();
-    const [saved] = await dbEvents(page);
-    const yoga = (await dbCats(page)).find((c) => c.name === 'ヨガ');
-    expect(saved.categoryId).toBe(yoga.id);
+    await expect(page.locator('#f-cat, #cat-l')).toHaveCount(0);
+    await expect(page.locator('#dest-name')).toHaveText('仕事');
+    await page.locator('#f-dest').click();
+    await expect(page.locator('#dest-pop .dopt .dn')).toHaveText(['仕事', 'プライベート', '家族', '外出', 'その他']);
+    await expect(page.locator('#dest-pop')).not.toContainText('カテゴリを編集');
   });
 
   test('編集シートで選んだカテゴリが保存され、別のカテゴリへ変更できる', async ({ page }) => {
