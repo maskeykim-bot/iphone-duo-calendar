@@ -31,3 +31,12 @@ export function selectPage(pages, side, id) {
   if (p[other] === id) return { ...p, [side]: id, [other]: p[side] };
   return { ...p, [side]: id };
 }
+
+// 時間ページの表示（左右のペインごと）。'1' 1日 | '3' 3日 | 'week' 週 | 'list' 一覧。不正・欠落は '1'。
+export const TIME_MODES = ['1', '3', 'week', 'list'];
+export const TIME_LABELS = { 1: '1日', 3: '3日', week: '週', list: '一覧' };
+export function normTimeMode(t) {
+  const s = t && typeof t === 'object' ? t : {};
+  const f = (v) => (TIME_MODES.includes(v) ? v : '1');
+  return { left: f(s.left), right: f(s.right) };
+}

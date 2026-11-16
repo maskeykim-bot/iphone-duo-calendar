@@ -9,7 +9,7 @@ const setSafe = (page, { t = 0, r = 0, b = 0, l = 0 }) => page.evaluate(([t, r, 
 const cssVar = (page, n) => page.evaluate((n) => parseFloat(document.documentElement.style.getPropertyValue(`--${n}`)), n);
 const geom = (page) => page.evaluate(() => {
   const sc = document.querySelector('.spread .scroll.msc, .spread .scroll.all').getBoundingClientRect();
-  const tabs = document.querySelector('.tabs').getBoundingClientRect();
+  const tabs = document.querySelector('.pgsw.pgl').getBoundingClientRect();
   const wks = [...document.querySelectorAll('.spread .week')].map((w) => w.getBoundingClientRect());
   const s = document.querySelector('.spread .scroll.msc, .spread .scroll.all');
   return { top: sc.top, bottom: sc.bottom, tabsTop: tabs.top, rows: wks.map((r) => r.height), lastBottom: wks[wks.length - 1].bottom, scrollable: s.scrollHeight - s.clientHeight, ratio: 0 };

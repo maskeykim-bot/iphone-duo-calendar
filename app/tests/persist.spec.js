@@ -52,7 +52,8 @@ test.describe('永続化', () => {
     expect(await layout(page)).toBe('desk');
     await expect(page.locator('[data-date="2026-12-10"]')).toHaveAttribute('aria-pressed', 'true');
     await toggleDesk(page); // 卓上表示をやめる
-
+    await page.setViewportSize(SIZES.openPortrait); // 週は閉じた画面・開いた縦のタブ（開いた横は左右ページ）
+    await expect.poll(() => layout(page)).toBe('open');
 
     await tab(page, '週').click();
     await page.setViewportSize(SIZES.closedPortrait);
@@ -60,6 +61,10 @@ test.describe('永続化', () => {
     await expect(tab(page, '週')).toHaveAttribute('aria-pressed', 'true');
     await page.setViewportSize(SIZES.openLandscape);
     await expect.poll(() => layout(page)).toBe('spread');
+    // 開いた横は左右ページが表示を決める（第14版 PR5）。閉じた画面・縦の「週」は保たれ、閉じに戻すと週のまま
+    await expect(page.locator('.pgsw')).toHaveCount(2);
+    await page.setViewportSize(SIZES.closedPortrait);
+    await expect.poll(() => layout(page)).toBe('browse');
     await expect(tab(page, '週')).toHaveAttribute('aria-pressed', 'true');
   });
 

@@ -39,3 +39,12 @@ test('selectPage: 不正値・不正な側・入力不変・縦の下', () => {
   assert.deepEqual([selectPage(d, 'portraitBottom', 'memo').left, selectPage(d, 'portraitBottom', 'memo').right], ['month', 'time']);
   assert.deepEqual(d, DEFAULT_PAGES);
 });
+
+import { normTimeMode, TIME_MODES } from '../js/pages.js';
+test('normTimeMode: 不正・欠落は 1日、正しい値は保つ', () => {
+  assert.deepEqual(normTimeMode(null), { left: '1', right: '1' });
+  assert.deepEqual(normTimeMode({ left: 'week', right: 'x' }), { left: 'week', right: '1' });
+  assert.deepEqual(normTimeMode({ left: '3', right: 'list' }), { left: '3', right: 'list' });
+  assert.deepEqual(normTimeMode('week'), { left: '1', right: '1' });
+  assert.deepEqual(TIME_MODES, ['1', '3', 'week', 'list']);
+});

@@ -1,7 +1,7 @@
 // 第12版 PR4: 本体の帯（safe area）を操作の置き場に使う B案。
 // 帯の位置と大きさは safe-area-inset の値だけが基準（84／82 を固定値にしない）。safe の注入は layout-metrics.spec.js の setSafe と同じ。
 import { test, expect } from '@playwright/test';
-import { openApp, tab, SIZES, setStyle, findTextOverlaps } from './helpers.js';
+import { openApp, tab, SIZES, setStyle, findTextOverlaps, pagePick } from './helpers.js';
 
 const setSafe = (page, { t = 0, r = 0, b = 0, l = 0 }) => page.evaluate(([t, r, b, l]) => {
   const s = document.documentElement.style;
@@ -200,7 +200,7 @@ test.describe('開いた横 + 右 safe（帯あり）', () => {
       const hs = [];
       for (const s of ['.shead [data-act="allmonth"]', '.shead [data-act="prev"]', '.shead [data-act="next"]']) { const r = await bx(page.locator(s)); near(r.width, 44); near(r.height, 44); expect(r.x + r.width).toBeLessThanOrEqual(lp.x + lp.width + 0.5); hs.push(r); }
       near(hs[0].x + hs[0].width, hs[1].x); near(hs[1].x + hs[1].width, hs[2].x);
-      const tabs = await bx(page.locator('.tabs'));
+      const tabs = await bx(page.locator('.pgsw.pgl'));
       near(tabs.y, tabTop, 0.2);
       const span = await bx(page.locator('.rhead .spanbtn'));
       near(span.x + span.width, E); near(span.width, 60); expect(span.height).toBeGreaterThanOrEqual(44 - 0.5);
@@ -208,8 +208,10 @@ test.describe('開いた横 + 右 safe（帯あり）', () => {
       near(vis.width, 60); near(vis.height, 32);
       near(span.y + span.height / 2, 40 * q, 0.8);
       expect(await findTextOverlaps(page)).toEqual([]);
-      // 全は月だけ: 週表示では左見出しに出ない
-      await tab(page, '週').click();
+      // 全は月だけ: 左が時間のときは左見出しに出ない（右が月になるので右に出る）
+      await pagePick(page, 'left', 'タスク');
+      await pagePick(page, 'right', 'メモ').click();
+      await pagePick(page, 'left', 'タスク').click();
       await expect(page.locator('[data-act="allmonth"]')).toHaveCount(0);
     });
     test(`${size.width}×${size.height} safe=0: 帯なし。線は E=W-16 まで、操作は見出し`, async ({ page }) => {
@@ -228,7 +230,7 @@ test.describe('開いた横 + 右 safe（帯あり）', () => {
     const q = (800 - 47 - 34) / 669;
     near((await bx(btn(page, '設定'))).y, 47 + 124 * q - 4, 0.8);
     near((await bx(btn(page, '予定を追加'))).y, 800 - 34 - 69 * q - 4, 0.8);
-    near((await bx(page.locator('.tabs'))).y, 47 + 611 * q, 0.5);
+    near((await bx(page.locator('.pgsw.pgl'))).y, 47 + 611 * q, 0.5);
   });
 
   test('R=84 で設定を押すとメニューは左ページの内側に出る', async ({ page }) => {

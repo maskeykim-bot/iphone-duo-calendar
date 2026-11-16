@@ -1,7 +1,7 @@
 // 第1弾レビュー対応（小さな修正版）: 非表示カテゴリの既定・通知、同名カテゴリ、読み込みの上限と件数、開いた画面の「今日に戻る」、手帳→予定名の往復。
 import { test, expect } from '@playwright/test';
 import { CAT_IDS } from '../js/categories.js';
-import { openApp, seed, dbEvents, ev, tab, SIZES, addEvent, setStyle, modeStates } from './helpers.js';
+import { openApp, seed, dbEvents, ev, tab, SIZES, addEvent, setStyle, modeStates, showView } from './helpers.js';
 
 const dbCats = (page) => page.evaluate(async () => (await import('/js/db.js')).listCategories());
 const hideCat = async (page, id) => {
@@ -151,6 +151,14 @@ test.describe('開いた画面の「今日に戻る」', () => {
     for (const view of ['日', '週']) {
       test(`${label}: ${view}表示のまま今日へ（月に変わらず、閉じてもホームに飛ばない状態を作らない）`, async ({ page }) => {
         await openApp(page, size);
+        if (size.width > size.height) { // 開いた横: 表示は右の時間ページ（1日・週）。今日へ戻っても表示は保つ
+          await showView(page, view);
+          await page.getByRole('button', { name: '次の月' }).click();
+          await page.getByRole('button', { name: '今日に戻る' }).first().click();
+          await expect(page.locator('.page.rp [data-act="tlmenu"]')).toContainText(view === '日' ? '1日' : '週');
+          await expect(page.locator('.page.lp .shead h2')).toContainText('11月');
+          return;
+        }
         await tab(page, view).click();
         await page.getByRole('button', { name: view === '日' ? '次の日' : '次の週' }).click();
         await page.getByRole('button', { name: '今日に戻る' }).first().click();

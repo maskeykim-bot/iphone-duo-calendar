@@ -49,8 +49,8 @@ test.describe('寸法変数（safe=0 では 06 の基準位置に一致する）
     [SIZES.closedPortrait, 466 / 7, 92 * q6(678), 90, 678 - 56 * q6(678) - 23, null, 466, 286],
     [SIZES.openPortrait, 626 / 7, 106, 178, 890 - 70 * p9(890), null, 626, 270],
     [SIZES.openPortrait669, 669 / 7, 106, 199.5, 951 - 70 * p9(951), null, 669, 270],
-    [SIZES.openLandscape, 61, 96 * (626 / 669), 86.5, 611 * (626 / 669), 445, 435, 270],
-    [SIZES.openLandscape951, 65.36, 96, 101.75, 611, 475.5, 465.5, 270],
+    [SIZES.openLandscape, 61, 96 * (626 / 669), 101.5, 611 * (626 / 669), 445, 435, 240], // 第14版 PR5: 左ページの切替は幅240
+    [SIZES.openLandscape951, 65.36, 96, 116.75, 611, 475.5, 465.5, 240],
   ];
   for (const [size, c, gt, tx, ty, fold, leftEnd, tw] of CASES) {
     test(`${size.width}×${size.height}`, async ({ page }) => {

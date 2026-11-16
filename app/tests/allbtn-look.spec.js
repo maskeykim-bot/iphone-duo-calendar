@@ -9,7 +9,7 @@ const info = (page) => page.locator('.allbtn').evaluate((b) => {
 for (const [name, size] of [['閉じた', SIZES.closedPortrait], ['開いた縦', SIZES.openPortrait], ['見開き', SIZES.openLandscape]]) {
   test(`「全」ボタンの見た目（${name}）: 通常は紙色の地に枠と文字、全部表示のときだけ緑。押せる範囲は 44×44 で透明`, async ({ page }) => {
     await openApp(page, size);
-    await tab(page, '月').click();
+    if (name !== '見開き') await tab(page, '月').click(); // 見開きの既定は左=月
     let i = await info(page);
     expect(i.bBg).toBe('rgba(0, 0, 0, 0)');
     expect([i.w, i.h, i.sw, i.sh]).toEqual([44, 44, 28, 28]);

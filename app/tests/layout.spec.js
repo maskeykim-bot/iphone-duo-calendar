@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, loadSample, addEvent, tab, layout, findTextOverlaps, setStyle, toggleDesk, SIZES } from './helpers.js';
+import { openApp, loadSample, addEvent, tab, layout, findTextOverlaps, setStyle, toggleDesk, SIZES, showView } from './helpers.js';
 
 const box = (loc) => loc.boundingBox();
 const inside = (inner, outer, tol = 1) => inner.y >= outer.y - tol && inner.y + inner.height <= outer.y + outer.height + tol && inner.x >= outer.x - tol && inner.x + inner.width <= outer.x + outer.width + tol;
@@ -123,13 +123,10 @@ test.describe('レイアウト（4サイズ）', () => {
       // 月では右は時間軸（予定カードの一覧ではない）
       await expect(page.locator('.tl')).toBeVisible();
       await expect(page.locator('.agenda')).toHaveCount(0);
-      // 日: 左が時間軸・右が詳細一覧（5件が収まる）
-      await tab(page, '日').click();
-      const list = await box(page.locator('.agenda .list'));
-      const evs = page.locator('.agenda .event');
-      await expect(evs).toHaveCount(5);
-      for (const ev of await evs.all()) expect(inside(await box(ev), list)).toBe(true);
-      expect((await box(evs.first())).height).toBeGreaterThanOrEqual(70);
+      // 日（第14版 PR5）: 右の時間ページを1日にする。旧「右の詳細一覧」は廃止（時間軸で見る）
+      await showView(page, '日');
+      await expect(page.locator('.page.rp .tl')).toBeVisible();
+      await expect(page.locator('.page.rp .tlev')).toHaveCount(5);
       expect((await box(page.locator('.page.rp'))).y + (await box(page.locator('.page.rp'))).height).toBeLessThanOrEqual(size.height);
     });
   }
@@ -166,13 +163,13 @@ test.describe('可視テキストの重なり', () => {
       const scan = async (tag) => { const o = await findTextOverlaps(page); if (o.length) probs.push(`${tag}: ${o.join(' / ')}`); };
       await scan('home');
       for (const v of ['日', '週', '月']) {
-        await tab(page, v).click();
+        await showView(page, v);
         if (v === '月') {
           for (const s of ['手帳', '予定名']) { await setStyle(page, s); await scan(`月/${s}`); }
         } else await scan(v);
       }
       if (size.width >= 600 && size.height >= 600) {
-        await tab(page, '月').click();
+        await showView(page, '月');
         await toggleDesk(page);
         await setStyle(page, '予定名');
         await scan('卓上/予定名');
@@ -216,7 +213,7 @@ test.describe('見開きの折り目（ビューポート中心 ±10px）', () =
     });
     const probs = [];
     for (const v of ['月', '週', '日']) {
-      await tab(page, v).click();
+      await showView(page, v);
       if (v === '月') for (const s of ['手帳', '予定名']) { await setStyle(page, s); probs.push(...(await collect()).map((h) => `${v}/${s} ${h}`)); }
       else probs.push(...(await collect()).map((h) => `${v} ${h}`));
     }

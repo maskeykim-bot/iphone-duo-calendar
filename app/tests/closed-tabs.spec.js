@@ -181,6 +181,11 @@ test('卓上表示の入口はメニュー（上部ボタンは無い）。入�
 for (const size of OPEN_SIZES) {
   test(`開いた ${size.width}×${size.height}: 浮動タブが全姿勢にあり、一覧が使え、今日は表示を保つ`, async ({ page }) => {
     await openApp(page, size);
+    if (size.width > size.height) { // 開いた横は左右ページの切替（第14版 PR5。pages.spec で詳細を検査）
+      await expect(page.locator('.tabs')).toHaveCount(0);
+      await expect(page.locator('.pgsw button')).toHaveText(['月', '時間', 'タスク', 'メモ', '月', '時間', 'タスク', 'メモ']);
+      return;
+    }
     await expect(tabsGroup(page).getByRole('button')).toHaveText(['一覧', '日', '週', '月']);
     await expect(page.locator('.segment')).toHaveCount(0);
     await expect(tab(page, '月')).toHaveAttribute('aria-pressed', 'true'); // 開いた画面の既定は月

@@ -1,7 +1,7 @@
 // 第10版 ④: 見開き（開いた横）の右ページ時間軸・折り目の保護域・操作列なし（第12版 PR4: 帯 or 見出し）・非対称 safe。
 // 画面サイズ・折り目は固定せず、innerWidth/2 を実測して検査する。
 import { test, expect } from '@playwright/test';
-import { openApp, loadSample, tab, layout, seed, ev, openMenu, SIZES } from './helpers.js';
+import { openApp, loadSample, tab, layout, seed, ev, openMenu, SIZES, pagePick, setTimeMode, showView } from './helpers.js';
 import { CAT_IDS } from '../js/categories.js';
 
 const SPREADS = [SIZES.openLandscape, SIZES.openLandscape951, { width: 1024, height: 768 }];
@@ -119,9 +119,9 @@ test.describe('見開き: 判定・背景・操作列', () => {
         expect(a.x + a.width <= b.x + 0.5 || b.x + b.width <= a.x + 0.5 || a.y + a.height <= b.y + 0.5 || b.y + b.height <= a.y + 0.5).toBe(true);
       }
       for (const n of ['前の月', '次の月', '設定']) { const r = await page.getByRole('button', { name: n }).first().boundingBox(); expect(r.width).toBeGreaterThanOrEqual(44); expect(r.height).toBeGreaterThanOrEqual(44); expect(r.x + r.width).toBeLessThanOrEqual(f - 10 + 0.5); }
-      const tabs = await page.locator('.tabs').boundingBox();
+      const tabs = await page.locator('.pgsw.pgl').boundingBox();
       expect(tabs.x + tabs.width).toBeLessThanOrEqual(f - 10 + 0.5);
-      for (const b of await page.locator('.tabs button').all()) { const r = await b.boundingBox(); expect(r.width).toBeGreaterThanOrEqual(44); expect(r.height).toBeGreaterThanOrEqual(46 - 0.5); }
+      for (const b of await page.locator('.pgsw button').all()) { const r = await b.boundingBox(); expect(r.width).toBeGreaterThanOrEqual(44); expect(r.height).toBeGreaterThanOrEqual(46 - 0.5); }
     });
   }
 
@@ -139,7 +139,7 @@ test.describe('見開き: 判定・背景・操作列', () => {
     expect(rp.y + rp.height).toBeLessThanOrEqual(H - SAFE.bottom + 0.5);
     expect(rp.x + rp.width).toBeCloseTo(W - SAFE.right - 16, 0); // E = W-R-16
     for (const n of ['今日に戻る', '予定を追加']) { const r = await page.locator('.rhead').getByRole('button', { name: n }).boundingBox(); expect(r.y + r.height).toBeLessThanOrEqual(H - SAFE.bottom + 0.5); expect(r.x + r.width).toBeLessThanOrEqual(W - SAFE.right + 0.5); }
-    const tabs = await page.locator('.tabs').boundingBox();
+    const tabs = await page.locator('.pgsw.pgr').boundingBox();
     expect(tabs.y + tabs.height).toBeLessThanOrEqual(H - SAFE.bottom + 0.5);
     await expect(page.locator('.srail')).toHaveCount(0);
     expect(await foldHits(page)).toEqual([]);
@@ -155,13 +155,15 @@ test.describe('見開き: 折り目の保護域（文字・罫線・チップ・
       const probs = [];
       const check = async (label) => { for (const h of await foldHits(page)) probs.push(`${label} ${h}`); for (const h of await focusHits(page)) probs.push(`${label} ${h}`); };
       await check('月');
-      await page.locator('[data-act="tl3"]').click();
+      await setTimeMode(page, 'right', '3日');
       await check('月/3日');
-      await page.locator('[data-act="tl3"]').click();
-      await tab(page, '週').click(); await check('週');
-      await tab(page, '日').click(); await check('日');
-      await tab(page, '一覧').click(); await check('一覧');
-      await tab(page, '月').click(); await check('月2');
+      await setTimeMode(page, 'right', '1日');
+      await showView(page, '週'); await check('週');
+      await showView(page, '日'); await check('日');
+      await showView(page, '一覧'); await check('一覧');
+      await pagePick(page, 'left', 'タスク').click(); await pagePick(page, 'right', 'メモ').click(); await check('タスク/メモ');
+      await pagePick(page, 'left', '時間').click(); await pagePick(page, 'right', '月').click(); await check('時間/月');
+      await showView(page, '月'); await check('月2');
       // 全部の月
       await openMenu(page);
       await page.locator('#menu').getByRole('button', { name: '月の表現', exact: true }).click();
@@ -257,14 +259,14 @@ test.describe('見開き: 右ページの時間軸', () => {
     const pr = await plus.boundingBox();
     expect(pr.height).toBeGreaterThanOrEqual(28 - 0.5);
     await plus.click();
-    await expect(page.locator('.agenda .event')).toHaveCount(11); // 日表示へ（その日の全件: 時刻付き7・給与・終日4）
+    await expect(page.locator('.page.rp .tlcol')).toHaveAttribute('data-day', day(12)); // その日の時間軸（1日）へ。旧「右の詳細一覧」は廃止
   });
 
   test('1日／3日切替: 3本の時間列・同じスクロール・日付で選択日を更新', async ({ page }) => {
     await openApp(page, SIZES.openLandscape951);
     await seed(page, SEED_LIGHT);
     await expect(page.locator('.tlcol')).toHaveCount(1);
-    await page.locator('[data-act="tl3"]').click();
+    await setTimeMode(page, 'right', '3日');
     await expect(page.locator('.tlcol')).toHaveCount(3);
     expect(await page.locator('.tlcol').evaluateAll((l) => l.map((e) => e.dataset.day))).toEqual([day(12), day(13), day(14)]);
     const st = await page.locator('.tl').evaluate((e) => e.scrollTop);
@@ -272,7 +274,7 @@ test.describe('見開き: 右ページの時間軸', () => {
     await page.locator('[data-tlday="2026-11-13"]').click();
     await expect(page.locator('[data-date="2026-11-13"]')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.tlcol').first()).toHaveAttribute('data-day', day(13));
-    await page.locator('[data-act="tl3"]').click();
+    await setTimeMode(page, 'right', '1日');
     await expect(page.locator('.tlcol')).toHaveCount(1);
   });
 
@@ -326,21 +328,19 @@ test.describe('見開き: 右ページの時間軸', () => {
     await expect(page.locator('#editor')).toBeHidden();
   });
 
-  test('日: 左が時間軸・右が詳細一覧、週は前4日／後3日の分割リスト、一覧は左の内容＋右の時間軸', async ({ page }) => {
+  test('時間ページの 1日・週・一覧は右ページの中で描き、左の月は残る（旧「週で左右を分割」の読み替え）', async ({ page }) => {
     await openApp(page, SIZES.openLandscape951);
     await loadSample(page);
-    await tab(page, '日').click();
-    await expect(page.locator('.page.lp .tl')).toBeVisible();
-    await expect(page.locator('.page.rp .agenda .event')).toHaveCount(5);
-    await expect(page.locator('.page.rp .tl')).toHaveCount(0);
-    await tab(page, '週').click();
-    await expect(page.locator('.page.lp .weekrow')).toHaveCount(4);
-    await expect(page.locator('.page.rp .weekrow')).toHaveCount(3);
-    await tab(page, '一覧').click();
-    await expect(page.locator('.page.lp .listview')).toBeVisible();
+    await showView(page, '日');
     await expect(page.locator('.page.rp .tl')).toBeVisible();
-    await tab(page, '月').click();
     await expect(page.locator('.page.lp .week').first()).toBeVisible();
+    await showView(page, '週');
+    await expect(page.locator('.page.rp .weekrow')).toHaveCount(7);
+    await expect(page.locator('.page.lp .weekrow')).toHaveCount(0);
+    await showView(page, '一覧');
+    await expect(page.locator('.page.rp .listview')).toBeVisible();
+    await expect(page.locator('.page.lp .week').first()).toBeVisible();
+    await showView(page, '日');
     // 時間軸の予定から編集が開く
     await page.locator('.tl .tlev').first().click();
     await expect(page.locator('#editor')).toBeVisible();

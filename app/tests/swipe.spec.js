@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, loadSample, tab, period, swipe, settle, SIZES } from './helpers.js';
+import { openApp, loadSample, tab, period, swipe, settle, SIZES, showView } from './helpers.js';
 
 const LAYOUTS = [
   ['閉じた縦 466×678', SIZES.closedPortrait],
@@ -20,10 +20,11 @@ const prevDay = (s) => ({ x0: Math.round(s.width * 0.55), y0: Math.round(s.heigh
 
 for (const [lname, size] of LAYOUTS) {
   for (const [view, now, nextT, prevT] of VIEWS) {
+    if (size.width > size.height && view !== '月') continue; // 開いた横の日・週は時間ページの表示（第14版 PR5）。スワイプの送りは月
     test(`${lname} ${view}: 左スワイプ＝次、右スワイプ＝前`, async ({ page }) => {
       await openApp(page, size);
       await loadSample(page);
-      await tab(page, view).click();
+      await showView(page, view);
       expect(await period(page)).toBe(now);
       const spreadDay = size.width > size.height && view === '日'; // 見開きの日: 左は時間軸なので右の詳細一覧から
       const [nx, pv] = spreadDay ? [nextDay, prevDay] : [next, prev];
@@ -56,7 +57,7 @@ test('閉じたホーム: 左スワイプで月を送り、ホームを終了し
   expect(await period(page)).toBe('2026年 12月');
 });
 
-test('開いた横: 左ページ・右の一覧・週の右ページで1回だけ送る（時間軸は対象外）', async ({ page }) => {
+test('開いた横: 左ページで1回だけ送る。右の時間軸は対象外（第14版 PR5: 日・週は時間ページの表示）', async ({ page }) => {
   await openApp(page, SIZES.openLandscape);
   await loadSample(page);
   await swipe(page, { x0: 300, y0: 344, dx: -120 }); // 左ページ
@@ -65,15 +66,9 @@ test('開いた横: 左ページ・右の一覧・週の右ページで1回だ�
   await swipe(page, { x0: 700, y0: 344, dx: -120 }); // 右ページの時間軸は対象外（変わらない）
   await page.waitForTimeout(350);
   expect(await period(page)).toBe('2026年 12月');
-  await tab(page, '日').click();
-  expect(await period(page)).toBe('12月12日（土）');
-  await swipe(page, { x0: 700, y0: 344, dx: -120 }); // 右ページ（詳細一覧）
-  await expect.poll(() => period(page)).toBe('12月13日（日）');
-  await page.waitForTimeout(450); // スワイプ直後の click は抑止される
-  await tab(page, '週').click();
-  await expect.poll(() => period(page)).toBe('12月7日〜12月13日');
-  await swipe(page, { x0: 700, y0: 500, dx: -120 }); // 週: 右ページ
-  await expect.poll(() => period(page)).toBe('12月14日〜12月20日');
+  await showView(page, '週');
+  expect(await period(page)).toBe('2026年 12月'); // 週は右ページの表示。左の月は保たれる
+  await expect(page.locator('.page.rp .weekrow')).toHaveCount(7);
 });
 
 test.describe('判定', () => {

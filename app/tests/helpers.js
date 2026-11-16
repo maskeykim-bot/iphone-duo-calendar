@@ -105,10 +105,10 @@ export async function findTextOverlaps(page, { ignoreApp = false } = {}) {
       if (cs.visibility === 'hidden' || cs.display === 'none') continue;
       const range = document.createRange();
       range.selectNodeContents(n);
-      const inFloat = !!el.closest('.tabs, .ctl');
+      const inFloat = !!el.closest('.tabs, .pgsw, .ctl');
       for (const r0 of range.getClientRects()) {
         // 浮動タブ・操作列は月の下に重ねて浮かせる設計。その下に隠れた文字（中心がタブ内）は見えないので対象外。
-        if (!inFloat) { const hit = document.elementFromPoint(Math.min(Math.max((r0.left + r0.right) / 2, 0), vw - 1), Math.min(Math.max((r0.top + r0.bottom) / 2, 0), vh - 1)); if (hit?.closest('.tabs, .ctl')) continue; }
+        if (!inFloat) { const hit = document.elementFromPoint(Math.min(Math.max((r0.left + r0.right) / 2, 0), vw - 1), Math.min(Math.max((r0.top + r0.bottom) / 2, 0), vh - 1)); if (hit?.closest('.tabs, .pgsw, .ctl')) continue; }
         let r = { l: Math.max(r0.left, 0), t: Math.max(r0.top, 0), r: Math.min(r0.right, vw), b: Math.min(r0.bottom, vh) };
         for (let a = el; a && a !== document.documentElement; a = a.parentElement) {
           const s = getComputedStyle(a);
@@ -235,4 +235,19 @@ export async function modeStates(page) {
 export async function toggleDesk(page) {
   await openMenu(page);
   await page.locator('#menu').getByRole('button', { name: /^卓上表示/ }).click();
+}
+
+// 第14版 PR5: 開いた横の左右ページの切替と時間の表示。side は 'left' | 'right'、name は 月/時間/タスク/メモ。
+export const pagePick = (page, side, name) => page.locator(`.pgsw.${side === 'left' ? 'pgl' : 'pgr'}`).getByRole('button', { name, exact: true });
+export async function setTimeMode(page, side, label) {
+  await page.locator(`.page.${side === 'left' ? 'lp' : 'rp'} [data-act="tlmenu"]`).click();
+  await page.locator(`.tlmenu [data-tlmode]`).filter({ hasText: new RegExp(`^${label}$`) }).click();
+}
+// 閉じた・縦は従来のタブ、開いた横は左右ページへ読み替える（月=左月・右時間／日=右の時間1日／週=右の時間・週／一覧=右の時間・一覧）。
+export async function showView(page, name) {
+  if (!(await page.locator('.pgsw').count())) { await tab(page, name).click(); return; }
+  const lp = page.locator('.page.lp'), isMonth = (await lp.getAttribute('data-page')) === 'month';
+  if (name === '月') { if (!isMonth) await pagePick(page, 'left', '月').click(); if ((await page.locator('.page.rp').getAttribute('data-page')) !== 'time') await pagePick(page, 'right', '時間').click(); return; }
+  if ((await page.locator('.page.rp').getAttribute('data-page')) !== 'time') await pagePick(page, 'right', '時間').click();
+  await setTimeMode(page, 'right', { 日: '1日', 週: '週', 一覧: '一覧' }[name]);
 }
