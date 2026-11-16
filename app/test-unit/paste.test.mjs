@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PASTE_MAX, planPaste, shiftTo } from '../js/paste.js';
+import { PASTE_MAX, planPaste, shiftTo, clipTitle, bandLabel, toggleDay, addDaysCapped, daysBetween, spanOf, pasteLabel } from '../js/paste.js';
 import { occurrenceAt } from '../js/recur.js';
 import { toDisplay } from '../js/iphone.js';
 
@@ -127,4 +127,36 @@ test('通常予定の追加既定にコピー先が左右されない（planPast
   const ctx = ctxOf({ cals, defaultCalendarId: 'c1' });
   planPaste(duo({ nativeLink: { state: 'linked', calendarId: 'c2' } }), ['2026-11-10'], ctx);
   assert.equal(ctx.defaultCalendarId, 'c1'); assert.deepEqual(cals.map((c) => c.id), ['c1', 'c2']);
+});
+
+// ---- PR33: コピー開始と貼る日の選択 ----
+test('題名は8字を超えたら…で省く／帯の文言は単日と複数日で分ける', () => {
+  assert.equal(clipTitle('12345678'), '12345678');
+  assert.equal(clipTitle('123456789'), '12345678…');
+  assert.equal(clipTitle('撮影'), '撮影');
+  assert.deepEqual(bandLabel({ title: '撮影', start: '2026-11-02T09:00', end: '2026-11-02T10:00' }), { text: '「撮影」を貼る日を選択', sub: '', multi: false });
+  const m = bandLabel({ title: '出張', all: true, start: '2026-11-02T00:00', end: '2026-11-04T23:59' });
+  assert.equal(m.text, '「出張」（3日間）を貼る日を選択'); assert.equal(m.sub, '選んだ日から始まります'); assert.ok(m.multi);
+  assert.equal(spanOf({ start: '2026-11-02T22:00', end: '2026-11-03T01:00' }), 2);
+  assert.equal(pasteLabel(0), '貼り付け'); assert.equal(pasteLabel(3), '3日に貼り付け');
+});
+
+test('日の切替: 追加・解除・31で満杯（32日目は変えない）・昇順', () => {
+  let d = [];
+  for (const k of ['2026-11-12', '2026-11-03']) d = toggleDay(d, k).days;
+  assert.deepEqual(d, ['2026-11-03', '2026-11-12']);
+  assert.deepEqual(toggleDay(d, '2026-11-03').days, ['2026-11-12']);
+  const all = daysBetween('2026-12-01', '2026-12-31');
+  assert.equal(all.length, 31);
+  const r = toggleDay(all, '2027-01-01');
+  assert.ok(r.full); assert.equal(r.changed, false); assert.equal(r.days.length, 31);
+  assert.equal(toggleDay(all, '2026-12-05').days.length, 30);
+});
+
+test('なぞり選択の追加は上限まで、逆順の範囲も昇順、月・閏日をまたぐ', () => {
+  assert.deepEqual(daysBetween('2028-03-01', '2028-02-28'), ['2028-02-28', '2028-02-29', '2028-03-01']);
+  const base = daysBetween('2026-11-01', '2026-11-30');
+  const r = addDaysCapped(base, ['2026-12-01', '2026-12-02', '2026-12-03']);
+  assert.equal(r.days.length, 31); assert.equal(r.added, 1); assert.ok(r.full);
+  assert.equal(addDaysCapped(base, ['2026-11-05']).added, 0);
 });

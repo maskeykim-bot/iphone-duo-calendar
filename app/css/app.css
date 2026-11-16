@@ -864,3 +864,35 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .mrbar button{min-height:44px;padding:0 12px;border-radius:8px;border:1px solid #294E42;background:#fff;color:#294E42;font-size:14px;font-weight:700}
 .mrbar button[data-mr="ok"]{background:#294E42;color:#fff}
 .week .day{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+
+/* ---- コピーの貼付選択（PR33） ---- */
+.week .bar,.week .strip{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.cmenu{position:fixed;z-index:9100;width:160px;border-radius:12px;background:#fffdfa;box-shadow:inset 0 0 0 1px var(--line),0 4px 16px #1a302d33;overflow:hidden}
+.cmenu button{display:block;width:100%;height:44px;padding:0 16px;border:0;border-bottom:1px solid var(--line);background:transparent;text-align:left;font-size:16px;color:#294E42}
+.cmenu button:last-child{border-bottom:0}
+.cmenu button.danger{color:#C0392B}
+.cmenu button:disabled{opacity:.4}
+.copyrow{margin-top:4px}
+.copyrow[hidden]{display:none}
+.copyrow button{width:100%;height:44px;border:0;background:transparent;color:#294E42;font-size:16px;font-weight:700}
+.copyrow button:disabled{opacity:.4}
+.chead.pasting,.shead.pasting{display:block;padding:0}
+.portrait .chead.pasting>*{position:static}
+.pband{box-sizing:border-box;display:flex;align-items:center;gap:4px;min-height:48px;margin:0 8px;padding:0 6px 0 12px;border-radius:12px;background:#294E42;color:#fff;overflow:hidden}
+.pband.multi{min-height:60px}
+.pbl{flex:1 1 auto;min-width:0;display:flex;flex-direction:column}
+.pbt{font-size:13px;font-weight:700;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pbs{font-size:11px;color:rgba(255,255,255,.7);line-height:1.3}
+.pbc{flex:none;min-width:60px;height:44px;padding:0;border:0;background:transparent;color:#fff;font-size:13px}
+.pbo{flex:none;min-width:104px;height:32px;padding:0 10px;border:0;border-radius:16px;background:#fff;color:#294E42;font-size:13px;font-weight:700;white-space:nowrap}
+.pbo:disabled{opacity:.4}
+.pbo .pn{display:inline-block;min-width:18px;padding:0 4px;margin-right:1px;border-radius:9px;background:#294E42;color:#fff;text-align:center}
+.pbo.full .pn{color:#F4C27A}
+.pbnav{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%)}
+.week .day.psel::after{content:"";position:absolute;inset:2px;border:2.5px solid #2F9E6E;border-radius:6px;pointer-events:none;z-index:3}
+.week .day.psrc{box-shadow:inset 0 0 0 1.5px #68716A}
+.week .day .pcsrc{position:absolute;left:0;right:0;bottom:1px;text-align:center;font-size:9px;line-height:1.1;color:#68716A;pointer-events:none;z-index:2}
+.week .day .pck{position:absolute;right:3px;bottom:3px;width:16px;height:16px;border-radius:50%;background:#2F9E6E;color:#fff;font:700 10px/16px sans-serif;text-align:center;font-style:normal;pointer-events:none;z-index:4}
+.week .day.pshake{animation:pshake .2s}
+@keyframes pshake{0%,100%{transform:scale(1)}50%{transform:scale(.92)}}
+.pdim{filter:brightness(.9)}

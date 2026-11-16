@@ -12,6 +12,7 @@ import { rokuyoOf } from './rokuyo.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS } from './pages.js';
 import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.js';
 import { DELETE_UNDO_MS, checkReminderAccess, requestReminderAccess, taskAccessHtml, createReminderLoader, tasksHtml, HIST_DAYS, createAddController, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDoneController, TASK_CONFLICT, createDeleteController, TASK_DELETED, TASK_DELETE_CONFLICT, normRemSettings, shownListIds, pruneRemSettings, resolveAddList, filterByLists, dueCounts } from './reminders.js';
+import { PASTE_MAX, addDaysCapped, bandLabel, daysBetween, pasteLabel, toggleDay } from './paste.js';
 import { call, errCode, errReason, errText, haptic, listen, nativeAvailable, reminderErrText } from './native.js';
 import { buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, pickAddCal, planNativeOps, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
 import {
@@ -55,6 +56,10 @@ function loadUi() {
   };
 }
 const state = { ...loadUi(), events: [], categories: [], loaded: false };
+// コピー貼り付けの選択状態（メモリだけ。DB・native へは書かない）。第14版 PR33。
+// 確定（貼付の実行）は PR34 で接続するまで入口を出さない（?paste を付けたときだけ有効）。
+const PASTE_ENTRY = new URLSearchParams(location.search).has('paste');
+const PS = { on: false, src: null, srcLink: null, srcDay: '', days: [], busy: 0, onConfirm: null };
 setFirstDay(state.weekStart);
 let hiddenCats = new Set();
 function setCategories(list) {
@@ -432,6 +437,7 @@ const variantBtns = (kind) => [['simple', '手帳'], ['named', '予定名'], ['a
 const allBtn = (cls = 'allbtn', st = '') => `<button type="button" class="${cls}" data-act="allmonth" aria-pressed="${state.monthExpand}" aria-label="${state.monthExpand ? '通常の予定表示に戻す' : '全部の予定を表示'}"${st}><span aria-hidden="true">全</span></button>`;
 // 見出し: 閉じた画面（帯あり）は 前・題名・次 のみ（全は帯）。帯なし／開いた縦は 全 も見出しに置く。
 const chead = () => {
+  if (PS.on && monthAll()) return `<div class="chead pasting">${pasteBand()}</div>`;
   const inBand = POS.post === 'closed' && POS.band;
   return `<div class="chead">${navBtn(-1)}<h2 id="ctitle">${periodTitle()}${state.view === 'day' ? rkSpan(state.selected, 'hrk') : ''}</h2>${navBtn(1)}${state.view === 'month' && !inBand ? allBtn() : ''}</div>`;
 };
@@ -493,7 +499,8 @@ function weekInner(w, { mode, cur, sel, today, cap, time, tk = null }) {
     const r = rkOf(k), label = d.getDate() === 1 ? (state.rokuyo ? `${d.getMonth() + 1}/1` : `${d.getMonth() + 1}月1日`) : d.getDate(); // 六曜オンの1日は「11/1」（左の六曜とぶつかるため）
     const tn = tk?.get(k) || 0; // 月にタスクの件数（開いた画面だけ。タスク名は出さない）
     const dots = mode === 'simple' ? `<span class="dots">${es.slice(0, cap).map((e) => `<i class="dot ${catCls(e)}"${catSty(e)}></i>`).join('')}</span>` : '';
-    html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}${dow === 6 ? ' sat' : dow === 0 ? ' sun' : ''}" data-date="${k}" aria-label="${dayLabel(k)}${r ? `、${r.name}` : ''}、予定${es.length}件${xCount(es)}${tn ? `、未完了のタスク${tn}件` : ''}" aria-pressed="${k === sel}">${r ? `<span class="rk" aria-hidden="true">${r.name}</span>` : ''}<span class="num${state.rokuyo && d.getDate() === 1 ? ' sd' : ''}">${label}</span>${memoMark(k)}${tn ? `<span class="tkn" aria-hidden="true">✓${tn}</span>` : ''}${dots}</button>`;
+    const ps = PS.on ? PS.days.includes(k) : false, pSrc = PS.on && k === PS.srcDay;
+    html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}${dow === 6 ? ' sat' : dow === 0 ? ' sun' : ''}${ps ? ' psel' : ''}${pSrc ? ' psrc' : ''}" data-date="${k}" aria-label="${dayLabel(k)}${r ? `、${r.name}` : ''}、予定${es.length}件${xCount(es)}${tn ? `、未完了のタスク${tn}件` : ''}${PS.on ? `${pSrc ? '、コピー元' : ''}、${ps ? '選択中。この日を外す' : 'この日を選ぶ'}` : ''}" aria-pressed="${PS.on ? ps : k === sel}">${pSrc ? '<span class="pcsrc" aria-hidden="true">コピー元</span>' : ''}${ps ? '<i class="pck" aria-hidden="true">✓</i>' : ''}${r ? `<span class="rk" aria-hidden="true">${r.name}</span>` : ''}<span class="num${state.rokuyo && d.getDate() === 1 ? ' sd' : ''}">${label}</span>${memoMark(k)}${tn ? `<span class="tkn" aria-hidden="true">✓${tn}</span>` : ''}${dots}</button>`;
     const extra = mode === 'simple' ? es.length - cap : hidden[col];
     if (extra > 0) html += `<button type="button" class="plus" data-jump="${k}" style="right:calc(${6 - col} * 100% / 7)" aria-label="${dayLabel(k)}の予定をすべて見る（ほか${extra}件）">+${extra}</button>`;
   });
@@ -548,7 +555,7 @@ function syncAllWeeks() {
   const cur = parseKey(state.selected).getMonth(), sel = state.selected, today = todayKey();
   rows.forEach((r, i) => {
     const want = i >= a - 1 && i <= z + 1;
-    if (want && !r.dataset.drawn) { r.innerHTML = weekInner(allWeeks.get(r.dataset.wk), { ...allCtx, cur, sel, today }); r.dataset.drawn = '1'; }
+    if (want && !r.dataset.drawn) { r.innerHTML = weekInner(allWeeks.get(r.dataset.wk), { ...allCtx, cur, sel, today }); r.dataset.drawn = '1'; if (PS.on) applyPasteInert(); }
     else if (!want && r.dataset.drawn) { r.textContent = ''; delete r.dataset.drawn; }
   });
   paintRange();
@@ -747,7 +754,7 @@ function sheadTitle() {
   return `<span class="yr">${d.getFullYear()}年</span> ${d.getMonth() + 1}月`;
 }
 // 左ページ見出し: 年（薄色）月 ｜ 全（月のみ）・前・次（44角）。帯がないときは設定もここ。
-const shead = (side = 'left') => `<div class="shead"><h2 id="ctitle">${sheadTitle()}</h2>${side === 'right' ? rctl() : ''}<div class="sctl">${monthAll() ? allBtn() : ''}${navBtn(-1)}${navBtn(1)}${side === 'left' ? gearBtn() : ''}</div></div>`;
+const shead = (side = 'left') => PS.on && state.pages[side] === 'month' ? `<div class="shead pasting">${pasteBand()}</div>` : `<div class="shead"><h2 id="ctitle">${sheadTitle()}</h2>${side === 'right' ? rctl() : ''}<div class="sctl">${monthAll() ? allBtn() : ''}${navBtn(-1)}${navBtn(1)}${side === 'left' ? gearBtn() : ''}</div></div>`;
 // 時間軸 1 日分のブロック: 開始〜終了（分）。日をまたぐ予定は当日 0〜24 時へ clip。重なりは等幅の列に分ける。
 function dayBlocks(k) {
   const items = eventsOnDay(occIn(k, k), k).filter((e) => !e.all).map((e) => {
@@ -1248,6 +1255,7 @@ root.addEventListener('pointerdown', (ev) => {
 let lastKind = '';
 function render() {
   if (memoComposing) { renderPending = true; return; } // IME 変換中は入力欄を作り直さない
+  ensurePasteMonth();
   const kind = layoutKind();
   updateLayoutMetrics();
   updateDiagnostics();
@@ -1276,6 +1284,7 @@ function render() {
   initTimeline();
   paintDraft();
   paintRange();
+  applyPasteInert();
   if (focusKey && !document.activeElement?.matches?.('input.remin')) { // 入力欄へ送ったフォーカスは取り戻さない
     const [t, v] = focusKey.split(/:(.*)/);
     const sel = { act: `[data-act="${v}"]`, view: `[data-view="${v}"]`, mode: `[data-mode="${v}"]`, date: `[data-date="${v}"]` }[t];
@@ -1316,6 +1325,7 @@ root.addEventListener('click', (ev) => {
   if (MM.open && !ev.target.closest('.mmenu, [data-act="mini"]')) { closeMini(false); return; } // 小さな月の外をたたくと閉じる（たたいた先の操作はしない）
   if (!b || !root.contains(b)) return;
   const d = b.dataset;
+  if (PS.on && pasteClick(b)) return;
   const pg = layoutKind() === 'spread' && d.act !== 'add' ? b.closest('.page') : null;
   if (pg) { const sd = pg.classList.contains('lp') ? 'left' : 'right'; if (sd !== state.lastSide) { state.lastSide = sd; saveUi(); } }
   if (d.view) set({ view: d.view, home: false });
@@ -1517,6 +1527,7 @@ function showEditor(values, id, focus = true) {
   rsel = (values.rbyday || []).map(Number).filter((n) => n >= 0 && n <= 6);
   autoDays = values.autoDays !== false && !id;
   $('#delete').hidden = !id || !!extEd;
+  $('#copyrow').hidden = !(PASTE_ENTRY && id && !extEd);
   $('#error').textContent = '';
   applyExtUi();
   R.err.textContent = '';
@@ -2847,6 +2858,8 @@ function xdFoot() {
   const s = xdState, can = s?.status === 'ok' && s.ed.editable;
   const reason = s?.status === 'ok' ? (s.ed.editable ? null : s.ed.reason) : s?.pre;
   $('#xd-act').hidden = !can;
+  $('#xd-copyrow').hidden = !PASTE_ENTRY;
+  $('#xd-copy').disabled = s?.status !== 'ok';
   $('#xd-note').hidden = can;
   $('#xd-note').textContent = REASON_TEXT[reason] || XD_NOTE;
   const o = $('#xd-open');
@@ -3864,6 +3877,7 @@ const swipeCtl = initSwipe({
       const x = t.closest('.tlx');
       return x ? x.scrollWidth <= x.clientWidth + 1 : !t.closest('.tl');
     }
+    if (PS.on && pg.id !== 'month') return false; // 貼付中は月のページだけ動く
     if (pg.id === 'task') return false;
     if (pg.id === 'memo' && isTextEl(document.activeElement)) return false; // メモを編集中は動かさない
     if (pg.id !== 'month') swipePane = pg.side;
@@ -3877,6 +3891,8 @@ const swipeCtl = initSwipe({
 const DIRECT_ZONE_EXCLUDE = '.ev, .strip, .tlev, .dbox, button, input, select, textarea, label, dialog, .tlheads, .tlmenu, .mmenu, .tabs';
 function directOrigin(t) {
   if (anyPanel() || !(t instanceof Element)) return null;
+  const chip = !PS.on && PASTE_ENTRY ? t.closest('.week .bar[data-event], .week .strip[data-event]') : null; // 月のチップ（長押しでコピー・編集・削除のメニュー）
+  if (chip && !t.closest('.tabs, .mmenu, .tlmenu')) return { kind: 'chip', id: chip.dataset.event, el: chip };
   const md = t.closest('.week .day[data-date]'); // 月の日マス（空白・数字）。帯・チップ・+N は別の要素なので起点にならない
   if (md && !t.closest('.tabs, .mmenu, .tlmenu')) return { kind: 'month', day: md.dataset.date, side: pageOf(md)?.side ?? null };
   if (t.closest('.week')) return null; // チップ・+N など月の他の要素は期間選択しない
@@ -3937,6 +3953,7 @@ directCtl = initDirectInput({
   classify: (t) => directOrigin(t),
   onStart: ({ origin: o, x, y }) => {
     EG.x = x; EG.y = y; EG.origin = o; EG.carry = 0; EG.tl = null;
+    if (o.kind === 'chip') { openChipMenu(o.id, o.el); feel('light'); return; }
     if (o.kind === 'month') {
       Object.assign(MR, { mode: 'drag', anchor: o.day, cur: o.day, side: o.side }); paintRange(); feel('light');
       monthEdgeUpdate(); return;
@@ -3965,6 +3982,7 @@ directCtl = initDirectInput({
     if (o.kind === 'month') {
       if (MR.mode !== 'drag') return;
       const k = dayAtPoint(x, y, monthScope()); if (k) MR.cur = k;
+      if (PS.on) { const r = dayRange(MR.anchor, MR.cur); clearRange(); pasteAddDays(daysBetween(r.start, r.end)); return; }
       openRangeSheet(); return;
     }
     if (o.kind === 'allday') { openEditor(null, root.querySelector('[data-act="add"]'), o.day, null, { all: true, direct: true }); return; }
@@ -4041,6 +4059,141 @@ function rangeKbd(a) {
   MR.cur = cur; paintRange();
   say(rangeText(MR.anchor, MR.cur));
 }
+
+// ---------- コピーと貼る日の選択（第14版 PR33）。実行（確定）は PR34 で PS.onConfirm へ接続する ----------
+// 状態 PS はメモリだけ。選択・キャンセルでは DB・native を一切呼ばない（getEvent で型紙を取る ext のコピー開始を除く）。
+function pasteBand() {
+  const b = bandLabel(PS.src), n = PS.days.length;
+  return `<div class="pband${b.multi ? ' multi' : ''}" role="group" aria-label="貼り付け先の日を選ぶ"><div class="pbl"><span class="pbt">${esc(b.text)}</span>${b.sub ? `<span class="pbs">${b.sub}</span>` : ''}</div><span class="pbnav">${navBtn(-1)}${navBtn(1)}</span><button type="button" class="pbc" data-pa="cancel">キャンセル</button><button type="button" class="pbo${n >= PASTE_MAX ? ' full' : ''}" data-pa="ok"${n ? '' : ' disabled'} aria-label="${pasteLabel(n)}">${n ? `<b class="pn">${n}</b>日に貼り付け` : '貼り付け'}</button></div>`;
+}
+// 貼付中は月が見えている状態を保つ（開閉・回転で別の表示になっても月へ戻す）。
+function ensurePasteMonth() {
+  if (!PS.on) return;
+  if (layoutKind() === 'spread') {
+    if (state.pages.left !== 'month' && state.pages.right !== 'month') state.pages = selectPage(state.pages, state.lastSide, 'month');
+  } else if (listShown() || state.view !== 'month') { state.home = false; state.view = 'month'; }
+}
+function applyPasteInert() {
+  if (!PS.on) return;
+  root.querySelectorAll('.week .bar, .week .strip, .week .plus, .mrpick, [data-act="add"], .tabs, .pgsw, .pnl, .pgrab').forEach((el) => { el.inert = true; });
+  root.querySelectorAll('.pnl').forEach((el) => el.classList.add('pdim'));
+  root.querySelectorAll('.page').forEach((p) => { const other = p.dataset.page !== 'month'; p.inert = other; p.classList.toggle('pdim', other); });
+}
+function startPaste(src, srcLink = null) {
+  if (!PASTE_ENTRY || !src) return;
+  directCtl?.cancel('paste'); MR.bar?.remove(); MR.bar = null; clearRange(); closeChipMenu();
+  Object.assign(PS, { on: true, src: { ...src }, srcLink: srcLink ? { ...srcLink } : null, srcDay: dayOf(src.start), days: [] });
+  render();
+  say(`${bandLabel(PS.src).text}。日をたたいて選びます。`);
+}
+function cancelPaste() {
+  if (!PS.on) return;
+  Object.assign(PS, { on: false, src: null, srcLink: null, srcDay: '', days: [] });
+  render();
+  say('貼り付けをやめました。');
+}
+function pasteFull(day) {
+  feel('warning');
+  notice(`一度に貼り付けられるのは${PASTE_MAX}日までです`, null, 3000);
+  const el = day ? root.querySelector(`.day[data-date="${day}"]`) : null;
+  if (el && !reduced()) { el.classList.remove('pshake'); void el.offsetWidth; el.classList.add('pshake'); setTimeout(() => el.classList.remove('pshake'), 200); }
+}
+function pasteToggle(day) {
+  const r = toggleDay(PS.days, day);
+  if (r.full) { pasteFull(day); return; }
+  PS.days = r.days;
+  render();
+  say(`${dayLabel(day)}を${PS.days.includes(day) ? '選びました' : '外しました'}。${PS.days.length}日。`);
+}
+function pasteAddDays(list) {
+  const r = addDaysCapped(PS.days, list);
+  PS.days = r.days;
+  render();
+  if (r.full) pasteFull(list[list.length - 1]);
+  else say(`${PS.days.length}日を選んでいます。`);
+}
+// 貼付中の操作。日と帯のボタンと月送りだけ通し、チップ・＋・他ページなどは何もしない。
+function pasteClick(b) {
+  const d = b.dataset;
+  if (d.pa === 'cancel') { cancelPaste(); return true; }
+  if (d.pa === 'ok') { if (PS.days.length && PS.onConfirm) PS.onConfirm({ src: PS.src, srcLink: PS.srcLink, days: [...PS.days] }); return true; }
+  if (d.date) { pasteToggle(d.date); return true; }
+  if (['prev', 'next', 'today', 'allmonth'].includes(d.act)) return false;
+  return true;
+}
+document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && PS.on && !anyPanel()) cancelPaste(); });
+
+// コピーする予定の型紙。Duo は回（occurrenceAt 後）を写し、ext は getEvent の詳細から作る。
+function duoSource(id) {
+  const r = resolve(id);
+  if (!r) return null;
+  const o = r.occ;
+  const src = { title: o.title, categoryId: o.categoryId, all: !!o.all, start: o.start, end: o.end, place: o.place || '', notes: o.notes || '', alarms: Array.isArray(o.alarms) ? o.alarms.map((a) => ({ ...a })) : undefined };
+  if (o.nativeLink) src.nativeLink = { ...o.nativeLink };
+  return { src, link: r.p.nativeLink ? { ...r.p.nativeLink } : null };
+}
+async function extSource(id) {
+  const e = visExt().find((x) => x.id === id);
+  if (!e) return null;
+  const d = await call('getEvent', extTarget(e));
+  return { ...toDisplay(d, X.calendars.find((c) => c.id === e.calId)), id };
+}
+let copyGen = 0;
+async function copyFrom(id) {
+  if (!PASTE_ENTRY) return;
+  if (isXId(id)) {
+    const gen = ++copyGen;
+    try {
+      const s = await extSource(id);
+      if (gen !== copyGen) return;
+      if (!s) throw new Error('gone');
+      startPaste(s, null);
+    } catch { if (gen === copyGen) notice('コピーできませんでした。iPhone のカレンダーを確認してください。'); }
+  } else { const s = duoSource(id); if (s) startPaste(s.src, s.link); }
+}
+
+// チップの長押しメニュー（幅160・1行44・角丸12）。書けない iPhone の予定は編集・削除を無効にし、コピーは使える。
+let chipMenu = null;
+function closeChipMenu() { chipMenu?.remove(); chipMenu = null; document.removeEventListener('pointerdown', chipMenuOutside, true); }
+function chipMenuOutside(ev) { if (chipMenu && !chipMenu.contains(ev.target)) closeChipMenu(); }
+function openChipMenu(id, chipEl) {
+  closeChipMenu();
+  const ext = isXId(id), x = ext ? visExt().find((v) => v.id === id) : null;
+  const editable = !ext || !preReason(X.calendars.find((c) => c.id === x?.calId));
+  const m = document.createElement('div');
+  m.className = 'cmenu'; m.setAttribute('role', 'menu'); m.setAttribute('aria-label', '予定の操作'); m.dataset.cmenu = id;
+  m.innerHTML = `<button type="button" role="menuitem" data-cm="copy">コピー</button><button type="button" role="menuitem" data-cm="edit"${editable ? '' : ' disabled'}>編集</button><button type="button" role="menuitem" data-cm="del" class="danger"${editable ? '' : ' disabled'}>削除</button>`;
+  const r = chipEl.getBoundingClientRect(), W = 160, H = 132;
+  m.style.left = `${Math.round(Math.min(Math.max(4, r.left), window.innerWidth - W - 4))}px`;
+  m.style.top = `${Math.round(r.bottom + 4 + H > window.innerHeight - 4 ? Math.max(4, r.top - H - 4) : r.bottom + 4)}px`;
+  m.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-cm]');
+    if (!b || b.disabled) return;
+    closeChipMenu();
+    if (b.dataset.cm === 'copy') copyFrom(id);
+    else { openEditor(id, chipEl); if (b.dataset.cm === 'del' && !ext) $('#delete').click(); }
+  });
+  document.body.append(m); chipMenu = m;
+  document.addEventListener('pointerdown', chipMenuOutside, true);
+  m.querySelector('[data-cm="copy"]').focus({ preventScroll: true });
+}
+window.addEventListener('orientationchange', closeChipMenu);
+document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && chipMenu) closeChipMenu(); });
+// ポップアップの「コピー」（予定の下の行）。書けない iPhone の予定でもコピーはできる。
+$('#copy').addEventListener('click', () => {
+  if (!editing || extEd || extBusy) return;
+  if (editorDirty()) { $('#error').textContent = '変更を保存するか閉じてから、コピーしてください。'; return; }
+  const s = duoSource(editing);
+  if (!s) return;
+  closeEditor();
+  startPaste(s.src, s.link);
+});
+$('#xd-copy').addEventListener('click', () => {
+  const s = xdState;
+  if (s?.status !== 'ok') return;
+  closePanel(xdDlg);
+  startPaste(s.before, null);
+});
 
 // ---------- 起動 ----------
 // 寸法 L が変わった時だけ再描画する。キーボードの出入りは位置・寸法の変数更新だけ。

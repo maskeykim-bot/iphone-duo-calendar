@@ -68,3 +68,41 @@ export function planPaste(src, days, ctx) {
   });
   return { ok: true, kind: t.kind, calendarId: t.calendarId, items };
 }
+
+// ---------- コピー開始と貼る日の選択（PR33）。DOM・DB・ネイティブに触れない純関数 ----------
+// 題名は8字を超えたら「…」で省く。
+export const clipTitle = (t, n = 8) => { const a = [...String(t ?? '')]; return a.length > n ? `${a.slice(0, n).join('')}…` : a.join(''); };
+// 予定の日数（終わりの日−始まりの日＋1。複数日の帯は2以上）。
+export const spanOf = (tpl) => Math.max(1, dayDiff(dayOf(String(tpl.end ?? tpl.start)), dayOf(String(tpl.start))) + 1);
+// 帯の文言。複数日は「「出張」（3日間）を貼る日を選択」＋補足、単日は「「撮影」を貼る日を選択」。
+export function bandLabel(tpl) {
+  const n = spanOf(tpl), t = clipTitle(tpl.title);
+  return n > 1 ? { text: `「${t}」（${n}日間）を貼る日を選択`, sub: '選んだ日から始まります', multi: true }
+    : { text: `「${t}」を貼る日を選択`, sub: '', multi: false };
+}
+export const pasteLabel = (n) => (n > 0 ? `${n}日に貼り付け` : '貼り付け');
+// 日の集合を1日ぶん切り替える。上限（PASTE_MAX）を超える追加は {full:true} で変えない。戻り値の days は昇順。
+export function toggleDay(days, day) {
+  const set = new Set(days);
+  if (set.has(day)) { set.delete(day); return { days: [...set].sort(), changed: true, full: false }; }
+  if (set.size >= PASTE_MAX) return { days: [...set].sort(), changed: false, full: true };
+  set.add(day);
+  return { days: [...set].sort(), changed: true, full: false };
+}
+// 複数の日をまとめて足す（なぞり選択）。上限までを足し、あふれたら full:true。足した日数を added に返す。
+export function addDaysCapped(days, more) {
+  const set = new Set(days);
+  let added = 0, full = false;
+  for (const d of more) {
+    if (set.has(d)) continue;
+    if (set.size >= PASTE_MAX) { full = true; break; }
+    set.add(d); added++;
+  }
+  return { days: [...set].sort(), added, full };
+}
+// from〜to（含む）の日付キー。逆順でも昇順に正規化する。
+export function daysBetween(from, to) {
+  const [a, b] = from <= to ? [from, to] : [to, from], out = [];
+  for (let d = a, i = 0; d <= b && i < 400; d = addDays(d, 1), i++) out.push(d);
+  return out;
+}
