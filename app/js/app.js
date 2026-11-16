@@ -1,6 +1,7 @@
 import * as db from './db.js';
 import { SAMPLE } from './sample.js';
 import { initSwipe } from './swipe.js';
+import { initDirectInput } from './direct-input.js';
 import { occurrenceAt, parseOccId, planDelete, planEdit, editInfo, normRule } from './recur.js';
 import { bumpRevision, occBetween } from './occcache.js';
 import { LIMIT, groupByDay, highlight, excerpt, searchEvents, searchMemos } from './search.js';
@@ -3526,7 +3527,7 @@ async function swipeTo(dir) {
     await Promise.all(back.map((a) => a.finished));
   } catch { /* アニメーションが中断されても状態は保つ */ } finally { swiping = false; delete document.documentElement.dataset.swiping; }
 }
-initSwipe({
+const swipeCtl = initSwipe({
   root,
   canStart: (t) => {
     if (anyPanel() || swiping || !(t instanceof Element) || !t.closest(SWIPE_ZONE) || t.closest(SWIPE_EXCLUDE)) return false;
@@ -3539,6 +3540,26 @@ initSwipe({
     return true;
   },
   onSwipe: swipeTo,
+});
+
+// ---------- 直接入力の起点（PR24: 共通制御のみ。画面への接続は PR25〜26） ----------
+// 起点の種別。既存予定・操作部品・入力欄の上は null（時間入力しない）。月チップは別種別 'chip'（後続のコピー用）。
+const DIRECT_ZONE_EXCLUDE = '.ev, .strip, .tlev, button, input, select, textarea, label, dialog, .tlheads, .tlmenu, .mmenu, .tabs';
+function directOrigin(t) {
+  if (anyPanel() || !(t instanceof Element)) return null;
+  if (t.closest('.chip')) return { kind: 'chip' };
+  if (t.closest(DIRECT_ZONE_EXCLUDE)) return null;
+  if (t.closest('.allday')) return { kind: 'allday' };
+  const col = t.closest('[data-day].tlcol, .tl [data-day]');
+  if (col) return { kind: 'time', day: col.dataset.day };
+  const cell = t.closest('[data-day]');
+  if (cell && t.closest('.scroll, .page, .hero')) return { kind: 'month', day: cell.dataset.day };
+  return null;
+}
+const DIRECT_INPUT_WIRED = false; // 次PRで画面接続するまで起点を返さない（既存操作は不変）
+initDirectInput({
+  root, swipe: swipeCtl,
+  classify: (t, ev) => (DIRECT_INPUT_WIRED ? directOrigin(t, ev) : null),
 });
 
 // ---------- 起動 ----------
