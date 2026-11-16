@@ -997,7 +997,8 @@ body.settings-open .ctl.band [data-act=menu] .bi::after{content:"×";font-size:2
 .dtrow{display:flex;align-items:center;gap:8px;min-height:44px}
 .dtrow+.dtrow{border-top:1px solid #eeeae0}
 .dtk{flex:none;width:2.4em;font-size:13px}
-.dtrow .date-text{flex:1 1 0;min-width:0;min-height:32px;padding:4px 8px;border-radius:8px;background:#F0EDE5}
+.dcap{flex:1 1 120px;min-width:120px;height:32px;padding:0 8px;border:0;border-radius:8px;background:#F0EDE5;font-size:14px;color:#293B35;white-space:nowrap}
+.dcap.open{background:#294E42;color:#fff}
 .tcap{position:relative;flex:none;width:58px;height:32px;padding:0;border:0;border-radius:8px;background:#F0EDE5;font-size:15px;font-weight:700;color:#293B35}
 .tcap.open{background:#294E42;color:#fff}
 .tcap[hidden]{display:none}
@@ -1018,3 +1019,22 @@ body.settings-open .ctl.band [data-act=menu] .bi::after{content:"×";font-size:2
 .tcell.usual{color:#293B35}.tcell.rare{color:#A8ABA4}
 .tcell[aria-pressed=true]{background:#294E42;color:#fff;font-weight:700}
 .dtbox.allday .tcap,.dtbox.allday .dbadge,.dtbox.allday #row-d,.dtbox.allday #tpop{display:none}
+
+/* 日付のチップと小さな月（設計12 §3） */
+.dpop{padding:8px 0 10px;border-top:1px solid #eeeae0}
+.dpchips{display:flex;gap:6px;flex-wrap:wrap}
+.dpchip{height:28px;padding:0 12px;border:1px solid #DCD7CB;border-radius:14px;background:#fff;color:#294E42;font-size:13px}
+.dpchip:disabled{color:#C9C6BC}
+.dpmh{display:flex;align-items:center;justify-content:space-between;margin-top:4px}
+.dpnav{width:44px;height:44px;padding:0;border:0;background:none;font-size:22px;color:#294E42}
+.dpmt{font-size:15px;font-weight:700}
+.dpwk,.dpgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.dpwk span{text-align:center;font-size:12px;color:#68716A}.dpwk .hol{color:#B43C3C}
+.dpgrid{touch-action:pan-y}
+.dcell{height:38px;min-width:0;padding:0;border:0;background:none;font-size:15px;color:#293B35;display:flex;align-items:center;justify-content:center}
+.dcell .n{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;box-sizing:border-box}
+.dcell.hol{color:#B43C3C}
+.dcell.out{color:#C9C6BC}
+.dcell.tod .n{border:1.5px solid #294E42}
+.dcell.sel .n{background:#294E42;color:#fff;font-weight:700;border:0}
+.dcell:disabled{color:#C9C6BC}

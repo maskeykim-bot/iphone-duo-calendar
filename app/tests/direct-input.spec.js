@@ -76,9 +76,9 @@ for (const [name, size, setup2] of [
       await expect(page.locator('.dtag')).toHaveText(['10:00', '11:30']);
       await page.mouse.up();
       await expect(page.locator('#editor')).toBeVisible();
-      await expect(page.locator('#f-start')).toHaveValue('2026/11/12');
+      await expect(page.locator('#f-start')).toHaveJSProperty('value', '2026/11/12');
       await expect(page.locator('#f-stime')).toContainText('10:00');
-      await expect(page.locator('#f-end')).toHaveValue('2026/11/12');
+      await expect(page.locator('#f-end')).toHaveJSProperty('value', '2026/11/12');
       await expect(page.locator('#f-etime')).toContainText('11:30');
       await expect(page.locator('#f-title')).toBeFocused();
       await expect(page.locator('.dbox .hdl')).toHaveCount(0); // シート中は取っ手なし
@@ -97,9 +97,9 @@ for (const [name, size, setup2] of [
       await page.mouse.move(p.x, p.y - hh * 0.5, { steps: 4 });
       await expect(page.locator('.dbox .ds')).toHaveText('11:30〜12:00（30分）');
       await page.mouse.up();
-      await expect(page.locator('#f-start')).toHaveValue('2026/11/12');
+      await expect(page.locator('#f-start')).toHaveJSProperty('value', '2026/11/12');
       await expect(page.locator('#f-stime')).toContainText('11:30');
-      await expect(page.locator('#f-end')).toHaveValue('2026/11/12');
+      await expect(page.locator('#f-end')).toHaveJSProperty('value', '2026/11/12');
       await expect(page.locator('#f-etime')).toContainText('12:00');
       await page.keyboard.press('Escape');
       await expect(page.locator('#editor')).toBeHidden();
@@ -127,9 +127,9 @@ for (const [name, size, setup2] of [
       await expect(page.locator('#editor')).toBeHidden();
       await page.waitForTimeout(450);
       await page.locator('.dbox').click({ position: { x: 20, y: 20 } });
-      await expect(page.locator('#f-start')).toHaveValue('2026/11/12');
+      await expect(page.locator('#f-start')).toHaveJSProperty('value', '2026/11/12');
       await expect(page.locator('#f-stime')).toContainText('14:15');
-      await expect(page.locator('#f-end')).toHaveValue('2026/11/12');
+      await expect(page.locator('#f-end')).toHaveJSProperty('value', '2026/11/12');
       await expect(page.locator('#f-etime')).toContainText('15:45');
     });
 
@@ -148,16 +148,16 @@ for (const [name, size, setup2] of [
       await page.mouse.up();
       await expect(page.locator('#editor')).toBeVisible();
       await expect(page.locator('#f-all')).toBeChecked();
-      await expect(page.locator('#f-start')).toHaveValue('2026/11/12');
+      await expect(page.locator('#f-start')).toHaveJSProperty('value', '2026/11/12');
     });
 
     test('23時台の長押しは日末で clamp（30分が収まる）', async ({ page }) => {
       await scrollTo(page, '.tl', 99999);
       const p = await pointAt(page, 23 * 60 + 50);
       await press(page, p); await page.mouse.up();
-      await expect(page.locator('#f-start')).toHaveValue('2026/11/12');
+      await expect(page.locator('#f-start')).toHaveJSProperty('value', '2026/11/12');
       await expect(page.locator('#f-stime')).toContainText('23:30');
-      await expect(page.locator('#f-end')).toHaveValue('2026/11/12');
+      await expect(page.locator('#f-end')).toHaveJSProperty('value', '2026/11/12');
       await expect(page.locator('#f-etime')).toContainText('23:59');
     });
   });
@@ -173,7 +173,7 @@ test.describe('閉じた週の時間軸', () => {
     const day = await page.locator('.tlcol').nth(2).getAttribute('data-day');
     const p = await pointAt(page, 9 * 60, 2);
     await press(page, p); await page.mouse.up();
-    await expect(page.locator('#f-start')).toHaveValue(day.replaceAll('-', '/'));
+    await expect(page.locator('#f-start')).toHaveJSProperty('value', day.replaceAll('-', '/'));
     await expect(page.locator('#f-stime')).toContainText('09:00');
   });
 });
@@ -204,8 +204,8 @@ for (const [name, size, setup2] of [
       await page.mouse.up();
       await expect(page.locator('#editor')).toBeVisible();
       await expect(page.locator('#f-all')).toBeChecked();
-      await expect(page.locator('#f-start')).toHaveValue('2026/11/18');
-      await expect(page.locator('#f-end')).toHaveValue('2026/11/25');
+      await expect(page.locator('#f-start')).toHaveJSProperty('value', '2026/11/18');
+      await expect(page.locator('#f-end')).toHaveJSProperty('value', '2026/11/25');
       expect(await dbCount(page)).toBe(0);
       await page.keyboard.press('Escape');
       await expect(page.locator('.day.msel')).toHaveCount(0);
@@ -218,12 +218,12 @@ for (const [name, size, setup2] of [
       await monthPress(page, a); await page.mouse.move(b.x, b.y, { steps: 6 });
       await expect(page.locator('.mrtag')).toHaveText('11月18日〜20日（3日間）');
       await page.mouse.up();
-      await expect(page.locator('#f-start')).toHaveValue('2026/11/18');
-      await expect(page.locator('#f-end')).toHaveValue('2026/11/20');
+      await expect(page.locator('#f-start')).toHaveJSProperty('value', '2026/11/18');
+      await expect(page.locator('#f-end')).toHaveJSProperty('value', '2026/11/20');
       await page.keyboard.press('Escape');
       await monthPress(page, a); await page.mouse.up();
-      await expect(page.locator('#f-start')).toHaveValue('2026/11/20');
-      await expect(page.locator('#f-end')).toHaveValue('2026/11/20');
+      await expect(page.locator('#f-start')).toHaveJSProperty('value', '2026/11/20');
+      await expect(page.locator('#f-end')).toHaveJSProperty('value', '2026/11/20');
       await page.locator('#f-title').fill('期間');
       await page.locator('#form [type=submit]').click();
       await expect.poll(() => dbCount(page)).toBe(1);
@@ -270,8 +270,8 @@ test.describe('月の期間入力 その他', () => {
     await page.locator('[data-mr="fwd"]').click(); await page.locator('[data-mr="fwd"]').click();
     await expect(page.locator('.mrtag')).toHaveText('11月12日〜14日（3日間）');
     await page.locator('[data-mr="ok"]').click();
-    await expect(page.locator('#f-start')).toHaveValue('2026/11/12');
-    await expect(page.locator('#f-end')).toHaveValue('2026/11/14');
+    await expect(page.locator('#f-start')).toHaveJSProperty('value', '2026/11/12');
+    await expect(page.locator('#f-end')).toHaveJSProperty('value', '2026/11/14');
     expect(await dbCount(page)).toBe(0);
   });
 });
@@ -315,7 +315,7 @@ test.describe('端スクロール: 時間軸', () => {
     await page.mouse.move(p.x, tl.bottom - 20, { steps: 3 });
     await page.mouse.up();
     await expect(page.locator('#editor')).toBeVisible();
-    await expect(page.locator('#f-start')).toHaveValue('2026/11/12');
+    await expect(page.locator('#f-start')).toHaveJSProperty('value', '2026/11/12');
     await expect(page.locator('#f-stime')).toContainText('10:00');
     const s3 = await scrollOf(page); await page.waitForTimeout(400);
     expect(await scrollOf(page)).toBe(s3); // ループ解放
@@ -393,7 +393,7 @@ test.describe('端スクロール: 月（滞在で前後の月）', () => {
     await page.mouse.up();
     await expect(page.locator('#editor')).toBeVisible();
     await expect(page.locator('#f-all')).toBeChecked();
-    await expect(page.locator('#f-start')).toHaveValue('2026/11/18');
+    await expect(page.locator('#f-start')).toHaveJSProperty('value', '2026/11/18');
     expect(await dbCount(page)).toBe(0);
   });
 

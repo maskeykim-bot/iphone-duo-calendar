@@ -82,7 +82,7 @@ test.describe('永続化', () => {
       await expect(page.locator('#f-title')).toHaveValue('下書きの予定');
       await expect(page.locator('#dest-name')).toHaveText('外出');
       await expect(page.locator('#f-place')).toHaveValue('オンライン');
-      await expect(page.locator('#f-end')).toHaveValue('2026/11/12');
+      await expect(page.locator('#f-end')).toHaveJSProperty('value', '2026/11/12');
       await expect(page.locator('#f-etime')).toContainText('15:30');
     };
     for (const size of [SIZES.openLandscape, SIZES.openPortrait, SIZES.closedLandscape, SIZES.closedPortrait]) {

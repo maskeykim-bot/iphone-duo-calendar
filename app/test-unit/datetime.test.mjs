@@ -1,7 +1,7 @@
 // 第15版 PR15: 日時編集の状態と計算（丸めない・長さ維持・暦日差・終日往復・外部予定の rawEnd）
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { makeState, stateFromInput, setStartTime, setStartDate, setEndTime, setEndDate, setDuration, setAll, unchanged, resultPair, isoFromInput, inputFromIso, endDayOffset } from '../js/datetime.js';
+import { makeState, stateFromInput, setStartTime, setStartDate, setEndTime, setEndDate, pickEndDate, setDuration, setAll, unchanged, resultPair, isoFromInput, inputFromIso, endDayOffset } from '../js/datetime.js';
 import { toDisplay, buildExtArgs } from '../js/iphone.js';
 
 const mk = (start, end, all = false) => makeState({ start, end, all });
@@ -101,4 +101,13 @@ test('外部予定: 時だけの変更は元の分を保った start/end を一�
   assert.equal(args.end, '2026-11-18T13:60'.replace('13:60', '14:00'));
   assert.equal(args.all, false);
   assert.equal('alarms' in args, false);
+});
+
+test('PR17: 終了日を選ぶ。開始より前は無視、同じ日で終了が開始より前なら開始にそろえる', () => {
+  const st = mk('2026-11-12T14:00', '2026-11-13T09:00');
+  assert.equal(pickEndDate(st, '2026-11-11'), st);
+  const same = pickEndDate(st, '2026-11-12');
+  assert.equal(same.end, '2026-11-12T14:00');
+  assert.equal(pickEndDate(st, '2026-11-15').end, '2026-11-15T09:00');
+  assert.equal(pickEndDate(mk('2026-11-12T00:00', '2026-11-12T23:59', true), '2026-11-14').end, '2026-11-14T23:59');
 });

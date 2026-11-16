@@ -490,3 +490,15 @@ test.describe('削除（09 §3）', () => {
     await expect(XD(page).locator('#xd-del')).toBeEnabled();
   });
 });
+
+// 第15版 PR17: 小さな月の祝日の赤は iPhone の購読カレンダー「祝日」の終日予定（既存の祝日データ源）から。
+test('日付の小さな月: 購読カレンダーの祝日が赤。ローカル予定は祝日にならない', async ({ page }) => {
+  await setup(page);
+  await page.locator('[data-act="add"]:visible').first().click();
+  await expect(page.locator('#editor')).toBeVisible();
+  await page.locator('#f-start').click();
+  const col = (d) => page.locator(`#dp-grid [data-day="${d}"]`).evaluate((e) => getComputedStyle(e).color);
+  expect(await col('2026-11-12')).toBe('rgb(180, 60, 60)'); // 祝日の予定（cal-2）
+  expect(await col('2026-11-11')).toBe('rgb(41, 59, 53)'); // 平日
+  expect(await col('2026-11-13')).toBe('rgb(41, 59, 53)'); // 家族カレンダーの予定は祝日にならない
+});

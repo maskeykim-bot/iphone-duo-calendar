@@ -101,6 +101,14 @@ export function setEndDate(st, k) {
   if (end < startCmp) return { error: '終了は開始以降にしてください。' };
   return withT(st, { end }, { endDate: st.touched.endDate || k !== day(st.end) });
 }
+// 小さな月から終了日を選ぶ。開始の日より前は選べない（呼ぶ側がマスを無効にする）。
+// 同じ日で今の終了時刻が開始より前になるときは、終了を開始と同じ時刻にそろえる（保存ではじかれない）。
+export function pickEndDate(st, k) {
+  if (!isDay(k) || k < day(st.start)) return st;
+  const r = setEndDate(st, k);
+  if (!r.error) return r;
+  return withT(st, { end: st.start }, { endHour: true, endMin: true, endDate: st.touched.endDate || k !== day(st.end) });
+}
 // 長さ（分）を指定。終了を動かす。
 export function setDuration(st, min) {
   if (st.all || !Number.isInteger(min) || min < 0) return st;

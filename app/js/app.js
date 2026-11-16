@@ -1,6 +1,6 @@
 import * as db from './db.js';
-import { isoFromInput, stateFromInput, setStartDate, setStartTime, setEndTime, setDuration, setAll } from './datetime.js';
-import { createTimeUi } from './datetime-ui.js';
+import { isoFromInput, stateFromInput, setStartDate, pickEndDate, setStartTime, setEndTime, setDuration, setAll } from './datetime.js';
+import { createTimeUi, createDateUi } from './datetime-ui.js';
 import { SAMPLE } from './sample.js';
 import { initSwipe } from './swipe.js';
 import { initDirectInput, dayRange, rangeText, minutesAt, dragRange, tapRange, moveHandle, spanText, hm as hmText, snap15, edgeZone, edgeVelocity, createDwell, createFrameLoop } from './direct-input.js';
@@ -1568,35 +1568,37 @@ function saveDraft() {
 }
 function clearDraft() { try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* 無視 */ } }
 // 日時の編集状態（js/datetime.js）。入力欄の文字は従来どおり保存の入口で、状態は触っていない値を丸めず保つための裏付け。
-let dt = null, dt0EndDay = '';
+let dt = null;
 // 日付は文字の欄、時刻は dt（時刻のカプセル）。保存・下書き・検証へは「日付 時刻」の一つの文字に組み立てる。
 const slash = (iso) => iso.slice(0, 10).replaceAll('-', '/');
 const fullStart = () => (F.all.checked || !dt ? F.start.value : `${F.start.value} ${dt.start.slice(11, 16)}`);
 const fullEnd = () => (F.all.checked || !dt ? F.end.value : `${F.end.value} ${dt.end.slice(11, 16)}`);
-function syncDtFromForm(ev) {
-  const t = ev?.target;
-  if (!dt || (t !== F.start && t !== F.end) || ev.type !== 'input') return; // 入力中に確定した形になった時点で追う（change で欄を書き換えると、次の欄へ移る操作と衝突する）
-  const s = isoFromInput(F.start.value, true), e = isoFromInput(F.end.value, true);
-  if (t === F.start && s) {
-    const k = s.slice(0, 10);
-    if (k !== dt.start.slice(0, 10)) dt = setStartDate(dt, k); // 日数と時刻は保つ
-    // 終了欄を手で直していなければ、日数を保って終了の日も動く。
-    if (!e || e.slice(0, 10) === dt0EndDay) F.end.value = slash(dt.end);
-  } else if (t === F.end && e) {
-    // 手入力の終了は検証側（validateDraft）が判定する。ここでは値を写すだけで日付を進めない。
-    const k = e.slice(0, 10), o = dt.end, f = dt.touched;
-    dt = { ...dt, end: `${k}${o.slice(10)}`, touched: { ...f, endDate: f.endDate || k !== o.slice(0, 10) } };
-  }
-  dt0EndDay = dt.end.slice(0, 10);
-  tui.render();
-}
 // 時刻カプセル・長さ・時分のマス（js/datetime-ui.js）。状態は dt が持ち、日付の欄へ写す。
 function afterTimeEdit() {
-  F.start.value = slash(dt.start); F.end.value = slash(dt.end);
-  dt0EndDay = dt.end.slice(0, 10);
+  syncDateFields();
   tui.render();
+  dui.render();
   onFormChange();
 }
+// 日付のカプセル。値（F.start / F.end の value）は保存の入口の「2026/11/12」。表示は dateLabel。
+function syncDateFields() { if (dt) { F.start.value = slash(dt.start); F.end.value = slash(dt.end); } }
+// 祝日の赤は iPhone の購読カレンダー「祝日」の終日予定（既存の祝日データ源）。読み込めている範囲だけ。ローカルの予定では代用しない。
+function holidayDays() {
+  const hc = new Set(X.calendars.filter((c) => c.sourceType === 'subscribed' && /祝日|holiday/i.test(c.title || '')).map((c) => c.id));
+  const out = new Set();
+  if (!hc.size) return out;
+  for (const e of visExt()) if (e.all && hc.has(e.calId)) for (let k = dayOf(e.start); k <= dayOf(e.end) && out.size < 1000; k = addDays(k, 1)) out.add(k);
+  return out;
+}
+const dui = createDateUi({
+  box: $('#dtbox'), start: $('#f-start'), end: $('#f-end'), rows: { start: $('#row-s'), end: $('#row-e') }, pop: $('#dpop'),
+  chips: $('#dp-chips'), title: $('#dp-title'), prev: $('#dp-prev'), next: $('#dp-next'), heads: $('#dp-heads'), grid: $('#dp-grid'),
+}, {
+  get: () => dt,
+  buzz: () => { haptic('light').catch(() => {}); },
+  holiday: (() => { let memo = null, c0 = null, l0 = null; return (k) => { if (!memo || c0 !== X.cache || l0 !== X.calendars) { memo = holidayDays(); c0 = X.cache; l0 = X.calendars; } return memo.has(k); }; })(),
+  pick: (which, k) => { if (!dt) return; dt = which === 'start' ? setStartDate(dt, k) : pickEndDate(dt, k); afterTimeEdit(); },
+});
 const tui = createTimeUi({
   box: $('#dtbox'), start: $('#f-stime'), end: $('#f-etime'), badge: $('#f-eday'), dur: $('#f-dur'), pop: $('#tpop'),
   rows: { start: $('#row-s'), end: $('#row-e') }, hours: $('#tp-h'), mins: $('#tp-m'), minNote: $('#tp-note'),
@@ -1610,7 +1612,9 @@ function applyAllDayUi() {
   const all = F.all.checked;
   $('#dtbox').classList.toggle('allday', all);
   tui.close();
+  dui.close();
   tui.render();
+  dui.render();
 }
 function setRepeatOpen(open) {
   R.panel.hidden = !open;
@@ -1656,8 +1660,7 @@ function showEditor(values, id, focus = true) {
   R.err.textContent = '';
   applyAllDayUi();
   dt = stateFromInput(values.start, values.end, values.all, extEd?.before.rawEnd);
-  if (dt) { F.start.value = slash(dt.start); F.end.value = slash(dt.end); } // 日付の欄は日付だけ。時刻は dt（未操作の 10:07 を丸めない）
-  dt0EndDay = dt ? dt.end.slice(0, 10) : '';
+  syncDateFields(); // 日付のカプセルは日付だけ。時刻は dt（未操作の 10:07 を丸めない）
   applyAllDayUi();
   setRepeatOpen(!!values.ropen);
   destSel = extEd ? null : normDest(values.dest);
@@ -1847,7 +1850,6 @@ function closeEditor() {
 }
 function onFormChange(ev) {
   if (AL.sel.includes(ev?.target)) return;
-  syncDtFromForm(ev); // 通知の選択は onAlarmChange が扱う（input で作り直すと選択が戻ってしまう）
   if (F.rfreq.value === 'weekly' && (autoDays || !rsel.length)) { rsel = [startDow()]; autoDays = true; }
   if (F.rend.value === 'until' && !F.runtil.value.trim()) F.runtil.value = startKey().replaceAll('-', '/');
   updateRepeatUi();

@@ -32,8 +32,13 @@
       </div>
       <label class="check"><input id="f-all" name="all" type="checkbox">終日</label>
       <div id="dtbox" class="dtbox">
-        <div class="dtrow" id="row-s"><span class="dtk">開始</span><input id="f-start" name="start" class="date-text" inputmode="numeric" placeholder="2026/11/12" aria-label="開始の日付"><button type="button" id="f-stime" class="tcap" aria-haspopup="true" aria-expanded="false"></button></div>
-        <div class="dtrow" id="row-e"><span class="dtk">終了</span><input id="f-end" name="end" class="date-text" inputmode="numeric" placeholder="2026/11/12" aria-label="終了の日付"><button type="button" id="f-etime" class="tcap" aria-haspopup="true" aria-expanded="false"></button><span id="f-eday" class="dbadge" hidden></span></div>
+        <div class="dtrow" id="row-s"><span class="dtk">開始</span><button type="button" id="f-start" class="dcap" aria-haspopup="true" aria-expanded="false" value=""></button><button type="button" id="f-stime" class="tcap" aria-haspopup="true" aria-expanded="false"></button></div>
+        <div class="dtrow" id="row-e"><span class="dtk">終了</span><button type="button" id="f-end" class="dcap" aria-haspopup="true" aria-expanded="false" value=""></button><button type="button" id="f-etime" class="tcap" aria-haspopup="true" aria-expanded="false"></button><span id="f-eday" class="dbadge" hidden></span></div>
+        <div id="dpop" class="dpop" hidden>
+          <div id="dp-chips" class="dpchips"></div>
+          <div class="dpmh"><button type="button" id="dp-prev" class="dpnav" aria-label="前の月">‹</button><span id="dp-title" class="dpmt" aria-live="polite"></span><button type="button" id="dp-next" class="dpnav" aria-label="次の月">›</button></div>
+          <div id="dp-heads" class="dpwk"></div><div id="dp-grid" class="dpgrid"></div>
+        </div>
         <div id="tpop" class="tpop" hidden>
           <p class="tlab">時</p><div id="tp-h" class="tgrid hgrid"></div>
           <p class="tlab">分 <span id="tp-note" class="tnote" hidden></span></p><div id="tp-m" class="tgrid mgrid"></div>

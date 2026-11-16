@@ -1,6 +1,7 @@
 // 時刻のカプセル・長さのチップ・時分のマス（設計12 §1–2）。状態の計算は datetime.js、保存は app.js。
 // ここは表示と操作だけ。開くのは一度に一つ。開いて閉じただけでは何も変えない。
 import { splitIso, durationMin, endDayOffset } from './datetime.js';
+import { DOW, addDays, addMonths, parseKey, todayKey, weekStart, weekdayHeads } from './util.js';
 
 const p2 = (n) => String(n).padStart(2, '0');
 export const DURATIONS = [30, 60, 90, 120, 180];
@@ -87,5 +88,102 @@ export function createTimeUi(els, api) {
   for (const type of ['pointerdown', 'pointermove', 'pointerup', 'touchstart', 'touchmove', 'touchend']) {
     els.box.addEventListener(type, (ev) => ev.stopPropagation(), { passive: true });
   }
+  return { render, close, isOpen: () => open };
+}
+
+// ---------- 日付のカプセルと小さな月（設計12 §3） ----------
+// 「11月14日（土）」。今年でない日だけ年を入れる。
+export function dateLabel(k, thisYear = Number(todayKey().slice(0, 4))) {
+  const d = parseKey(k);
+  return `${d.getFullYear() === thisYear ? '' : `${d.getFullYear()}年`}${d.getMonth() + 1}月${d.getDate()}日（${DOW[d.getDay()]}）`;
+}
+const dateSpoken = (k) => { const d = parseKey(k); return `${d.getMonth() + 1}月${d.getDate()}日${DOW[d.getDay()]}曜日`; };
+const monthOf = (k) => `${k.slice(0, 8)}01`;
+// 週始まり設定どおりの6週（42日）。月が5週でも6行出す。
+export function monthGrid6(vm) {
+  const st = weekStart(vm);
+  return Array.from({ length: 42 }, (_, i) => addDays(st, i));
+}
+export const SWIPE_MIN = 50;
+
+// els: { box, start, end（日付カプセル）, rows, pop, chips, title, prev, next, heads, grid }
+// api: { get() → 編集状態または null, pick(which, key), buzz(), holiday(key) → boolean, closeOthers?() }
+export function createDateUi(els, api) {
+  let open = null, vm = '';
+  const caps = { start: els.start, end: els.end };
+  const dayOfSt = (st, w) => st?.[w]?.slice(0, 10) || '';
+
+  function render() {
+    const st = api.get();
+    for (const [w, who] of [['start', '開始'], ['end', '終了']]) {
+      const k = dayOfSt(st, w);
+      caps[w].textContent = k ? dateLabel(k) : '----/--/--';
+      caps[w].setAttribute('aria-label', `${who}の日付、${k ? dateSpoken(k) : '未設定'}、ボタン`);
+      caps[w].classList.toggle('open', open === w);
+      caps[w].setAttribute('aria-expanded', String(open === w));
+    }
+    if (!open || !st) return;
+    const cur = dayOfSt(st, open), min = open === 'end' ? dayOfSt(st, 'start') : '', today = todayKey();
+    const d = parseKey(vm);
+    els.title.textContent = `${d.getFullYear()}年${d.getMonth() + 1}月`;
+    const chips = [['今日', today], ['明日', addDays(today, 1)], [`来週の${DOW[parseKey(today).getDay()]}曜`, addDays(today, 7)]];
+    els.chips.innerHTML = chips.map(([t, k]) => `<button type="button" class="dpchip" data-day="${k}"${k < min ? ' disabled' : ''}>${t}</button>`).join('');
+    els.heads.innerHTML = weekdayHeads().map(({ i, label }) => `<span class="${i === 0 ? 'hol' : ''}">${label}</span>`).join('');
+    els.grid.innerHTML = monthGrid6(vm).map((k) => {
+      const c = parseKey(k), out = k.slice(0, 7) !== vm.slice(0, 7), red = c.getDay() === 0 || api.holiday(k);
+      const off = !!min && k < min;
+      return `<button type="button" class="dcell${out ? ' out' : ''}${red ? ' hol' : ''}${k === today ? ' tod' : ''}${k === cur ? ' sel' : ''}" data-day="${k}" aria-label="${dateSpoken(k)}" aria-pressed="${k === cur}"${off ? ' disabled' : ''}><span class="n">${c.getDate()}</span></button>`;
+    }).join('');
+  }
+  function show(which) {
+    open = which;
+    els.pop.hidden = !which;
+    if (which) {
+      vm = monthOf(dayOfSt(api.get(), which) || todayKey());
+      els.rows[which].after(els.pop);
+    }
+    render();
+  }
+  function close() { if (open) show(null); }
+  function pick(k) {
+    if (!open) return;
+    const w = open;
+    api.buzz();
+    show(null);
+    api.pick(w, k);
+  }
+  function nav(n) { vm = addMonths(vm, n); render(); }
+
+  for (const w of ['start', 'end']) {
+    caps[w].addEventListener('click', () => { if (!api.get()) return; show(open === w ? null : w); });
+  }
+  els.prev.addEventListener('click', () => nav(-1));
+  els.next.addEventListener('click', () => nav(1));
+  els.chips.addEventListener('click', (ev) => { const b = ev.target.closest('[data-day]'); if (b && !b.disabled) pick(b.dataset.day); });
+  let swiped = false;
+  els.grid.addEventListener('click', (ev) => {
+    if (swiped) { swiped = false; return; } // スワイプの後に来る click は日の選択にしない
+    const b = ev.target.closest('[data-day]');
+    if (b && !b.disabled) pick(b.dataset.day);
+  });
+  // 左右 50pt 以上のスワイプで月を変える（swipe.js と同じ基準）。縦はスクロールに任せる。
+  let g = null;
+  els.grid.addEventListener('pointerdown', (ev) => { if (ev.isPrimary) g = { id: ev.pointerId, x: ev.clientX, y: ev.clientY }; });
+  const swipeEnd = (ev) => {
+    if (!g || ev.pointerId !== g.id) return;
+    const dx = ev.clientX - g.x, dy = ev.clientY - g.y;
+    g = null;
+    if (ev.type === 'pointerup' && Math.abs(dx) >= SWIPE_MIN && Math.abs(dx) / Math.max(Math.abs(dy), 1) >= 1.5) {
+      swiped = true; setTimeout(() => { swiped = false; }, 400);
+      nav(dx < 0 ? 1 : -1);
+    }
+  };
+  els.grid.addEventListener('pointerup', swipeEnd);
+  els.grid.addEventListener('pointercancel', swipeEnd);
+
+  // 他の欄に触れたら閉じる（部品の中・日付カプセルは除く）。
+  const outside = (ev) => { if (open && !ev.target.closest('#dpop,#f-start,#f-end')) close(); };
+  els.box.addEventListener('focusin', outside);
+  els.box.closest('form')?.addEventListener('pointerdown', outside, true);
   return { render, close, isOpen: () => open };
 }

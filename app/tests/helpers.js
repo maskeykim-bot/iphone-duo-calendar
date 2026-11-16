@@ -52,10 +52,28 @@ export async function setTimeUi(page, which, hhmm) {
   await dlg.locator(`#tp-m [data-m="${m}"]`).click();
   await expect(dlg.locator('#tpop')).toBeHidden();
 }
+// 日付は日付のカプセルと小さな月から（'2026/11/12'）。月送りで目的の月まで進めて日をたたく。
+export async function setDateUi(page, which, slash) {
+  const dlg = page.locator('#editor');
+  const [y, m] = slash.split('/').map(Number);
+  const key = slash.replaceAll('/', '-');
+  const cap = dlg.locator(which === 'start' ? '#f-start' : '#f-end');
+  if (await cap.getAttribute('value') === slash) return; // 同じ日ならそのまま
+  await cap.click();
+  for (let i = 0; i < 240; i++) {
+    const t = await dlg.locator('#dp-title').textContent();
+    const [ty, tm] = t.match(/\d+/g).map(Number);
+    const diff = (y - ty) * 12 + (m - tm);
+    if (!diff) break;
+    await dlg.locator(diff > 0 ? '#dp-next' : '#dp-prev').click();
+  }
+  await dlg.locator(`#dp-grid [data-day="${key}"]`).click();
+  await expect(dlg.locator('#dpop')).toBeHidden();
+}
 export async function fillDateTime(page, which, text) {
   const dlg = page.locator('#editor');
   const [date, time] = text.split(' ');
-  await dlg.locator(which === 'start' ? '#f-start' : '#f-end').fill(date);
+  await setDateUi(page, which, date);
   if (time) await setTimeUi(page, which, time);
 }
 export async function fillEditor(page, f) {

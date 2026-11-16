@@ -1,6 +1,6 @@
 // 第7版: iPhone カレンダー連携。window.Capacitor を偽装して、DuoNative の契約どおりに呼ばれ表示されることを確認する。
 import { test, expect } from '@playwright/test';
-import { notifyOn, openApp, SIZES, tab, seed, ev, dbEvents, setStyle, openMenu, pickDest, enableCalendars, fillDateTime } from './helpers.js';
+import { notifyOn, openApp, SIZES, tab, seed, ev, dbEvents, setStyle, openMenu, pickDest, enableCalendars, fillDateTime, setDateUi } from './helpers.js';
 // 新規予定のカレンダー選択: 種別の先頭を選ぶ（第15版 PR5）
 const pickKind = async (page, type) => { await page.locator('#f-dest').click(); await page.locator(`#dest-pop .dopt[data-dtype="${type}"]`).first().click(); };
 const toIphone = (page) => pickKind(page, 'iphone');
@@ -487,8 +487,8 @@ test.describe('ネイティブ（偽装）', () => {
     await page.locator('[data-act="add"]:visible').first().click();
     await page.locator('#f-title').fill('出張');
     await page.locator('#f-all').check();
-    await page.locator('#f-start').fill('2026/11/25');
-    await page.locator('#f-end').fill('2026/11/26');
+    await setDateUi(page, 'start', '2026/11/25');
+    await setDateUi(page, 'end', '2026/11/26');
     await toIphone(page);
     await page.locator('#editor [type=submit]').click();
     const r = page.locator('#xretry');

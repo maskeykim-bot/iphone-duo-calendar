@@ -20,7 +20,7 @@ test.describe('予定の追加・編集・削除', () => {
     await fillDateTime(page, 'start', '2026/11/12 14:00');
     await expect(dlg.locator('#f-etime')).toContainText('15:45');
     await dlg.locator('#f-all').setChecked(true);
-    await expect(dlg.locator('#f-start')).toHaveValue('2026/11/12');
+    await expect(dlg.locator('#f-start')).toHaveJSProperty('value', '2026/11/12');
     await expect(dlg.locator('#f-stime')).toBeHidden();
     await dlg.locator('#f-all').setChecked(false);
     await expect(dlg.locator('#f-stime')).toContainText('14:00');
@@ -59,17 +59,12 @@ test.describe('予定の追加・編集・削除', () => {
     const err = page.locator('#error');
     await save();
     await expect(err).toContainText('予定名を入力');
-    await fillEditor(page, { title: 'x', start: '2026-11-12' });
-    await save();
-    await expect(err).toContainText('形式');
-    await fillEditor(page, { start: '2026/02/30', end: '2026/02/28' });
-    await save();
-    await expect(err).toContainText('形式');
-    // 時刻は選ぶだけなので不正な時刻は作れない。終了の日を開始より前にすると保存でとめる
-    await fillEditor(page, { start: '2026/11/12 12:00', end: '2026/11/11' });
-    await save();
-    await expect(err).toContainText('終了は開始以降');
-    await expect(page.locator('#editor')).toBeVisible();
+    // 日付と時刻は選ぶだけなので、書式の誤りや存在しない日付は作れない（PR17）。終了を開始より前の日にはできない。
+    await fillEditor(page, { title: 'x', start: '2026/11/12 12:00' });
+    await page.locator('#f-end').click();
+    await expect(page.locator('#dp-grid [data-day="2026-11-11"]')).toBeDisabled();
+    await page.locator('#f-title').click();
+    await expect(page.locator('#f-end')).toHaveJSProperty('value', '2026/11/12');
     await fillEditor(page, { start: '2026/11/12 12:00', end: '2026/11/12 12:00' });
     await save();
     await expect(page.locator('#editor')).toBeHidden();
@@ -79,7 +74,7 @@ test.describe('予定の追加・編集・削除', () => {
     await openApp(page, SIZES.openPortrait);
     await page.getByRole('button', { name: '予定を追加' }).click();
     await fillEditor(page, { title: '社員旅行', all: true });
-    await expect(page.locator('#f-start')).toHaveValue('2026/11/12');
+    await expect(page.locator('#f-start')).toHaveJSProperty('value', '2026/11/12');
     await fillEditor(page, { end: '2026/11/14' });
     await page.locator('#editor').getByRole('button', { name: '保存' }).click();
     // 開いた縦は下に一覧がないので、日セルを押すとその日の日表示（予定一覧）へ進む
