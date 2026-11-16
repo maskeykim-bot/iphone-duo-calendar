@@ -79,10 +79,28 @@ test('読取専用ext→Duo（題名・終日・日時だけ、既定カテゴ�
     const r = planPaste(x, ['2026-11-10'], ctxOf({ cals }));
     assert.equal(r.kind, 'ext-ro');
     const e = r.items[0].event;
-    assert.deepEqual([e.title, e.all, e.start, e.end, e.categoryId, e.place, e.notes, e.alarms, e.nativeLink], ['H', true, '2026-11-10T00:00', '2026-11-10T23:59', 'cat-def', '', '', [], undefined]);
+    assert.deepEqual([e.title, e.all, e.start, e.end, e.categoryId, e.place, e.notes, e.alarms, e.nativeLink], ['H', true, '2026-11-10T00:00', '2026-11-10T23:59', 'cat-def', 'z', 'n', [], undefined]);
     assert.equal(r.items[0].native, undefined);
   }
   assert.equal(planPaste(x, ['2026-11-10'], ctxOf({ cals: [cal('k1')], enabled: false })).kind, 'ext-ro');
+});
+
+test('読取専用ext：場所・メモ・通知を引き継ぎ、追加先の設定に従う（iPhone→Duo＋iPhone／Duo→Duoだけ）', () => {
+  const x = { ...ext({ title: 'H', start: '2026-11-03T09:00', end: '2026-11-03T10:00', place: 'z', notes: 'n' }, { title: 'k' }), alarms: [{ before: 15 }] };
+  const a = planPaste(x, ['2026-11-10'], ctxOf({ cals: [cal('k1', false), cal('w1')], destCalendarId: 'w1' }));
+  assert.equal(a.kind, 'linked'); assert.equal(a.calendarId, 'w1');
+  const it = a.items[0];
+  assert.deepEqual([it.event.place, it.event.notes, it.event.alarms, it.event.categoryId], ['z', 'n', [{ before: 15 }], 'cat-def']);
+  assert.deepEqual([it.native.calendarId, it.native.place, it.native.notes, it.native.alarms], ['w1', 'z', 'n', [{ before: 15 }]]);
+  assert.equal(it.event.nativeLink.calendarId, 'w1');
+  const b = planPaste(x, ['2026-11-10'], ctxOf({ cals: [cal('k1', false), cal('w1')], destCalendarId: '', destCatId: 'c-dest' }));
+  assert.equal(b.kind, 'ext-ro'); assert.equal(b.items[0].native, undefined);
+  assert.deepEqual([b.items[0].event.place, b.items[0].event.alarms, b.items[0].event.categoryId], ['z', [{ before: 15 }], 'c-dest']);
+  // 元に通知が無ければ既定を足さず []
+  assert.deepEqual(planPaste({ ...x, alarms: undefined }, ['2026-11-10'], ctxOf({ cals: [cal('k1', false)] })).items[0].event.alarms, []);
+  // 追加先が書けない・連携オフなら Duo だけ
+  assert.equal(planPaste(x, ['2026-11-10'], ctxOf({ cals: [cal('k1', false), cal('w1', false)], destCalendarId: 'w1' })).kind, 'ext-ro');
+  assert.equal(planPaste(x, ['2026-11-10'], ctxOf({ cals: [cal('w1')], destCalendarId: 'w1', enabled: false })).kind, 'ext-ro');
 });
 
 test('shiftTo：月末・閏日・年またぎ・日またぎ・複数日終日', () => {

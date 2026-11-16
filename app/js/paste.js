@@ -27,7 +27,10 @@ export function pasteTarget(src, ctx) {
   const cals = ctx.cals || [], on = !!ctx.enabled;
   if (isExt(src)) {
     const c = on ? calOf(cals, src.calId) : null;
-    return c?.allowsModify ? { kind: 'ext', calendarId: c.id } : { kind: 'ext-ro', calendarId: '' };
+    if (c?.allowsModify) return { kind: 'ext', calendarId: c.id };
+    // 書けない元は「新しい予定の追加先」の設定に従う（iPhone の書込可能なカレンダーなら Duo＋iPhone、それ以外は Duo だけ）。
+    const d = ctx.destCalendarId;
+    return on && d && cals.some((x) => x.id === d && x.allowsModify) ? { kind: 'linked', calendarId: d } : { kind: 'ext-ro', calendarId: '' };
   }
   const l = src.nativeLink || ctx.srcLink;
   if (l?.state === 'linked' && on) {
@@ -55,13 +58,13 @@ export function planPaste(src, days, ctx) {
       for (const k of ['itemId', 'externalId', 'eventId']) if (src[k]) from[k] = String(src[k]);
       return { day, native: { requestId: ctx.newId(), copyFrom: from, start: r.start, end: r.end, all: r.all } };
     }
-    const ro = t.kind === 'ext-ro';
+    const ro = isExt(src) && t.kind !== 'ext'; // 書けない iPhone 予定（題名・日時・場所・メモ・通知を写し、カテゴリは既定）
     const demoted = t.kind === 'duo' && !isExt(src) && (src.nativeLink || ctx.srcLink)?.state === 'linked'; // 元の iPhone カレンダーにも設定の追加先にも書けず Duo のみ
     const r = shiftTo({ start: src.start, end: ro ? src.rawEnd || src.end : src.end, all: src.all }, day, 'duo');
     const ev = {
-      id: ctx.newId(), title: src.title, categoryId: ro ? ctx.defaultCatId() : demoted && ctx.catVisible && !ctx.catVisible(src.categoryId) ? ctx.destCatId || ctx.defaultCatId() : src.categoryId, all: r.all, start: r.start, end: r.end,
-      place: ro ? '' : src.place || '', notes: ro ? '' : src.notes || '', recurrence: null, exdates: [], overrides: {},
-      alarms: !ro && Array.isArray(src.alarms) ? src.alarms.map((a) => ({ ...a })) : [], updatedAt: ctx.pastedAt,
+      id: ctx.newId(), title: src.title, categoryId: ro ? ctx.destCatId || ctx.defaultCatId() : demoted && ctx.catVisible && !ctx.catVisible(src.categoryId) ? ctx.destCatId || ctx.defaultCatId() : src.categoryId, all: r.all, start: r.start, end: r.end,
+      place: src.place || '', notes: src.notes || '', recurrence: null, exdates: [], overrides: {},
+      alarms: Array.isArray(src.alarms) ? src.alarms.map((a) => ({ ...a })) : [], updatedAt: ctx.pastedAt,
     };
     if (t.kind !== 'linked') return { day, event: ev };
     ev.nativeLink = { state: 'pending', requestId: ctx.newId(), calendarId: t.calendarId };

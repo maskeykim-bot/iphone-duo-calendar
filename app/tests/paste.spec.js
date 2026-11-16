@@ -10,7 +10,7 @@ const BASE = { calendarId: 'cal-1', all: false, place: '', notes: '', recurring:
 const mk = (o) => ({ ...BASE, id: `${o.eventId}@${o.start}`, itemId: `it-${o.eventId}`, externalId: `ex-${o.eventId}`, ...o });
 const DETAILS = [
   mk({ eventId: 'e1', title: '歯医者', start: '2026-11-12T15:00', end: '2026-11-12T16:00', alarms: [{ before: 30 }] }),
-  mk({ eventId: 'h1', title: '祝日の予定', calendarId: 'cal-2', all: true, start: '2026-11-13T00:00', end: '2026-11-13T00:00', allowsModify: false, sourceType: 'subscribed', editable: false, reason: 'readOnlyCalendar' }),
+  mk({ eventId: 'h1', title: '祝日の予定', place: '公園', notes: '弁当', alarms: [{ before: 60 }], calendarId: 'cal-2', all: true, start: '2026-11-13T00:00', end: '2026-11-13T00:00', allowsModify: false, sourceType: 'subscribed', editable: false, reason: 'readOnlyCalendar' }),
   mk({ eventId: 'i1', title: '招待会議', start: '2026-11-14T12:00', end: '2026-11-14T13:00', hasAttendees: true, editable: false, reason: 'invitee' }),
 ];
 const EVENTS = DETAILS.map(({ id, eventId, calendarId, title, start, end, all, place, notes, recurring, occurrenceDate, modifiedAt }) => ({ id, eventId, itemId: `it-${eventId}`, externalId: `ex-${eventId}`, calendarId, title, start, end, all, place, notes, recurring, occurrenceDate, modifiedAt, requestId: null }));
@@ -314,6 +314,16 @@ test.describe('iPhone の予定（ext）', () => {
     await band(page).locator('[data-pa="cancel"]').click();
     expect(await writes(page)).toEqual([]);
     expect((await dbEvents(page)).length).toBe(2);
+  });
+  test('書けない予定の貼り付けは場所・メモ・元の通知を引き継ぐ（追加先が Duo のときは Duo だけ）', async ({ page }) => {
+    await boot(page, SIZES.openPortrait669, { ext: true });
+    await longPress(page, chip(page, '祝日の予定'));
+    await page.locator('.cmenu').getByRole('menuitem', { name: 'コピー' }).click();
+    await dayBtn(page, '2026-11-20').click();
+    await band(page).locator('[data-pa="ok"]').click();
+    await expect.poll(async () => (await dbEvents(page)).length).toBe(3);
+    const e = (await dbEvents(page)).find((x) => x.title === '祝日の予定');
+    expect([e.place, e.notes, e.alarms]).toEqual(['公園', '弁当', [{ before: 60 }]]);
   });
   test('招待の予定もコピーでき、iPhone 予定のポップアップにもコピー行がある', async ({ page }) => {
     await boot(page, SIZES.openPortrait669, { ext: true });

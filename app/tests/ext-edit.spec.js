@@ -379,6 +379,19 @@ test.describe('編集（09 §2）', () => {
     expect(u[0].opts).toMatchObject({ span: 'all', eventId: 'd1', itemId: 'it-d1', occurrenceStart: '2026-11-12T16:00', currentStart: '2026-11-12T17:00' });
   });
 
+  test('ポップアップを開いたまま時刻が変わっても「見つかりません」を出さず、消えたときだけ出す（実 id で判定）', async ({ page }) => {
+    await setup(page);
+    await pop(page, '歯医者');
+    await expect(XD(page).locator('#xd-edit')).toBeVisible();
+    // 同じ予定（itemId）の開始が動いた：表示用 id（eventId@開始）は変わるが実 id は同じ
+    const moved = EVENTS.map((e) => (e.eventId === 'e1' ? { ...e, id: 'e1@2026-11-12T15:30', start: '2026-11-12T15:30', end: '2026-11-12T16:30' } : e));
+    await page.evaluate((m) => { window.__mock.events = m; window.__mock.listeners.calendarChanged({}); }, moved);
+    await page.waitForTimeout(400);
+    await expect(XD(page).locator('#xd-err')).toHaveText('');
+    await page.evaluate(() => { window.__mock.events = []; window.__mock.listeners.calendarChanged({}); });
+    await expect(XD(page).locator('#xd-err')).toHaveText('この予定は見つかりません。カレンダーで確認してください。');
+  });
+
   test('開いている間に対象が消えたら注意帯。入力・基準値は変わらず、保存は押せて元の値で送る', async ({ page }) => {
     await setup(page);
     await edit(page, '歯医者');

@@ -378,7 +378,10 @@ const extActive = () => NATIVE && X.avail && link.enabled && X.perm === 'granted
 // 表示用の外部予定（アプリ予定のリンクと一致するものは除外）。入力が変わるまで使い回す。
 function visExt() {
   if (!extActive() || !X.cache) return [];
-  if (X.visFor?.[0] !== X.cache || X.visFor?.[1] !== state.events || X.visFor?.[2] !== OBX.items) { X.vis = dedupe(X.cache.events, state.events, OBX.items); X.visFor = [X.cache, state.events, OBX.items]; }
+  if (X.visFor?.[0] !== X.cache || X.visFor?.[1] !== state.events || X.visFor?.[2] !== OBX.items || X.visFor?.[3] !== link.calendarIds) {
+    const on = new Set(link.calendarIds); // オフにしたカレンダーの予定は、再読込を待たず画面・検索から外す（CT-6）
+    X.vis = dedupe(X.cache.events, state.events, OBX.items).filter((e) => on.has(e.calId)); X.visFor = [X.cache, state.events, OBX.items, link.calendarIds];
+  }
   return X.vis;
 }
 const isX = (e) => e.origin === 'iphone';
@@ -2975,7 +2978,7 @@ function sameExt(a, b) {
 function afterExt() {
   render();
   if (calScreenOpen()) renderCalScreen();
-  if (xdDlg.open && xdCur && !visExt().some((x) => x.id === xdCur.id)) $('#xd-err').textContent = 'この予定は見つかりません。カレンダーで確認してください。';
+  if (xdDlg.open && xdCur && !visExt().some((x) => sameExt(x, xdCur))) $('#xd-err').textContent = 'この予定は見つかりません。カレンダーで確認してください。';
   if (dlg.open) updateXUi();
   if (dlg.open && extEd) $('#ext-gone').hidden = X.status !== 'ok' || visExt().some((x) => sameExt(x, extEd.before)); // 入力・基準値は変えない。注意帯だけ
 }
@@ -4540,7 +4543,7 @@ async function extSource(id) {
   const e = visExt().find((x) => x.id === id);
   if (!e) return null;
   const d = await call('getEvent', extTarget(e));
-  return { ...toDisplay(d, X.calendars.find((c) => c.id === e.calId)), id };
+  return { ...toDisplay(d, X.calendars.find((c) => c.id === e.calId)), id, alarms: Array.isArray(d.alarms) ? d.alarms.map((a) => ({ ...a })) : undefined };
 }
 let copyGen = 0;
 async function copyFrom(id) {
