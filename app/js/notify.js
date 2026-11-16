@@ -104,7 +104,7 @@ function hasBeyondWindow(targets, limit) {
 
 // 予約する通知の一覧。{ items, truncated }。
 // 実通知が上限（max）または30日窓で切れるときは、実通知を max-1 件にして最後に duo.refresh を1件足す。切れないときは実通知だけ最大 max 件。
-export function planNotifications(events, now, s, { days = WINDOW_DAYS, max = MAX_PENDING } = {}) {
+export function planNotifications(events, now, s, { days = WINDOW_DAYS, max = MAX_PENDING, visible = null } = {}) {
   const n = normNotify(s);
   if (!n.enabled) return { items: [], truncated: false };
   const today = dkey(now);
@@ -112,6 +112,7 @@ export function planNotifications(events, now, s, { days = WINDOW_DAYS, max = MA
   const targets = events.filter((e) => !excluded(e) && (e.recurrence || (e.alarms || []).length));
   const pool = [];
   for (const occ of expand(targets, today, addDays(today, days + 7))) {
+    if (visible && !visible(occ)) continue; // 非表示（展開後の実効カテゴリ）は予約しない
     const parentId = occ.parentId ?? occ.id;
     alarmsFor(occ).forEach((alarm, i) => {
       const fire = fireAt(occ, alarm);

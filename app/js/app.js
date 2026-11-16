@@ -14,7 +14,7 @@ import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.j
 import { DELETE_UNDO_MS, checkReminderAccess, requestReminderAccess, taskAccessHtml, createReminderLoader, tasksHtml, HIST_DAYS, createAddController, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDoneController, TASK_CONFLICT, createDeleteController, TASK_DELETED, TASK_DELETE_CONFLICT, normRemSettings, shownListIds, pruneRemSettings, resolveAddList, filterByLists, dueCounts } from './reminders.js';
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
 import { call, errCode, errReason, errText, haptic, listen, nativeAvailable, reminderErrText } from './native.js';
-import { buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, pickAddCal, planNativeOps, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
+import { makeVisible, buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, pickAddCal, planNativeOps, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
 import {
   DOW, addDays, addMonths, assignSharedLanes, dayLabel, dayOf, dkey, eventsOnDay, isKey, isMulti,
   monthWeeks, newId, nowStamp, pad, parseInput, parseKey, ruleSummary, setFirstDay, timeLabel, toInput, todayKey, validateDraft, weekStart, weekdayHeads,
@@ -392,9 +392,16 @@ function ctl() {
   else if (POS.band) h = CTL.set() + CTL.search() + CTL.today() + CTL.add();
   return `${bg}<div class="ctl${POS.band ? ' band' : ''}" role="group" aria-label="操作">${h}</div>`;
 }
+// 画面・検索・通知で共通の表示条件。入力が変わるまで使い回す。
+let visFnKey = null, visFn = null;
+function duoVisible() {
+  const k = [state.events, hiddenCats, link, X.perm, X.calendars];
+  if (!visFnKey || k.some((v, i) => v !== visFnKey[i])) { visFn = makeVisible({ events: state.events, hiddenCats, link, perm: X.perm, calendars: X.calendars }); visFnKey = k; }
+  return visFn;
+}
 const occIn = (a, b) => {
   let base = occBetween(state.events, a, b);
-  if (hiddenCats.size) base = base.filter((e) => !hiddenCats.has(e.categoryId)); // 非表示のカテゴリは表示から隠す（予定は消さない）
+  base = base.filter(duoVisible()); // 非表示のカテゴリ・オフのカレンダーへ追加した写しは表示から隠す（予定は消さない）
   const x = visExt();
   return x.length ? base.concat(extIn(x, a, b)) : base;
 };
@@ -2424,7 +2431,7 @@ function memoHitHtml(m, ts) {
 function renderSearch(initial = false, quiet = false) {
   const say2 = (m) => { if (!quiet) say(m); };
   const mres = searchMemos(srMemos, SR.q.value);
-  const res = searchEvents(state.events, SR.q.value, srToday, srSnap ? searchExt(srSnap.events, SR.q.value, srToday) : []);
+  const res = searchEvents(state.events, SR.q.value, srToday, srSnap ? searchExt(srSnap.events, SR.q.value, srToday) : [], duoVisible());
   SR.clear.hidden = !SR.q.value;
   SR.range.textContent = `検索範囲：${ymd(res.range.from)}–${ymd(res.range.to)}・最大${LIMIT}件`;
   SR.xrange.hidden = !srSnap;
@@ -3776,7 +3783,7 @@ async function runNotifySync(gen) {
     if (gen !== N.gen) return;
     N.perm = st?.status || null;
     if (!NOTIFY_OK.includes(N.perm)) { N.scheduled = null; return; } // 許可はここでは要求しない
-    const { items } = planNotifications(state.events, new Date(), n);
+    const { items } = planNotifications(state.events, new Date(), n, { visible: duoVisible() });
     if (gen !== N.gen) return;
     const r = await call('notifySync', { items });
     if (gen === N.gen) { N.scheduled = Number.isFinite(r?.scheduled) ? r.scheduled : items.length; N.err = ''; updateNotifyCount(); }

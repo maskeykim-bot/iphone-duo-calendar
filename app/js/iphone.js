@@ -18,6 +18,22 @@ export function normSettings(v) {
   };
 }
 
+// 表示条件（画面・検索・通知で共通）。ctx: { events（全親）, hiddenCats:Set, link:{enabled,calendarIds}, perm, calendars }。
+// linked/pending は追加先 calendarId の ✓（連携が有効で許可が取れているとき）が正。id が端末に無ければ非表示のまま。
+// それ以外（unlinked・Duo のみ・連携オフ）は実効 categoryId（繰り返しの回の個別変更を含む）の hidden で判定する。
+export function makeVisible(ctx) {
+  const hid = ctx.hiddenCats || new Set(), byId = new Map();
+  for (const e of ctx.events || []) byId.set(e.id, e);
+  const ids = new Set(ctx.link?.calendarIds || []);
+  const known = ctx.calendars?.length ? new Set(ctx.calendars.map((c) => c.id)) : null;
+  const calOn = !!ctx.link?.enabled && (ctx.perm == null || ctx.perm === 'granted');
+  return (e) => {
+    const l = (byId.get(e.parentId ?? e.id) || e).nativeLink;
+    if (calOn && l && (l.state === 'linked' || l.state === 'pending') && l.calendarId) return ids.has(l.calendarId) && (!known || known.has(l.calendarId));
+    return !hid.has(e.categoryId);
+  };
+}
+
 const first = (k) => `${k.slice(0, 8)}01`;
 // 表示日を含む月の前月1日〜翌々月1日（下端含まない）。週の表示がはみ出す場合も含める。
 export function extRange(key) {
