@@ -18,6 +18,7 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         CAPPluginMethod(name: "reminderPermission", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "requestReminderPermission", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "listReminderLists", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "listReminders", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "listCalendars", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "listEvents", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getEvent", returnType: CAPPluginReturnPromise),
@@ -329,6 +330,126 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             }
             call.resolve(["lists": items.map { $0.dict }])
         }
+    }
+
+    // MARK: - リマインダーの一覧（第14版 PR14）
+
+    // 取得の世代管理。queue 上でだけ読み書きする。新しい要求は前の取得を取り消し、前の call を CANCELLED で解放する。
+    private var remGen = 0
+    private var remTokens: [Any] = []
+    private var remPending: CAPPluginCall?
+
+    /// 前の取得を止めて call を解放する。queue 上で呼ぶ。
+    private func cancelReminderFetch() {
+        for t in remTokens { store.cancelFetchRequest(t) }
+        remTokens = []
+        if let old = remPending {
+            remPending = nil
+            old.reject("cancelled", "CANCELLED")
+        }
+        remGen += 1
+    }
+
+    @objc func listReminders(_ call: CAPPluginCall) {
+        guard ensureReminderAccess(call) else { return }
+        let f = makeFormatter()
+        guard let ids = call.getArray("listIds", String.self),
+              let since = parse(call.getString("completedSince"), f) else {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            self.cancelReminderFetch()
+            if ids.isEmpty {
+                call.resolve(["reminders": [[String: Any]]()])
+                return
+            }
+            var lists: [EKCalendar] = []
+            for id in ids {
+                guard let c = self.store.calendar(withIdentifier: id), c.allowedEntityTypes.contains(.reminder) else {
+                    call.reject("list not found", "LIST_NOT_FOUND")
+                    return
+                }
+                lists.append(c)
+            }
+            let gen = self.remGen
+            self.remPending = call
+            var results: [EKReminder] = []
+            var left = 2
+            let finish: ([EKReminder]?) -> Void = { [weak self] part in
+                self?.queue.async {
+                    guard let self = self, self.remGen == gen, self.remPending === call else { return } // 古い応答は捨てる（call は取消時に解放済み）
+                    if let part = part { results.append(contentsOf: part) }
+                    left -= 1
+                    if left > 0 { return }
+                    self.remPending = nil
+                    self.remTokens = []
+                    let cal = self.makeCalendar()
+                    var seen = Set<String>()
+                    var out: [[String: Any]] = []
+                    for r in results {
+                        guard seen.insert(r.calendarItemIdentifier).inserted else { continue }
+                        out.append(self.serializeReminder(r, f, cal))
+                    }
+                    call.resolve(["reminders": out])
+                }
+            }
+            let t1 = self.store.fetchReminders(matching: self.store.predicateForIncompleteReminders(withDueDateStarting: nil, ending: nil, calendars: lists)) { finish($0) }
+            let t2 = self.store.fetchReminders(matching: self.store.predicateForCompletedReminders(withCompletionDateStarting: since, ending: nil, calendars: lists)) { finish($0) }
+            self.remTokens = [t1, t2]
+        }
+    }
+
+    /// 期限を Day と任意の time に直す。時刻なしは日付だけ。TZ 付きは端末の日付へ変換する。
+    private func serializeDue(_ dc: DateComponents?, _ cal: Calendar) -> (due: [String: Any]?, date: Date?) {
+        guard let dc = dc, dc.year != nil, dc.month != nil, dc.day != nil else { return (nil, nil) }
+        var local = dc
+        if dc.hour != nil, dc.timeZone != nil {
+            var c = dc.calendar ?? Calendar(identifier: .gregorian)
+            c.timeZone = dc.timeZone!
+            if let d = c.date(from: dc) { local = cal.dateComponents([.year, .month, .day, .hour, .minute], from: d) }
+        }
+        guard let y = local.year, let m = local.month, let d = local.day else { return (nil, nil) }
+        var dict: [String: Any] = ["date": String(format: "%04d-%02d-%02d", y, m, d)]
+        var probe = DateComponents(year: y, month: m, day: d)
+        if let h = local.hour {
+            let mi = local.minute ?? 0
+            dict["time"] = String(format: "%02d:%02d", h, mi)
+            probe.hour = h; probe.minute = mi
+        }
+        return (dict, cal.date(from: probe))
+    }
+
+    private func serializeReminder(_ r: EKReminder, _ f: DateFormatter, _ cal: Calendar) -> [String: Any] {
+        let due = serializeDue(r.dueDateComponents, cal)
+        var alarms: [[String: Any]] = []
+        var extra = 0
+        for a in r.alarms ?? [] {
+            if a.structuredLocation != nil { extra += 1; continue }
+            if let d = a.absoluteDate { alarms.append(["at": f.string(from: d)]); continue }
+            if let base = due.date, due.due?["time"] != nil {
+                alarms.append(["at": f.string(from: base.addingTimeInterval(a.relativeOffset))]); continue
+            }
+            extra += 1
+        }
+        return [
+            "itemId": r.calendarItemIdentifier,
+            "externalId": r.calendarItemExternalIdentifier ?? "",
+            "listId": r.calendar?.calendarIdentifier ?? "",
+            "title": r.title ?? "",
+            "notes": r.notes ?? "",
+            "due": due.due ?? NSNull(),
+            "done": r.isCompleted,
+            "doneAt": r.isCompleted ? stampOrNull(r.completionDate, f) : NSNull(),
+            "alarms": alarms,
+            "alarmsExtra": extra,
+            "priority": min(9, max(0, r.priority)),
+            "recurring": r.hasRecurrenceRules,
+            "createdAt": msOrNull(r.creationDate),
+            "modifiedAt": msOrNull(r.lastModifiedDate),
+            "readOnly": !(r.calendar?.allowsContentModifications ?? false)
+        ]
     }
 
     @objc func listEvents(_ call: CAPPluginCall) {

@@ -11,6 +11,13 @@ export async function requestReminderAccess(call) {
   try { const r = await call('requestReminderPermission', {}); return norm(r?.status); } catch { return 'unavailable'; }
 }
 
+// 一覧取得（第14版 PR14）。listIds は全 id を渡す（空は空結果）。completedSince は Stamp。
+// 失敗は呼び出し側へ投げる（CANCELLED は後続の取得に置き換わった印）。タスク本文は保存しない。
+export async function listReminders(call, listIds, completedSince) {
+  const r = await call('listReminders', { listIds: [...listIds], completedSince });
+  return Array.isArray(r?.reminders) ? r.reminders : [];
+}
+
 export const REM_TEXT = {
   intro: 'iPhone のリマインダーと同じタスクを、ここで見たり追加したりできます。',
   allow: 'リマインダーへのアクセスを許可',
