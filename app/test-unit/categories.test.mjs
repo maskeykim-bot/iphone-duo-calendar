@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   CAT_IDS, DEFAULTS_NEW, LEGACY, PALETTE, UNCATEGORIZED, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, newCategory,
-  canHideCategory, ensureOneVisible, supplementForReplace, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory,
+  canHideCategory, ensureOneVisible, supplementForReplace, planDeleteCategory, defaultDeleteTarget, resolveCategory, sortCategories, tint, validateCategory,
 } from '../js/categories.js';
 import { buildBackup, validateBackup } from '../js/backup.js';
 import { withDefaults } from '../js/util.js';
@@ -84,7 +84,7 @@ test('planDeleteCategory: 予定（overrides 内も）を移し先へ付け替�
 test('planDeleteCategory: 最後の1件は削除できない／移し先が必要／予定が無ければ移し先は不要', () => {
   assert.equal(planDeleteCategory([cat('a', 'A', 0)], [], 'a', null).ok, false);
   assert.match(planDeleteCategory([cat('a', 'A', 0)], [], 'a', null).error, /1つ以上/);
-  assert.equal(planDeleteCategory(CATS, [E('1', 'a')], 'a', null).ok, false);
+  assert.equal(planDeleteCategory(CATS, [E('1', 'a')], 'a', null).targetId, 'b'); // 移し先の省略は既定先（その他が無ければ最初の別カテゴリ）
   assert.equal(planDeleteCategory(CATS, [E('1', 'a')], 'a', 'a').ok, false);
   assert.equal(planDeleteCategory(CATS, [E('1', 'a')], 'a', 'zzz').ok, false);
   const none = planDeleteCategory(CATS, [E('1', 'b')], 'a', null);
@@ -257,4 +257,23 @@ test('第15版 PR2: canHideCategory / ensureOneVisible / supplementForReplace', 
   const s = supplementForReplace([cat('x', 'X', 0)], [E('1', CAT_IDS.work)], 7);
   assert.deepEqual(s.added.map((c) => c.id).sort(), [CAT_IDS.work, CAT_IDS.family, CAT_IDS.out, CAT_IDS.other].sort());
   assert.equal(supplementForReplace(DEFAULTS_NEW.map((d, i) => cat(d.id, d.name, i)), []).added.length, 0);
+});
+
+test('defaultDeleteTarget: 「その他」を既定に。その他自体を消すときは別カテゴリ', () => {
+  const L = [cat('a', 'A', 0), cat(CAT_IDS.other, 'その他', 1), cat('c', 'C', 2)];
+  assert.equal(defaultDeleteTarget(L, 'a'), CAT_IDS.other);
+  assert.equal(defaultDeleteTarget(L, CAT_IDS.other), 'a');
+  assert.equal(defaultDeleteTarget([cat('a', 'A', 0)], 'a'), '');
+  const r = planDeleteCategory(L, [E('1', 'a')], 'a', '');
+  assert.equal(r.targetId, CAT_IDS.other);
+  assert.equal(r.eventPuts[0].categoryId, CAT_IDS.other);
+  assert.deepEqual(planDeleteCategory(L, [E('1', CAT_IDS.other)], CAT_IDS.other, '').eventPuts.map((e) => e.categoryId), ['a']);
+});
+
+test('planDeleteCategory: 削除で表示中が無くなるときは移し先を表示に戻す', () => {
+  const L = [cat('a', 'A', 0), cat('b', 'B', 1, { hidden: true }), cat('c', 'C', 2, { hidden: true })];
+  const r = planDeleteCategory(L, [E('1', 'a')], 'a', 'c', 5);
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.catPuts.map((c) => [c.id, c.hidden]), [['c', false]]);
+  assert.deepEqual(planDeleteCategory(CATS, [], 'a', '').catPuts, []);
 });

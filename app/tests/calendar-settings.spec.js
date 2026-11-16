@@ -47,7 +47,7 @@ test.describe('設定 › カレンダー（PR8）', () => {
     await expect(rows(page)).toHaveCount(5);
     const heads = await page.locator('#m-cal-ip .cahead').allTextContents();
     expect(heads).toEqual(expect.arrayContaining(['iCloud（caldav）', 'iCloud（local）', 'Gmail', 'Subscribed Calendars']));
-    await expect(page.locator('#m-cal-duo .cahead')).toHaveText('Duo（この端末だけ）');
+    await expect(page.locator('#m-cal-duo .cahead span')).toHaveText('Duo（この端末だけ）');
     await expect(page.locator('[data-cal="cal-r"] .cro')).toHaveText('表示のみ');
     await expect(page.locator('[data-cal="cal-a"] .cro')).toHaveCount(0);
     const m = await page.evaluate(() => ({ h: document.querySelector('#m-cal-ip .cahead').getBoundingClientRect().height, r: document.querySelector('[data-cal="cal-a"]').getBoundingClientRect().height, d: document.querySelector('[data-cal="cal-a"] .cdot').getBoundingClientRect().width }));
@@ -168,5 +168,25 @@ test.describe('設定 › カレンダー（PR8）', () => {
     const box = await page.locator('#menu').boundingBox();
     expect(box.x + box.width).toBeLessThanOrEqual(SIZES.openLandscape.width / 2);
     await expect(page.locator('#m-dest')).toBeVisible();
+  });
+
+  test('Duo 段の編集（追加・改名・並替・削除・取消）では iPhone 側の変更 API を呼ばず、外部の✓も変わらない', async ({ page }) => {
+    await setup(page, { link: { enabled: true, enabledMig: true, calendarIds: ['cal-a'], selectionInitialized: true } });
+    await openMenu(page, 'calendar');
+    const before = await ls(page);
+    await page.locator('#m-cedit').click();
+    await page.locator('#m-cal-duo .crow.edit', { hasText: '家族' }).locator('[data-cup]').click();
+    await page.locator('#m-cal-duo .crow.edit', { hasText: '外出' }).locator('[data-cedit]').click();
+    await page.locator('#cat-name').fill('おでかけ');
+    await page.locator('#cat-close').click();
+    await page.locator('#m-cal-duo .crow.edit', { hasText: 'おでかけ' }).locator('[data-cdel]').click();
+    await page.locator('[data-cdelgo]').click();
+    await page.locator('[data-cundo]').click();
+    await expect(page.locator('#m-cal-duo .crow.edit .cname')).toHaveText(['仕事', '家族', 'プライベート', 'おでかけ', 'その他']);
+    // 外部のカレンダーの行はそのまま（編集の対象ではない）
+    await page.locator('#m-cedit').click();
+    await expect(page.locator('#m-cal-ip [data-cal="cal-a"]')).toHaveAttribute('aria-checked', 'true');
+    expect(await ls(page)).toEqual(before);
+    for (const m of ['createEvent', 'createEvents', 'updateEvent', 'deleteEvent', 'deleteExternalEvent', 'createReminder', 'updateReminder', 'deleteReminder']) expect(await mockCalls(page, m)).toHaveLength(0);
   });
 });

@@ -37,7 +37,7 @@ for (const [name, size] of [['閉じた縦', SIZES.closedPortrait], ['開いた�
 
 test('既存の設定項目がそれぞれ1か所にあり、行き止まりがない', async ({ page }) => {
   await openApp(page, SIZES.openPortrait669);
-  const where = { general: ['#m-week', '#m-rokuyo', '#m-desk'], display: ['#m-msize', '#m-mtime'], details: ['#touch-check-open', '#layout-diagnostics'], calendar: ['[data-m="cats"]'] };
+  const where = { general: ['#m-week', '#m-rokuyo', '#m-desk'], display: ['#m-msize', '#m-mtime'], details: ['#touch-check-open', '#layout-diagnostics'], calendar: ['#m-cedit'] };
   for (const [sc, sels] of Object.entries(where)) {
     await openMenu(page, sc);
     for (const s of sels) await expect(page.locator(`#menu [data-screen="${sc}"] ${s}`)).toHaveCount(1);

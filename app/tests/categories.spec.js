@@ -8,10 +8,12 @@ const dbCats = (page) => page.evaluate(async () => (await import('/js/db.js')).l
 const openCats = async (page) => {
   await page.locator('[data-act="menu"]:visible').first().click();
   await page.locator('#menu [data-go="calendar"]').click();
-  await page.locator('[data-m="cats"]').click();
-  await expect(page.locator('#cats')).toBeVisible();
+  await page.locator('#m-cedit').click();
+  await expect(page.locator('#m-cedit')).toHaveText('完了');
 };
-const rowOf = (page, name) => page.locator('#cat-body .catrow', { hasText: name });
+const rowOf = (page, name) => page.locator('#m-cal-duo .crow.edit', { hasText: name });
+const names = (page) => expect(page.locator('#m-cal-duo .crow.edit .cname'));
+const delRow = async (page, name) => { await rowOf(page, name).locator('[data-cdel]').click(); };
 
 test.describe('新規インストールの既定カテゴリ', () => {
   test('仕事・プライベート・家族・外出・その他の5つ（確定パレット）', async ({ page }) => {
@@ -114,40 +116,46 @@ test.describe('DB v2 → v3 移行', () => {
   });
 });
 
-test.describe('カテゴリ編集パネル', () => {
-  test('メニューから開く。一覧は名前・色・件数・表示スイッチ', async ({ page }) => {
+test.describe('設定 › カレンダーのカテゴリ編集（Duo 段の編集モード）', () => {
+  test('編集/完了で Duo 段だけ編集表示になる。旧「カテゴリ」独立画面への導線は無い', async ({ page }) => {
     await openApp(page);
-    await seed(page, [ev('a', 'A', '2026-11-12T10:00', '2026-11-12T11:00'), ev('b', 'B', '2026-11-12T12:00', '2026-11-12T13:00')]);
-    await openCats(page);
-    await expect(page.locator('#cat-body .catrow .cname')).toHaveText(['仕事', 'プライベート', '家族', '外出', 'その他']);
-    await expect(rowOf(page, '仕事').locator('.ccount')).toHaveText('2件');
-    await expect(rowOf(page, '家族').locator('.ccount')).toHaveText('0件');
-    await expect(rowOf(page, '仕事').locator('[role=switch]')).toHaveAttribute('aria-checked', 'true');
-    await page.locator('#cat-close').click();
-    await expect(page.locator('#cats')).toBeHidden();
+    await page.locator('[data-act="menu"]:visible').first().click();
+    await page.locator('#menu [data-go="calendar"]').click();
+    await expect(page.locator('[data-m="cats"]')).toHaveCount(0);
+    await expect(page.locator('#m-cal-duo [data-cvis]')).toHaveCount(5);
+    await expect(page.locator('#m-cedit')).toHaveText('編集');
+    await page.locator('#m-cedit').click();
+    await (await names(page)).toHaveText(['仕事', 'プライベート', '家族', '外出', 'その他']);
+    await expect(page.locator('#m-cal-duo [data-cvis]')).toHaveCount(0);
+    await expect(page.locator('#m-cal-duo [data-cadd]')).toBeVisible();
+    await page.locator('#m-cedit').click();
+    await expect(page.locator('#m-cal-duo [data-cvis]')).toHaveCount(5);
+    await expect(page.locator('#m-cal-duo [data-cdel]')).toHaveCount(0);
   });
 
-  test('追加・改名・色の変更（再読み込み後も保たれ、予定の表示に反映される）', async ({ page }) => {
+  test('追加・改名・色の変更（再読み込み後も保たれ、予定の表示に反映される）。保存後は編集モードのまま設定へ戻る', async ({ page }) => {
     await openApp(page);
     await seed(page, [ev('a', '予定A', '2026-11-12T10:00', '2026-11-12T11:00', { categoryId: CAT_IDS.family })]);
     await openCats(page);
-    await page.locator('[data-cat-add]').click();
+    await page.locator('[data-cadd]').click();
+    await expect(page.locator('#cats')).toBeVisible();
     await page.locator('#cat-name').fill('ヨガ');
     await page.locator('.swatch[aria-label="紫"]').click();
     await expect(page.locator('.swatch[aria-label="紫"]')).toHaveAttribute('aria-pressed', 'true');
     await page.locator('#cat-close').click(); // 完了
-    await expect(page.locator('#cat-body .catrow .cname')).toHaveText(['仕事', 'プライベート', '家族', '外出', 'その他', 'ヨガ']);
-    // 改名と色変更
-    await rowOf(page, '家族').locator('.catmain').click();
+    await expect(page.locator('#cats')).toBeHidden();
+    await expect(page.locator('#m-cedit')).toHaveText('完了');
+    await (await names(page)).toHaveText(['仕事', 'プライベート', '家族', '外出', 'その他', 'ヨガ']);
+    await rowOf(page, '家族').locator('[data-cedit]').click();
     await page.locator('#cat-name').fill('ファミリー');
     await page.locator('.swatch[aria-label="赤"]').click();
     await page.locator('#cat-close').click();
-    await expect(page.locator('#cat-body .catrow .cname')).toContainText(['仕事', 'プライベート', 'ファミリー', '外出', 'その他', 'ヨガ']);
-    await page.locator('#cat-close').click();
+    await (await names(page)).toHaveText(['仕事', 'プライベート', 'ファミリー', '外出', 'その他', 'ヨガ']);
     const cats = await dbCats(page);
     expect(cats.find((c) => c.name === 'ヨガ')).toMatchObject({ color: '#5e4c8e', order: 5, hidden: false });
     expect(cats.find((c) => c.id === CAT_IDS.family)).toMatchObject({ name: 'ファミリー', color: '#a13a3a' });
-    // 予定は id で結ばれているので、改名しても外れず、新しい名前・色で表示される
+    await page.locator('#m-cedit').click();
+    await page.locator('#m-back').click(); await page.locator('#m-back').click();
     await tab(page, '日').click();
     const card = page.locator('.tlev', { hasText: '予定A' });
     await expect(card).toHaveAttribute('aria-label', /、ファミリー/);
@@ -159,10 +167,10 @@ test.describe('カテゴリ編集パネル', () => {
     await legendCheck(page, (l) => expect(l).toContainText('ヨガ'));
   });
 
-  test('名前の検証: 空・重複・21文字以上は保存できない', async ({ page }) => {
+  test('名前の検証: 空・重複・21文字以上は保存できない／キャンセルで設定へ戻る', async ({ page }) => {
     await openApp(page);
     await openCats(page);
-    await page.locator('[data-cat-add]').click();
+    await page.locator('[data-cadd]').click();
     await page.locator('#cat-close').click();
     await expect(page.locator('#cat-err')).toContainText('カテゴリ名を入力');
     await page.locator('#cat-name').fill('仕事');
@@ -170,17 +178,20 @@ test.describe('カテゴリ編集パネル', () => {
     await expect(page.locator('#cat-err')).toContainText('同じ名前');
     expect(await page.locator('#cat-name').getAttribute('maxlength')).toBe('20');
     expect((await dbCats(page)).length).toBe(5);
+    await page.locator('[data-cat-cancel]').click();
+    await expect(page.locator('#cats')).toBeHidden();
+    await expect(page.locator('#m-cedit')).toHaveText('完了');
   });
 
-  test('並べ替え: 上へ・下へ。編集シートの選択肢と凡例にも反映され、再読み込み後も保たれる', async ({ page }) => {
+  test('並べ替え: 上へ・下へ。新規予定の既定・凡例にも反映され、再読み込み後も保たれる', async ({ page }) => {
     await openApp(page);
     await openCats(page);
-    await rowOf(page, '家族').locator('[data-cat-up]').click();
-    await expect(page.locator('#cat-body .catrow .cname')).toHaveText(['仕事', '家族', 'プライベート', '外出', 'その他']);
-    await rowOf(page, '仕事').locator('[data-cat-down]').click();
-    await expect(page.locator('#cat-body .catrow .cname')).toHaveText(['家族', '仕事', 'プライベート', '外出', 'その他']);
-    await expect(page.locator('[data-cat-up]').first()).toBeDisabled();
-    await expect(page.locator('[data-cat-down]').last()).toBeDisabled();
+    await rowOf(page, '家族').locator('[data-cup]').click();
+    await (await names(page)).toHaveText(['仕事', '家族', 'プライベート', '外出', 'その他']);
+    await rowOf(page, '仕事').locator('[data-cdown]').click();
+    await (await names(page)).toHaveText(['家族', '仕事', 'プライベート', '外出', 'その他']);
+    await expect(page.locator('[data-cup]').first()).toBeDisabled();
+    await expect(page.locator('[data-cdown]').last()).toBeDisabled();
     expect((await dbCats(page)).map((c) => [c.name, c.order])).toEqual([['家族', 0], ['仕事', 1], ['プライベート', 2], ['外出', 3], ['その他', 4]]);
     await page.reload(); await page.waitForSelector('html[data-ready]');
     await tab(page, '月').click();
@@ -189,29 +200,23 @@ test.describe('カテゴリ編集パネル', () => {
     await expect(page.locator('#dest-name')).toHaveText('家族'); // 新規の既定は先頭
   });
 
-  test('非表示: 月・日の表示から隠す（予定は消さない）。凡例からも外れ、戻すと再び出る', async ({ page }) => {
+  test('非表示（✓）は編集モード外で。予定は消えず、戻すと再び出る', async ({ page }) => {
     await openApp(page);
     await seed(page, [ev('a', '仕事A', '2026-11-12T10:00', '2026-11-12T11:00'), ev('b', '家族B', '2026-11-12T12:00', '2026-11-12T13:00', { categoryId: CAT_IDS.family })]);
     await tab(page, '日').click();
     await expect(page.locator('.tlev')).toHaveCount(2);
-    await openCats(page);
-    await rowOf(page, '家族').locator('[role=switch]').click();
-    await expect(rowOf(page, '家族').locator('[role=switch]')).toHaveAttribute('aria-checked', 'false');
-    await expect(page.locator('#cat-hidden')).toHaveText('1件のカテゴリを非表示中');
-    await page.locator('#cat-close').click();
+    await openMenu(page, 'calendar');
+    await page.locator('#m-cal-duo [data-cvis]', { hasText: '家族' }).click();
+    await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
     await expect(page.locator('.tlev')).toHaveCount(1);
-    await expect(page.locator('.tlev')).toContainText('仕事A');
-    await tab(page, '月').click();
-    await legendCheck(page, (l) => expect(l).not.toContainText('家族'));
     expect(await dbEvents(page)).toHaveLength(2);
-    await openCats(page);
-    await rowOf(page, '家族').locator('[role=switch]').click();
-    await page.locator('#cat-close').click();
-    await tab(page, '日').click();
+    await openMenu(page, 'calendar');
+    await page.locator('#m-cal-duo [data-cvis]', { hasText: '家族' }).click();
+    await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
     await expect(page.locator('.tlev')).toHaveCount(2);
   });
 
-  test('削除: 予定の移し先を選ばせ、予定（繰り返しの個別変更を含む）を移す。再読み込み後も維持', async ({ page }) => {
+  test('削除: 既定の移し先は「その他」。予定（繰り返しの個別変更を含む）を移し、5秒の「元に戻す」で全部戻る', async ({ page }) => {
     await openApp(page);
     await seed(page, [
       ev('a', '外出A', '2026-11-12T10:00', '2026-11-12T11:00', { categoryId: CAT_IDS.out }),
@@ -220,57 +225,70 @@ test.describe('カテゴリ編集パネル', () => {
         overrides: { '2026-11-16T09:00': { title: '変更回', categoryId: CAT_IDS.out, all: false, start: '2026-11-16T09:00', end: '2026-11-16T10:00', place: '', notes: '' } } }),
     ]);
     await openCats(page);
-    await rowOf(page, '外出').locator('.catmain').click();
-    await page.locator('[data-cat-del]').click();
-    await expect(page.locator('.delbox')).toContainText('3件の予定を移すカテゴリ');
-    await expect(page.locator('#cat-target')).toHaveValue(CAT_IDS.work); // 既定は一覧の先頭
+    await delRow(page, '外出');
+    await expect(page.locator('.calbox')).toContainText('3件の予定を移すカテゴリ');
+    await expect(page.locator('#cat-target')).toHaveValue(CAT_IDS.other);
+    await page.locator('[data-cdelcancel]').click();
+    expect((await dbCats(page)).length).toBe(5);
+    await delRow(page, '外出');
     await page.locator('#cat-target').selectOption(CAT_IDS.family);
-    await page.locator('[data-cat-delgo]').click();
-    await expect(page.locator('#cat-body .catrow .cname')).toHaveText(['仕事', 'プライベート', '家族', 'その他']);
-    await expect(rowOf(page, '家族').locator('.ccount')).toHaveText('2件');
-    await expect(page.locator('.undobar')).toContainText('「外出」を削除しました');
-    await page.locator('#cat-close').click();
-    const evs = await dbEvents(page);
+    await page.locator('[data-cdelgo]').click();
+    await (await names(page)).toHaveText(['仕事', 'プライベート', '家族', 'その他']);
+    await expect(page.locator('#m-cal-duo .undobar')).toContainText('「外出」を削除しました');
+    let evs = await dbEvents(page);
     expect(evs).toHaveLength(3);
     expect(evs.filter((e) => e.categoryId === CAT_IDS.family).map((e) => e.id).sort()).toEqual(['a', 'b']);
     expect(evs.find((e) => e.id === 'r').overrides['2026-11-16T09:00'].categoryId).toBe(CAT_IDS.family);
-    await tab(page, '日').click();
-    await expect(page.locator('.tlev', { hasText: '外出A' })).toHaveAttribute('aria-label', /、家族/);
-    await page.reload(); await page.waitForSelector('html[data-ready]');
-    expect((await dbCats(page)).map((c) => c.name)).toEqual(['仕事', 'プライベート', '家族', 'その他']);
-    expect((await dbEvents(page)).filter((e) => e.categoryId === CAT_IDS.family)).toHaveLength(2);
+    await page.locator('[data-cundo]').click();
+    await (await names(page)).toHaveText(['仕事', 'プライベート', '家族', '外出', 'その他']);
+    evs = await dbEvents(page);
+    expect(evs.filter((e) => e.categoryId === CAT_IDS.out).map((e) => e.id).sort()).toEqual(['a', 'b']);
+    expect(evs.find((e) => e.id === 'r').overrides['2026-11-16T09:00'].categoryId).toBe(CAT_IDS.out);
   });
 
-  test('削除の「元に戻す」で、カテゴリと予定の所属が元に戻る', async ({ page }) => {
+  test('「元に戻す」は5秒で消え、その後も予定は移し先のまま・再読み込み後も維持', async ({ page }) => {
     await openApp(page);
     await seed(page, [ev('a', '外出A', '2026-11-12T10:00', '2026-11-12T11:00', { categoryId: CAT_IDS.out })]);
     await openCats(page);
-    await rowOf(page, '外出').locator('.catmain').click();
-    await page.locator('[data-cat-del]').click();
-    await page.locator('[data-cat-delgo]').click();
-    await page.locator('[data-cat-undo]').click();
-    await expect(page.locator('#cat-body .catrow .cname')).toHaveText(['仕事', 'プライベート', '家族', '外出', 'その他']);
-    expect((await dbEvents(page))[0].categoryId).toBe(CAT_IDS.out);
+    await delRow(page, '外出');
+    await page.locator('[data-cdelgo]').click();
+    await expect(page.locator('[data-cundo]')).toBeVisible();
+    await expect(page.locator('[data-cundo]')).toHaveCount(0, { timeout: 7000 });
+    await page.reload(); await page.waitForSelector('html[data-ready]');
+    expect((await dbCats(page)).map((c) => c.name)).toEqual(['仕事', 'プライベート', '家族', 'その他']);
+    expect((await dbEvents(page))[0].categoryId).toBe(CAT_IDS.other);
   });
 
-  test('最後の1件は削除できない／予定のないカテゴリは移し先なしで削除できる', async ({ page }) => {
+  test('「その他」自体も他に移し先があれば削除できる（移し先は最初の別カテゴリ）／最後の1件は削除できない', async ({ page }) => {
     await openApp(page);
+    await seed(page, [ev('a', 'その他A', '2026-11-12T10:00', '2026-11-12T11:00', { categoryId: CAT_IDS.other })]);
     await openCats(page);
-    await rowOf(page, 'その他').locator('.catmain').click();
-    await page.locator('[data-cat-del]').click();
-    await expect(page.locator('.delbox')).toContainText('予定はありません');
-    await expect(page.locator('#cat-target')).toHaveCount(0);
-    await page.locator('[data-cat-delgo]').click();
+    await delRow(page, 'その他');
+    await expect(page.locator('#cat-target')).toHaveValue(CAT_IDS.work);
+    await page.locator('[data-cdelgo]').click();
+    expect((await dbEvents(page))[0].categoryId).toBe(CAT_IDS.work);
     for (const n of ['外出', '家族', 'プライベート']) {
-      await rowOf(page, n).locator('.catmain').click();
-      await page.locator('[data-cat-del]').click();
-      await page.locator('[data-cat-delgo]').click();
+      await delRow(page, n);
+      await page.locator('[data-cdelgo]').click();
     }
-    await expect(page.locator('#cat-body .catrow .cname')).toHaveText(['仕事']);
-    await rowOf(page, '仕事').locator('.catmain').click();
-    await expect(page.locator('[data-cat-del]')).toBeDisabled();
-    await expect(page.locator('#cat-body')).toContainText('カテゴリは1つ以上必要です');
+    await (await names(page)).toHaveText(['仕事']);
+    await expect(page.locator('[data-cdel]')).toBeDisabled();
+    await expect(page.locator('#m-cal-duo')).toContainText('カテゴリは1つ以上必要です');
     expect((await dbCats(page)).length).toBe(1);
+  });
+
+  test('表示中のカテゴリを削除して残りがすべて非表示になるときは、移し先を表示に戻す（元に戻すで再び非表示）', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(async () => { const db = await import('/js/db.js'); const cs = await db.listCategories(); await db.applyCategoryChanges({ catPuts: cs.map((c) => ({ ...c, hidden: c.id !== cs[0].id })) }); });
+    await page.reload(); await page.waitForSelector('html[data-ready]');
+    await openCats(page);
+    await delRow(page, '仕事');
+    await page.locator('[data-cdelgo]').click();
+    let cats = await dbCats(page);
+    expect(cats.filter((c) => !c.hidden).map((c) => c.id)).toEqual([CAT_IDS.other]);
+    await page.locator('[data-cundo]').click();
+    cats = await dbCats(page);
+    expect(cats.filter((c) => !c.hidden).map((c) => c.id)).toEqual([CAT_IDS.work]);
   });
 
   test('上限20個: 21個目は追加できない', async ({ page }) => {
@@ -282,8 +300,8 @@ test.describe('カテゴリ編集パネル', () => {
     });
     await page.reload(); await page.waitForSelector('html[data-ready]');
     await openCats(page);
-    await expect(page.locator('#cat-body .catrow')).toHaveCount(20);
-    await expect(page.locator('[data-cat-add]')).toBeDisabled();
+    await expect(page.locator('#m-cal-duo .crow.edit')).toHaveCount(20);
+    await expect(page.locator('[data-cadd]')).toBeDisabled();
   });
 
   test('既存予定の編集もカレンダー1行。旧カテゴリ選択と「カテゴリを編集…」は無い', async ({ page }) => {

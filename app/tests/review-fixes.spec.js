@@ -63,19 +63,18 @@ test.describe('同名カテゴリ', () => {
   const openCats = async (page) => {
     await page.locator('[data-act="menu"]:visible').first().click();
     await page.locator('#menu [data-go="calendar"]').click();
-    await page.locator('[data-m="cats"]').click();
-    await expect(page.locator('#cats')).toBeVisible();
+    await page.locator('#m-cedit').click();
   };
   test('追加も改名も、前後の空白を除いて同名なら保存できない', async ({ page }) => {
     await openApp(page);
     await openCats(page);
-    await page.locator('[data-cat-add]').click();
+    await page.locator('[data-cadd]').click();
     await page.locator('#cat-name').fill('  家族 ');
     await page.locator('#cat-close').click();
     await expect(page.locator('#cat-err')).toContainText('同じ名前');
     expect(await dbCats(page)).toHaveLength(5);
     await page.locator('[data-cat-cancel]').click();
-    await page.locator(`[data-cat-edit="${CAT_IDS.out}"]`).click();
+    await page.locator(`[data-cedit="${CAT_IDS.out}"]`).click();
     await page.locator('#cat-name').fill('その他');
     await page.locator('#cat-close').click();
     await expect(page.locator('#cat-err')).toContainText('同じ名前');

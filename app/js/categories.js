@@ -181,16 +181,30 @@ export const countByCategory = (events) => {
   return m;
 };
 
-// カテゴリ削除の計画。予定は消さず targetId へ付け替える。最後の1件は削除できない。
-// → { ok:true, catDels:[id], eventPuts:[...] } | { ok:false, error }
+// 削除時の予定の既定の移し先: 「その他」（削除対象でなければ）。無ければ並びで最初の別カテゴリ。無ければ ''。
+export function defaultDeleteTarget(categories, id) {
+  const others = sortCategories(categories.filter((c) => c.id !== id));
+  return (others.find((c) => c.id === CAT_IDS.other) || others[0])?.id || '';
+}
+
+// カテゴリ削除の計画。予定は消さず targetId（省略時は defaultDeleteTarget）へ付け替える。最後の1件は削除できない。
+// 削除後に表示中のカテゴリが無くなるときは移し先を表示にする（catPuts）。
+// → { ok:true, catDels:[id], eventPuts:[...], catPuts:[...], targetId } | { ok:false, error }
 export function planDeleteCategory(categories, events, id, targetId, now = Date.now()) {
   if (!categories.some((c) => c.id === id)) return { ok: false, error: 'カテゴリが見つかりません。' };
   if (categories.length <= 1) return { ok: false, error: 'カテゴリは1つ以上必要です。' };
+  if (!targetId) targetId = defaultDeleteTarget(categories, id);
   const eventPuts = events.map((e) => retarget(e, id, targetId, now)).filter(Boolean);
   if (eventPuts.length) {
     if (targetId === id || !categories.some((c) => c.id === targetId)) return { ok: false, error: '予定の移し先を選んでください。' };
   }
-  return { ok: true, catDels: [id], eventPuts };
+  const rest = categories.filter((c) => c.id !== id);
+  const catPuts = [];
+  if (!rest.some((c) => !c.hidden)) {
+    const t = rest.find((c) => c.id === targetId) || sortCategories(rest)[0];
+    catPuts.push({ ...t, hidden: false, updatedAt: now });
+  }
+  return { ok: true, catDels: [id], eventPuts, catPuts, targetId };
 }
 
 // バックアップのカテゴリを現在のものに合わせる。

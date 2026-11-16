@@ -960,7 +960,21 @@ body.settings-open .ctl.band [data-act=menu] .bi::after{content:"×";font-size:2
 @media (prefers-reduced-motion:reduce){.crow.shake{animation:none;outline:2px solid #4E7FC4}}
 .cnote{margin:0;padding:4px 20px 6px;font-size:12px;line-height:1.4;color:#68716A}
 .mscreens .menurows button.cbtn{display:inline-block;width:auto;margin:2px 20px 8px 20px;min-height:40px;padding:0 16px;border:1px solid #DCD7CB;border-radius:20px;background:#fff;font-size:14px}
-.mscreens .menurows button.cedit{min-height:40px;height:40px;font-size:13px;color:#68716A;border-top:1px solid #ECE9E1}
+/* 第15版 PR9: Duo 段の編集モード（赤−・並べ替え・追加） */
+.cahead.dhead{display:flex;align-items:center;justify-content:space-between}
+.mscreens .menurows button.chbtn{flex:none;width:auto;min-width:44px;min-height:32px;height:32px;line-height:32px;padding:0 4px;text-align:right;border:0;background:transparent;font-size:14px;color:#4E7FC4}
+.crow.edit{display:flex;align-items:center;gap:6px;min-height:44px;padding:0 8px 0 12px}
+.mscreens .menurows .crow.edit button.cdel{flex:none;width:44px;height:44px;min-height:44px;padding:0;border:0;background:transparent;display:flex;align-items:center;justify-content:center}
+.cdel span{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#C8453B;color:#fff;font-size:18px;line-height:1;font-weight:700}
+.cdel:disabled span{opacity:.35}
+.mscreens .menurows .crow.edit button.cmain{flex:1;min-width:0;display:flex;align-items:center;gap:10px;height:44px;min-height:44px;padding:0;border:0;background:transparent;text-align:left;font-size:16px}
+.crow.edit .mv button{min-width:44px;min-height:44px;height:44px;padding:0;border:0;background:transparent;font-size:18px;color:#68716A}
+.crow.edit .mv button:disabled{opacity:.3}
+.mscreens .menurows button.crow.addrow{color:#4E7FC4}
+.crow.addrow .cplus{flex:none;width:14px;text-align:center}
+.calbox{margin:0 16px 8px;padding:10px 12px;border:1px solid #ECE9E1;border-radius:12px;background:#fff}
+.calbox p{margin:0 0 6px}
+#m-cal-duo .undobar{margin:6px 16px 8px}
 .mscreens .menurows button.destrow{display:flex;align-items:center;gap:8px;height:48px;font-size:16px;border-top:1px solid #ECE9E1;background:transparent;border-left:0;border-right:0;border-bottom:0}
 .destrow .dname{flex:1;min-width:0}
 .destrow .cdot{flex:none;width:12px;height:12px;border-radius:50%}
