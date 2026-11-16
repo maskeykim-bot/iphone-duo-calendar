@@ -1,7 +1,7 @@
 import * as db from './db.js';
 import { SAMPLE } from './sample.js';
 import { initSwipe } from './swipe.js';
-import { initDirectInput, minutesAt, dragRange, tapRange, moveHandle, spanText, hm as hmText, snap15 } from './direct-input.js';
+import { initDirectInput, dayRange, rangeText, minutesAt, dragRange, tapRange, moveHandle, spanText, hm as hmText, snap15 } from './direct-input.js';
 import { occurrenceAt, parseOccId, planDelete, planEdit, editInfo, normRule } from './recur.js';
 import { bumpRevision, occBetween } from './occcache.js';
 import { LIMIT, groupByDay, highlight, excerpt, searchEvents, searchMemos } from './search.js';
@@ -454,7 +454,7 @@ function agenda(k) {
 // 日付行18・最初のレーン19・16px刻み・チップ14px・下余白2（CSS の --date-h/--lane-top/--lane-step/--chip-h と同値）。
 const LANE_TOP = 19, LANE_STEP = 16, LANE_PAD = 2;
 const xCount = (es) => { const n = es.filter(isX).length; return n ? `（うちiPhone ${n}件）` : ''; };
-const weekdaysHtml = (cls = '') => `<div class="weekdays${cls}">${weekdayHeads().map(({ i, label }) => `<span class="${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${label}</span>`).join('')}</div>`;
+const weekdaysHtml = (cls = '') => `<button type="button" class="mrpick" data-act="pickrange">期間を選ぶ</button><div class="weekdays${cls}">${weekdayHeads().map(({ i, label }) => `<span class="${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${label}</span>`).join('')}</div>`;
 // 姿勢ごとの月の設定。kind は calendar(kind) の姿勢名（browse=閉じた／portrait=開いた縦／spread・desk・open=横）。
 // 通常の段数: 閉4／開5（大文字は1件減）。「全部」は全姿勢5段（大文字は4段）。時刻は姿勢ごとの設定。
 function monthCfg(kind) {
@@ -550,6 +550,7 @@ function syncAllWeeks() {
     if (want && !r.dataset.drawn) { r.innerHTML = weekInner(allWeeks.get(r.dataset.wk), { ...allCtx, cur, sel, today }); r.dataset.drawn = '1'; }
     else if (!want && r.dataset.drawn) { r.textContent = ''; delete r.dataset.drawn; }
   });
+  paintRange();
 }
 // 見えている先頭の週と、その週の中での位置（割合）を覚える。向き・開閉で行の高さが変わっても同じ週に戻せる。
 // 画面サイズが変わると、描画し直す前にブラウザがスクロール位置を詰めてしまう。そのため、位置は「スクロールしたとき」に
@@ -1273,6 +1274,7 @@ function render() {
   measureMonthPane();
   initTimeline();
   paintDraft();
+  paintRange();
   if (focusKey && !document.activeElement?.matches?.('input.remin')) { // 入力欄へ送ったフォーカスは取り戻さない
     const [t, v] = focusKey.split(/:(.*)/);
     const sel = { act: `[data-act="${v}"]`, view: `[data-view="${v}"]`, mode: `[data-mode="${v}"]`, date: `[data-date="${v}"]` }[t];
@@ -1346,6 +1348,8 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'remsettings') { call('openSettings').catch(() => {}); }
   else if (d.act === 'memoretry') memoStore.flushMemo(d.mdate);
   else if (d.act === 'sample') loadSample();
+  else if (d.act === 'pickrange') startRangeKbd(b);
+  else if (d.mr) rangeKbd(d.mr);
   else if (d.act === 'search') openSearch(b);
   else if (d.act === 'menu') openMenu(b);
   else if (d.act === 'tlmenu') { MM.open = null; TLM.open = TLM.open === d.pane ? null : d.pane; render(); }
@@ -1599,7 +1603,7 @@ function openEditor(id, from, day = state.selected, startMin = null, opts = {}) 
   const dd = day.replaceAll('-', '/');
   const values = cur
     ? valuesFrom(cur)
-    : { title: '', categoryId: opts.direct ? lastCatOk() : defaultCatId(), all: !!opts.all, start: opts.all ? dd : `${dd} ${t0}`, end: opts.all ? dd : `${dd} ${t1}`, place: '', notes: '', rfreq: 'none', rbyday: [], rend: 'none', rcount: '10', runtil: '', ropen: false, alarms: defaultAlarms(!!opts.all, loadNotify()), xadd: extActive() && link.addByDefault && writable(X.calendars).length > 0 };
+    : { title: '', categoryId: opts.direct ? lastCatOk() : defaultCatId(), all: !!opts.all, start: opts.all ? dd : `${dd} ${t0}`, end: opts.all ? (opts.endDay || day).replaceAll('-', '/') : `${dd} ${t1}`, place: '', notes: '', rfreq: 'none', rbyday: [], rend: 'none', rcount: '10', runtil: '', ropen: false, alarms: defaultAlarms(!!opts.all, loadNotify()), xadd: extActive() && link.addByDefault && writable(X.calendars).length > 0 };
   showEditor(values, cur ? id : null);
   saveDraft();
 }
@@ -3622,6 +3626,9 @@ const swipeCtl = initSwipe({
 const DIRECT_ZONE_EXCLUDE = '.ev, .strip, .tlev, .dbox, button, input, select, textarea, label, dialog, .tlheads, .tlmenu, .mmenu, .tabs';
 function directOrigin(t) {
   if (anyPanel() || !(t instanceof Element)) return null;
+  const md = t.closest('.week .day[data-date]'); // 月の日マス（空白・数字）。帯・チップ・+N は別の要素なので起点にならない
+  if (md && !t.closest('.tabs, .mmenu, .tlmenu')) return { kind: 'month', day: md.dataset.date, side: pageOf(md)?.side ?? null };
+  if (t.closest('.week')) return null; // チップ・+N など月の他の要素は期間選択しない
   if (t.closest(DIRECT_ZONE_EXCLUDE)) return null;
   const ad = t.closest('.allday');
   if (ad) { const c = t.closest('.adcol'); return c ? { kind: 'allday', day: c.dataset.day } : null; } // 「終日」の文字や段の外は対象外
@@ -3635,26 +3642,103 @@ initDirectInput({
   root, swipe: swipeCtl,
   classify: (t) => directOrigin(t),
   onStart: ({ origin: o, y }) => {
+    if (o.kind === 'month') { Object.assign(MR, { mode: 'drag', anchor: o.day, cur: o.day, side: o.side }); paintRange(); return; }
     if (o.kind !== 'time') return;
     const m = dragAt(y, o); if (m == null) return;
     DIR.anchor = m;
     Object.assign(DF, { mode: 'drag', day: o.day, pane: o.pane, anchor: m }, dragRange(m, m));
     paintDraft();
   },
-  onMove: ({ y, origin: o }) => {
+  onMove: ({ x, y, origin: o }) => {
+    if (o.kind === 'month') {
+      if (MR.mode !== 'drag') return;
+      const k = dayAtPoint(x, y, monthScope());
+      if (k && k !== MR.cur) { MR.cur = k; paintRange(); }
+      return;
+    }
     if (o.kind !== 'time' || DF.mode !== 'drag') return;
     const m = dragAt(y, o); if (m == null) return;
     const r = dragRange(DIR.anchor, m);
     if (r.start !== DF.start || r.end !== DF.end) { Object.assign(DF, r); paintDraft(); }
   },
-  onEnd: ({ y, origin: o }) => {
+  onEnd: ({ x, y, origin: o }) => {
+    if (o.kind === 'month') {
+      if (MR.mode !== 'drag') return;
+      const k = dayAtPoint(x, y, monthScope()); if (k) MR.cur = k;
+      openRangeSheet(); return;
+    }
     if (o.kind === 'allday') { openEditor(null, root.querySelector('[data-act="add"]'), o.day, null, { all: true, direct: true }); return; }
     if (o.kind !== 'time' || DF.mode !== 'drag') return;
     const m = dragAt(y, o); if (m != null) Object.assign(DF, dragRange(DIR.anchor, m));
     openDraft();
   },
-  onCancel: () => { if (DF.mode === 'drag') clearDraftBox(); },
+  onCancel: () => { if (DF.mode === 'drag') clearDraftBox(); if (MR.mode === 'drag') clearRange(); },
 });
+
+
+// ---------- 月の期間入力（PR26）。MR は描画だけの状態（DB・native へは書かない） ----------
+// mode: 'drag'＝長押しドラッグ中／'kbd'＝VoiceOver 等のボタン操作／'sheet'＝編集シート中。日付キーで持つので、再描画・全表示の仮想化にも追従する。
+const MR = { mode: null, anchor: '', cur: '', side: null, bar: null, tag: null };
+const monthScope = () => (MR.side ? root.querySelector(`.page.${MR.side === 'left' ? 'lp' : 'rp'}`) || root : root);
+function clearRangeDom() {
+  root.querySelectorAll('.day.msel').forEach((n) => n.classList.remove('msel', 'ms-first', 'ms-last'));
+  MR.tag?.remove(); MR.tag = null;
+}
+function paintRange() {
+  clearRangeDom();
+  if (!MR.mode) { MR.bar?.remove(); MR.bar = null; return; }
+  const { start: from, end: to } = dayRange(MR.anchor, MR.cur);
+  let firstEl = null;
+  monthScope().querySelectorAll('.day[data-date]').forEach((n) => {
+    const k = n.dataset.date;
+    if (k < from || k > to) return;
+    n.classList.add('msel');
+    if (k === from) { n.classList.add('ms-first'); firstEl = n; }
+    if (k === to) n.classList.add('ms-last');
+  });
+  const tag = document.createElement('div');
+  tag.className = 'mrtag'; tag.textContent = rangeText(from, to); tag.setAttribute('role', 'status');
+  const host = monthScope();
+  const hr = host.getBoundingClientRect(), r = (firstEl || [...host.querySelectorAll('.day.msel')][0])?.getBoundingClientRect();
+  tag.style.left = `${Math.max(hr.left + 4, Math.min(r ? r.left : hr.left + 4, hr.right - 190))}px`;
+  tag.style.top = `${Math.max(hr.top + 2, (r ? r.top : hr.top) - 30)}px`;
+  document.body.append(tag); MR.tag = tag;
+}
+function clearRange() { if (!MR.mode) return; MR.mode = null; paintRange(); }
+function dayAtPoint(x, y, scope) {
+  for (const n of document.elementsFromPoint(x, y)) {
+    const d = n.closest?.('.day[data-date]');
+    if (d && scope.contains(d)) return d.dataset.date;
+  }
+  return null;
+}
+function openRangeSheet() {
+  const { start: from, end: to } = dayRange(MR.anchor, MR.cur);
+  MR.mode = 'sheet'; paintRange();
+  openEditor(null, root.querySelector('[data-act="add"]'), from, null, { all: true, direct: true, endDay: to });
+}
+dlg.addEventListener('close', () => { if (MR.mode === 'sheet') clearRange(); });
+// VoiceOver 代替: 「期間を選ぶ」→ 開始は選択日。終了日を1日ずつ動かして「決める」。
+function startRangeKbd(btn) {
+  if (anyPanel()) return;
+  MR.mode = 'kbd'; MR.anchor = state.selected; MR.cur = state.selected; MR.side = pageOf(btn)?.side ?? null;
+  paintRange();
+  const bar = document.createElement('div');
+  bar.className = 'mrbar'; bar.setAttribute('role', 'group'); bar.setAttribute('aria-label', '期間を選ぶ');
+  bar.innerHTML = '<button type="button" data-mr="back">終了日を1日戻す</button><button type="button" data-mr="fwd">終了日を1日進める</button><button type="button" data-mr="ok">この期間で入力</button><button type="button" data-mr="no">やめる</button>';
+  document.body.append(bar); MR.bar = bar;
+  bar.addEventListener('click', (ev) => { const m = ev.target.closest('[data-mr]'); if (m) rangeKbd(m.dataset.mr); });
+  bar.querySelector('[data-mr="fwd"]').focus({ preventScroll: true });
+}
+function rangeKbd(a) {
+  if (MR.mode !== 'kbd') return;
+  if (a === 'no') { MR.bar?.remove(); MR.bar = null; clearRange(); return; }
+  if (a === 'ok') { MR.bar?.remove(); MR.bar = null; openRangeSheet(); return; }
+  const cur = addDays(MR.cur, a === 'fwd' ? 1 : -1);
+  if (cur < MR.anchor) return; // 終了日は開始日より前にしない（開始日を変えるなら選択日を変える）
+  MR.cur = cur; paintRange();
+  say(rangeText(MR.anchor, MR.cur));
+}
 
 // ---------- 起動 ----------
 // 寸法 L が変わった時だけ再描画する。キーボードの出入りは位置・寸法の変数更新だけ。

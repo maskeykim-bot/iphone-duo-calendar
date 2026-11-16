@@ -854,3 +854,13 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .allday .adcols{align-self:stretch}
 .tlx .tlhd{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding:0;font-size:12px;line-height:1.15;overflow:hidden}
 .tlx .tlhd .wrk{display:block;font-size:9px;font-weight:400}
+
+/* 月の期間入力（第14版 PR26）。2.5pt の緑枠・内側2・角6、日数の札（高さ26・角丸13・白12pt太字）。描画だけで保存はしない。 */
+.week .day.msel{background:rgba(41,78,66,.10)}
+.week .day.msel::after{content:"";position:absolute;inset:2px;border:2.5px solid #294E42;border-radius:6px;pointer-events:none;z-index:3}
+.mrtag{position:fixed;z-index:9000;height:26px;padding:0 12px;border-radius:13px;background:#294E42;color:#fff;font-size:12px;font-weight:700;line-height:26px;white-space:nowrap;pointer-events:none}
+.mrpick{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+.mrbar{position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom,0px));z-index:9001;display:flex;flex-wrap:wrap;gap:6px;padding:8px;border-radius:12px;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+.mrbar button{min-height:44px;padding:0 12px;border-radius:8px;border:1px solid #294E42;background:#fff;color:#294E42;font-size:14px;font-weight:700}
+.mrbar button[data-mr="ok"]{background:#294E42;color:#fff}
+.week .day{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createPressMachine, minutesAt, dragRange, dayAt, dayRange, snap15 } from '../js/direct-input.js';
+import { createPressMachine, minutesAt, dragRange, dayAt, dayRange, rangeText, snap15 } from '../js/direct-input.js';
 
 function rig(extra = {}) {
   let t = 0, timers = [];
@@ -96,4 +96,10 @@ test('moveHandle: 最小15分・日境界 clamp', () => {
 test('spanText / durText', () => {
   assert.equal(spanText({ start: 930, end: 1020 }), '15:30〜17:00（1時間30分）');
   assert.equal(durText(30), '30分'); assert.equal(durText(60), '1時間'); assert.equal(durText(135), '2時間15分');
+});
+
+test('rangeText: 同月・月またぎ・1日・逆方向', () => {
+  assert.equal(rangeText('2026-11-18', '2026-11-20'), '11月18日〜20日（3日間）');
+  assert.equal(rangeText('2026-12-02', '2026-11-30'), '11月30日〜12月2日（3日間）');
+  assert.equal(rangeText('2026-11-18', '2026-11-18'), '11月18日（1日）');
 });

@@ -168,3 +168,101 @@ test.describe('閉じた週の時間軸', () => {
     await expect(page.locator('#f-start')).toHaveValue(`${day.replaceAll('-', '/')} 09:00`);
   });
 });
+
+// PR26: 月のドラッグから期間予定
+const dayCenter = (page, key) => page.locator(`.day[data-date="${key}"]`).first().evaluate((n) => { const r = n.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height - 6 }; });
+async function monthPress(page, a) {
+  await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.waitForTimeout(420);
+}
+for (const [name, size, setup2] of [
+  ['閉じた縦', SIZES.closedPortrait, async (page) => { await tab(page, '月').click(); }],
+  ['開いた縦', SIZES.openPortrait, async () => {}],
+  ['開いた横', SIZES.openLandscape951, async () => {}],
+  ['全表示', SIZES.closedPortrait, async (page) => { await tab(page, '月').click(); await page.locator('[data-act="allmonth"]').first().click(); }],
+]) {
+  test.describe(`月の期間入力 ${name}`, () => {
+    test.beforeEach(async ({ page }) => { await openApp(page, size); await setup2(page); await expect(page.locator('.day[data-date="2026-11-18"]').first()).toBeVisible(); });
+
+    test('長押し→週をまたいで滑らせる→札と枠→離すと終日の期間シート。DBは0のまま', async ({ page }) => {
+      const a = await dayCenter(page, '2026-11-18'), b = await dayCenter(page, '2026-11-25');
+      await monthPress(page, a);
+      await expect(page.locator('.day.msel')).toHaveCount(1);
+      await expect(page.locator('.mrtag')).toHaveText('11月18日（1日）');
+      await page.mouse.move(b.x, b.y, { steps: 6 });
+      await expect(page.locator('.mrtag')).toHaveText('11月18日〜25日（8日間）');
+      await expect(page.locator('.day.msel')).toHaveCount(8);
+      expect(await dbCount(page)).toBe(0);
+      await page.mouse.up();
+      await expect(page.locator('#editor')).toBeVisible();
+      await expect(page.locator('#f-all')).toBeChecked();
+      await expect(page.locator('#f-start')).toHaveValue('2026/11/18');
+      await expect(page.locator('#f-end')).toHaveValue('2026/11/25');
+      expect(await dbCount(page)).toBe(0);
+      await page.keyboard.press('Escape');
+      await expect(page.locator('.day.msel')).toHaveCount(0);
+      await expect(page.locator('.mrtag')).toHaveCount(0);
+      expect(await dbCount(page)).toBe(0);
+    });
+
+    test('逆方向は正規化され、1日だけ離すとその日の終日シート。保存は1回', async ({ page }) => {
+      const a = await dayCenter(page, '2026-11-20'), b = await dayCenter(page, '2026-11-18');
+      await monthPress(page, a); await page.mouse.move(b.x, b.y, { steps: 6 });
+      await expect(page.locator('.mrtag')).toHaveText('11月18日〜20日（3日間）');
+      await page.mouse.up();
+      await expect(page.locator('#f-start')).toHaveValue('2026/11/18');
+      await expect(page.locator('#f-end')).toHaveValue('2026/11/20');
+      await page.keyboard.press('Escape');
+      await monthPress(page, a); await page.mouse.up();
+      await expect(page.locator('#f-start')).toHaveValue('2026/11/20');
+      await expect(page.locator('#f-end')).toHaveValue('2026/11/20');
+      await page.locator('#f-title').fill('期間');
+      await page.locator('#form [type=submit]').click();
+      await expect.poll(() => dbCount(page)).toBe(1);
+    });
+
+    test('通常tapは日選択のまま。短い押下の後に期間選択は出ない', async ({ page }) => {
+      const a = await dayCenter(page, '2026-11-19');
+      await page.mouse.click(a.x, a.y);
+      await expect(page.locator('.day.msel')).toHaveCount(0);
+      await expect(page.locator('.mrtag')).toHaveCount(0);
+      await expect(page.locator('#editor')).toBeHidden();
+    });
+  });
+}
+
+test.describe('月の期間入力 その他', () => {
+  test('スワイプ（長押し前の横移動）は月送りのまま・チップ起点は期間選択しない', async ({ page }) => {
+    await openApp(page, SIZES.openPortrait); await seed(page, [ev('m1', '帯予定', '2026-11-17T00:00', '2026-11-19T23:59', { all: true }), ev('m2', '時刻予定', '2026-11-20T10:00', '2026-11-20T11:00')]);
+    const chip = page.locator('.strip, .bar').first();
+    const r = await chip.evaluate((n) => { const b = n.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
+    await page.mouse.move(r.x, r.y); await page.mouse.down(); await page.waitForTimeout(420);
+    await expect(page.locator('.day.msel')).toHaveCount(0);
+    await page.mouse.up();
+    await expect(page.locator('.mrtag')).toHaveCount(0);
+    if (await page.locator('#editor').isVisible()) await expect(page.locator('#f-title')).not.toHaveValue(''); // 既存予定の通常の click（新規入力ではない）
+    expect(await dbCount(page)).toBe(2);
+  });
+  test('長押し中の hidden で取り消され、枠も札も消える', async ({ page }) => {
+    await openApp(page, SIZES.closedPortrait); await tab(page, '月').click();
+    const a = await dayCenter(page, '2026-11-18');
+    await monthPress(page, a);
+    await expect(page.locator('.day.msel')).toHaveCount(1);
+    await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); document.dispatchEvent(new Event('visibilitychange')); });
+    await expect(page.locator('.day.msel')).toHaveCount(0);
+    await expect(page.locator('.mrtag')).toHaveCount(0);
+    await page.mouse.up();
+    await expect(page.locator('#editor')).toBeHidden();
+    expect(await dbCount(page)).toBe(0);
+  });
+  test('VoiceOver 代替「期間を選ぶ」: 終了日をボタンで動かして入力', async ({ page }) => {
+    await openApp(page, SIZES.closedPortrait); await tab(page, '月').click();
+    await page.locator('.mrpick').first().focus(); await page.keyboard.press('Enter');
+    await expect(page.locator('.mrbar')).toBeVisible();
+    await page.locator('[data-mr="fwd"]').click(); await page.locator('[data-mr="fwd"]').click();
+    await expect(page.locator('.mrtag')).toHaveText('11月12日〜14日（3日間）');
+    await page.locator('[data-mr="ok"]').click();
+    await expect(page.locator('#f-start')).toHaveValue('2026/11/12');
+    await expect(page.locator('#f-end')).toHaveValue('2026/11/14');
+    expect(await dbCount(page)).toBe(0);
+  });
+});

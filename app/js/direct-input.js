@@ -48,6 +48,14 @@ export function dayRange(a, b) {
   return { start: s, end: e, days };
 }
 
+// 札の文言「11月18日〜20日（3日間）」。月をまたぐときは終わりにも月を付ける。1日は「11月18日（1日）」。
+export function rangeText(from, to) {
+  const { start, end, days } = dayRange(from, to);
+  const m = (k) => +k.slice(5, 7), d = (k) => +k.slice(8, 10);
+  if (days <= 1) return `${m(start)}月${d(start)}日（1日）`;
+  return `${m(start)}月${d(start)}日〜${m(end) === m(start) ? '' : `${m(end)}月`}${d(end)}日（${days}日間）`;
+}
+
 // ---- 状態機械（DOM非依存。タイマーと時計を注入できる） ----
 export function createPressMachine({ onConfirm, onMove, onEnd, onCancel, onRelease, holdMs = HOLD_MS, slop = SLOP,
   now = () => performance.now(), setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
