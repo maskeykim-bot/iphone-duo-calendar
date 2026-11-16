@@ -86,6 +86,11 @@ for (const [name, size, kind] of POSTURES) {
     if (kind === 'closed') {
       expect(await shown(27)).toBe(4); await expect(plus(27)).toHaveText('+1');
       expect(await shown(20)).toBe(4); await expect(plus(20)).toHaveText('+6');
+    } else if (kind === 'spread') {
+      // 第13版 PR7: 6週（2026年11月）の開いた横は 951×669 で4段、890×626 は1週79pxなので3段
+      const cap = size.height === 669 ? 4 : 3;
+      expect(await shown(27)).toBe(cap); await expect(plus(27)).toHaveText(`+${5 - cap}`);
+      expect(await shown(20)).toBe(cap); await expect(plus(20)).toHaveText(`+${10 - cap}`);
     } else {
       expect(await shown(27)).toBe(5); await expect(plus(27)).toHaveCount(0);
       expect(await shown(20)).toBe(5); await expect(plus(20)).toHaveText('+5');

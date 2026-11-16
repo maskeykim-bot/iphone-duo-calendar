@@ -149,6 +149,7 @@ function listShown() { const k = layoutKind(); return k === 'home' || (state.hom
 // ---------- 寸法の唯一の入力 → CSS 変数（座標はすべて画面座標 CSS px） ----------
 // 入力: 安定寸法 L（innerWidth/innerHeight）・safe area・週数。折り目は常にビューポート中心 L.w/2。
 let lastSafe = null;
+let spreadWeekH = 0; // 開いた横の月の1週の高さ（updateLayoutMetrics が決める。段数の上限計算に使う）
 const safeKey = (S) => `${S.top}/${S.right}/${S.bottom}/${S.left}`;
 function safeChanged() { const k = safeKey(safe()); const c = k !== lastSafe; lastSafe = k; return c; }
 const r2 = (n) => Math.round(n * 100) / 100;
@@ -206,7 +207,10 @@ function updateLayoutMetrics() {
     // 開いた横: 左月 [Ls+8, f-10]、右本文 [f+10, E]、E = W-R-16。
     q = V / 669;
     const f = W / 2, E = W - R - 16;
-    left = x0 + 8; right = f - 10; c = (right - left) / 7; headH = 76 * q; gridTop = y0 + 96 * q; G = 573 * q; rightStart = f + 10;
+    // 月の最下段はタブの上へ: 実際のタブ上端 − 8q が月の下端（基準 q=1 で y96〜603、G=507）。機種別の固定値は持たない。
+    const tabsTop = Math.min(y0 + 611 * q, H - B - 46);
+    left = x0 + 8; right = f - 10; c = (right - left) / 7; headH = 76 * q; gridTop = y0 + 96 * q; G = Math.max(0, tabsTop - 8 * q - gridTop); rightStart = f + 10;
+    spreadWeekH = G / n;
     hc = y0 + 40 * q;
     tabsY = y0 + 611 * q; ctrlY = tabsY; tabsCx = (left + right) / 2;
     const tops = [124, 184].map((t) => y0 + t * q).concat([H - B - 129 * q, H - B - 69 * q]);
@@ -419,6 +423,13 @@ const weekdaysHtml = (cls = '') => `<div class="weekdays${cls}">${weekdayHeads()
 // 通常の段数: 閉4／開5（大文字は1件減）。「全部」は全姿勢5段（大文字は4段）。時刻は姿勢ごとの設定。
 function monthCfg(kind) {
   const closed = kind === 'browse' || kind === 'home', large = state.monthTextSize === 'large';
+  if (kind === 'spread' && spreadWeekH > 0) {
+    // 開いた横: 6週は4段、5/4週は5段（大文字は1件減）。さらに1週の高さに描画が収まる段数（最終レーン上端＋チップ14）まで下げる。
+    const n = monthWeeks(state.selected).length, nominal = (n >= 6 ? 4 : 5) - (large ? 1 : 0);
+    const fit = Math.max(1, Math.floor((spreadWeekH - LANE_TOP - 14) / LANE_STEP) + 1);
+    const cap = Math.min(nominal, fit);
+    return { cap, allCap: cap, time: state.monthTimeOpen };
+  }
   return { cap: (closed ? 4 : 5) - (large ? 1 : 0), allCap: large ? 4 : 5, time: closed ? state.monthTimeClosed : state.monthTimeOpen };
 }
 // 月の週の元データ（イベント・レーン配置）。cap 段まで置き、あふれは hidden（+N）。

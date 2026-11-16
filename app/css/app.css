@@ -507,7 +507,8 @@ input,select,textarea,.date-text{font-size:16px}
 .sctl button{min-width:44px;width:44px;height:44px;padding:0;font-size:22px;display:flex;align-items:center;justify-content:center}
 .spread .calendar{display:flex}
 .spread .weekdays{height:var(--wd-h);padding-bottom:0;align-items:center;background:transparent}
-.spread .week.named,.spread .week.simple{flex:0 0 max(var(--week-h),var(--need,85px))}
+.spread .scroll.msc,.spread .scroll.all{flex:none;height:var(--grid-h);--end-pad:0px}
+.spread .week.named,.spread .week.simple{flex:0 0 var(--week-h);overflow:hidden}
 .spread .week.all{height:max(var(--week-h),var(--need,0px))}
 .spread .scroll:not(.msc):not(.all)>.daylist,.spread .weekpage{padding:0 4px}
 .spread .listview{padding:0 4px;min-height:0;overflow:auto}

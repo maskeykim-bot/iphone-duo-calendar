@@ -165,7 +165,7 @@ const placedOn = (page, k) => page.evaluate((k) => {
 }, k);
 
 test.describe('月レーン: 終日・帯・時刻チップの混在', () => {
-  for (const [name, size, cap] of [['閉じた 466×678', SIZES.closedPortrait, 4], ['開いた縦 669×951', SIZES.openPortrait669, 5], ['開いた横 951×669', SIZES.openLandscape951, 5]]) {
+  for (const [name, size, cap] of [['閉じた 466×678', SIZES.closedPortrait, 4], ['開いた縦 669×951', SIZES.openPortrait669, 5], ['開いた横 951×669', SIZES.openLandscape951, 4]]) {
     test(`${name}: +N = 全件 - 置いた件数、同じ予定は同じ日に二重に置かない（通常 ${cap} 段）`, async ({ page }) => {
       await openApp(page, size);
       await seed(page, MIX);
@@ -190,7 +190,7 @@ test.describe('月レーン: 終日・帯・時刻チップの混在', () => {
     await page.locator('.plus[data-jump="2026-11-12"]').click();
     await expect(page.locator('.daylist .event')).toHaveCount(9);
   });
-  test('手帳: 点は閉じ4・開き5まで、超過は +N', async ({ page }) => {
+  test('手帳: 点は閉じ4・開き横(6週)4まで、超過は +N', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await seed(page, MIX);
     await tab(page, '月').click();
@@ -200,8 +200,8 @@ test.describe('月レーン: 終日・帯・時刻チップの混在', () => {
     await page.setViewportSize(SIZES.openLandscape951);
     await expect.poll(() => layout(page)).toBe('spread');
     await setStyle(page, '手帳');
-    await expect(page.locator('[data-date="2026-11-12"] .dot')).toHaveCount(5);
-    await expect(page.locator('.plus[data-jump="2026-11-12"]')).toHaveText('+4');
+    await expect(page.locator('[data-date="2026-11-12"] .dot')).toHaveCount(4);
+    await expect(page.locator('.plus[data-jump="2026-11-12"]')).toHaveText('+5');
   });
 });
 
