@@ -76,3 +76,20 @@ test('uniqueRequestIds: 先の1件だけ linked、後は unlinked', () => {
   const r = uniqueRequestIds([a, b]);
   assert.equal(r.unlinked, 1); assert.equal(r.events[0].nativeLink.state, 'linked'); assert.equal(r.events[1].nativeLink.state, 'unlinked');
 });
+
+import { normSettings as _ns, pickAddCal as _pick } from '../js/iphone.js';
+test('addByDefault: 未保存・不正値は true、明示 false だけ false', () => {
+  assert.equal(_ns(null).addByDefault, true);
+  assert.equal(_ns({}).addByDefault, true);
+  assert.equal(_ns({ addByDefault: 'no' }).addByDefault, true);
+  assert.equal(_ns({ addByDefault: 0 }).addByDefault, true);
+  assert.equal(_ns({ addByDefault: false }).addByDefault, false);
+});
+test('pickAddCal: シート選択 → 設定の既定 → iPhone の既定 → 最初（書けるものだけ）', () => {
+  const c = [{ id: 'a', allowsModify: true }, { id: 'b', allowsModify: true, isDefault: true }, { id: 'r', allowsModify: false, isDefault: true }];
+  assert.equal(_pick(c, 'a', 'b'), 'a');
+  assert.equal(_pick(c, 'r', 'b'), 'b');
+  assert.equal(_pick(c, '', 'zz'), 'b');
+  assert.equal(_pick([{ id: 'a', allowsModify: true }], '', ''), 'a');
+  assert.equal(_pick([{ id: 'r', allowsModify: false, isDefault: true }], '', ''), '');
+});

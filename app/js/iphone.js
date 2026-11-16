@@ -3,7 +3,7 @@ import { addDays, addMonths, dayOf, newId, weekStart } from './util.js';
 import { normalize, searchRange, terms } from './search.js';
 import { expand, isFirstOccurrence, normRule, occurrenceAt, ruleEq } from './recur.js';
 
-export const DEFAULTS = { version: 1, enabled: false, calendarIds: [], selectionInitialized: false, defaultCalendarId: null };
+export const DEFAULTS = { version: 1, enabled: false, calendarIds: [], selectionInitialized: false, defaultCalendarId: null, addByDefault: true };
 
 export function normSettings(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return { ...DEFAULTS };
@@ -14,6 +14,7 @@ export function normSettings(v) {
     calendarIds: ids,
     selectionInitialized: v.selectionInitialized === true,
     defaultCalendarId: typeof v.defaultCalendarId === 'string' && v.defaultCalendarId ? v.defaultCalendarId : null,
+    addByDefault: v.addByDefault !== false,
   };
 }
 
@@ -194,6 +195,14 @@ export function searchExt(snapshot, query, today) {
 
 // 追加先に選べるカレンダー（書込可）。
 export const writable = (cals) => cals.filter((c) => c.allowsModify);
+// 新規の追加先：シート内の選択 → 設定の既定 → iPhone の既定 → 最初。どれも書けるカレンダーだけ。なければ ''。
+export function pickAddCal(cals, sel, defId) {
+  const w = writable(cals || []);
+  const ok = (id) => id && w.some((c) => c.id === id);
+  if (ok(sel)) return sel;
+  if (ok(defId)) return defId;
+  return w.find((c) => c.isDefault)?.id || w[0]?.id || '';
+}
 
 // カレンダー一覧をソース別にグループ化（sourceId → title → id の順、同名 source は sourceType を併記）。
 export function groupBySource(cals) {

@@ -66,13 +66,13 @@
           <p id="rerror" class="error" role="alert"></p>
         </div>
       </div>
-      <label>場所<input id="f-place" name="place" maxlength="200" placeholder="場所を追加"></label>
-      <label>メモ<textarea id="f-notes" name="notes" maxlength="4000" rows="3" placeholder="メモを追加"></textarea></label>
       <div id="xadd" class="xadd" hidden>
-        <label class="check"><input id="f-xadd" type="checkbox">iPhone のカレンダーにも追加</label>
-        <label id="xcal-l" hidden>追加先カレンダー<select id="f-xcal"></select></label>
+        <label class="check xsw"><span>iPhone のカレンダーにも追加</span><input id="f-xadd" type="checkbox" role="switch"></label>
+        <label id="xcal-l" class="xcal" hidden><i id="xcal-dot" class="cdot" aria-hidden="true"></i><span class="xcal-t">追加先カレンダー</span><select id="f-xcal"></select></label>
         <p id="xnote" class="small"></p>
       </div>
+      <label>場所<input id="f-place" name="place" maxlength="200" placeholder="場所を追加"></label>
+      <label>メモ<textarea id="f-notes" name="notes" maxlength="4000" rows="3" placeholder="メモを追加"></textarea></label>
       <div id="xext" class="xadd" hidden>
         <p class="small">変更は iPhone のカレンダーに保存されます。</p>
         <button type="button" id="xext-open" class="ghost">カレンダーで開く</button>

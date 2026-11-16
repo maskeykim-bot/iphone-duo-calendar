@@ -651,3 +651,12 @@ body[data-layout=home] dialog#xdetail::before,body[data-layout=browse] dialog#xd
 #scope .row:disabled{color:#A8ABA4}
 #confirm .actions button[hidden]{display:none}
 .repeat[hidden]{display:none}
+
+.xsw,.swl{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px}
+input.swc,.xsw input[type=checkbox]{appearance:none;-webkit-appearance:none;flex:none;width:51px;height:31px;margin:0;border-radius:16px;background:#b9bdb3;position:relative;transition:background .15s;border:0}
+input.swc::after,.xsw input[type=checkbox]::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;transition:transform .15s}
+input.swc:checked,.xsw input[type=checkbox]:checked{background:var(--green)}
+input.swc:checked::after,.xsw input[type=checkbox]:checked::after{transform:translateX(20px)}
+input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
+.xcal{display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px}
+.xcal .cdot{width:8px;height:8px;border-radius:50%;flex:none}.xcal select{flex:1;min-width:0;font-size:16px}

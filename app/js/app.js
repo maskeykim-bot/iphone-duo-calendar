@@ -8,7 +8,7 @@ import { backupName, buildBackup, countStats, localIso, planAppend, validateBack
 import { CAT_IDS, LIMITS as CAT_LIMITS, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory } from './categories.js';
 import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAlarms, encAlarm, fireAt, nextNotifyText, normNotify, pastForNotify, planNotifications, MAX_PENDING, WINDOW_DAYS } from './notify.js';
 import { call, errCode, errReason, errText, listen, nativeAvailable } from './native.js';
-import { buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, planNativeOps, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
+import { buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, pickAddCal, planNativeOps, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
 import {
   DOW, addDays, addMonths, assignSharedLanes, dayLabel, dayOf, dkey, eventsOnDay, isKey, isMulti,
   monthWeeks, newId, nowStamp, pad, parseInput, parseKey, ruleSummary, setFirstDay, timeLabel, toInput, todayKey, validateDraft, weekStart, weekdayHeads,
@@ -1007,7 +1007,7 @@ function updateXUi() {
   const linked = !!(editing && cur && cur.p.nativeLink?.state === 'linked');
   $('#xlinked').hidden = !linked;
   $('#xext').hidden = !extEd;
-  $('#xadd').hidden = !(eligible && !editing && !extEd);
+  $('#xadd').hidden = !(eligible && !editing && !extEd && writable(X.calendars).length > 0); // 書き込めるカレンダーがなければ段ごと隠す（案内は連携パネル）
   if ($('#xadd').hidden) return;
   const cals = writable(X.calendars);
   const sig = cals.map((c) => c.id).join('|');
@@ -1015,16 +1015,17 @@ function updateXUi() {
     xSig = sig;
     F.xcal.innerHTML = cals.map((c) => `<option value="${esc(c.id)}">${esc(c.title)}（${esc(c.source)}）</option>`).join('');
   }
-  if (F.xcal.value) xSel = F.xcal.value;
-  const want = [xSel, link.defaultCalendarId].find((id) => id && cals.some((c) => c.id === id)) || cals[0]?.id || '';
-  F.xcal.value = want; xSel = want;
+  const want = pickAddCal(X.calendars, xSel, link.defaultCalendarId);
+  F.xcal.value = want;
+  const wc = cals.find((c) => c.id === want);
+  $('#xcal-dot').style.background = wc ? wc.color : 'transparent';
   if (!cals.length) F.xadd.checked = false;
   F.xadd.disabled = !cals.length;
   $('#xnote').textContent = !cals.length ? '追加できるカレンダーがありません。' : '';
   $('#xcal-l').hidden = !F.xadd.checked || F.xadd.disabled;
 }
 F.xadd.addEventListener('change', () => { updateXUi(); saveDraft(); });
-F.xcal.addEventListener('change', () => { xSel = F.xcal.value; saveDraft(); });
+F.xcal.addEventListener('change', () => { xSel = F.xcal.value; updateXUi(); saveDraft(); });
 $('#xlinked-open').addEventListener('click', async () => {
   const cur = editing ? resolve(editing) : null;
   if (!cur) return;
@@ -1046,7 +1047,7 @@ function openEditor(id, from, day = state.selected, startMin = null) {
   const t0 = startMin == null ? '10:00' : hhmm(startMin), t1 = startMin == null ? '11:00' : startMin + 60 > 1439 ? '23:59' : hhmm(startMin + 60);
   const values = cur
     ? valuesFrom(cur)
-    : { title: '', categoryId: defaultCatId(), all: false, start: `${day.replaceAll('-', '/')} ${t0}`, end: `${day.replaceAll('-', '/')} ${t1}`, place: '', notes: '', rfreq: 'none', rbyday: [], rend: 'none', rcount: '10', runtil: '', ropen: false, alarms: defaultAlarms(false, loadNotify()) };
+    : { title: '', categoryId: defaultCatId(), all: false, start: `${day.replaceAll('-', '/')} ${t0}`, end: `${day.replaceAll('-', '/')} ${t1}`, place: '', notes: '', rfreq: 'none', rbyday: [], rend: 'none', rcount: '10', runtil: '', ropen: false, alarms: defaultAlarms(false, loadNotify()), xadd: extActive() && link.addByDefault && writable(X.calendars).length > 0 };
   showEditor(values, cur ? id : null);
   saveDraft();
 }
@@ -2033,6 +2034,14 @@ function renderLink() {
     h += '<section class="card"><p class="berr" role="alert">iPhone のカレンダーに反映するには、フルアクセスの許可が必要です。設定 ＞ プライバシーとセキュリティ ＞ カレンダー ＞ Duo で『フルアクセス』を許可してください。</p><button type="button" class="solid" id="lk-req">フルアクセスを許可</button><button type="button" id="lk-settings">設定を開く</button></section>';
   }
   if (on) {
+    const wc = writable(X.calendars), noW = !wc.length, defId = pickAddCal(X.calendars, '', link.defaultCalendarId);
+    h += `<section class="card newcard"><h3>新しい予定</h3><label class="swl"><span id="lk-add-l">iPhone のカレンダーにも追加</span><input type="checkbox" role="switch" id="lk-add" class="swc" aria-labelledby="lk-add-l"${link.addByDefault && !noW ? ' checked' : ''}${noW ? ' disabled' : ''}></label>`;
+    if (noW) h += '<p class="small">書き込めるカレンダーがありません。</p>';
+    else {
+      if (link.addByDefault) h += `<label class="xcal"><span class="xcal-t">追加先カレンダー</span><select id="lk-defcal">${wc.map((c) => `<option value="${esc(c.id)}"${c.id === defId ? ' selected' : ''}>${esc(c.title)}（${esc(c.source)}）</option>`).join('')}</select></label>`;
+      h += '<p class="small">新しい予定を作るとき、このカレンダーにも追加します。予定ごとに変えられます。</p>';
+    }
+    h += '</section>';
     if (!link.calendarIds.length) h += '<p class="smsg" role="status">表示するカレンダーを選んでください。</p>';
     for (const g of groupBySource(X.calendars)) {
       h += `<section class="card calgroup"><h3>${esc(g.heading)}</h3>${g.items.map((c) => `<label class="calrow"><input type="checkbox" data-cal="${esc(c.id)}"${link.calendarIds.includes(c.id) ? ' checked' : ''}><i class="cdot" style="background:${c.color}" aria-hidden="true"></i><span class="cname">${esc(c.title)}</span>${c.allowsModify ? '' : '<small>読み取り専用</small>'}</label>`).join('')}</section>`;
@@ -2086,6 +2095,8 @@ LK.body.addEventListener('click', async (ev) => {
   else if (b.id === 'lk-reload') { X.failKey = ''; loadExt(true); renderLink(); }
 });
 LK.body.addEventListener('change', (ev) => {
+  if (ev.target.id === 'lk-add') { setLink({ addByDefault: ev.target.checked }); renderLink(); return; }
+  if (ev.target.id === 'lk-defcal') { setLink({ defaultCalendarId: ev.target.value }); return; }
   const cb = ev.target.closest('[data-cal]');
   if (!cb) return;
   const ids = new Set(link.calendarIds);
@@ -2362,7 +2373,6 @@ async function createNative(id) {
     const snap = { ...(latest || e), ...sent, id, nativeLink: withIdent({ ...nl, seriesStart: sent.start }) };
     const { ops } = planNativeOps(snap, { puts: latest ? [latest] : [], dels: latest ? [] : [id] }, 'all', null, latest || null, opsCtx());
     if (ops.length) { OBX.items = await db.applyChangesWithOutbox({ outbox: (cur) => mergeOps(cur, ops, OBX.inflight) }); requestFlush(); }
-    setLink({ defaultCalendarId: l.calendarId });
     requestNotifySync('link');
     render();
     say('予定を保存し、iPhoneのカレンダーにも追加しました。');
@@ -2876,7 +2886,7 @@ async function boot() {
     origins.set(dlg, root.querySelector('[data-act="add"]'));
     showEditor({
       title: draft.title || '', categoryId: draftCat(draft), all: !!draft.all, start: draft.start || '', end: draft.end || '', place: draft.place || '', notes: draft.notes || '',
-      rfreq: draft.rfreq, rbyday: Array.isArray(draft.rbyday) ? draft.rbyday : [], rend: draft.rend, rcount: draft.rcount, runtil: draft.runtil, ropen: !!draft.ropen, autoDays: draft.autoDays,
+      rfreq: draft.rfreq, rbyday: Array.isArray(draft.rbyday) ? draft.rbyday : [], rend: draft.rend, rcount: draft.rcount, runtil: draft.runtil, ropen: !!draft.ropen, autoDays: draft.autoDays, xadd: draft.xadd === false ? false : draft.xadd === true || (extActive() && link.addByDefault && writable(X.calendars).length > 0), xcal: draft.xcal || '',
       alarms: Array.isArray(draft.alarms) ? draft.alarms : id ? undefined : defaultAlarms(!!draft.all, loadNotify()),
     }, id, false);
     edBase = null; // 復元した下書きは未保存の変更として扱う

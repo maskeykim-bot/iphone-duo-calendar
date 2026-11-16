@@ -314,10 +314,9 @@ test.describe('ネイティブ（偽装）', () => {
     await page.locator('[data-act="add"]:visible').first().click();
     const x = page.locator('#f-xadd');
     await expect(x).toBeVisible();
-    await expect(x).not.toBeChecked();
-    await expect(page.locator('#f-xcal')).toBeHidden();
+    await expect(x).toBeChecked(); // 第13版 PR5: 標準オン
     // 書込可のみ（家族）。読み取り専用の祝日は出ない
-    await x.check();
+    await expect(page.locator('#f-xcal')).toBeVisible();
     await expect(page.locator('#f-xcal option')).toHaveText(['家族（Google）']);
     // 第11版 PR9: 繰り返しありでも選べる（無効化しない）
     await page.locator('#rtoggle').click();
@@ -955,5 +954,135 @@ test.describe('updateExternalEvent / deleteExternalEvent の契約（偽装。Sw
     await page.evaluate(() => { window.__mock.extConflict = false; window.__mock.extMissing = true; });
     expect((await run(page, 'deleteExternalEvent', { ...T, span: 'all' })).ok).toEqual({ deleted: true, missing: true });
     expect((await run(page, 'deleteExternalEvent', { span: 'all', occurrenceStart: T.occurrenceStart, currentStart: T.currentStart })).code).toBe('INVALID_ARGUMENT');
+  });
+});
+
+// 第13版 PR5: 「iPhone にも追加」を標準オン
+const CALS3 = [
+  { id: 'cal-a', title: '仕事', color: '#1a73e8', sourceId: 's-i', source: 'iCloud', sourceType: 'caldav', allowsModify: true, isDefault: false },
+  { id: 'cal-b', title: '家族', color: '#d93025', sourceId: 's-g', source: 'Google', sourceType: 'caldav', allowsModify: true, isDefault: true },
+  { id: 'cal-c', title: '祝日', color: '#0b8043', sourceId: 's-s', source: 'Subscribed Calendars', sourceType: 'subscribed', allowsModify: false, isDefault: false },
+];
+const openNew = (page) => page.locator('[data-act="add"]:visible').first().click();
+
+test.describe('新規の標準オン（第13版 PR5）', () => {
+  test('既定: オン・繰り返しの直下・場所の上、追加先は iPhone の既定。シートの選択は次へ持ち越さない', async ({ page }) => {
+    await mock(page, { cals: CALS3, events: [] });
+    await openApp(page);
+    await enable(page);
+    await openNew(page);
+    await expect(page.locator('#f-xadd')).toBeChecked();
+    await expect(page.locator('#f-xcal')).toHaveValue('cal-b');
+    const ys = await page.evaluate(() => ['.repeat', '#xadd', '#f-place'].map((q) => document.querySelector(q).getBoundingClientRect().top));
+    expect(ys[0]).toBeLessThan(ys[1]); expect(ys[1]).toBeLessThan(ys[2]);
+    const sw = await page.locator('#f-xadd').boundingBox();
+    expect([Math.round(sw.width), Math.round(sw.height)]).toEqual([51, 31]);
+    await page.locator('#f-xcal').selectOption('cal-a');
+    await page.locator('#close').click();
+    await expect(page.locator('#editor')).toBeHidden();
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    await expect(page.locator('#lk-sw, [data-act="add"]').first()).toBeAttached();
+    await openNew(page);
+    await expect(page.locator('#f-xcal')).toHaveValue('cal-b');
+    // 設定は暗黙に変わらない
+    expect((await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith('duo-native-cal')))))).defaultCalendarId).toBeFalsy();
+  });
+
+  test('1件だけオフ→次回はオン、設定は変わらない。オフでは createEvent なし', async ({ page }) => {
+    await mock(page, { cals: CALS3, events: [] });
+    await openApp(page);
+    await enable(page);
+    await openNew(page);
+    await page.locator('#f-xadd').uncheck();
+    await expect(page.locator('#f-xcal')).toBeHidden();
+    await page.locator('#f-title').fill('Duoだけ');
+    await page.locator('#editor [type=submit]').click();
+    await expect(page.locator('#editor')).toBeHidden();
+    expect(await calls(page, 'createEvent')).toHaveLength(0);
+    await openNew(page);
+    await expect(page.locator('#f-xadd')).toBeChecked();
+  });
+
+  test('設定カード: オフにすると標準オフが再起動後も残り、既定先を永続化', async ({ page }) => {
+    await mock(page, { cals: CALS3, events: [] });
+    await openApp(page);
+    await enable(page);
+    await openLinkPanel(page);
+    await expect(page.locator('#lk-add')).toBeChecked();
+    await page.locator('#lk-defcal').selectOption('cal-a');
+    await page.locator('#lk-close').click();
+    await openNew(page);
+    await expect(page.locator('#f-xcal')).toHaveValue('cal-a');
+    await page.locator('#close').click();
+    await openLinkPanel(page);
+    await page.locator('#lk-add').uncheck();
+    await expect(page.locator('#lk-defcal')).toHaveCount(0);
+    await page.locator('#lk-close').click();
+    await page.evaluate(() => sessionStorage.clear());
+    await page.reload();
+    await openNew(page);
+    await expect(page.locator('#f-xadd')).not.toBeChecked();
+    const st = await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith('duo-native-cal')))));
+    expect(st).toMatchObject({ addByDefault: false, defaultCalendarId: 'cal-a' });
+  });
+
+  test('旧設定（addByDefault なし）は標準オン／不正値もオン', async ({ page }) => {
+    await mock(page, { cals: CALS3, events: [] });
+    await page.addInitScript(() => localStorage.setItem('duo-native-cal', JSON.stringify({ version: 1, enabled: true, calendarIds: ['cal-a'], selectionInitialized: true, defaultCalendarId: null, addByDefault: 'no' })));
+    await openApp(page);
+    await openNew(page);
+    await expect(page.locator('#f-xadd')).toBeChecked();
+  });
+
+  test('下書きの明示 xadd:false を優先。候補が消えたら先頭へ', async ({ page }) => {
+    await mock(page, { cals: CALS3, events: [] });
+    await openApp(page);
+    await enable(page);
+    await openNew(page);
+    await page.locator('#f-xadd').uncheck();
+    await page.locator('#f-title').fill('下書き');
+    await page.reload();
+    await expect(page.locator('#f-title')).toHaveValue('下書き');
+    await expect(page.locator('#f-xadd')).not.toBeChecked();
+  });
+
+  test('設定の既定先が消えていたら iPhone の既定へ', async ({ page }) => {
+    await mock(page, { cals: CALS3, events: [] });
+    await page.addInitScript(() => localStorage.setItem('duo-native-cal', JSON.stringify({ version: 1, enabled: true, calendarIds: ['cal-a'], selectionInitialized: true, defaultCalendarId: 'cal-gone' })));
+    await openApp(page);
+    await openNew(page);
+    await expect(page.locator('#f-xcal')).toHaveValue('cal-b');
+  });
+
+  test('書込先なし: パネルは disabled＋案内、新規シートは段を隠す。未連携では出ない', async ({ page }) => {
+    await mock(page, { cals: [CALS3[2]], events: [] });
+    await openApp(page);
+    await openNew(page);
+    await expect(page.locator('#xadd')).toBeHidden();
+    await page.locator('#close').click();
+    await enable(page);
+    await openLinkPanel(page);
+    await expect(page.locator('#lk-add')).toBeDisabled();
+    await expect(page.locator('.newcard')).toContainText('書き込めるカレンダーがありません');
+    await page.locator('#lk-close').click();
+    await openNew(page);
+    await expect(page.locator('#xadd')).toBeHidden();
+  });
+
+  test('追加失敗: Duo に保存・通知は Duo へ戻り、シート選択は設定に残らない', async ({ page }) => {
+    await mock(page, { cals: CALS3, events: [] });
+    await openApp(page);
+    await enable(page);
+    await page.evaluate(() => { window.__mock.createErr = 'PERMISSION_DENIED'; });
+    await openNew(page);
+    await page.locator('#f-xcal').selectOption('cal-a');
+    await page.locator('#f-title').fill('失敗');
+    await page.locator('#editor [type=submit]').click();
+    await expect(page.getByRole('status')).toContainText('iPhoneのカレンダーには追加できませんでした');
+    const e = (await dbEvents(page)).find((x) => x.title === '失敗');
+    expect(e.nativeLink?.state).not.toBe('linked');
+    const st = await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith('duo-native-cal')))));
+    expect(st.defaultCalendarId).toBeNull();
   });
 });
