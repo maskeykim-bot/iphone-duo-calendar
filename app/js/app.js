@@ -2019,13 +2019,13 @@ function openLink(from) {
 }
 function renderLink() {
   const on = extActive(), dis = lk.busy ? ' disabled' : '';
-  let h = `<p class="lkintro">iPhoneのカレンダーの予定をDuoに表示します。Duoから追加した予定も、iPhoneのカレンダーに残せます。</p>
+  let h = `<p class="lkintro">iPhoneのカレンダーの予定をDuoに表示し、書き込めるカレンダーの予定はDuoから変更・削除できます。Duoから追加した予定も、iPhoneのカレンダーに残せます。</p>
     <div class="swrow"><span id="lk-swl">連携</span><button type="button" role="switch" id="lk-sw" class="sw" aria-checked="${on}" aria-labelledby="lk-swl"${dis}><span class="knob" aria-hidden="true"></span><span class="swt">${on ? 'オン' : 'オフ'}</span></button></div>`;
   if (linkSaveFailed) h += '<p class="berr" role="alert">連携設定を保存できませんでした。</p>';
   if (lk.err) h += `<p class="berr" role="alert">${esc(lk.err)}</p>`;
   if (!on && lk.want) {
     const steps = '設定 ＞ プライバシーとセキュリティ ＞ カレンダー ＞ Duo で『フルアクセス』を許可してください。';
-    if (X.perm === 'notDetermined') h += `<section class="card"><h3>iPhone のカレンダーへのアクセスを許可してください</h3><p>予定の表示と追加に、カレンダーへのフルアクセスが必要です。Duoから追加した予定の変更・削除は、iPhoneのカレンダーにも反映されます。iPhone側の予定をDuoから編集・削除することはありません。</p><button type="button" class="solid" id="lk-req"${dis}>アクセスを許可</button></section>`;
+    if (X.perm === 'notDetermined') h += `<section class="card"><h3>iPhone のカレンダーへのアクセスを許可してください</h3><p>予定の表示と追加に、カレンダーへのフルアクセスが必要です。Duo から iPhone のカレンダーの予定を変更・削除できます（書き込めるカレンダーのみ）。</p><button type="button" class="solid" id="lk-req"${dis}>アクセスを許可</button></section>`;
     else if (X.perm === 'denied') h += `<section class="card"><p class="berr" role="alert">カレンダーへのアクセスが許可されていません。${steps}</p><button type="button" id="lk-settings">設定を開く</button></section>`;
     else if (X.perm === 'restricted') h += '<section class="card"><p class="berr" role="alert">この端末ではカレンダーへのアクセスが制限されています。端末の管理者に確認してください。</p></section>';
     else if (X.perm === 'writeOnly') h += `<section class="card"><p class="berr" role="alert">予定を表示するにはフルアクセスが必要です。${steps}</p><button type="button" class="solid" id="lk-req"${dis}>フルアクセスを許可</button><button type="button" id="lk-settings">設定を開く</button></section>`;

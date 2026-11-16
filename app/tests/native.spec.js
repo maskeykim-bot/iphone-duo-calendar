@@ -196,7 +196,8 @@ test.describe('ネイティブ（偽装）', () => {
     await openLinkPanel(page);
     await page.locator('#lk-sw').click();
     await expect(page.getByText('iPhone のカレンダーへのアクセスを許可してください')).toBeVisible();
-    await expect(page.getByText('Duoから追加した予定の変更・削除は、iPhoneのカレンダーにも反映されます。')).toBeVisible();
+    await expect(page.getByText('Duo から iPhone のカレンダーの予定を変更・削除できます（書き込めるカレンダーのみ）。')).toBeVisible();
+    await expect(page.locator('body')).not.toContainText('編集・削除することはありません');
     expect(await calls(page, 'requestPermission')).toHaveLength(0);
     await page.locator('#lk-req').click();
     await expect(page.locator('#lk-sw')).toHaveAttribute('aria-checked', 'true');
