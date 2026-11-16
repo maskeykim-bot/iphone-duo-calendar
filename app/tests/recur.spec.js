@@ -175,9 +175,8 @@ test.describe('繰り返しの UI', () => {
       await openOccurrence(page, '2026-11-19');
       await page.getByRole('button', { name: '予定を削除' }).click();
       await expect(page.locator('#sc-title')).toHaveText('削除する範囲');
-      await page.getByRole('button', { name: 'この予定のみ', exact: true }).click();
-      await expect(page.locator('#confirmtitle')).toHaveText('この予定を削除しますか？');
-      await page.getByRole('button', { name: '削除する' }).click();
+      await page.getByRole('button', { name: 'この予定のみ', exact: true }).click(); // 範囲の選択が確認（2段目なし）
+      await expect(page.locator('#confirm')).toBeHidden();
       await expect(page.locator('#editor')).toBeHidden();
       await page.reload(); await page.waitForSelector('html[data-ready]');
       await tab(page, '月').click();
@@ -187,15 +186,11 @@ test.describe('繰り返しの UI', () => {
       await expect(chip(page, '2026-11-26')).toHaveCount(1);
     });
 
-    test('これ以降すべて削除（確認でキャンセルすると範囲へ戻る）', async ({ page }) => {
+    test('これ以降すべて削除（Duo だけの予定は2段目なしで即削除）', async ({ page }) => {
       await openOccurrence(page, '2026-11-26');
       await page.getByRole('button', { name: '予定を削除' }).click();
       await page.getByRole('button', { name: 'これ以降すべて' }).click();
-      await expect(page.locator('#confirmtitle')).toHaveText('11月26日以降の予定をすべて削除しますか？');
-      await page.getByRole('button', { name: 'キャンセル' }).first().click();
-      await expect(page.locator('#sc-title')).toHaveText('削除する範囲');
-      await page.getByRole('button', { name: 'これ以降すべて' }).click();
-      await page.getByRole('button', { name: '削除する' }).click();
+      await expect(page.locator('#confirm')).toBeHidden();
       await expect(page.locator('#editor')).toBeHidden();
       await page.reload(); await page.waitForSelector('html[data-ready]');
       await tab(page, '月').click();
@@ -210,8 +205,7 @@ test.describe('繰り返しの UI', () => {
       await openOccurrence(page, '2026-11-19');
       await page.getByRole('button', { name: '予定を削除' }).click();
       await page.getByRole('button', { name: 'すべて', exact: true }).click();
-      await expect(page.locator('#confirmtitle')).toHaveText('繰り返し予定をすべて削除しますか？');
-      await page.getByRole('button', { name: '削除する' }).click();
+      await expect(page.locator('#confirm')).toBeHidden(); // Duo だけの予定の「すべて」も即実行
       await expect(page.locator('#editor')).toBeHidden();
       await page.reload(); await page.waitForSelector('html[data-ready]');
       expect(await dbEvents(page)).toHaveLength(0);

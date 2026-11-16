@@ -1217,7 +1217,8 @@ let scopeCtx = null; // { kind:'edit'|'delete', cur, ev }
 function openScope(kind, cur, ev) {
   scopeCtx = { kind, cur, ev };
   const del = kind === 'delete', occ = cur.occ;
-  $('#sc-title').textContent = del ? '削除する範囲' : '変更する範囲';
+  const dn0 = del ? deleteNotice(cur.p) : null;
+  $('#sc-title').textContent = del ? (dn0?.duoOnly ? 'Duo から削除する範囲' : '削除する範囲') : '変更する範囲';
   $('#sc-target').textContent = `対象：${dayLabel(dayOf(occ.start))} ${occ.all ? '終日' : occ.start.slice(11)} ${occ.title}`;
   const rows = scopeDlg.querySelectorAll('[data-scope]');
   rows.forEach((b) => { b.classList.toggle('danger', del); b.disabled = false; });
@@ -1231,7 +1232,7 @@ function openScope(kind, cur, ev) {
     if (info.clears('following') || info.clears('all')) notes.push('「これ以降すべて」「すべて」を選ぶと、この範囲の個別変更と削除指定を解除します。');
   }
   $('#sc-note').textContent = notes.join(' ');
-  const dn = del ? deleteNotice(cur.p) : null;
+  const dn = dn0;
   $('#sc-warn').hidden = !dn?.text;
   $('#sc-warn').textContent = dn ? dn.text(occ.title) : '';
   dlg.inert = true;
@@ -1248,7 +1249,12 @@ scopeDlg.addEventListener('click', async (ev) => {
   const b = ev.target.closest('[data-scope]');
   if (!b || b.disabled || !scopeCtx) return;
   const scope = b.dataset.scope, { kind, cur, ev: form0 } = scopeCtx;
-  if (kind === 'delete') { askDelete(scope, cur); return; }
+  if (kind === 'delete') {
+    const dn = deleteNotice(cur.p);
+    if (scope === 'all' && dn) { askDelete(scope, cur); return; } // iPhone と結びついた「すべて」だけ2段目を残す
+    await runDelete({ scope, cur, duoOnly: !!dn?.duoOnly, fb: !!dn?.fallback }, scopeDlg); // 範囲の選択が確認（Duo だけの予定の「すべて」も即実行）
+    return;
+  }
   try {
     const { ops, plan } = planOps(cur.p, planEdit(cur.p, cur.occKey, scope, form0, newId), scope, cur.occKey, form0);
     await commit(plan, { ops });
@@ -1287,8 +1293,10 @@ function askDelete(scope, cur) {
   const dn = deleteNotice(cur.p);
   pendingDelete = { scope, cur, duoOnly: !!dn?.duoOnly, fb: !!dn?.fallback };
   const day = dayLabel(dayOf(cur.occ.start));
-  $('#confirmtitle').textContent = { only: 'この予定を削除しますか？', following: `${day.replace(/（.）/, '')}以降の予定をすべて削除しますか？`, all: '繰り返し予定をすべて削除しますか？' }[scope];
-  showConfirm('', cur, !!dn?.duoOnly, dn);
+  void day;
+  $('#confirmtitle').textContent = 'すべての繰り返しを削除しますか？';
+  $('#deletetitle').textContent = dn.duoOnly ? dn.text() : 'iPhone のカレンダーからも削除されます。'; // 予定名は付けない
+  $('#dodelete').textContent = dn.duoOnly ? 'Duo から削除' : 'すべて削除';
   scopeDlg.close();
   dlg.inert = true;
   confirmDlg.show();
@@ -1317,8 +1325,11 @@ function cancelConfirm() {
   if (pd && !pd.single) openScope('delete', pd.cur); // 最終確認キャンセルは範囲へ戻る
 }
 $('#canceldelete').addEventListener('click', cancelConfirm);
-$('#dodelete').addEventListener('click', async () => {
-  const pd = pendingDelete;
+let deleting = false;
+// 削除の実行部（範囲の直接選択・最終確認・単発で共通）。from は閉じるダイアログ。失敗時は何も変えずエラーを出す。
+async function runDelete(pd, from) {
+  if (deleting) return;
+  deleting = true;
   try {
     if (pd?.fb && !pd.duoOnly) { // 代わりの照合で結びついた予定の最初の削除を確定した。以後は追加の文を出さない（キャンセルでは消費しない）
       const rid = pd.cur.p.nativeLink.requestId;
@@ -1335,13 +1346,16 @@ $('#dodelete').addEventListener('click', async () => {
       const { ops } = prev ? planOps(prev, null, 'all', null, null, { dropOnly: pd.duoOnly }) : { ops: [] };
       await commit({ puts: [], dels: [editing] }, { ops });
     }
-  } catch { confirmDlg.close(); $('#error').textContent = '削除できませんでした。'; return; }
+  } catch { from.close(); $('#error').textContent = '削除できませんでした。'; deleting = false; return; }
   pendingDelete = null;
+  scopeDlg.close();
   confirmDlg.close();
   closeEditor();
   render();
   say('予定を削除しました。');
-});
+  deleting = false;
+}
+$('#dodelete').addEventListener('click', () => runDelete(pendingDelete, confirmDlg));
 
 // ---------- その他メニュー ----------
 function openMenu(from) {

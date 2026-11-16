@@ -13,6 +13,18 @@ const SEED = [
 const shot = (page, name) => page.screenshot({ path: `${DIR}/${name}.png` });
 
 test.describe('スクリーンショット', () => {
+  test('v12-pr3 Duo だけの繰り返し削除の範囲シート', async ({ page }) => {
+    await openApp(page, SIZES.closedPortrait);
+    await seed(page, SEED);
+    await tab(page, '月').click();
+    await page.locator('[data-date="2026-11-16"]').click({ position: { x: 12, y: 10 } });
+    await page.locator('.daylist .event').first().click();
+    await page.locator('#delete').click();
+    await expect(page.locator('#scope')).toBeVisible();
+    await expect(page.locator('#confirm')).toBeHidden();
+    await shot(page, 'v12-pr3-duo-only-delete');
+  });
+
   test('editor-repeat / repeat-scope / month-repeat（閉じた縦）', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await seed(page, SEED);

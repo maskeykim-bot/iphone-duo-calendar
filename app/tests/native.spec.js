@@ -739,8 +739,41 @@ test.describe('ネイティブ（偽装）第11版 PR7: iPhone へ反映', () =>
     await openLinked(page);
     await page.locator('#delete').click();
     await expect(page.locator('#sc-warn')).toHaveText('会食\niPhone のカレンダーからも削除されます。');
+    await page.locator('[data-scope="all"]').click();
+    await expect(page.locator('#confirmtitle')).toHaveText('すべての繰り返しを削除しますか？');
+    await expect(page.locator('#deletetitle')).toHaveText('iPhone のカレンダーからも削除されます。');
+    await expect(page.locator('#canceldelete')).toBeFocused();
+    await expect(page.locator('#dodelete')).toHaveText('すべて削除');
+    expect(await dbEvents(page)).toHaveLength(1); // 確定前は何も変わらない
+    await page.locator('#canceldelete').click();
+    await expect(page.locator('#sc-title')).toHaveText('削除する範囲'); // キャンセルは範囲へ戻る
+    expect(await dbEvents(page)).toHaveLength(1);
+  });
+
+  test('画像: 結びついた繰り返しの範囲シートと「すべて」の2段目', async ({ page }) => {
+    await mock(page, { v2: true });
+    await openApp(page);
+    await seed(page, [linkedEv({ recurrence: { freq: 'daily', interval: 1, byDay: null, count: null, until: null } })]);
+    await enable(page);
+    await openLinked(page);
+    await page.locator('#delete').click();
+    await expect(page.locator('#scope')).toBeVisible();
+    await page.screenshot({ path: 'screenshots/v12-pr3-delete-scope.png' });
+    await page.locator('[data-scope="all"]').click();
+    await expect(page.locator('#confirm')).toBeVisible();
+    await page.screenshot({ path: 'screenshots/v12-pr3-linked-delete-all.png' });
+  });
+
+  test('結びついた繰り返しの「これ以降すべて」は2段目なしで1回だけ反映', async ({ page }) => {
+    await mock(page, { v2: true });
+    await openApp(page);
+    await seed(page, [linkedEv({ recurrence: { freq: 'daily', interval: 1, byDay: null, count: null, until: null } })]);
+    await enable(page);
+    await openLinked(page);
+    await page.locator('#delete').click();
     await page.locator('[data-scope="following"]').click();
-    await expect(page.locator('#deletetitle')).toContainText('iPhone のカレンダーからも削除されます。');
+    await expect(page.locator('#confirm')).toBeHidden();
+    await expect(page.locator('#editor')).toBeHidden();
   });
 
   test('保存と送信待ちは同じトランザクション: meta の書き込み失敗で本文も送信待ちも元のまま', async ({ page }) => {
