@@ -739,3 +739,14 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .cb.cpnl.on .bi{background:var(--green);color:#fff;box-shadow:none}
 .pgrab{position:fixed;left:var(--content-x);width:var(--content-w);top:calc(var(--grid-top) + var(--grid-h) - 10px);height:10px;z-index:5;touch-action:none}
 @media (prefers-reduced-motion:reduce){.pnl-anim .pnl,.pnl-anim .pcol,.pnl-anim .portrait .week{transition:none}}
+
+/* 日付メモ（第14版 PR9）: 罫線28・文字16・余白6 */
+.memopage{flex:1;min-height:0;display:flex;flex-direction:column;padding-left:20px;padding-right:20px;box-sizing:border-box}
+.pbody2 .memopage{padding-left:0;padding-right:0;padding-bottom:0}
+.memota{flex:1;min-height:0;width:100%;box-sizing:border-box;margin:0;padding:6px;resize:none;border:0;border-radius:0;background-color:transparent;color:var(--ink);font:16px/28px -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif;background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 27px,var(--line) 27px,var(--line) 28px);background-attachment:local;background-origin:padding-box;overflow-y:auto;-webkit-user-select:text;user-select:text;touch-action:pan-y}
+.memota::placeholder{color:#8a8a80}
+.memota:focus-visible{outline-offset:-2px}
+.memost{flex:none;min-height:24px;padding:2px 6px;font-size:12px;line-height:20px;color:#6b6b62}
+.memost .merr{color:#b3261e;font-weight:700;margin-right:8px}
+.memost button{min-height:44px;min-width:44px;padding:0 12px}
+.pbody2 .memost{min-height:0}

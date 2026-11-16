@@ -9,6 +9,7 @@ import { CAT_IDS, LIMITS as CAT_LIMITS, PALETTE, UNCATEGORIZED, countByCategory,
 import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAlarms, encAlarm, fireAt, nextNotifyText, normNotify, pastForNotify, planNotifications, MAX_PENDING, WINDOW_DAYS } from './notify.js';
 import { rokuyoOf } from './rokuyo.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS } from './pages.js';
+import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.js';
 import { call, errCode, errReason, errText, listen, nativeAvailable } from './native.js';
 import { buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, pickAddCal, planNativeOps, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
 import {
@@ -74,7 +75,9 @@ function saveUi() {
 }
 // 左右（または縦の下パネル）のページを選ぶ。同じ種類が左右に並ぶ場合は交換。
 function setPage(side, id) { set({ pages: selectPage(state.pages, side, id) }); }
-function set(patch) { Object.assign(state, patch); if ('weekStart' in patch) setFirstDay(state.weekStart); saveUi(); render(); }
+function set(patch) {
+  if (memoStore.anyDirty() && ['selected', 'pages', 'view', 'home', 'desk'].some((k) => k in patch)) { memoSync(); memoStore.flushAll(); } // 日付・ページを変える前に未保存のメモを書く
+  Object.assign(state, patch); if ('weekStart' in patch) setFirstDay(state.weekStart); saveUi(); render(); }
 
 // ---------- レイアウト寸法 L（キーボードで変わらない寸法）と可視範囲 V ----------
 // L = キーボード非表示時の文書領域。テキスト入力中（とその直後）は幅が変わらない限り高さの縮小を無視する。
@@ -637,6 +640,7 @@ const PN = { expand: false, swallow: 0 }; // expand: メモ入力中にマスの
 const BOTTOM_LABELS = { time: '時間', task: 'タスク', memo: 'メモ' };
 function bottomBody(id) {
   if (id === 'time') return timelineHtml(tlKeys(1), Math.max(0, safeW() - 40 * POS.ux - 50), 'bottom');
+  if (id === 'memo') return memoBody('bottom');
   return `<div class="pagewait padb" data-wait="${id}"><p class="small pad">${PAGE_NAMES[id]}のページは準備中です。</p></div>`;
 }
 const safeW = () => L.w - safe().left - safe().right;
@@ -684,7 +688,7 @@ function pickBottom(id) {
 // メモ入力中の拡大口: 下の段をマスの上端（y106）まで広げる。再描画せず class だけ切り替える（入力欄のフォーカスを保つ）。
 function setPanelExpand(on) { PN.expand = on; root.querySelector('.pnl')?.classList.toggle('up', on); }
 root.addEventListener('focusin', (ev) => { if (ev.target.closest?.('.pnl') && ev.target.matches('textarea, [contenteditable=true]')) setPanelExpand(true); });
-root.addEventListener('focusout', (ev) => { if (ev.target.closest?.('.pnl') && ev.target.matches('textarea, [contenteditable=true]')) setPanelExpand(false); });
+root.addEventListener('focusout', (ev) => { if (!rendering && ev.target.closest?.('.pnl') && ev.target.matches('textarea, [contenteditable=true]')) setPanelExpand(false); });
 // つまみを下へ引く＝しまう／マスの下端から上へ引く＝出す。8px以内は押しただけ（つまみは click、下端は下のマスへ通す）。
 let pg = null;
 root.addEventListener('pointerdown', (ev) => {
@@ -828,11 +832,59 @@ function timeBody(side, w) {
   return timelineHtml(tlKeys(tdays(side)), w - 50, side);
 }
 // ページ id 付きの描画。side＝'left'|'right'、id＝'month'|'time'|'task'|'memo'。
+// ---------- 日付メモ（左右ページ・縦の下パネルで同じ日に同じ本文。保存は memos.js） ----------
+let memoComposing = false, renderPending = false, rendering = false;
+const memoSaid = new Set();
+function memoBody(where) {
+  const k = state.selected, e = memoStore.get(k);
+  return `<div class="memopage padb" data-memo-wrap="${where}"><textarea class="memota" data-memo="${k}" data-where="${where}" aria-label="${esc(dayLabel(k))}のメモ" placeholder="この日のメモ" spellcheck="false"${e?.loaded ? '' : ' readonly'}></textarea><div class="memost" data-memost="${k}">自動で保存</div></div>`;
+}
+const memoStatusHtml = (e, k) => e?.failed ? `<span class="merr">${SAVE_FAILED}</span><button type="button" data-act="memoretry" data-mdate="${k}">再試行</button>` : e?.loadFailed ? '<span class="merr">メモを読み込めませんでした。</span>' : '自動で保存';
+function paintMemo(k) {
+  const e = memoStore.get(k);
+  root.querySelectorAll(`textarea.memota[data-memo="${k}"]`).forEach((ta) => {
+    if (e?.loaded) ta.readOnly = false;
+    if (e?.loaded && !memoComposing && ta.value !== e.text) ta.value = e.text;
+  });
+  root.querySelectorAll(`.memost[data-memost="${k}"]`).forEach((el) => { el.innerHTML = memoStatusHtml(e, k); });
+  if (e?.failed && !memoSaid.has(k)) { memoSaid.add(k); say(SAVE_FAILED); } else if (!e?.failed) memoSaid.delete(k);
+}
+setMemoHook(paintMemo);
+// 描画後: 本文を入れ（HTML には埋めない）、未読込なら読み、フォーカスとカーソルを戻す。
+function fillMemos(keep) {
+  root.querySelectorAll('textarea.memota').forEach((ta) => {
+    const k = ta.dataset.memo, e = memoStore.get(k);
+    if (e?.loaded) ta.value = e.text; else memoStore.loadMemo(k);
+    if (keep && keep.where === ta.dataset.where) {
+      ta.focus({ preventScroll: true });
+      try { ta.setSelectionRange(keep.s, keep.e, keep.d || 'none'); } catch { /* 無視 */ }
+      ta.scrollTop = keep.sc;
+    }
+    paintMemo(k);
+  });
+}
+// 変換中などで input が届いていない本文を DOM から拾う。
+function memoSync() {
+  root.querySelectorAll('textarea.memota').forEach((ta) => { const e = memoStore.get(ta.dataset.memo); if (e?.loaded && e.text !== ta.value) memoStore.setText(ta.dataset.memo, ta.value); });
+}
+root.addEventListener('input', (ev) => { const ta = ev.target.closest?.('textarea.memota'); if (ta && !ev.isComposing && !memoComposing && !ta.readOnly) memoStore.setText(ta.dataset.memo, ta.value); });
+root.addEventListener('compositionstart', (ev) => { if (ev.target.closest?.('textarea.memota')) memoComposing = true; });
+root.addEventListener('compositionend', (ev) => {
+  const ta = ev.target.closest?.('textarea.memota'); if (!ta) return;
+  memoComposing = false;
+  if (!ta.readOnly) memoStore.setText(ta.dataset.memo, ta.value);
+  if (renderPending) { renderPending = false; render(); }
+});
+root.addEventListener('focusout', (ev) => { if (memoComposing && ev.target.closest?.('textarea.memota')) { memoComposing = false; if (renderPending) { renderPending = false; setTimeout(render, 0); } } });
+const flushMemosNow = () => { memoSync(); memoStore.flushAll(); };
+document.addEventListener('visibilitychange', () => { if (document.hidden) flushMemosNow(); });
+window.addEventListener('pagehide', flushMemosNow);
 function renderPage(side, id) {
   const cls = side === 'left' ? 'lp' : 'rp';
   if (id === 'month') return `<section class="page ${cls} calendar" data-page="month" aria-label="カレンダー">${shead(side)}${calendarBody('spread')}</section>`;
   if (id === 'time') return `<section class="page ${cls}" data-page="time">${dateHead(side, 'time')}${timeBody(side, paneWidth(side))}${timeMenu(side)}${miniMonth(side)}</section>`;
-  // task / memo: 実装待ちの説明のみ（保存先は作らない）
+  if (id === 'memo') return `<section class="page ${cls}" data-page="memo">${dateHead(side, id)}${memoBody(side)}${miniMonth(side)}</section>`;
+  // task: 実装待ちの説明のみ（保存先は作らない）
   return `<section class="page ${cls}" data-page="${id}">${dateHead(side, id)}<div class="pagewait padb" data-wait="${id}"><p class="small pad">${PAGE_NAMES[id] || ''}のページは準備中です。</p></div>${miniMonth(side)}</section>`;
 }
 // 各ページの下の切替「月｜時間｜タスク｜メモ」（幅 240・高 46）。選んでいるページを押すと何も変えない。
@@ -920,6 +972,7 @@ function tlTap(ev, col) {
 // ---------- 描画（スクロール位置とフォーカスを保つ） ----------
 let lastKind = '';
 function render() {
+  if (memoComposing) { renderPending = true; return; } // IME 変換中は入力欄を作り直さない
   const kind = layoutKind();
   updateLayoutMetrics();
   updateDiagnostics();
@@ -930,7 +983,12 @@ function render() {
   const focusKey = f && root.contains(f) ? f.dataset.act ? `act:${f.dataset.act}` : f.dataset.view ? `view:${f.dataset.view}` : f.dataset.mode ? `mode:${f.dataset.mode}` : f.dataset.date ? `date:${f.dataset.date}` : '' : '';
   document.body.dataset.layout = kind;
   document.body.dataset.posture = kind === 'open' && isPortrait() ? 'portrait' : '';
+  const ma = document.activeElement;
+  const memoKeep = ma && ma.matches?.('textarea.memota') ? { where: ma.dataset.where, s: ma.selectionStart, e: ma.selectionEnd, d: ma.selectionDirection, sc: ma.scrollTop } : null;
+  rendering = true;
   root.innerHTML = { home: () => closed('home'), browse: () => closed('browse'), open, desk, spread }[kind]();
+  rendering = false;
+  fillMemos(memoKeep);
   lastKind = kind;
   root.querySelectorAll('[data-scroll]').forEach((el) => { el.scrollTop = scrolls[`${kind}:${el.dataset.scroll}${el.dataset.pane || ''}`] || 0; });
   restoreAll(anchor);
@@ -961,7 +1019,8 @@ function pickPage(side, id) {
 // ＋の行き先: 見開きでは最後に触ったページに合わせる。月・時間は予定、タスク・メモは入力の接続（後続の版）まで案内のみ。
 function addFromHere(b) {
   const id = layoutKind() === 'spread' ? state.pages[state.lastSide] : panelOn() ? state.pages.portraitBottom : 'month';
-  if (id === 'task' || id === 'memo') { say(`${PAGE_NAMES[id]}の入力は準備中です。`); return; }
+  if (id === 'memo') { const ta = root.querySelector('textarea.memota'); if (ta) { ta.focus(); say('メモを書けます。'); } return; }
+  if (id === 'task') { say(`${PAGE_NAMES[id]}の入力は準備中です。`); return; }
   openEditor(null, b);
 }
 function say(msg) { $('#status').textContent = ''; requestAnimationFrame(() => { $('#status').textContent = msg; }); }
@@ -994,6 +1053,7 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'today') set({ selected: todayKey() }); // 今日へ戻るのは選択日だけ。表示（一覧・日・週・月）は保つ
   else if (d.act === 'prev') move(-1, d.pane);
   else if (d.act === 'next') move(1, d.pane);
+  else if (d.act === 'memoretry') memoStore.flushMemo(d.mdate);
   else if (d.act === 'sample') loadSample();
   else if (d.act === 'search') openSearch(b);
   else if (d.act === 'menu') openMenu(b);
@@ -3098,7 +3158,7 @@ window.visualViewport?.addEventListener('scroll', vpSchedule);
 new MutationObserver(() => { if (safeKey(safe()) !== lastSafe) vpSchedule(); }).observe(de, { attributes: true, attributeFilter: ['style', 'class'] });
 document.addEventListener('focusin', (ev) => { if (isTextEl(ev.target)) { clearTimeout(kbTimer); kbHold = false; vpSchedule(); setTimeout(() => reveal(ev.target), 50); } });
 document.addEventListener('focusout', (ev) => {
-  if (!isTextEl(ev.target)) return;
+  if (rendering || !isTextEl(ev.target)) return;
   kbHold = true; clearTimeout(kbTimer);
   kbTimer = setTimeout(() => { kbHold = false; vpSchedule(); }, 700);
 });
@@ -3110,6 +3170,7 @@ async function boot() {
   try { setCategories(await db.listCategories()); let bf = null; try { bf = await db.backfillNotifyOnce(new Date()); } catch { bf = null; /* ロールバック済み。次の起動で再実行 */ } state.events = await db.listEvents(); try { OBX.items = await db.getOutbox(); } catch { OBX.items = []; } bumpRevision(); N.ready = true; requestNotifySync(bf?.ran ? 'backfill' : 'launch'); } catch { say('保存領域を開けませんでした。'); }
   state.loaded = true;
   render();
+  try { await recoverMemoDraft(); } catch { /* 下書きは残る */ }
   let draft = null;
   try { draft = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null'); } catch { draft = null; }
   if (draft && typeof draft === 'object') {

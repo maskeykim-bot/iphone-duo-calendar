@@ -41,11 +41,11 @@ test('左を時間・右を月にしても描ける。時間軸は左ペイン�
   await expect.poll(() => page.locator('.page.lp .tl').evaluate((e) => e.scrollTop)).toBeGreaterThan(300);
 });
 
-test('タスク／メモは説明のみで、保存先を作らない', async ({ page }) => {
+test('タスクは説明のみ、メモは入力欄。入力前は localStorage に何も作らない', async ({ page }) => {
   await openApp(page, SIZES.openLandscape951);
   await seedPages(page, { left: 'task', right: 'memo' });
   await expect(page.locator('.page.lp .pagewait')).toContainText('タスク');
-  await expect(page.locator('.page.rp .pagewait')).toContainText('メモ');
+  await expect(page.locator('.page.rp textarea.memota')).toBeVisible();
   await expect(page.locator('.tl')).toHaveCount(0);
   const keys = await page.evaluate(() => Object.keys(localStorage).filter((k) => /task|memo/i.test(k)));
   expect(keys).toEqual([]);

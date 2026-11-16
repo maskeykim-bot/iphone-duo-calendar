@@ -105,6 +105,7 @@ test('「全部」「手帳」でも最下段はタブの上、全予定へ到�
   // 回転（閉じた幅 → 横へ戻す）
   await page.setViewportSize(SIZES.openPortrait669);
   await page.setViewportSize(SIZES.openLandscape951);
+  await expect(page.locator('.spread .scroll.msc, .spread .scroll.all').first()).toBeVisible(); // 回転後の再描画を待つ
   await expect.poll(async () => (await geom(page)).bottom).toBeGreaterThan(0);
   g = await geom(page);
   near(g.bottom, 603, 0.6);

@@ -93,7 +93,7 @@ for (const size of PORTRAITS) {
       expect(scb.y + scb.height).toBeLessThanOrEqual(pn.y + 1);
     });
 
-    test('パネル内の時間は既存の時間軸。最後（24:00）まで届く。タスク・メモは準備中', async ({ page }) => {
+    test('パネル内の時間は既存の時間軸。最後（24:00）まで届く。タスクは準備中・メモは入力欄', async ({ page }) => {
       await openApp(page, size);
       await loadSample(page);
       await show(page);
@@ -106,9 +106,9 @@ for (const size of PORTRAITS) {
       await page.locator('.pswitch').getByRole('button', { name: 'タスク', exact: true }).click();
       await expect(page.locator('.pnl [data-wait="task"]')).toBeVisible();
       await page.locator('.pswitch').getByRole('button', { name: 'メモ', exact: true }).click();
-      await expect(page.locator('.pnl [data-wait="memo"]')).toBeVisible();
+      await expect(page.locator('.pnl textarea.memota')).toBeVisible();
       expect((await ui(page)).pages.portraitBottom).toBe('memo');
-      const last = await box(page.locator('.pnl [data-wait]')), pn = await box(page.locator('.pnl'));
+      const last = await box(page.locator('.pnl .memopage')), pn = await box(page.locator('.pnl'));
       expect(last.y + last.height).toBeLessThanOrEqual(pn.y + pn.height + 0.5);
     });
   });
