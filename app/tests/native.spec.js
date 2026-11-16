@@ -1103,7 +1103,8 @@ test.describe('リマインダーの許可とリスト取得の契約（偽装�
     await page.goto('/');
     await page.waitForTimeout(500);
     expect(await rc(page, 'requestReminderPermission')).toBe(0);
-    expect(await rc(page, 'reminderPermission')).toBe(0);
+    // PR13: 起動時は状態確認（reminderPermission）だけ。許可要求はボタンのみ。
+    expect(await rc(page, 'reminderPermission')).toBeGreaterThan(0);
     const r = await page.evaluate(async () => { const n = await import('/js/native.js'); return [await n.call('reminderPermission', {}), await n.call('checkPermission', {})]; });
     expect(r[0]).toEqual({ status: 'notDetermined' });
     expect(r[1]).toEqual({ status: 'denied' });

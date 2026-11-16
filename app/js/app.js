@@ -10,6 +10,7 @@ import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAl
 import { rokuyoOf } from './rokuyo.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS } from './pages.js';
 import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.js';
+import { checkReminderAccess, requestReminderAccess, taskAccessHtml } from './reminders.js';
 import { call, errCode, errReason, errText, listen, nativeAvailable } from './native.js';
 import { buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, pickAddCal, planNativeOps, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
 import {
@@ -641,7 +642,7 @@ const BOTTOM_LABELS = { time: '時間', task: 'タスク', memo: 'メモ' };
 function bottomBody(id) {
   if (id === 'time') return timelineHtml(tlKeys(1), Math.max(0, safeW() - 40 * POS.ux - 50), 'bottom');
   if (id === 'memo') return memoBody('bottom');
-  return `<div class="pagewait padb" data-wait="${id}"><p class="small pad">${PAGE_NAMES[id]}のページは準備中です。</p></div>`;
+  return taskBody('bottom');
 }
 const safeW = () => L.w - safe().left - safe().right;
 function bottomPanel() {
@@ -928,13 +929,39 @@ const flushMemosNow = () => { memoSync(); return memoStore.flushAll(); };
 const flushMemosAwait = async () => { try { const r = await flushMemosNow(); return r.every((x) => x !== false) && !memoStore.anyDirty(); } catch { return false; } };
 document.addEventListener('visibilitychange', () => { if (document.hidden) flushMemosNow(); });
 window.addEventListener('pagehide', flushMemosNow);
+// ---------- タスク: リマインダー許可の案内（カレンダー権限・連携設定とは独立） ----------
+const RM = { state: null, gen: 0 };
+function taskBody(where) {
+  if (RM.state === 'granted') return `<div class="pagewait padb" data-wait="task"><p class="small pad">タスクの一覧は準備中です。</p></div>`;
+  return taskAccessHtml(RM.state, where, NATIVE);
+}
+function setRemState(st) {
+  if (st === RM.state) return;
+  RM.state = st;
+  render();
+}
+// 状態確認のみ（許可は求めない）。古い応答は世代で捨てる。
+async function refreshReminderAccess() {
+  if (!NATIVE) return;
+  const g = ++RM.gen, st = await checkReminderAccess(call);
+  if (g === RM.gen) setRemState(st);
+}
+async function remRequest(where) {
+  const g = ++RM.gen, st = await requestReminderAccess(call);
+  if (g !== RM.gen) return;
+  RM.state = st; render();
+  const el = root.querySelector(`.remgate[data-where="${where}"] button`) || root.querySelector(`.remgate[data-where="${where}"]`);
+  if (el) { el.tabIndex = el.tagName === 'BUTTON' ? el.tabIndex : -1; el.focus({ preventScroll: true }); }
+  say(st === 'granted' ? 'リマインダーへのアクセスを許可しました。' : st === 'denied' ? REM_DENIED_SAY : st === 'restricted' ? 'この端末ではリマインダーへのアクセスが制限されています。' : '');
+}
+const REM_DENIED_SAY = 'リマインダーへのアクセスが許可されませんでした。設定アプリで許可できます。';
 function renderPage(side, id) {
   const cls = side === 'left' ? 'lp' : 'rp';
   if (id === 'month') return `<section class="page ${cls} calendar" data-page="month" aria-label="カレンダー">${shead(side)}${calendarBody('spread')}</section>`;
   if (id === 'time') return `<section class="page ${cls}" data-page="time">${dateHead(side, 'time')}${timeBody(side, paneWidth(side))}${timeMenu(side)}${miniMonth(side)}</section>`;
   if (id === 'memo') return `<section class="page ${cls}" data-page="memo">${dateHead(side, id)}${memoBody(side)}${miniMonth(side)}</section>`;
-  // task: 実装待ちの説明のみ（保存先は作らない）
-  return `<section class="page ${cls}" data-page="${id}">${dateHead(side, id)}<div class="pagewait padb" data-wait="${id}"><p class="small pad">${PAGE_NAMES[id] || ''}のページは準備中です。</p></div>${miniMonth(side)}</section>`;
+  // task: 許可の案内（許可後の一覧は後続の版。保存先は作らない）
+  return `<section class="page ${cls}" data-page="${id}">${dateHead(side, id)}${taskBody(side)}${miniMonth(side)}</section>`;
 }
 // 各ページの下の切替「月｜時間｜タスク｜メモ」（幅 240・高 46）。選んでいるページを押すと何も変えない。
 const PAGE_LABELS = { month: '月', time: '時間', task: 'タスク', memo: 'メモ' };
@@ -1105,6 +1132,8 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'prev') move(-1, d.pane);
   else if (d.act === 'next') move(1, d.pane);
   else if (d.act === 'memolist') { const w = d.where; ML.open[w] = !ML.open[w]; render(); if (ML.open[w]) { loadMemoList(); root.querySelector(`[data-mlq="${w}"]`)?.focus({ preventScroll: true }); } }
+  else if (d.act === 'remreq') remRequest(d.where);
+  else if (d.act === 'remsettings') { call('openSettings').catch(() => {}); }
   else if (d.act === 'memoretry') memoStore.flushMemo(d.mdate);
   else if (d.act === 'sample') loadSample();
   else if (d.act === 'search') openSearch(b);
@@ -2354,7 +2383,7 @@ async function resumeExt() {
   if (X.cache && X.cache.tz !== new Date().getTimezoneOffset()) { X.cache = null; bumpRevision(); } // タイムゾーン変更: キャッシュ破棄
   await loadExt(true);
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { resumeExt(); requestNotifySync('resume'); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { resumeExt(); requestNotifySync('resume'); refreshReminderAccess(); } });
 
 // 設定パネル
 function openLink(from) {
@@ -3144,6 +3173,7 @@ async function initNative() {
   // 連携オフ・カレンダー権限なしでも通知は動くので、購読は権限確認より前に行う。
   listen('calendarChanged', () => { clearTimeout(extTimer); extTimer = setTimeout(() => { if (extActive()) loadExt(true); }, 300); });
   listen('notificationTapped', onNotifyTap);
+  refreshReminderAccess(); // 予定の権限確認とは独立（下の早期 return に影響されない）。状態確認のみ
   listen('timeChanged', () => { X.cache = null; bumpRevision(); requestNotifySync('time'); if (extActive()) loadExt(true); else render(); });
   const p = await checkPerm();
   if (p === null) return;
