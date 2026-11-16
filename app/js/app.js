@@ -233,7 +233,7 @@ function openTouchCheck() {
     L.insertBefore(dot, info);
     const dots = L.querySelectorAll('.tc-dot'); if (dots.length > 20) dots[0].remove();
   });
-  for (const t of ['pointerup', 'click', 'touchstart', 'touchmove', 'contextmenu']) L.addEventListener(t, (e) => { if (t === 'click' && e.target === end) return; e.preventDefault(); stop(e); });
+  for (const t of ['pointerup', 'click', 'touchstart', 'touchmove', 'contextmenu']) L.addEventListener(t, (e) => { if (e.target === end && t !== 'contextmenu') return; e.preventDefault(); stop(e); });
   end.addEventListener('click', (e) => { e.stopPropagation(); closeTouchCheck(); });
   L.append(info, end); document.body.append(L); touchLayer = L; end.focus({ preventScroll: true });
 }
