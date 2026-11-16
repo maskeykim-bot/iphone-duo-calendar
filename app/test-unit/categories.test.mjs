@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   CAT_IDS, DEFAULTS_NEW, LEGACY, PALETTE, UNCATEGORIZED, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, newCategory,
-  planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory,
+  canHideCategory, ensureOneVisible, supplementForReplace, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory,
 } from '../js/categories.js';
 import { buildBackup, validateBackup } from '../js/backup.js';
 import { withDefaults } from '../js/util.js';
@@ -141,11 +141,12 @@ test('バックアップ v2（旧 cat）→ 固定 id に変換、ファイル�
   for (const e of file.events) delete e.categoryId;
   const r = validateBackup(JSON.stringify(file));
   assert.equal(r.ok, true, r.reason);
-  assert.deepEqual(r.data.events.map((e) => e.categoryId), [CAT_IDS.economy, CAT_IDS.golf]);
+  assert.deepEqual(r.data.events.map((e) => e.categoryId), [CAT_IDS.other, CAT_IDS.other]);
   assert.equal(r.data.events[1].overrides['2026-11-16T10:00'].categoryId, CAT_IDS.private);
   for (const e of r.data.events) assert.ok(!('cat' in e));
-  assert.deepEqual(r.data.categories.map((c) => c.name).sort(), ['ゴルフ', 'プライベート', '経済指標'].sort());
-  assert.equal(r.data.categories.find((c) => c.id === CAT_IDS.economy).color, LEGACY.economy.color);
+  assert.deepEqual(r.data.categories.map((c) => c.name).sort(), ['その他', 'プライベート'].sort());
+  assert.equal(r.data.categories.find((c) => c.id === CAT_IDS.other).name, 'その他');
+  assert.equal(r.report.retargeted, 2); assert.equal(r.report.legacyAdded, 1);
   assert.equal(r.data.hasCategories, false);
   assert.equal(validateBackup(JSON.stringify({ ...file, version: 5 })).ok, false);
 });
@@ -217,4 +218,43 @@ test('mergeCategories add: 同じ内容を2回続けて取り込んでも数・�
   assert.deepEqual(twice.categories.map((c) => [c.id, c.name, c.color]), once.categories.map((c) => [c.id, c.name, c.color]));
   assert.deepEqual(once.categories.map((c) => c.name).sort(), ['A', 'A (2)', 'C', 'Z']);
   assert.equal(mergeCategories(twice.categories, inc, 'add').categories.length, 4);
+});
+
+const file = (v, events, categories) => JSON.stringify({ app: 'duo-calendar', version: v, exportedAt: '2026-11-13T00:00:00Z', events, ...(categories ? { categories } : {}) });
+
+test('第15版 PR2: v3/v4 の categoryId 旧ゴルフ・経済指標（親と overrides）も「その他」へ。旧2カテゴリは取り込まない', () => {
+  const e = E('r', CAT_IDS.golf, { recurrence: { freq: 'weekly', interval: 1, byDay: [1], count: null, until: null }, overrides: { '2026-01-12T10:00': { title: 'o', categoryId: CAT_IDS.economy, all: false, start: '2026-01-12T10:00', end: '2026-01-12T11:00' } } });
+  const cats = [{ ...cat(CAT_IDS.golf, 'ゴルフ', 0) }, { ...cat(CAT_IDS.economy, '経済指標', 1) }, cat(CAT_IDS.work, '仕事', 2)];
+  for (const v of [3, 4]) {
+    const r = validateBackup(file(v, [e, E('w', CAT_IDS.work)], cats), { categories: [] });
+    assert.equal(r.ok, true, r.reason);
+    assert.equal(r.data.events[0].categoryId, CAT_IDS.other);
+    assert.equal(r.data.events[0].overrides['2026-01-12T10:00'].categoryId, CAT_IDS.other);
+    assert.equal(r.data.events[1].categoryId, CAT_IDS.work);
+    assert.deepEqual(r.data.categories.map((c) => c.id).sort(), [CAT_IDS.work, CAT_IDS.other].sort());
+    assert.equal(r.report.retargeted, 1); assert.equal(r.report.legacyAdded, 0);
+  }
+});
+
+test('第15版 PR2: 旧 cat の golf/economy（v1）も other。work/private は従来どおり legacyAdded', () => {
+  const body = (id, c) => { const x = E(id, undefined, { cat: c }); delete x.categoryId; return x; };
+  const r = validateBackup(file(1, [body('a', 'golf'), body('b', 'work')]), { categories: [] });
+  assert.deepEqual(r.data.events.map((x) => x.categoryId), [CAT_IDS.other, CAT_IDS.work]);
+  assert.equal(r.report.legacyAdded, 1); assert.equal(r.report.retargeted, 1);
+  assert.equal(r.data.events.length, 2);
+});
+
+test('第15版 PR2: canHideCategory / ensureOneVisible / supplementForReplace', () => {
+  const L = [cat('a', 'A', 1), cat('b', 'B', 0, { hidden: true }), cat('c', 'C', 2, { hidden: true })];
+  assert.equal(canHideCategory(L, 'a'), false);
+  assert.equal(canHideCategory(L, 'b'), true);
+  assert.equal(canHideCategory([cat('a', 'A', 0), cat('b', 'B', 1)], 'a'), true);
+  const all = [cat('a', 'A', 1, { hidden: true }), cat('b', 'B', 0, { hidden: true }), cat('c', 'C', 2, { hidden: true })];
+  const r = ensureOneVisible(all, 5);
+  assert.deepEqual(r.list.map((c) => c.hidden), [true, false, true]);
+  assert.equal(r.changed.length, 1); assert.equal(all[1].hidden, true);
+  assert.equal(ensureOneVisible(L).changed.length, 0);
+  const s = supplementForReplace([cat('x', 'X', 0)], [E('1', CAT_IDS.work)], 7);
+  assert.deepEqual(s.added.map((c) => c.id).sort(), [CAT_IDS.work, CAT_IDS.family, CAT_IDS.out, CAT_IDS.other].sort());
+  assert.equal(supplementForReplace(DEFAULTS_NEW.map((d, i) => cat(d.id, d.name, i)), []).added.length, 0);
 });

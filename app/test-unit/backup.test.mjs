@@ -33,7 +33,7 @@ test('全項目を持つ予定の往復で項目が一つも落ちない（nativ
   assert.deepEqual(v.data.events[0], src);
   assert.deepEqual(v.data.events[0].nativeLink, link);
   assert.deepEqual(v.data.events[0].overrides['2026-11-16T10:00'].alarms, [{ before: 10 }, { before: 60 }]);
-  assert.deepEqual(v.report, { dropped: 0, fallbackCount: 0, legacyAdded: 0, ink: 0 });
+  assert.deepEqual(v.report, { dropped: 0, fallbackCount: 0, legacyAdded: 0, retargeted: 0, ink: 0 });
 });
 
 test('nativeLink が書き出しにも読み込みにも残る（v2 では落ちていた）', () => {
@@ -76,17 +76,17 @@ test('__proto__ を含む JSON を読んでも Object.prototype が汚染され�
   assert.equal(Object.hasOwn(v.data.events[0].strokes, '__proto__'), false);
 });
 
-test('v2 ファイル: cat を固定 id へ。未知の cat は未分類。経済指標カテゴリが追加予定に入る', () => {
+test('v2 ファイル: cat を固定 id へ。旧ゴルフ・経済指標は「その他」へ。未知の cat は未分類', () => {
   const body = (id, c) => ({ ...ev(id, '2026-11-20T10:00', '2026-11-20T11:00', null), categoryId: undefined, cat: c });
   const t = JSON.stringify({ app: 'duo-calendar', version: 2, exportedAt: '2026-11-12T09:41:00+09:00', events: [body('a', 'economy'), body('b', 'golf'), body('c', 'xxx')], settings: { view: 'month', style: 'simple', desk: false } });
   const v = validateBackup(t, { categories: [] });
   assert.equal(v.ok, true);
-  assert.deepEqual(v.data.events.map((e) => e.categoryId), [CAT_IDS.economy, CAT_IDS.golf, CAT_IDS.none]);
+  assert.deepEqual(v.data.events.map((e) => e.categoryId), [CAT_IDS.other, CAT_IDS.other, CAT_IDS.none]);
   assert.equal(v.data.events.some((e) => 'cat' in e), false);
-  assert.deepEqual(v.data.categories.map((c) => c.name).sort(), ['ゴルフ', '未分類', '経済指標'].sort());
-  assert.equal(v.report.legacyAdded, 2); assert.equal(v.report.fallbackCount, 1);
+  assert.deepEqual(v.data.categories.map((c) => c.name).sort(), ['その他', '未分類'].sort());
+  assert.equal(v.report.legacyAdded, 0); assert.equal(v.report.retargeted, 2); assert.equal(v.report.fallbackCount, 1);
   // 現在の DB に既にあるなら追加予定に入れない
-  const w = validateBackup(t, { categories: [{ id: CAT_IDS.economy }, { id: CAT_IDS.golf }, { id: CAT_IDS.none }] });
+  const w = validateBackup(t, { categories: [{ id: CAT_IDS.other }, { id: CAT_IDS.none }] });
   assert.equal(w.data.categories.length, 0);
 });
 

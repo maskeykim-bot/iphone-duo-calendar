@@ -1,6 +1,6 @@
 // 第15版 PR1: 旧カテゴリの一度きり移行（実 IndexedDB）。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, ev } from './helpers.js';
+import { openApp, SIZES, ev, seed } from './helpers.js';
 import { CAT_IDS } from '../js/categories.js';
 
 const KEY = 'categoryRetargetV1';
@@ -107,5 +107,74 @@ test.describe('旧カテゴリの一度きり移行', () => {
     expect(r.map((x) => x.ran).sort()).toEqual([false, true]);
     expect(r.find((x) => x.ran).before).toMatchObject({ categories: 4, legacy: 2 }); // PR12 用の移行前の証拠
     expect(await marker(page)).toMatchObject({ moved: 3, toast: 'pending' });
+  });
+});
+
+// ---- 第15版 PR2: 古い復元と表示の下限 ----
+const cats = (page) => page.evaluate(async () => (await import('/js/db.js')).listCategories());
+const openBk = async (page) => {
+  await page.locator('[data-act="menu"]:visible').first().click();
+  await page.locator('[data-m="backup"]').click();
+  await expect(page.locator('#backup')).toBeVisible();
+};
+const pickJson = (page, obj) => page.setInputFiles('#bk-file', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(obj)) });
+const old = (v, events, categories) => ({ app: 'duo-calendar', version: v, exportedAt: '2026-11-13T00:00:00Z', events, ...(categories ? { categories } : {}), memos: v >= 4 ? [{ id: '2026-11-20', date: '2026-11-20', text: 'メモ', createdAt: 1, updatedAt: 2 }] : undefined });
+const body = (id, categoryId, x = {}) => ({ ...ev(id, id, '2026-11-18T10:00', '2026-11-18T11:00', { categoryId }), ...x });
+
+test.describe('第15版 PR2: 古いバックアップ', () => {
+  for (const mode of ['add', 'replace']) {
+    test(`v4（旧ゴルフ・経済指標・全 hidden）を${mode === 'add' ? '追加' : '置換'}: 予定は消えず other へ、旧カテゴリは復活せず、表示が1つ残る`, async ({ page }) => {
+      await openApp(page, SIZES.closedPortrait, '?nosw');
+      await seed(page, [ev('keep', '残る', '2026-11-12T10:00', '2026-11-12T11:00')]);
+      const fc = [CAT_IDS.golf, CAT_IDS.economy, CAT_IDS.work].map((id, i) => ({ id, name: `c${i}`, color: '#2f5f8a', order: i, hidden: true, createdAt: 1, updatedAt: 1 }));
+      await openBk(page);
+      await pickJson(page, old(4, [body('g', CAT_IDS.golf), body('x', CAT_IDS.economy), body('w', CAT_IDS.work)], fc));
+      await page.locator(`#bk-${mode}`).click();
+      if (mode === 'replace') await page.locator('#bk-rdo').click();
+      await expect(page.locator('#backup')).toBeHidden();
+      const d = await dump(page);
+      const by = Object.fromEntries(d.events.map((e) => [e.id, e]));
+      expect(by.g.categoryId).toBe(CAT_IDS.other); expect(by.x.categoryId).toBe(CAT_IDS.other); expect(by.w.categoryId).toBe(CAT_IDS.work);
+      expect(by.keep ? 1 : 0).toBe(mode === 'add' ? 1 : 0);
+      expect(d.cats.some((c) => c.id === CAT_IDS.golf || c.id === CAT_IDS.economy)).toBe(false);
+      expect(d.cats.some((c) => !c.hidden)).toBe(true);
+      expect(d.cats.some((c) => c.id === CAT_IDS.other)).toBe(true);
+      if (mode === 'replace') for (const id of [CAT_IDS.family, CAT_IDS.out, CAT_IDS.other]) expect(d.cats.some((c) => c.id === id)).toBe(true);
+    });
+  }
+
+  test('v2（旧 cat）の置換でも旧カテゴリは復活しない', async ({ page }) => {
+    await openApp(page, SIZES.closedPortrait, '?nosw');
+    await openBk(page);
+    await pickJson(page, old(2, [{ ...body('g', undefined), cat: 'golf', categoryId: undefined }, { ...body('p', undefined), cat: 'private', categoryId: undefined }]));
+    await page.locator('#bk-replace').click(); await page.locator('#bk-rdo').click();
+    await expect(page.locator('#backup')).toBeHidden();
+    const d = await dump(page);
+    expect(d.events.find((e) => e.id === 'g').categoryId).toBe(CAT_IDS.other);
+    expect(d.cats.some((c) => c.id === CAT_IDS.golf || c.id === CAT_IDS.economy)).toBe(false);
+  });
+});
+
+test.describe('第15版 PR2: 最後の表示カテゴリ', () => {
+  test('最後の✓は書き込まず、揺れて案内が出る。他を戻せば隠せる', async ({ page }) => {
+    await openApp(page, SIZES.closedPortrait, '?nosw');
+    await page.evaluate(async () => { const db = await import('/js/db.js'); const cs = await db.listCategories(); await db.applyCategoryChanges({ catPuts: cs.map((c, i) => ({ ...c, hidden: i > 0 })) }); });
+    await page.reload(); await page.waitForSelector('html[data-ready]');
+    const before = await cats(page);
+    await page.locator('[data-act="menu"]:visible').first().click();
+    await page.locator('[data-m="cats"]').click();
+    const sw = page.locator('#cat-body [data-cat-vis][aria-checked=true]');
+    await expect(sw).toHaveCount(1);
+    await sw.click();
+    await expect(sw).toHaveClass(/shake/);
+    await expect(page.locator('#native-toast')).toHaveText('表示するカテゴリは1つ以上必要です');
+    await expect(sw).toHaveAttribute('aria-checked', 'true');
+    expect(await cats(page)).toEqual(before);
+    await page.waitForTimeout(350);
+    await expect(sw).not.toHaveClass(/shake/);
+    await page.locator('#cat-body [data-cat-vis][aria-checked=false]').first().click();
+    await expect(page.locator('#cat-body [data-cat-vis][aria-checked=true]')).toHaveCount(2);
+    await page.locator('#cat-body [data-cat-vis][aria-checked=true]').nth(1).click();
+    await expect(page.locator('#cat-body [data-cat-vis][aria-checked=true]')).toHaveCount(1);
   });
 });

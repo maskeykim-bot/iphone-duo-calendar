@@ -314,7 +314,7 @@ test.describe('カテゴリ編集パネル', () => {
 });
 
 test.describe('バックアップ読み込みとカテゴリ（旧 cat → id 変換）', () => {
-  test('v2 ファイル（経済指標付き）を新規インストールの端末に読み込むと、経済指標カテゴリが追加される', async ({ page }) => {
+  test('v2 ファイル（経済指標付き）を新規インストールの端末に読み込むと、予定は「その他」に入り、経済指標カテゴリは復活しない', async ({ page }) => {
     await openApp(page);
     const file = { app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T00:00:00Z', events: [
       { id: 'i1', title: '米・物価', cat: 'economy', all: false, start: '2026-11-12T22:30', end: '2026-11-12T23:00', place: '', notes: '', recurrence: null, exdates: [], overrides: {} },
@@ -326,10 +326,9 @@ test.describe('バックアップ読み込みとカテゴリ（旧 cat → id �
     await page.locator('#bk-add').click();
     await expect(page.locator('#backup')).toBeHidden();
     const evs = await dbEvents(page);
-    expect(evs.map((e) => [e.id, e.categoryId])).toEqual([['i1', CAT_IDS.economy], ['i2', CAT_IDS.work]]);
+    expect(evs.map((e) => [e.id, e.categoryId])).toEqual([['i1', CAT_IDS.other], ['i2', CAT_IDS.work]]);
     const cats = await dbCats(page);
-    expect(cats.map((c) => c.name)).toEqual(['仕事', 'プライベート', '家族', '外出', 'その他', '経済指標']);
-    expect(cats.at(-1)).toMatchObject({ id: CAT_IDS.economy, color: '#825a23', order: 5 });
+    expect(cats.map((c) => c.name)).toEqual(['仕事', 'プライベート', '家族', '外出', 'その他']);
   });
 
   test('書き出し → 置き換え読み込みで、カスタムカテゴリと予定の所属が往復する', async ({ page }) => {

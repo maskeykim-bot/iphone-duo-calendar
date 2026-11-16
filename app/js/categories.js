@@ -146,6 +146,33 @@ export function planCategoryRetarget(categories, events, now = Date.now()) {
   const catDels = categories.filter((c) => legacy.has(c.id)).map((c) => c.id);
   return { catPuts, catDels, eventPuts, moved: eventPuts.length };
 }
+// 表示の下限: 最後の1つは隠せない。hidden を true にしてよいか。
+export const canHideCategory = (list, id) => {
+  const c = list.find((x) => x.id === id);
+  if (!c || c.hidden) return true;
+  return list.some((x) => x.id !== id && !x.hidden);
+};
+// 全部 hidden なら sortCategories 先頭だけ false にする。他の hidden は尊重。{ list, changed:[変更した項目] }（入力は変更しない）。
+export function ensureOneVisible(list, now = Date.now()) {
+  if (!list.length || list.some((c) => !c.hidden)) return { list, changed: [] };
+  const first = sortCategories(list)[0];
+  const fixed = { ...first, hidden: false, updatedAt: now };
+  return { list: list.map((c) => (c.id === first.id ? fixed : c)), changed: [fixed] };
+}
+// 置換の復元用: 取り込んだ一覧に不足する家族/外出/その他を補い、予定が参照する仕事/プライベートも補う。
+export function supplementForReplace(list, events, now = Date.now()) {
+  const have = new Set(list.map((c) => c.id));
+  const used = new Set();
+  for (const e of events) { used.add(e.categoryId); for (const o of Object.values(e.overrides || {})) if (o?.categoryId) used.add(o.categoryId); }
+  const must = new Set([CAT_IDS.family, CAT_IDS.out, CAT_IDS.other]);
+  let next = list.reduce((m, c) => Math.max(m, c.order ?? 0), -1) + 1;
+  const added = [];
+  for (const d of DEFAULTS_NEW) {
+    if (have.has(d.id) || !(must.has(d.id) || used.has(d.id))) continue;
+    added.push({ ...d, order: next++, hidden: false, createdAt: now, updatedAt: now });
+  }
+  return { list: [...list, ...added], added };
+}
 export const RETARGET_TOAST = 'ゴルフ・経済指標の予定を「その他」に移しました';
 
 export const countByCategory = (events) => {

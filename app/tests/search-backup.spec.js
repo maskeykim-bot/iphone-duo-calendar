@@ -345,7 +345,7 @@ test.describe('バックアップ', () => {
     expect(await dbEvents(page)).toEqual(before);
   });
 
-  test('v2 ファイルの読み込み: cat → カテゴリ id、経済指標・ゴルフが追加され、未知は未分類。既存データは消えない', async ({ page }) => {
+  test('v2 ファイルの読み込み: cat → カテゴリ id、旧ゴルフ・経済指標は「その他」へ（復活しない）、未知は未分類。既存データは消えない', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait, '?ns=v2in&nosw');
     await seed(page, [ev('keep', '残る予定', '2026-11-30T10:00', '2026-11-30T11:00')]);
     await page.evaluate(async () => { const db = await import('/js/db.js'); const cs = await db.listCategories(); for (const c of cs) if ([ 'd0c47a10-0000-4000-8000-000000000003', 'd0c47a10-0000-4000-8000-000000000004'].includes(c.id)) await db.applyCategoryChanges({ catDels: [c.id] }); });
@@ -359,13 +359,14 @@ test.describe('バックアップ', () => {
     expect(list.map((e) => e.id).sort()).toEqual(['keep', 'v2-a', 'v2-b', 'v2-c', 'v2-d', 'v2-e']);
     const byId = Object.fromEntries(list.map((e) => [e.id, e]));
     expect(byId['v2-a'].categoryId).toBe(CAT_IDS.work);
-    expect(byId['v2-b'].categoryId).toBe(CAT_IDS.economy);
-    expect(byId['v2-c'].categoryId).toBe(CAT_IDS.golf);
+    expect(byId['v2-b'].categoryId).toBe(CAT_IDS.other);
+    expect(byId['v2-c'].categoryId).toBe(CAT_IDS.other);
     expect(byId['v2-d'].categoryId).toBe(CAT_IDS.none);
     expect(byId['v2-e'].overrides['2026-12-21T08:00'].categoryId).toBe(CAT_IDS.work);
     expect(list.some((e) => 'cat' in e)).toBe(false);
     const names = (await dbCats(page)).map((c) => c.name);
-    expect(names).toEqual(expect.arrayContaining(['経済指標', 'ゴルフ', '未分類']));
+    expect(names).toEqual(expect.arrayContaining(['未分類']));
+    expect(names).not.toContain('経済指標'); expect(names).not.toContain('ゴルフ');
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1.v2in')).view)).toBe('month'); // 追加では設定を変えない
     // 置き換えなら設定も v2 のとおり
     await openBackup(page);

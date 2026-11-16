@@ -901,3 +901,6 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .week .pghost.cont{border-left-style:none;border-radius:0 3.5px 3.5px 0}
 .week .pghost.more{border-right-style:none;border-radius:3.5px 0 0 3.5px}
 .week .pghost.cont.more{border-radius:0}
+@keyframes catshake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.sw.shake{animation:catshake .2s linear}
+@media (prefers-reduced-motion:reduce){.sw.shake{animation:none;outline:2px solid var(--green)}}
