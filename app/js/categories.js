@@ -117,6 +117,37 @@ function retarget(e, from, to, now) {
   if (!hit) return null;
   return { ...e, categoryId: e.categoryId === from ? to : e.categoryId, ...(e.overrides ? { overrides: ov } : {}), updatedAt: now };
 }
+// 旧固定 id（ゴルフ・経済指標）を others へ付け替えた複製。参照がなければ null（親と overrides）。
+function retargetAll(e, froms, to, now) {
+  let hit = froms.has(e.categoryId);
+  const ov = {};
+  for (const [k, o] of Object.entries(e.overrides || {})) {
+    if (o && froms.has(o.categoryId)) { hit = true; ov[k] = { ...o, categoryId: to }; } else ov[k] = o;
+  }
+  if (!hit) return null;
+  return { ...e, categoryId: froms.has(e.categoryId) ? to : e.categoryId, ...(e.overrides ? { overrides: ov } : {}), updatedAt: now };
+}
+
+// 一度きりの移行計画（純粋）。入力は変更しない。
+// 既定5つを不足分だけ追加／旧ゴルフ・経済指標の予定（親と overrides）を「その他」へ／旧2カテゴリを削除／残る hidden を全て false。
+// moved は変更した親の数。予定は削除・id 変更しない。
+export function planCategoryRetarget(categories, events, now = Date.now()) {
+  const have = new Map(categories.map((c) => [c.id, c]));
+  const legacy = new Set([CAT_IDS.golf, CAT_IDS.economy]);
+  let next = categories.reduce((m, c) => Math.max(m, c.order ?? 0), -1) + 1;
+  const catPuts = [];
+  for (const d of DEFAULTS_NEW) {
+    if (!have.has(d.id)) catPuts.push({ ...d, order: next++, hidden: false, createdAt: now, updatedAt: now });
+  }
+  for (const c of categories) {
+    if (!legacy.has(c.id) && c.hidden) catPuts.push({ ...c, hidden: false, updatedAt: now });
+  }
+  const eventPuts = events.map((e) => retargetAll(e, legacy, CAT_IDS.other, now)).filter(Boolean);
+  const catDels = categories.filter((c) => legacy.has(c.id)).map((c) => c.id);
+  return { catPuts, catDels, eventPuts, moved: eventPuts.length };
+}
+export const RETARGET_TOAST = 'ゴルフ・経済指標の予定を「その他」に移しました';
+
 export const countByCategory = (events) => {
   const m = new Map();
   for (const e of events) m.set(e.categoryId, (m.get(e.categoryId) || 0) + 1);

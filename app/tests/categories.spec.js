@@ -68,32 +68,32 @@ test.describe('DB v2 → v3 移行', () => {
     await makeV2(page, 'duo-calendar-mig3');
     await openApp(page, undefined, '?ns=mig3&nosw');
     const cats = await page.evaluate(async () => (await (await import('/js/db.js')).listCategories()));
-    // 固定の4つ＋「不明な種類」用の未分類。家族・外出・その他は足さない。
+    // v3 の更新で作った固定4つ＋未分類に、第15版の一度きり移行（起動時）が走る: ゴルフ・経済指標は消え、家族・外出・その他が足される。
     expect(cats.map((c) => [c.name, c.color])).toEqual([
-      [LEGACY.work.name, LEGACY.work.color], [LEGACY.private.name, LEGACY.private.color], [LEGACY.golf.name, LEGACY.golf.color], [LEGACY.economy.name, LEGACY.economy.color], ['未分類', '#68716a'],
+      [LEGACY.work.name, LEGACY.work.color], [LEGACY.private.name, LEGACY.private.color], ['未分類', '#68716a'], ['家族', '#2e6b5a'], ['外出', '#87500f'], ['その他', '#5a5e62'],
     ]);
-    expect(cats.slice(0, 4).map((c) => c.id)).toEqual([CAT_IDS.work, CAT_IDS.private, CAT_IDS.golf, CAT_IDS.economy]);
+    expect(cats.slice(0, 2).map((c) => c.id)).toEqual([CAT_IDS.work, CAT_IDS.private]);
     const r = await raw(page, 'duo-calendar-mig3');
     expect(r.version).toBe(4);
     expect(r.rows).toHaveLength(v2.length);
     for (const row of r.rows) { expect(typeof row.categoryId).toBe('string'); expect(row).not.toHaveProperty('cat'); }
     const by = Object.fromEntries(r.rows.map((x) => [x.id, x]));
     expect(by.m1.categoryId).toBe(CAT_IDS.work);
-    expect(by.m3.categoryId).toBe(CAT_IDS.golf);
-    expect(by.m4.categoryId).toBe(CAT_IDS.economy);
+    expect(by.m3.categoryId).toBe(CAT_IDS.other); // 旧ゴルフ・経済指標の予定は「その他」へ（件数は不変）
+    expect(by.m4.categoryId).toBe(CAT_IDS.other);
     expect(by.m6.categoryId).toBe(CAT_IDS.none);
-    expect(by.m5.overrides['2026-11-23T09:00'].categoryId).toBe(CAT_IDS.golf);
+    expect(by.m5.overrides['2026-11-23T09:00'].categoryId).toBe(CAT_IDS.other);
     expect(by.m5.overrides['2026-11-23T09:00']).not.toHaveProperty('cat');
     expect(by.m5.exdates).toEqual(['2026-11-16T09:00']);
-    // 画面の色は従来と同じ（経済指標も編集できる普通のカテゴリとして残る）
+    // 画面の色: 仕事は従来どおり。旧経済指標の予定は「その他」の色
     await tab(page, '日').click();
     await expect(page.locator('.tlev', { hasText: '仕事の予定' })).toBeVisible();
     expect(await page.locator('.tlev', { hasText: '仕事の予定' }).evaluate((el) => getComputedStyle(el).getPropertyValue('--cat').trim())).toBe('#375a7f');
-    expect(await page.locator('.tlev', { hasText: '指標' }).evaluate((el) => getComputedStyle(el).getPropertyValue('--cat').trim())).toBe('#825a23');
-    await expect(page.locator('.tlev', { hasText: '指標' })).toHaveAttribute('aria-label', /、経済指標/);
+    expect(await page.locator('.tlev', { hasText: '指標' }).evaluate((el) => getComputedStyle(el).getPropertyValue('--cat').trim())).toBe('#5a5e62');
+    await expect(page.locator('.tlev', { hasText: '指標' })).toHaveAttribute('aria-label', /、その他/);
     // 再読み込みしても重複しない
     await page.reload(); await page.waitForSelector('html[data-ready]');
-    expect(await page.evaluate(async () => (await (await import('/js/db.js')).listCategories()).length)).toBe(5);
+    expect(await page.evaluate(async () => (await (await import('/js/db.js')).listCategories()).length)).toBe(6);
     expect((await raw(page, 'duo-calendar-mig3')).rows).toHaveLength(v2.length);
   });
 
@@ -103,8 +103,10 @@ test.describe('DB v2 → v3 移行', () => {
     await openApp(page, undefined, '?ns=mig3b&nosw');
     const cats = await page.evaluate(async () => (await (await import('/js/db.js')).listCategories()));
     expect(cats.filter((c) => c.id === CAT_IDS.work)).toHaveLength(1);
-    expect(cats.find((c) => c.id === CAT_IDS.work)).toMatchObject({ name: '私の仕事', color: '#123456', hidden: true });
-    expect(cats.filter((c) => [CAT_IDS.private, CAT_IDS.golf, CAT_IDS.economy].includes(c.id))).toHaveLength(3);
+    // 名前・色は保持。hidden は第15版の一度きり移行で表示に戻る。旧ゴルフ・経済指標は残らない。
+    expect(cats.find((c) => c.id === CAT_IDS.work)).toMatchObject({ name: '私の仕事', color: '#123456', hidden: false });
+    expect(cats.filter((c) => [CAT_IDS.private, CAT_IDS.other].includes(c.id))).toHaveLength(2);
+    expect(cats.some((c) => [CAT_IDS.golf, CAT_IDS.economy].includes(c.id))).toBe(false);
     expect((await raw(page, 'duo-calendar-mig3b')).rows).toHaveLength(v2.length);
   });
 });

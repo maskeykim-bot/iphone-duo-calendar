@@ -1,7 +1,7 @@
 // IndexedDB データ層。schema を変えるときは SCHEMA_VERSION を上げ、MIGRATIONS に追記する。
 import { withDefaults, isKey } from './util.js';
 import { planNotifyBackfill } from './notify.js';
-import { CAT_IDS, DEFAULTS_NEW, LEGACY, UNCATEGORIZED, legacyToId, sortCategories } from './categories.js';
+import { CAT_IDS, DEFAULTS_NEW, LEGACY, UNCATEGORIZED, legacyToId, planCategoryRetarget, sortCategories } from './categories.js';
 
 export const SCHEMA_VERSION = 4;
 const BASE_NAME = 'duo-calendar';
@@ -275,6 +275,39 @@ export const restoreUndone = ({ record, opId }) => run(['events', 'meta'], 'read
     const had = !!ev.target.result;
     if (!had) events.put(record);
     readOutbox(meta, (cur) => { const next = cur.filter((o) => o.opId !== opId); meta.put({ key: OUTBOX, items: next }); set({ restored: !had, list: next, event: withDefaults(record) }); });
+  };
+});
+
+// ---------- 一度だけのカテゴリ移行（meta の categoryRetargetV1。schema は上げない。バックアップには出さない） ----------
+// categories / events / meta の1トランザクション。印があれば何もしない。途中失敗なら全体ロールバック（印も残らず次の起動で再実行）。
+// 戻り値 { ran, marker:{at,moved,toast}, before:{categories,events,legacy} }（before は移行前の証拠。ran=false のときは null）。
+const RETARGET = 'categoryRetargetV1';
+export const migrateCategoriesOnce = (now = new Date()) => run(['categories', 'events', 'meta'], 'readwrite', ({ categories, events, meta }, set) => {
+  meta.get(RETARGET).onsuccess = (ev) => {
+    const done = ev.target.result;
+    if (done) { set({ ran: false, marker: done.value, before: null }); return; }
+    categories.getAll().onsuccess = (e1) => {
+      const cats = e1.target.result;
+      events.getAll().onsuccess = (e2) => {
+        const evs = e2.target.result;
+        const plan = planCategoryRetarget(cats, evs, now.getTime());
+        plan.catPuts.forEach((c) => categories.put(c));
+        plan.catDels.forEach((id) => categories.delete(id));
+        plan.eventPuts.forEach((e) => events.put(e));
+        const marker = { at: now.toISOString(), moved: plan.moved, toast: plan.moved > 0 ? 'pending' : 'skip' };
+        meta.put({ key: RETARGET, value: marker });
+        set({ ran: true, marker, before: { categories: cats.length, events: evs.length, legacy: plan.catDels.length } });
+      };
+    };
+  };
+});
+// トーストを出し終えたら pending → done。別トランザクション。
+export const markRetargetToastDone = () => run(['meta'], 'readwrite', ({ meta }, set) => {
+  meta.get(RETARGET).onsuccess = (ev) => {
+    const r = ev.target.result;
+    if (r?.value?.toast !== 'pending') { set(false); return; }
+    meta.put({ ...r, value: { ...r.value, toast: 'done' } });
+    set(true);
   };
 });
 
