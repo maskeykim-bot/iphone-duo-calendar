@@ -88,6 +88,7 @@ async function mock(page, cfg = {}) {
             if (M.getErr) throw { code: M.getErr, message: 'x' };
             if (!(opts.itemId || opts.externalId || opts.eventId) || !opts.occurrenceStart || !opts.currentStart) throw { code: 'INVALID_ARGUMENT', message: 'x' };
             const d = c.details.find((x) => (x.itemId === opts.itemId || x.externalId === opts.externalId || x.eventId === opts.eventId) && (x.occurrenceDate ?? x.start) === opts.occurrenceStart);
+            if (!d && Object.values(M.created).includes(opts.eventId)) return { eventId: opts.eventId, start: opts.currentStart, modifiedAt: M.createdMod ?? 1763100000000 }; // createEvent(s) で作った予定の最新（PR32）
             if (!d) throw { code: 'NOT_FOUND', message: 'x' };
             return clone(d);
           }
@@ -1378,5 +1379,141 @@ test.describe('貼付のまとめ確定と再試行（PR31）', () => {
     await page.reload();
     await page.waitForSelector('html[data-ready]');
     await expect(page.locator('#xretry')).toBeHidden();
+  });
+});
+
+// 第14版 PR32: 貼り付けた予定を六秒以内に取り消す（偽装。Swift 実動作の証明ではない）
+test.describe('貼付の取消（PR32）', () => {
+  const D3 = ['2026-11-16', '2026-11-17', '2026-11-18'];
+  const paste = (page, days, { fail = {}, source = {} } = {}) => page.evaluate(async ({ days, fail, source }) => {
+    const { planPaste } = await import('/js/paste.js');
+    window.__mock.createEventsFail = fail;
+    let n = 0;
+    const src = { title: '貼る', categoryId: 'work', all: false, start: '2026-11-12T10:00', end: '2026-11-12T11:00', place: '', notes: '', alarms: [{ before: 30 }], nativeLink: { state: 'linked', calendarId: 'cal-1' }, ...source };
+    const plan = planPaste(src, days, { cals: window.__mock.cals, enabled: true, defaultCalendarId: 'cal-1', defaultCatId: () => 'other', newId: () => `x${++n}`, pastedAt: 1 });
+    return await window.pasteCommit(plan);
+  }, { days, fail, source });
+  const mine = async (page) => (await dbEvents(page)).filter((e) => e.title === '貼る');
+  const EXT = { origin: 'iphone', calId: 'cal-1', itemId: 'it-1', externalId: 'ex-1', eventId: 'e1', title: '歯医者', start: '2026-11-12T15:00', end: '2026-11-12T16:00', all: false, nativeLink: undefined, alarms: undefined };
+  const toast = (page) => page.locator('#native-toast');
+
+  test('linked 3件: 6秒内の取消で Duo と iPhone（deleteEvent）から消え、通知は入れ直し、取消の記録は残らない', async ({ page }) => {
+    await mock(page, { notif: 'granted' });
+    await openApp(page); await enable(page);
+    const r = await paste(page, D3);
+    expect(r.done).toBe(3);
+    await expect(toast(page)).toContainText('3件を貼り付けました。');
+    const n0 = (await calls(page, 'notifySync')).length;
+    await toast(page).getByRole('button', { name: '元に戻す' }).click();
+    await expect(toast(page)).toContainText('貼り付けを取り消しました。');
+    expect(await mine(page)).toHaveLength(0);
+    await expect.poll(async () => (await calls(page, 'deleteEvent')).length).toBe(3);
+    expect((await calls(page, 'notifySync')).length).toBeGreaterThan(n0);
+    expect(await page.evaluate(() => window.__mock.pending.length)).toBe(0);
+    expect(JSON.stringify(await dbEvents(page))).not.toContain('undo');
+  });
+
+  test('貼付後に編集した Duo 予定は残り、件数を説明する。取消連打でも1回だけ', async ({ page }) => {
+    await mock(page);
+    await openApp(page); await enable(page);
+    await paste(page, D3);
+    await page.evaluate(async () => { const db = await import('/js/db.js'); const e = (await db.listEvents()).find((x) => x.start.startsWith('2026-11-17') && x.title === '貼る'); await db.putEvent({ ...e, title: '貼る', notes: '編集', updatedAt: 99 }); });
+    const b = toast(page).getByRole('button', { name: '元に戻す' });
+    await b.dblclick().catch(() => {});
+    await expect(toast(page)).toContainText('1件は貼り付けたあとに変更されていたため、残しました。');
+    const left = await mine(page);
+    expect(left.map((e) => e.start.slice(0, 10))).toEqual(['2026-11-17']);
+    expect(left[0].notes).toBe('編集');
+    await expect.poll(async () => (await calls(page, 'deleteEvent')).length).toBe(2);
+  });
+
+  test('linked 側が貼付後に iPhone で変更されていたら削除せず、Duo の予定も戻す', async ({ page }) => {
+    await mock(page);
+    await openApp(page); await enable(page);
+    await paste(page, D3);
+    await page.evaluate(() => { window.__mock.createdMod = 1763199999999; });
+    await toast(page).getByRole('button', { name: '元に戻す' }).click();
+    await expect.poll(async () => (await mine(page)).length).toBe(3);
+    expect(await calls(page, 'deleteEvent')).toHaveLength(0);
+    await expect(toast(page)).toContainText('残しました');
+    expect((await mine(page)).every((e) => e.nativeLink?.state === 'linked')).toBe(true);
+    await expect.poll(async () => (await page.evaluate(async () => (await (await import('/js/db.js')).getOutbox()).length))).toBe(0);
+  });
+
+  test('iPhone だけの複製（型B）: force なしの deleteExternalEvent。CONFLICT は残す', async ({ page }) => {
+    await mock(page);
+    await openApp(page); await enable(page);
+    await paste(page, D3, { source: EXT });
+    expect(await mine(page)).toHaveLength(0);
+    await page.evaluate(() => { window.__mock.extConflict = true; });
+    await toast(page).getByRole('button', { name: '元に戻す' }).click();
+    await expect(toast(page)).toContainText('3件は貼り付けたあとに変更されていたため、残しました。');
+    const d = await calls(page, 'deleteExternalEvent');
+    expect(d).toHaveLength(3);
+    for (const c of d) expect(c.opts).toMatchObject({ span: 'this', expectModified: 1763100000000, force: false });
+  });
+
+  test('型B は成功すれば消える。DB を壊さず「取り消しました」', async ({ page }) => {
+    await mock(page);
+    await openApp(page); await enable(page);
+    await paste(page, D3, { source: EXT });
+    await toast(page).getByRole('button', { name: '元に戻す' }).click();
+    await expect(toast(page)).toContainText('貼り付けを取り消しました。');
+    expect(await calls(page, 'deleteExternalEvent')).toHaveLength(3);
+  });
+
+  test('6秒を過ぎると取り消せない（ボタンが消え、記録も捨てる）。再起動後もない', async ({ page }) => {
+    await mock(page);
+    await openApp(page); await enable(page);
+    await paste(page, ['2026-11-16']);
+    await expect(toast(page).getByRole('button', { name: '元に戻す' })).toBeVisible();
+    await page.waitForTimeout(4400);
+    await expect(toast(page).getByRole('button', { name: '元に戻す' })).toBeVisible(); // 通常の4秒では消えない
+    await expect(toast(page)).toBeHidden({ timeout: 3000 });
+    expect(await mine(page)).toHaveLength(1);
+    await page.reload(); await page.waitForSelector('html[data-ready]');
+    await expect(page.getByRole('button', { name: '元に戻す' })).toHaveCount(0);
+  });
+
+  test('失敗ダイアログ中は始めず、閉じたあとから6秒', async ({ page }) => {
+    await mock(page);
+    await openApp(page); await enable(page);
+    await paste(page, D3, { fail: { x4: 'UNAVAILABLE' } });
+    await expect(page.locator('#xretry')).toBeVisible();
+    await page.waitForTimeout(6500);
+    await page.locator('#xr-close').click();
+    await expect(toast(page).getByRole('button', { name: '元に戻す' })).toBeVisible();
+    await toast(page).getByRole('button', { name: '元に戻す' }).click();
+    await expect(toast(page)).toContainText('貼り付けを取り消しました。');
+    await expect.poll(async () => (await mine(page)).length).toBe(1); // 失敗した1件（Duo のみ）は貼付の成功分ではないので残る
+  });
+
+  test('DB 失敗では何も消えず、再度押せる', async ({ page }) => {
+    await mock(page);
+    await openApp(page); await enable(page);
+    await paste(page, ['2026-11-16', '2026-11-17']);
+    await page.evaluate(async () => {
+      const db = await import('/js/db.js'); const orig = db.applyUndo;
+      window.__origUndo = orig;
+      // モジュール名前空間は書換不可のため IDBObjectStore.delete を一度だけ失敗させる
+      const od = IDBObjectStore.prototype.delete; IDBObjectStore.prototype.delete = function (...a) { IDBObjectStore.prototype.delete = od; throw new Error('boom'); };
+    });
+    await toast(page).getByRole('button', { name: '元に戻す' }).click();
+    await expect(page.locator('#status')).toContainText('保存できませんでした');
+    expect(await mine(page)).toHaveLength(2);
+    expect(await calls(page, 'deleteEvent')).toHaveLength(0);
+    await expect(toast(page).getByRole('button', { name: '元に戻す' })).toBeVisible();
+    await toast(page).getByRole('button', { name: '元に戻す' }).click();
+    await expect.poll(async () => (await mine(page)).length).toBe(0);
+  });
+
+  test('別のお知らせに入れ替わるとボタンは消えるが、DB・通知は壊れない', async ({ page }) => {
+    await mock(page);
+    await openApp(page); await enable(page);
+    await paste(page, ['2026-11-16']);
+    await expect(toast(page)).toBeVisible();
+    await page.evaluate(() => { document.querySelector('#native-toast').remove(); });
+    expect(await mine(page)).toHaveLength(1);
+    await page.waitForTimeout(6300); // 記録は6秒で静かに捨てられる
   });
 });

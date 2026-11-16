@@ -3137,7 +3137,7 @@ async function sendEntries(entries) {
 }
 // 結果を DB・表示へ反映して { done, failures } を返す。型A: 成功→linked／再試行不可→unlinked（1トランザクション）、再試行できる失敗は pending のまま。
 async function applyPasteResults(entries, res) {
-  const out = { done: 0, failures: [] };
+  const out = { done: 0, failures: [], made: [] };
   const fail = (x, code, retry) => out.failures.push({ kind: x.kind, day: x.day, rid: x.rid, id: x.id, code, retry, entry: x });
   const as = entries.filter((x) => x.kind === 'A');
   const byId = new Map(as.map((x) => [x.id, x]));
@@ -3156,10 +3156,11 @@ async function applyPasteResults(entries, res) {
   const ops = [];
   for (const x of entries) {
     const r = res.get(x.rid);
-    if (x.kind === 'B') { if (r.ok) out.done++; else fail(x, r.code, !HARD_CREATE.includes(r.code)); continue; }
+    if (x.kind === 'B') { if (r.ok) { out.done++; out.made.push({ kind: 'ext', rid: x.rid, target: { ...(r.itemId != null ? { itemId: String(r.itemId) } : {}), ...(r.externalId != null ? { externalId: String(r.externalId) } : {}), ...(r.eventId != null ? { eventId: String(r.eventId) } : {}), occurrenceStart: x.item.start, currentStart: x.item.start }, modifiedAt: Number.isFinite(r.modifiedAt) ? r.modifiedAt : null }); } else fail(x, r.code, !HARD_CREATE.includes(r.code)); continue; }
     if (r.ok) {
       if (!acked) { fail(x, 'UNAVAILABLE', true); continue; }
       out.done++;
+      out.made.push({ kind: 'duo', id: x.id, updatedAt: x.e.updatedAt });
       const nl = links.get(x.id) || linkFrom({ requestId: x.rid, calendarId: x.item.calendarId }, r);
       ops.push(...lateOps(x.id, x.e, x.sent, nl));
     } else fail(x, r.code, !acked || !HARD_CREATE.includes(r.code));
@@ -3216,14 +3217,70 @@ async function pasteCommit(plan) {
       ? { kind: 'A', id: i.event.id, rid: i.native.requestId, day: i.day, e: i.event, sent: sentOf(i.event), item: i.native }
       : { kind: 'B', rid: i.native.requestId, day: i.day, item: i.native }));
     if (duoPuts.some((e) => !e.nativeLink && hasDuoAlarms(e))) askNotifyPerm();
-    if (!entries.length) { requestNotifySync('edit'); render(); say(`${duoPuts.length}日に貼り付けました。`); return { ok: true, done: duoPuts.length, failures: [] }; }
+    if (!entries.length) { requestNotifySync('edit'); render(); say(`${duoPuts.length}日に貼り付けました。`); startUndo(duoPuts.map((e) => ({ kind: 'duo', id: e.id, updatedAt: e.updatedAt }))); return { ok: true, done: duoPuts.length, failures: [] }; }
     const dn = duoPuts.length - entries.filter((x) => x.kind === 'A').length; // iPhone へ送らない Duo だけの分（混在は想定しない）
     const out = await runPaste(entries);
     out.done += dn;
-    return { ok: true, ...out, failures: out.failures.map(({ kind, day, code, retry }) => ({ kind, day, code, retry })) };
+    const sent = new Set(entries.filter((x) => x.kind === 'A').map((x) => x.id));
+    startUndo([...duoPuts.filter((e) => !sent.has(e.id)).map((e) => ({ kind: 'duo', id: e.id, updatedAt: e.updatedAt })), ...out.made]);
+    return { ok: true, done: out.done, failures: out.failures.map(({ kind, day, code, retry }) => ({ kind, day, code, retry })) };
   } finally { xBusy = false; }
 }
 window.pasteCommit = pasteCommit;
+// ---------- 貼り付けの取消（PR32。メモリだけ・6秒） ----------
+// undoRec = { items:[{kind:'duo',id,updatedAt}|{kind:'ext',rid,target,modifiedAt}], armed, timer, n }。バックアップ・DB には何も書かない。
+const UNDO_MS = 6000;
+let undoRec = null;
+function dropUndo() { if (undoRec) { clearTimeout(undoRec.timer); undoRec = null; } }
+function startUndo(items) {
+  dropUndo();
+  if (!items.length) return;
+  undoRec = { items, n: items.length, armed: false, timer: 0 };
+  armUndo(undoRec);
+}
+// 失敗ダイアログ（または再試行中）が出ている間は始めず、閉じたあとの6秒にする。
+function armUndo(rec, ms = UNDO_MS) {
+  if (undoRec !== rec) return;
+  clearTimeout(rec.timer);
+  if (xrDlg.open || xBusy) { rec.timer = setTimeout(() => armUndo(rec, ms), 200); return; }
+  rec.at = Date.now();
+  rec.timer = setTimeout(() => { if (undoRec === rec) undoRec = null; }, ms);
+  notice(`${rec.n}件を貼り付けました。`, { label: '元に戻す', fn: undoPaste }, ms);
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) dropUndo(); });
+const undoLinkedOp = (raw, now) => {
+  const l = raw.nativeLink;
+  if (l?.state !== 'linked' || !l.eventId) return null;
+  return { opId: newId(), kind: 'delete', undoOnly: true, eventKey: raw.id, link: { ...l }, span: 'this', occurrenceStart: null, payload: {}, newParentId: null, newRequestId: null, createdAt: now, tries: 0, start: raw.start, expectModified: Number.isFinite(l.ekModified) ? l.ekModified : null, restore: raw };
+};
+async function undoPaste() {
+  const rec = undoRec;
+  if (!rec || !rec.at) return;
+  const left = Math.max(1, UNDO_MS - (Date.now() - rec.at));
+  clearTimeout(rec.timer); undoRec = null; // 連打しても1回だけ
+  document.querySelector('#native-toast')?.remove();
+  const duo = rec.items.filter((i) => i.kind === 'duo'), ext = rec.items.filter((i) => i.kind === 'ext');
+  let kept = 0;
+  if (duo.length) {
+    let r;
+    try { r = await db.applyUndo({ items: duo, mk: (raw) => undoLinkedOp(raw, Date.now()), outbox: (cur, ops) => mergeOps(cur, ops, OBX.inflight) }); } catch {
+      say(SAVE_FAIL); undoRec = rec; armUndo(rec, left); return; // 何も消えていない。残り時間で再度押せる
+    }
+    OBX.items = r.list;
+    const gone = new Set(r.deleted);
+    if (gone.size) { state.events = state.events.filter((e) => !gone.has(e.id)); bumpRevision(); }
+    kept += r.kept.length;
+    requestNotifySync('undo');
+    if (r.ops.length) requestFlush();
+    render();
+  }
+  for (const x of ext) {
+    try { await call('deleteExternalEvent', { ...x.target, span: 'this', expectModified: x.modifiedAt, force: false }); } catch { kept++; }
+  }
+  if (ext.length) loadExt(true);
+  notice(kept ? `${kept}件は貼り付けたあとに変更されていたため、残しました。` : '貼り付けを取り消しました。');
+}
+
 // 閉じる・放棄: 残った pending を unlinked へ戻す（Duo の通知で鳴るように）。同じ requestId で pending のものだけ。
 async function abandonMany(list) {
   const rids = new Map(list.map((x) => [x.id, x.rid]));
@@ -3340,6 +3397,7 @@ async function sendOp(op) {
   if (rl.drop) { await ackOps({ outbox: removeOp(op.opId) }); return 'ok'; }
   const link = rl.link, args = buildArgs(op, link);
   OBX.inflight = op.opId;
+  if (op.undoOnly) { try { return await sendUndo(op, link, args); } finally { OBX.inflight = null; } }
   try {
     let res, conflict = false;
     try { res = await call(op.kind === 'delete' ? 'deleteEvent' : 'updateEvent', args); } catch (e) {
@@ -3350,6 +3408,33 @@ async function sendOp(op) {
   } catch (e) {
     return await onSendFail(op, link, e);
   } finally { OBX.inflight = null; }
+}
+// 取消用の削除: 削除の直前に最新の iPhone 側を確認し、貼付後に変わっていれば（force せず）消さずに Duo の予定を戻す。
+async function sendUndo(op, link, args) {
+  try {
+    const ids = { itemId: link.itemId || '', externalId: link.externalId || '', eventId: link.eventId || '' };
+    let d = null;
+    try { d = await call('getEvent', { ...ids, occurrenceStart: op.start, currentStart: op.start }); } catch (e) {
+      if (errCode(e) === 'NOT_FOUND') { await ackOps({ outbox: removeOp(op.opId) }); return 'ok'; } // すでに無い
+      throw e;
+    }
+    if (Number.isFinite(op.expectModified) && Number.isFinite(d?.modifiedAt) && d.modifiedAt !== op.expectModified) throw { code: 'CONFLICT' };
+    if (Number.isFinite(op.expectModified)) args.expectModified = op.expectModified;
+    await call('deleteEvent', args);
+    await ackOps({ outbox: removeOp(op.opId) });
+    return 'ok';
+  } catch (e) { return await onSendFail(op, link, e); }
+}
+// 取消の削除を取りやめる: iPhone の予定は消さず、Duo の予定を（なければ）戻す。
+async function keepUndone(op) {
+  try {
+    const r = await db.restoreUndone({ record: op.restore, opId: op.opId });
+    OBX.items = r.list;
+    if (r.restored) { state.events = [...state.events.filter((e) => e.id !== op.restore.id), r.event]; bumpRevision(); }
+  } catch { /* 送信待ちは残り、次の機会にもう一度判定する */ return; }
+  notice('iPhone 側で変更されていたため、1件は残しました。');
+  requestNotifySync('undo');
+  render();
 }
 async function onSendOk(op, link, res, conflict) {
   const now = Date.now(), del = op.kind === 'delete';
@@ -3391,6 +3476,7 @@ async function unlinkOp(op, warn, msg) {
 }
 async function onSendFail(op, link, e) {
   const code = errCode(e);
+  if (op.undoOnly && ['CONFLICT', 'READ_ONLY', 'CALENDAR_NOT_FOUND'].includes(code)) { await keepUndone(op); return 'ok'; }
   switch (code) {
     case 'NOT_FOUND':
       if (op.kind === 'delete') { await ackOps({ outbox: removeOp(op.opId) }); return 'ok'; }
@@ -3411,6 +3497,7 @@ async function onSendFail(op, link, e) {
       return 'stop';
     default: {
       const tries = (op.tries || 0) + 1;
+      if (tries >= 5 && op.undoOnly) { await keepUndone(op); return 'ok'; }
       if (tries >= 5) { await unlinkOp(op, null, MSG.gaveUp); return 'ok'; }
       await ackOps({ outbox: (cur) => cur.map((o) => (o.opId === op.opId ? { ...o, tries } : o)) });
       return 'fail';

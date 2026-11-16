@@ -245,6 +245,39 @@ export const applyAck = ({ keys = [], update = () => null, outbox = (l) => l }) 
   readOutbox(meta, (cur) => { out.list = outbox(cur); meta.put({ key: OUTBOX, items: out.list }); });
 });
 
+// 貼付の取消（第14版 PR32）: items=[{id, updatedAt}] をトランザクション内で読み直し、updatedAt が貼付時のままのものだけ消す。
+// mk(raw) は linked の予定に積む送信待ち（なければ null）。outbox(現在, 新しい操作) → 新しい一覧。戻り値 { deleted:[id], kept:[id], list }
+export const applyUndo = ({ items = [], mk = () => null, outbox = (c, ops) => [...c, ...ops] }) => run(['events', 'meta'], 'readwrite', ({ events, meta }, set) => {
+  const out = { deleted: [], kept: [], list: null, ops: [] };
+  set(out);
+  let left = items.length;
+  const fin = () => readOutbox(meta, (cur) => {
+    out.list = out.ops.length ? outbox(cur, out.ops) : cur;
+    if (out.ops.length) meta.put({ key: OUTBOX, items: out.list });
+  });
+  if (!left) { fin(); return; }
+  items.forEach((it) => {
+    events.get(it.id).onsuccess = (ev) => {
+      const raw = ev.target.result;
+      if (raw && raw.updatedAt === it.updatedAt) {
+        events.delete(it.id); out.deleted.push(it.id);
+        const op = mk(raw);
+        if (op) out.ops.push(op);
+      } else if (raw) out.kept.push(it.id);
+      if (--left === 0) fin();
+    };
+  });
+});
+// 取消を取りやめて Duo の予定を戻す（iPhone 側が貼付後に変わっていたとき）。同じ id の予定が既にあれば何も書かない。送信待ちから opId を除く。
+export const restoreUndone = ({ record, opId }) => run(['events', 'meta'], 'readwrite', ({ events, meta }, set) => {
+  set({ restored: false, list: null });
+  events.get(record.id).onsuccess = (ev) => {
+    const had = !!ev.target.result;
+    if (!had) events.put(record);
+    readOutbox(meta, (cur) => { const next = cur.filter((o) => o.opId !== opId); meta.put({ key: OUTBOX, items: next }); set({ restored: !had, list: next, event: withDefaults(record) }); });
+  };
+});
+
 // ---------- 一度だけの既定通知の付与（meta の notifyBackfillV1。バックアップには出さず、読み込みからは呼ばない） ----------
 // events と meta の1トランザクションで、マーカー確認 → 対象の更新 → マーカー書込み。途中で失敗すれば全体ロールバック（次の起動で再実行）。
 // 戻り値 { ran: このときに実行した, count: 付けた件数 }
