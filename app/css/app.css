@@ -669,3 +669,13 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .menurows .swrow[aria-checked=true] .rkswitch{background:var(--green)}
 .menurows .swrow[aria-checked=true] .rkswitch::after{transform:translateX(20px)}
 .menurows .swnote{margin:0 0 6px;padding:0 12px;font-size:12px;line-height:1.4;color:#68716A}
+
+/* 第14版 PR3: 六曜。月のマスは数字の行の左端（左3・8pt）、日の見出しは日付の右8pt・13pt、週は9pt */
+.week .rk{position:absolute;left:3px;top:0;z-index:1;font-size:8px;line-height:var(--date-h);color:#A8ABA4;white-space:nowrap;pointer-events:none}
+.week .day.out .rk{color:#C9C6BC}
+.hrk{margin-left:8px;font:400 13px/1 -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif;color:#68716A;white-space:nowrap}
+.wrk{display:block;font-size:9px;font-weight:400;line-height:1.2;color:#A8ABA4;text-align:inherit}
+.tlhd .wrk{display:inline;margin-left:3px}
+.weekview.cols .wd{display:flex;flex-direction:column;align-items:center;justify-content:center}
+.vlist .wd{flex-direction:column;align-items:flex-start;justify-content:center}
+.week .num.sd{padding:0 4px;margin-left:4px;letter-spacing:-.5px} /* 「11/1」は左の六曜（左3＋16）にかからないよう少し右へ */

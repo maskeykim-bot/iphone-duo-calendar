@@ -99,7 +99,7 @@ for (const size of PORTRAITS) {
       for (const t of ['A', 'B', 'C', 'D', 'E']) await expect(page.locator('.calendar .strip', { hasText: `予定${t}` })).toBeVisible();
       await expect(page.locator('.plus[data-jump="2026-11-27"]')).toHaveCount(0);
       await pickDay(page, '2026-11-27');
-      await expect(page.locator('#ctitle')).toHaveText('11月27日（金）');
+      await expect(page.locator('#ctitle')).toHaveText('11月27日（金）仏滅');
       await expect(page.locator('.daylist .event')).toHaveCount(5);
       await expect(tab(page, '日')).toHaveAttribute('aria-pressed', 'true');
     });
@@ -237,6 +237,6 @@ test.describe('開いた縦 626×890: 週', () => {
     await expect(page.locator('.weekrow', { hasText: '出張・京都' })).toHaveCount(4);
     await expect(page.locator('.weekrow', { hasText: '出張・京都' }).first().locator('.clock')).toHaveText('終日');
     await page.getByRole('button', { name: '11月20日（金）を日表示で開く' }).click();
-    await expect(page.locator('#ctitle')).toHaveText('11月20日（金）');
+    await expect(page.locator('#ctitle')).toHaveText('11月20日（金）先負');
   });
 });

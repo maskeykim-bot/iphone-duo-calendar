@@ -7,6 +7,7 @@ import { LIMIT, groupByDay, highlight, excerpt, searchEvents } from './search.js
 import { backupName, buildBackup, countStats, localIso, planAppend, validateBackup, MAX_BYTES } from './backup.js';
 import { CAT_IDS, LIMITS as CAT_LIMITS, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory } from './categories.js';
 import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAlarms, encAlarm, fireAt, nextNotifyText, normNotify, pastForNotify, planNotifications, MAX_PENDING, WINDOW_DAYS } from './notify.js';
+import { rokuyoOf } from './rokuyo.js';
 import { call, errCode, errReason, errText, listen, nativeAvailable } from './native.js';
 import { buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, pickAddCal, planNativeOps, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
 import {
@@ -384,6 +385,10 @@ function periodTitle() {
   }
   return dayLabel(state.selected);
 }
+// 六曜（表示のみ）。日付の文字列 k のまま引く（Date を通さない）。オフ・範囲外・不正は null → 要素ごと出さない。
+const rkOf = (k) => (state.rokuyo ? rokuyoOf(k) : null);
+const rkSpan = (k, cls) => { const r = rkOf(k); return r ? `<span class="${cls}" aria-hidden="true">${r.name}</span>` : ''; };
+const dayTitle = (k) => `${dayLabel(k)}${rkSpan(k, 'hrk')}`; // 日の見出し（日付のすぐ右に六曜）
 const unit = () => ({ month: '月', week: '週', day: '日' }[state.view]);
 const navBtn = (dir) => `<button type="button" data-act="${dir > 0 ? 'next' : 'prev'}" aria-label="${dir > 0 ? '次' : '前'}の${unit()}">${dir > 0 ? '›' : '‹'}</button>`;
 const arrows = () => `<div class="arrows">${navBtn(-1)}${navBtn(1)}</div>`;
@@ -397,7 +402,7 @@ const allBtn = (cls = 'allbtn', st = '') => `<button type="button" class="${cls}
 // 見出し: 閉じた画面（帯あり）は 前・題名・次 のみ（全は帯）。帯なし／開いた縦は 全 も見出しに置く。
 const chead = () => {
   const inBand = POS.post === 'closed' && POS.band;
-  return `<div class="chead">${navBtn(-1)}<h2 id="ctitle">${periodTitle()}</h2>${navBtn(1)}${state.view === 'month' && !inBand ? allBtn() : ''}</div>`;
+  return `<div class="chead">${navBtn(-1)}<h2 id="ctitle">${periodTitle()}${state.view === 'day' ? rkSpan(state.selected, 'hrk') : ''}</h2>${navBtn(1)}${state.view === 'month' && !inBand ? allBtn() : ''}</div>`;
 };
 
 function card(e) {
@@ -412,7 +417,7 @@ function dayList(k) {
 }
 function agenda(k) {
   const n = eventsOnDay(occIn(k, k), k).length;
-  return `<section class="agenda" aria-label="選択日の予定"><div class="eyebrow">選択日の予定</div><h3>${dayLabel(k)}</h3><div class="count small">${n}件の予定</div><div class="list" data-scroll="agenda">${dayList(k)}</div></section>`;
+  return `<section class="agenda" aria-label="選択日の予定"><div class="eyebrow">選択日の予定</div><h3>${dayTitle(k)}</h3><div class="count small">${n}件の予定</div><div class="list" data-scroll="agenda">${dayList(k)}</div></section>`;
 }
 
 // ---------- 月（手帳｜予定名｜全部 共通の週描画） ----------
@@ -448,9 +453,9 @@ function weekInner(w, { mode, cur, sel, today, cap, time }) {
   let html = '';
   days.forEach((k, col) => {
     const es = eventsOnDay(wev, k), d = parseKey(k), dow = d.getDay();
-    const label = d.getDate() === 1 ? `${d.getMonth() + 1}月1日` : d.getDate();
+    const r = rkOf(k), label = d.getDate() === 1 ? (state.rokuyo ? `${d.getMonth() + 1}/1` : `${d.getMonth() + 1}月1日`) : d.getDate(); // 六曜オンの1日は「11/1」（左の六曜とぶつかるため）
     const dots = mode === 'simple' ? `<span class="dots">${es.slice(0, cap).map((e) => `<i class="dot ${catCls(e)}"${catSty(e)}></i>`).join('')}</span>` : '';
-    html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}${dow === 6 ? ' sat' : dow === 0 ? ' sun' : ''}" data-date="${k}" aria-label="${dayLabel(k)}、予定${es.length}件${xCount(es)}" aria-pressed="${k === sel}"><span class="num">${label}</span>${dots}</button>`;
+    html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}${dow === 6 ? ' sat' : dow === 0 ? ' sun' : ''}" data-date="${k}" aria-label="${dayLabel(k)}${r ? `、${r.name}` : ''}、予定${es.length}件${xCount(es)}" aria-pressed="${k === sel}">${r ? `<span class="rk" aria-hidden="true">${r.name}</span>` : ''}<span class="num${state.rokuyo && d.getDate() === 1 ? ' sd' : ''}">${label}</span>${dots}</button>`;
     const extra = mode === 'simple' ? es.length - cap : hidden[col];
     if (extra > 0) html += `<button type="button" class="plus" data-jump="${k}" style="right:calc(${6 - col} * 100% / 7)" aria-label="${dayLabel(k)}の予定をすべて見る（ほか${extra}件）">+${extra}</button>`;
   });
@@ -549,7 +554,7 @@ function weekEvent(e, k, vlist = false) {
 }
 function weekRow(k, short, vlist = false) {
   const list = eventsOnDay(occIn(k, k), k), d = parseKey(k);
-  const head = short ? `${d.getDate()}（${DOW[d.getDay()]}）` : dayLabel(k);
+  const head = `${short ? `${d.getDate()}（${DOW[d.getDay()]}）` : dayLabel(k)}${rkSpan(k, 'wrk')}`;
   const body = list.map((e) => weekEvent(e, k, vlist)).join('') || '<div class="empty-row">予定なし</div>';
   return `<section class="weekrow${k === todayKey() ? ' today' : ''}${k === state.selected ? ' selected' : ''}"><button type="button" class="wd" data-jump="${k}" aria-label="${dayLabel(k)}を日表示で開く">${head}</button>${vlist ? `<div class="wevents">${body}</div>` : body}</section>`;
 }
@@ -610,7 +615,7 @@ const minOf = (s) => Number(s.slice(11, 13)) * 60 + Number(s.slice(14, 16));
 const hhmm = (m) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 const tlKeys = (days) => Array.from({ length: days }, (_, i) => addDays(state.selected, i));
 function sheadTitle() {
-  if (state.view !== 'month' || listShown()) return periodTitle();
+  if (state.view !== 'month' || listShown()) return `${periodTitle()}${state.view === 'day' && !listShown() ? rkSpan(state.selected, 'hrk') : ''}`;
   const d = parseKey(state.selected);
   return `<span class="yr">${d.getFullYear()}年</span> ${d.getMonth() + 1}月`;
 }
@@ -654,7 +659,7 @@ function allDayRow(ks, avail) {
   return `<div class="allday" aria-label="終日の予定"><span class="adl">終日</span><div class="adcols">${cols}</div></div>`;
 }
 function timelineHtml(ks, avail) {
-  const heads = ks.length > 1 ? `<div class="tlheads"><span class="tlh0"></span>${ks.map((k) => { const d = parseKey(k); return `<button type="button" class="tlhd${k === state.selected ? ' sel' : ''}${k === todayKey() ? ' today' : ''}" data-tlday="${k}" aria-pressed="${k === state.selected}" aria-label="${dayLabel(k)}を選ぶ">${d.getDate()}（${DOW[d.getDay()]}）</button>`; }).join('')}</div>` : '';
+  const heads = ks.length > 1 ? `<div class="tlheads"><span class="tlh0"></span>${ks.map((k) => { const d = parseKey(k); return `<button type="button" class="tlhd${k === state.selected ? ' sel' : ''}${k === todayKey() ? ' today' : ''}" data-tlday="${k}" aria-pressed="${k === state.selected}" aria-label="${dayLabel(k)}を選ぶ">${d.getDate()}（${DOW[d.getDay()]}）${rkSpan(k, 'wrk')}</button>`; }).join('')}</div>` : '';
   let lines = '';
   for (let h = 0; h <= 24; h++) {
     lines += `<i class="hl" style="--m:${h * 60}"></i>`;
@@ -667,7 +672,7 @@ function timelineHtml(ks, avail) {
 const rctl = () => (POS.band ? '' : `<div class="rctl"><button type="button" class="rbtn s44 rtoday" data-act="today" aria-label="今日に戻る"><span aria-hidden="true">${todayLabel()}</span></button><button type="button" class="rbtn s44 rsearch" data-act="search" aria-label="予定を検索">${ICON_SEARCH}</button><button type="button" class="rbtn s44 radd" data-act="add" aria-label="予定を追加"><span aria-hidden="true">＋</span></button></div>`);
 const rpad = () => `<div class="rpad">${rctl()}</div>`;
 function rightHead() {
-  return `<div class="rhead"><h2 class="rdate">${dayLabel(state.selected)}</h2>${rctl()}<button type="button" class="spanbtn" data-act="tl3" aria-label="表示する日数: ${TL.days}日。${TL.days === 1 ? '3日' : '1日'}にする"><span aria-hidden="true">${TL.days}日 ▾</span></button></div>`;
+  return `<div class="rhead"><h2 class="rdate">${dayTitle(state.selected)}</h2>${rctl()}<button type="button" class="spanbtn" data-act="tl3" aria-label="表示する日数: ${TL.days}日。${TL.days === 1 ? '3日' : '1日'}にする"><span aria-hidden="true">${TL.days}日 ▾</span></button></div>`;
 }
 const rightWidth = () => Math.max(0, L.w - safe().right - 16 - (L.w / 2 + 10));
 function spread() {

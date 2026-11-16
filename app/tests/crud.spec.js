@@ -98,7 +98,7 @@ test.describe('予定の追加・編集・削除', () => {
     await page.getByRole('button', { name: '今日に戻る' }).click();
     await expect(page.locator('.shell.browse')).toBeVisible(); // 一覧（ホーム）へは飛ばない
     await expect(tab(page, '日')).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('#ctitle')).toHaveText('11月12日（木）');
+    await expect(page.locator('#ctitle')).toHaveText('11月12日（木）先勝');
     await tab(page, '月').click();
     await expect(page.locator('h2#ctitle')).toHaveText('2026年 11月');
     await expect(page.locator('[data-date="2026-11-12"]')).toHaveAttribute('aria-pressed', 'true');

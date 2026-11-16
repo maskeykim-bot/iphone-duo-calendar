@@ -60,7 +60,7 @@ test.describe('月「全部」表示', () => {
     const glyph = await plus.evaluate((e) => { const r = document.createRange(); r.selectNodeContents(e); const b = r.getBoundingClientRect(); return { top: b.top, bottom: b.bottom }; });
     expect(glyph.bottom - dayBox.y).toBeLessThanOrEqual(19);
     await plus.click();
-    await expect(page.locator('#ctitle')).toHaveText('11月12日（木）');
+    await expect(page.locator('#ctitle')).toHaveText('11月12日（木）先勝');
     await expect(page.getByRole('button', { name: '日', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.daylist .event')).toHaveCount(6);
     // 5件ちょうどの日には +N は出ない

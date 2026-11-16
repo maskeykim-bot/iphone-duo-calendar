@@ -292,7 +292,7 @@ test.describe('月の文字「大」・時刻の出し入れ', () => {
 });
 
 test.describe('月の日付・配色・前後月', () => {
-  test('前後の月の予定も描き、薄くするのは日付だけ。1日は「12月1日」', async ({ page }) => {
+  test('前後の月の予定も描き、薄くするのは日付だけ。1日は六曜オンで「12/1」、オフで「12月1日」', async ({ page }) => {
     await openApp(page, SIZES.openPortrait669);
     await seed(page, [
       ev('f1', '米 耐久財受注・速報', '2026-10-26T21:30', '2026-10-26T22:00'),
@@ -306,6 +306,9 @@ test.describe('月の日付・配色・前後月', () => {
     const out = page.locator('[data-date="2026-10-26"]');
     expect(await out.evaluate((e) => ({ op: getComputedStyle(e).opacity, num: getComputedStyle(e.querySelector('.num')).color }))).toEqual({ op: '1', num: 'rgb(168, 171, 164)' });
     expect(await chip(page, '2026-10-26').evaluate((e) => getComputedStyle(e).opacity)).toBe('1');
+    await expect(page.locator('[data-date="2026-12-01"] .num')).toHaveText('12/1'); // 六曜オン（既定）
+    await page.evaluate(() => { const k = 'duo.ui.v1'; localStorage.setItem(k, JSON.stringify({ ...JSON.parse(localStorage.getItem(k) || '{}'), rokuyo: false })); });
+    await page.reload(); await page.waitForSelector('html[data-ready]');
     await expect(page.locator('[data-date="2026-12-01"] .num')).toHaveText('12月1日');
     await expect(page.locator('[data-date="2026-11-12"] .num')).toHaveText('12');
   });
@@ -317,7 +320,7 @@ test.describe('月の日付・配色・前後月', () => {
     // 選択日 = 今日（11/12）。選択は 2px 枠 #294E42
     expect(await page.locator('[data-date="2026-11-12"]').evaluate((e) => getComputedStyle(e).boxShadow)).toContain('rgb(41, 78, 66) 0px 0px 0px 2px inset');
     await page.locator('[data-date="2026-11-18"]').click({ position: { x: 10, y: 10 } }); // 開いた縦は日表示へ進む
-    await expect(page.locator('#ctitle')).toHaveText('11月18日（水）');
+    await expect(page.locator('#ctitle')).toHaveText('11月18日（水）先勝');
     await page.getByRole('button', { name: '月', exact: true }).click();
     expect(await page.locator('[data-date="2026-11-18"]').evaluate((e) => getComputedStyle(e).boxShadow)).toContain('2px');
     expect(await page.locator('[data-date="2026-11-18"] .num').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgba(0, 0, 0, 0)');

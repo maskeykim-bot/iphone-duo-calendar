@@ -65,7 +65,8 @@ export async function setStyle(page, name) {
 export const pickDay = (page, key) => page.locator(`[data-date="${key}"]`).click({ position: { x: 12, y: 10 } });
 
 // 期間見出し（#ctitle / .stitle）。ダイアログ中（inert）でも読めるよう textContent。
-export const period = (page) => page.evaluate(() => document.querySelector('#ctitle, .stitle')?.textContent.trim() ?? '');
+// 期間の見出し（日付部分のみ。第14版の六曜 .hrk は除く。六曜の検査は rokuyo.spec.js）
+export const period = (page) => page.evaluate(() => { const h = document.querySelector('#ctitle, .stitle')?.cloneNode(true); h?.querySelectorAll('.hrk').forEach((e) => e.remove()); return h?.textContent.trim() ?? ''; });
 export const settle = (page) => page.waitForFunction(() => !document.documentElement.dataset.swiping);
 
 // Pointer Events を直接送る。target を省くと開始点の要素に送る。
