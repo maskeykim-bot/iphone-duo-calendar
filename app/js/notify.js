@@ -1,6 +1,6 @@
 // 通知の既定値・計画・文面。DOM・ネイティブに依存しない純粋関数。日時は YYYY-MM-DDTHH:MM（端末ローカル）。
 import { addDays, dayOf, dkey, pad, parseKey, DOW } from './util.js';
-import { expand, hasFutureOccurrence } from './recur.js';
+import { expand, hasFutureOccurrence, occurrenceAt } from './recur.js';
 import { ALLDAY_DAYS, TIMED_BEFORE, okAllDay, okTimed } from './alarms.js';
 export { ALLDAY_DAYS, TIMED_BEFORE };
 
@@ -77,10 +77,36 @@ export function notifyText(occ, alarm, showTitle = true) {
 // 展開前の親で除外する：iPhone 由来と、iPhone と結びついた（linked / pending）予定。unlinked は対象。
 const excluded = (e) => e.origin === 'iphone' || e.nativeLink?.state === 'linked' || e.nativeLink?.state === 'pending';
 
-// 予約する通知の一覧（notifySync の items）。非表示カテゴリも含む。
+export const REFRESH_ID = 'duo.refresh';
+export const REFRESH_TITLE = 'Duo カレンダーを開いてください';
+export const REFRESH_BODY = 'この先の予定の通知を受け取るには、アプリを開いて通知を更新してください。';
+
+// 30日窓より先に鳴らすべき通知が残っているか。無限展開はしない：
+// 単発は発火を直接、有限の繰り返し（count/until）は窓以降の回だけ展開、無限の繰り返しは有効な通知があれば真（例外の移動先も確かめる）。
+function hasBeyondWindow(targets, limit) {
+  const beyond = (occ) => alarmsFor(occ).some((a) => { const f = fireAt(occ, a); return f && toDate(f) > limit; });
+  const from = dkey(limit);
+  for (const e of targets) {
+    if (!e.recurrence) { if (beyond(e)) return true; continue; }
+    const r = e.recurrence;
+    if (r.count == null && !r.until) {
+      if (alarmsFor(e).some((a) => fireAt(e, a))) return true; // 有効な通知があれば、無限の系列には窓より先の回が必ずある
+      const ex = new Set(e.exdates || []);
+      for (const k of Object.keys(e.overrides || {})) if (!ex.has(k) && beyond(occurrenceAt(e, k))) return true;
+      continue;
+    }
+    const end = r.until ? addDays(r.until, 1) : '9999-12-31';
+    if (end < from) continue;
+    if (expand([e], from, end).some(beyond)) return true;
+  }
+  return false;
+}
+
+// 予約する通知の一覧。{ items, truncated }。
+// 実通知が上限（max）または30日窓で切れるときは、実通知を max-1 件にして最後に duo.refresh を1件足す。切れないときは実通知だけ最大 max 件。
 export function planNotifications(events, now, s, { days = WINDOW_DAYS, max = MAX_PENDING } = {}) {
   const n = normNotify(s);
-  if (!n.enabled) return [];
+  if (!n.enabled) return { items: [], truncated: false };
   const today = dkey(now);
   const limit = new Date(now.getTime() + days * 864e5);
   const targets = events.filter((e) => !excluded(e) && (e.recurrence || (e.alarms || []).length));
@@ -97,7 +123,19 @@ export function planNotifications(events, now, s, { days = WINDOW_DAYS, max = MA
     });
   }
   pool.sort((a, b) => (a.fireDate < b.fireDate ? -1 : a.fireDate > b.fireDate ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  return pool.slice(0, max);
+  const byCount = pool.length > max;
+  if (!byCount && !hasBeyondWindow(targets, limit)) return { items: pool, truncated: false };
+  const items = pool.slice(0, max - 1);
+  const last = items.length ? items[items.length - 1].fireDate : null;
+  let fire;
+  if (byCount || pool.length > items.length) fire = localStr(new Date(toDate(last).getTime() + 60000));
+  else {
+    fire = `${dkey(limit)}T09:00`; // 切れたのが窓だけなら30日後の9:00
+    if (last && fire <= last) fire = localStr(new Date(toDate(last).getTime() + 60000));
+  }
+  const day = fire.slice(0, 10);
+  items.push({ id: REFRESH_ID, title: REFRESH_TITLE, body: REFRESH_BODY, fireDate: fire, thread: `duo.${day}`, day, eventId: '' });
+  return { items, truncated: true };
 }
 
 // ---------- 画面（通知行・パネル・ベル）用 ----------

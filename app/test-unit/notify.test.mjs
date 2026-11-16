@@ -9,7 +9,8 @@ import { R, ev, manyRecurring } from './fixtures.mjs';
 const NOW = new Date(2026, 10, 14, 9, 0); // 2026-11-14 09:00 ローカル
 const S = normNotify(null);
 const al = (x) => ev(x.id, x.s, x.e, x.rec ?? null, { alarms: x.alarms, ...(x.extra || {}) });
-const plan = (events, now = NOW, s = S, o) => planNotifications(events, now, s, o);
+const planR = (events, now = NOW, s = S, o) => planNotifications(events, now, s, o);
+const plan = (events, now, s, o) => planR(events, now, s, o).items;
 
 test('定数', () => {
   assert.deepEqual([...TIMED_BEFORE], [0, 5, 10, 15, 30, 60, 120, 1440, 2880]);
@@ -73,7 +74,10 @@ test('planNotifications: enabled:false → []、alarms 無し・未定義は鳴�
 test('planNotifications: 範囲境界（過去・now ちょうど・30日ちょうど・30日超）', () => {
   const at = (s, before = 0) => al({ id: s, s, e: s, alarms: [{ before }] });
   const got = plan([at('2026-11-14T08:59'), at('2026-11-14T09:00'), at('2026-11-14T09:01'), at('2026-12-14T09:00'), at('2026-12-14T09:01')]);
-  assert.deepEqual(got.map((x) => x.fireDate), ['2026-11-14T09:01', '2026-12-14T09:00']);
+  // 30日超の1件があるので、最後に duo.refresh（最後の実通知 12/14 09:00 の1分後）が付く
+  assert.deepEqual(got.map((x) => x.fireDate), ['2026-11-14T09:01', '2026-12-14T09:00', '2026-12-14T09:01']);
+  assert.deepEqual(got.map((x) => x.id).slice(2), ['duo.refresh']);
+  assert.equal(plan([at('2026-11-14T09:01'), at('2026-12-14T09:00')]).length, 2); // 窓外が無ければ実通知だけ
 });
 
 test('planNotifications: 61件→近い順60件、2件の alarm は #0/#1', () => {
@@ -130,7 +134,7 @@ test('planNotifications: 非表示カテゴリも対象、終日の1週間前は
   const h = al({ id: 'h', s: '2026-11-20T10:00', e: '2026-11-20T11:00', alarms: [{ before: 0 }], extra: { categoryId: 'hidden-cat' } });
   const far = al({ id: 'far', s: '2026-12-21T00:00', e: '2026-12-21T23:59', alarms: [{ day: 7, at: '08:00' }, { day: 0, at: '08:00' }], extra: { all: true } });
   const got = plan([h, far]);
-  assert.deepEqual(got.map((x) => x.id), ['duo.h@2026-11-20T10:00#0', 'duo.far@2026-12-21T00:00#0']);
+  assert.deepEqual(got.map((x) => x.id), ['duo.h@2026-11-20T10:00#0', 'duo.far@2026-12-21T00:00#0', 'duo.refresh']); // 当日 08:00 の通知は窓外
   assert.equal(got[1].fireDate, '2026-12-14T08:00');
 });
 
@@ -197,4 +201,81 @@ test('planNotifications: 31日×通知2つ → 近い順60件で補充後も同�
   const later = plan(evs, new Date(2026, 10, 15, 9, 31));
   assert.equal(later.length, 60);
   assert.ok(!later.some((x) => x.fireDate === got[0].fireDate));
+});
+
+// ---- PR36: 最後のお知らせ duo.refresh ----
+const one = (id, s) => al({ id, s, e: s, alarms: [{ before: 0 }] });
+const many = (n) => Array.from({ length: n }, (_, i) => one(`e${String(i).padStart(3, '0')}`, `2026-11-${String(15 + (i % 10)).padStart(2, '0')}T${String(10 + (i % 5)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}`));
+
+test('PR36 60/61境界：60件ちょうどは実通知だけ、61件は59実件＋refresh（最後の実通知の1分後）', () => {
+  const r60 = planR(many(60));
+  assert.equal(r60.items.length, 60); assert.equal(r60.truncated, false);
+  assert.ok(!r60.items.some((x) => x.id === 'duo.refresh'));
+  const r61 = planR(many(61));
+  assert.equal(r61.items.length, 60); assert.equal(r61.truncated, true);
+  const real = r61.items.slice(0, 59), rf = r61.items[59];
+  assert.ok(real.every((x) => x.id !== 'duo.refresh'));
+  assert.deepEqual(real, planR(many(61), NOW, S, { max: 100 }).items.slice(0, 59)); // 近い順の先頭59件
+  const lastFire = real[58].fireDate, d = new Date(lastFire); // ローカル解釈
+  assert.equal(rf.id, 'duo.refresh');
+  const t = new Date(+lastFire.slice(0, 4), +lastFire.slice(5, 7) - 1, +lastFire.slice(8, 10), +lastFire.slice(11, 13), +lastFire.slice(14, 16) + 1);
+  assert.equal(rf.fireDate, `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}T${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`);
+  assert.ok(d);
+  assert.deepEqual([rf.title, rf.body, rf.eventId, rf.day, rf.thread], ['Duo カレンダーを開いてください', 'この先の予定の通知を受け取るには、アプリを開いて通知を更新してください。', '', rf.fireDate.slice(0, 10), `duo.${rf.fireDate.slice(0, 10)}`]);
+  assert.deepEqual(Object.keys(rf).sort(), ['body', 'day', 'eventId', 'fireDate', 'id', 'thread', 'title']);
+});
+
+test('PR36 60件ちょうど＋窓外あり → 59実件＋refresh', () => {
+  const r = planR([...many(60), one('far', '2026-12-20T10:00')]);
+  assert.equal(r.items.length, 60); assert.equal(r.truncated, true); assert.equal(r.items[59].id, 'duo.refresh');
+});
+
+test('PR36 窓だけで切れる：refresh は30日後の9:00（最後の実通知より後）', () => {
+  const r = planR([one('a', '2026-11-20T10:00'), one('far', '2026-12-20T10:00')]);
+  assert.deepEqual(r.items.map((x) => x.id), ['duo.a@2026-11-20T10:00#0', 'duo.refresh']);
+  assert.equal(r.items[1].fireDate, '2026-12-14T09:00'); assert.equal(r.items[1].day, '2026-12-14');
+  assert.equal(r.truncated, true);
+  // 実通知が0件でも窓外があれば refresh だけ
+  assert.deepEqual(planR([one('far', '2026-12-20T10:00')]).items.map((x) => x.id), ['duo.refresh']);
+});
+
+test('PR36 窓外の判定：有限の繰返し・無限の繰返し・例外・終わった繰返し', () => {
+  const ids = (evs) => planR(evs).items.map((x) => x.id).includes('duo.refresh');
+  const rec = (id, rule, x = {}) => al({ id, s: '2026-11-16T10:00', e: '2026-11-16T11:00', rec: rule, alarms: [{ before: 30 }], extra: x });
+  assert.equal(ids([rec('f1', R('daily', { count: 5 }))]), false);        // 窓内で終わる
+  assert.equal(ids([rec('f2', R('daily', { until: '2026-12-10' }))]), false);
+  assert.equal(ids([rec('f3', R('daily', { count: 60 }))]), true);        // 窓の先まで続く
+  assert.equal(ids([rec('f4', R('weekly', { byDay: [1], until: '2027-01-31' }))]), true);
+  assert.equal(ids([rec('inf', R('daily'))]), true);                      // 無限
+  assert.equal(ids([{ ...rec('inf2', R('daily')), alarms: [] }]), false); // 無限でも通知なし
+  assert.equal(ids([{ ...rec('inf3', R('daily')), alarms: undefined }]), false);
+  // 例外：窓外へ移した回に通知があれば真、通知なしの移動・削除だけなら偽
+  const mv = { title: 'm', categoryId: 'c-work', all: false, start: '2027-01-05T10:00', end: '2027-01-05T11:00', place: '', notes: '', alarms: [{ before: 5 }] };
+  assert.equal(ids([rec('o1', R('daily', { count: 3 }), { overrides: { '2026-11-17T10:00': mv } })]), true);
+  assert.equal(ids([rec('o2', R('daily', { count: 3 }), { overrides: { '2026-11-17T10:00': { ...mv, alarms: [] } } })]), false);
+  assert.equal(ids([rec('o3', R('daily', { count: 3 }), { exdates: ['2026-11-17T10:00'] })]), false);
+  // 窓外の単発：通知なしは偽、除外（linked）は偽
+  assert.equal(ids([al({ id: 's', s: '2026-12-20T10:00', e: '2026-12-20T11:00', alarms: [] })]), false);
+  assert.equal(ids([al({ id: 'l', s: '2026-12-20T10:00', e: '2026-12-20T11:00', alarms: [{ before: 0 }], extra: { nativeLink: { state: 'linked' } } })]), false);
+});
+
+test('PR36 作らない：通知オフ・全部過去・なし・iPhone由来／pending', () => {
+  const evs = [...many(61), one('far', '2026-12-20T10:00')];
+  assert.deepEqual(planR(evs, NOW, { enabled: false }), { items: [], truncated: false });
+  assert.deepEqual(planR([]), { items: [], truncated: false });
+  assert.deepEqual(planR([one('p', '2026-11-01T10:00')]), { items: [], truncated: false });
+  assert.deepEqual(planR([al({ id: 'i', s: '2026-12-20T10:00', e: '2026-12-20T11:00', alarms: [{ before: 0 }], extra: { origin: 'iphone' } }), al({ id: 'pe', s: '2026-12-20T10:00', e: '2026-12-20T11:00', alarms: [{ before: 0 }], extra: { nativeLink: { state: 'pending' } } })]), { items: [], truncated: false });
+});
+
+test('PR36 showTitle:false でも refresh の文面は同じ・max指定は max-1＋1', () => {
+  const r = planR(many(61), NOW, { showTitle: false });
+  assert.equal(r.items[59].title, 'Duo カレンダーを開いてください');
+  assert.equal(planR(many(61), NOW, S, { max: 5 }).items.length, 5);
+});
+
+test('PR36 再計画で refresh は作り直され、近づくと実通知に置き換わる', () => {
+  const evs = many(61);
+  const a = planR(evs).items, b = planR(evs, new Date(2026, 10, 16, 9, 0)).items;
+  assert.equal(a.filter((x) => x.id === 'duo.refresh').length, 1);
+  assert.equal(b.filter((x) => x.id === 'duo.refresh').length, b.length === 60 && planR(evs, new Date(2026, 10, 16, 9, 0)).truncated ? 1 : 0);
 });

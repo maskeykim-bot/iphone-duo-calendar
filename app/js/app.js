@@ -3672,7 +3672,7 @@ function renderNotify() {
     <p class="small">ここを変えても、すでにある予定の通知は変わりません。</p></section>
     <div class="swrow nsw"><span id="nt-tl">通知に予定名を表示</span><button type="button" role="switch" id="nt-showtitle" class="sw" aria-checked="${n.showTitle}" aria-labelledby="nt-tl"><span class="knob" aria-hidden="true"></span><span class="swt">${n.showTitle ? 'オン' : 'オフ'}</span></button></div>
     <p class="nsmall">オフにすると、ロック画面には「予定があります」とだけ出ます。</p>
-    <section class="card nstat"><p class="ncount"><strong>予約中 <span id="nt-count">${N.scheduled == null ? '—' : N.scheduled}</span>件</strong></p><p class="small">${WINDOW_DAYS}日先まで・最大${MAX_PENDING}件。アプリを開くたびに先の分を予約し直します。長く開かないと、その先は届きません。</p></section>
+    <section class="card nstat"><p class="ncount"><strong>予約中 <span id="nt-count">${N.scheduled == null ? '—' : N.scheduled}</span>件</strong></p><p class="small">${WINDOW_DAYS}日先まで・最大${MAX_PENDING}件。アプリを開くたびに先の分を予約し直します。長く開かないと、その先は届きません。通知が上限や${WINDOW_DAYS}日先で切れるときは、最後に「Duo カレンダーを開いてください」のお知らせが1件入ります（その分、予定の通知は${MAX_PENDING - 1}件になります）。</p></section>
     <button type="button" id="nt-test" class="nbtn"${dis}>1分後にテスト通知を送る</button>`;
   if (nt.msg) h += `<p class="bmsg" role="status">${esc(nt.msg)}</p>`;
   NT.body.innerHTML = h;
@@ -3771,7 +3771,7 @@ async function runNotifySync(gen) {
     if (gen !== N.gen) return;
     N.perm = st?.status || null;
     if (!NOTIFY_OK.includes(N.perm)) { N.scheduled = null; return; } // 許可はここでは要求しない
-    const items = planNotifications(state.events, new Date(), n);
+    const { items } = planNotifications(state.events, new Date(), n);
     if (gen !== N.gen) return;
     const r = await call('notifySync', { items });
     if (gen === N.gen) { N.scheduled = Number.isFinite(r?.scheduled) ? r.scheduled : items.length; N.err = ''; updateNotifyCount(); }

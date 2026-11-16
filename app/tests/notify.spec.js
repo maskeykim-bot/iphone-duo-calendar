@@ -184,4 +184,34 @@ test.describe('通知の再予約', () => {
     await settle(page);
     expect(await page.evaluate(() => window.__mock.pending.length)).toBe(1);
   });
+  test('PR36: 実通知が上限で切れると最後に duo.refresh が入り、タップでその日を開き、通知を補充する', async ({ page }) => {
+    await mock(page);
+    await openApp(page, SIZES.closedPortrait, '?nosw');
+    const evs = Array.from({ length: 61 }, (_, i) => ev(`m${i}`, `予定${i}`, `2026-11-${String(13 + (i % 10)).padStart(2, '0')}T${String(10 + (i % 5)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}`, `2026-11-${String(13 + (i % 10)).padStart(2, '0')}T23:00`, { alarms: [{ before: 0 }] }));
+    await seed(page, evs);
+    await expect.poll(() => page.evaluate(() => window.__mock.pending.length)).toBe(60);
+    const items = await page.evaluate(() => window.__mock.pending);
+    const rf = items[59];
+    expect(items.filter((x) => x.id === 'duo.refresh')).toHaveLength(1);
+    expect(rf).toMatchObject({ id: 'duo.refresh', title: 'Duo カレンダーを開いてください', eventId: '' });
+    expect(rf.fireDate > items[58].fireDate).toBe(true);
+    expect(rf.thread).toBe(`duo.${rf.day}`);
+    // タップ → その日を開く（対象の予定が無いので日を開くだけ）
+    await page.evaluate((p) => window.__mock.listeners.notificationTapped({ day: p.day, eventId: p.eventId }), rf);
+    await expect(page.locator('#status')).toContainText('を開きました');
+    // 開いたら再計画され、refresh は作り直される（1件だけ・消去は notifySync の全置換）
+    const base = await count(page, 'notifySync');
+    await syncs(page);
+    await expect.poll(() => count(page, 'notifySync'), { timeout: 5000 }).toBe(base + 1);
+    expect(await page.evaluate(() => window.__mock.pending.filter((x) => x.id === 'duo.refresh').length)).toBe(1);
+  });
+
+  test('PR36: 60件ちょうどで窓外も無ければ duo.refresh は予約されない', async ({ page }) => {
+    await mock(page);
+    await openApp(page, SIZES.closedPortrait, '?nosw');
+    const evs = Array.from({ length: 60 }, (_, i) => ev(`m${i}`, `予定${i}`, `2026-11-${String(13 + (i % 10)).padStart(2, '0')}T${String(10 + (i % 5)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}`, `2026-11-${String(13 + (i % 10)).padStart(2, '0')}T23:00`, { alarms: [{ before: 0 }] }));
+    await seed(page, evs);
+    await expect.poll(() => page.evaluate(() => window.__mock.pending.length)).toBe(60);
+    expect(await page.evaluate(() => window.__mock.pending.some((x) => x.id === 'duo.refresh'))).toBe(false);
+  });
 });
