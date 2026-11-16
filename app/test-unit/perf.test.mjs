@@ -80,3 +80,20 @@ test('性能: 20 件の daily count=999（2024 起点）の 6 週展開 200ms �
   const [ms] = time(() => expand(set, '2026-11-01', '2026-12-12'));
   assert.ok(ms < LOOSE, `${ms.toFixed(1)}ms`);
 });
+
+test('性能(PR34): 31日に貼り付けた単発を足した月の展開・検索も既存基準内', async () => {
+  const { planPaste } = await import('../js/paste.js');
+  const src = { title: '会議 貼付', categoryId: 'work', all: false, start: '2026-11-02T10:00', end: '2026-11-02T11:00', place: '', notes: '', alarms: [] };
+  const days = Array.from({ length: 31 }, (_, i) => `2026-11-${String(i % 30 + 1).padStart(2, '0')}`.replace(/-(\d)$/, '-0$1')).slice(0, 30).concat('2026-12-01');
+  let n = 0;
+  const plan = planPaste(src, days, { cals: [], enabled: false, defaultCalendarId: '', defaultCatId: () => 'other', newId: () => `p${++n}`, pastedAt: 1 });
+  assert.equal(plan.items.length, 31);
+  const set = [...manyRecurring(fresh()), ...plan.items.map((i) => i.event)];
+  bumpRevision();
+  const [ms, r] = time(() => monthOcc(set, '2026-11'));
+  assert.ok(r.length >= 5100 + 30);
+  assert.ok(ms < LOOSE, `月展開 ${ms.toFixed(1)}ms`);
+  const [ms2, s] = time(() => searchEvents(set, '会議 貼付', TODAY));
+  assert.ok(s.total >= 31);
+  assert.ok(ms2 < LOOSE, `検索 ${ms2.toFixed(1)}ms`);
+});

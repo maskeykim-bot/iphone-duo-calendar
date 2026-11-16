@@ -12,7 +12,7 @@ import { rokuyoOf } from './rokuyo.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS } from './pages.js';
 import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.js';
 import { DELETE_UNDO_MS, checkReminderAccess, requestReminderAccess, taskAccessHtml, createReminderLoader, tasksHtml, HIST_DAYS, createAddController, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDoneController, TASK_CONFLICT, createDeleteController, TASK_DELETED, TASK_DELETE_CONFLICT, normRemSettings, shownListIds, pruneRemSettings, resolveAddList, filterByLists, dueCounts } from './reminders.js';
-import { PASTE_MAX, addDaysCapped, bandLabel, daysBetween, pasteLabel, toggleDay } from './paste.js';
+import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
 import { call, errCode, errReason, errText, haptic, listen, nativeAvailable, reminderErrText } from './native.js';
 import { buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, pickAddCal, planNativeOps, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
 import {
@@ -57,8 +57,8 @@ function loadUi() {
 }
 const state = { ...loadUi(), events: [], categories: [], loaded: false };
 // コピー貼り付けの選択状態（メモリだけ。DB・native へは書かない）。第14版 PR33。
-// 確定（貼付の実行）は PR34 で接続するまで入口を出さない（?paste を付けたときだけ有効）。
-const PASTE_ENTRY = new URLSearchParams(location.search).has('paste');
+// 確定は confirmPaste（PR34）が pasteCommit へ接続する。
+const PASTE_ENTRY = true;
 const PS = { on: false, src: null, srcLink: null, srcDay: '', days: [], busy: 0, onConfirm: null };
 setFirstDay(state.weekStart);
 let hiddenCats = new Set();
@@ -488,6 +488,32 @@ function weekData(days, cap) {
   return { days, wev, items, hidden, used };
 }
 const needOf = (used) => LANE_TOP + used * LANE_STEP + LANE_PAD;
+// 貼付の見本（PR34）。選んだ各日から始まる帯／チップを、その週の空きレーンへ薄く描く。DB・予定一覧には入らない（描画だけ）。
+function pasteGhosts(w, cap) {
+  if (!PS.on || !PS.days.length || !PS.src) return [];
+  const n = spanOf(PS.src), days = w.days, occ = Array.from({ length: cap }, () => Array(7).fill(false)), out = [];
+  for (const b of w.items || []) if (b.lane < cap) for (let i = b.sc; i <= b.ec; i++) occ[b.lane][i] = true;
+  const d0 = parseKey(days[0]);
+  for (const d of PS.days) {
+    const off = Math.round((parseKey(d) - d0) / 864e5), sc = Math.max(0, off), ec = Math.min(6, off + n - 1);
+    if (ec < 0 || sc > 6) continue;
+    const lane = occ.findIndex((row) => row.slice(sc, ec + 1).every((v) => !v));
+    if (lane < 0) continue; // 空きがなければ見本は出さない（貼付そのものには影響しない）
+    for (let i = sc; i <= ec; i++) occ[lane][i] = true;
+    out.push({ sc, ec, lane, first: off >= 0, last: off + n - 1 <= 6, n, day: d });
+  }
+  return out;
+}
+function pasteGhostHtml(w, cap) {
+  const gs = pasteGhosts(w, cap);
+  if (!gs.length) return '';
+  const s = PS.src, v = s.origin === 'iphone' ? `--cat:${s.color || '#68716A'};` : catVar(s);
+  return gs.map((g) => {
+    const t = clipTitle(s.title), time = !s.all && g.n === 1 ? `${s.start.slice(11, 16)} ` : '';
+    const label = !g.first ? `${t}（つづき）` : g.n > 1 ? `${t} ${g.n}日` : `${time}${t}`;
+    return `<span class="pghost${g.n > 1 ? ' pband2' : ''}${g.first ? '' : ' cont'}${g.last ? '' : ' more'}" aria-hidden="true" data-pghost="${g.day}" style="${v}${colPos(g.sc, g.ec)};top:${LANE_TOP + g.lane * LANE_STEP}px">${esc(label)}</span>`;
+  }).join('');
+}
 const colPos = (sc, ec) => `left:calc(${sc} * 100% / 7 + 1.5px);width:calc(${ec - sc + 1} * 100% / 7 - 3px)`;
 // 週の中身: 日セル（button）・+N（兄弟 button）・帯／チップ（兄弟 button）。ボタンの入れ子は作らない。
 // mode: simple（点）| named | all。
@@ -505,6 +531,7 @@ function weekInner(w, { mode, cur, sel, today, cap, time, tk = null }) {
     if (extra > 0) html += `<button type="button" class="plus" data-jump="${k}" style="right:calc(${6 - col} * 100% / 7)" aria-label="${dayLabel(k)}の予定をすべて見る（ほか${extra}件）">+${extra}</button>`;
   });
   if (mode === 'simple') return html;
+  html += pasteGhostHtml(w, cap);
   for (const b of items) {
     const { e } = b, top = `top:${LANE_TOP + b.lane * LANE_STEP}px`;
     if (b.band) {
@@ -541,7 +568,8 @@ function monthGridAll(kind) {
   for (const days of weeks) {
     const w = weekData(days, cfg.allCap);
     allWeeks.set(days[0], w);
-    rows += `<div class="week all" data-wk="${days[0]}" style="--need:${needOf(w.used)}px"></div>`;
+    const gl = pasteGhosts(w, cfg.allCap).reduce((m, g) => Math.max(m, g.lane + 1), 0);
+    rows += `<div class="week all" data-wk="${days[0]}" style="--need:${needOf(Math.max(w.used, gl))}px"></div>`;
   }
   return `${weekdaysHtml(' all')}<div class="scroll all" data-scroll="cal" style="--n:${weeks.length}">${rows}</div>`;
 }
@@ -4115,13 +4143,27 @@ function pasteAddDays(list) {
 // 貼付中の操作。日と帯のボタンと月送りだけ通し、チップ・＋・他ページなどは何もしない。
 function pasteClick(b) {
   const d = b.dataset;
-  if (d.pa === 'cancel') { cancelPaste(); return true; }
-  if (d.pa === 'ok') { if (PS.days.length && PS.onConfirm) PS.onConfirm({ src: PS.src, srcLink: PS.srcLink, days: [...PS.days] }); return true; }
+  if (d.pa === 'cancel') { if (!PS.busy) cancelPaste(); return true; }
+  if (d.pa === 'ok') { if (PS.days.length && !PS.busy && PS.onConfirm) PS.onConfirm({ src: PS.src, srcLink: PS.srcLink, days: [...PS.days] }); return true; }
   if (d.date) { pasteToggle(d.date); return true; }
   if (['prev', 'next', 'today', 'allmonth'].includes(d.act)) return false;
   return true;
 }
-document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && PS.on && !anyPanel()) cancelPaste(); });
+document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && PS.on && !anyPanel() && !PS.busy) cancelPaste(); });
+// 確定: 計画を作って pasteCommit へ（Duo 分は1回の保存、iPhone 分は createEvents）。保存に失敗したら選択を残して再度押せる。
+async function confirmPaste({ src, srcLink, days }) {
+  if (PS.busy) return;
+  const plan = planPaste(src, days, { cals: X.calendars, enabled: extActive(), defaultCalendarId: link.defaultCalendarId, defaultCatId, newId, pastedAt: Date.now(), srcLink });
+  if (!plan.ok) { notice(plan.error === 'too-many' ? `一度に貼り付けられるのは${PASTE_MAX}日までです` : '貼り付ける日を選んでください'); return; }
+  PS.busy = 1;
+  root.querySelectorAll('[data-pa]').forEach((b) => { b.disabled = true; });
+  let r = null;
+  try { r = await pasteCommit(plan); } finally { PS.busy = 0; }
+  if (r?.busy || r?.saveFailed) { render(); if (r.busy) notice('iPhone との通信中です。少し待ってからもう一度押してください。'); return; } // 選択は残す
+  Object.assign(PS, { on: false, src: null, srcLink: null, srcDay: '', days: [] });
+  render();
+}
+PS.onConfirm = confirmPaste;
 
 // コピーする予定の型紙。Duo は回（occurrenceAt 後）を写し、ext は getEvent の詳細から作る。
 function duoSource(id) {

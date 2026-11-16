@@ -896,3 +896,8 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .week .day.pshake{animation:pshake .2s}
 @keyframes pshake{0%,100%{transform:scale(1)}50%{transform:scale(.92)}}
 .pdim{filter:brightness(.9)}
+
+.week .pghost{position:absolute;z-index:1;box-sizing:border-box;height:var(--chip-h);padding:0 0 0 3px;border:1px dashed var(--cat);border-radius:3.5px;background:color-mix(in srgb,var(--cat) 18%,transparent);color:var(--cat);font-size:var(--chip-fs);font-weight:700;line-height:calc(var(--chip-h) - 2px);white-space:nowrap;overflow:hidden;pointer-events:none}
+.week .pghost.cont{border-left-style:none;border-radius:0 3.5px 3.5px 0}
+.week .pghost.more{border-right-style:none;border-radius:3.5px 0 0 3.5px}
+.week .pghost.cont.more{border-radius:0}

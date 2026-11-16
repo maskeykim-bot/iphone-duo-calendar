@@ -67,13 +67,14 @@ async function boot(page, size = SIZES.openPortrait669, { ext = false, query = '
   }
 }
 
-test.describe('入口（フラグ）', () => {
-  test('?paste が無いときはメニューもコピー行も出ない', async ({ page }) => {
+test.describe('入口', () => {
+  test('?paste なしでも長押しメニューとコピー行が出る（PR34で公開）', async ({ page }) => {
     await boot(page, SIZES.openPortrait669, { query: '' });
-    await longPress(page, chip(page, '撮影')); // メニューは出ず、離したあとの通常のタップで編集が開く
-    await expect(page.locator('.cmenu')).toHaveCount(0);
-    await expect(page.locator('#editor')).toBeVisible();
-    await expect(page.locator('#copyrow')).toBeHidden();
+    await longPress(page, chip(page, '撮影'));
+    await expect(page.locator('.cmenu')).toBeVisible();
+    await page.mouse.click(5, 5);
+    await chip(page, '撮影').click();
+    await expect(page.locator('#copyrow')).toBeVisible();
   });
 });
 
@@ -208,11 +209,67 @@ test.describe('日の選択', () => {
     await expect(dayBtn(page, '2026-11-20')).toHaveClass(/psel/);
     await expect(band(page).locator('.pn')).toHaveText('2');
   });
-  test('確定の実行は未接続（ボタンを押してもDB・nativeは動かない）', async ({ page }) => {
+  test('見本: 選んだ日から始まる帯を空きレーンへ描く。DBには入らない', async ({ page }) => {
     await dayBtn(page, '2026-11-20').click();
-    await band(page).locator('[data-pa="ok"]').click();
+    await dayBtn(page, '2026-11-24').click();
+    const g = page.locator('.week [data-pghost]');
+    await expect(g).toHaveCount(2);
+    await expect(g.first()).toContainText('10:00 撮影');
+    await expect(g.first()).toHaveAttribute('aria-hidden', 'true');
     expect((await dbEvents(page)).length).toBe(2);
-    await expect(band(page)).toBeVisible();
+  });
+  test('確定: 1回の保存で選んだ日に貼り、6秒の取消を出す。取消で消える', async ({ page }) => {
+    await dayBtn(page, '2026-11-20').click();
+    await dayBtn(page, '2026-11-27').click();
+    await band(page).locator('[data-pa="ok"]').click();
+    await expect(band(page)).toHaveCount(0);
+    await expect(page.locator('.pghost')).toHaveCount(0);
+    const evs = await dbEvents(page);
+    expect(evs.length).toBe(4);
+    expect(evs.filter((e) => e.title === '撮影').map((e) => e.start.slice(0, 10)).sort()).toEqual(['2026-11-12', '2026-11-20', '2026-11-27']);
+    expect(evs.find((e) => e.start.startsWith('2026-11-27')).end).toBe('2026-11-27T11:00');
+    for (const e of evs) expect(Object.keys(e).filter((k) => /paste|ghost|preview/i.test(k))).toEqual([]); // 貼付専用の欄は持たない（通常の単発）
+    const t = page.locator('#native-toast');
+    await expect(t).toContainText('2件を貼り付けました');
+    await t.getByRole('button', { name: '元に戻す' }).click();
+    await expect(page.locator('#native-toast')).toContainText('取り消しました');
+    expect((await dbEvents(page)).length).toBe(2);
+  });
+});
+
+test('複数日の見本: 選んだ日始まり・題名と日数・週またぎは続きを出す', async ({ page }) => {
+  await boot(page);
+  await longPress(page, chip(page, '出張'));
+  await page.locator('.cmenu').getByRole('menuitem', { name: 'コピー' }).click();
+  await dayBtn(page, '2026-11-28').click();
+  const g = page.locator('.week [data-pghost="2026-11-28"]');
+  await expect(g).toHaveCount(2);
+  await expect(g.first()).toContainText('出張 3日');
+  await expect(g.last()).toContainText('出張（つづき）');
+  expect((await dbEvents(page)).length).toBe(2);
+});
+
+test.describe('貼付の失敗画面', () => {
+  test('iPhoneだけの複製が全部失敗: 日付は3件まで＋ほかN、「Duoにも入っていない」、再試行→再失敗は閉じるだけ', async ({ page }) => {
+    await boot(page, SIZES.openPortrait669, { ext: true });
+    await page.waitForSelector('.week [data-event]');
+    await longPress(page, chip(page, '歯医者'));
+    await page.locator('.cmenu').getByRole('menuitem', { name: 'コピー' }).click();
+    await expect(band(page)).toContainText('「歯医者」を貼る日を選択');
+    for (const d of ['2026-11-20', '2026-11-21', '2026-11-23', '2026-11-24', '2026-11-25']) await dayBtn(page, d).click();
+    await band(page).locator('[data-pa="ok"]').click();
+    const dlg = page.locator('#xr-dlg, dialog:has(#xr-msg)').first();
+    await expect(page.locator('#xr-msg')).toContainText('Duo にも入っていません');
+    await expect(page.locator('#xr-msg')).toContainText('11月20日、11月21日、11月23日ほか2日');
+    await expect(page.locator('#xr-msg')).not.toContainText('保存してあります');
+    expect((await dbEvents(page)).length).toBe(2);
+    await page.locator('#xr-retry').click();
+    await expect(page.locator('#xr-retry')).toBeHidden();
+    await expect(page.locator('#xr-close')).toBeVisible();
+    await page.locator('#xr-close').click();
+    await expect(page.locator('#xr-msg')).toBeHidden();
+    expect(await writes(page)).not.toContain('createEvent');
+    void dlg;
   });
 });
 
