@@ -22,6 +22,7 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         CAPPluginMethod(name: "createReminder", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "updateReminder", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setReminderDone", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "deleteReminder", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "listCalendars", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "listEvents", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getEvent", returnType: CAPPluginReturnPromise),
@@ -698,6 +699,52 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
                 }
             }
             call.resolve(["reminder": self.serializeReminder(r, f, self.makeCalendar())])
+        }
+    }
+
+    /// リマインダーの削除（第14版 PR20）。force はない。最新が expectModifiedAt より 1 秒超新しければ CONFLICT で消さない。
+    /// すでに無ければ成功（missing）。繰返しは NOT_EDITABLE、読み取り専用は READ_ONLY。
+    @objc func deleteReminder(_ call: CAPPluginCall) {
+        guard ensureReminderAccess(call) else { return }
+        let allowedTop: Set<String> = ["itemId", "externalId", "expectModifiedAt"]
+        guard Set(call.options.keys.compactMap { $0 as? String }).isSubset(of: allowedTop),
+              let itemId = call.getString("itemId"), !itemId.isEmpty,
+              let rawExpect = call.options["expectModifiedAt"], rawExpect is NSNull || rawExpect is NSNumber else {
+            call.reject("invalid arguments", "INVALID_ARGUMENT")
+            return
+        }
+        let externalId = call.getString("externalId") ?? ""
+        let expect = (rawExpect as? NSNumber)?.doubleValue
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            let r: EKReminder
+            switch self.resolveReminder(itemId: itemId, externalId: externalId) {
+            case .ambiguous:
+                call.reject("target is ambiguous", "UNAVAILABLE")
+                return
+            case .notFound:
+                call.resolve(["deleted": true, "missing": true])
+                return
+            case .found(let x):
+                r = x
+            }
+            if !(r.calendar?.allowsContentModifications ?? false) {
+                call.reject("reminder is read only", "READ_ONLY")
+                return
+            }
+            if r.hasRecurrenceRules {
+                call.reject("recurring reminder is not editable", "NOT_EDITABLE")
+                return
+            }
+            if self.isRemConflict(r, expect: expect) {
+                call.reject("reminder was modified on the device", "CONFLICT")
+                return
+            }
+            do { try self.store.remove(r, commit: true) } catch {
+                call.reject("could not delete the reminder", "UNAVAILABLE", error)
+                return
+            }
+            call.resolve(["deleted": true])
         }
     }
 

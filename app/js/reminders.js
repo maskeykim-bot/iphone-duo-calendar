@@ -44,6 +44,15 @@ export async function setReminderDone(call, target, done) {
   return r.reminder;
 }
 
+// 削除（第14版 PR20）。force はない。expectModifiedAt は読み込んだ時の modifiedAt。不在は成功（missing）。
+export async function deleteReminder(call, target, expectModifiedAt) {
+  const o = { itemId: target.itemId, expectModifiedAt: expectModifiedAt ?? null };
+  if (target.externalId) o.externalId = target.externalId;
+  const r = await call('deleteReminder', o);
+  if (!r || r.deleted !== true) throw { code: 'UNAVAILABLE' };
+  return { missing: r.missing === true };
+}
+
 // ---- 第14版 PR15: 分類・読込・表示（タスク本文は保存しない。メモリ上だけ） ----
 export const HIST_DAYS = 30;
 const pad2 = (n) => String(n).padStart(2, '0');
@@ -287,5 +296,50 @@ export function createDoneController(call, { delay = 1500, onSettle, onPending }
       return true;
     },
     reset() { for (const e of map.values()) { e.dead = true; clearTimeout(e.timer); } map.clear(); },
+  };
+}
+
+// ---- 第14版 PR20: 削除（4秒の取消）。即非表示、4秒たつか画面が裏に回ったら native で削除。再作成での取消はしない ----
+export const DELETE_UNDO_MS = 4000;
+export const TASK_DELETED = 'リマインダーから削除しました';
+export const TASK_DELETE_CONFLICT = 'iPhone のリマインダー側で変更されていたため、削除せずに残しました。';
+// onChange(): 非表示の集合が変わった。onSettle(id, { ok, missing, err }): native の結果が出た（ok=false なら表示へ戻す）。
+export function createDeleteController(call, { delay = DELETE_UNDO_MS, onChange, onSettle } = {}) {
+  const map = new Map(); // id -> { r, timer, sent }
+  const send = async (e) => {
+    if (e.sent) return;
+    e.sent = true; clearTimeout(e.timer);
+    let out;
+    try { const x = await deleteReminder(call, { itemId: e.r.itemId, externalId: e.r.externalId }, e.r.modifiedAt); out = { ok: true, missing: x.missing }; }
+    catch (err) { out = { ok: false, err }; }
+    if (map.get(e.r.itemId) !== e) return;
+    map.delete(e.r.itemId);
+    onSettle?.(e.r.itemId, out);
+    onChange?.();
+  };
+  return {
+    has: (id) => map.has(id),
+    ids: () => new Set(map.keys()),
+    // 削除できないもの（読み取り専用・繰返し・すでに予約済み）は false。
+    schedule(r) {
+      if (!r || r.readOnly || r.recurring || map.has(r.itemId)) return false;
+      const e = { r, timer: 0, sent: false };
+      e.timer = setTimeout(() => send(e), delay);
+      map.set(r.itemId, e);
+      onChange?.();
+      return true;
+    },
+    // 4秒内の取消。native へまだ送っていなければ何も呼ばずに元へ戻す。
+    undo(id) {
+      const e = map.get(id);
+      if (!e || e.sent) return false;
+      clearTimeout(e.timer); map.delete(id);
+      onChange?.();
+      return true;
+    },
+    // 画面が裏に回った時: 待っているものを今すぐ送る。
+    flush() { for (const e of [...map.values()]) send(e); },
+    // 許可の取消など: 送っていないものは送らずに捨てる。
+    reset() { for (const e of map.values()) clearTimeout(e.timer); map.clear(); },
   };
 }

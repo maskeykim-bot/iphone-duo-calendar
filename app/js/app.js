@@ -10,7 +10,7 @@ import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAl
 import { rokuyoOf } from './rokuyo.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS } from './pages.js';
 import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.js';
-import { checkReminderAccess, requestReminderAccess, taskAccessHtml, createReminderLoader, tasksHtml, HIST_DAYS, pickAddList, createAddController, openTaskEditor, taskEditorHtml, taskDirty, saveTask, createDoneController, TASK_CONFLICT } from './reminders.js';
+import { DELETE_UNDO_MS, checkReminderAccess, requestReminderAccess, taskAccessHtml, createReminderLoader, tasksHtml, HIST_DAYS, pickAddList, createAddController, openTaskEditor, taskEditorHtml, taskDirty, saveTask, createDoneController, TASK_CONFLICT, createDeleteController, TASK_DELETED, TASK_DELETE_CONFLICT } from './reminders.js';
 import { call, errCode, errReason, errText, listen, nativeAvailable, reminderErrText } from './native.js';
 import { buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normSettings, pickAddCal, planNativeOps, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
 import {
@@ -929,7 +929,7 @@ root.addEventListener('focusout', (ev) => { if (memoComposing && ev.target.close
 const flushMemosNow = () => { memoSync(); return memoStore.flushAll(); };
 // バックアップの前後: 未保存のメモを保存し終えるまで待つ。保存できなかった日があれば false。
 const flushMemosAwait = async () => { try { const r = await flushMemosNow(); return r.every((x) => x !== false) && !memoStore.anyDirty(); } catch { return false; } };
-document.addEventListener('visibilitychange', () => { if (document.hidden) flushMemosNow(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { flushMemosNow(); delCtl.flush(); } });
 window.addEventListener('pagehide', flushMemosNow);
 // ---------- タスク: 続けて追加（PR17） ----------
 root.addEventListener('input', (ev) => { const i = ev.target.closest?.('input.remin'); if (i && !RM.add.busy) RM.add.title = i.value; });
@@ -994,6 +994,28 @@ const doneCtl = createDoneController(call, {
     }
   },
 });
+// 削除（PR20）: 即非表示、4秒は取り消せる。確定は native。失敗・衝突は表示へ戻す。
+const delCtl = createDeleteController(call, {
+  onChange: () => { RM.sig = ''; render(); },
+  onSettle: (id, { ok, err }) => {
+    if (RM.state !== 'granted') return;
+    if (ok && RM.data) RM.data = { ...RM.data, reminders: RM.data.reminders.filter((x) => x.itemId !== id) };
+    RM.sig = ''; render(); scheduleTasks();
+    if (!ok) {
+      const m = errCode(err) === 'CONFLICT' ? TASK_DELETE_CONFLICT : reminderErrText(err, '削除できませんでした。タスクはもとに戻しました。');
+      notice(m); say(m);
+      if (errCode(err) === 'PERMISSION_DENIED') refreshReminderAccess();
+    }
+  },
+});
+function deleteTask(id) {
+  const r = RM.data?.reminders.find((x) => x.itemId === id);
+  if (!r || doneCtl.has(id) || !delCtl.schedule(r)) return false;
+  const m = TASK_DELETED;
+  notice(m, { label: '取り消す', fn: () => { if (delCtl.undo(id)) { document.querySelector('#native-toast')?.remove(); say('削除を取り消しました。'); scheduleTasks(); } } }, DELETE_UNDO_MS);
+  say(m);
+  return true;
+}
 function toggleDone(id) {
   const r = RM.data?.reminders.find((x) => x.itemId === id);
   if (!r || !doneCtl.toggle(r)) return;
@@ -1001,11 +1023,11 @@ function toggleDone(id) {
   say(now ? '完了にしました。' : '未完了に戻しました。');
 }
 function taskBody(where) {
-  if (RM.state === 'granted') return tasksHtml(RM.data, { selected: state.selected, doneOpen: RM.doneOpen, histDays: RM.histDays, loading: !RM.err, error: RM.err, busyMore: RM.more, pending: doneCtl.pending(), add: RM.data ? { draft: RM.add, listId: pickAddList(RM.data.lists) } : null });
+  if (RM.state === 'granted') return tasksHtml(RM.data && delCtl.ids().size ? { ...RM.data, reminders: RM.data.reminders.filter((x) => !delCtl.has(x.itemId)) } : RM.data, { selected: state.selected, doneOpen: RM.doneOpen, histDays: RM.histDays, loading: !RM.err, error: RM.err, busyMore: RM.more, pending: doneCtl.pending(), add: RM.data ? { draft: RM.add, listId: pickAddList(RM.data.lists) } : null });
   return taskAccessHtml(RM.state, where, NATIVE);
 }
 // 許可がなくなったら、メモリ上のタスクも読込も捨てる（本文はどこにも保存していない）。
-function dropTasks() { doneCtl.reset(); tkDrop?.(); remLoader.cancel(); clearTimeout(RM.timer); RM.data = null; RM.err = false; RM.sig = ''; RM.more = false; RM.doneOpen = false; RM.histDays = HIST_DAYS; RM.add = newDraft(); }
+function dropTasks() { doneCtl.reset(); delCtl.reset(); tkDrop?.(); remLoader.cancel(); clearTimeout(RM.timer); RM.data = null; RM.err = false; RM.sig = ''; RM.more = false; RM.doneOpen = false; RM.histDays = HIST_DAYS; RM.add = newDraft(); }
 async function loadTasks() {
   if (!NATIVE || RM.state !== 'granted') return;
   try {
@@ -1676,6 +1698,8 @@ const taskIsDirty = () => !!TK && taskDirty(TK.ed, tkForm());
 function tkUi() {
   const lock = !!TK.ed.lock, gone = TK.gone;
   $('#tk-save').hidden = lock || gone;
+  $('#tk-del').hidden = lock || gone;
+  $('#tk-del').disabled = TK.busy;
   $('#tk-save').disabled = TK.busy;
   $('#tk-err').textContent = TK.ed.err || '';
   $('#tk-note').hidden = gone;
@@ -1698,6 +1722,12 @@ taskDlg.addEventListener('close', () => {
   if (key && !o?.isConnected) root.querySelector(`[data-key="rm:${CSS.escape(key)}"] .rmbody`)?.focus({ preventScroll: true });
 });
 $('#tk-close').addEventListener('click', () => dismissPopup(false));
+$('#tk-del').addEventListener('click', () => {
+  if (!TK || TK.busy || TK.ed.lock || TK.gone) return;
+  const id = TK.ed.itemId;
+  fadeClose(taskDlg, closeTask);
+  deleteTask(id);
+});
 $('#tk-save').addEventListener('click', async () => {
   if (!TK || TK.busy || TK.ed.lock) return;
   const t = TK, orig = t.ed.orig;
@@ -2934,8 +2964,8 @@ const MSG = {
   gaveUp: 'iPhone のカレンダーに反映できなかったため、結びつきを外しました。Duo の予定はそのまま残っています。',
 };
 let noticeTimer = 0;
-// 4 秒のお知らせ。action を付けると右にボタンを出す。
-function notice(msg, action) {
+// お知らせ（既定4秒、ms で変えられる）。action を付けると右にボタンを出す。
+function notice(msg, action, ms = 4000) {
   clearTimeout(noticeTimer);
   document.querySelector('#native-toast')?.remove();
   const el = document.createElement('div');
@@ -2943,7 +2973,7 @@ function notice(msg, action) {
   const sp = document.createElement('span'); sp.textContent = msg; el.append(sp);
   if (action) { const b = document.createElement('button'); b.type = 'button'; b.textContent = action.label; b.addEventListener('click', action.fn); el.append(b); }
   document.body.append(el);
-  noticeTimer = setTimeout(() => el.remove(), 4000);
+  noticeTimer = setTimeout(() => el.remove(), ms);
 }
 function requestFlush(delay = 400) {
   if (!NATIVE || !OBX.items.length) return;
@@ -3361,6 +3391,33 @@ document.addEventListener('keydown', (ev) => {
   else if (searchDlg.open) closePanel(searchDlg);
   else if (dlg.open && !extBusy) closeEditor();
 });
+
+// ---------- タスク行の左スワイプ削除（PR20）。タスクページは左右スワイプのページ送りを使わない ----------
+{
+  let g = null, sup = 0;
+  const reset = (row) => { if (row) { row.style.transition = 'transform .15s'; row.style.transform = ''; setTimeout(() => { row.style.transition = ''; }, 200); } };
+  root.addEventListener('pointerdown', (ev) => {
+    const row = ev.target instanceof Element ? ev.target.closest('.rmrow') : null;
+    if (g || !row || !ev.isPrimary || (ev.pointerType === 'mouse' && ev.button !== 0) || anyPanel() || row.classList.contains('ro')) return;
+    g = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, row, key: row.dataset.key.slice(3), on: false };
+  });
+  window.addEventListener('pointermove', (ev) => {
+    if (!g || ev.pointerId !== g.id) return;
+    const dx = ev.clientX - g.x, dy = ev.clientY - g.y;
+    if (!g.on) { if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) { g = null; return; } if (dx < -12 && Math.abs(dx) > Math.abs(dy) * 1.5) g.on = true; else return; }
+    g.row.style.transform = `translateX(${Math.min(0, dx)}px)`;
+  });
+  const fin = (ev, cancel) => {
+    if (!g || ev.pointerId !== g.id) return;
+    const { row, key, on } = g, dx = ev.clientX - g.x, dy = ev.clientY - g.y; g = null;
+    if (!on) return;
+    sup = 1; setTimeout(() => { sup = 0; }, 400);
+    if (!cancel && dx <= -72 && Math.abs(dx) >= Math.abs(dy) * 1.5) { row.style.transform = ''; deleteTask(key); } else reset(row);
+  };
+  window.addEventListener('pointerup', (ev) => fin(ev, false));
+  window.addEventListener('pointercancel', (ev) => fin(ev, true));
+  document.addEventListener('click', (ev) => { if (sup && ev.target.closest?.('.rmrow')) { sup = 0; ev.stopPropagation(); ev.preventDefault(); } }, true);
+}
 
 // ---------- スワイプ（左＝次、右＝前） ----------
 const SWIPE_ZONE = '.scroll, .agenda, .remaining, .hero, .page, .list';
