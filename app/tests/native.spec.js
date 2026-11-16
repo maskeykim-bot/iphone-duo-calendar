@@ -391,7 +391,80 @@ test.describe('ネイティブ（偽装）', () => {
     await expect(r).toBeVisible();
     await expect(r).toContainText('カレンダーのフルアクセスの許可が必要です。');
     await expect(page.locator('#xr-retry')).toBeHidden();
-    expect((await dbEvents(page)).find((e) => e.title === '許可不足').nativeLink.state).toBe('pending');
+    // 第12版 PR2: 再試行できない失敗はエラー受領時点で確定（unlinked、本文・requestId は残る）
+    await expect.poll(async () => (await dbEvents(page)).find((e) => e.title === '許可不足').nativeLink.state).toBe('unlinked');
+    expect((await dbEvents(page)).find((e) => e.title === '許可不足').nativeLink.requestId).toBeTruthy();
+  });
+
+  const failCreate = async (page, title, close) => {
+    await page.evaluate(() => { window.__mock.createFail = 1; });
+    await page.locator('[data-act="add"]:visible').first().click();
+    await page.locator('#f-title').fill(title);
+    await page.locator('#f-start').fill('2026/12/05 10:00');
+    await page.locator('#f-end').fill('2026/12/05 11:00');
+    await page.locator('#f-al0').selectOption('b30');
+    await page.locator('#f-xadd').check();
+    await page.locator('#editor [type=submit]').click();
+    await expect(page.locator('#xretry')).toBeVisible();
+    // 再試行の選択中は pending のまま（通知は iPhone 側の予定）
+    expect((await dbEvents(page)).find((e) => e.title === title).nativeLink.state).toBe('pending');
+    await close();
+  };
+
+  test('第12版 PR2: 失敗後に「閉じる」で放棄 → unlinked になり Duo の通知が予約される', async ({ page }) => {
+    await mock(page, { notif: 'granted' });
+    await openApp(page);
+    await enable(page);
+    await failCreate(page, '放棄A', () => page.locator('#xr-close').click());
+    await expect(page.locator('#xretry')).toBeHidden();
+    await expect.poll(async () => (await dbEvents(page)).find((e) => e.title === '放棄A').nativeLink.state).toBe('unlinked');
+    const id = (await dbEvents(page)).find((e) => e.title === '放棄A').id;
+    expect(await page.evaluate(() => window.__mock.pending.map((i) => i.eventId))).not.toContain(id); // 再試行の選択中は予約されていない
+    await expect.poll(() => page.evaluate(() => window.__mock.pending.map((i) => i.eventId))).toContain(id);
+    // 再読込しても放棄分は再提示されない
+    await page.reload();
+    await expect(page.locator('#xretry')).toBeHidden();
+  });
+
+  test('第12版 PR2: 失敗後に Escape でも放棄、再試行を選ぶと放棄しない', async ({ page }) => {
+    await mock(page);
+    await openApp(page);
+    await enable(page);
+    await failCreate(page, '放棄B', () => page.keyboard.press('Escape'));
+    await expect.poll(async () => (await dbEvents(page)).find((e) => e.title === '放棄B').nativeLink.state).toBe('unlinked');
+    await failCreate(page, '再試行C', () => page.locator('#xr-retry').click());
+    await expect.poll(async () => (await dbEvents(page)).find((e) => e.title === '再試行C').nativeLink.state).toBe('linked');
+  });
+
+  test('第12版 PR2: 再試行も失敗 → 閉じると放棄（同じ requestId のまま）', async ({ page }) => {
+    await mock(page);
+    await openApp(page);
+    await enable(page);
+    await failCreate(page, '放棄D', async () => {
+      await page.evaluate(() => { window.__mock.createFail = 1; });
+      await page.locator('#xr-retry').click();
+      await expect(page.locator('#xretry')).toBeVisible();
+      await expect(page.locator('#xr-retry')).toBeVisible();
+      expect((await dbEvents(page)).find((e) => e.title === '放棄D').nativeLink.state).toBe('pending');
+      await page.locator('#xr-close').click();
+    });
+    await expect.poll(async () => (await dbEvents(page)).find((e) => e.title === '放棄D').nativeLink.state).toBe('unlinked');
+    const c = await calls(page, 'createEvent');
+    expect(new Set(c.map((k) => k.opts.requestId)).size).toBe(1);
+  });
+
+  test('第12版 PR2: 再試行パネルを開いたまま予定が消えても、放棄で復活しない', async ({ page }) => {
+    await mock(page);
+    await openApp(page);
+    await enable(page);
+    await failCreate(page, '放棄E', async () => {
+      const id = (await dbEvents(page)).find((e) => e.title === '放棄E').id;
+      await page.evaluate(async (id) => { const db = await import('/js/db.js'); await db.deleteEvent(id); }, id);
+      await page.locator('#xr-close').click();
+    });
+    await expect(page.locator('#xretry')).toBeHidden();
+    await page.waitForTimeout(300);
+    expect((await dbEvents(page)).find((e) => e.title === '放棄E')).toBeUndefined();
   });
 
   test('二重表示の除外: linked.eventId と一致する外部予定は表示・検索から除く', async ({ page }) => {

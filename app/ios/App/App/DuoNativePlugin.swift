@@ -58,6 +58,8 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         }
         // ローカル通知のタップ・前面表示は Capacitor の router 経由で受ける（delegate は増やさない）。
         bridge?.notificationRouter.localNotificationHandler = self
+        // 作成記録 v1 の移行は起動時にも EventKit の直列 queue へ投入する（権限は要らない）。
+        migrateCreatedAsync()
         let nc = NotificationCenter.default
         timeObservers = [
             nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil) { [weak self] _ in
@@ -333,8 +335,16 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         return SHA256.hash(data: Data(s.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
+    /// 作成記録 v1 → v2 の移行を EventKit の直列 queue に投入する。UserDefaults だけを使い、EventKit 権限は要らない。
+    /// 権限拒否・引数不正の早期 return より前に呼ぶ。他の処理と同じ queue なので順序が揃う。
+    private func migrateCreatedAsync() {
+        queue.async { [weak self] in
+            _ = self?.loadCreated()
+        }
+    }
+
     /// 作成記録 v2: [requestId: [itemId, eventId, fp, at]]。v1（平文 fingerprint）が残っていればハッシュにして移し、v1 を消す。
-    /// 呼ぶのは EventKit の直列 queue 上（または load()）。
+    /// 呼ぶのは EventKit の直列 queue 上のみ（load() からも migrateCreatedAsync 経由）。
     private func loadCreated() -> [String: [String: Any]] {
         let ud = UserDefaults.standard
         var all = (ud.dictionary(forKey: DuoNativePlugin.createdKey) as? [String: [String: Any]]) ?? [:]
@@ -407,6 +417,7 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
     }
 
     @objc func createEvent(_ call: CAPPluginCall) {
+        migrateCreatedAsync()
         guard ensureAccess(call) else { return }
         let f = makeFormatter()
         guard let requestId = call.getString("requestId"), !requestId.isEmpty, requestId.count <= 100,
@@ -690,6 +701,7 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
     }
 
     @objc func updateEvent(_ call: CAPPluginCall) {
+        migrateCreatedAsync()
         guard ensureAccess(call) else { return }
         let f = makeFormatter()
         guard let requestId = call.getString("requestId"), !requestId.isEmpty, requestId.count <= 100,
@@ -868,6 +880,7 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
     }
 
     @objc func deleteEvent(_ call: CAPPluginCall) {
+        migrateCreatedAsync()
         guard ensureAccess(call) else { return }
         let f = makeFormatter()
         guard let requestId = call.getString("requestId"), !requestId.isEmpty, requestId.count <= 100,

@@ -2017,6 +2017,25 @@ function openRetry(id, msg, canRetry) {
   (canRetry ? $('#xr-retry') : $('#xr-close')).focus({ preventScroll: true });
 }
 let xrId = null;
+let xrKeep = false; // 「再試行」を選んだ閉じ方だけ pending を保つ
+// 追加の失敗確定: 同じ id / requestId で現在 pending の結びつきだけ unlinked にする（本文・alarms・requestId は残す）。
+// 成功（または対象がもう無い）なら true。DB 失敗は false（pending のまま）。
+async function abandonCreate(id, requestId) {
+  try {
+    const ack = await db.applyAck({ keys: [id], update: (raw) => (raw.nativeLink?.requestId === requestId && raw.nativeLink.state === 'pending' ? { ...raw, nativeLink: { ...raw.nativeLink, state: 'unlinked', warn: null } } : null) });
+    applyEvents(ack.events);
+    if (ack.events.length) { requestNotifySync('link'); render(); }
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function giveUpCreate(id, requestId) {
+  if (await abandonCreate(id, requestId)) return;
+  say('保存できませんでした。もう一度お試しください。');
+  const e = state.events.find((x) => x.id === id);
+  if (e?.nativeLink?.state === 'pending' && e.nativeLink.requestId === requestId) openRetry(id, 'Duoへの保存に失敗しました。iPhoneのカレンダーへの追加は取りやめていません。', true);
+}
 const applyEvents = (list) => {
   if (!list?.length) return;
   const m = new Map(list.map((e) => [e.id, e]));
@@ -2057,8 +2076,14 @@ async function createNative(id) {
   } catch (err) {
     const msg = 'Duoに保存しました。iPhoneのカレンダーには追加できませんでした。';
     const hard = ['PERMISSION_DENIED', 'WRITE_ONLY', 'CALENDAR_NOT_FOUND', 'RESTRICTED', 'READ_ONLY'].includes(errCode(err));
-    openRetry(id, hard ? `${msg}${errText(err, '')}メニューの『iPhone カレンダー連携』と追加先を確認してください。` : msg, !hard);
     say(msg);
+    if (hard) {
+      // 再試行できない失敗はこの時点で確定。通知はDuo側に戻る。
+      openRetry(id, `${msg}${errText(err, '')}メニューの『iPhone カレンダー連携』と追加先を確認してください。`, false);
+      xrKeep = true; // 確定は下で行う（close 側の二重確定を避ける）
+      await giveUpCreate(id, l.requestId);
+      xrKeep = false;
+    } else openRetry(id, msg, true);
   } finally { xBusy = false; }
 }
 
@@ -2231,7 +2256,16 @@ async function onSendFail(op, link, e) {
   }
 }
 $('#xr-close').addEventListener('click', () => closePanel(xrDlg));
-$('#xr-retry').addEventListener('click', () => { closePanel(xrDlg); createNative(xrId); });
+$('#xr-retry').addEventListener('click', () => { xrKeep = true; closePanel(xrDlg); createNative(xrId); });
+// 閉じる・Escape・通知タップなど「再試行しない」閉じ方はすべてここで確定する（pending を放置しない）。
+xrDlg.addEventListener('close', () => {
+  syncInert();
+  const keep = xrKeep, id = xrId;
+  xrKeep = false;
+  if (keep || !id || xrDlg.open) return; // 再試行の閉じ方、または閉じたあと再び開いた（再失敗）なら確定しない
+  const l = state.events.find((x) => x.id === id)?.nativeLink;
+  if (l?.state === 'pending') giveUpCreate(id, l.requestId);
+});
 
 
 // ---------- 通知（編集シートの行・設定パネル・許可・タップ） ----------
