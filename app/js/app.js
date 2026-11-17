@@ -13,7 +13,7 @@ import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAl
 import { rokuyoOf } from './rokuyo.js';
 import { holidayOf } from './holidays.js';
 import { splitEvents, eveningFirst, homeTasks, dueText, tomorrowSummary, axisBars } from './home.js';
-import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS } from './pages.js';
+import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS, FOCUS_MODES, FOCUS_LABELS, normFocusMode } from './pages.js';
 import { noteStore, setNoteHook, recoverNoteDrafts, importLegacyMemoDrafts, folderOps, groupNotes, filterByFolder, FOLDER_NAME_MAX } from './notes.js';
 import { mountNoteEditor } from './notes-ui.js';
 import { titleOf } from './notes-model.js';
@@ -61,6 +61,7 @@ function loadUi() {
     monthTextSize: s.monthTextSize === 'large' ? 'large' : 'normal', // 月の文字: 標準 / 大
     pages: normalizePages(s.pages), // 開いた横の左右ページ（月・時間・タスク・メモ）と縦の下パネル。旧 home/view は閉じた画面・縦の従来表示用に保持
     timeMode: normTimeMode(s.timeMode), // 時間ページの表示（左右別）: '1' 1日 | '3' 3日 | 'week' 週 | 'list' 一覧
+    focusMode: normFocusMode(s.focusMode), // 開いた縦の集中モード（calendar|task|note）。他の姿勢では使わず、保存だけ保つ
     lastSide: s.lastSide === 'left' ? 'left' : 'right', // 最後に触ったページ（＋の行き先）
     holidayRed: s.holidayRed !== false, // 祝日を赤で表示（既定オン。boolean の false だけが切。日曜の赤は常に出す）
     rokuyo: s.rokuyo !== false, // 六曜を表示（既定オン。boolean の false だけが切。未保存・破損・欠落はオン）
@@ -112,14 +113,14 @@ async function applyNotifyPolicy() {
 }
 const chipTime = (iso) => iso.slice(11).replace(/^0/, ''); // 月チップの時刻は先頭の0なし（3:00 / 10:00）
 function saveUi() {
-  const { selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide } = state;
-  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTimeV: 11, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide })); } catch { /* 保存不可でも動作は続ける */ }
+  const { selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode } = state;
+  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTimeV: 11, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode })); } catch { /* 保存不可でも動作は続ける */ }
 }
 // 左右（または縦の下パネル）のページを選ぶ。同じ種類が左右に並ぶ場合は交換。
 function setPage(side, id) { set({ pages: selectPage(state.pages, side, id) }); }
 function set(patch) {
   if (state.strip && !('strip' in patch) && ['view', 'home', 'pages', 'desk'].some((k) => k in patch)) patch = { ...patch, strip: null }; // 下のタブ・ページ切替で帯の入口から元へ戻る
-  if (noteStore.anyDirty() && ['pages', 'view', 'home', 'desk'].some((k) => k in patch)) { noteSync(); noteStore.flushAll(); } // ページを変える前に未保存のノートを書く
+  if (noteStore.anyDirty() && ['pages', 'view', 'home', 'desk', 'focusMode'].some((k) => k in patch)) { noteSync(); noteStore.flushAll(); } // ページを変える前に未保存のノートを書く
   Object.assign(state, patch); if ('weekStart' in patch) setFirstDay(state.weekStart); saveUi(); render(); }
 
 // ---------- レイアウト寸法 L（キーボードで変わらない寸法）と可視範囲 V ----------
@@ -199,7 +200,9 @@ function layoutKind() {
 // 開いた縦（通常の開いた状態で縦長）。月は全幅、週は日別の縦リスト。
 const isPortrait = () => layoutKind() === 'open' && L.h >= L.w;
 // 開いた縦の下パネル（月タブのときだけ使える）。設定（pages.portraitShown / portraitBottom）は他のタブへ移っても消さない。
-const panelAvail = () => layoutKind() === 'open' && isPortrait() && state.view === 'month' && !listShown();
+// 開いた縦の集中モード。開いた縦以外では常に calendar 扱い（保存値は残す）。
+const fmode = () => (layoutKind() === 'open' && isPortrait() ? state.focusMode : 'calendar');
+const panelAvail = () => layoutKind() === 'open' && isPortrait() && fmode() === 'calendar' && state.view === 'month' && !listShown();
 const panelOn = () => panelAvail() && state.pages.portraitShown;
 // 「一覧」（今日と次の予定のリスト）を本文に出しているか。閉じた画面は home、開いた画面は「一覧」を選んだとき。
 function listShown() { const k = layoutKind(); return k === 'home' || (state.home === true && k !== 'browse' && k !== 'spread'); }
@@ -218,7 +221,7 @@ function safeChanged() { const k = safeKey(safe()); const c = k !== lastSafe; la
 const r2 = (n) => Math.round(n * 100) / 100;
 // 帯（safe area）に置く操作。右の帯は閉じた画面・開いた横の右 safe、開いた縦は上 safe。84/82 など機種の値は書かない（safe() の値だけが基準）。
 const HIT_BAND = 56, VIS_BAND = 48, HIT_HDR = 44;
-const POS = { post: 'closed', band: false, bg: null, hbar: false, set: null, search: null, all: null, task: null, memo: null, today: null, add: null, pnl: null, ux: 1 };
+const POS = { post: 'closed', band: false, bg: null, hbar: false, set: null, search: null, all: null, task: null, memo: null, today: null, add: null, pnl: null, fm: null, fmode: 'calendar', ux: 1 };
 function updateLayoutMetrics() {
   const S = safe(); lastSafe = safeKey(S);
   const kind = layoutKind(), W = L.w, H = L.h;
@@ -227,7 +230,7 @@ function updateLayoutMetrics() {
   const post = kind === 'home' || kind === 'browse' ? 'closed' : kind === 'open' && isPortrait() ? 'portrait' : 'landscape';
   const n = monthWeeks(state.selected).length;
   const v = { 'layout-w': W, 'layout-h': H, 'content-x': x0, 'content-y': y0, 'content-w': U, 'content-h': V, 'fold-x': W / 2 };
-  const pos = { post, band: false, bg: null, hbar: false, set: null, search: null, all: null, task: null, memo: null, today: null, add: null, pnl: null, ux: 1 };
+  const pos = { post, band: false, bg: null, hbar: false, set: null, search: null, all: null, task: null, memo: null, today: null, add: null, pnl: null, fm: null, fmode: 'calendar', ux: 1 };
   portraitWeekH = 0;
   for (const k of ['pnl-top', 'pnl-h', 'pnl-up-h']) de.style.removeProperty(`--${k}`);
   const box = (x, y, s, vs) => ({ x, y, s, v: vs });
@@ -267,6 +270,13 @@ function updateLayoutMetrics() {
     pos.hbar = true; pos.ux = ux;
     pos.set = box(Ls + 20 * ux, hc - 22, HIT_HDR, HIT_HDR); pos.search = box(Ls + 484 * ux, hc - 22, HIT_HDR, HIT_HDR);
     pos.today = box(Ls + 20, rowTop, 48, 48); pos.add = box(W - R - 20 - 48, rowTop, 48, 48);
+    pos.fmode = fmode();
+    if (pos.fmode === 'calendar') pos.fm = { x: Ls + 530 * ux, y: hc - 18, w: 136 * ux, h: 36 }; // 月の見出しはそのまま。切替は検索の右の空きに小さく置く
+    else { // タスク／ノート: 上の帯に 日付｜切替｜検索｜＋（設計18 §1）。下のタブ・今日・下段は出さない
+      pos.fm = { x: Ls + 174 * ux, y: hc - 18, w: 320 * ux, h: 36 };
+      pos.search = box(Ls + 553 * ux, hc - 22, HIT_HDR, HIT_HDR); pos.add = box(Ls + 609 * ux, hc - 22, HIT_HDR, HIT_HDR);
+      pos.today = null; pos.pnl = null;
+    }
     q = p;
     v['content-y'] = T; v['content-h'] = V;
     if (panelAvail()) pos.pnl = box(Ls + 80, rowTop, 48, 48); // 今日の丸の右、間12
@@ -470,9 +480,17 @@ const brand = `<div class="brand"><span class="logo">Duo.</span><span class="sma
 // 帯・見出し・下段の操作（位置は updateLayoutMetrics の POS。safe area の値だけが基準）。
 const posStyle = (p) => (p ? ` style="left:${r2(p.x)}px;top:${r2(p.y)}px;width:${p.s}px;height:${p.s}px;--v:${p.v}px"` : '');
 const todayLabel = () => { const d = parseKey(todayKey()); return `${DOW[d.getDay()]}${d.getDate()}`; };
+const FOCUS_NOUN = { calendar: '予定', task: 'タスク', note: 'ノート' };
+// 開いた縦の集中モード切替（カレンダー｜タスク｜ノート）。native button + aria-pressed。
+const focusSwitch = () => {
+  const f = POS.fm; if (!f) return '';
+  const on = POS.fmode;
+  const date = on === 'calendar' ? '' : `<span class="fdate" style="left:${r2(POS.set.x + 52 * POS.ux)}px;top:${r2(f.y)}px;height:${f.h}px">${esc(dayLabel(todayKey()))}</span>`;
+  return `${date}<div class="fmodes${on === 'calendar' ? ' compact' : ''}" role="group" aria-label="集中モード" style="left:${r2(f.x)}px;top:${r2(f.y)}px;width:${r2(f.w)}px;height:${f.h}px">${FOCUS_MODES.map((m, i) => `<button type="button" data-fmode="${m}" aria-pressed="${m === on}" aria-description="3個中${i + 1}番目">${FOCUS_LABELS[m]}</button>`).join('')}</div>`;
+};
 const CTL = {
   set: () => `<button type="button" class="cb csettings" data-act="menu" aria-label="設定" aria-haspopup="dialog"${posStyle(POS.set)}><span class="bi">${ICON_GEAR}</span></button>`,
-  search: () => `<button type="button" class="cb csearch" data-act="search" aria-label="予定を検索"${posStyle(POS.search)}><span class="bi">${ICON_SEARCH}</span></button>`,
+  search: () => `<button type="button" class="cb csearch" data-act="search" aria-label="${FOCUS_NOUN[POS.fmode] || '予定'}を検索"${posStyle(POS.search)}><span class="bi">${ICON_SEARCH}</span></button>`,
   task: () => {
     const n = stripTaskCount(), on = stripOn('task');
     return `<button type="button" class="cb cstrip ctask${on ? ' on' : ''}" data-act="strip" data-strip="task" aria-pressed="${on}" aria-label="${n ? `タスク、期限切れと今日 ${n}件` : 'タスク'}"${posStyle(POS.task)}><span class="bi">${ICON_TASK}${n ? `<span class="bdg" aria-hidden="true">${n > 99 ? '99+' : n}</span>` : ''}</span></button>`;
@@ -483,7 +501,7 @@ const CTL = {
   },
   today: () => `<button type="button" class="cb ctoday" data-act="today" aria-label="今日に戻る"${posStyle(POS.today)}><span class="bi" aria-hidden="true">${todayLabel()}</span></button>`,
   pnl: () => { const on = state.pages.portraitShown; return `<button type="button" class="cb cpnl${on ? ' on' : ''}" data-act="pnltoggle" aria-label="${on ? '下の段を隠す' : '下の段を表示'}"${posStyle(POS.pnl)}><span class="bi">${ICON_PNL}</span></button>`; },
-  add: () => `<button type="button" class="cb cadd" data-act="add" aria-label="予定を追加"${posStyle(POS.add)}><span class="bi" aria-hidden="true">＋</span></button>`,
+  add: () => `<button type="button" class="cb cadd" data-act="add" aria-label="${FOCUS_NOUN[POS.fmode] || '予定'}を追加"${posStyle(POS.add)}><span class="bi" aria-hidden="true">＋</span></button>`,
 };
 // 右の帯のタスク／メモ。閉じた画面は全面に出している間、見開きはどちらかのページがそれのとき「開いている」。
 const stripOn = (id) => (layoutKind() === 'spread' ? PG().left === id || PG().right === id : state.strip === id);
@@ -499,7 +517,7 @@ function ctl() {
   let h = '';
   if (POS.post === 'closed') {
     h = POS.band ? CTL.set() + CTL.search() + CTL.task() + CTL.memo() + CTL.today() + CTL.add() : CTL.set() + CTL.search() + CTL.today() + CTL.add();
-  } else if (POS.post === 'portrait') h = CTL.set() + CTL.search() + CTL.today() + (POS.pnl ? CTL.pnl() : '') + CTL.add();
+  } else if (POS.post === 'portrait') h = CTL.set() + focusSwitch() + CTL.search() + (POS.today ? CTL.today() : '') + (POS.pnl ? CTL.pnl() : '') + CTL.add();
   else if (POS.band) h = CTL.set() + CTL.search() + CTL.task() + CTL.memo() + CTL.today() + CTL.add();
   return `${bg}<div class="ctl${POS.band ? ' band' : ''}" role="group" aria-label="操作">${h}</div>`;
 }
@@ -836,8 +854,14 @@ function stripPage(id) {
   const t = id === 'memo' ? 'ノート' : 'タスク';
   return `<section class="page stripp" data-page="${id}" aria-label="${PAGE_NAMES[id]}"><div class="sph"><h2>${t}</h2></div>${id === 'memo' ? noteBody('closed') : taskBody('closed')}</section>`;
 }
+// 開いた縦のタスク／ノート専用面。カレンダーの部品（月・下の段・タブ）は出さない。既存のタスク・ノート部品を全面に置く。
+function focusPage(m) {
+  const id = m === 'note' ? 'memo' : 'task';
+  return `<section class="page stripp fpage" data-page="${id}" aria-label="${FOCUS_LABELS[m]}">${id === 'memo' ? noteBody('closed') : taskBody('closed')}</section>`;
+}
 // 開いた縦: 全幅の月（下に予定一覧は置かない）。見出し（設定・前・題名・次・全・検索）は上 safe の帯の中、下に 今日・タブ・＋。
 function open() {
+  if (fmode() !== 'calendar') return `<div class="shell open portrait focus" data-focus="${fmode()}"><div class="pcol fcol">${focusPage(fmode())}</div>${ctl()}</div>`;
   return `<div class="shell open portrait"><div class="pcol">${listShown() ? listView() : calendar('portrait')}</div><div class="hline" aria-hidden="true"></div>${panelOn() ? bottomPanel() : panelAvail() ? '<div class="pgrab" data-grab="1" aria-hidden="true"></div>' : ''}${ctl()}${tabs()}</div>`;
 }
 // ---------- 開いた縦の下パネル（上は月、下は 時間｜タスク｜メモ） ----------
@@ -1682,8 +1706,18 @@ function pickPage(side, id) {
   say(`${side === 'left' ? '左' : '右'}ページを${PAGE_LABELS[id]}にしました。${swapped ? `${side === 'left' ? '右' : '左'}ページは${PAGE_LABELS[next[side === 'left' ? 'right' : 'left']]}になりました。` : ''}`);
 }
 // ＋の行き先: 見開きでは最後に触ったページに合わせる。月・時間は予定、タスク・メモは入力の接続（後続の版）まで案内のみ。
+// 集中モードの切替。保存して、押したボタンへフォーカスを戻す。カレンダーの月・日付・全表示・下の段は触らない。
+function setFocusMode(m) {
+  m = normFocusMode(m);
+  if (layoutKind() !== 'open' || !isPortrait() || m === state.focusMode) return;
+  TLM.open = null; MM.open = null;
+  set({ focusMode: m });
+  root.querySelector(`[data-fmode="${m}"]`)?.focus({ preventScroll: true });
+  say(`${FOCUS_LABELS[m]}にしました。`);
+}
 function addFromHere(b) {
-  const id = state.strip && layoutKind() !== 'spread' ? state.strip : layoutKind() === 'spread' ? PG()[state.lastSide] : panelOn() ? state.pages.portraitBottom : 'month';
+  const fm = fmode();
+  const id = fm === 'task' ? 'task' : fm === 'note' ? 'memo' : state.strip && layoutKind() !== 'spread' ? state.strip : layoutKind() === 'spread' ? PG()[state.lastSide] : panelOn() ? state.pages.portraitBottom : 'month';
   if (id === 'memo') { noteNew(); say('新しいノートを書けます。'); return; }
   if (id === 'task') { if (RM.data) { openAdd(); say('タスクを入力できます。'); } else say('タスクを読み込んでいます。'); return; }
   openEditor(null, b);
@@ -1742,6 +1776,7 @@ root.addEventListener('click', (ev) => {
   if (PS.on && pasteClick(b)) return;
   const pg = layoutKind() === 'spread' && d.act !== 'add' ? b.closest('.page') : null;
   if (pg) { const sd = pg.classList.contains('lp') ? 'left' : 'right'; if (sd !== state.lastSide) { state.lastSide = sd; saveUi(); } }
+  if (d.fmode) { setFocusMode(d.fmode); return; }
   if (d.view) set({ view: d.view, home: false });
   else if (d.act === 'list') set({ home: true });
   else if (d.act === 'homego') homeGo2(d, b);
@@ -1783,7 +1818,7 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'sample') loadSample();
   else if (d.act === 'pickrange') startRangeKbd(b);
   else if (d.mr) rangeKbd(d.mr);
-  else if (d.act === 'search') openSearch(b);
+  else if (d.act === 'search') openSearch(b, fmode());
   else if (d.act === 'menu') openMenu(b);
   else if (d.act === 'tlmenu') { MM.open = null; TLM.open = TLM.open === d.pane ? null : d.pane; render(); }
   else if (d.act === 'mini') { TLM.open = null; MM.open = MM.open === d.pane ? null : d.pane; MM.ym = state.selected; render(); if (MM.open) root.querySelector('.mmc.sel, .mmc')?.focus({ preventScroll: true }); }
@@ -2924,7 +2959,9 @@ const SR = { q: $('#sr-q'), clear: $('#sr-clear'), range: $('#sr-range'), xrange
 let srSeq = 0, srTimer = 0, srToday = todayKey(), srItems = [], srSnap = null, srMemos = [], srMemoSeq = 0, srTasks = [], srTaskSeq = 0;
 const ymd = (k) => k.replaceAll('-', '/');
 const localDay = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-function openSearch(from) {
+let srOnly = null; // 集中モードの検索: 'task' | 'note' | null（全体）
+function openSearch(from, mode) {
+  srOnly = mode === 'task' || mode === 'note' ? mode : null;
   srToday = todayKey();
   // 検索開始時点の成功キャッシュと範囲を固定する（検索のために3年分を取りに行かない）。
   srSnap = extActive() ? { events: [...visExt()], range: X.cache?.range || null } : null;
@@ -2959,17 +2996,19 @@ function taskHitHtml(t, ts) {
 }
 function renderSearch(initial = false, quiet = false) {
   const say2 = (m) => { if (!quiet) say(m); };
-  const mres = searchNotes(srMemos, SR.q.value);
-  const tres = searchTasks(srTasks, SR.q.value);
-  const res = searchEvents(state.events, SR.q.value, srToday, srSnap ? searchExt(srSnap.events, SR.q.value, srToday) : [], duoVisible());
+  const none = (ts) => ({ ts, items: [], total: 0, capped: false });
+  const mres = srOnly === 'task' ? none([]) : searchNotes(srMemos, SR.q.value);
+  const tres = srOnly === 'note' ? none([]) : searchTasks(srTasks, SR.q.value);
+  const res = srOnly ? { ...none(terms(SR.q.value)), range: { from: srToday, to: srToday } } : searchEvents(state.events, SR.q.value, srToday, srSnap ? searchExt(srSnap.events, SR.q.value, srToday) : [], duoVisible());
   SR.clear.hidden = !SR.q.value;
+  SR.range.hidden = !!srOnly;
   SR.range.textContent = `検索範囲：${ymd(res.range.from)}–${ymd(res.range.to)}・最大${LIMIT}件`;
   SR.xrange.hidden = !srSnap;
   if (srSnap) SR.xrange.textContent = srSnap.range ? `iPhoneの検索範囲：${ymdSlash(srSnap.range.from)}–${ymdSlash(lastDay(srSnap.range.to))}（読み込み済み）` : 'iPhoneの予定はまだ読み込まれていません。';
   srItems = res.items;
   const yr = Number(srToday.slice(0, 4));
   if (!res.ts.length) { SR.body.innerHTML = '<p class="smsg">探したい予定の言葉を入力してください。予定名・メモ・場所から探せます。</p>'; if (!initial) say2('検索語を消しました。'); return; }
-  if (!res.total && !mres.total && !tres.total) { SR.body.innerHTML = '<p class="smsg">該当する予定はありません。検索語や検索範囲を確認してください。</p>'; say2('該当する予定はありません。'); return; }
+  if (!res.total && !mres.total && !tres.total) { const nn = srOnly ? FOCUS_NOUN[srOnly] : '予定'; SR.body.innerHTML = `<p class="smsg">該当する${nn}はありません。検索語${srOnly ? '' : 'や検索範囲'}を確認してください。</p>`; say2(`該当する${nn}はありません。`); return; }
   const groups = groupByDay(res.items).map((g) => {
     const label = Number(g.key.slice(0, 4)) === yr ? dayLabel(g.key) : `${g.key.slice(0, 4)}年${dayLabel(g.key)}`;
     return `<section class="hgroup"><h3>${label}</h3>${g.items.map((e) => hitHtml(e, res.ts)).join('')}</section>`;
@@ -2977,7 +3016,7 @@ function renderSearch(initial = false, quiet = false) {
   const evHtml = res.total ? `<p class="small hcount">${res.total}件の予定</p>${res.capped ? `<p class="small">${LIMIT}件を表示しています。検索語を追加して絞り込んでください</p>` : ''}${groups}` : '<p class="smsg">該当する予定はありません。検索語や検索範囲を確認してください。</p>';
   const mHtml = mres.total ? `<section class="ssec" data-sec="memo" aria-label="ノート"><h2 class="srhead">ノート</h2><p class="small hcount">${mres.total}件のノート（全期間・最大${LIMIT}件）</p>${mres.capped ? `<p class="small">${LIMIT}件を表示しています。検索語を追加して絞り込んでください</p>` : ''}${mres.items.map((m) => memoHitHtml(m, mres.ts)).join('')}</section>` : '';
   const tHtml = tres.total ? `<section class="ssec" data-sec="task" aria-label="タスク"><h2 class="srhead">タスク</h2><p class="small hcount">${tres.total}件のタスク（全期間・最大${LIMIT}件）</p>${tres.capped ? `<p class="small">${LIMIT}件を表示しています。検索語を追加して絞り込んでください</p>` : ''}${tres.items.map((t) => taskHitHtml(t, tres.ts)).join('')}</section>` : '';
-  SR.body.innerHTML = `<section class="ssec" data-sec="events">${evHtml}</section>${mHtml}${tHtml}`;
+  SR.body.innerHTML = `${srOnly ? '' : `<section class="ssec" data-sec="events">${evHtml}</section>`}${mHtml}${tHtml}`;
   say2(`${res.total}件の予定${mres.total ? `、${mres.total}件のノート` : ''}${tres.total ? `、${tres.total}件のタスク` : ''}が見つかりました。`);
 }
 SR.q.addEventListener('input', () => {

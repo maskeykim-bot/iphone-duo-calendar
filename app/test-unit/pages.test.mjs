@@ -61,3 +61,10 @@ test('PR13: 時間のlistは値を保ち表示名はリスト', () => {
   assert.equal(TIME_LABELS.list, 'リスト');
   assert.deepEqual(normTimeMode({ left: 'list', right: undefined }), { left: 'list', right: '1' });
 });
+
+import { FOCUS_MODES, normFocusMode } from '../js/pages.js';
+test('集中モードの正規化（未設定・不正は calendar、有効値は保つ）', () => {
+  assert.deepEqual(FOCUS_MODES, ['calendar', 'task', 'note']);
+  for (const v of [undefined, null, '', 'x', 3, {}, 'memo']) assert.equal(normFocusMode(v), 'calendar');
+  for (const v of FOCUS_MODES) assert.equal(normFocusMode(v), v);
+});

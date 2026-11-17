@@ -41,3 +41,8 @@ export function normTimeMode(t) {
   const f = (v) => (TIME_MODES.includes(v) ? v : '1');
   return { left: f(s.left), right: f(s.right) };
 }
+
+// 開いた縦の集中モード（カレンダー｜タスク｜ノート）。未設定・不正は 'calendar'。保存済みの値は次の開いた縦でも使う。
+export const FOCUS_MODES = ['calendar', 'task', 'note'];
+export const FOCUS_LABELS = { calendar: 'カレンダー', task: 'タスク', note: 'ノート' };
+export const normFocusMode = (v) => (FOCUS_MODES.includes(v) ? v : 'calendar');
