@@ -1,0 +1,25 @@
+{
+ "url": "https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv",
+ "page": "https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html",
+ "pageLinkText": "昭和30年（1955年）から令和9年（2027年）国民の祝日（csv形式：22KB）",
+ "fetchedAt": "2026-11-17T02:31:52+09:00",
+ "fetchedAtSource": "HTTP Date: Mon, 16 Nov 2026 17:31:52 GMT",
+ "lastModified": "2026-02-02T09:30:17+09:00",
+ "lastModifiedSource": "HTTP Last-Modified: Mon, 02 Feb 2026 00:30:17 GMT",
+ "httpContentType": "text/csv",
+ "httpContentLength": 21538,
+ "bytes": 21538,
+ "sha256": "cec37a743c96995cdb9cb52b685c9003634682a9b0e1a640a6b9b96881fe964a",
+ "encoding": "Shift_JIS (CP932). BOM なし。HTTP の Content-Type に charset は無かった。iconv / TextDecoder('shift_jis') で日本語が読めた。",
+ "header": [
+  "国民の祝日・休日月日",
+  "国民の祝日・休日名称"
+ ],
+ "rows": 1067,
+ "range": {
+  "first": "1955-01-01",
+  "last": "2027-11-23",
+  "years": "1955-2027",
+  "yearCount": 73
+ }
+}

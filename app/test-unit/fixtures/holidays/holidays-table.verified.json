@@ -1,0 +1,13 @@
+{
+ "file": "holidays-table.js",
+ "sha256": "f905b87ef8efa67d9297586978587ebe62a95972e589771b3a532e5a15917b8e",
+ "verifiedBy": "npm run verify",
+ "checks": [
+  "A_csv",
+  "B_rules_2022_2027",
+  "C_equinox",
+  "D_kyujitsu_and_specials",
+  "E_predicted",
+  "outOfRange"
+ ]
+}
