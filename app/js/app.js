@@ -19,6 +19,7 @@ import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel
 import { call, errCode, errReason, errText, haptic, listen, nativeAvailable, reminderErrText } from './native.js';
 import { createDestPage, destRowsHtml } from './destination-ui.js';
 import { KB_METRICS_ENABLED, kbMetrics, kbText } from './kbmetrics.js';
+import { createPosture, postureText } from './posture.js';
 import { makeVisible, buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normDest, normSettings, pickAddCal, planLinkMigration, planNativeOps, resolveDest, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, visibleDestGroups, allDestHidden, withIdent, writable, ymdSlash } from './iphone.js';
 import {
   DOW, addDays, addMonths, assignSharedLanes, dayLabel, dayOf, dkey, eventsOnDay, isKey, isMulti,
@@ -324,7 +325,9 @@ function diagText() {
   const S = safe();
   return `${window.innerWidth}×${window.innerHeight} px · DPR ${num(window.devicePixelRatio || 1)} · safe 上${num(S.top)} 右${num(S.right)} 下${num(S.bottom)} 左${num(S.left)} px`;
 }
+let postureCtl = null; // initNative 前は null
 function updateDiagnostics() {
+  postureCtl?.reapply(); // 閉じた画面⇄開いたで外面除外を再評価
   const el = $('#layout-diagnostics'); if (el) el.textContent = diagText();
   updateKbMetrics();
 }
@@ -333,7 +336,8 @@ function updateKbMetrics() {
   const el = $('#kb-metrics');
   if (!el) return;
   if (!KB_METRICS_ENABLED) { el.hidden = true; return; }
-  el.textContent = kbText(kbMetrics({ innerHeight: window.innerHeight, vv: window.visualViewport, posture: 'devicePosture' in navigator, segments: !!window.visualViewport?.segments || 'getWindowSegments' in window }));
+  const m = kbMetrics({ innerHeight: window.innerHeight, vv: window.visualViewport, posture: 'devicePosture' in navigator, segments: !!window.visualViewport?.segments || 'getWindowSegments' in window });
+  el.textContent = kbText(m).replace(/ · division\/frame\/angle\/status 未取得$/, '') + ' · ' + postureText(postureCtl?.effective ?? null, { failed: !!postureCtl?.failed, kbTop: m.kbTop, native: NATIVE });
 }
 
 // タッチ確認モード（実機の座標確認用。保存しない・通常時は DOM に層がない）。
@@ -3004,7 +3008,7 @@ async function resumeExt() {
   if (X.cache && X.cache.tz !== new Date().getTimezoneOffset()) { X.cache = null; bumpRevision(); } // タイムゾーン変更: キャッシュ破棄
   await loadExt(true);
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { resumeExt(); requestNotifySync('resume'); refreshReminderAccess(); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (NATIVE) postureCtl?.refresh(); resumeExt(); requestNotifySync('resume'); refreshReminderAccess(); } });
 
 // ---------- 設定 › カレンダー（Duo／iPhone のアカウント別／リマインダー。✓で表示を切り替える） ----------
 // ✓を変えても iPhone 側の予定・カレンダーは書き換えない（Duo の画面に出すかどうかだけ）。
@@ -4162,8 +4166,16 @@ window.syncNotifications = requestNotifySync;
 const notifySettingsChanged = () => requestNotifySync('settings'); // オン・既定・showTitle の変更。オフなら直列 clear
 const notifyPermissionChanged = () => requestNotifySync('permission');
 
+// 折り状態（PR11）。外面（閉じた画面）は layoutKind が home/browse のため折り扱いから除外。本文の配置はまだ変えない。
+postureCtl = createPosture({
+  call, listen, el: document.documentElement,
+  eligible: () => !['home', 'browse'].includes(layoutKind()),
+  onChange: () => updateKbMetrics(),
+});
+window.__posture = postureCtl; // 手動「折り」代替とテスト用
 async function initNative() {
   if (!NATIVE) return;
+  postureCtl.start(); // 権限処理より前に購読→取得。失敗・未対応でも起動を止めない
   // 連携オフ・カレンダー権限なしでも通知は動くので、購読は権限確認より前に行う。
   listen('calendarChanged', () => { clearTimeout(extTimer); extTimer = setTimeout(() => { if (extActive()) loadExt(true); }, 300); if (RM.state === 'granted') scheduleTasks(); });
   listen('notificationTapped', onNotifyTap);

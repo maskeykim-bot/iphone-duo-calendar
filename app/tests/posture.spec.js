@@ -1,6 +1,6 @@
 // 第16版 PR10: DuoNative.getPosture / postureChange の契約（Swift の写しを偽装して JS 側の受け方を確かめる）。
 import { test, expect } from '@playwright/test';
-import { openApp } from './helpers.js';
+import { openApp, openMenu, SIZES } from './helpers.js';
 
 const UNSUP = { available: false, folded: false, regionRect: null, axis: null, angle: null, status: null, source: 'unsupported', at: 1 };
 const H = { available: true, folded: true, regionRect: { x: 0, y: 420, width: 393, height: 12 }, axis: 'horizontal', angle: 42.5, status: 'partiallyOpen', source: 'reservedRegions', at: 2 };
@@ -90,5 +90,76 @@ test.describe('折り状態の契約 (PR10)', () => {
   test('非ネイティブでは nativeAvailable が false（getPosture を呼ばない前提）', async ({ page }) => {
     await openApp(page);
     expect(await page.evaluate(async () => (await import('./js/native.js')).nativeAvailable())).toBe(false);
+  });
+});
+
+// 第16版 PR11: Web 側の受け取り（html.folded・矩形変数・古い取得の無視・失敗でも起動・詳細の計測）
+const cls = (page) => page.evaluate(() => ({ folded: document.documentElement.classList.contains('folded'), h: document.documentElement.classList.contains('fold-h'), v: document.documentElement.classList.contains('fold-v'), y: document.documentElement.style.getPropertyValue('--hinge-y'), ht: document.documentElement.style.getPropertyValue('--hinge-h') }));
+const emit = (page, p) => page.evaluate((x) => window.__mock.listeners.postureChange(x), p);
+
+test.describe('Webで折り状態を受け取る (PR11)', () => {
+  test('起動時の取得で folded/軸 class と矩形変数。開いた画面の本文配置は変えない', async ({ page }) => {
+    await mockPosture(page, H); await openApp(page, SIZES.openPortrait);
+    await expect.poll(() => cls(page)).toMatchObject({ folded: true, h: true, v: false, y: '420px', ht: '12px' });
+    const calls = await page.evaluate(() => window.__mock.calls.map((c) => c.method));
+    expect(calls.indexOf('getPosture')).toBeGreaterThanOrEqual(0);
+    expect(calls.indexOf('getPosture')).toBeLessThan(calls.indexOf('checkPermission'));
+  });
+
+  test('外面（閉じた画面）は folded を付けない。開いた画面へ変わると付く', async ({ page }) => {
+    await mockPosture(page, H); await openApp(page, SIZES.closedPortrait);
+    await expect(page.locator('html[data-ready]')).toHaveCount(1);
+    expect((await cls(page)).folded).toBe(false);
+    await page.setViewportSize(SIZES.openPortrait);
+    await expect.poll(async () => (await cls(page)).folded).toBe(true);
+  });
+
+  test('イベントで更新・縦軸・開ききりで解除。未対応は class なし', async ({ page }) => {
+    await mockPosture(page, UNSUP); await openApp(page, SIZES.openPortrait);
+    expect((await cls(page)).folded).toBe(false);
+    await emit(page, { ...H, axis: 'vertical', regionRect: { x: 300, y: 0, width: 10, height: 890 }, at: 5 });
+    await expect.poll(() => cls(page)).toMatchObject({ folded: true, v: true, h: false });
+    await emit(page, { ...H, folded: false, regionRect: null, axis: null, at: 6 });
+    await expect.poll(() => cls(page)).toMatchObject({ folded: false, y: '' });
+  });
+
+  test('不正値・古い at のイベントは無視する', async ({ page }) => {
+    await mockPosture(page, H); await openApp(page, SIZES.openPortrait);
+    await emit(page, { available: 'yes' }); await emit(page, { ...H, regionRect: { x: 'a' }, at: 99 });
+    await emit(page, { ...H, folded: false, regionRect: null, at: 1 }); // H(at:2) より古い
+    expect((await cls(page)).folded).toBe(true);
+  });
+
+  test('取得失敗でも起動し、詳細に取得失敗を出す。角度は配置に使わず表示のみ', async ({ page }) => {
+    await mockPosture(page, UNSUP, { reject: true }); await openApp(page, SIZES.openPortrait);
+    await expect(page.locator('html[data-ready]')).toHaveCount(1);
+    await openMenu(page, 'details');
+    await expect(page.locator('#kb-metrics')).toContainText('取得失敗');
+  });
+
+  test('詳細に division・ヒンジ・キーボード上端との差を出す', async ({ page }) => {
+    await mockPosture(page, H); await openApp(page, SIZES.openPortrait);
+    await openMenu(page, 'details');
+    const k = page.locator('#kb-metrics');
+    await expect(k).toContainText('軸 horizontal'); await expect(k).toContainText('ヒンジ x0 y420 w393 h12');
+    await expect(k).toContainText('angle 42.5°（配置には不使用）'); await expect(k).toContainText('キーボード上端との差');
+  });
+
+  test('前面復帰で再取得し、古い応答は新しいイベントを上書きしない', async ({ page }) => {
+    await mockPosture(page, H); await openApp(page, SIZES.openPortrait);
+    await emit(page, { ...H, folded: false, regionRect: null, axis: null, at: 50 });
+    await page.evaluate(() => { window.__mock.posture = { ...window.__mock.posture, at: 3 }; document.dispatchEvent(new Event('visibilitychange')); });
+    await page.waitForTimeout(100);
+    expect((await cls(page)).folded).toBe(false); // at:3 の応答は at:50 を上書きしない
+    await page.evaluate(() => { window.__mock.posture = { ...window.__mock.posture, folded: true, at: 60 }; document.dispatchEvent(new Event('visibilitychange')); });
+    await expect.poll(async () => (await cls(page)).folded).toBe(true);
+  });
+
+  test('手動「折り」代替で class が付き、解除で戻る', async ({ page }) => {
+    await mockPosture(page, UNSUP); await openApp(page, SIZES.openPortrait);
+    await page.evaluate(() => window.__posture.setManual(true));
+    expect((await cls(page)).folded).toBe(true);
+    await page.evaluate(() => window.__posture.setManual(null));
+    expect((await cls(page)).folded).toBe(false);
   });
 });
