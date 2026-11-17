@@ -8,22 +8,31 @@ const seedPages = async (page, pages) => {
   await page.reload(); await page.waitForSelector('html[data-ready]');
 };
 
-test('既定は 左=月 右=時間。pages が保存され、旧 home/view も残る', async ({ page }) => {
+test('新規の既定は 左=ホーム 右=月。pages が保存され、旧 home/view も残る', async ({ page }) => {
+  await openApp(page, SIZES.openLandscape951, '', { fresh: true });
+  await expect(page.locator('.page.lp[data-page="home"] .listview')).toBeVisible();
+  await expect(page.locator('.page.rp[data-page="month"] .week').first()).toBeVisible();
+  await expect(page.locator('.tl')).toHaveCount(0);
+  await page.getByRole('button', { name: '次の月' }).click(); // set() で保存
+  const s = await ui(page);
+  expect(s.pages).toEqual({ left: 'home', right: 'month', portraitBottom: 'time', portraitShown: false });
+  expect(s.view).toBe('month');
+});
+
+test('保存済みの有効な 左=月 右=時間 は尊重される（既存の端末は動かない）', async ({ page }) => {
   await openApp(page, SIZES.openLandscape951);
   await expect(page.locator('.page.lp[data-page="month"] .week').first()).toBeVisible();
   await expect(page.locator('.page.rp[data-page="time"] .tl[data-pane="right"]')).toBeVisible();
   await expect(page.locator('.tl')).toHaveCount(1);
-  await page.getByRole('button', { name: '次の月' }).click(); // set() で保存
-  const s = await ui(page);
-  expect(s.pages).toEqual({ left: 'month', right: 'time', portraitBottom: 'time', portraitShown: false });
-  expect(s.view).toBe('month');
+  await page.getByRole('button', { name: '次の月' }).click();
+  expect((await ui(page)).pages).toEqual({ left: 'month', right: 'time', portraitBottom: 'time', portraitShown: false });
 });
 
 test('壊れた pages は既定へ。重複は別種類にする', async ({ page }) => {
   await openApp(page, SIZES.openLandscape951);
   await seedPages(page, { left: 'junk', right: 3 });
-  await expect(page.locator('.page.lp')).toHaveAttribute('data-page', 'month');
-  await expect(page.locator('.page.rp')).toHaveAttribute('data-page', 'time');
+  await expect(page.locator('.page.lp')).toHaveAttribute('data-page', 'home');
+  await expect(page.locator('.page.rp')).toHaveAttribute('data-page', 'month');
   await seedPages(page, { left: 'time', right: 'time' });
   const kinds = await page.locator('.page').evaluateAll((l) => l.map((e) => e.dataset.page));
   expect(kinds[0]).toBe('time'); expect(kinds[1]).not.toBe('time');
@@ -53,7 +62,7 @@ test('タスクは説明のみ、メモは入力欄。入力前は localStorage 
 
 // ---- 第14版 PR5: 切替と時間の表示 ----
 import { pagePick, setTimeMode } from './helpers.js';
-const IDS = { 月: 'month', 時間: 'time', タスク: 'task', メモ: 'memo' };
+const IDS = { ホーム: 'home', 月: 'month', 時間: 'time', タスク: 'task', メモ: 'memo' };
 const kinds = (page) => page.locator('.page').evaluateAll((l) => l.map((e) => e.dataset.page));
 const box = async (loc) => (await loc.boundingBox());
 
@@ -66,9 +75,9 @@ test('切替は左右に1つずつ。幅240・高46・各60・選択54×36、折
     expect(r.x).toBeGreaterThanOrEqual(f + 10 - 0.5);
     expect(l.y).toBeCloseTo(r.y, 0);
     const bs = await page.locator('.pgsw.pgl button').evaluateAll((l2) => l2.map((e) => e.getBoundingClientRect().width));
-    bs.forEach((w) => expect(w).toBeCloseTo(60, 0));
+    expect(bs).toHaveLength(5); bs.forEach((w) => expect(w).toBeCloseTo(48, 0)); // 5項目（ホーム・月・時間・タスク・メモ）
     const pill = await box(page.locator('.pgsw.pgl button[aria-pressed="true"] .pill'));
-    expect(pill.width).toBeCloseTo(54, 0); expect(pill.height).toBeCloseTo(36, 0);
+    expect(pill.width).toBeCloseTo(46, 0); expect(pill.height).toBeCloseTo(36, 0);
     // 左ページの中央（利用幅 [Ls+8, f-10] の中央）
     expect(l.x + l.width / 2).toBeCloseTo((8 + f - 10) / 2, 0);
     await expect(page.locator('.tabs')).toHaveCount(0);
@@ -101,7 +110,7 @@ test('左の時間を押すと 左=時間・右=月 に交換される', async (
   await expect(page.getByRole('status')).toContainText('右ページは月になりました');
 });
 
-test('時間のカプセル: 1日・3日・週・一覧（幅120・行44）。週と一覧もそのペインで描く', async ({ page }) => {
+test('時間のカプセル: 1日・3日・週・リスト（幅120・行44）。週とリストもそのペインで描く', async ({ page }) => {
   await openApp(page, SIZES.openLandscape951);
   const cap = page.locator('.page.rp [data-act="tlmenu"]');
   await expect(cap).toContainText('1日');
@@ -110,17 +119,18 @@ test('時間のカプセル: 1日・3日・週・一覧（幅120・行44）。�
   expect((await box(menu)).width).toBeCloseTo(120, 0);
   const hs = await menu.locator('button').evaluateAll((l) => l.map((e) => Math.round(e.getBoundingClientRect().height)));
   expect(hs).toEqual([44, 44, 44, 44]);
-  await expect(menu.locator('button')).toHaveText(['1日', '3日', '週', '一覧']);
+  await expect(menu.locator('button')).toHaveText(['1日', '3日', '週', 'リスト']);
   await page.locator('.tlmenu [data-tlmode="3"]').click();
   await expect(page.locator('.page.rp .tlcol')).toHaveCount(3);
   await setTimeMode(page, 'right', '週');
   await expect(page.locator('.page.rp .weekrow')).toHaveCount(7);
   await expect(page.locator('.page.lp .week').first()).toBeVisible(); // 左の月は分割されず残る
-  await setTimeMode(page, 'right', '一覧');
-  await expect(page.locator('.page.rp .listview')).toBeVisible();
+  await setTimeMode(page, 'right', 'リスト');
+  await expect(page.locator('.page.rp .agenda-list')).toBeVisible();
+  await expect(page.locator('.page.rp .listview')).toHaveCount(0); // ホームの内容は混ざらない
   await expect(page.locator('.page.lp .week').first()).toBeVisible();
   await page.reload(); await page.waitForSelector('html[data-ready]');
-  await expect(page.locator('.page.rp [data-act="tlmenu"]')).toContainText('一覧');
+  await expect(page.locator('.page.rp [data-act="tlmenu"]')).toContainText('リスト');
   expect((await ui(page)).timeMode).toEqual({ left: '1', right: 'list' });
 });
 

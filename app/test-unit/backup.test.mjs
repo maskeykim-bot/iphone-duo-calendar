@@ -18,7 +18,7 @@ const full = () => ev('F', '2026-11-02T10:00', '2026-11-02T11:00', R('weekly', {
   overrides: { '2026-11-16T10:00': { title: '変更', categoryId: 'c-fam', all: false, start: '2026-11-16T14:00', end: '2026-11-16T15:00', place: '', notes: '', alarms: [{ before: 10 }, { before: 60 }], extra: { a: 1 } } },
 });
 
-const DP = { left: 'month', right: 'time', portraitBottom: 'time', portraitShown: false };
+const DP = { left: 'home', right: 'month', portraitBottom: 'time', portraitShown: false };
 test('バージョンは 4、schema と settings の形', () => {
   const bk = buildBackup([], { ...settings, monthExpand: true, notify: { enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } } }, new Date(), cats);
   assert.equal(bk.version, VERSION); assert.equal(VERSION, 4); assert.equal(bk.schema, 4);
@@ -250,7 +250,7 @@ test('v4: rokuyo は全組合せ。不正はエラー、欠落は未指定（現
   for (const r of [true, false]) assert.equal(validateBackup(f4({ settings: { rokuyo: r } })).data.settings.rokuyo, r);
   assert.equal(validateBackup(f4({ settings: { rokuyo: 'yes' } })).ok, false);
   assert.equal('rokuyo' in validateBackup(f4({ settings: { view: 'day' } })).data.settings, false);
-  for (const left of ['month', 'time', 'task', 'memo']) for (const right of ['month', 'time', 'task', 'memo']) {
+  for (const left of ['home', 'month', 'time', 'task', 'memo']) for (const right of ['home', 'month', 'time', 'task', 'memo']) {
     if (left === right) continue;
     assert.equal(validateBackup(f4({ settings: { pages: { left, right, portraitBottom: 'task', portraitShown: true } } })).data.settings.pages.right, right);
   }

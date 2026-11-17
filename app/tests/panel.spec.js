@@ -43,7 +43,7 @@ for (const size of PORTRAITS) {
       const grip = await box(page.locator('.pgrip i')), close = await box(page.locator('.pclose')), sw = await box(page.locator('.pswitch'));
       expect(near(grip.width, 36) && near(grip.height, 5) && near(grip.x + 18, W / 2) && near(grip.y, pn.y + 6)).toBe(true);
       expect(near(close.width, 44) && near(close.height, 44) && near(close.x + 44, W - 20 * ux) && near(close.y, pn.y + 12)).toBe(true);
-      expect(near(sw.width, 168) && near(sw.x + sw.width, close.x - 12)).toBe(true);
+      expect(near(sw.width, 184) && near(sw.x + sw.width, close.x - 12)).toBe(true);
       expect(near(sw.y + 22, pn.y + 34)).toBe(true);
       const date = await box(page.locator('.pdate'));
       expect(near(date.x, 20 * ux)).toBe(true);
@@ -180,7 +180,7 @@ test.describe('下パネルの操作と保存', () => {
     await tab(page, '月').click();
     await expect(page.locator('.pnl')).toBeVisible();
     await expect(page.locator('.pnl')).toHaveAttribute('data-panel', 'memo');
-    await tab(page, '一覧').click();
+    await page.locator('.tabs').getByRole('button', { name: 'ホーム', exact: true }).click();
     await expect(page.locator('.pnl')).toHaveCount(0);
   });
 

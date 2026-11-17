@@ -16,7 +16,17 @@ export const SIZES = {
 export const OPEN_SIZES = [SIZES.openPortrait, SIZES.openPortrait669, SIZES.openLandscape, SIZES.openLandscape951];
 
 // 2026-11-12 9:41 JST に固定して起動する。
-export async function openApp(page, size = SIZES.closedPortrait, query = '') {
+// 第16版 PR13: 新規の既定は 左ホーム・右月。第15版までの spec は「保存済みの 左月・右時間」の端末として起動する
+//（既存の左右選択は尊重される）。新規の既定を調べる spec だけ { fresh: true } を渡す。
+export const LEGACY_PAGES = { left: 'month', right: 'time', portraitBottom: 'time', portraitShown: false };
+export async function openApp(page, size = SIZES.closedPortrait, query = '', opts = {}) {
+  if (!opts.fresh) {
+    await page.addInitScript(({ q, pages }) => {
+      const ns = new URLSearchParams(q).get('ns'), key = `duo.ui.v1${ns ? `.${ns}` : ''}`;
+      let s = {}; try { s = JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch { s = {}; }
+      if (!s.pages) localStorage.setItem(key, JSON.stringify({ ...s, pages }));
+    }, { q: query, pages: LEGACY_PAGES });
+  }
   await page.setViewportSize(size);
   await page.clock.setFixedTime(new Date('2026-11-12T09:41:00+09:00'));
   await page.goto(`/index.html${query}`);
@@ -307,13 +317,13 @@ export async function setTimeMode(page, side, label) {
   await page.locator(`.page.${side === 'left' ? 'lp' : 'rp'} [data-act="tlmenu"]`).click();
   await page.locator(`.tlmenu [data-tlmode]`).filter({ hasText: new RegExp(`^${label}$`) }).click();
 }
-// 閉じた・縦は従来のタブ、開いた横は左右ページへ読み替える（月=左月・右時間／日=右の時間1日／週=右の時間・週／一覧=右の時間・一覧）。
+// 閉じた・縦は従来のタブ、開いた横は左右ページへ読み替える（月=左月・右時間／日=右の時間1日／週=右の時間・週／リスト=右の時間・リスト）。ホームは独立ページ（pagePick 'ホーム'）。
 export async function showView(page, name) {
   if (!(await page.locator('.pgsw').count())) { await tab(page, name).click(); return; }
   const lp = page.locator('.page.lp'), isMonth = (await lp.getAttribute('data-page')) === 'month';
   if (name === '月') { if (!isMonth) await pagePick(page, 'left', '月').click(); if ((await page.locator('.page.rp').getAttribute('data-page')) !== 'time') await pagePick(page, 'right', '時間').click(); return; }
   if ((await page.locator('.page.rp').getAttribute('data-page')) !== 'time') await pagePick(page, 'right', '時間').click();
-  await setTimeMode(page, 'right', { 日: '1日', 週: '週', 一覧: '一覧' }[name]);
+  await setTimeMode(page, 'right', { 日: '1日', 週: '週', 一覧: 'リスト', リスト: 'リスト' }[name]);
 }
 
 // 設定 › カレンダーを開いて iPhone のカレンダー一覧が出るまで待ち、設定を閉じる（許可済みなら✓で連携が入る）。

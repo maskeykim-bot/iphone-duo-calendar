@@ -484,6 +484,7 @@ input,select,textarea,.date-text{font-size:16px}
 .tabs .pill,.pgsw .pill{display:flex;align-items:center;justify-content:center;width:min(56px,calc(100% - 2px));height:36px;border-radius:18px;font-size:15px;font-weight:600}
 .tabs button[aria-pressed=true] .pill,.pgsw button[aria-pressed=true] .pill{background:var(--green);color:#fff}
 .pgsw .pill{width:min(54px,calc(100% - 2px));font-size:14px;font-weight:700}
+.pgsw{grid-template-columns:repeat(5,minmax(0,1fr))}
 .pgsw.pgr{left:var(--sw-r-x)}
 .desktop{position:relative}
 .desk .tabs{position:absolute;left:0;right:0;top:auto;bottom:8px;margin:0 auto;width:min(270px,calc(100% - 32px))}
@@ -725,11 +726,11 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .pgrip:hover{background:transparent}
 .pgrip i{position:absolute;left:32px;top:5px;width:36px;height:5px;border-radius:2.5px;background:#C9C6BC}
 .pdate{position:absolute;left:calc(20px * var(--ux));top:12px;height:44px;margin:0;max-width:calc(50% - 70px);overflow:hidden;white-space:nowrap;font:700 17px/44px -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif}
-.pswitch{position:absolute;right:calc(20px * var(--ux) + 56px);top:12px;width:168px;height:44px;display:grid;grid-template-columns:repeat(3,56px)}
+.pswitch{position:absolute;right:calc(20px * var(--ux) + 56px);top:12px;width:184px;height:44px;display:grid;grid-template-columns:repeat(4,46px)}
 .pswitch:before{content:'';position:absolute;left:0;right:0;top:6px;height:32px;border-radius:16px;background:#F0EDE4}
 .pswitch button{position:relative;height:44px;min-height:44px;padding:0;background:transparent;border-radius:0}
 .pswitch button:hover{background:transparent}
-.pswitch .pill{display:flex;align-items:center;justify-content:center;width:56px;height:32px;border-radius:16px;font-size:13px;font-weight:700;color:var(--ink)}
+.pswitch .pill{display:flex;align-items:center;justify-content:center;width:46px;height:32px;border-radius:16px;font-size:13px;font-weight:700;color:var(--ink)}
 .pswitch button[aria-pressed=true] .pill{background:var(--green);color:#fff}
 .pclose{position:absolute;right:calc(20px * var(--ux));top:12px;width:44px;height:44px;min-height:44px;padding:0;border-radius:50%;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);font-size:22px;line-height:1}
 .pbody2{position:absolute;left:calc(20px * var(--ux));right:calc(20px * var(--ux));top:60px;bottom:0;display:flex;flex-direction:column;min-height:0}
@@ -1116,3 +1117,19 @@ dialog#menu #m-destpop{border-radius:inherit}
 .stripp .padb,.stripp .taskl{padding-bottom:calc(var(--end-pad-closed,56px) + 4px)}
 .stripp .memopage{padding-left:12px;padding-right:12px}
 @media (prefers-reduced-motion:reduce){.page.flash{animation:none;box-shadow:inset 0 0 0 3px #294E42}}
+
+/* 第16版 PR13: ホームのページ見出しと、時間ページの予定リスト（日見出し 32・行 40） */
+.rhead.hh{flex-wrap:nowrap;align-items:flex-start}
+.rhead.hh h2{flex:1 1 0;min-width:0}
+.rhead.hh .sctl{flex:none;margin-left:auto}
+.agenda-list{flex:1;min-height:0;overflow:auto;padding:0 8px}
+.spread .agenda-list{padding-bottom:64px}
+.agd{display:block}
+.agh{display:flex;align-items:center;gap:8px;height:32px;margin:0;font-size:14px;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden}
+.agh.hol{color:#B43C3C}
+.agh .hnm{font-size:12px;font-weight:600}
+.agrow{display:flex;align-items:center;gap:8px;width:100%;height:40px;min-height:40px;padding:0 4px;border-radius:0;background:transparent;text-align:left;border:0;color:var(--ink)}
+.agrow:hover{background:transparent}
+.agrow .agt{flex:none;width:44px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.agrow .agbar{flex:none;width:4px;height:20px;border-radius:2px;background:var(--cat,var(--green))}
+.agrow strong{flex:1;min-width:0;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

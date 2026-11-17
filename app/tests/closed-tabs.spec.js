@@ -21,21 +21,21 @@ async function reachable(page, loc) {
 
 for (const size of CLOSED) {
   test.describe(`閉じた ${size.width}×${size.height}`, () => {
-    test('4タブ（一覧・日・週・月）: 名前・aria-pressed・順序の説明', async ({ page }) => {
+    test('4タブ（ホーム・日・週・月）: 名前・aria-pressed・順序の説明', async ({ page }) => {
       await openApp(page, size);
       const g = tabsGroup(page);
-      await expect(g.getByRole('button')).toHaveText(['一覧', '日', '週', '月']);
-      await expect(tab(page, '一覧')).toHaveAttribute('aria-pressed', 'true');
-      for (const [i, n] of ['一覧', '日', '週', '月'].entries()) await expect(tab(page, n)).toHaveAttribute('aria-description', `4個中${i + 1}番目`);
+      await expect(g.getByRole('button')).toHaveText(['ホーム', '日', '週', '月']);
+      await expect(tab(page, 'ホーム')).toHaveAttribute('aria-pressed', 'true');
+      for (const [i, n] of ['ホーム', '日', '週', '月'].entries()) await expect(tab(page, n)).toHaveAttribute('aria-description', `4個中${i + 1}番目`);
       await expect(page.locator('body')).toHaveAttribute('data-layout', 'home');
     });
 
-    test('一覧 → 日 → 週 → 月 → 一覧。今日は選択日だけ戻し、表示と一覧は保つ', async ({ page }) => {
+    test('ホーム → 日 → 週 → 月 → ホーム。今日は選択日だけ戻し、表示とホームは保つ', async ({ page }) => {
       await openApp(page, size);
       await tab(page, '月').click();
       await expect(page.locator('body')).toHaveAttribute('data-layout', 'browse');
       await expect(tab(page, '月')).toHaveAttribute('aria-pressed', 'true');
-      await expect(tab(page, '一覧')).toHaveAttribute('aria-pressed', 'false');
+      await expect(tab(page, 'ホーム')).toHaveAttribute('aria-pressed', 'false');
       await page.locator('[data-act="next"]').first().click();
       await expect(page.locator('#ctitle')).toHaveText('2026年 12月');
       await page.getByRole('button', { name: '今日に戻る' }).click();
@@ -46,12 +46,12 @@ for (const size of CLOSED) {
       await expect(tab(page, '週')).toHaveAttribute('aria-pressed', 'true');
       await tab(page, '日').click();
       await expect(tab(page, '日')).toHaveAttribute('aria-pressed', 'true');
-      await tab(page, '一覧').click();
+      await tab(page, 'ホーム').click();
       await expect(page.locator('body')).toHaveAttribute('data-layout', 'home');
-      await expect(tab(page, '一覧')).toHaveAttribute('aria-pressed', 'true');
+      await expect(tab(page, 'ホーム')).toHaveAttribute('aria-pressed', 'true');
       await page.getByRole('button', { name: '今日に戻る' }).click();
-      await expect(page.locator('body')).toHaveAttribute('data-layout', 'home'); // 一覧のまま
-      await tab(page, '月').click(); // 一覧から戻ると直前の view（月）
+      await expect(page.locator('body')).toHaveAttribute('data-layout', 'home'); // ホームのまま
+      await tab(page, '月').click(); // ホームから戻ると直前の view（月）
       await expect(page.locator('#ctitle')).toHaveText('2026年 11月');
     });
 
@@ -179,14 +179,14 @@ test('卓上表示の入口はメニュー（上部ボタンは無い）。入�
 });
 
 for (const size of OPEN_SIZES) {
-  test(`開いた ${size.width}×${size.height}: 浮動タブが全姿勢にあり、一覧が使え、今日は表示を保つ`, async ({ page }) => {
+  test(`開いた ${size.width}×${size.height}: 浮動タブが全姿勢にあり、ホームが使え、今日は表示を保つ`, async ({ page }) => {
     await openApp(page, size);
     if (size.width > size.height) { // 開いた横は左右ページの切替（第14版 PR5。pages.spec で詳細を検査）
       await expect(page.locator('.tabs')).toHaveCount(0);
-      await expect(page.locator('.pgsw button')).toHaveText(['月', '時間', 'タスク', 'メモ', '月', '時間', 'タスク', 'メモ']);
+      await expect(page.locator('.pgsw button')).toHaveText(['ホーム', '月', '時間', 'タスク', 'メモ', 'ホーム', '月', '時間', 'タスク', 'メモ']);
       return;
     }
-    await expect(tabsGroup(page).getByRole('button')).toHaveText(['一覧', '日', '週', '月']);
+    await expect(tabsGroup(page).getByRole('button')).toHaveText(['ホーム', '日', '週', '月']);
     await expect(page.locator('.segment')).toHaveCount(0);
     await expect(tab(page, '月')).toHaveAttribute('aria-pressed', 'true'); // 開いた画面の既定は月
     const tb = tabsGroup(page).getByRole('button');
@@ -197,14 +197,14 @@ for (const size of OPEN_SIZES) {
     }
     const t = await box(page.locator('.tabs')), { W, H } = await page.evaluate(() => ({ W: innerWidth, H: innerHeight }));
     expect(t.l).toBeGreaterThanOrEqual(0); expect(t.r).toBeLessThanOrEqual(W); expect(t.b).toBeLessThanOrEqual(H);
-    // 一覧 → 本文は今日のリスト。data-layout は open/spread のまま
+    // ホーム → 本文は今日の画面。data-layout は open/spread のまま
     const kind = await page.evaluate(() => document.body.dataset.layout);
-    await tab(page, '一覧').click();
-    await expect(tab(page, '一覧')).toHaveAttribute('aria-pressed', 'true');
+    await tab(page, 'ホーム').click();
+    await expect(tab(page, 'ホーム')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.hero')).toBeVisible();
     await expect(page.locator('body')).toHaveAttribute('data-layout', kind);
     await page.getByRole('button', { name: '今日に戻る' }).click();
-    await expect(tab(page, '一覧')).toHaveAttribute('aria-pressed', 'true'); // 今日は表示を保つ
+    await expect(tab(page, 'ホーム')).toHaveAttribute('aria-pressed', 'true'); // 今日は表示を保つ
     await tab(page, '週').click();
     await expect(tab(page, '週')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.hero')).toHaveCount(0);

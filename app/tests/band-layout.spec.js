@@ -72,7 +72,7 @@ test.describe('閉じた 466×678 + 右 safe（帯あり）', () => {
 
   test('R=84: 一覧・日・週・月の4表示で、設定・検索・今日・＋が1つずつ帯に届き、全は月だけ', async ({ page }) => {
     await withSafe(page, SIZES.closedPortrait, { r: 84 });
-    for (const v of ['一覧', '日', '週', '月']) {
+    for (const v of ['ホーム', '日', '週', '月']) {
       await tab(page, v).click();
       for (const n of bandBtns) { await expect(page.getByRole('button', { name: n, exact: true }), `${v}/${n}`).toHaveCount(1); expect(await reaches(page, btn(page, n))).toBe(true); }
       await expect(page.locator('[data-act="allmonth"]')).toHaveCount(v === '月' ? 1 : 0);
@@ -281,7 +281,7 @@ test.describe('開いた縦 + 上 safe（見出しは帯の中）', () => {
   }
   test('T=82 の 4表示: 設定・検索が見出しの帯にあり、一覧・日・週でも届く。全は月だけ', async ({ page }) => {
     await withSafe(page, SIZES.openPortrait669, { t: 82 });
-    for (const v of ['一覧', '日', '週', '月']) {
+    for (const v of ['ホーム', '日', '週', '月']) {
       await tab(page, v).click();
       for (const n of ['設定', '予定を検索', '今日に戻る', '予定を追加']) { await expect(page.getByRole('button', { name: n, exact: true }), `${v}/${n}`).toHaveCount(1); expect(await reaches(page, btn(page, n)), `${v}/${n}`).toBe(true); }
       await expect(page.locator('[data-act="allmonth"]')).toHaveCount(v === '月' ? 1 : 0);

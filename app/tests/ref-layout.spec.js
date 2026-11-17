@@ -80,8 +80,8 @@ for (const [name, size, kind] of POSTURES) {
     expect(await page.evaluate(() => [innerWidth, innerHeight])).toEqual([size.width, size.height]);
     await toMonth(page, kind);
     await setStyle(page, '予定名');
-    if (kind === 'spread') expect(await page.locator('.pgsw button').allTextContents()).toEqual(['月', '時間', 'タスク', 'メモ', '月', '時間', 'タスク', 'メモ']); // 第14版 PR5: 左右ページの切替
-    else expect(await page.locator('.tabs button').allTextContents()).toEqual(['一覧', '日', '週', '月']);
+    if (kind === 'spread') expect(await page.locator('.pgsw button').allTextContents()).toEqual(['ホーム', '月', '時間', 'タスク', 'メモ', 'ホーム', '月', '時間', 'タスク', 'メモ']); // 第14版 PR5: 左右ページの切替
+    else expect(await page.locator('.tabs button').allTextContents()).toEqual(['ホーム', '日', '週', '月']);
     const shown = (k) => chip(page, day(k)).count();
     const plus = (k) => page.locator(`.plus[data-jump="${day(k)}"]`);
     if (kind === 'closed') {

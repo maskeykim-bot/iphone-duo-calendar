@@ -340,7 +340,7 @@ test.describe('見開き: 右ページの時間軸', () => {
     await expect(page.locator('.dbox')).toHaveCount(0); // ピンチ直後の空きタップは仮枠も作らない
   });
 
-  test('時間ページの 1日・週・一覧は右ページの中で描き、左の月は残る（旧「週で左右を分割」の読み替え）', async ({ page }) => {
+  test('時間ページの 1日・週・リストは右ページの中で描き、左の月は残る（旧「週で左右を分割」の読み替え）', async ({ page }) => {
     await openApp(page, SIZES.openLandscape951);
     await loadSample(page);
     await showView(page, '日');
@@ -349,8 +349,8 @@ test.describe('見開き: 右ページの時間軸', () => {
     await showView(page, '週');
     await expect(page.locator('.page.rp .weekrow')).toHaveCount(7);
     await expect(page.locator('.page.lp .weekrow')).toHaveCount(0);
-    await showView(page, '一覧');
-    await expect(page.locator('.page.rp .listview')).toBeVisible();
+    await showView(page, 'リスト');
+    await expect(page.locator('.page.rp .agenda-list')).toBeVisible();
     await expect(page.locator('.page.lp .week').first()).toBeVisible();
     await showView(page, '日');
     // 時間軸の予定から編集が開く
