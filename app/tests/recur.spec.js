@@ -265,7 +265,7 @@ test.describe('schema v1 → v2 移行', () => {
     }), v1);
     await openApp(page, undefined, '?ns=mig1&nosw');
     await expect(page.locator('.next')).toContainText('旧予定A');
-    await expect(page.locator('.remaining .event')).toHaveCount(1);
+    await expect(page.locator('.hevents .hrow')).toHaveCount(1);
     await expect(page.locator('.rep')).toHaveCount(0);
     const raw = await page.evaluate(() => new Promise((res) => {
       const r = indexedDB.open('duo-calendar-mig1');

@@ -52,7 +52,7 @@ test('閉じたホーム: 左スワイプで月を送り、ホームを終了し
   await openApp(page, SIZES.closedPortrait);
   await loadSample(page);
   await expect(page.locator('.shell.home')).toBeVisible();
-  await swipe(page, { x0: 330, y0: 400, dx: -120, target: '.remaining' });
+  await swipe(page, { x0: 330, y0: 400, dx: -120, target: '.hevents' });
   await expect(page.locator('.shell.browse')).toBeVisible();
   expect(await period(page)).toBe('2026年 12月');
 });

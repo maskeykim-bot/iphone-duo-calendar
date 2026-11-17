@@ -12,6 +12,7 @@ import { CAT_IDS, LIMITS as CAT_LIMITS, canHideCategory, defaultDeleteTarget, en
 import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAlarms, encAlarm, fireAt, nextNotifyText, normNotify, pastForNotify, planNotifications, planNotifyPolicy, MAX_PENDING, WINDOW_DAYS } from './notify.js';
 import { rokuyoOf } from './rokuyo.js';
 import { holidayOf } from './holidays.js';
+import { splitEvents, eveningFirst, homeTasks, dueText, tomorrowSummary, axisBars, firstLines } from './home.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS } from './pages.js';
 import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.js';
 import { DELETE_UNDO_MS, checkReminderAccess, requestReminderAccess, taskAccessHtml, taskOffHtml, initRemLists, createReminderLoader, tasksHtml, HIST_DAYS, createAddController, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDoneController, TASK_CONFLICT, createDeleteController, TASK_DELETED, TASK_DELETE_CONFLICT, normRemSettings, shownListIds, pruneRemSettings, resolveAddList, filterByLists, dueCounts, overdueTodayCount } from './reminders.js';
@@ -775,20 +776,50 @@ function calendarBody(kind) {
 }
 const calendar = (kind) => `<section class="calendar" aria-label="カレンダー">${chead()}${calendarBody(kind)}</section>`;
 
-// 一覧（今日と次の予定・今日の残り）。閉じた画面の本文、開いた画面では「一覧」タブの本文。
-function listHtml() {
-  const now = nowStamp(), k = todayKey(), d = parseKey(k);
+// ホーム（今日のカード）。第16版 PR14・design/14 案A。選択日と独立して今日固定。
+// mode: 'cards'＝閉じた画面・縦の一覧（縦に重ねる）、'axis'＝開いた横（今日の予定は9〜19時の小さな時間軸）、'cols'＝開いた縦の下段（3列）。
+const homeTaskList = () => (NATIVE && !remSet.enabled) || RM.state !== 'granted' || !RM.data ? null : filterByLists(RM.data.reminders, shownIds()).filter((x) => !delCtl.has(x.itemId));
+const homeGo = (to, label, cls = '') => `<button type="button" class="hgo${cls}" data-act="homego" data-to="${to}" aria-label="${esc(label)}">${esc(label.replace(/を開く$/, ''))} ›</button>`;
+function homeEventRow(e) {
+  return `<button type="button" class="hrow event-row ${catCls(e)}"${catSty(e)} data-event="${esc(e.id)}"${repLabel(e, `${timeLabel(e)} ${e.title}`)}><span class="ht">${e.all ? '終日' : e.start.slice(11)}${bell(e)}</span><i class="hbar" aria-hidden="true"></i><strong>${xi(e)}${rep(e)}${esc(e.title)}</strong></button>`;
+}
+function homeAxis(list, now, k) {
+  const A = axisBars(list, now, k), hrs = Array.from({ length: 11 }, (_, i) => 9 + i);
+  const bars = A.bars.map((b) => { const e = list.find((x) => x.id === b.id); return `<button type="button" class="hbarev ${catCls(e)}${b.past ? ' past' : ''}" style="${catVar(e)}top:${b.top}px;height:${b.height}px" data-act="homego" data-to="time" data-hm="${esc(b.start.slice(11))}" aria-label="${esc(`${timeLabel(e)} ${e.title}をタイムラインで開く`)}"><span>${esc(e.title)}</span></button>`; }).join('');
+  return `<div class="haxis" style="height:${A.height}px">${hrs.map((h) => `<span class="hh" style="top:${(h - 9) * 14}px">${h}</span>`).join('')}<div class="hbars">${bars}${A.nowTop === null ? '' : `<i class="hnow" style="top:${A.nowTop}px" aria-hidden="true"></i>`}</div></div>`;
+}
+function homeTasksCard() {
+  const all = homeTaskList(), today = todayKey();
+  if (!all) return `<section class="hcard htasks" aria-label="タスク"><div class="hh3"><h3>タスク</h3>${homeGo('task', 'すべて')}</div><p class="small hempty">タスクはタスクのページで見られます。</p></section>`;
+  const T = homeTasks(all, today, doneCtl.pending());
+  const rows = T.items.map((r) => {
+    const done = doneCtl.pending().get(r.itemId) === true, du = dueText(r.due, today), od = r.due.date < today;
+    return `<div class="htask${done ? ' done' : ''}"><button type="button" class="rmckb" data-act="remck" data-id="${esc(r.itemId)}" role="checkbox" aria-checked="${done}" aria-label="${done ? '未完了に戻す' : '完了にする'}：${esc(r.title || '')}"${r.readOnly ? ' disabled' : ''}><span class="rmck" aria-hidden="true"></span></button><span class="htt">${esc(r.title || '')}</span>${du ? `<small class="hdue${od ? ' od' : ''}">${esc(du)}</small>` : ''}</div>`;
+  }).join('');
+  return `<section class="hcard htasks" aria-label="タスク"><div class="hh3"><h3>タスク ${T.total}件</h3>${homeGo('task', 'すべて')}</div>${rows || '<p class="small hempty">今日のタスクはありません</p>'}<button type="button" class="hadd" data-act="homego" data-to="taskadd">＋ タスクを追加</button></section>`;
+}
+function homeMemoCard() {
+  const k = todayKey(), e = memoStore.get(k), ls = e?.loaded ? firstLines(e.text, 2) : [];
+  return `<section class="hcard hmemo" aria-label="今日のメモ"><div class="hh3"><h3>今日のメモ</h3>${homeGo('memolist', 'メモ一覧')}</div><button type="button" class="hmemob" data-act="homego" data-to="memo" data-memo-today="${k}" aria-label="今日のメモを開く">${ls.length ? ls.map((l) => `<span>${esc(l)}</span>`).join('') : '<span class="hempty">たたいて今日のメモを書く</span>'}</button></section>`;
+}
+function listHtml(mode = 'cards') {
+  const now = nowStamp(), k = todayKey(), d = parseKey(k), tm = addDays(k, 1);
   const list = eventsOnDay(occIn(k, k), k).filter((e) => e.end > now);
-  let next = list.find((e) => !e.all) || list[0];
-  const rest = list.filter((e) => e !== next);
   // 今日にもう予定がなければ、未来の回も含めて日付順に次の予定を探す。
-  if (!next) next = occIn(addDays(k, 1), addDays(k, 400)).sort((a, b) => a.start.localeCompare(b.start) || String(a.id).localeCompare(String(b.id)))[0];
+  const future = list.length ? null : occIn(addDays(k, 1), addDays(k, 400)).sort((a, b) => a.start.localeCompare(b.start) || String(a.id).localeCompare(String(b.id)))[0];
+  const { next, shown, more, count } = splitEvents(list, future);
   const nextDay = next && dayOf(next.start) !== k ? `<small class="nd">${dayLabel(dayOf(next.start))}</small> ` : '';
   const nextHtml = next
     ? `<button type="button" class="next ${catCls(next)}"${catSty(next)} data-event="${esc(next.id)}"${repLabel(next, `次の予定 ${next.title}`)}><small>次の予定 · ${esc(tagText(next))}</small><strong>${xi(next)}${rep(next)}${esc(next.title)}</strong><span class="when"><span class="time">${nextDay}${next.all ? '終日' : next.start.slice(11)}</span>${next.all || dayOf(next.start) !== dayOf(next.end) ? '' : ` — ${next.end.slice(11)}`}${next.place ? ` <small>${esc(next.place)}</small>` : ''}${nextBell(next)}</span></button>`
     : `<div class="next none"><small>次の予定</small><strong>${extActive() ? '読み込み済みの期間に次の予定はありません。' : state.events.length ? 'この後の予定はありません' : '予定はまだありません'}</strong>${sampleBtn()}</div>`;
-  return `<section class="hero"><div class="date-block"><div class="eyebrow">今日 / ${d.getFullYear()}年${d.getMonth() + 1}月</div><div class="date">${d.getDate()}<span>${DOW[d.getDay()]}曜日</span></div></div>${nextHtml}</section>
-    <section class="remaining" aria-label="今日の残り予定"><h3>今日の残り予定</h3><div class="list" data-scroll="rest">${rest.map(card).join('') || '<p class="small pad">この後の予定はありません。</p>'}</div></section>`;
+  const hero = `<section class="hero"><div class="date-block"><div class="eyebrow">今日 / ${d.getFullYear()}年${d.getMonth() + 1}月</div><div class="date">${d.getDate()}<span>${DOW[d.getDay()]}曜日</span></div></div>${nextHtml}</section>`;
+  const body = mode === 'axis' ? homeAxis(list, now, k) : shown.map(homeEventRow).join('');
+  const evCard = `<section class="hcard hevents" aria-label="今日の予定"><div class="hh3"><h3>今日の予定 ${count}件</h3>${homeGo('time', 'タイムライン')}</div>${body || '<p class="small hempty">この後の予定はありません</p>'}${mode !== 'axis' && more ? `<button type="button" class="hmore" data-act="homego" data-to="time">ほか${more}件</button>` : ''}</section>`;
+  const tl = tomorrowSummary(eventsOnDay(occIn(tm, tm), tm)), td = parseKey(tm);
+  const tmCard = `<button type="button" class="hcard htmr" data-act="homego" data-to="tomorrow" aria-label="明日の予定を開く"><b>明日 ${td.getMonth() + 1}/${td.getDate()}（${DOW[td.getDay()]}）</b> <small>${tl.count}件</small>${tl.first ? `<span>${tl.first.all ? '終日' : tl.first.start.slice(11)} ${esc(tl.first.title)}${tl.more ? `　ほか${tl.more}件` : ''}</span>` : '<span class="hempty">予定はありません</span>'}</button>`;
+  if (mode === 'cols') return `<div class="hcols"><div class="hcol">${nextHtml}</div><div class="hcol">${homeTasksCard()}</div><div class="hcol">${homeMemoCard()}</div></div>`;
+  const eve = eveningFirst(now);
+  return `${hero}<div class="hcards">${eve ? tmCard : ''}${evCard}${homeTasksCard()}${homeMemoCard()}${eve ? '' : tmCard}</div>`;
 }
 // 閉じた一覧の「次の予定」の時刻行に、次に鳴る通知の時刻を添える。
 function nextBell(e) {
@@ -796,7 +827,7 @@ function nextBell(e) {
   const t = nextNotifyText(e, new Date());
   return t ? ` <small class="nb">${BELL}${esc(t)} に通知</small>` : '';
 }
-const listView = () => `<div class="home listview" aria-label="一覧">${listHtml()}</div>`;
+const listView = (mode = 'cards') => `<div class="home listview hm-${mode}" aria-label="ホーム">${listHtml(mode)}</div>`;
 // 閉じた画面（一覧 = home / 日・週・月 = browse）: 本文は safe の内側いっぱい。操作は帯（右 safe）または見出し・下段。
 function closed(kind) {
   const body = state.strip ? stripPage(state.strip) : kind === 'home' ? listView() : calendar('browse');
@@ -816,7 +847,7 @@ const PN = { expand: false, swallow: 0 }; // expand: メモ入力中にマスの
 const BOTTOM_LABELS = { home: 'ホーム', time: '時間', task: 'タスク', memo: 'メモ' };
 function bottomBody(id) {
   if (id === 'time') return timelineHtml(tlKeys(1), Math.max(0, safeW() - 40 * POS.ux - 50), 'bottom');
-  if (id === 'home') return listView();
+  if (id === 'home') return listView('cols');
   if (id === 'memo') return memoBody('bottom');
   return taskBody('bottom');
 }
@@ -1059,7 +1090,7 @@ function timeBody(side, w) {
 }
 // ページ id 付きの描画。side＝'left'|'right'、id＝'month'|'time'|'task'|'memo'。
 // ---------- 日付メモ（左右ページ・縦の下パネルで同じ日に同じ本文。保存は memos.js） ----------
-let memoComposing = false, renderPending = false, rendering = false;
+let homeMemoSig = null, memoComposing = false, renderPending = false, rendering = false;
 const memoSaid = new Set(), memoSynced = new Map();
 function memoBody(where) {
   const k = state.selected, e = memoStore.get(k);
@@ -1104,6 +1135,7 @@ root.addEventListener('click', (ev) => {
 const memoStatusHtml = (e, k) => e?.failed ? `<span class="merr">${SAVE_FAILED}</span><button type="button" data-act="memoretry" data-mdate="${k}">再試行</button>` : e?.loadFailed ? '<span class="merr">メモを読み込めませんでした。</span>' : '自動で保存';
 function paintMemo(k) {
   const e = memoStore.get(k);
+  if (e?.loaded && k === todayKey() && root.querySelector('.hmemo') && !memoStore.dirty(k) && homeMemoSig !== e.text) { homeMemoSig = e.text; if (!rendering) render(); }
   root.querySelectorAll(`textarea.memota[data-memo="${k}"]`).forEach((ta) => {
     if (e?.loaded) ta.readOnly = false;
     if (e?.loaded && !memoComposing && ta.value !== e.text) ta.value = e.text;
@@ -1317,7 +1349,7 @@ async function remRequest(where) {
 const REM_DENIED_SAY = 'リマインダーへのアクセスが許可されませんでした。設定アプリで許可できます。';
 function renderPage(side, id) {
   const cls = side === 'left' ? 'lp' : 'rp';
-  if (id === 'home') return `<section class="page ${cls}" data-page="home" aria-label="ホーム"><div class="rhead hh"><h2>ホーム</h2>${side === 'right' ? rctl() : ''}${side === 'left' ? `<div class="sctl">${gearBtn()}</div>` : ''}</div><div class="listpane">${listView()}</div></section>`;
+  if (id === 'home') return `<section class="page ${cls}" data-page="home" aria-label="ホーム"><div class="rhead hh"><h2>ホーム</h2>${side === 'right' ? rctl() : ''}${side === 'left' ? `<div class="sctl">${gearBtn()}</div>` : ''}</div><div class="listpane">${listView('axis')}</div></section>`;
   if (id === 'month') return `<section class="page ${cls} calendar" data-page="month" aria-label="カレンダー">${shead(side)}${calendarBody('spread')}</section>`;
   if (id === 'time') return `<section class="page ${cls}" data-page="time">${dateHead(side, 'time')}${timeBody(side, paneWidth(side))}${timeMenu(side)}${miniMonth(side)}</section>`;
   if (id === 'memo') return `<section class="page ${cls}" data-page="memo">${dateHead(side, id)}${memoBody(side)}${miniMonth(side)}</section>`;
@@ -1492,6 +1524,7 @@ function render() {
   rendering = false;
   if (remNode) { const nn = root.querySelector('input.remin'); if (nn && nn !== remNode) { nn.replaceWith(remNode); remNode.readOnly = !!RM.add.busy; } }
   fillMemos(memoKeep);
+  if (root.querySelector('.hmemo')) { const e = memoStore.get(todayKey()); if (!e?.loaded) memoStore.loadMemo(todayKey()); }
   fillAdd(remKeep);
   ensureMarks();
   if (memoListUsed() && !ML.rows && !ML.failed) loadMemoList();
@@ -1593,6 +1626,7 @@ root.addEventListener('click', (ev) => {
   if (pg) { const sd = pg.classList.contains('lp') ? 'left' : 'right'; if (sd !== state.lastSide) { state.lastSide = sd; saveUi(); } }
   if (d.view) set({ view: d.view, home: false });
   else if (d.act === 'list') set({ home: true });
+  else if (d.act === 'homego') homeGo2(d, b);
   else if (d.act === 'remck') toggleDone(d.id);
   else if (d.act === 'remedit') openTask(d.id, b);
   else if (d.act === 'remsubmit') remSubmit();
@@ -1640,6 +1674,29 @@ root.addEventListener('click', (ev) => {
   else if (d.pick) pickPage(d.side, d.pick);
   else if (d.tlday) set({ selected: d.tlday });
 });
+
+// ホームのカードからの移動（第16版 PR14）。日付は今日（または明日）へ。開いた横は反対側のページ、縦下段は下段、閉じた画面は全面ページ／日表示へ。
+function homeGo2(d, b) {
+  const to = d.to, kind = layoutKind(), day = to === 'tomorrow' ? addDays(todayKey(), 1) : todayKey();
+  const page = { time: 'time', tomorrow: 'time', task: 'task', taskadd: 'task', memo: 'memo', memolist: 'memo' }[to];
+  const after = () => {
+    if (to === 'memolist') { const w = kind === 'spread' ? (PG().left === 'memo' ? 'left' : 'right') : kind === 'open' ? 'bottom' : 'closed'; ML.open[w] = true; render(); loadMemoList(); }
+    else if (to === 'memo') root.querySelector('textarea.memota')?.focus({ preventScroll: true });
+    else if (to === 'taskadd' && RM.state === 'granted' && RM.data && addList()) { openAdd(); }
+    if (to === 'time' && d.hm) { const tl = root.querySelector('.page[data-page="time"] .tl, .pnl .tl'); const T = tl && TLP[paneOf(tl)]; if (tl && T) tl.scrollTop = Math.max(0, hmMin(d.hm) - 60) * T.hh / 60; }
+  };
+  if (kind === 'spread') {
+    const side = PG().left === 'home' ? 'right' : PG().right === 'home' ? 'left' : state.lastSide;
+    set({ selected: day, pages: selectPage(state.pages, side, page), lastSide: side });
+  } else if (kind === 'open') {
+    set({ selected: day, pages: selectPage(state.pages, 'portraitBottom', page) });
+    if (!state.pages.portraitShown) setPanel(true);
+  } else if (page === 'time') set({ selected: day, home: false, view: 'day' });
+  else if (state.strip !== page) toggleStrip(page);
+  after();
+  say(`${PAGE_LABELS[page]}を開きました。`);
+}
+const hmMin = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 
 async function loadSample() {
   try {
@@ -4391,7 +4448,7 @@ document.addEventListener('keydown', (ev) => {
 }
 
 // ---------- スワイプ（左＝次、右＝前） ----------
-const SWIPE_ZONE = '.scroll, .agenda, .remaining, .hero, .page, .list, .tlx';
+const SWIPE_ZONE = '.scroll, .agenda, .remaining, .home, .hero, .page, .list, .tlx';
 const SWIPE_EXCLUDE = '.top, .shead, .rhead, .allday, .tlheads, .mmenu, .chead, .foot, .add, .tabs, .pgsw, .tlmenu, .dbox, .ctl, .bandbg, .hline, .foldband, .gutter, input, select, textarea, label, dialog';
 let swiping = false;
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;

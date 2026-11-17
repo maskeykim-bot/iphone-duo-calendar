@@ -66,9 +66,9 @@ test('ホームは独立ページ: 切替にホームがあり、右でも選べ
   await openApp(page, SIZES.openPortrait669);
   await seedUi(page, { pages: { left: 'home', right: 'month', portraitBottom: 'home', portraitShown: true } });
   await expect(page.locator('.pnl .pswitch button')).toHaveText(['ホーム', '時間', 'タスク', 'メモ']);
-  await expect(page.locator('.pnl .hero')).toBeVisible();
+  await expect(page.locator('.pnl .hcols')).toBeVisible();
   await page.locator('.pnl [data-pnl="time"]').click();
-  await expect(page.locator('.pnl .hero')).toHaveCount(0);
+  await expect(page.locator('.pnl .hcols')).toHaveCount(0);
 });
 
 test('閉じた画面: 下のタブは ホーム・日・週・月。保存済みの 日・週・月 は保つ', async ({ page }) => {

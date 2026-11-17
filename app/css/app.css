@@ -1133,3 +1133,40 @@ dialog#menu #m-destpop{border-radius:inherit}
 .agrow .agt{flex:none;width:44px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
 .agrow .agbar{flex:none;width:4px;height:20px;border-radius:2px;background:var(--cat,var(--green))}
 .agrow strong{flex:1;min-width:0;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* 第16版 PR14: ホームの今日のカード（design/14 案A）。全体を1本でスクロール、タブは固定 */
+.home.listview{overflow-y:auto;overscroll-behavior:contain;gap:10px;touch-action:pan-y pinch-zoom}
+.closed .home.listview{padding-bottom:calc(var(--end-pad-closed,56px) + 8px)}
+.hcards{display:flex;flex-direction:column;gap:10px;flex:none}
+.hcard{display:block;width:100%;text-align:left;background:#fff;border-radius:14px;padding:10px 12px;border:1px solid #E3E0D7;box-sizing:border-box}
+.hh3{display:flex;align-items:center;justify-content:space-between;min-height:28px}
+.hh3 h3{margin:0;font-size:13px;font-weight:700;color:#68716A}
+.hgo{min-height:44px;margin:-8px -6px -8px 0;padding:0 6px;font-size:12px;color:var(--green);background:none;border:0}
+.hrow{display:flex;align-items:center;gap:8px;width:100%;min-height:32px;text-align:left;background:none;border:0;padding:0}
+.hrow .ht{font-size:13px;min-width:44px;color:#4a524c}
+.hrow .hbar{width:4px;height:18px;border-radius:2px;background:var(--cat,#6E8F7F);flex:none}
+.hrow strong{font-size:15px;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hmore{display:block;min-height:32px;font-size:12px;color:var(--green);background:none;border:0;padding:0}
+.hempty{color:#8a8f88;font-size:12px;margin:4px 0}
+.htask{display:flex;align-items:center;gap:4px;min-height:44px}
+.htask .htt{flex:1;min-width:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.htask.done .htt{text-decoration:line-through;color:#8a8f88}
+.hdue{font-size:12px;color:#68716A}.hdue.od{color:#B43C3C}
+.hadd{min-height:44px;font-size:13px;color:var(--green);background:none;border:0;padding:0}
+.hmemob{display:flex;flex-direction:column;gap:0;width:100%;min-height:44px;text-align:left;background:none;border:0;padding:0}
+.hmemob span{font-size:14px;line-height:22px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.htmr{min-height:52px;background:#fff;font-size:13px}.htmr b{font-weight:700}.htmr small{color:#68716A}.htmr span{display:block;font-size:13px}
+/* 開いた横: 今日の予定は 9〜19 時の小さな時間軸（1時間14pt） */
+.haxis{position:relative;margin:6px 0 2px}
+.haxis .hh{position:absolute;left:0;width:22px;font-size:10px;line-height:10px;color:#8a8f88;transform:translateY(-5px)}
+.haxis .hbars{position:absolute;left:26px;right:0;top:0;bottom:0;border-left:1px solid #E3E0D7;background:repeating-linear-gradient(to bottom,transparent 0,transparent 13px,#EFEDE6 13px,#EFEDE6 14px)}
+.hbarev{position:absolute;left:2px;right:2px;padding:0 6px;border:0;border-radius:3px;background:var(--tint,#DCE7E0);box-shadow:inset 3px 0 0 var(--cat,#6E8F7F);font-size:11px;text-align:left;overflow:hidden;color:var(--ink,#222);min-height:0}
+.hbarev.past{opacity:.45}
+.hbarev span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:12px}
+.hnow{position:absolute;left:0;right:0;height:0;border-top:1.5px solid #B43C3C;pointer-events:none}
+.spread .home.listview{padding-bottom:72px}
+@media (max-height:560px){.hm-axis .htmr{display:none}}
+/* 開いた縦の下段: 次の予定・タスク・今日のメモの3列 */
+.hcols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:start}
+.hcols .hcol{min-width:0}
+.hcols .next .time{font-size:20px}
