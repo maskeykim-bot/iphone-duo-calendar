@@ -96,4 +96,74 @@ test.describe('開いた縦の集中モード', () => {
     await openApp(page, SIZES.closedPortrait);
     await expect(page.locator('.fmodes')).toHaveCount(0);
   });
+
+  // 設計08 §6.2: 開いた縦の上の帯の右（x540〜・高さ head）は時刻・電池の予約。集中切替ほか操作の右端がここに入らない。
+  const reserved = (page, W, L = 0, R = 0) => {
+    const U = W - L - R, ux = U / 669;
+    return page.evaluate(({ L, ux, W, headSel }) => {
+      const head = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--head-h')) || 82;
+      const x = L + 540 * ux;
+      return { x, y: 0, w: W - x, h: head };
+    }, { L, ux, W });
+  };
+  const boxOf = (loc) => loc.boundingBox();
+  const overlaps = (a, r) => !!a && a.x + a.width > r.x + 0.5 && r.x + r.w > a.x + 0.5 && a.y + a.height > r.y + 0.5 && r.y + r.h > a.y + 0.5;
+  const setSafe = (page, { t = 0, r = 0, b = 0, l = 0 } = {}) => page.evaluate(({ t, r, b, l }) => {
+    const s = document.documentElement.style;
+    s.setProperty('--sat', `${t}px`); s.setProperty('--sar', `${r}px`); s.setProperty('--sab', `${b}px`); s.setProperty('--sal', `${l}px`);
+    window.dispatchEvent(new Event('resize'));
+  }, { t, r, b, l });
+
+  for (const [name, size, safe] of [
+    ['669×951', SIZES.openPortrait669, {}],
+    ['626×890', SIZES.openPortrait, {}],
+    ['669×951 T=82', SIZES.openPortrait669, { t: 82 }],
+    ['669×951 T=82 左右非対称', SIZES.openPortrait669, { t: 82, l: 30, r: 20 }],
+  ]) {
+    test(`カレンダーの切替は右上の予約（時刻・電池）に入らない（${name}）`, async ({ page }) => {
+      await openApp(page, size);
+      if (Object.keys(safe).length) {
+        await setSafe(page, safe);
+        await page.waitForTimeout(50);
+      }
+      const L = safe.l ?? 0, R = safe.r ?? 0;
+      const rsv = await reserved(page, size.width, L, R);
+      const f = await boxOf(page.locator('.fmodes'));
+      expect(f, 'fmodes visible').toBeTruthy();
+      expect(overlaps(f, rsv), 'fmodes vs reserved').toBe(false);
+      expect(f.x + f.width).toBeLessThanOrEqual(rsv.x + rsv.w + 0.5);
+      // 上の帯の操作も予約に入らない（検索は従来どおり予約の手前）
+      for (const n of ['設定', '予定を検索']) {
+        const b = await boxOf(page.getByRole('button', { name: n, exact: true }));
+        expect(overlaps(b, rsv), n).toBe(false);
+      }
+    });
+
+    test(`タスク／ノートの切替・検索・＋は右上の予約に入らない（${name}）`, async ({ page }) => {
+      await openApp(page, size);
+      if (Object.keys(safe).length) {
+        await setSafe(page, safe);
+        await page.waitForTimeout(50);
+      }
+      await sw(page, 'task').click();
+      const L = safe.l ?? 0, R = safe.r ?? 0;
+      const rsv = await reserved(page, size.width, L, R);
+      const f = await boxOf(page.locator('.fmodes'));
+      const search = await boxOf(page.locator('.ctl').getByRole('button', { name: 'タスクを検索' }));
+      const add = await boxOf(page.locator('.ctl').getByRole('button', { name: 'タスクを追加' }));
+      for (const [n, b] of [['fmodes', f], ['検索', search], ['＋', add]]) {
+        expect(b, n).toBeTruthy();
+        expect(overlaps(b, rsv), n).toBe(false);
+        expect(b.x + b.width).toBeLessThanOrEqual(rsv.x + 0.5); // 上の帯の操作は予約の左で終わる
+      }
+      await sw(page, 'note').click();
+      const fn = await boxOf(page.locator('.fmodes'));
+      const ns = await boxOf(page.locator('.ctl').getByRole('button', { name: 'ノートを検索' }));
+      const na = await boxOf(page.locator('.ctl').getByRole('button', { name: 'ノートを追加' }));
+      for (const [n, b] of [['fmodes', fn], ['検索', ns], ['＋', na]]) {
+        expect(overlaps(b, rsv), n).toBe(false);
+        expect(b.x + b.width).toBeLessThanOrEqual(rsv.x + 0.5);
+      }
+    });
+  }
 });

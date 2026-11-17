@@ -320,10 +320,17 @@ function updateLayoutMetrics() {
     pos.set = box(Ls + 20 * ux, hc - 22, HIT_HDR, HIT_HDR); pos.search = box(Ls + 484 * ux, hc - 22, HIT_HDR, HIT_HDR);
     pos.today = box(Ls + 20, rowTop, 48, 48); pos.add = box(W - R - 20 - 48, rowTop, 48, 48);
     pos.fmode = fmode();
-    if (pos.fmode === 'calendar') pos.fm = { x: Ls + 530 * ux, y: hc - 18, w: 136 * ux, h: 36 }; // 月の見出しはそのまま。切替は検索の右の空きに小さく置く
-    else { // タスク／ノート: 上の帯に 日付｜切替｜検索｜＋（設計18 §1）。下のタブ・今日・下段は出さない
-      pos.fm = { x: Ls + 174 * ux, y: hc - 18, w: 320 * ux, h: 36 };
-      pos.search = box(Ls + 553 * ux, hc - 22, HIT_HDR, HIT_HDR); pos.add = box(Ls + 609 * ux, hc - 22, HIT_HDR, HIT_HDR);
+    // 開いた縦の上の帯は設計08 §6.2: 右の x540〜（ux 比）は時刻・電池のため空け、操作を置かない。
+    const cluster = Ls + 540 * ux, headLimit = Math.min(cluster, W - R);
+    if (pos.fmode === 'calendar') {
+      // 検索の右は予約領域なので、切替は下段（タブと＋の間）へ移す。見出しの座標は変えない。
+      const tabsRight = tabsCx + tabsW / 2, addLeft = W - R - 20 - 48, gap = addLeft - tabsRight;
+      const fmW = Math.min(136 * ux, Math.max(0, gap - 8));
+      pos.fm = { x: tabsRight + (gap - fmW) / 2, y: rowTop + 6, w: fmW, h: 36 };
+    } else { // タスク／ノート: 上の帯に 日付｜切替｜検索｜＋。検索と＋も予約の左へ収める
+      const addX = headLimit - HIT_HDR, searchX = addX - 8 * ux - HIT_HDR;
+      pos.fm = { x: Ls + 174 * ux, y: hc - 18, w: Math.max(0, searchX - 8 * ux - (Ls + 174 * ux)), h: 36 };
+      pos.search = box(searchX, hc - 22, HIT_HDR, HIT_HDR); pos.add = box(addX, hc - 22, HIT_HDR, HIT_HDR);
       pos.today = null; pos.pnl = null;
     }
     q = p;

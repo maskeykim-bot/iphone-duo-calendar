@@ -270,6 +270,10 @@ test.describe('開いた縦 + 上 safe（見出しは帯の中）', () => {
       expect(search.x + search.width).toBeLessThanOrEqual(540 * ux + 0.5); // 右上の予約（時刻・電池）
       for (let i = 0; i < rs.length; i++) for (let j = i + 1; j < rs.length; j++) expect(overlap(rs[i], rs[j]), `${i}/${j}`).toBe(false);
       for (const r of rs) expect(overlap(r, title)).toBe(false);
+      const fm = await bx(page.locator('.fmodes'));
+      const rsv = { x: 540 * ux, y: 0, width: W - 540 * ux, height: head };
+      expect(overlap(fm, rsv)).toBe(false); // 集中切替も右上の予約に入らない
+      for (const r of rs.concat([title])) expect(overlap(fm, r)).toBe(false);
       // 下段: 今日 x20・＋ 右20・タブ 270 中央、いずれも top H-70p
       const today = await bx(btn(page, '今日に戻る')), add = await bx(btn(page, '予定を追加')), tabs = await bx(page.locator('.tabs'));
       near(today.x, 20); near(add.x + add.width, W - 20); near(tabs.width, 270); near(tabs.x + tabs.width / 2, W / 2);

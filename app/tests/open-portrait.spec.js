@@ -40,7 +40,10 @@ for (const size of PORTRAITS) {
       expect(near(add.x, W - 20 - 48) && near(add.y, H - 70 * ry, 1) && near(add.width, 48)).toBe(true);
       expect(near(tabs.x + tabs.width / 2, W / 2) && tabs.width >= 176 && near(tabs.height, 46)).toBe(true);
       expect(near(tabs.y, H - 70 * ry, 1)).toBe(true);
-      for (const [a, b] of [[today, tabs], [tabs, add], [today, add], [set, search]]) expect(noOverlap(a, b)).toBe(true);
+      const fmodes = await box(page.locator('.fmodes'));
+      const reserved = { x: 540 * rx, y: 0, width: W - 540 * rx, height: 82 };
+      expect(noOverlap(fmodes, reserved)).toBe(true); // 右上の予約（時刻・電池）に入らない
+      for (const [a, b] of [[today, tabs], [tabs, add], [today, add], [set, search], [tabs, fmodes], [add, fmodes], [today, fmodes]]) expect(noOverlap(a, b)).toBe(true);
       expect(add.y + add.height).toBeLessThanOrEqual(H);
       // 月グリッドは下段の上で終わる（隠れる週がない）
       expect(sc.y + sc.height).toBeLessThanOrEqual(Math.min(today.y, tabs.y, add.y) + 1);
