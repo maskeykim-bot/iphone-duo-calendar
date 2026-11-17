@@ -24,6 +24,7 @@ import { call, errCode, errReason, errText, haptic, listen, nativeAvailable } fr
 import { createDestPage, destRowsHtml } from './destination-ui.js';
 import { KB_METRICS_ENABLED, kbMetrics, kbText, screenText } from './kbmetrics.js';
 import { createPosture, postureText } from './posture.js';
+import { kbTopOf, hingeBand, computeKbLayout, caretBox, scrollDelta, STRIP_MIN } from './keyboard-layout.js';
 import { makeVisible, buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normDest, normSettings, pickAddCal, planLinkMigration, planNativeOps, resolveDest, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, visibleDestGroups, allDestHidden, withIdent, writable, ymdSlash } from './iphone.js';
 import {
   DOW, addDays, addMonths, assignSharedLanes, dayLabel, dayOf, dkey, eventsOnDay, isKey, isMulti,
@@ -167,12 +168,58 @@ function updateVars() {
 }
 // フォーカス中の入力が本文の可視範囲に入るよう、本文だけを最小距離スクロールする（文書は動かさない）。
 function reveal(el) {
-  const sc = el?.closest?.('.fbody, .pbody');
+  if (el?.classList?.contains('ned-body')) { revealCaret(el); return; }
+  const sc = el?.closest?.('.fbody, .pbody, .ftdn');
   if (!sc) return;
   const a = el.getBoundingClientRect(), b = sc.getBoundingClientRect(), pad = 8;
   if (a.top < b.top + pad) sc.scrollTop -= b.top + pad - a.top;
   else if (a.bottom > b.bottom - pad) sc.scrollTop += a.bottom - (b.bottom - pad);
 }
+// ノート本文: 入力行（挿入位置の行）が本文の窓の中に見えるよう、窓だけを最小距離スクロールする。
+function revealCaret(ta) {
+  const sc = ta.closest('.ned-bodywrap'); if (!sc || !sc.clientHeight) return;
+  const c = caretBox(ta), t = ta.getBoundingClientRect(), v = sc.getBoundingClientRect();
+  const d = scrollDelta({ itemTop: t.top + c.top, itemBottom: t.top + c.bottom, viewTop: v.top, viewBottom: v.bottom });
+  if (d) sc.scrollTop += d;
+}
+// キーボード上端（kbTop）と折り目の溝に合わせた入力欄・本文の配置（PR34）。CSS 変数と html の属性だけを書く（DOM は作り直さない）。
+let klKey = '';
+function clearKbLayout() {
+  if (!klKey) return;
+  klKey = ''; de.classList.remove('kbl'); delete de.dataset.kbl; delete de.dataset.kbe; delete de.dataset.kbdn; delete de.dataset.kbnu;
+  for (const k of ['up-top', 'up-h', 'dn-top', 'dn-h', 'add-top', 'as-top', 'as-pad', 'as-h', 'ed-top', 'ed-h', 'nu-top', 'nu-h']) de.style.removeProperty(`--kl-${k}`);
+}
+function applyKbLayout() {
+  const m = fmode();
+  const kbTop = kbTopOf(window.visualViewport, window.innerHeight);
+  const kbUp = !!de.dataset.kb && kbTop !== null;
+  const mode = m === 'task' && kbUp && root.querySelector('.ftdn') ? 'task' : m === 'note' && NB.cur && root.querySelector('.nhost') ? 'note' : null;
+  if (!mode) { clearKbLayout(); return; }
+  const p = postureCtl?.effective ?? null, H = L.h;
+  const hinge = hingeBand({ rect: p?.available ? p.regionRect : null, axis: p?.axis, height: H });
+  const top = mode === 'task' ? parseFloat(getComputedStyle(de).getPropertyValue('--head-h')) || 82 : Math.ceil(root.querySelector('.ntools')?.getBoundingClientRect().bottom || 126);
+  const sab = safe().bottom;
+  const lay = computeKbLayout({ H, kbTop: kbUp ? kbTop : H - sab, hinge, top, hasAdd: mode === 'task', restMin: mode === 'note' ? STRIP_MIN : undefined });
+  const folded = de.classList.contains('folded');
+  const r = (v) => `${Math.round(v * 100) / 100}px`;
+  const v = { 'up-top': r(lay.up.top), 'up-h': r(lay.up.height), 'dn-top': r(lay.dn?.top ?? 0), 'dn-h': r(lay.dn?.height ?? 0), 'as-top': r(lay.assist.hitTop), 'as-pad': r(lay.assist.visTop - lay.assist.hitTop), 'as-h': r(lay.assist.hitHeight), 'add-top': r(lay.add?.top ?? 0) };
+  // ノート: 折って書くとき（または下面が足りないとき）は本文が上面、ほかのノートの題名が下面。開ききりは上が一覧・下が本文。
+  const edUp = folded || !lay.dn;
+  const ed = edUp ? lay.up : lay.dn, nu = edUp ? lay.dn : lay.up;
+  Object.assign(v, { 'ed-top': r(ed.top), 'ed-h': r(ed.height), 'nu-top': r(nu?.top ?? 0), 'nu-h': r(nu?.height ?? 0) });
+  const key = `${mode}|${edUp}|${Object.values(v).join(',')}`;
+  if (key === klKey) return;
+  klKey = key;
+  de.classList.add('kbl'); de.dataset.kbl = mode; de.dataset.kbe = edUp ? 'up' : 'dn'; de.dataset.kbdn = lay.dn ? '1' : '0'; de.dataset.kbnu = nu && nu.height >= STRIP_MIN ? '1' : '0';
+  for (const [k, val] of Object.entries(v)) de.style.setProperty(`--kl-${k}`, val);
+  const a = document.activeElement; if (a?.matches?.('.ned-body')) revealCaret(a);
+}
+window.__kbLayoutNow = () => { klKey = ''; applyKbLayout(); };
+// 入力・カーソル移動のたびに、本文の入力行を窓へ追随させる（変換中も。DOM は触らずスクロールだけ）。
+let caretRaf = 0;
+const caretFollow = () => { cancelAnimationFrame(caretRaf); caretRaf = requestAnimationFrame(() => { const a = document.activeElement; if (a?.classList?.contains('ned-body') && de.classList.contains('kbl')) revealCaret(a); }); };
+document.addEventListener('selectionchange', caretFollow);
+document.addEventListener('input', (ev) => { if (ev.target?.classList?.contains('ned-body')) caretFollow(); }, true);
 let vpRaf = 0;
 let directCtl = null; // 直接入力の制御（回転で取り消す）
 function vpSchedule() { cancelAnimationFrame(vpRaf); vpRaf = requestAnimationFrame(vpTick); }
@@ -182,6 +229,7 @@ function vpTick() {
   const sc = safeChanged();
   updateDiagnostics();
   if (changed || sc) { directCtl?.cancel('rotate'); render(); }
+  applyKbLayout();
   const a = document.activeElement;
   if (kb && isTextEl(a)) {
     const d = a.closest('dialog');
@@ -1109,7 +1157,7 @@ function noteEditor() {
 }
 function noteBody(where) {
   if (NB.blocked) return '<div class="memopage padb"><p class="smsg" role="alert">ノートを準備できませんでした。アプリを閉じて、もう一度開いてください。（予定と元のメモは変わっていません）</p></div>';
-  if (NB.cur) return `<div class="ntools mtools"><button type="button" class="mback" data-act="noteback" aria-label="ノートの一覧に戻る">一覧</button><button type="button" class="mback" data-act="notenew" aria-label="新しいノート">＋ 新規</button></div><div class="memopage notepage padb" data-note-wrap="${where}"><div class="nmeta" data-nmeta="${where}"></div><div class="nhost" data-nhost="${where}"></div></div>`;
+  if (NB.cur) return noteOthers(where) + `<div class="ntools mtools"><button type="button" class="mback" data-act="noteback" aria-label="ノートの一覧に戻る">一覧</button><button type="button" class="mback" data-act="notenew" aria-label="新しいノート">＋ 新規</button></div><div class="memopage notepage padb" data-note-wrap="${where}"><div class="nmeta" data-nmeta="${where}"></div><div class="nhost" data-nhost="${where}"></div></div>`;
   return `<div class="ntools mtools"><span class="ntitle">ノート</span><button type="button" class="mback" data-act="notenew" aria-label="新しいノート">＋ 新規</button></div><div class="memopage mlist padb" data-mlist-wrap="${where}"><div class="mlsb"><input type="search" class="mlq" data-mlq="${where}" placeholder="ノートを検索" aria-label="ノートを検索" value="${esc(NB.q[where])}" autocomplete="off" spellcheck="false"></div><div class="nchips" data-nchips="${where}" role="toolbar" aria-label="フォルダ">${noteChipsHtml()}</div><div class="mlrows" data-mlist="${where}">${noteRowsHtml(where)}</div><div data-nmenu="${where}">${noteMenuHtml()}</div></div>`;
 }
 const noteDayText = (ms) => { const d = new Date(ms), t = new Date(); return `${d.getFullYear() === t.getFullYear() ? '' : `${d.getFullYear()}/`}${d.getMonth() + 1}/${d.getDate()}`; };
@@ -1173,7 +1221,15 @@ root.addEventListener('scroll', (ev) => {
   if (nvRaf) return;
   nvRaf = requestAnimationFrame(() => { nvRaf = 0; paintNoteWindow(el); });
 }, true);
+// 集中ノートで本文を開いている間の「ほかのノート」。折って書くときは下面の1行、開ききりでは上面の一覧（配置は keyboard-layout の CSS 変数）。
+function noteOthersHtml() {
+  const rows = (NB.rows || []).filter((n) => n.id !== NB.cur).slice(0, 60);
+  if (!rows.length) return `<span class="nupe">${NB.rows ? 'ほかのノートはありません' : '読み込んでいます…'}</span>`;
+  return rows.map((n) => { const t = n.title || titleOf(n.body); return `<button type="button" class="nupb" data-nrow="${esc(n.id)}" aria-label="${esc(t)}を開く">${esc(t)}</button>`; }).join('');
+}
+const noteOthers = (where) => (where === 'closed' && fmode() === 'note' ? `<div class="nup" data-nup role="group" aria-label="ほかのノート">${noteOthersHtml()}</div>` : '');
 function paintNoteLists() {
+  root.querySelectorAll('[data-nup]').forEach((el) => { const sl = el.scrollLeft; el.innerHTML = noteOthersHtml(); el.scrollLeft = sl; });
   root.querySelectorAll('[data-mlist]').forEach((el) => { el.innerHTML = noteRowsHtml(el.dataset.mlist); paintNoteWindow(el); });
   root.querySelectorAll('[data-nchips]').forEach((el) => { const sl = el.scrollLeft; el.innerHTML = noteChipsHtml(); el.scrollLeft = sl; });
   paintNoteMenu();
@@ -1248,6 +1304,7 @@ async function noteNew() {
 function fillNotes(keep) {
   if (NB.blocked) return;
   const host = root.querySelector('[data-nhost]');
+  if (host && NB.cur && root.querySelector('[data-nup]') && !NB.rows && !NB.failed) loadNoteList();
   if (!host || !NB.cur) { if (noteListUsed()) { if (!NB.rows && !NB.failed) loadNoteList(); else root.querySelectorAll('[data-mlist]').forEach(paintNoteWindow); } return; }
   const ed = noteEditor(), id = NB.cur;
   host.append(ed.el); paintNoteMeta();
@@ -1730,6 +1787,7 @@ function render() {
     root.querySelector(sel)?.focus({ preventScroll: true });
   }
   syncExt();
+  applyKbLayout();
 }
 
 // ---------- 操作 ----------
@@ -4569,7 +4627,7 @@ const notifyPermissionChanged = () => requestNotifySync('permission');
 postureCtl = createPosture({
   call, listen, el: document.documentElement,
   eligible: () => !['home', 'browse'].includes(layoutKind()),
-  onChange: () => updateKbMetrics(),
+  onChange: () => { updateKbMetrics(); applyKbLayout(); },
 });
 window.__posture = postureCtl; // 手動「折り」代替とテスト用
 async function initNative() {

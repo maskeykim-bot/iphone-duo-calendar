@@ -1279,3 +1279,31 @@ dialog#menu #m-destpop{border-radius:inherit}
 .ftdel{width:100%;min-height:44px;margin-top:8px;color:#c0392b;font-weight:800;border-radius:10px;background:transparent;box-shadow:inset 0 0 0 1px #e3b4ae}
 .ftdel:disabled{opacity:.4}
 .ftnone .rmh{margin:0 0 4px}
+
+/* 第16版 PR34: 入力欄・本文をキーボード上端(kbTop)と折り目の溝に合わせる。位置は keyboard-layout.js が --kl-* に出す（機種の固定 y は持たない）。 */
+html.kbl .shell.focus .fcol{padding-top:var(--head-h)}
+html.kbl[data-kbl=task] .ftask{display:block;position:static}
+html.kbl[data-kbl=task] .ftup{flex:none;height:var(--kl-up-h);overflow:hidden}
+html.kbl[data-kbl=task] .ftdn{position:fixed;left:0;right:0;top:var(--kl-dn-top);height:var(--kl-dn-h);padding-bottom:8px;z-index:3;background:var(--paper)}
+html.kbl[data-kbl=task][data-kbdn="0"] .ftdn{visibility:hidden;height:0;padding:0;border:0;overflow:visible}
+html.kbl[data-kbl=task] .rmadd,html.kbl[data-kbl=task] .ftchips{visibility:visible}
+html.kbl[data-kbl=task] .rmadd{position:fixed;left:16px;right:16px;top:var(--kl-add-top);height:48px;margin:0;z-index:5}
+html.kbl[data-kbl=task] .rmadd .rmaddin{height:48px}
+html.kbl[data-kbl=task] .ftchips{position:fixed;left:0;right:0;top:var(--kl-as-top);height:var(--kl-as-h);margin:0;padding:var(--kl-as-pad) 16px 0;box-sizing:border-box;align-items:center;background:#E6E8EB;z-index:5}
+html.kbl[data-kbl=note] .nmeta{display:none}
+html.kbl[data-kbl=note] .fpage .notepage{padding:0;flex:none}
+html.kbl[data-kbl=note] .nhost{position:fixed;left:0;right:0;top:var(--kl-ed-top);height:var(--kl-ed-h);z-index:3;background:var(--paper);overflow:hidden;box-sizing:border-box;padding:0 16px}
+html.kbl[data-kbl=note] .nhost .ned{height:100%}
+html.kbl[data-kbl=note] .ned-bodywrap{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+html.kbl[data-kbl=note] .ned-fmt{position:fixed;left:0;right:0;top:var(--kl-as-top);height:var(--kl-as-h);box-sizing:border-box;padding:var(--kl-as-pad) 16px 0;align-items:center;background:#E6E8EB;z-index:5}
+html.kbl[data-kbl=note] .ned-status,html.kbl[data-kbl=note] .ned-bar,html.kbl[data-kbl=note] .ned-trash{display:none}
+html.kbl[data-kbl=note] .nup{position:fixed;left:0;right:0;top:var(--kl-nu-top);height:var(--kl-nu-h);z-index:3;box-sizing:border-box;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+html.kbl[data-kbl=note][data-kbe=up] .nupb{min-height:32px;height:32px;position:relative}
+html.kbl[data-kbl=note][data-kbe=up] .nupb::before{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+html.kbl[data-kbl=note][data-kbe=up] .nup{display:flex;align-items:center;gap:8px;padding:0 16px;overflow-x:auto;overflow-y:hidden;background:#CFD3D8}
+html.kbl[data-kbl=note][data-kbe=dn] .nup{display:flex;flex-direction:column;overflow-y:auto;background:var(--paper);padding:0 16px}
+html.kbl[data-kbl=note][data-kbnu="0"] .nup{display:none}
+.nupb{flex:none;max-width:70%;min-height:44px;padding:0 14px;border-radius:22px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);font-size:14px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+html.kbl[data-kbe=dn] .nupb{max-width:none;width:100%;border-radius:8px;background:transparent;box-shadow:none;border-bottom:1px solid var(--line)}
+.nupe{font-size:13px;color:var(--muted)}
+@media (prefers-color-scheme:dark){ html.kbl .ftchips,html.kbl .ned-fmt{background:#2b2f2d} html.kbl[data-kbe=up] .nup{background:#262a28} }
