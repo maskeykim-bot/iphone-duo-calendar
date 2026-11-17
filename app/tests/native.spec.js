@@ -120,6 +120,9 @@ async function mock(page, cfg = {}) {
           case 'selectionHaptic': // Swift の契約の写し: kind は light|warning だけ。main で UIFeedbackGenerator を鳴らす。
             if (!['light', 'warning'].includes(opts.kind)) throw { code: 'INVALID_ARGUMENT', message: 'x' };
             return { performed: true };
+          case 'getPosture': // Swift の契約の写し（第16版 PR10）。未実装・available:false は M.posture で再現。
+            if (c.postureReject) throw { code: 'UNIMPLEMENTED', message: 'x' };
+            return clone(M.posture ?? { available: false, folded: false, regionRect: null, axis: null, angle: null, status: null, source: 'unsupported', at: 1763100000000 });
           case 'notifyClear': { const n = M.pending.length; M.pending = []; return { removed: n }; }
           case 'notifyTest': if (!['granted', 'provisional', 'ephemeral'].includes(M.notif)) throw { code: 'PERMISSION_DENIED', message: 'x' }; return { scheduled: true };
           default: throw { code: 'UNAVAILABLE', message: method };

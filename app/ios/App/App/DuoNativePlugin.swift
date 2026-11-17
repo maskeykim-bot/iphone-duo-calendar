@@ -39,7 +39,8 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         CAPPluginMethod(name: "notifySync", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "notifyClear", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "notifyTest", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "selectionHaptic", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "selectionHaptic", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getPosture", returnType: CAPPluginReturnPromise)
     ]
 
     private let store = EKEventStore()
@@ -61,6 +62,13 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
     private static let urlPrefix = "duo-calendar://created/"
     private static let fallbackColor = "#68716a"
     private static let maxShareBytes = 10 * 1024 * 1024
+
+    // 折り状態（第16版 PR10）。probe は iOS 27.1 以降だけ作る（型は UIView で持ち、可用性の注釈を広げない）。
+    private var postureProbe: UIView?
+    private var lastEmittedPosture: [String: Any]?
+    // UIHinge の記録（配置には使わない）。度と status 文字列。取れたときだけ入る。
+    private var hingeAngleDegrees: Double?
+    private var hingeStatus: String?
 
     public override func load() {
         storeObserver = NotificationCenter.default.addObserver(
@@ -84,6 +92,8 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
                 self?.notifyListeners("timeChanged", data: ["reason": "significant"])
             }
         ]
+        // 折り状態の probe。view がまだ無ければ設置せず、getPosture で再設置する。
+        DispatchQueue.main.async { [weak self] in self?.installPostureProbe() }
     }
 
     deinit {
@@ -91,6 +101,10 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             NotificationCenter.default.removeObserver(observer)
         }
         for o in timeObservers { NotificationCenter.default.removeObserver(o) }
+        // deinit は任意スレッドで呼ばれうるので、probe の解除は main へ渡す（UIView は main で触る）。
+        if let probe = postureProbe {
+            DispatchQueue.main.async { probe.removeFromSuperview() }
+        }
         if bridge?.notificationRouter.localNotificationHandler === self {
             bridge?.notificationRouter.localNotificationHandler = nil
         }
@@ -2520,6 +2534,110 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         }
     }
 
+    // MARK: - 折り状態（第16版 PR10）
+
+    /// 現在の折り状態を返す。Posture の形は design/IMPL_PLAN_V16.md PR10。未対応・view なしは available:false を resolve する。
+    @objc func getPosture(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { call.resolve(DuoNativePlugin.unsupportedPosture()); return }
+            // 起動時の設置に失敗していたら、ここで再設置する。
+            if self.postureProbe == nil { self.installPostureProbe() }
+            let p = self.currentPosture()
+            self.lastEmittedPosture = p // 取得で得た値を基準にし、直後の同内容イベントを重複させない
+            call.resolve(p)
+        }
+    }
+
+    private static func nowMs() -> Int { Int((Date().timeIntervalSince1970 * 1000).rounded()) }
+
+    private static func unsupportedPosture() -> [String: Any] {
+        return [
+            "available": false, "folded": false, "regionRect": NSNull(), "axis": NSNull(),
+            "angle": NSNull(), "status": NSNull(), "source": "unsupported", "at": nowMs()
+        ]
+    }
+
+    /// main で呼ぶ。probe があればアクティブな division を読み、WebView 原点の CSS px へ変換する。
+    private func currentPosture() -> [String: Any] {
+        guard #available(iOS 27.1, *), let probe = postureProbe, probe.window != nil || probe.superview != nil else {
+            return DuoNativePlugin.unsupportedPosture()
+        }
+        // 既定の問い合わせ（アクティブのみ）。UIKit はここで読んだ領域を追跡する。
+        let region = probe.reservedRegions(kind: .division).first
+        var rect: Any = NSNull()
+        var axis: Any = NSNull()
+        var folded = false
+        if let region = region {
+            folded = true
+            // contentInset は never なので、WebView 左上原点の pt がそのまま CSS px。
+            let target: UIView = bridge?.webView ?? probe
+            let f = target === probe ? region.frame : target.convert(region.frame, from: probe)
+            if f.width.isFinite && f.height.isFinite && f.origin.x.isFinite && f.origin.y.isFinite {
+                rect = ["x": Double(f.origin.x), "y": Double(f.origin.y), "width": Double(f.width), "height": Double(f.height)]
+                // 正方形（差 0.5 未満）は向きを決めない。
+                if abs(f.width - f.height) >= 0.5 { axis = f.width > f.height ? "horizontal" : "vertical" }
+            }
+        }
+        return [
+            "available": true, "folded": folded, "regionRect": rect, "axis": axis,
+            "angle": hingeAngleDegrees.map { (v: Double) -> Any in (v * 10).rounded() / 10 } ?? NSNull(),
+            "status": hingeStatus ?? NSNull(),
+            "source": "reservedRegions", "at": DuoNativePlugin.nowMs()
+        ]
+    }
+
+    /// 角度（ラジアン）を度へ。記録専用。レイアウトには使わない。
+    static func degrees(fromRadians r: Double) -> Double { r * 180 / .pi }
+
+    /// UIHinge の記録。folded や矩形の再計算はしない（変化通知も出さない）。
+    func recordHinge(angleRadians: Double?, status: String?) {
+        hingeAngleDegrees = angleRadians.map { DuoNativePlugin.degrees(fromRadians: $0) }
+        hingeStatus = status
+    }
+
+    /// 同じ内容か（folded・available・axis が同じで、矩形差が 0.5px 未満）。angle/status/at は比べない。
+    private func samePosture(_ a: [String: Any], _ b: [String: Any]) -> Bool {
+        if (a["available"] as? Bool) != (b["available"] as? Bool) { return false }
+        if (a["folded"] as? Bool) != (b["folded"] as? Bool) { return false }
+        if (a["axis"] as? String) != (b["axis"] as? String) { return false }
+        let ra = a["regionRect"] as? [String: Double], rb = b["regionRect"] as? [String: Double]
+        if (ra == nil) != (rb == nil) { return false }
+        if let ra = ra, let rb = rb {
+            for k in ["x", "y", "width", "height"] where abs((ra[k] ?? 0) - (rb[k] ?? 0)) >= 0.5 { return false }
+        }
+        return true
+    }
+
+    /// probe の updateConstraints から呼ばれる（main）。初めての変化は遅らせず、同内容は送らない。
+    fileprivate func postureProbeRegionsChanged() {
+        let p = currentPosture()
+        if let last = lastEmittedPosture, samePosture(last, p) { return }
+        lastEmittedPosture = p
+        notifyListeners("postureChange", data: p)
+    }
+
+    /// main で呼ぶ。iOS 27.1 以降で、全画面・非操作・非アクセシビリティの probe を VC の view へ載せる。
+    private func installPostureProbe() {
+        guard #available(iOS 27.1, *) else { return }
+        if postureProbe?.superview != nil { return }
+        guard let host = bridge?.viewController?.view else { return } // 無ければ getPosture で再試行
+        let probe = DuoPostureProbeView()
+        probe.owner = self
+        probe.translatesAutoresizingMaskIntoConstraints = false
+        probe.isUserInteractionEnabled = false
+        probe.backgroundColor = .clear
+        probe.isAccessibilityElement = false
+        probe.accessibilityElementsHidden = true
+        host.addSubview(probe)
+        NSLayoutConstraint.activate([
+            probe.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+            probe.trailingAnchor.constraint(equalTo: host.trailingAnchor),
+            probe.topAnchor.constraint(equalTo: host.topAnchor),
+            probe.bottomAnchor.constraint(equalTo: host.bottomAnchor)
+        ])
+        postureProbe = probe
+    }
+
     // 触覚（第14版 PR27）。kind は 'light'（UISelectionFeedbackGenerator）/ 'warning'（UINotificationFeedbackGenerator）。main で実行する。
     @objc func selectionHaptic(_ call: CAPPluginCall) {
         guard let kind = call.getString("kind"), kind == "light" || kind == "warning" else {
@@ -2653,4 +2771,20 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             vc.present(sheet, animated: true, completion: nil)
         }
     }
+}
+
+/// 折り状態の probe（第16版 PR10）。画面いっぱいで、タッチを透過し、VoiceOver に出さない。
+/// 公式どおり updateConstraints() で division を読むと、UIKit が領域の変化でこれを再び呼ぶ。
+@available(iOS 27.1, *)
+final class DuoPostureProbeView: UIView {
+    weak var owner: DuoNativePlugin?
+
+    override func updateConstraints() {
+        _ = reservedRegions(kind: .division) // 追跡の対象にする
+        owner?.postureProbeRegionsChanged()
+        super.updateConstraints()
+    }
+
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool { false }
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? { nil }
 }
