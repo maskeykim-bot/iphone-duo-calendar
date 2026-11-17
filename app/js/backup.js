@@ -67,6 +67,7 @@ const exportTask = (t) => { const r = validateTask(t); const x = r.ok ? r.task :
 export function buildBackup(events, settings = {}, now = new Date(), categories = [], memos = [], tasks = []) {
   const s = { view: settings.view, style: settings.style, desk: !!settings.desk, monthExpand: !!settings.monthExpand, rokuyo: settings.rokuyo !== false, holidayRed: settings.holidayRed !== false, pages: normalizePages(settings.pages) };
   if (settings.weekStart === 0 || settings.weekStart === 1) s.weekStart = settings.weekStart;
+  s.tasks = { monthTasks: settings.tasks?.monthTasks === true };
   { const { version, ...n } = normNotify(settings.notify); void version; s.notify = n; } // 未保存でも既定込みで常に出す
   return { app: APP, version: VERSION, schema: SCHEMA, exportedAt: localIso(now), categories: categories.map((c) => deepClean(c)), events: events.map(exportEvent), memos: [...memos].sort((a, b) => (a.date < b.date ? -1 : 1)).map(exportMemo), tasks: [...tasks].sort(taskCmp).map(exportTask), settings: s };
 }
@@ -182,6 +183,10 @@ export function checkSettings(s) {
   if (s.style !== undefined) out.style = STYLES[s.style];
   if (s.desk !== undefined) out.desk = s.desk;
   if (s.monthExpand !== undefined) out.monthExpand = s.monthExpand;
+  if (s.tasks != null) {
+    if (!isObj(s.tasks) || (s.tasks.monthTasks !== undefined && typeof s.tasks.monthTasks !== 'boolean')) return { error: '設定のタスクが不正です' };
+    out.tasks = { monthTasks: s.tasks.monthTasks === true };
+  }
   if (s.notify != null) {
     const n = s.notify;
     if (!isObj(n) || (n.enabled !== undefined && typeof n.enabled !== 'boolean') || (n.showTitle !== undefined && typeof n.showTitle !== 'boolean')

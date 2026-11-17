@@ -21,7 +21,8 @@ async function boot(page, size, { store = null } = {}) {
 }
 const OPEN = SIZES.openLandscape;
 const cnt = (page, k) => page.locator(`.page.lp .day[data-date="${k}"] .tkn, .day[data-date="${k}"] .tkn`).first();
-const stored = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('duo-native-rem') || 'null'));
+const stored = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('duo-task-settings') || 'null'));
+const storedOld = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('duo-native-rem') || 'null'));
 const ON = { lists: null, addTo: '', monthTasks: true };
 
 test.describe('月にタスクを表示', () => {
@@ -40,6 +41,19 @@ test.describe('月にタスクを表示', () => {
     expect(await page.evaluate(() => JSON.stringify(Object.entries(localStorage)))).not.toContain('秘密の');
     await expect(page.locator('.day[data-date="2026-11-12"] >> nth=0')).toHaveAttribute('aria-label', /未完了のタスク3件/);
     expect(await legacyCalls(page)).toEqual([]);
+  });
+  test('旧 monthTasks:true は新設定へ一度だけ継承。以後は新設定が正で、旧設定は変わらない', async ({ page }) => {
+    const old = { enabled: false, lists: ['L1'], addTo: 'L1', monthTasks: true };
+    await boot(page, OPEN, { store: old });
+    expect(await stored(page)).toEqual({ monthTasks: true });
+    await expect(cnt(page, D0)).toHaveText('✓3');
+    await openMenu(page, 'reminders');
+    await expect(page.locator('#m-tkmonth')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('#m-tkwin')).toHaveText('30日');
+    await page.locator('#m-tkmonth').click();
+    await page.reload(); await page.waitForSelector('html[data-ready]');
+    expect(await stored(page)).toEqual({ monthTasks: false }); // 旧が true のままでも再継承しない
+    expect(await storedOld(page)).toEqual(old);
   });
   test('閉じた画面では出さない', async ({ page }) => {
     await boot(page, SIZES.closedPortrait, { store: ON });
@@ -97,7 +111,7 @@ test.describe('廃止した設定（同期・リスト・追加先・許可）',
   test('設定›カレンダーのリマインダー段は空。許可・同期・リストの操作は無い。native 呼出0', async ({ page }) => {
     await boot(page, OPEN);
     await openMenu(page, 'calendar');
-    await expect(page.locator('#m-cal-rem')).toBeEmpty();
+    await expect(page.locator('#m-cal-rem')).toHaveCount(0);
     await expect(page.locator('#m-remsync, #m-remreq, [data-tkshow], [data-tkadd], #m-remhist')).toHaveCount(0);
     expect(await legacyCalls(page)).toEqual([]);
   });
@@ -112,7 +126,8 @@ test.describe('廃止した設定（同期・リスト・追加先・許可）',
     await i.click(); await i.fill('新しい'); await i.press('Enter');
     await expect(i).toHaveValue('');
     await expect(lp.locator('.rmt', { hasText: '新しい' })).toHaveCount(1);
-    expect(await stored(page)).toMatchObject(old); // 旧設定はそのまま
+    expect(await storedOld(page)).toMatchObject(old); // 旧設定はそのまま
+    expect(await stored(page)).toEqual({ monthTasks: false }); // 新設定は monthTasks だけ
     expect(await legacyCalls(page)).toEqual([]);
   });
 });

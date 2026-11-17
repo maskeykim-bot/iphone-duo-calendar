@@ -15,8 +15,8 @@ import { holidayOf } from './holidays.js';
 import { splitEvents, eveningFirst, homeTasks, dueText, tomorrowSummary, axisBars, firstLines } from './home.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS } from './pages.js';
 import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.js';
-import { DELETE_UNDO_MS, tasksHtml, HIST_DAYS, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, TASK_CONFLICT, createDeleteController, TASK_DELETED, normRemSettings, dueCounts, overdueTodayCount } from './reminders.js';
-import { LOCAL_LIST, TASK_STORE_TEXT, createTaskStore, createLocalCall, createLocalAddController, rowOf, createTaskDoneController, DONE_UNDO_MS } from './tasks.js';
+import { DELETE_UNDO_MS, tasksHtml, HIST_DAYS, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDeleteController, TASK_DELETED, dueCounts, overdueTodayCount } from './reminders.js';
+import { LOCAL_LIST, TASK_STORE_TEXT, createTaskStore, createLocalCall, createLocalAddController, rowOf, createTaskDoneController, DONE_UNDO_MS, inheritTaskSettings, normTaskSettings } from './tasks.js';
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
 import { call, errCode, errReason, errText, haptic, listen, nativeAvailable } from './native.js';
 import { createDestPage, destRowsHtml } from './destination-ui.js';
@@ -81,7 +81,7 @@ const NOTIFY_KEY = `duo-notify${suffix}`;
 // 保存できなかったときは、この実行中だけ実効値をメモリに保つ（notifyMem）。
 const NOTIFY_POLICY_KEY = `duo-notify-policy.v15${suffix}`;
 const LS_EVIDENCE = (() => { // 起動の最初（この起動の保存より前）に既存端末の証拠を採る
-  try { return [UI_KEY, DRAFT_KEY, NOTIFY_KEY, `duo-native-cal${suffix}`, `duo-native-rem${suffix}`].some((k) => localStorage.getItem(k) !== null); } catch { return false; }
+  try { return [UI_KEY, DRAFT_KEY, NOTIFY_KEY, `duo-native-cal${suffix}`, `duo-native-rem${suffix}`, `duo-task-settings${suffix}`].some((k) => localStorage.getItem(k) !== null); } catch { return false; }
 })();
 let notifyMem = null;
 function loadNotify() {
@@ -1240,11 +1240,18 @@ const taskErrText = (code, fallback) => (TASK_STORE_TEXT[code] ? `${TASK_STORE_T
 const newDraft = () => ({ open: false, title: '', due: undefined, time: '', pop: null, notify: undefined, busy: false, err: '' }); // due: undefined＝選んでいる日に従う／null＝期限なし
 const RM = { add: newDraft(), data: null, err: false, doneOpen: false, histDays: HIST_DAYS, more: false, timer: 0, sig: '', mut: 0 };
 let tkDrop = null; // 編集シートを閉じる口（シート側の定義後に設定）
-// 端末内の設定（月の件数だけ。旧の同期・リスト・追加先の設定は消さず、以後読まない）。
+// 端末内の設定（月の件数だけ。旧リマインダーの同期・リスト・追加先の設定は消さず、以後読まない）。
+// 新設定 duo-task-settings が無い時だけ、旧 duo-native-rem の monthTasks を一度継承して保存する。
 const REM_KEY = `duo-native-rem${suffix}`;
-function loadRemSettings() { try { return normRemSettings(JSON.parse(localStorage.getItem(REM_KEY) || 'null')); } catch { return normRemSettings(null); } }
+const TASK_SET_KEY = `duo-task-settings${suffix}`;
+const parseLS = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch { return null; } };
+function loadRemSettings() {
+  const r = inheritTaskSettings(parseLS(TASK_SET_KEY), parseLS(REM_KEY));
+  if (r.inherited) { try { localStorage.setItem(TASK_SET_KEY, JSON.stringify(r.value)); } catch { /* 無視 */ } }
+  return r.value;
+}
 let remSet = loadRemSettings();
-function setRemSettings(next) { remSet = next; try { localStorage.setItem(REM_KEY, JSON.stringify(remSet)); } catch { /* 無視 */ } }
+function setRemSettings(next) { remSet = normTaskSettings(next); try { localStorage.setItem(TASK_SET_KEY, JSON.stringify(remSet)); } catch { /* 無視 */ } }
 const SHOWN = new Set([LOCAL_LIST.id]);
 const shownIds = () => SHOWN;
 // 月の「✓N」: 設定オン・読み込み済みの時だけ。閉じた画面（browse）には出さない。
@@ -2338,11 +2345,11 @@ $('#tk-save').addEventListener('click', async () => {
   if (r.ok) {
     if (!r.noop && RM.data) { RM.data = { ...RM.data, reminders: RM.data.reminders.map((x) => (x.itemId === orig.itemId ? r.reminder : x)) }; RM.sig = ''; render(); scheduleTasks(); }
     fadeClose(taskDlg, closeTask);
-    if (r.conflicted) { notice(TASK_CONFLICT); say(TASK_CONFLICT); } else if (!r.noop) say('タスクを保存しました。');
+    if (!r.noop) say('タスクを保存しました。');
     return;
   }
   t.ed.err = r.invalid || taskErrText(r.code, 'もう一度お試しください。');
-  if (r.code === 'NOT_FOUND') { t.gone = true; t.ed.err = 'このリマインダーは削除されています。'; loadTasks(); } // 作り直さない
+  if (r.code === 'NOT_FOUND') { t.gone = true; t.ed.err = 'このタスクは削除されています。'; loadTasks(); } // 作り直さない
   tkUi(); say(t.ed.err);
 });
 // 保存・削除の確定（1トランザクション）。
@@ -2589,7 +2596,7 @@ $('#dodelete').addEventListener('click', () => {
 });
 
 // ---------- その他メニュー ----------
-const MENU_TITLES = { root: '設定', general: '一般', display: '表示形式', calendar: 'カレンダー', reminders: 'リマインダー', google: 'Google カレンダー', details: '詳細' };
+const MENU_TITLES = { root: '設定', general: '一般', display: '表示形式', calendar: 'カレンダー', reminders: 'タスク', google: 'Google カレンダー', details: '詳細' };
 let menuScreen = 'root';
 function showMenuScreen(name, focus = true, opener = null) {
   menuScreen = name;
@@ -2617,7 +2624,7 @@ function openMenu(from) {
   if (menuDlg.open) { closePanel(menuDlg); return; } // 帯の設定ボタン（×）でも閉じる
   $('#m-desk').hidden = L.w < 600 || L.h < 600;
   $('#m-notify').hidden = !NATIVE;
-  $('#m-reminders').hidden = !NATIVE;
+  $('#m-reminders').hidden = false;
   $('#m-gset').hidden = !NATIVE; $('#m-gmsg').hidden = true;
   $('#m-desk').textContent = state.desk ? '卓上表示をやめる' : '卓上表示';
   $('#m-week').textContent = `週の始まり: ${state.weekStart === 1 ? '月曜（日曜にする）' : '日曜（月曜にする）'}`;
@@ -2655,10 +2662,9 @@ function syncMonthMenu() {
   z.setAttribute('aria-pressed', String(state.monthTextSize === 'large'));
   z.textContent = `月の文字: ${state.monthTextSize === 'large' ? '大（標準にする）' : '標準（大にする）'}`;
 }
-// タスクの設定（ネイティブ版のみ）。月の件数のスイッチだけ。リストの✓・同期・追加先はカレンダーのリマインダー段。
+// タスクの設定（Web でも出す）。月の件数のスイッチと、固定の完了表示期間だけ。リスト・同期・許可の設定はない。
 function syncTaskMenu() {
-  $('#m-tk').hidden = !NATIVE;
-  if (!NATIVE) return;
+  $('#m-tk').hidden = false;
   $('#m-tkmonth').setAttribute('aria-checked', String(remSet.monthTasks));
 }
 function syncRokuyoMenu() { $('#m-holiday').setAttribute('aria-checked', String(state.holidayRed)); $('#m-rokuyo').setAttribute('aria-checked', String(state.rokuyo)); }
@@ -2925,7 +2931,7 @@ async function doExport() {
   bk.err = ''; bk.msg = '';
   try {
     if (!await flushMemosAwait()) { bk.err = '保存できていないメモがあるため書き出せません。メモの再試行をしてからもう一度お試しください。'; say(bk.err); renderBackup(); return; }
-    const text = JSON.stringify(buildBackup(state.events, { ...state, notify: loadNotify() }, new Date(), state.categories, await db.listMemos(), await db.listTasks()), null, 2);
+    const text = JSON.stringify(buildBackup(state.events, { ...state, notify: loadNotify(), tasks: remSet }, new Date(), state.categories, await db.listMemos(), await db.listTasks()), null, 2);
     const file = new File([text], backupName(), { type: 'application/json' });
     if (NATIVE) {
       // ネイティブは共有シート（shareFile）を優先。失敗したときだけ従来の共有／ダウンロードへ。
@@ -3010,7 +3016,7 @@ async function finishImport(kind) {
   if (kind === 'add') msg = `${plan.add.length}件を追加しました（重複${plan.skipped}件を除外）。${data.memos?.length ? `メモは追加${plan.memo.added}件・連結${plan.memo.merged}件。` : ''}${data.tasks?.length ? `タスクは追加${tp.added}件。` : ''}`;
   else {
     msg = `${data.events.length}件の予定${data.settings ? 'と設定' : ''}に置き換えました。${data.memos?.length ? `メモ${data.memos.length}件。` : ''}${data.tasks?.length ? `タスク${data.tasks.length}件。` : ''}${dupLinks ? `同じiPhone連携の印を持つ予定があったため、${dupLinks}件の結びつきを外しました。` : ''}`;
-    if (data.settings) { const { notify, ...ui } = data.settings; Object.assign(state, ui); saveUi(); setFirstDay(state.weekStart); if (notify) saveNotify(notify); }
+    if (data.settings) { const { notify, tasks: tset, ...ui } = data.settings; Object.assign(state, ui); saveUi(); if (tset) setRemSettings(tset); setFirstDay(state.weekStart); if (notify) saveNotify(notify); }
   }
   // 復元した linked の予定は、この端末の iPhone の予定と照合し直す（代わりの照合は復元直後の予定だけ）。
   for (const e of (kind === 'add' ? plan.add : data.events)) if (e.nativeLink?.state === 'linked') RESTORED.add(e.id);
@@ -3196,8 +3202,6 @@ function renderCalScreen() {
     else h += '<h3 class="calsec">iPhone</h3><p class="cnote" role="alert">カレンダーの状態を確認できませんでした。</p>';
   }
   $('#m-cal-ip').innerHTML = h;
-  // リマインダー段は廃止（タスクは Duo 内保存。許可・同期・リストの設定は持たない）
-  $('#m-cal-rem').innerHTML = '';
   // 新しい予定の追加先
   const d = destInfo(destNow()), open = setDestPage.isOpen();
   $('#m-dest').innerHTML = `<span class="dname">新しい予定の追加先</span>${calDot(d.color)}<span class="dval">${esc(d.name)}</span><span class="sch" aria-hidden="true">›</span>`;

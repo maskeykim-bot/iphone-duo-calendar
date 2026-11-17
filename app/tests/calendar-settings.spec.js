@@ -180,8 +180,8 @@ test.describe('設定 › カレンダー（PR8）', () => {
   test('リマインダーの段は無い（タスクは Duo 内保存。リスト・許可の設定を持たない）', async ({ page }) => {
     await setup(page, { remLists: [{ id: 'l1', title: '買い物', color: '#ff9500', source: 'iCloud', allowsModify: true, isDefault: true }] });
     await openMenu(page, 'calendar');
-    await expect(page.locator('#m-cal-rem')).toBeEmpty();
-    await expect(page.locator('#m-cal-rem [data-tkshow]')).toHaveCount(0);
+    await expect(page.locator('#m-cal-rem')).toHaveCount(0); // リスト段そのものが無い
+    await expect(page.locator('[data-tkshow]')).toHaveCount(0);
     for (const m of WRITE_METHODS) expect(await mockCalls(page, m)).toHaveLength(0);
   });
 

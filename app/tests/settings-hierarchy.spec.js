@@ -8,7 +8,7 @@ for (const [name, size] of [['閉じた縦', SIZES.closedPortrait], ['開いた�
   test(`${name}: 一覧の項目・下層への出入り・Escape・安全矩形内`, async ({ page }) => {
     await openApp(page, size);
     await openMenu(page);
-    expect(await rows(page)).toEqual(['一般', '表示形式', 'カレンダー', 'Google カレンダー', 'バックアップ', '詳細']); // 通知・リマインダーはネイティブのみ
+    expect(await rows(page)).toEqual(['一般', '表示形式', 'カレンダー', 'タスク', 'Google カレンダー', 'バックアップ', '詳細']); // 通知はネイティブのみ。タスクは Web でも出す
     const b = await page.locator('#menu').boundingBox();
     expect(b.x).toBeGreaterThanOrEqual(8 - 0.5);
     expect(b.x + b.width).toBeLessThanOrEqual(size.width - 8 + 0.5);

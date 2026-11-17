@@ -126,7 +126,7 @@
       <button type="button" class="srow" data-go="display"><span class="sic"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 10h18" stroke="currentColor" stroke-width="2"/></svg></span><span class="sname">表示形式</span><span class="shint">月の表現・文字・時間軸</span><span class="sch" aria-hidden="true">›</span></button>
       <button type="button" class="srow" id="m-notify" data-m="notify" hidden><span class="sic"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 17h14M7 17V11a5 5 0 0 1 10 0v6" fill="currentColor" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="20.5" r="1.5" fill="currentColor"/></svg></span><span class="sname">通知</span><span class="sch" aria-hidden="true">›</span></button>
       <button type="button" class="srow" data-go="calendar"><span class="sic"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 9h18" stroke="currentColor" stroke-width="2"/></svg></span><span class="sname">カレンダー</span><span class="sch" aria-hidden="true">›</span></button>
-      <button type="button" class="srow" data-go="reminders" id="m-reminders" hidden><span class="sic"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 12.5l3 3 5-6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span><span class="sname">リマインダー</span><span class="sch" aria-hidden="true">›</span></button>
+      <button type="button" class="srow" data-go="reminders" id="m-reminders" hidden><span class="sic"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 12.5l3 3 5-6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span><span class="sname">タスク</span><span class="sch" aria-hidden="true">›</span></button>
       <hr class="ssep">
       <button type="button" class="srow" data-go="google"><span class="sic"><b class="gl" aria-hidden="true">G</b></span><span class="sname">Google カレンダー</span><span class="sch" aria-hidden="true">›</span></button>
       <button type="button" class="srow" data-m="backup"><span class="sic"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="7" width="18" height="10" rx="3" fill="currentColor"/></svg></span><span class="sname">バックアップ</span><span class="sch" aria-hidden="true">›</span></button>
@@ -152,7 +152,6 @@
       <div id="m-cal">
         <div id="m-cal-duo"></div>
         <div id="m-cal-ip"></div>
-        <div id="m-cal-rem"></div>
       </div>
       <button type="button" id="m-dest" class="destrow" aria-haspopup="true" aria-expanded="false" aria-controls="m-destpop"></button>
       <div id="m-cal-foot" class="lkfoot" hidden></div>
@@ -162,6 +161,8 @@
       <div id="m-tk" hidden>
         <button type="button" data-m="tkmonth" id="m-tkmonth" class="swrow" role="switch" aria-checked="false" aria-describedby="m-tkmonth-d"><span>月にタスクを表示</span><i class="rkswitch" aria-hidden="true"></i></button>
         <p id="m-tkmonth-d" class="swnote">開いた画面の月に、期限の日の未完了の数（✓2）を出します。</p>
+        <div class="swrow fixrow"><span>完了の表示期間</span><b id="m-tkwin">30日</b></div>
+        <p class="swnote">完了したタスクは30日間、一覧に残ります。古い完了も自動では削除せず、検索で見つかります。</p>
       </div>
     </div>
     <div class="menurows" data-screen="google" hidden>

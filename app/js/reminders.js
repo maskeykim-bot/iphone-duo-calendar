@@ -249,9 +249,6 @@ const todayKeyLocal = () => { const d = new Date(); return `${d.getFullYear()}-$
 
 // ---- 第14版 PR19: タスクの編集と完了（本文は保存しない。メモリ上だけ） ----
 export const NOTE_NEED_DUE = '期限を入れると通知できます。';
-export const NOTE_EXTRA = 'iPhone で設定された、Duo では表示できない通知があります。変更せず残します。';
-export const TASK_NOTE = 'iPhone のリマインダーに保存されます。';
-export const TASK_CONFLICT = 'iPhone のリマインダー側でも変更されていたため、Duo の内容で上書きしました。';
 const normDue = (d) => (d && d.date ? (d.time ? { date: d.date, time: d.time } : { date: d.date }) : null);
 export const hasNotify = (r) => Array.isArray(r?.alarms) && r.alarms.length > 0;
 const sameDue = (a, b) => JSON.stringify(normDue(a)) === JSON.stringify(normDue(b));
@@ -270,11 +267,11 @@ export function buildTaskPatch(orig, f) {
   const patch = {};
   if (title !== (orig.title || '')) patch.title = title;
   if ((f.notes || '') !== (orig.notes || '')) patch.notes = f.notes || '';
-  if (f.listId && f.listId !== orig.listId) patch.listId = f.listId;
   const due = f.date ? (f.time ? { date: f.date, time: f.time } : { date: f.date }) : null;
   if (!sameDue(due, orig.due)) patch.due = due;
   // 通知は利用者が操作した時だけ送る（表示しただけでは送らない）。期限なしには送れない。元と同じ値への操作も送らない。
   if (typeof f.notify === 'boolean' && due && f.notify !== hasNotify(orig)) patch.notify = f.notify;
+  if (!due && hasNotify(orig)) patch.notify = false; // 期限なしは通知なし
   return { patch };
 }
 // 保存。変更なしは呼ばない（noop）。優先度・繰返しは送らない。
@@ -284,20 +281,20 @@ export async function saveTask(call, orig, form) {
   if (b.error) return { ok: false, invalid: b.error };
   if (!Object.keys(b.patch).length) return { ok: true, noop: true, reminder: orig, conflicted: false };
   try {
-    const r = await updateReminder(call, { itemId: orig.itemId, externalId: orig.externalId }, orig.modifiedAt, b.patch);
-    return { ok: true, ...r };
+    const r = await call('updateReminder', { itemId: orig.itemId, patch: b.patch }); // Duo 内保存の口（native は呼ばない）
+    return { ok: true, reminder: r.reminder, conflicted: false };
   } catch (e) { return { ok: false, code: e?.code || 'UNAVAILABLE' }; }
 }
 export function taskEditorHtml(ed) {
   const f = ed.form, dis = ed.lock ? ' disabled' : '';
   const r = ed.orig;
-  const meta = (r.priority > 0 ? '<span class="rmpri" aria-label="優先度あり">!</span> 優先度あり　' : '') + (r.recurring ? '繰り返し（リマインダーで変更できます）' : '');
+  const meta = '';
   const why = ed.lock === 'ro' ? '<p class="small" role="note">読み取り専用のリストのため変更できません。</p>' : ed.lock === 'rec' ? '<p class="small" role="note">繰り返しのタスクは完了だけ変更できます。</p>' : '';
   return `<div class="tkwrap"><label>題名<input id="tk-title" maxlength="200" value="${escH(f.title)}"${dis}></label>`
     + `<div class="dtrow tkrow" id="tk-daterow"><span class="dtk">期限</span><button type="button" id="tk-date" class="dcap" aria-haspopup="true" aria-expanded="false" value="${escH(f.date)}"${dis}></button></div>`
     + `<div class="dtrow tkrow" id="tk-timerow"><label class="tkck tkton"><input id="tk-timeon" type="checkbox" role="switch"${dis}> 時刻を入れる</label><button type="button" id="tk-time" class="tcap" aria-haspopup="true" aria-expanded="false" value="${escH(f.time)}"${dis}${f.time ? '' : ' hidden'}></button></div>`
     + `<div class="tknote"><label class="tkck"><input id="tk-notify" type="checkbox"${dis}> 通知する</label><p class="small" id="tk-notewhy" role="note"></p>`
-    + `${r.alarmsExtra > 0 ? `<p class="small tkextra" role="note">${NOTE_EXTRA}</p>` : ''}</div>`
+    + `</div>`
     + `<label>メモ<textarea id="tk-notes"${dis}>${escH(f.notes)}</textarea></label>`
     + (meta ? `<p class="small tkmeta">${meta}</p>` : '') + why + '</div>';
 }

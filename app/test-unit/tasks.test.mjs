@@ -33,3 +33,19 @@ test('classifyTasks は配列で分け order 順', () => {
   const c = classifyTasks(l);
   assert.deepEqual(c.open.map((t) => t.id), ['a', 'c']); assert.deepEqual(c.done.map((t) => t.id), ['b']);
 });
+
+import { inheritTaskSettings, normTaskSettings, validateTaskPatch } from '../js/tasks.js';
+test('設定: 新設定なしは旧 monthTasks だけを継承、新設定があれば旧を読まない', () => {
+  assert.deepEqual(inheritTaskSettings(null, { monthTasks: true, lists: ['a'], addTo: 'x' }), { value: { monthTasks: true }, inherited: true });
+  assert.deepEqual(inheritTaskSettings(null, null), { value: { monthTasks: false }, inherited: true });
+  assert.deepEqual(inheritTaskSettings({ monthTasks: false }, { monthTasks: true }), { value: { monthTasks: false }, inherited: false });
+  assert.deepEqual(normTaskSettings({ monthTasks: 'x' }), { monthTasks: false });
+});
+test('patch 検証: 未知の項目・不正値を拒否、空題名は拒否、期限を正規化', () => {
+  assert.equal(validateTaskPatch({ done: true }).ok, false);
+  assert.equal(validateTaskPatch({ title: '  ' }).ok, false);
+  assert.equal(validateTaskPatch({ notify: 1 }).ok, false);
+  assert.equal(validateTaskPatch({ due: { date: '2026-13-40' } }).ok, false);
+  assert.deepEqual(validateTaskPatch({ title: ' a ', due: { date: '2026-11-12', time: '10:07', x: 1 } }).patch, { title: 'a', due: { date: '2026-11-12', time: '10:07' } });
+  assert.deepEqual(validateTaskPatch({ due: null }).patch, { due: null });
+});

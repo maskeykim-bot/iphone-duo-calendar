@@ -63,6 +63,34 @@ const storeErr = (e) => (e && (e.code === 'INVALID_ARGUMENT' || e.code === 'NOT_
 export const TASK_STORE_TEXT = { STORAGE_FULL: '端末の空きが足りず保存できませんでした。', STORE_FAILED: 'Duo 内に保存できませんでした。', INVALID_ARGUMENT: 'タスクの内容を確かめてください。' };
 
 // db: { listTasks, getTask, putTask, addTask, deleteTask }（db.js）。
+// ---------- 設定（第16版 PR19）: 月の件数だけ。完了の表示窓は固定30日 ----------
+export const TASK_WINDOW_DAYS = 30;
+export const normTaskSettings = (raw) => ({ monthTasks: !!raw && typeof raw === 'object' && raw.monthTasks === true });
+// 新設定が保存済みならそれ、なければ旧 duo-native-rem の monthTasks だけを一度継承する。旧の同期・リスト・追加先は読まない。
+export function inheritTaskSettings(newRaw, oldRaw) {
+  if (newRaw && typeof newRaw === 'object' && !Array.isArray(newRaw)) return { value: normTaskSettings(newRaw), inherited: false };
+  return { value: normTaskSettings(oldRaw), inherited: true };
+}
+
+// patch の検証。title/note/due/notify だけ受け、未知の項目・不正な型は拒否する（変えない項目は含めない）。
+export function validateTaskPatch(p) {
+  if (!p || typeof p !== 'object' || Array.isArray(p)) return { ok: false, error: 'タスクの変更内容が不正です。' };
+  const out = {};
+  for (const k of Object.keys(p)) {
+    if (!['title', 'note', 'due', 'notify'].includes(k)) return { ok: false, error: 'タスクの変更内容が不正です。' };
+    out[k] = p[k];
+  }
+  if ('title' in out) { if (typeof out.title !== 'string' || !out.title.trim()) return { ok: false, error: 'タスク名を入力してください。' }; out.title = out.title.trim(); }
+  if ('note' in out && typeof out.note !== 'string') return { ok: false, error: 'タスクのメモが不正です。' };
+  if ('notify' in out && typeof out.notify !== 'boolean') return { ok: false, error: 'タスクの通知設定が不正です。' };
+  if ('due' in out && out.due !== null) {
+    const d = out.due;
+    if (!d || typeof d !== 'object' || !isKey(d.date) || (d.time != null && !TIME_RE.test(String(d.time)))) return { ok: false, error: 'タスクの期限が不正です。' };
+    out.due = d.time != null ? { date: d.date, time: d.time } : { date: d.date };
+  }
+  return { ok: true, patch: out };
+}
+
 export function createTaskStore(db) {
   return {
     async list() { try { return await db.listTasks(); } catch (e) { throw storeErr(e); } },
@@ -71,10 +99,13 @@ export function createTaskStore(db) {
     // patch: { title?, note?, due?, notify? }。変えていない項目は保持する。
     async update(id, patch, now = Date.now()) {
       try {
+        const v = validateTaskPatch(patch);
+        if (!v.ok) throw fail('INVALID_ARGUMENT', new Error(v.error));
         const cur = await db.getTask(id);
         if (!cur) throw fail('NOT_FOUND');
-        const due = 'due' in patch ? patch.due : cur.due;
-        return await db.putTask({ ...cur, ...('title' in patch ? { title: patch.title } : {}), ...('note' in patch ? { note: patch.note } : {}), due, ...('notify' in patch ? { notify: !!patch.notify } : {}), updatedAt: now });
+        const p = v.patch, due = 'due' in p ? p.due : cur.due;
+        // 期限なしは通知なし。期限だけの変更では通知を ON にしない（notify は触らない）。
+        return await db.putTask({ ...cur, ...('title' in p ? { title: p.title } : {}), ...('note' in p ? { note: p.note } : {}), due, ...('notify' in p ? { notify: p.notify } : {}), updatedAt: now });
       } catch (e) { throw storeErr(e); }
     },
     async setDone(id, done, now = Date.now()) {

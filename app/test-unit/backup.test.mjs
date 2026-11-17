@@ -22,7 +22,7 @@ const DP = { left: 'home', right: 'month', portraitBottom: 'time', portraitShown
 test('バージョンは 5、schema と settings の形', () => {
   const bk = buildBackup([], { ...settings, monthExpand: true, notify: { enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } } }, new Date(), cats);
   assert.equal(bk.version, VERSION); assert.equal(VERSION, 5); assert.equal(bk.schema, 5);
-  assert.deepEqual(bk.settings, { view: 'month', style: 'simple', desk: false, monthExpand: true, rokuyo: true, holidayRed: true, pages: DP, notify: { enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } } });
+  assert.deepEqual(bk.settings, { view: 'month', style: 'simple', desk: false, monthExpand: true, rokuyo: true, holidayRed: true, pages: DP, tasks: { monthTasks: false }, notify: { enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } } });
   assert.equal(bk.categories.length, 2);
 });
 
@@ -58,8 +58,9 @@ test('表示用の項目（recurring / occKey / parentId / moved / origin）は�
 
 test('設定の往復（view/style/desk/monthExpand/notify）。未知のキーは無視', () => {
   const notify = { enabled: false, showTitle: true, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '09:30' } };
-  const v = roundtrip([], { view: 'week', style: 'named', desk: true, monthExpand: true, weekStart: 0, notify });
-  assert.deepEqual(v.data.settings, { view: 'week', style: 'named', desk: true, monthExpand: true, rokuyo: true, holidayRed: true, pages: DP, weekStart: 0, notify });
+  const v = roundtrip([], { view: 'week', style: 'named', desk: true, monthExpand: true, weekStart: 0, notify, tasks: { monthTasks: true } });
+  assert.deepEqual(v.data.settings, { view: 'week', style: 'named', desk: true, monthExpand: true, rokuyo: true, holidayRed: true, pages: DP, weekStart: 0, tasks: { monthTasks: true }, notify });
+  assert.equal(validateBackup(file({ events: [], settings: { tasks: { monthTasks: 'yes' } } })).ok, false);
   const w = validateBackup(file({ events: [], settings: { view: 'day', weekStart: 1, bogus: 1 } }));
   assert.deepEqual(w.data.settings, { view: 'day', weekStart: 1 });
   assert.equal(validateBackup(file({ events: [], settings: { weekStart: 2 } })).ok, false);
