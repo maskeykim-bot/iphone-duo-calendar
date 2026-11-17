@@ -473,6 +473,26 @@ export const putFolder = (f) => run(FOLDER, 'readwrite', ({ folders }, set) => {
     };
   };
 });
+// ノートの分類だけを1トランザクションで直す（folderId / pinned）。本文・updatedAt は変えない。無いノートは null。
+export const patchNote = (id, patch) => run(NOTE, 'readwrite', ({ notes }, set) => {
+  notes.get(id).onsuccess = (ev) => {
+    const n = ev.target.result;
+    if (!n) { set(null); return; }
+    const t = { ...n };
+    if ('folderId' in patch) t.folderId = typeof patch.folderId === 'string' ? patch.folderId : null;
+    if ('pinned' in patch) { t.pinned = !!patch.pinned; t.pinnedAt = t.pinned ? (Number.isFinite(patch.pinnedAt) ? patch.pinnedAt : Date.now()) : null; }
+    notes.put(t); set(t);
+  };
+});
+// フォルダの並びを ids の順に振り直す（1トランザクション）。ids に無いフォルダは後ろへ。
+export const reorderFolders = (ids, now = Date.now()) => run(FOLDER, 'readwrite', ({ folders }, set) => {
+  folders.getAll().onsuccess = (ev) => {
+    const all = ev.target.result, by = new Map(all.map((f) => [f.id, f]));
+    const seq = [...ids.filter((i) => by.has(i)), ...all.filter((f) => !ids.includes(f.id)).sort((a, b) => a.order - b.order).map((f) => f.id)];
+    seq.forEach((id, i) => { const f = by.get(id); if (f.order !== i) folders.put({ ...f, order: i, updatedAt: now }); });
+    set(seq);
+  };
+});
 // 同じトランザクションで、中のノートを folderId=null にしてからフォルダを消す（本文・updatedAt は変えない）。戻り値は移したノート数。
 export const deleteFolder = (id) => run(['folders', 'notes'], 'readwrite', ({ folders, notes }, set) => {
   let moved = 0;

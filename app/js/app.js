@@ -14,7 +14,7 @@ import { rokuyoOf } from './rokuyo.js';
 import { holidayOf } from './holidays.js';
 import { splitEvents, eveningFirst, homeTasks, dueText, tomorrowSummary, axisBars } from './home.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS } from './pages.js';
-import { noteStore, setNoteHook, recoverNoteDrafts, importLegacyMemoDrafts } from './notes.js';
+import { noteStore, setNoteHook, recoverNoteDrafts, importLegacyMemoDrafts, folderOps, groupNotes, filterByFolder, FOLDER_NAME_MAX } from './notes.js';
 import { mountNoteEditor } from './notes-ui.js';
 import { titleOf } from './notes-model.js';
 import { DELETE_UNDO_MS, tasksHtml, HIST_DAYS, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDeleteController, TASK_DELETED } from './reminders.js';
@@ -1072,7 +1072,7 @@ function timeBody(side, w) {
 // ---------- ノート（旧「日ごとのメモ」。左右ページ・縦の下パネル・閉じた画面の帯で同じ一覧と同じエディタ。保存は notes.js） ----------
 // 画面からは旧 memos へ一切書かない。旧メモは起動時にノートへ複製済み（db.js の移行）。
 let noteComposing = false, renderPending = false, rendering = false;
-const NB = { cur: null, rows: null, q: { left: '', right: '', bottom: '', closed: '' }, seq: 0, failed: false, blocked: false, ed: null, opening: null, focusNew: false, shown: 200, said: false };
+const NB = { cur: null, rows: null, q: { left: '', right: '', bottom: '', closed: '' }, seq: 0, failed: false, blocked: false, ed: null, opening: null, focusNew: false, shown: 200, said: false, folders: null, sel: 'all', menu: null, swallow: 0 };
 const noteHead = (side) => `<div class="rhead dh"><h2 class="rdate">ノート</h2>${side === 'right' ? rctl() : ''}<div class="sctl">${side === 'left' ? gearBtn() : ''}</div></div>`;
 function noteEditor() {
   if (!NB.ed) NB.ed = mountNoteEditor(document.createElement('div'), {
@@ -1084,26 +1084,71 @@ function noteEditor() {
 }
 function noteBody(where) {
   if (NB.blocked) return '<div class="memopage padb"><p class="smsg" role="alert">ノートを準備できませんでした。アプリを閉じて、もう一度開いてください。（予定と元のメモは変わっていません）</p></div>';
-  if (NB.cur) return `<div class="ntools mtools"><button type="button" class="mback" data-act="noteback" aria-label="ノートの一覧に戻る">一覧</button><button type="button" class="mback" data-act="notenew" aria-label="新しいノート">＋ 新規</button></div><div class="memopage notepage padb" data-note-wrap="${where}"><div class="nhost" data-nhost="${where}"></div></div>`;
-  return `<div class="ntools mtools"><span class="ntitle">ノート</span><button type="button" class="mback" data-act="notenew" aria-label="新しいノート">＋ 新規</button></div><div class="memopage mlist padb" data-mlist-wrap="${where}"><div class="mlsb"><input type="search" class="mlq" data-mlq="${where}" placeholder="ノートを検索" aria-label="ノートを検索" value="${esc(NB.q[where])}" autocomplete="off" spellcheck="false"></div><div class="mlrows" data-mlist="${where}">${noteRowsHtml(where)}</div></div>`;
+  if (NB.cur) return `<div class="ntools mtools"><button type="button" class="mback" data-act="noteback" aria-label="ノートの一覧に戻る">一覧</button><button type="button" class="mback" data-act="notenew" aria-label="新しいノート">＋ 新規</button></div><div class="memopage notepage padb" data-note-wrap="${where}"><div class="nmeta" data-nmeta="${where}"></div><div class="nhost" data-nhost="${where}"></div></div>`;
+  return `<div class="ntools mtools"><span class="ntitle">ノート</span><button type="button" class="mback" data-act="notenew" aria-label="新しいノート">＋ 新規</button></div><div class="memopage mlist padb" data-mlist-wrap="${where}"><div class="mlsb"><input type="search" class="mlq" data-mlq="${where}" placeholder="ノートを検索" aria-label="ノートを検索" value="${esc(NB.q[where])}" autocomplete="off" spellcheck="false"></div><div class="nchips" data-nchips="${where}" role="toolbar" aria-label="フォルダ">${noteChipsHtml()}</div><div class="mlrows" data-mlist="${where}">${noteRowsHtml(where)}</div><div data-nmenu="${where}">${noteMenuHtml()}</div></div>`;
 }
 const noteDayText = (ms) => { const d = new Date(ms), t = new Date(); return `${d.getFullYear() === t.getFullYear() ? '' : `${d.getFullYear()}/`}${d.getMonth() + 1}/${d.getDate()}`; };
 const noteHay = (n) => n._h ?? (n._h = normalize(`${n.title || titleOf(n.body)}\n${n.body}\n${n.sourceDate || ''}`));
 function noteRowsHtml(where) {
   if (NB.failed) return '<p class="smsg">ノートを読み込めませんでした。</p>';
   if (!NB.rows) return '<p class="smsg" role="status">読み込んでいます…</p>';
-  const q = NB.q[where], ts = terms(q), rows = ts.length ? NB.rows.filter((n) => ts.every((t) => noteHay(n).includes(t))) : NB.rows;
-  if (!rows.length) return `<p class="smsg">${q.trim() ? '該当するノートはありません。' : 'ノートはまだありません。「＋ 新規」から書けます。'}</p>`;
-  const list = rows.slice(0, NB.shown).map((n) => {
+  const q = NB.q[where], ts = terms(q), rows = ts.length ? NB.rows.filter((n) => ts.every((t) => noteHay(n).includes(t))) : filterByFolder(NB.rows, NB.sel, NB.folders || []);
+  if (!rows.length) return `<p class="smsg">${q.trim() ? '該当するノートはありません。' : (NB.sel === 'all' ? 'ノートはまだありません。「＋ 新規」から書けます。' : 'このフォルダにノートはありません。')}</p>`;
+  const { pinned, others } = groupNotes(rows);
+  const rowHtml = (n) => {
     const title = n.title || titleOf(n.body), second = n.body.split('\n').slice(1).map((l) => l.trim()).find(Boolean) || '';
-    return `<div class="nrw"><button type="button" class="mrow" data-nrow="${esc(n.id)}" aria-label="${esc(title)}"><b>${ts.length ? highlight(title, ts, esc) : esc(title)}</b><span>${esc(noteDayText(n.updatedAt))}${second ? ` ${esc(second)}` : ''}</span></button>${n.sourceDate ? `<button type="button" class="nsrc" data-nsrc="${n.sourceDate}" aria-label="元の日付 ${esc(dayLabel(n.sourceDate))}を開く">${n.sourceDate.slice(5, 7).replace(/^0/, '')}/${n.sourceDate.slice(8, 10).replace(/^0/, '')}</button>` : ''}</div>`;
-  });
+    return `<div class="nrw${n.pinned ? ' pinned' : ''}" data-nrw="${esc(n.id)}"><button type="button" class="mrow" data-nrow="${esc(n.id)}" aria-label="${esc(title)}"><b>${n.pinned ? '<i class="npin" aria-hidden="true">📌</i>' : ''}${ts.length ? highlight(title, ts, esc) : esc(title)}</b><span>${esc(noteDayText(n.updatedAt))}${second ? ` ${esc(second)}` : ''}</span></button>${n.sourceDate ? `<button type="button" class="nsrc" data-nsrc="${n.sourceDate}" aria-label="元の日付 ${esc(dayLabel(n.sourceDate))}を開く">${n.sourceDate.slice(5, 7).replace(/^0/, '')}/${n.sourceDate.slice(8, 10).replace(/^0/, '')}</button>` : ''}<button type="button" class="nmore" data-nf="rowmenu" data-id="${esc(n.id)}" aria-label="${esc(title)}の操作">⋯</button></div>`;
+  };
+  const shownPinned = pinned.slice(0, NB.shown), shownOthers = others.slice(0, Math.max(0, NB.shown - shownPinned.length));
+  const list = [];
+  if (pinned.length) list.push('<h3 class="nsec">ピン留め</h3>', ...shownPinned.map(rowHtml), '<h3 class="nsec">ノート</h3>');
+  list.push(...shownOthers.map(rowHtml));
   return `<p class="small hcount">${rows.length}件</p>${list.join('')}${rows.length > NB.shown ? `<button type="button" class="hmore" data-act="notemore">さらに表示（残り${rows.length - NB.shown}件）</button>` : ''}`;
 }
-function paintNoteLists() { root.querySelectorAll('[data-mlist]').forEach((el) => { el.innerHTML = noteRowsHtml(el.dataset.mlist); }); }
+function paintNoteLists() {
+  root.querySelectorAll('[data-mlist]').forEach((el) => { el.innerHTML = noteRowsHtml(el.dataset.mlist); });
+  root.querySelectorAll('[data-nchips]').forEach((el) => { const sl = el.scrollLeft; el.innerHTML = noteChipsHtml(); el.scrollLeft = sl; });
+  paintNoteMenu();
+}
+const nfBtn = (act, id, text, cls = '', extra = '') => `<button type="button" class="${cls}" data-nf="${act}"${id != null ? ` data-id="${esc(id)}"` : ''}${extra}>${text}</button>`;
+function noteChipsHtml() {
+  const f = NB.folders || [], on = (v) => (NB.sel === v ? ' on' : '');
+  const chip = (id, name) => `<button type="button" class="nchip${on(id)}" data-nf="sel" data-id="${esc(id)}" aria-pressed="${NB.sel === id}">${esc(name)}</button>`;
+  return `${chip('all', 'すべて')}${f.map((x) => chip(x.id, x.name)).join('')}${chip('none', 'フォルダなし')}${nfBtn('newf', null, '＋', 'nchip nadd', ' aria-label="フォルダを作る"')}${f.some((x) => x.id === NB.sel) ? nfBtn('chipmenu', NB.sel, '管理', 'nchip nmanage', ' aria-label="このフォルダの管理"') : ''}`;
+}
+function noteMenuHtml() {
+  const m = NB.menu; if (!m) return '';
+  const f = NB.folders || [], fol = f.find((x) => x.id === m.id), row = (NB.rows || []).find((x) => x.id === m.id);
+  const close = nfBtn('menuclose', null, '閉じる', 'nmbtn');
+  const err = m.err ? `<p class="nerr" role="alert">${esc(m.err)}</p>` : '';
+  let h = '';
+  if (m.k === 'new') h = `<h3>新しいフォルダ</h3><input class="nfin" data-nfin maxlength="${FOLDER_NAME_MAX * 2}" aria-label="フォルダ名" placeholder="フォルダ名（${FOLDER_NAME_MAX}字まで）" autocomplete="off">${err}<div class="nmrow">${nfBtn('newfgo', null, '作る', 'nmbtn')}${close}</div>`;
+  else if (m.k === 'chip' && fol) { const i = f.indexOf(fol); h = `<h3>${esc(fol.name)}</h3><input class="nfin" data-nfin maxlength="${FOLDER_NAME_MAX * 2}" aria-label="フォルダ名" value="${esc(fol.name)}" autocomplete="off">${err}<div class="nmrow">${nfBtn('renamego', fol.id, '名前を変える', 'nmbtn')}</div><div class="nmrow">${nfBtn('fmove', fol.id, '前へ', 'nmbtn', ` data-dir="-1"${i <= 0 ? ' disabled' : ''}`)}${nfBtn('fmove', fol.id, '後ろへ', 'nmbtn', ` data-dir="1"${i >= f.length - 1 ? ' disabled' : ''}`)}</div><div class="nmrow">${nfBtn('delask', fol.id, '削除', 'nmbtn danger')}${close}</div>`; }
+  else if (m.k === 'del' && fol) { const n = (NB.rows || []).filter((x) => x.folderId === fol.id).length; h = `<h3>「${esc(fol.name)}」を削除しますか？</h3><p>中のノート ${n} 件は『フォルダなし』に移ります。</p>${err}<div class="nmrow">${nfBtn('delgo', fol.id, '削除する', 'nmbtn danger')}${nfBtn('menuclose', null, 'やめる', 'nmbtn')}</div>`; }
+  else if (m.k === 'row' && row) h = `<h3>${esc(row.title || titleOf(row.body))}</h3><div class="nmrow">${nfBtn('rowpin', row.id, row.pinned ? 'ピン留めを外す' : 'ピン留めする', 'nmbtn')}</div><div class="nmrow">${nfBtn('rowmv', row.id, 'フォルダへ移動', 'nmbtn')}</div><div class="nmrow">${nfBtn('rowdel', row.id, '削除（30日は戻せます）', 'nmbtn danger')}${close}</div>`;
+  else if (m.k === 'mv' && row) h = `<h3>移動先のフォルダ</h3><div class="nmlist">${[{ id: '', name: 'フォルダなし' }, ...f].map((x) => nfBtn('rowmvto', row.id, `${esc(x.name)}${(row.folderId || '') === x.id ? ' ✓' : ''}`, 'nmbtn', ` data-to="${esc(x.id)}"`)).join('')}</div>${err}<div class="nmrow">${close}</div>`;
+  else return '';
+  return `<div class="nmenu" role="dialog" aria-modal="true" aria-label="フォルダとノートの操作"><div class="nmbox">${h}</div></div>`;
+}
+function paintNoteMenu() {
+  root.querySelectorAll('[data-nmenu]').forEach((el) => {
+    const had = el.querySelector('[data-nfin]'), val = had?.value;
+    el.innerHTML = noteMenuHtml();
+    const inp = el.querySelector('[data-nfin]');
+    if (inp && NB.menuFocus) { inp.focus({ preventScroll: true }); inp.select?.(); }
+    else if (el.firstChild) el.querySelector('button:not([disabled])')?.focus({ preventScroll: true });
+    if (inp && val != null && !NB.menuFocus) inp.value = val;
+  });
+  NB.menuFocus = false;
+}
+const openNoteMenu = (m) => { NB.menu = m; NB.menuFocus = m.k === 'new' || m.k === 'chip'; paintNoteMenu(); };
+async function loadFolders() {
+  try { NB.folders = await db.listFolders(); } catch { NB.folders = NB.folders || []; }
+  if (NB.sel !== 'all' && NB.sel !== 'none' && !NB.folders.some((f) => f.id === NB.sel)) NB.sel = 'all';
+}
 async function loadNoteList() {
   const seq = ++NB.seq;
-  try { await flushNotesNow(); const all = await db.listNotes(); if (seq !== NB.seq) return; NB.rows = all.sort((a, b) => b.updatedAt - a.updatedAt || (a.id < b.id ? -1 : 1)); NB.failed = false; } catch { if (seq !== NB.seq) return; NB.failed = true; }
+  try { await flushNotesNow(); db.purgeTrashedNotes().catch(() => {}); await loadFolders(); const all = await db.listNotes(); if (seq !== NB.seq) return; NB.rows = all.sort((a, b) => b.updatedAt - a.updatedAt || (a.id < b.id ? -1 : 1)); NB.failed = false; } catch { if (seq !== NB.seq) return; NB.failed = true; }
   paintNoteLists();
 }
 const invalidateNoteList = () => { NB.rows = null; NB.seq++; NB.shown = 200; };
@@ -1120,7 +1165,9 @@ async function noteBack() {
 async function noteNew() {
   if (NB.blocked) return;
   if (NB.ed && NB.cur) { const ok = await NB.ed.leave(); if (ok === false) return; }
-  NB.cur = noteStore.newNote(); NB.focusNew = true; render();
+  NB.cur = noteStore.newNote(); NB.focusNew = true;
+  if (NB.sel !== 'all' && NB.sel !== 'none' && NB.folders?.some((f) => f.id === NB.sel)) noteStore.setMeta(NB.cur, { folderId: NB.sel }); // 開いているフォルダの中に作る
+  render();
 }
 // 描画後: 一覧なら読み込み、エディタなら常設の1つを置き直し（フォーカスとカーソルを戻す）。
 function fillNotes(keep) {
@@ -1128,7 +1175,7 @@ function fillNotes(keep) {
   const host = root.querySelector('[data-nhost]');
   if (!host || !NB.cur) { if (noteListUsed() && !NB.rows && !NB.failed) loadNoteList(); return; }
   const ed = noteEditor(), id = NB.cur;
-  host.append(ed.el);
+  host.append(ed.el); paintNoteMeta();
   if (ed.id !== id && NB.opening !== id) {
     NB.opening = id;
     ed.open(id).then(() => { if (NB.opening === id) NB.opening = null; if (NB.focusNew && NB.cur === id) { NB.focusNew = false; ed.titleEl.focus({ preventScroll: true }); } }, () => { NB.opening = null; });
@@ -1141,6 +1188,62 @@ function fillNotes(keep) {
   }
 }
 const noteKeepOf = (ma) => (NB.ed && ma && (ma === NB.ed.titleEl || ma === NB.ed.bodyEl) ? { which: ma === NB.ed.titleEl ? 'title' : 'body', s: ma.selectionStart, e: ma.selectionEnd, d: ma.selectionDirection, sc: ma.scrollTop } : null);
+// 本文の見出し: フォルダの選択とピン留め
+async function paintNoteMeta() {
+  const id = NB.cur; if (!id) return;
+  const hosts = [...root.querySelectorAll('[data-nmeta]')]; if (!hosts.length) return;
+  let m = null, f = NB.folders;
+  try { if (!f) { await loadFolders(); f = NB.folders; } m = await noteStore.getMeta(id); } catch { m = null; }
+  if (NB.cur !== id) return;
+  const cur = m?.folderId || '';
+  for (const h of root.querySelectorAll('[data-nmeta]')) {
+    if (document.activeElement?.matches?.('[data-nfsel]') && h.contains(document.activeElement)) continue;
+    h.innerHTML = `<label class="nmlab">フォルダ<select data-nfsel aria-label="フォルダ">${[{ id: '', name: 'フォルダなし' }, ...(f || [])].map((x) => `<option value="${esc(x.id)}"${x.id === cur ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label><button type="button" class="nmpin${m?.pinned ? ' on' : ''}" data-nf="pin" aria-pressed="${!!m?.pinned}">${m?.pinned ? '📌 ピン留め中' : 'ピン留め'}</button>`;
+  }
+}
+root.addEventListener('change', async (ev) => {
+  const sel = ev.target.closest?.('[data-nfsel]'); if (!sel || !NB.cur) return;
+  await noteStore.setMeta(NB.cur, { folderId: sel.value || null }); paintNoteMeta();
+});
+// フォルダ・ピンの操作（ボタン。長押し・スワイプはこの同じ処理を呼ぶ）
+async function noteRefresh() { await loadNoteList(); }
+async function noteFolderAct(b) {
+  const d = b.dataset, a = d.nf;
+  const val = () => root.querySelector('[data-nmenu] [data-nfin]')?.value ?? '';
+  const fail = (msg) => { if (NB.menu) { NB.menu.err = msg; paintNoteMenu(); } };
+  if (a === 'sel') { NB.sel = d.id; NB.shown = 200; paintNoteLists(); root.querySelector(`[data-nchips] [data-id="${CSS.escape(d.id)}"]`)?.focus({ preventScroll: true }); }
+  else if (a === 'newf') openNoteMenu({ k: 'new' });
+  else if (a === 'menuclose') { NB.menu = null; paintNoteMenu(); }
+  else if (a === 'newfgo') { const r = await folderOps.create(val()); if (r.error) return fail(r.error); NB.menu = null; NB.sel = r.folder.id; await loadFolders(); paintNoteLists(); paintNoteMeta(); }
+  else if (a === 'chipmenu') openNoteMenu({ k: 'chip', id: d.id });
+  else if (a === 'renamego') { const r = await folderOps.rename(d.id, val()); if (r.error) return fail(r.error); NB.menu = null; await loadFolders(); paintNoteLists(); }
+  else if (a === 'fmove') { const r = await folderOps.move(d.id, Number(d.dir)); if (r.error) return fail(r.error); await loadFolders(); NB.menu = { k: 'chip', id: d.id }; paintNoteLists(); }
+  else if (a === 'delask') openNoteMenu({ k: 'del', id: d.id });
+  else if (a === 'delgo') { const r = await folderOps.remove(d.id); if (r.error) return fail(r.error); NB.menu = null; if (NB.sel === d.id) NB.sel = 'all'; await loadFolders(); await noteRefresh(); paintNoteMeta(); }
+  else if (a === 'rowmenu') openNoteMenu({ k: 'row', id: d.id });
+  else if (a === 'rowpin') { const n = NB.rows?.find((x) => x.id === d.id); NB.menu = null; await noteStore.setMeta(d.id, { pinned: !n?.pinned }); await noteRefresh(); }
+  else if (a === 'rowmv') openNoteMenu({ k: 'mv', id: d.id });
+  else if (a === 'rowmvto') { NB.menu = null; await noteStore.setMeta(d.id, { folderId: d.to || null }); await noteRefresh(); }
+  else if (a === 'rowdel') { NB.menu = null; const r = await noteStore.trash(d.id); if (r === false) { NB.menu = { k: 'row', id: d.id, err: 'ノートを保存できないため削除しませんでした。' }; } await noteRefresh(); }
+  else if (a === 'pin') { if (!NB.cur) return; const m = await noteStore.getMeta(NB.cur); await noteStore.setMeta(NB.cur, { pinned: !m?.pinned }); paintNoteMeta(); }
+}
+// 長押し（チップ＝管理、行＝操作メニュー）と、行の左スワイプ（ピン留め）
+root.addEventListener('pointerdown', (ev) => {
+  const chip = ev.target.closest?.('.nchip[data-nf="sel"]'), row = ev.target.closest?.('.nrw'), mrow = ev.target.closest?.('.mrow');
+  if (!chip && !(row && mrow)) return;
+  const x0 = ev.clientX, y0 = ev.clientY; let moved = false, done = false;
+  const target = chip ? { k: 'chip', id: chip.dataset.id } : { k: 'row', id: row.dataset.nrw };
+  const lp = (chip && (chip.dataset.id === 'all' || chip.dataset.id === 'none')) ? 0 : setTimeout(() => { if (done || moved) return; done = true; NB.swallow = performance.now() + 600; openNoteMenu(target); }, 500);
+  const mv = (e) => { const dx = e.clientX - x0, dy = e.clientY - y0; if (Math.abs(dx) > 8 || Math.abs(dy) > 8) { moved = true; clearTimeout(lp); } };
+  const up = (e) => {
+    clearTimeout(lp); off();
+    const dx = e.clientX - x0, dy = e.clientY - y0;
+    if (!done && row && mrow && dx < -60 && Math.abs(dy) < 30 && e.type === 'pointerup') { done = true; NB.swallow = performance.now() + 400; const n = NB.rows?.find((r) => r.id === row.dataset.nrw); noteStore.setMeta(row.dataset.nrw, { pinned: !n?.pinned }).then(noteRefresh); }
+  };
+  const off = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); };
+  window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+});
+root.addEventListener('click', (ev) => { if (NB.swallow && performance.now() < NB.swallow && ev.target.closest?.('.nchip, .nrw')) { ev.stopImmediatePropagation(); ev.preventDefault(); } NB.swallow = 0; }, true);
 // 変換中などで input が届いていない本文を DOM から拾う。
 function noteSync() { NB.ed?.sync(); }
 let remComposing = false; // 題名欄の実変換中だけ true（入力欄のノードは再描画で保たれるので描画は待たない）
@@ -1625,6 +1728,7 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'noteback') noteBack();
   else if (d.act === 'notenew') noteNew();
   else if (d.act === 'notemore') { NB.shown += 200; paintNoteLists(); }
+  else if (d.nf) noteFolderAct(b);
   else if (d.nrow) noteOpen(d.nrow);
   else if (d.nsrc) { set({ selected: d.nsrc, strip: null }); say(`${dayLabel(d.nsrc)}を開きました。`); }
   else if (d.act === 'sample') loadSample();

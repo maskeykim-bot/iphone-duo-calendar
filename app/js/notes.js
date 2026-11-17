@@ -23,7 +23,7 @@ export function createNoteStore({ db = realDb, storage = globalThis.localStorage
   const emit = (id) => { onChange(id); subs.forEach((f) => { try { f(id); } catch { /* 無視 */ } }); };
   const ent = (id) => {
     let e = E.get(id);
-    if (!e) { e = { text: '', gen: 0, saved: 0, loaded: false, loadFailed: false, timer: 0, chain: Promise.resolve(), failed: false, fresh: false, createdAt: null, draftFailed: false, loading: null }; E.set(id, e); }
+    if (!e) { e = { text: '', gen: 0, saved: 0, loaded: false, loadFailed: false, timer: 0, chain: Promise.resolve(), failed: false, fresh: false, createdAt: null, draftFailed: false, loading: null, meta: null }; E.set(id, e); }
     return e;
   };
   const dkey = (id) => DRAFT_PREFIX + id;
@@ -56,8 +56,10 @@ export function createNoteStore({ db = realDb, storage = globalThis.localStorage
         else {
           const base = await db.getNote(id); // 他の変更（フォルダ・固定・削除印）を失わないよう毎回読む
           const stamp = now();
-          const rec = base ? { ...base, body: t, updatedAt: stamp } : { id, body: t, createdAt: e.createdAt ?? stamp, updatedAt: stamp, folderId: null, pinned: false, pinnedAt: null, deletedAt: null };
+          const m = e.meta || {};
+          const rec = base ? { ...base, body: t, updatedAt: stamp } : { id, body: t, createdAt: e.createdAt ?? stamp, updatedAt: stamp, folderId: m.folderId ?? null, pinned: !!m.pinned, pinnedAt: m.pinned ? (m.pinnedAt ?? stamp) : null, deletedAt: null };
           await db.putNote(rec);
+          if (!base) e.meta = null;
           e.saved = Math.max(e.saved, g); e.failed = false; e.fresh = false;
           if (e.gen === g) dropDraft(id);
         }
@@ -140,8 +142,23 @@ export function createNoteStore({ db = realDb, storage = globalThis.localStorage
   }
   const listTrash = () => db.listTrashedNotes(now());
 
+  // 分類（フォルダ・ピン）。本文・updatedAt は変えない。まだ保存されていない新規ノートは、最初の保存に載せる。
+  async function setMeta(id, patch) {
+    const e = E.get(id);
+    if (e && e.fresh) { e.meta = { ...(e.meta || {}), ...patch }; if ('pinned' in patch) e.meta.pinnedAt = patch.pinned ? now() : null; emit(id); return true; }
+    const r = await db.patchNote(id, 'pinned' in patch ? { ...patch, pinnedAt: patch.pinned ? now() : null } : patch);
+    emit(id);
+    return !!r;
+  }
+  async function getMeta(id) {
+    const e = E.get(id);
+    if (e && e.fresh) return { folderId: e.meta?.folderId ?? null, pinned: !!e.meta?.pinned };
+    const n = await db.getNote(id);
+    return n ? { folderId: n.folderId ?? null, pinned: !!n.pinned } : null;
+  }
+
   const failedIds = () => [...E.entries()].filter(([, e]) => e.failed && dirty(e)).map(([i]) => i);
-  return { subscribe: (f) => { subs.add(f); return () => subs.delete(f); }, newNote, flushNote, flushAll, setText, loadNote, discardIfEmpty, recoverNoteDrafts, trash, restore, listTrash, failedIds,
+  return { subscribe: (f) => { subs.add(f); return () => subs.delete(f); }, newNote, flushNote, flushAll, setText, loadNote, discardIfEmpty, recoverNoteDrafts, trash, restore, listTrash, failedIds, setMeta, getMeta,
     get: (i) => E.get(i) || null, dirty: (i) => !!E.get(i) && dirty(E.get(i)), anyDirty: () => [...E.values()].some(dirty),
     reset: () => { E.forEach((e) => clearTimeout(e.timer)); E.clear(); } };
 }
@@ -173,3 +190,63 @@ export const setNoteHook = (f) => { hook = f; };
 export const noteStore = createNoteStore({ onChange: (i) => hook(i) });
 export const flushNote = (i) => noteStore.flushNote(i);
 export const recoverNoteDrafts = () => noteStore.recoverNoteDrafts();
+
+// ---------- フォルダの操作（作成・改名・並べ替え・削除）。名前は30字まで・100件まで・同名可。 ----------
+export const FOLDER_NAME_MAX = realDb.FOLDER_NAME_MAX;
+export const FOLDER_MAX = realDb.FOLDER_MAX;
+export const folderErr = { empty: 'フォルダ名を入力してください。', long: `フォルダ名は${FOLDER_NAME_MAX}字までです。`, many: `フォルダは${FOLDER_MAX}個までです。`, fail: 'フォルダを保存できませんでした。' };
+export function cleanFolderName(raw) {
+  const name = String(raw ?? '').replace(/[\r\n]+/g, ' ').trim();
+  if (!name) return { error: folderErr.empty };
+  if (Array.from(name).length > FOLDER_NAME_MAX) return { error: folderErr.long };
+  return { name };
+}
+export function createFolderOps({ db = realDb, now = () => Date.now(), uuid = newNoteId } = {}) {
+  return {
+    async create(raw) {
+      const c = cleanFolderName(raw); if (c.error) return { error: c.error };
+      try {
+        const all = await db.listFolders();
+        if (all.length >= FOLDER_MAX) return { error: folderErr.many };
+        const order = all.reduce((m, f) => Math.max(m, (Number.isFinite(f.order) ? f.order : 0) + 1), 0), t = now();
+        return { folder: await db.putFolder({ id: uuid(), name: c.name, order, createdAt: t, updatedAt: t }) };
+      } catch { return { error: folderErr.fail }; }
+    },
+    async rename(id, raw) {
+      const c = cleanFolderName(raw); if (c.error) return { error: c.error };
+      try {
+        const f = (await db.listFolders()).find((x) => x.id === id);
+        if (!f) return { error: folderErr.fail };
+        return { folder: await db.putFolder({ ...f, name: c.name, updatedAt: now() }) };
+      } catch { return { error: folderErr.fail }; }
+    },
+    // dir: -1（前へ）/ 1（後ろへ）
+    async move(id, dir) {
+      try {
+        const ids = (await db.listFolders()).map((f) => f.id), i = ids.indexOf(id), j = i + dir;
+        if (i < 0 || j < 0 || j >= ids.length) return { moved: false };
+        [ids[i], ids[j]] = [ids[j], ids[i]];
+        await db.reorderFolders(ids, now());
+        return { moved: true };
+      } catch { return { error: folderErr.fail }; }
+    },
+    // 中のノートは「フォルダなし」へ（同じトランザクション。本文・updatedAt は変えない）。戻り値は移した件数。
+    async remove(id) { try { return { moved: await db.deleteFolder(id) }; } catch { return { error: folderErr.fail }; } },
+  };
+}
+export const folderOps = createFolderOps();
+
+// 一覧用の並べ: ピン留め（pinnedAt の新しい順 → updatedAt の新しい順）と、それ以外（updatedAt の新しい順）。
+const byUpdated = (a, b) => b.updatedAt - a.updatedAt || (a.id < b.id ? -1 : 1);
+export function groupNotes(rows) {
+  const pinned = rows.filter((n) => n.pinned).sort((a, b) => (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0) || byUpdated(a, b));
+  const others = rows.filter((n) => !n.pinned).sort(byUpdated);
+  return { pinned, others };
+}
+// sel: 'all' | 'none' | フォルダID。存在しないフォルダIDは「フォルダなし」と同じ扱い（本文は失わない）。
+export function filterByFolder(rows, sel, folders) {
+  if (sel === 'all') return rows;
+  const ids = new Set(folders.map((f) => f.id));
+  if (sel === 'none') return rows.filter((n) => !n.folderId || !ids.has(n.folderId));
+  return rows.filter((n) => n.folderId === sel);
+}
