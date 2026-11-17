@@ -23,7 +23,7 @@ const ALL = [F, E, A, AD, REC];
 
 test.describe('通知の既定の一度きり移行', () => {
   test('まっさらな端末：オフ・既定なし、印あり。予定へ何も付けない', async ({ page }) => {
-    await openApp(page, SIZES.closedPortrait, '?nosw');
+    await openApp(page, SIZES.closedPortrait, '?nosw', { fresh: true });
     expect(await lsNotify(page)).toEqual({ version: 1, enabled: false, showTitle: true, defaultTimed: null, defaultAllDay: null });
     expect(await lsPolicy(page)).not.toBeNull();
   });

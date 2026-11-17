@@ -70,8 +70,14 @@ const MIGRATIONS = {
       s.createIndex('date', 'date');
     }
   },
-  // v5: タスク・ノート・フォルダ。ストアと索引を作るだけ（既存4ストアは不変・冪等）。メモの変換はまだしない。
-  5(db, tx) { createV5Stores(db, tx); },
+  // v5: タスク・ノート・フォルダ。ストアと索引を作り、同じ versionchange トランザクションで旧メモをノートへ複製する。
+  // 失敗したら全体が巻き戻って v4 のまま（元データ・印なし）。memos へは書かない。
+  5(db, tx) {
+    createV5Stores(db, tx);
+    MIGRATIONS[4](db); // memos / meta が無い異常な旧DBでも変換できるよう、足りないストアだけ作る（あれば何もしない）
+    if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'key' });
+    migrateNotesInTx({ memos: tx.objectStore('memos'), notes: tx.objectStore('notes'), folders: tx.objectStore('folders'), meta: tx.objectStore('meta') }, Date.now());
+  },
 };
 
 // 既にあるストアは触らず、無い索引だけ足す。tx は versionchange トランザクション。
@@ -379,7 +385,7 @@ export const backfillNotifyOnce = (now = new Date()) => run(['meta'], 'readwrite
 
 // 既存端末の証拠（読み取りだけ・起動の最初に採る。この起動で作る印や種カテゴリは含めない）。
 // events・memos が1件でもある、旧い meta の印（旧backfill・送信待ち等）がある、旧固定カテゴリ（ゴルフ・経済指標）が残る。
-const NEW_META = new Set(['categoryRetargetV1']);
+const NEW_META = new Set(['categoryRetargetV1', 'notesMigrationV1', 'lastNoteId']); // 新しい版が自分で書く印は「既存端末の証拠」に数えない
 export const readLegacyEvidence = () => run(['events', 'memos', 'meta', 'categories'], 'readonly', ({ events, memos, meta, categories }, set) => {
   const out = { events: 0, memos: 0, meta: 0, legacyCats: 0 };
   set(out);
@@ -478,7 +484,7 @@ export const deleteFolder = (id) => run(['folders', 'notes'], 'readwrite', ({ fo
   };
 });
 
-// ---------- 旧メモ → ノートの移行（まだ起動・MIGRATIONS には接続しない） ----------
+// ---------- 旧メモ → ノートの移行（v4→v5 は MIGRATIONS[5]、途中版で既に v5 の端末は起動時に migrateNotesOnce） ----------
 export const NOTES_MIGRATION = 'notesMigrationV1';
 // 1つの readwrite（または versionchange）トランザクション内で実行。外部の非同期は待たず、memos へは書かない。
 // stores = { memos, notes, folders, meta }。完了で done(marker)。途中の例外は tx を abort（印も残らない）。
@@ -525,3 +531,55 @@ export const migrateNotesOnce = (now = Date.now(), opts = {}) => run(['memos', '
   migrateNotesInTx(st, now, set, opts);
 });
 export const readNotesMigration = () => run(['meta'], 'readonly', ({ meta }, set) => { meta.get(NOTES_MIGRATION).onsuccess = (e) => set(e.target.result?.value ?? null); });
+// 起動時の共通移行: 印が無ければ1 readwrite トランザクションで変換する。あれば何もしない。失敗は例外（元データ・印なしのまま）。
+export async function ensureNotesMigrated(now = Date.now()) {
+  if (await readNotesMigration()) return null;
+  return migrateNotesOnce(now);
+}
+
+// ---------- 旧メモの下書き（duo.memo.draft.v1:<Day>）をノートへ取り込む ----------
+// drafts: [{ date, text, at }]。DB の旧メモより新しいものだけ取り込む（同じトランザクション。memos へは書かない）。
+// 未編集で移行しただけのノートなら本文を更新、編集済み（または削除済み）なら `memo-<Day>-draft` へ別保存（内容違いは決定的な接尾辞）。
+// 戻り値: [{ date, result: 'stale'|'blank'|'created'|'updated'|'separate'|'same' }]。呼ぶ側は commit 後にだけ旧キーを消す。
+const fnv = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
+export const importMemoDrafts = (drafts, now = Date.now()) => run(['memos', 'notes', 'folders'], 'readwrite', ({ memos, notes, folders }, set) => {
+  const out = []; let folder = null;
+  const withFolder = (cb) => {
+    if (folder) { cb(folder); return; }
+    folders.getAll().onsuccess = (ev) => { const r = ensureDailyFolder(ev.target.result, now); if (r.created) folders.put(r.folder); folder = r.folder; cb(folder); };
+  };
+  const step = (i) => {
+    if (i >= drafts.length) { set(out); return; }
+    const d = drafts[i], done = (result) => { out.push({ date: d.date, result }); step(i + 1); };
+    memos.get(d.date).onsuccess = (e1) => {
+      const m = e1.target.result;
+      if (m && m.updatedAt >= d.at) { done('stale'); return; }
+      if (isBlankMemo(d.text)) { done('blank'); return; }
+      const conv = (suffix) => noteFromMemo({ date: d.date, text: d.text, createdAt: m?.createdAt ?? d.at, updatedAt: d.at, ink: m?.ink ?? null }, suffix);
+      notes.get(`memo-${d.date}`).onsuccess = (e2) => {
+        const n = e2.target.result;
+        if (!n) { withFolder((f) => { notes.put(validateNote({ ...conv(''), folderId: f.id })); done('created'); }); return; }
+        const untouched = m && !n.deletedAt && n.updatedAt <= m.updatedAt && n.body === noteFromMemo(m).body;
+        if (untouched) {
+          const c = conv(''), { sourceOriginalFirstLine: _o, sourceHeading: _h, ...keep } = n; void _o; void _h;
+          notes.put(validateNote({ ...keep, body: c.body, sourceHeading: c.sourceHeading, ...(c.sourceOriginalFirstLine !== undefined ? { sourceOriginalFirstLine: c.sourceOriginalFirstLine } : {}), updatedAt: d.at }));
+          done('updated'); return;
+        }
+        const tryId = (suffix, k) => {
+          const c = conv(suffix);
+          notes.get(c.id).onsuccess = (e3) => {
+            const hit = e3.target.result;
+            if (!hit) { withFolder((f) => { notes.put(validateNote({ ...c, folderId: f.id })); done('separate'); }); return; }
+            if (hit.body === c.body) { done('same'); return; }
+            tryId(`-draft-${fnv(d.text)}${k ? `-${k}` : ''}`, k + 1);
+          };
+        };
+        tryId('-draft', 0);
+      };
+    };
+  };
+  step(0);
+});
+// 最後に開いたノート（meta）。
+export const getLastNote = () => run(['meta'], 'readonly', ({ meta }, set) => { meta.get('lastNoteId').onsuccess = (e) => set(e.target.result?.value ?? null); });
+export const setLastNote = (id) => run(['meta'], 'readwrite', ({ meta }) => { if (id) meta.put({ key: 'lastNoteId', value: id }); else meta.delete('lastNoteId'); });

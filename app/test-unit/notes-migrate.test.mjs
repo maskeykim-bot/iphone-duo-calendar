@@ -11,10 +11,13 @@ const NOW = Date.UTC(2026, 10, 17, 3, 0);
 async function fresh(memos, { v5 = true } = {}) {
   globalThis.indexedDB = new IDBFactory();
   const name = `duo-calendar-nm${n++}`;
-  if (memos) (await createV4Db(name, memos)).close();
   const m = await import(`../js/db.js?nm${n}`);
   m.configure(`nm${n - 1}`);
-  if (v5) await m.listEvents();
+  if (memos) {
+    (await createV4Db(name, memos)).close();
+    // 途中版で既に v5（ストアだけ・変換なし・印なし）になっている端末。実 MIGRATIONS[5] は走らない。
+    if (v5) await new Promise((res, rej) => { const q = indexedDB.open(name, 5); q.onupgradeneeded = () => m.createV5Stores(q.result, q.transaction); q.onsuccess = () => { q.result.close(); res(); }; q.onerror = () => rej(q.error); });
+  } else if (v5) await m.listEvents();
   return { m, name };
 }
 const dumpAll = async (name, store) => { const d = await new Promise((r) => { const q = indexedDB.open(name); q.onsuccess = () => r(q.result); }); const out = await readAll(d, store); d.close(); return out; };
@@ -132,4 +135,89 @@ test('既存v5（印なし）にもreadwriteで走る。deletedAt付きノート
   const r = await m.migrateNotesOnce(NOW);
   assert.equal(r.existed, 1); // 削除済みを勝手に復活させない
   assert.notEqual((await m.getNote(`memo-${memos[1].date}`)).deletedAt, null);
+});
+
+// ---- 実 MIGRATIONS[5]（第16版 PR28）と起動時の共通移行 ----
+test('実MIGRATIONS：v4→v5 の upgrade 内で3008件を変換。2回目の起動は増えない', async () => {
+  const memos = makeLegacyMemos();
+  const { m, name } = await fresh(memos.map((x) => ({ ...x })), { v5: false });
+  const before = JSON.stringify(await dumpAll(name, 'memos'));
+  await m.listEvents(); // ここで v4→v5
+  const notes = await dumpAll(name, 'notes');
+  assert.equal(notes.length, 3008); assert.equal(sig(notes), FINGERPRINT_3008);
+  assert.equal(JSON.stringify(await dumpAll(name, 'memos')), before);
+  const mk = await m.readNotesMigration();
+  assert.equal(mk.copied, 3008); assert.equal(mk.folderCreated, true);
+  assert.equal(await m.ensureNotesMigrated(), null); // 印あり → 何もしない
+  assert.equal((await dumpAll(name, 'notes')).length, 3008); assert.equal((await dumpAll(name, 'folders')).length, 1);
+});
+
+test('実MIGRATIONS：旧メモ0件ならフォルダを作らない', async () => {
+  const { m, name } = await fresh();
+  assert.equal((await m.readNotesMigration()).seen, 0);
+  assert.equal((await dumpAll(name, 'folders')).length, 0);
+});
+
+test('実MIGRATIONS：変換が失敗したら v4 のまま・元メモ不変。次の起動で成功する', async () => {
+  const memos = makeLegacyMemos(30);
+  const { m, name } = await fresh(memos.map((x) => ({ ...x })), { v5: false });
+  const orig = IDBObjectStore.prototype.put; let k = 0;
+  IDBObjectStore.prototype.put = function (v) { if (this.name === 'notes' && ++k === 10) throw new DOMException('full', 'QuotaExceededError'); return orig.call(this, v); };
+  try { await assert.rejects(m.listEvents()); } finally { IDBObjectStore.prototype.put = orig; }
+  const info = await new Promise((r) => { const q = indexedDB.open(name); q.onsuccess = () => { const o = { v: q.result.version, s: [...q.result.objectStoreNames] }; q.result.close(); r(o); }; });
+  assert.equal(info.v, 4); assert.ok(!info.s.includes('notes'));
+  assert.equal((await dumpAll(name, 'memos')).length, memos.length);
+  await m.listEvents();
+  assert.equal((await dumpAll(name, 'notes')).length, memos.length);
+});
+
+test('起動時の共通移行：印の無い既存v5を1回だけ変換し、2回目は何もしない', async () => {
+  const memos = makeLegacyMemos(12);
+  const { m, name } = await fresh(memos.map((x) => ({ ...x })));
+  assert.equal(await m.readNotesMigration(), null);
+  const r = await m.ensureNotesMigrated(NOW);
+  assert.equal(r.copied, memos.length);
+  assert.equal(await m.ensureNotesMigrated(NOW), null);
+  assert.equal((await dumpAll(name, 'notes')).length, memos.length);
+});
+
+// ---- 旧メモの下書きの取り込み ----
+const D = (date, text, at) => ({ date, text, at });
+test('旧下書き：DBより新しい分だけ。未編集の移行ノートは更新、編集済みは別保存（決定的）', async () => {
+  const memos = makeLegacyMemos(6);
+  const { m, name } = await fresh(memos.map((x) => ({ ...x })), { v5: false });
+  await m.listEvents(); // 変換済み
+  const [a, b, c] = memos;
+  const newer = (x) => x.updatedAt + 1000;
+  // a: 未編集 → 更新。b: ノートを編集済み → 別保存。c: 下書きがDBより古い → stale。
+  await m.putNote({ ...(await m.getNote(`memo-${b.date}`)), body: '編集した本文', updatedAt: b.updatedAt + 500 });
+  const r = await m.importMemoDrafts([D(a.date, '下書きA', newer(a)), D(b.date, '下書きB', newer(b)), D(c.date, '古い', c.updatedAt - 1)], NOW);
+  assert.deepEqual(r.map((x) => x.result), ['updated', 'separate', 'stale']);
+  const na = await m.getNote(`memo-${a.date}`);
+  assert.ok(na.body.includes('下書きA')); assert.equal(na.updatedAt, newer(a));
+  assert.equal((await m.getNote(`memo-${b.date}`)).body, '編集した本文');
+  assert.ok((await m.getNote(`memo-${b.date}-draft`)).body.includes('下書きB'));
+  assert.equal((await m.getNote(`memo-${c.date}`)).body.includes('古い'), false);
+  // 再実行しても増えない／内容違いは別の決定的ID
+  const again = await m.importMemoDrafts([D(b.date, '下書きB', newer(b))], NOW);
+  assert.equal(again[0].result, 'same');
+  const other = await m.importMemoDrafts([D(b.date, '下書きB2', newer(b) + 5)], NOW);
+  assert.equal(other[0].result, 'separate');
+  assert.equal((await dumpAll(name, 'notes')).filter((x) => x.id.startsWith(`memo-${b.date}-draft`)).length, 2);
+  assert.equal(JSON.stringify(await dumpAll(name, 'memos')), JSON.stringify(memos.map((x) => x).sort((p, q) => (p.id < q.id ? -1 : 1))));
+});
+
+test('旧下書き：旧メモが無い日は新規ノート（固定フォルダ）。空白だけは取り込まない', async () => {
+  const { m, name } = await fresh();
+  const r = await m.importMemoDrafts([D('2026-11-10', '新しい日の下書き', 5), D('2026-11-11', ' \n ', 6)], NOW);
+  assert.deepEqual(r.map((x) => x.result), ['created', 'blank']);
+  const n = await m.getNote('memo-2026-11-10');
+  assert.equal(n.folderId, DAILY_ID); assert.ok(n.body.includes('新しい日の下書き'));
+  assert.equal((await dumpAll(name, 'folders')).length, 1);
+});
+
+test('新規端末：移行の印（notesMigrationV1）は「既存端末の証拠」に数えない', async () => {
+  const { m } = await fresh();
+  await m.setLastNote('x');
+  assert.deepEqual(await m.readLegacyEvidence(), { events: 0, memos: 0, meta: 0, legacyCats: 0 });
 });

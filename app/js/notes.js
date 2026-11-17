@@ -146,6 +146,27 @@ export function createNoteStore({ db = realDb, storage = globalThis.localStorage
     reset: () => { E.forEach((e) => clearTimeout(e.timer)); E.clear(); } };
 }
 
+// 旧メモの下書き（duo.memo.draft.v1:<Day>）を、DB より新しいものだけノートへ取り込む。commit 後にだけ旧キーを消す。
+// 読めない下書きは触らない。DB が失敗したら旧キーを全部残す（例外は呼び側へ）。
+export const LEGACY_DRAFT_PREFIX = 'duo.memo.draft.v1:';
+export async function importLegacyMemoDrafts({ db = realDb, storage = globalThis.localStorage, now = () => Date.now() } = {}) {
+  const keys = [];
+  try { for (let i = 0; i < storage.length; i++) { const k = storage.key(i); if (k && k.startsWith(LEGACY_DRAFT_PREFIX)) keys.push(k); } } catch { return []; }
+  const drafts = [], ok = [];
+  for (const k of keys) {
+    let d = null;
+    try { d = JSON.parse(storage.getItem(k)); } catch { d = null; }
+    const date = k.slice(LEGACY_DRAFT_PREFIX.length);
+    if (!d || typeof d.text !== 'string' || d.date !== date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    drafts.push({ date, text: d.text, at: Number.isFinite(d.at) ? d.at : 0 });
+    ok.push(k);
+  }
+  if (!drafts.length) return [];
+  const res = await db.importMemoDrafts(drafts, now());
+  for (const k of ok) { try { storage.removeItem(k); } catch { /* 無視 */ } }
+  return res;
+}
+
 // 本番用の単一ストア。
 let hook = () => {};
 export const setNoteHook = (f) => { hook = f; };

@@ -183,7 +183,7 @@ for (const size of OPEN_SIZES) {
     await openApp(page, size);
     if (size.width > size.height) { // 開いた横は左右ページの切替（第14版 PR5。pages.spec で詳細を検査）
       await expect(page.locator('.tabs')).toHaveCount(0);
-      await expect(page.locator('.pgsw button')).toHaveText(['ホーム', '月', '時間', 'タスク', 'メモ', 'ホーム', '月', '時間', 'タスク', 'メモ']);
+      await expect(page.locator('.pgsw button')).toHaveText(['ホーム', '月', '時間', 'タスク', 'ノート', 'ホーム', '月', '時間', 'タスク', 'ノート']);
       return;
     }
     await expect(tabsGroup(page).getByRole('button')).toHaveText(['ホーム', '日', '週', '月']);

@@ -59,8 +59,9 @@ test.describe('ノートの編集部品', () => {
     await page.keyboard.type('！');
     expect((await getNote(page, 'n1')).body).toBe('元\n本文'); // まだ DB は古い
     await page.reload(); await page.waitForSelector('html[data-ready]');
+    // 第16版 PR28: 下書きの回復は起動（boot）が行う。部品の再マウントでは回復済みで、DB は最後の文字を持つ。
     await mount(page, { recover: true });
-    expect(await page.evaluate(() => window.__recovered)).toEqual(['n1']);
+    expect(await page.evaluate(() => window.__recovered)).toEqual([]);
     expect((await getNote(page, 'n1')).body).toBe('元\n本文を直した！');
     expect(await drafts(page)).toEqual([]);
   });

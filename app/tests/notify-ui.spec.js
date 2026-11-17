@@ -391,7 +391,7 @@ test.describe('通知のタップ', () => {
     await page.reload(); await page.waitForSelector('html[data-ready]');
     await tap(page, { day: '2026-11-13', eventId: 'a1' });
     await expect(page.locator('.page[data-page="time"] .tlev[data-event="a1"].nhl')).toHaveCount(1);
-    await expect(page.locator('.page.lp .datebtn')).toContainText('13');
+    await expect(page.locator('.page[data-page="time"] .datebtn')).toContainText('13'); // ノートのページには日付がない
   });
 
   test('開いた縦: 日表示（全幅の月は維持される別の見え方ではなく選択日の日表示）', async ({ page }) => {

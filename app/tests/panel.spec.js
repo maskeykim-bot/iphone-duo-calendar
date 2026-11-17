@@ -105,8 +105,8 @@ for (const size of PORTRAITS) {
       await expect(page.locator('.pnl .allday')).toBeVisible();
       await page.locator('.pswitch').getByRole('button', { name: 'タスク', exact: true }).click();
       await expect(page.locator('.pnl [data-wait="task"]')).toBeVisible();
-      await page.locator('.pswitch').getByRole('button', { name: 'メモ', exact: true }).click();
-      await expect(page.locator('.pnl textarea.memota')).toBeVisible();
+      await page.locator('.pswitch').getByRole('button', { name: 'ノート', exact: true }).click();
+      await expect(page.locator('.pnl [data-act="notenew"]')).toBeVisible();
       expect((await ui(page)).pages.portraitBottom).toBe('memo');
       const last = await box(page.locator('.pnl .memopage')), pn = await box(page.locator('.pnl'));
       expect(last.y + last.height).toBeLessThanOrEqual(pn.y + pn.height + 0.5);
@@ -172,7 +172,7 @@ test.describe('下パネルの操作と保存', () => {
   test('月タブのときだけ使える。他タブでは消え、設定は残る。月へ戻ると出る', async ({ page }) => {
     await openApp(page, size);
     await show(page);
-    await page.locator('.pswitch').getByRole('button', { name: 'メモ', exact: true }).click();
+    await page.locator('.pswitch').getByRole('button', { name: 'ノート', exact: true }).click();
     await tab(page, '週').click();
     await expect(page.locator('.pnl')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /下の段を(表示|隠す)/ })).toHaveCount(0);
@@ -184,7 +184,7 @@ test.describe('下パネルの操作と保存', () => {
     await expect(page.locator('.pnl')).toHaveCount(0);
   });
 
-  test('＋は下パネルが有効ならその種類へ。時間は予定の追加、タスクは準備中の案内', async ({ page }) => {
+  test('＋は下パネルが有効ならその種類へ。時間は予定の追加、タスクは入力欄', async ({ page }) => {
     await openApp(page, size);
     await show(page);
     await page.getByRole('button', { name: '予定を追加' }).click();
@@ -193,7 +193,7 @@ test.describe('下パネルの操作と保存', () => {
     await page.locator('.pswitch').getByRole('button', { name: 'タスク', exact: true }).click();
     await page.getByRole('button', { name: '予定を追加' }).click();
     await expect(page.locator('#editor')).toBeHidden();
-    await expect(page.getByRole('status')).toHaveText('タスクの入力は準備中です。');
+    await expect(page.getByRole('status')).toHaveText('タスクを入力できます。');
   });
 
   test('回転: 横では出ず、縦へ戻ると表示のまま。表示中に回転しても保存は消えない', async ({ page }) => {

@@ -149,6 +149,42 @@ test.describe('永続化', () => {
     });
   }
 
+  // 第16版 PR28: 実アプリの起動で、v4 のメモがノートへ（upgrade 内で1トランザクション）。2回目の起動で増えない。memos は不変。
+  test('実起動: v4 のメモ3件が v5 upgrade でノートへ複製され、旧下書きも取り込み、2回起動しても増えない', async ({ page }) => {
+    await page.addInitScript(() => {
+      if (sessionStorage.getItem('v4seeded')) return;
+      sessionStorage.setItem('v4seeded', '1');
+      // 既に作ってある DB（v4）を壊さないよう、まだ無いときだけ v4 を作る（open が v5 を作る前に実行される）
+      const req = indexedDB.open('duo-calendar', 4);
+      req.onupgradeneeded = () => {
+        const d = req.result;
+        const e = d.createObjectStore('events', { keyPath: 'id' }); e.createIndex('start', 'start');
+        d.createObjectStore('meta', { keyPath: 'key' });
+        const c = d.createObjectStore('categories', { keyPath: 'id' }); c.createIndex('order', 'order');
+        const m = d.createObjectStore('memos', { keyPath: 'id' }); m.createIndex('date', 'date');
+        for (const [date, text] of [['2026-11-01', '十一月\n一日'], ['2026-11-02', '2026年11月2日（月）\n見出しあり'], ['2026-11-03', ' ']]) m.put({ id: date, date, text, createdAt: 10, updatedAt: 20, ink: null });
+      };
+      req.onsuccess = () => req.result.close();
+      localStorage.setItem('duo.memo.draft.v1:2026-11-01', JSON.stringify({ date: '2026-11-01', text: '十一月\n下書きで続き', at: Date.now() }));
+    });
+    await openApp(page);
+    const dump = () => page.evaluate(async () => { const m = await import('/js/db.js'); return { v: (await new Promise((r) => { const q = indexedDB.open('duo-calendar'); q.onsuccess = () => { const v = q.result.version; q.result.close(); r(v); }; })), notes: (await m.listNotes({ includeDeleted: true })).map((n) => [n.id, n.body, n.folderId]).sort(), folders: (await m.listFolders()).map((f) => f.id), memos: (await m.listMemos()).map((x) => [x.date, x.text, x.updatedAt]), mark: await m.readNotesMigration() }; });
+    const a = await dump();
+    expect(a.v).toBe(5);
+    expect(a.mark.copied).toBe(2); expect(a.mark.blank).toBe(1); // 空白だけの1件は複製しない
+    expect(a.notes.map((n) => n[0])).toEqual(['memo-2026-11-01', 'memo-2026-11-02']);
+    expect(a.notes[0][1]).toContain('下書きで続き'); // 旧下書きは DB（更新20）より新しいので取り込まれる
+    expect(a.notes[0][1].startsWith('2026年11月1日（日）\n')).toBe(true); // 見出しのない旧メモは年付き見出しを付ける
+    expect(a.notes[1][1]).toBe('2026年11月2日（月）\n見出しあり'); // 同日見出しは足さない
+    expect(a.folders).toEqual(['folder-daily-memos']);
+    expect(a.memos).toEqual([['2026-11-01', '十一月\n一日', 20], ['2026-11-02', '2026年11月2日（月）\n見出しあり', 20], ['2026-11-03', ' ', 20]]); // 旧 memos は不変
+    expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('duo.memo.draft')))).toEqual([]);
+    await page.reload(); await page.waitForSelector('html[data-ready]');
+    await page.reload(); await page.waitForSelector('html[data-ready]');
+    const b = await dump();
+    expect(b.notes).toEqual(a.notes); expect(b.folders).toEqual(a.folders); expect(b.memos).toEqual(a.memos);
+  });
+
   test('メモ: 1日1件・端日・範囲・空白削除・降順・abort・再読込', async ({ page }) => {
     await openApp(page);
     const r = await page.evaluate(async () => {

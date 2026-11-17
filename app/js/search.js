@@ -138,7 +138,8 @@ export function searchMemos(memos, query) {
   const ts = terms(query);
   if (!ts.length) return { items: [], total: 0, capped: false, ts };
   const hits = [];
-  for (const m of memos || []) if (m && typeof m.text === 'string') { const n = normalize(m.text); if (ts.every((t) => n.includes(t))) hits.push({ date: m.date, text: m.text }); }
+  // ノートは id・本文も残す（旧メモ形式は従来どおり date/text だけ）
+  for (const m of memos || []) if (m && typeof m.text === 'string') { const n = normalize(m.text); if (ts.every((t) => n.includes(t))) hits.push(m.id !== undefined ? { ...m } : { date: m.date, text: m.text }); }
   hits.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   return { items: hits.slice(0, LIMIT), total: hits.length, capped: hits.length > LIMIT, ts };
 }

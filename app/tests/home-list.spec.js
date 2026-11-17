@@ -59,13 +59,13 @@ test('予定リスト: 端までスクロールすると先の日が追加で読
 test('ホームは独立ページ: 切替にホームがあり、右でも選べる。開いた縦の下の段にもホーム', async ({ page }) => {
   await openApp(page, SIZES.openLandscape951);
   await seed(page, EVS);
-  await expect(page.locator('.pgsw.pgl button')).toHaveText(['ホーム', '月', '時間', 'タスク', 'メモ']);
+  await expect(page.locator('.pgsw.pgl button')).toHaveText(['ホーム', '月', '時間', 'タスク', 'ノート']);
   await pagePick(page, 'right', 'ホーム').click();
   await expect(page.locator('.page.rp')).toHaveAttribute('data-page', 'home');
   await expect(page.locator('.page.rp .hero')).toBeVisible();
   await openApp(page, SIZES.openPortrait669);
   await seedUi(page, { pages: { left: 'home', right: 'month', portraitBottom: 'home', portraitShown: true } });
-  await expect(page.locator('.pnl .pswitch button')).toHaveText(['ホーム', '時間', 'タスク', 'メモ']);
+  await expect(page.locator('.pnl .pswitch button')).toHaveText(['ホーム', '時間', 'タスク', 'ノート']);
   await expect(page.locator('.pnl .hcols')).toBeVisible();
   await page.locator('.pnl [data-pnl="time"]').click();
   await expect(page.locator('.pnl .hcols')).toHaveCount(0);

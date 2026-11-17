@@ -45,7 +45,7 @@ test.describe('閉じた 466×678 + 右 safe（帯あり）', () => {
       const bg = await bx(page.locator('.bandbg'));
       near(bg.x, W - R); near(bg.width, R);
       // 48角の見た目の top = T+[172,232,292]q、今日 H-B-140q、＋ H-B-80q。押せる範囲は 56 角（上に 4px 広い）
-      const want = { 設定: 172, 予定を検索: 232, タスク: 418, メモ: 478, 今日に戻る: 538, 予定を追加: 598 }; // PR12: 全は月の見出しへ移り、帯にはタスク・メモ
+      const want = { 設定: 172, 予定を検索: 232, タスク: 418, ノート: 478, 今日に戻る: 538, 予定を追加: 598 }; // PR12: 全は月の見出しへ移り、帯にはタスク・メモ
       for (const [n, top] of Object.entries(want)) {
         const b = btn(page, n), r = await bx(b);
         near(r.width, 56); near(r.height, 56); near(r.x + r.width / 2, cx); near(r.y, top * q - 4);
@@ -212,7 +212,7 @@ test.describe('開いた横 + 右 safe（帯あり）', () => {
       expect(await findTextOverlaps(page)).toEqual([]);
       // 全は月だけ: 左が時間のときは左見出しに出ない（右が月になるので右に出る）
       await pagePick(page, 'left', 'タスク');
-      await pagePick(page, 'right', 'メモ').click();
+      await pagePick(page, 'right', 'ノート').click();
       await pagePick(page, 'left', 'タスク').click();
       await expect(page.locator('[data-act="allmonth"]')).toHaveCount(0);
     });

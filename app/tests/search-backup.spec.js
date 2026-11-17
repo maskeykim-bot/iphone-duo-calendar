@@ -196,7 +196,7 @@ test.describe('バックアップ', () => {
     expect(j.exportedAt).toMatch(/^2026-11-12T09:41:00\+09:00$/);
     expect(j.events).toHaveLength(7);
     expect(j.settings).toEqual({ view: 'month', style: 'simple', desk: false, monthExpand: false, rokuyo: true, holidayRed: true, pages: { left: 'month', right: 'time', portraitBottom: 'time', portraitShown: false }, weekStart: 1, tasks: { monthTasks: false }, notify: { enabled: true, showTitle: true, defaultTimed: null, defaultAllDay: null } });
-    expect(j.memos).toEqual([]);
+    expect(j.memos).toBeUndefined(); expect(j.notes).toEqual([]); expect(j.folders).toEqual([]); // ノート有効: memos は出さない
     expect(j.tasks).toEqual([]);
   });
 
@@ -462,41 +462,71 @@ test.describe('タスクのバックアップ（v5）', () => {
 });
 
 test.describe('メモ・設定のバックアップ', () => {
-  test('書き出しに保存前のメモと六曜・pages が入る（タスクは空配列、リマインダー系は入らない）', async ({ page }, info) => {
+  test('書き出しに保存前のノートと六曜・pages が入る（notes+folders+tasks。旧 memos は出ない）', async ({ page }, info) => {
     await openApp(page, SIZES.openLandscape);
     await page.evaluate(() => { const k = 'duo.ui.v1'; const u = JSON.parse(localStorage.getItem(k) || '{}'); u.rokuyo = false; u.pages = { left: 'memo', right: 'month', portraitBottom: 'task', portraitShown: true }; localStorage.setItem(k, JSON.stringify(u)); });
     await page.reload(); await page.waitForSelector('html[data-ready]');
-    const ta = page.locator('textarea.memota').first();
-    await ta.fill('保存前のメモ'); // 1秒の自動保存より前に書き出す
+    await page.locator('[data-act="notenew"]').first().click();
+    await page.locator('.ned-title').first().fill('保存前のノート'); // 1秒の自動保存より前に書き出す
     const p = info.outputPath('m.json');
     await exportFile(page, p);
     const j = JSON.parse(readFileSync(p, 'utf8'));
-    expect(j.memos.map((m) => m.text)).toEqual(['保存前のメモ']);
-    expect(j.memos[0].id).toBe(j.memos[0].date);
+    expect(j.notes.map((n) => n.body)).toEqual(['保存前のノート']);
+    expect(j.memos).toBeUndefined();
+    expect(j.folders).toEqual([]);
     expect(j.settings.rokuyo).toBe(false);
     expect(j.settings.pages).toEqual({ left: 'memo', right: 'month', portraitBottom: 'task', portraitShown: true });
     expect(Object.keys(j).filter((k) => /task|reminder/i.test(k))).toEqual(['tasks']);
     expect(j.tasks).toEqual([]);
   });
 
-  test('置き換え: メモ・rokuyo・pages が復元され、下書きは失効する', async ({ page }) => {
+  test('新形式のノート・フォルダ: 書き出して全部消したあと置き換えで同じに戻る（ピン・フォルダ・削除印）。旧 memos は変わらない', async ({ page }, info) => {
+    await openApp(page);
+    await putMemoDb(page, '2026-11-01', '旧メモ');
+    await page.evaluate(async () => {
+      const m = await import('/js/db.js');
+      await m.applyImport({ folderPuts: [{ id: 'home', name: '家', order: 1, createdAt: 1, updatedAt: 1 }], notePuts: [
+        { id: 'a', body: 'ピン留め\n本文', folderId: 'home', pinned: true, pinnedAt: 9, createdAt: 1, updatedAt: 5, deletedAt: null },
+        { id: 'b', body: '削除済み', folderId: null, pinned: false, pinnedAt: null, createdAt: 2, updatedAt: 6, deletedAt: 77 }] });
+    });
+    const dump = () => page.evaluate(async () => { const m = await import('/js/db.js'); return { n: (await m.listNotes({ includeDeleted: true })).map((x) => [x.id, x.body, x.folderId, x.pinned, x.pinnedAt, x.deletedAt]), f: (await m.listFolders()).map((x) => [x.id, x.name]) }; });
+    const before = await dump();
+    const p = info.outputPath('n.json');
+    await exportFile(page, p);
+    await page.keyboard.press('Escape');
+    expect(JSON.parse(readFileSync(p, 'utf8')).memos).toBeUndefined();
+    await page.evaluate(async () => (await import('/js/db.js')).applyImport({ noteReplace: true, folderReplace: true }));
+    expect((await dump()).n).toEqual([]);
+    await openBackup(page);
+    await pick(page, 'n.json', JSON.parse(readFileSync(p, 'utf8')));
+    await expect(page.locator('#backup')).toContainText('ノート');
+    await page.locator('#bk-replace').click();
+    await page.locator('#bk-rdo').click();
+    await expect(page.locator('#backup')).toBeHidden();
+    expect(await dump()).toEqual(before);
+    expect((await dbMemos(page)).map((m) => m.text)).toEqual(['旧メモ']);
+  });
+
+  test('置き換え: 旧形式（v4）のメモはノートへ追加。旧 memos・今のノートは消えず、rokuyo・pages は復元される', async ({ page }) => {
     await openApp(page);
     await putMemoDb(page, '2026-11-01', '古いメモ');
-    await page.evaluate(() => localStorage.setItem('duo.memo.draft.v1:2026-11-01', JSON.stringify({ date: '2026-11-01', text: '古い下書き', at: 1 })));
     await openBackup(page);
     await pick(page, 'r.json', V4({ memos: [M('2026-12-05', '戻るメモ')], settings: { rokuyo: false, pages: { left: 'task', right: 'memo', portraitBottom: 'memo', portraitShown: true } } }));
     await page.locator('#bk-replace').click();
     await page.locator('#bk-rdo').click();
     await expect(page.locator('#backup')).toBeHidden();
-    expect((await dbMemos(page)).map((m) => [m.date, m.text])).toEqual([['2026-12-05', '戻るメモ']]);
+    expect((await dbMemos(page)).map((m) => [m.date, m.text])).toEqual([['2026-11-01', '古いメモ']]); // 画面から旧 memos へは書かない
+    const notes = await page.evaluate(async () => (await import('/js/db.js')).listNotes({ includeDeleted: true }));
+    expect(notes.map((n) => n.id)).toEqual(['memo-2026-12-05']);
+    expect(notes[0].body).toContain('戻るメモ');
     const ui = await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')));
     expect(ui.rokuyo).toBe(false); expect(ui.pages).toEqual({ left: 'task', right: 'memo', portraitBottom: 'memo', portraitShown: true });
-    expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('duo.memo.draft')))).toEqual([]);
   });
 
-  test('置き換え: memos 欠落（v3）は既存メモを保持、v4 の空配列は消す。設定欠落は現在値保持', async ({ page }) => {
+  test('置き換え: memos 欠落（v3）も v4 の空配列も、既存のノートと旧 memos を消さない。設定欠落は現在値保持', async ({ page }) => {
     await openApp(page);
     await putMemoDb(page, '2026-11-01', '残る');
+    await page.evaluate(async () => (await import('/js/db.js')).putNote({ id: 'mine', body: '自分', createdAt: 1, updatedAt: 2, folderId: null }));
     await openBackup(page);
     await pick(page, 'v3.json', { ...V4({}), version: 3, settings: { view: 'day' } });
     await page.locator('#bk-replace').click(); await page.locator('#bk-rdo').click();
@@ -507,7 +537,8 @@ test.describe('メモ・設定のバックアップ', () => {
     await pick(page, 'v4e.json', V4({ memos: [] }));
     await page.locator('#bk-replace').click(); await page.locator('#bk-rdo').click();
     await expect(page.locator('#backup')).toBeHidden();
-    expect(await dbMemos(page)).toEqual([]);
+    expect((await dbMemos(page)).map((m) => m.text)).toEqual(['残る']);
+    expect((await page.evaluate(async () => (await import('/js/db.js')).listNotes())).map((n) => n.id)).toEqual(['mine']);
   });
 
   test('古いメモの復元はノートへ追加専用（置換でも今のノートを消さない／2回目は増えない／確認画面に件数）', async ({ page }) => {
@@ -528,14 +559,20 @@ test.describe('メモ・設定のバックアップ', () => {
     await expect(page.locator('#backup')).toContainText('追加0件・同じ2件・別ノート0件');
   });
 
-  test('追加: 同日同文は増えず、異文は空行で連結して1件', async ({ page }) => {
+  test('追加: 旧形式のメモは同日同文なら増えず、異文は別ノート。旧 memos は変わらない', async ({ page }) => {
     await openApp(page);
     await putMemoDb(page, '2026-11-01', 'A'); await putMemoDb(page, '2026-11-02', 'S');
+    await page.evaluate(async () => (await import('/js/db.js')).migrateNotesOnce());
     await openBackup(page);
     await pick(page, 'a.json', V4({ memos: [M('2026-11-01', 'B'), M('2026-11-02', 'S'), M('2026-11-03', 'N')] }));
     await page.locator('#bk-add').click();
     await expect(page.locator('#backup')).toBeHidden();
-    expect((await dbMemos(page)).map((m) => [m.date, m.text])).toEqual([['2026-11-01', 'A\n\nB'], ['2026-11-02', 'S'], ['2026-11-03', 'N']]);
+    expect((await dbMemos(page)).map((m) => [m.date, m.text])).toEqual([['2026-11-01', 'A'], ['2026-11-02', 'S']]);
+    const notes = await page.evaluate(async () => (await import('/js/db.js')).listNotes());
+    const ids = notes.map((n) => n.id).sort();
+    expect(ids.filter((x) => /^memo-2026-11-01-[0-9a-f]{8}$/.test(x))).toHaveLength(1); // 異文は別ノート
+    expect(ids).toEqual(expect.arrayContaining(['memo-2026-11-01', 'memo-2026-11-02', 'memo-2026-11-03']));
+    expect(notes).toHaveLength(4);
   });
 
   test('不正なメモ・v5 は読み込み全体を拒否し、何も変えない', async ({ page }) => {
@@ -558,10 +595,11 @@ test.describe('メモ・設定のバックアップ', () => {
     await openBackup(page);
     await pick(page, 'f.json', V4({ events: [ev('n1', '新', '2026-12-01T10:00', '2026-12-01T11:00')], memos: [M('2026-12-05', '新メモ')] }));
     await page.locator('#bk-replace').click();
-    await page.evaluate(() => { const o = IDBObjectStore.prototype.put; IDBObjectStore.prototype.put = function (...a) { if (this.name === 'memos') throw new Error('boom'); return o.apply(this, a); }; });
+    await page.evaluate(() => { const o = IDBObjectStore.prototype.put; IDBObjectStore.prototype.put = function (...a) { if (this.name === 'notes') throw new Error('boom'); return o.apply(this, a); }; });
     await page.locator('#bk-rdo').click();
     await expect(page.locator('#bk-body')).toContainText('読み込みに失敗しました');
     expect(await dbEvents(page)).toEqual(before);
     expect((await dbMemos(page)).map((m) => m.text)).toEqual(['守る']);
+    expect(await page.evaluate(async () => (await import('/js/db.js')).listNotes())).toEqual([]);
   });
 });

@@ -1170,7 +1170,7 @@ dialog#menu #m-destpop{border-radius:inherit}
 .spread .home.listview{padding-bottom:72px}
 @media (max-height:560px){.hm-axis .htmr{display:none}}
 /* 開いた縦の下段: 次の予定・タスク・今日のメモの3列 */
-.hcols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:start}
+.hcols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:start}
 .hcols .hcol{min-width:0}
 .hcols .next .time{font-size:20px}
 
@@ -1186,3 +1186,11 @@ dialog#menu #m-destpop{border-radius:inherit}
 .ned-trashrow { display: flex; align-items: center; gap: 8px; padding: 0 8px; }
 .ned-trashtitle { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ned-left, .ned-note, .ned-empty { font-size: 12px; opacity: .7; padding: 0 8px; }
+/* ノート（第16版 PR28）。一覧は旧メモの行を流用し、元の日付への小さな導線を右に置く */
+.ntools .ntitle{font-size:15px;font-weight:700;padding-left:4px}
+.notepage{padding-top:4px}
+.nhost{flex:1;min-height:0;display:flex;flex-direction:column}
+.nhost .ned{flex:1;min-height:0;display:flex;flex-direction:column}
+.nrw{display:flex;align-items:center;border-bottom:1px solid var(--line)}
+.nrw .mrow{flex:1;min-width:0;border-bottom:0}
+.nsrc{flex:none;min-width:44px;height:44px;padding:0 8px;font-size:12px;background:transparent;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line)}

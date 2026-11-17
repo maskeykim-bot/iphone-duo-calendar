@@ -64,7 +64,7 @@ test.describe('閉じた画面の帯', () => {
     await expect(tab(page, '月')).toHaveAttribute('aria-pressed', 'true');
   });
 
-  test('メモは今日のメモ。タスクからメモへ直接移れる。再押下で戻り、触っていない日付は戻す', async ({ page }) => {
+  test('ノートの入口: タスクからノートへ直接移れる。日付は動かさず、再押下で戻る', async ({ page }) => {
     await mock(page);
     await band(page, SIZES.closedPortrait);
     await tab(page, '日').click();
@@ -72,27 +72,24 @@ test.describe('閉じた画面の帯', () => {
     await page.locator('[data-act="next"]').first().click();
     await sb(page, 'task').click();
     await sb(page, 'memo').click();
-    await expect(page.locator('.stripp[data-page="memo"] textarea.memota')).toBeVisible();
+    await expect(page.locator('.stripp[data-page="memo"] [data-act="notenew"]')).toBeVisible();
+    await expect(page.locator('.stripp h2')).toHaveText('ノート');
     await expect(sb(page, 'memo')).toHaveAttribute('aria-pressed', 'true');
     await expect(sb(page, 'task')).toHaveAttribute('aria-pressed', 'false');
-    await expect(page.locator('.stripp textarea.memota')).toHaveAttribute('data-memo', '2026-11-12');
-    await expect(page.locator('textarea.memota')).not.toBeFocused();
     await sb(page, 'memo').click();
     await expect(page.locator('.stripp')).toHaveCount(0);
-    await expect(page.locator('#ctitle')).toContainText('14');
+    await expect(page.locator('#ctitle')).toContainText('14'); // ノートは日付を動かさない
   });
 
-  test('今日のメモがあると緑の線、書くと付く。VoiceOver 名', async ({ page }) => {
+  test('帯のノートに「今日のメモあり」の印はない。入口の名前は「ノート」', async ({ page }) => {
     await mock(page);
     await band(page, SIZES.closedPortrait);
+    await page.evaluate(async () => { const d = await import('/js/db.js'); await d.putMemo('2026-11-12', '買い物'); await d.migrateNotesOnce(); });
     await expect(sb(page, 'memo')).not.toHaveClass(/has/);
-    await expect(sb(page, 'memo')).toHaveAttribute('aria-label', 'メモ');
+    await expect(sb(page, 'memo')).toHaveAttribute('aria-label', 'ノート');
     await sb(page, 'memo').click();
-    await page.locator('.stripp textarea.memota').fill('買い物');
-    await expect(sb(page, 'memo')).toHaveClass(/has/, { timeout: 4000 });
-    await expect(sb(page, 'memo')).toHaveAttribute('aria-label', 'メモ、今日のメモあり');
-    const w = await sb(page, 'memo').locator('.bi').evaluate((e) => { const c = getComputedStyle(e, '::after'); return [c.width, c.height, c.backgroundColor]; });
-    expect(w).toEqual(['12px', '2px', 'rgb(41, 78, 66)']);
+    await expect(page.locator('.stripp .mrow')).toHaveCount(1);
+    await expect(sb(page, 'memo')).not.toHaveClass(/has/);
   });
 
   test('開いている丸は #DDE7E2 に緑枠', async ({ page }) => {
@@ -113,7 +110,7 @@ test.describe('閉じた画面の帯', () => {
     await page.waitForTimeout(300);
     await expect(page.locator('.stip')).toHaveCount(0);
     await page.waitForTimeout(700);
-    await expect(page.locator('.stip')).toHaveText('メモ');
+    await expect(page.locator('.stip')).toHaveText('ノート');
     await page.mouse.up();
     await expect(page.locator('.stripp')).toHaveCount(0);
     await expect(page.locator('.stip')).toHaveCount(0, { timeout: 3000 });
@@ -211,7 +208,7 @@ test('開いた縦の上帯には追加せず、下パネルからタスク・�
   await page.locator('[data-pnl="task"]').click();
   await expect(page.locator('.pnl [data-key="rm:o0"]')).toBeVisible();
   await page.locator('[data-pnl="memo"]').click();
-  await expect(page.locator('.pnl textarea.memota')).toBeVisible();
+  await expect(page.locator('.pnl [data-act="notenew"]')).toBeVisible();
 });
 
 test('帯の姿勢が変わると（開いた横→縦）一時表示は解除される', async ({ page }) => {

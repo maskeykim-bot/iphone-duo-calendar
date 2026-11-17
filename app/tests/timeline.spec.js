@@ -166,7 +166,7 @@ test.describe('見開き: 折り目の保護域（文字・罫線・チップ・
       await showView(page, '週'); await check('週');
       await showView(page, '日'); await check('日');
       await showView(page, '一覧'); await check('一覧');
-      await pagePick(page, 'left', 'タスク').click(); await pagePick(page, 'right', 'メモ').click(); await check('タスク/メモ');
+      await pagePick(page, 'left', 'タスク').click(); await pagePick(page, 'right', 'ノート').click(); await check('タスク/メモ');
       await pagePick(page, 'left', '時間').click(); await pagePick(page, 'right', '月').click(); await check('時間/月');
       await showView(page, '月'); await check('月2');
       // 全部の月

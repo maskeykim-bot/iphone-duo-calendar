@@ -50,19 +50,19 @@ test('左を時間・右を月にしても描ける。時間軸は左ペイン�
   await expect.poll(() => page.locator('.page.lp .tl').evaluate((e) => e.scrollTop)).toBeGreaterThan(300);
 });
 
-test('タスクは説明のみ、メモは入力欄。入力前は localStorage に何も作らない', async ({ page }) => {
+test('タスクは説明のみ、ノートは一覧と新規。入力前は localStorage にノート・メモの下書きを作らない', async ({ page }) => {
   await openApp(page, SIZES.openLandscape951);
   await seedPages(page, { left: 'task', right: 'memo' });
   await expect(page.locator('.page.lp .pagewait')).toContainText('タスク');
-  await expect(page.locator('.page.rp textarea.memota')).toBeVisible();
+  await expect(page.locator('.page.rp [data-act="notenew"]')).toBeVisible();
   await expect(page.locator('.tl')).toHaveCount(0);
-  const keys = await page.evaluate(() => Object.keys(localStorage).filter((k) => /task|memo/i.test(k)));
+  const keys = await page.evaluate(() => Object.keys(localStorage).filter((k) => /note|memo/i.test(k)));
   expect(keys).toEqual([]);
 });
 
 // ---- 第14版 PR5: 切替と時間の表示 ----
 import { pagePick, setTimeMode } from './helpers.js';
-const IDS = { ホーム: 'home', 月: 'month', 時間: 'time', タスク: 'task', メモ: 'memo' };
+const IDS = { ホーム: 'home', 月: 'month', 時間: 'time', タスク: 'task', ノート: 'memo' };
 const kinds = (page) => page.locator('.page').evaluateAll((l) => l.map((e) => e.dataset.page));
 const box = async (loc) => (await loc.boundingBox());
 
@@ -96,7 +96,7 @@ test('左右の全12組合せ。同じ種類は交換し、再読込でも保た
       await expect(pagePick(page, 'right', rname)).toHaveAttribute('aria-pressed', 'true');
     }
   }
-  await pagePick(page, 'left', 'タスク').click(); await pagePick(page, 'right', 'メモ').click();
+  await pagePick(page, 'left', 'タスク').click(); await pagePick(page, 'right', 'ノート').click();
   await page.reload(); await page.waitForSelector('html[data-ready]');
   expect(await kinds(page)).toEqual(['task', 'memo']);
 });
@@ -176,7 +176,7 @@ test('下の余白64・折り目の描画なし。時間と一覧の末尾が切
   await openApp(page, SIZES.openLandscape951);
   const m = await page.locator('.page.rp .tlin').evaluate((e) => parseFloat(getComputedStyle(e).marginBottom));
   expect(m).toBe(64);
-  await pagePick(page, 'right', 'メモ').click();
+  await pagePick(page, 'right', 'ノート').click();
   const p = await page.locator('.page.rp .padb').evaluate((e) => parseFloat(getComputedStyle(e).paddingBottom));
   expect(p).toBe(64);
 });
@@ -204,7 +204,7 @@ test('safe R84／非対称 safe でも、右の切替は右ページの利用幅
     expect(r.x).toBeGreaterThanOrEqual(f + 10 - 0.5);
     expect(r.x + r.width).toBeLessThanOrEqual(W - R + 0.5);
     // 実タップ: 右の「メモ」で右ページが替わる
-    await pagePick(page, 'right', 'メモ').click();
+    await pagePick(page, 'right', 'ノート').click();
     await expect(page.locator('.page.rp')).toHaveAttribute('data-page', 'memo');
     const hit = await page.locator('.pgsw.pgr button').first().evaluate((e) => { const q = e.getBoundingClientRect(); return document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2).closest('button') === e; });
     expect(hit).toBe(true);

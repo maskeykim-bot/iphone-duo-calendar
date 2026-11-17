@@ -9,9 +9,9 @@ const seedPages = async (page, pages, extra = {}) => {
 const sel = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1') || '{}').selected);
 const dateText = (page, side) => page.locator(`.page.${side === 'left' ? 'lp' : 'rp'} .datebtn`).innerText();
 
-test('月なしの 時間｜メモ：左右の ‹ › が同じ選択日を動かす。週は7日', async ({ page }) => {
+test('月なしの 時間｜タスク：左右の ‹ › が同じ選択日を動かす。週は7日', async ({ page }) => {
   await openApp(page, SIZES.openLandscape951);
-  await seedPages(page, { left: 'time', right: 'memo' });
+  await seedPages(page, { left: 'time', right: 'task' });
   const d0 = '2026-11-12';
   await page.locator('.page.rp [data-act="next"]').click();
   const d1 = await sel(page);
@@ -19,11 +19,11 @@ test('月なしの 時間｜メモ：左右の ‹ › が同じ選択日を動�
   expect(await dateText(page, 'left')).toBe(await dateText(page, 'right'));
   await page.locator('.page.lp [data-act="prev"]').click();
   expect(await sel(page)).toBe(d0);
-  await seedPages(page, { left: 'time', right: 'memo' }, { timeMode: { left: 'week', right: '1' } });
+  await seedPages(page, { left: 'time', right: 'task' }, { timeMode: { left: 'week', right: '1' } });
   await page.locator('.page.lp [data-act="next"]').click();
   const w = await sel(page);
   expect((Date.parse(w) - Date.parse(d0)) / 864e5).toBe(7);
-  await page.locator('.page.rp [data-act="next"]').click(); // メモは1日
+  await page.locator('.page.rp [data-act="next"]').click(); // タスクは1日
   expect((Date.parse(await sel(page)) - Date.parse(w)) / 864e5).toBe(1);
 });
 
@@ -52,7 +52,7 @@ test('日付タップで小さな月 280×260、40×36のマス、六曜なし�
 
 test('小さな月：前後の月へ動いて選べる。Escで閉じる', async ({ page }) => {
   await openApp(page, SIZES.openLandscape951);
-  await seedPages(page, { left: 'time', right: 'memo' });
+  await seedPages(page, { left: 'time', right: 'task' });
   await page.locator('.page.lp .datebtn').click();
   await page.locator('.mmenu [data-mmnav="1"]').click();
   await expect(page.locator('.mmt')).toHaveText('2026年12月');

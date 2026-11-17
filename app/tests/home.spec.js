@@ -32,7 +32,7 @@ const TASKS = [
   { itemId: 'f', title: '先', due: { date: '2026-11-20' } },
 ];
 
-test('閉じたホーム: 次の予定・今日の予定3件＋ほか・タスク3件・メモ・明日。次の予定は二重掲載しない', async ({ page }) => {
+test('閉じたホーム: 次の予定・今日の予定3件＋ほか・タスク3件・明日（今日のメモカードはノート切替で廃止）。次の予定は二重掲載しない', async ({ page }) => {
   await openH(page, SIZES.closedPortrait, TASKS);
   await seed(page, EVS);
   await tab(page, 'ホーム').click();
@@ -47,12 +47,12 @@ test('閉じたホーム: 次の予定・今日の予定3件＋ほか・タス�
   await expect(page.locator('.htask')).toHaveCount(3);
   await expect(page.locator('.htask').first()).toContainText('古い');
   await expect(page.locator('.htask .hdue').first()).toHaveText('11/5');
-  await expect(page.locator('.hmemo')).toContainText('たたいて今日のメモを書く');
+  await expect(page.locator('.hmemo')).toHaveCount(0); // 今日のメモカードは外した
   await expect(page.locator('.htmr')).toContainText('明日 11/13（金）');
   await expect(page.locator('.htmr')).toContainText('09:00');
   await expect(page.locator('.htmr')).toContainText('ほか1件');
-  // 並び: 次の予定 → 今日の予定 → タスク → メモ → 明日
-  const idx = await page.evaluate(() => ['.hevents', '.htasks', '.hmemo', '.htmr'].map((s) => document.querySelector(s).getBoundingClientRect().top));
+  // 並び: 次の予定 → 今日の予定 → タスク → 明日
+  const idx = await page.evaluate(() => ['.hevents', '.htasks', '.htmr'].map((s) => document.querySelector(s).getBoundingClientRect().top));
   idx.unshift(await page.locator('.hero').evaluate((e) => e.getBoundingClientRect().top));
   expect([...idx].sort((a, b) => a - b)).toEqual(idx);
 });
@@ -149,14 +149,13 @@ test('導線: タイムライン›は日表示の今日、明日は明日、す
   await expect(page.locator('.stripp[data-page="task"]')).toBeVisible();
 });
 
-test('今日のメモ: 最初の2行を出し、たたくとメモを開く', async ({ page }) => {
+test('旧メモがあってもホームに今日のメモカードは出ない', async ({ page }) => {
   await openH(page, SIZES.closedPortrait, []);
-  await page.evaluate(async () => { await (await import('/js/db.js')).putMemo('2026-11-12', '一行目\n\n二行目\n三行目', Date.now()); });
+  await page.evaluate(async () => { const d = await import('/js/db.js'); await d.putMemo('2026-11-12', '一行目\n\n二行目\n三行目', Date.now()); await d.migrateNotesOnce(); });
   await page.reload(); await page.waitForSelector('html[data-ready]');
   await tab(page, 'ホーム').click();
-  await expect(page.locator('.hmemob span')).toHaveText(['一行目', '二行目']);
-  await page.locator('.hmemob').click();
-  await expect(page.locator('.stripp[data-page="memo"] textarea.memota')).toBeVisible();
+  await expect(page.locator('.hmemo, .hmemob')).toHaveCount(0);
+  await expect(page.locator('[data-to="memolist"], [data-to="memo"]')).toHaveCount(0);
 });
 
 test('開いた横: ホームは9〜19時の小さな時間軸。予定をたたくと反対側の時間へ', async ({ page }) => {
@@ -174,15 +173,14 @@ test('開いた横: ホームは9〜19時の小さな時間軸。予定をたた
   await expect(page.locator('.page.lp[data-page="home"]')).toBeVisible();
 });
 
-test('開いた縦の下段: 次の予定・タスク・今日のメモの3列', async ({ page }) => {
+test('開いた縦の下段: 次の予定・タスクの2列（今日のメモ列は廃止）', async ({ page }) => {
   await openH(page, SIZES.openPortrait669, TASKS);
   await seed(page, EVS);
   await seedUi(page, { pages: { left: 'home', right: 'month', portraitBottom: 'home', portraitShown: true } });
   const cols = page.locator('.pnl .hcol');
-  await expect(cols).toHaveCount(3);
+  await expect(cols).toHaveCount(2);
   await expect(cols.nth(0)).toContainText('会議');
   await expect(cols.nth(1)).toContainText('タスク');
-  await expect(cols.nth(2)).toContainText('今日のメモ');
   const xs = await cols.evaluateAll((e) => e.map((x) => x.getBoundingClientRect().left));
-  expect(xs[0]).toBeLessThan(xs[1]); expect(xs[1]).toBeLessThan(xs[2]);
+  expect(xs[0]).toBeLessThan(xs[1]);
 });
