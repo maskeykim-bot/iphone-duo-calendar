@@ -201,4 +201,22 @@ test.describe('永続化', () => {
     expect(r.notes.map((n) => n[1]).sort()).toEqual(['2026年11月14日（土）', '2026年11月15日（日）']);
     expect(r.after).toBe(2);
   });
+  test('ノートとフォルダのバックアップが本物の build/validate/applyImport で往復する', async ({ page }) => {
+    await openApp(page);
+    const r = await page.evaluate(async () => {
+      const b = await import('/js/backup.js');
+      const d = await import('/js/db.js?nb');
+      d.configure('nb-spec');
+      const notes = [{ id: 'a', body: '一つ目\n本文', folderId: 'f1', pinned: true, pinnedAt: 5, createdAt: 1, updatedAt: 2, deletedAt: null }, { id: 'b', body: 'ごみ箱', folderId: 'zz', createdAt: 1, updatedAt: 3, deletedAt: 9 }];
+      const folders = [{ id: 'f1', name: '家', order: 0, createdAt: 1, updatedAt: 1 }];
+      const text = JSON.stringify(b.buildBackup([], {}, new Date(), [], [], [], notes, folders));
+      const v = b.validateBackup(text);
+      const p = b.planNotes([], v.data.notes, [], v.data.folders, true);
+      await d.applyImport({ replace: true, notePuts: p.notePuts, noteReplace: p.noteReplace, folderPuts: p.folderPuts, folderReplace: p.folderReplace });
+      return { memos: 'memos' in JSON.parse(text), got: (await d.listNotes({ includeDeleted: true })).map((n) => [n.id, n.title, n.folderId, n.pinned, n.deletedAt]).sort(), folders: (await d.listFolders()).map((f) => f.name) };
+    });
+    expect(r.memos).toBe(false);
+    expect(r.got).toEqual([['a', '一つ目', 'f1', true, null], ['b', 'ごみ箱', null, false, 9]]);
+    expect(r.folders).toEqual(['家']);
+  });
 });

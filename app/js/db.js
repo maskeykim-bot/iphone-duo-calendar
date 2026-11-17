@@ -170,11 +170,16 @@ export const applyCategoryChanges = ({ catPuts = [], catDels = [], eventPuts = [
 // バックアップの読み込み: カテゴリと予定を1トランザクションで。replace のときは両方を clear してから put。
 // outbox（任意）: 送信待ちの更新関数。同じトランザクションで meta に書き、新しい送信待ちを返す。
 // taskPuts / taskReplace: タスクも同じトランザクション（検証済みの値だけ渡す）。
+// notePuts/folderPuts（任意）: ノート・フォルダ。noteReplace/folderReplace のときは先に全部消す（未指定は現在を保持）。
 // memoPuts（任意）: 書くメモ。memoReplace のときは先にメモを全部消す。予定・カテゴリ・メモ・送信待ちは同じトランザクション。
-export const applyImport = ({ catPuts = [], eventPuts = [], replace = false, outbox = null, memoPuts = [], memoReplace = false, taskPuts = [], taskReplace = false }) => run(['events', 'categories', 'meta', 'memos', 'tasks'], 'readwrite', ({ events, categories, meta, memos, tasks }, set) => {
+export const applyImport = ({ catPuts = [], eventPuts = [], replace = false, outbox = null, memoPuts = [], memoReplace = false, taskPuts = [], taskReplace = false, notePuts = [], noteReplace = false, folderPuts = [], folderReplace = false }) => run(['events', 'categories', 'meta', 'memos', 'tasks', 'notes', 'folders'], 'readwrite', ({ events, categories, meta, memos, tasks, notes, folders }, set) => {
   if (replace) { events.clear(); categories.clear(); }
   if (memoReplace) memos.clear();
   if (taskReplace) tasks.clear();
+  if (noteReplace) notes.clear();
+  if (folderReplace) folders.clear();
+  folderPuts.forEach((f) => folders.put(validateFolder(f))); // 不正は例外 → tx 全体 rollback
+  notePuts.forEach((n) => notes.put(validateNote(n))); // title は本文から作り直す
   taskPuts.forEach((t) => tasks.put(t));
   memoPuts.forEach((m) => memos.put(m));
   catPuts.forEach((c) => categories.put(c));

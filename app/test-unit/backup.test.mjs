@@ -321,9 +321,12 @@ test('v5: 不正なタスク 1 件で全体拒否', () => {
   assert.equal(validateBackup(v5({ tasks: {} })).ok, false);
 });
 
-test('v5: notes / folders 付きは全体拒否（黙って落とさない）', () => {
-  assert.equal(validateBackup(v5({ notes: [] })).ok, false);
-  assert.equal(validateBackup(v5({ folders: [], tasks: [] })).ok, false);
+test('v5: notes / folders は読める（欠落は null、空配列は明示）。詳細は notes-backup.test.mjs', () => {
+  const a = validateBackup(v5({}));
+  assert.equal(a.data.notes, null); assert.equal(a.data.folders, null);
+  const b = validateBackup(v5({ notes: [], folders: [] }));
+  assert.deepEqual([b.data.notes, b.data.folders], [[], []]);
+  assert.equal(validateBackup(v5({ notes: {} })).ok, false);
 });
 
 test('旧アプリ（v4 読取器）は v5 を丸ごと拒否する', () => {

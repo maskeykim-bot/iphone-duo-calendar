@@ -442,10 +442,10 @@ test.describe('タスクのバックアップ（v5）', () => {
     expect((await dbTasks(page)).length).toBe(3);
   });
 
-  test('tasks 欠落の v5 は現在のタスクを残し、不正なタスクや notes 付きは全体拒否で DB 不変', async ({ page }) => {
+  test('tasks 欠落の v5 は現在のタスクを残し、不正なタスクや 不正なノート・フォルダは全体拒否で DB 不変', async ({ page }) => {
     await openApp(page);
     await page.evaluate(async () => (await import('/js/db.js')).putTask({ id: 'keep', title: '守る', due: null, done: false, doneAt: null, createdAt: 1, updatedAt: 1, order: 1, note: '', notify: false }));
-    for (const f of [V5({ tasks: [TK('ok'), { ...TK('bad'), title: '' }] }), V5({ notes: [] }), V5({ folders: [] })]) {
+    for (const f of [V5({ tasks: [TK('ok'), { ...TK('bad'), title: '' }] }), V5({ notes: [{ id: '', body: 'x', createdAt: 1, updatedAt: 1 }] }), V5({ folders: [{ id: 'f', name: '', order: 0, createdAt: 1, updatedAt: 1 }] })]) {
       await openBackup(page);
       await pick(page, 'bad.json', f);
       await expect(page.locator('#backup')).toContainText('読み込めませんでした');
@@ -523,7 +523,7 @@ test.describe('メモ・設定のバックアップ', () => {
   test('不正なメモ・v5 は読み込み全体を拒否し、何も変えない', async ({ page }) => {
     await openApp(page);
     await putMemoDb(page, '2026-11-01', '守る');
-    for (const f of [V4({ memos: [M('2026-11-02', 'a'), M('2026-11-02', 'b')] }), V4({ memos: [{ ...M('2026-11-02', 'a'), id: 'x' }] }), V4({ memos: [M('2026-11-02', 'a'), { ...M('2026-11-03', 'b'), updatedAt: 'z' }] }), V4({ version: 6 }), V4({ version: 5, notes: [] }), V4({ version: 5, tasks: [{ id: 'x' }] }), V4({ settings: { rokuyo: 'x' } })]) {
+    for (const f of [V4({ memos: [M('2026-11-02', 'a'), M('2026-11-02', 'b')] }), V4({ memos: [{ ...M('2026-11-02', 'a'), id: 'x' }] }), V4({ memos: [M('2026-11-02', 'a'), { ...M('2026-11-03', 'b'), updatedAt: 'z' }] }), V4({ version: 6 }), V4({ version: 5, notes: [{ id: '' }] }), V4({ version: 5, tasks: [{ id: 'x' }] }), V4({ settings: { rokuyo: 'x' } })]) {
       await openBackup(page);
       await pick(page, 'bad.json', f);
       await expect(page.locator('#backup')).toContainText('読み込めませんでした');
