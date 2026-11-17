@@ -165,40 +165,85 @@ test.describe('新規予定のカレンダー選択', () => {
     await expect(page.locator('#dest-pop .dopt')).toHaveCount(0);
   });
 
-  test('Escape は一覧だけ閉じ、シートは残る。外側のタップでも閉じる', async ({ page }) => {
+  test('Escape と「‹ 戻る」は候補ページだけ閉じ、シートと値は残る（取消時は値不変）', async ({ page }) => {
     await setup(page);
     await openNew(page);
+    await page.locator('#f-title').fill('そのまま');
+    const before = await page.locator('#dest-name').textContent();
     await page.locator('#f-dest').click();
     await page.keyboard.press('Escape');
     await expect(page.locator('#dest-pop')).toBeHidden();
     await expect(page.locator('#editor')).toBeVisible();
     await page.locator('#f-dest').click();
-    await page.locator('#f-title').click();
+    const back = page.locator('#dest-pop .dback');
+    expect((await back.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    expect((await back.boundingBox()).width).toBeGreaterThanOrEqual(44);
+    await back.click();
     await expect(page.locator('#dest-pop')).toBeHidden();
+    await expect(page.locator('#f-dest')).toBeFocused();
+    await expect(page.locator('#f-title')).toHaveValue('そのまま');
+    await expect(page.locator('#dest-name')).toHaveText(before);
   });
 });
 
-// 第16版 PR1: 候補が多いときも一覧の箱の中だけがスクロールし、最後の候補まで選べる（DP-1）。
+// 第16版 PR3: 候補は編集シートの中の専用ページ。ページ全体が1本のスクロールで、最後の候補まで選べる（DP-1）。
 const MANY = Array.from({ length: 20 }, (_, i) => ({ id: `cal-m${i}`, title: `予備${String(i).padStart(2, '0')}`, color: '#1a73e8', sourceId: 's-i', source: 'iCloud', sourceType: 'caldav', allowsModify: true, isDefault: i === 0 }));
 for (const [name, size] of [['閉じた', SIZES.closedPortrait], ['開いた縦', SIZES.openPortrait669], ['見開き', SIZES.openLandscape951]]) {
-  test(`DP-1 ${name}: 20候補で一覧がスクロールでき、最後の候補を選べる。背景は動かない`, async ({ page }) => {
+  test(`DP-1 ${name}: 20候補のページが末尾まで届き、最後の候補を選べる。背景・フォームは動かない`, async ({ page }) => {
     await setup(page, { cals: MANY, link: LINK({ calendarIds: MANY.map((c) => c.id), defaultDest: { type: 'iphone', id: 'cal-m0' } }), size });
     await openNew(page);
+    await page.locator('#f-title').fill('入力済み');
     await page.locator('#f-dest').click();
     const pop = page.locator('#dest-pop');
     await expect(pop).toBeVisible();
-    const m = await pop.evaluate((e) => ({ ov: getComputedStyle(e).overflowY, sh: e.scrollHeight, ch: e.clientHeight, oc: getComputedStyle(e).overscrollBehaviorY }));
+    const m = await pop.evaluate((e) => ({ ov: getComputedStyle(e).overflowY, sh: e.scrollHeight, ch: e.clientHeight, oc: getComputedStyle(e).overscrollBehaviorY, dh: document.querySelector('#editor').clientHeight }));
     expect(m.ov).toBe('auto');
     expect(m.oc).toBe('contain');
     expect(m.sh).toBeGreaterThan(m.ch);
+    expect(m.ch).toBeGreaterThanOrEqual(m.dh - 2); // シートの下端まで使う
+    const rows = await pop.locator('.dopt').evaluateAll((l) => l.map((e) => e.getBoundingClientRect().height));
+    expect(Math.min(...rows)).toBeGreaterThanOrEqual(44);
     const before = await page.locator('#editor').evaluate((e) => e.scrollTop);
+    const fb = await page.locator('.fbody').evaluate((e) => e.scrollTop);
     await pop.evaluate((e) => { e.scrollTop = e.scrollHeight; });
     expect(await pop.evaluate((e) => e.scrollTop)).toBeGreaterThan(0);
     expect(await page.locator('#editor').evaluate((e) => e.scrollTop)).toBe(before);
+    expect(await page.locator('.fbody').evaluate((e) => e.scrollTop)).toBe(fb);
     const last = page.locator('#dest-pop .dopt[data-did="cal-m19"]');
-    await last.scrollIntoViewIfNeeded();
+    await expect(last).toBeInViewport();
     await last.click();
+    await expect(page.locator('#dest-pop .dopt[data-did="cal-m19"] .dck')).toHaveText('✓');
     await expect(pop).toBeHidden();
     await expect(page.locator('#dest-name')).toContainText('予備19');
+    await expect(page.locator('#f-title')).toHaveValue('入力済み');
   });
 }
+
+test('PR3: 開いたとき選択行が見える位置にあり、選ぶと約0.15秒で戻って保存の引数は従来どおり', async ({ page }) => {
+  await setup(page, { cals: MANY, link: LINK({ calendarIds: MANY.map((c) => c.id), defaultDest: { type: 'iphone', id: 'cal-m15' } }) });
+  await openNew(page);
+  await page.locator('#f-dest').click();
+  await expect(page.locator('#dest-pop .dopt[data-did="cal-m15"]')).toBeInViewport();
+  await page.locator('#dest-pop .dopt[data-did="cal-m17"]').click();
+  await expect(page.locator('#dest-pop')).toBeHidden();
+  await page.locator('#f-title').fill('引数');
+  await save(page);
+  await expect.poll(async () => (await create(page)).length).toBeGreaterThan(0);
+  expect((await create(page))[0].opts.calendarId).toBe('cal-m17');
+});
+
+test('PR3: 下端の「表示するカレンダーを選ぶ ›」から設定へ、戻ると未保存フォームへ戻る', async ({ page }) => {
+  await setup(page);
+  await openNew(page);
+  await page.locator('#f-title').fill('途中');
+  await page.locator('#f-dest').click();
+  await page.locator('#dest-pop .dset').click();
+  await expect(page.locator('#dest-pop')).toBeHidden();
+  await expect(page.locator('#menu')).toBeVisible();
+  await expect(page.locator('#m-title')).toHaveText('カレンダー');
+  await page.locator('#m-back').click();
+  await expect(page.locator('#menu')).toBeHidden();
+  await expect(page.locator('#editor')).toBeVisible();
+  await expect(page.locator('#f-title')).toHaveValue('途中');
+  await expect(page.locator('#f-dest')).toBeFocused();
+});

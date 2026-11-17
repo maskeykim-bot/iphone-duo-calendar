@@ -16,6 +16,7 @@ import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.j
 import { DELETE_UNDO_MS, checkReminderAccess, requestReminderAccess, taskAccessHtml, taskOffHtml, initRemLists, createReminderLoader, tasksHtml, HIST_DAYS, createAddController, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDoneController, TASK_CONFLICT, createDeleteController, TASK_DELETED, TASK_DELETE_CONFLICT, normRemSettings, shownListIds, pruneRemSettings, resolveAddList, filterByLists, dueCounts } from './reminders.js';
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
 import { call, errCode, errReason, errText, haptic, listen, nativeAvailable, reminderErrText } from './native.js';
+import { createDestPage, destRowsHtml } from './destination-ui.js';
 import { makeVisible, buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normDest, normSettings, pickAddCal, planLinkMigration, planNativeOps, resolveDest, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, visibleDestGroups, allDestHidden, withIdent, writable, ymdSlash } from './iphone.js';
 import {
   DOW, addDays, addMonths, assignSharedLanes, dayLabel, dayOf, dkey, eventsOnDay, isKey, isMulti,
@@ -1780,49 +1781,52 @@ function destGroups(locked = curDest()?.type === 'iphone') {
   return gs;
 }
 const destPop = $('#dest-pop');
-function renderDestPop() {
-  const cur = destEff(), raw = destGroups(), gs = visibleDestGroups(raw, curDest());
-  let h = allDestHidden(raw) ? '<p class="dnote">すべて非表示になっています。設定 › カレンダーで ✓ を付けると表示されます。</p>' : '';
-  for (const g of gs) {
-    h += `<h4>${esc(g.head)}</h4>`;
-    for (const i of g.items) {
-      const on = cur.type === i.type && cur.id === i.id;
-      h += `<button type="button" class="dopt${i.hidden ? ' hid' : ''}" role="option" aria-selected="${on}" data-dtype="${i.type}" data-did="${esc(i.id)}"><i class="cdot" style="background:${esc(i.color)}" aria-hidden="true"></i><span class="dn">${esc(i.name)}</span>${i.hidden ? '<span class="dhid">非表示</span>' : ''}<span class="dck" aria-hidden="true">${on ? '✓' : ''}</span></button>`;
-    }
+// 候補はシートの中の専用ページ（js/destination-ui.js）。開いている間はフォームを inert にするだけで、DOM・値・dirty・下書きは触らない。
+const destPage = createDestPage(destPop, {
+  title: 'カレンダー',
+  settings: true,
+  bodyHtml() {
+    const cur = destEff(), raw = destGroups(), gs = visibleDestGroups(raw, curDest());
+    return (allDestHidden(raw) ? '<p class="dnote">すべて非表示になっています。設定 › カレンダーで ✓ を付けると表示されます。</p>' : '') + destRowsHtml(gs, cur);
+  },
+  onOpen() { form.inert = true; F.dest.setAttribute('aria-expanded', 'true'); },
+  onClose(focus) {
+    form.inert = false;
+    F.dest.setAttribute('aria-expanded', 'false');
+    if (focus) F.dest.focus({ preventScroll: true });
+  },
+  onPick(d) {
+    destSel = { type: d.type, id: d.id };
+    if (destSel.type === 'duo') lastCat = destSel.id;
+    updateXUi();
+    saveDraft();
+  },
+  onSettings() { openCalSettingsFromEditor(); },
+});
+const renderDestPop = () => destPage.render();
+const closeDestPop = (focus = true) => destPage.close(focus);
+const openDestPop = () => destPage.open();
+F.dest.addEventListener('click', () => { if (!destPage.isOpen()) openDestPop(); });
+// 下端の「表示するカレンダーを選ぶ ›」。編集中のフォームはそのまま残し、設定 › カレンダーを重ねる。戻る／閉じるで未保存のフォームへ戻る。
+let menuFromEditor = false;
+function openCalSettingsFromEditor() {
+  closeDestPop(false);
+  if (menuDlg.open) return;
+  menuFromEditor = true;
+  dlg.inert = true;
+  setTimeout(() => { openMenu(F.dest); showMenuScreen('calendar'); }, 0); // 同じクリックが外側の「メニューを閉じる」処理へ届いた後で開く
+}
+menuDlg.addEventListener('close', () => {
+  if (!menuFromEditor) return;
+  menuFromEditor = false;
+  if (dlg.open) {
+    dlg.inert = confirmDlg.open || scopeDlg.open || discardDlg.open;
+    updateXUi();
+    saveDraft();
+    F.dest.focus({ preventScroll: true });
   }
-  destPop.innerHTML = h;
-}
-function closeDestPop(focus = true) {
-  if (destPop.hidden) return false;
-  destPop.hidden = true;
-  F.dest.setAttribute('aria-expanded', 'false');
-  if (focus) F.dest.focus({ preventScroll: true });
-  return true;
-}
-function openDestPop() {
-  renderDestPop();
-  destPop.hidden = false;
-  F.dest.setAttribute('aria-expanded', 'true');
-  (destPop.querySelector('[aria-selected="true"]') || destPop.querySelector('.dopt'))?.focus({ preventScroll: true });
-}
-F.dest.addEventListener('click', () => { if (destPop.hidden) openDestPop(); else closeDestPop(); });
-destPop.addEventListener('click', (ev) => {
-  const b = ev.target.closest('.dopt');
-  if (!b) return;
-  destSel = { type: b.dataset.dtype, id: b.dataset.did };
-  if (destSel.type === 'duo') lastCat = destSel.id;
-  closeDestPop();
-  updateXUi();
-  saveDraft();
 });
-destPop.addEventListener('keydown', (ev) => {
-  if (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp') return;
-  const o = [...destPop.querySelectorAll('.dopt')], i = o.indexOf(document.activeElement);
-  if (i < 0) return;
-  ev.preventDefault();
-  o[(i + (ev.key === 'ArrowDown' ? 1 : o.length - 1)) % o.length].focus({ preventScroll: true });
-});
-document.addEventListener('pointerdown', (ev) => { if (!destPop.hidden && !ev.target.closest('#dest-l')) closeDestPop(false); });
+dlg.addEventListener('close', () => { closeDestPop(false); });
 // すべての編集で「カレンダー」1行を出す。編集中のリンク済み予定には案内を出す。
 function updateXUi() {
   const cur = editing ? resolve(editing) : null;
@@ -1835,7 +1839,7 @@ function updateXUi() {
   const d = destInfo(destEff());
   $('#dest-name').textContent = d.name;
   $('#dest-dot').style.background = d.color;
-  if (!destPop.hidden) renderDestPop();
+  if (destPage.isOpen()) renderDestPop();
 }
 $('#xlinked-open').addEventListener('click', async () => {
   const cur = editing ? resolve(editing) : null;
@@ -2392,7 +2396,7 @@ function showMenuScreen(name, focus = true, opener = null) {
 }
 // 下層なら1つ戻り（戻り先の行へフォーカス）、一番上なら閉じる。
 function menuBack() {
-  if (menuScreen === 'root') { closePanel(menuDlg); return; }
+  if (menuScreen === 'root' || (menuFromEditor && menuScreen === 'calendar')) { closePanel(menuDlg); return; }
   const prev = menuScreen;
   showMenuScreen('root', true, menuDlg.querySelector(`[data-go="${prev}"]`));
 }
@@ -4147,7 +4151,7 @@ document.addEventListener('keydown', (ev) => {
   if (ev.key !== 'Escape') return;
   if (MM.open && !anyPanel()) { closeMini(); return; }
   if (TLM.open && !anyPanel()) { const sd = TLM.open; TLM.open = null; render(); root.querySelector(`[data-act="tlmenu"][data-pane="${sd}"]`)?.focus({ preventScroll: true }); return; }
-  if (dlg.open && !destPop.hidden && !scopeDlg.open && !confirmDlg.open && !discardDlg.open) { closeDestPop(); return; }
+  if (dlg.open && destPage.isOpen() && !scopeDlg.open && !confirmDlg.open && !discardDlg.open) { closeDestPop(); return; }
   if (scopeDlg.open) cancelScope();
   else if (xrDlg.open) closePanel(xrDlg);
   else if (confirmDlg.open) cancelConfirm();

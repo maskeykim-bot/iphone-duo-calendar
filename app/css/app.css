@@ -911,6 +911,24 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .destbtn .cdot.big{width:12px;height:12px}
 .destpop{position:absolute;left:0;top:calc(100% + 4px);z-index:20;box-sizing:border-box;width:min(296px,100%);max-height:min(320px,50vh);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:6px 0;border-radius:14px;background:#fff;border:1px solid #DCD7CB;box-shadow:0 8px 24px #0002}
 .destpop[hidden]{display:none}
+/* 編集シートの候補ページ（第16版 PR3）: シートの中を全面で覆う1本のスクロール。 */
+.destpage{position:absolute;inset:0;z-index:5;box-sizing:border-box;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:#fff;padding-bottom:calc(8px + env(safe-area-inset-bottom,0px));animation:destin .25s ease-out}
+.destpage[hidden]{display:none}
+@keyframes destin{from{transform:translateX(100%)}to{transform:none}}
+@media (prefers-reduced-motion:reduce){.destpage{animation:none}}
+.destpage .dphead{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:8px;min-height:56px;padding:0 12px 0 8px;background:#fff;border-bottom:1px solid var(--line)}
+.destpage .dback{flex:none;min-width:44px;min-height:44px;padding:0 10px;border:0;background:transparent;font-size:16px;color:#294E42;white-space:nowrap}
+.destpage .dptitle{margin:0;font:700 17px/1.3 -apple-system,'Hiragino Sans',sans-serif}
+.destpage h4{margin:0;padding:0 20px;min-height:28px;display:flex;align-items:center;font-size:12px;font-weight:600;color:#68716A}
+.destpage .dnote{margin:8px 20px;font-size:12px;color:#68716A}
+.destpage .dopt{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:0 20px;border:0;background:transparent;font-size:16px;text-align:left}
+.destpage .dopt .dn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.destpage .dopt .cdot{flex:none;width:12px;height:12px;border-radius:50%}
+.destpage .dopt .dhid{flex:none;font-size:11px;color:#A8ABA4}
+.destpage .dopt .dck{flex:none;width:18px;color:#2E8B57;font-weight:700}
+.destpage .dopt.hid .dn{color:#A8ABA4}.destpage .dopt.hid .cdot{opacity:.4}
+.destpage .dset{display:flex;align-items:center;width:100%;min-height:44px;margin-top:8px;padding:0 20px;border:0;border-top:1px solid var(--line);background:transparent;font-size:16px;color:#2E8B57;text-align:left}
+.destpage button:focus-visible{outline:2px solid #294E42;outline-offset:-2px}
 .destbtn:disabled{opacity:.6}.destbtn:disabled .dval>span:last-child{visibility:hidden}
 .destpop h4{margin:0;padding:0 14px;min-height:26px;display:flex;align-items:center;font-size:12px;font-weight:600;color:#68716A}
 .destpop .dnote{margin:2px 14px 6px;font-size:12px;color:#68716A}
