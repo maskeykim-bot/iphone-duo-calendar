@@ -12,7 +12,8 @@ test.describe('永続化', () => {
       const r = indexedDB.open('duo-calendar');
       r.onsuccess = () => res({ version: r.result.version, stores: [...r.result.objectStoreNames] });
     }));
-    expect(meta.version).toBe(4);
+    expect(meta.version).toBe(5);
+    expect(meta.stores).toEqual(expect.arrayContaining(['tasks', 'notes', 'folders']));
     expect(meta.stores).toContain('events');
     expect(meta.stores).toContain('categories');
     expect(meta.stores).toContain("memos");
@@ -135,10 +136,10 @@ test.describe('永続化', () => {
   }, from);
 
   for (const from of [1, 2, 3]) {
-    test(`v${from} → v4 で既存データを保ち memos ができる`, async ({ page }) => {
+    test(`v${from} → v5 で既存データを保ち memos ができる`, async ({ page }) => {
       await openApp(page);
       const r = await migrate(page, from);
-      expect(r.info.version).toBe(4);
+      expect(r.info.version).toBe(5);
       expect(r.info.stores).toEqual(expect.arrayContaining(['events', 'categories', 'meta', 'memos']));
       expect(r.info.idx).toEqual(['date']);
       expect(r.events.map((e) => e.title)).toEqual(['旧予定']);

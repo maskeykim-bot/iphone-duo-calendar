@@ -1,8 +1,9 @@
 // IndexedDB データ層。schema を変えるときは SCHEMA_VERSION を上げ、MIGRATIONS に追記する。
 import { withDefaults, isKey } from './util.js';
+import { validateTask, newTaskId } from './tasks.js';
 import { CAT_IDS, DEFAULTS_NEW, LEGACY, UNCATEGORIZED, legacyToId, planCategoryRetarget, sortCategories } from './categories.js';
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 const BASE_NAME = 'duo-calendar';
 
 // v2 の既定値（v1→v3 を1回で上がるとき、v2 と v3 のカーソルが並行して走るので、どちらでも補う）。
@@ -68,7 +69,20 @@ const MIGRATIONS = {
       s.createIndex('date', 'date');
     }
   },
+  // v5: タスク・ノート・フォルダ。ストアと索引を作るだけ（既存4ストアは不変・冪等）。メモの変換はまだしない。
+  5(db, tx) { createV5Stores(db, tx); },
 };
+
+// 既にあるストアは触らず、無い索引だけ足す。tx は versionchange トランザクション。
+export function createV5Stores(db, tx) {
+  const ensure = (name, indexes) => {
+    const s = db.objectStoreNames.contains(name) ? tx.objectStore(name) : db.createObjectStore(name, { keyPath: 'id' });
+    for (const [n, kp] of indexes) if (!s.indexNames.contains(n)) s.createIndex(n, kp);
+  };
+  ensure('tasks', [['dueDate', 'due.date'], ['order', 'order'], ['updatedAt', 'updatedAt']]);
+  ensure('notes', [['updatedAt', 'updatedAt'], ['folderId', 'folderId'], ['sourceDate', 'sourceDate'], ['pinnedAt', 'pinnedAt']]);
+  ensure('folders', [['order', 'order']]);
+}
 
 let handle = null;
 let dbName = BASE_NAME;
@@ -214,6 +228,38 @@ export async function listMemoDays() {
     req.onerror = () => reject(req.error);
   });
 }
+
+// ---------- タスク（tasks ストア。Duo 内保存。型・検証は tasks.js） ----------
+const TASK = ['tasks'];
+const bad = (r) => { throw new Error(r.error); };
+export async function listTasks() {
+  const db = await open();
+  return wrap(db.transaction('tasks').objectStore('tasks').index('order').getAll());
+}
+export async function getTask(id) {
+  const db = await open();
+  return (await wrap(db.transaction('tasks').objectStore('tasks').get(id))) ?? null;
+}
+// 検証してから put（不正なら何も書かず例外）。戻り値は保存したタスク。
+export const putTask = (t) => run(TASK, 'readwrite', ({ tasks }, set) => {
+  const r = validateTask(t);
+  if (!r.ok) bad(r);
+  tasks.put(r.task);
+  set(r.task);
+});
+// 新規追加。order は同じトランザクションで現在の最大 + 1（単調増加）。同じ id が既にあれば上書きせずそれを返す（再試行で重複しない）。
+export const addTask = (input, now = Date.now()) => run(TASK, 'readwrite', ({ tasks }, set) => {
+  const base = { ...input, done: false, doneAt: null, createdAt: now, updatedAt: now, notify: input.notify ?? false, note: input.note ?? '', id: input.id ?? newTaskId(now) };
+  const v = validateTask({ ...base, order: 0 });
+  if (!v.ok) bad(v); // 不正は書く前に例外（何も書かない）
+  const put = () => tasks.index('order').openCursor(null, 'prev').onsuccess = (ev) => {
+    const t = validateTask({ ...base, order: ev.target.result ? ev.target.result.value.order + 1 : 1 }).task;
+    tasks.put(t);
+    set(t);
+  };
+  tasks.get(base.id).onsuccess = (ev) => { if (ev.target.result) set(ev.target.result); else put(); };
+});
+export const deleteTask = (id) => run(TASK, 'readwrite', ({ tasks }) => { tasks.delete(id); });
 
 // ---------- iPhone への反映の送信待ち（meta ストア。バックアップには出さない） ----------
 export async function getOutbox() {

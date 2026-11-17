@@ -16,4 +16,4 @@ test('不正な日付・本文は拒否', () => {
   for (const d of ['2026-02-30', '2026-1-1', '', null, '2026-13-01']) assert.throws(() => makeMemo(d, 'x'));
   assert.throws(() => makeMemo('2026-01-01', 5));
 });
-test('SCHEMA_VERSION は 4', () => assert.equal(SCHEMA_VERSION, 4));
+test('SCHEMA_VERSION は 5', () => assert.equal(SCHEMA_VERSION, 5));

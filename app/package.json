@@ -14,7 +14,8 @@
     "ios": "npm run build:www && npx cap sync ios"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.0"
+    "@playwright/test": "^1.49.0",
+    "fake-indexeddb": "^6.2.8"
   },
   "dependencies": {
     "@capacitor/cli": "^8.6.2",
