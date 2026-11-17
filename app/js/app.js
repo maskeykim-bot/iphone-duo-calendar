@@ -16,7 +16,7 @@ import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.j
 import { DELETE_UNDO_MS, checkReminderAccess, requestReminderAccess, taskAccessHtml, taskOffHtml, initRemLists, createReminderLoader, tasksHtml, HIST_DAYS, createAddController, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDoneController, TASK_CONFLICT, createDeleteController, TASK_DELETED, TASK_DELETE_CONFLICT, normRemSettings, shownListIds, pruneRemSettings, resolveAddList, filterByLists, dueCounts } from './reminders.js';
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
 import { call, errCode, errReason, errText, haptic, listen, nativeAvailable, reminderErrText } from './native.js';
-import { makeVisible, buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normDest, normSettings, pickAddCal, planLinkMigration, planNativeOps, resolveDest, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, withIdent, writable, ymdSlash } from './iphone.js';
+import { makeVisible, buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normDest, normSettings, pickAddCal, planLinkMigration, planNativeOps, resolveDest, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, visibleDestGroups, allDestHidden, withIdent, writable, ymdSlash } from './iphone.js';
 import {
   DOW, addDays, addMonths, assignSharedLanes, dayLabel, dayOf, dkey, eventsOnDay, isKey, isMulti,
   monthWeeks, newId, nowStamp, pad, parseInput, parseKey, ruleSummary, setFirstDay, timeLabel, toInput, todayKey, validateDraft, weekStart, weekdayHeads,
@@ -1781,8 +1781,8 @@ function destGroups(locked = curDest()?.type === 'iphone') {
 }
 const destPop = $('#dest-pop');
 function renderDestPop() {
-  const cur = destEff(), gs = destGroups();
-  let h = gs.every((g) => g.items.every((i) => i.hidden)) ? '<p class="dnote">すべて非表示になっています。設定 › カレンダーで ✓ を付けると表示されます。</p>' : '';
+  const cur = destEff(), raw = destGroups(), gs = visibleDestGroups(raw, curDest());
+  let h = allDestHidden(raw) ? '<p class="dnote">すべて非表示になっています。設定 › カレンダーで ✓ を付けると表示されます。</p>' : '';
   for (const g of gs) {
     h += `<h4>${esc(g.head)}</h4>`;
     for (const i of g.items) {
@@ -2185,7 +2185,6 @@ form.addEventListener('submit', async (ev) => {
   closePanel(dlg);
   set({ selected: dayOf(item.start) });
   if (xwant) createNative(item.id); else say('予定を保存しました。');
-  if (!prev || mv) hiddenNotice(xwant || mv === 'x2x' ? { type: 'iphone', id: dsel.id } : { type: 'duo', id: item.categoryId });
 });
 
 // 既存予定の保存先の変更。'toX' = Duo → iPhone（作成して結びつける）、'x2x' = iPhone → 別の iPhone（updateEvent で移動）、null = 変更なし。
@@ -2202,38 +2201,6 @@ function toPending(item, d, prev) {
   if (prev) item.moveFromCat = prev.categoryId;
   item.categoryId = CAT_IDS.none;
   item.nativeLink = { state: 'pending', requestId: newId(), calendarId: d.id };
-}
-
-// 非表示のカテゴリ／カレンダーに保存したとき、6秒間だけ知らせて「表示する」で戻せる（予定が消えたように見えないように）。
-let hnTimer = 0;
-function hiddenNotice(d) {
-  clearTimeout(hnTimer);
-  document.querySelector('#hidden-notice')?.remove();
-  const info = destInfo(d);
-  if (!info.hidden) return;
-  const nm = d.type === 'iphone' ? (X.calendars.find((x) => x.id === d.id)?.title ?? info.name) : info.name;
-  const el = document.createElement('div');
-  el.id = 'hidden-notice';
-  el.className = 'undobar toastbar';
-  el.setAttribute('role', 'status');
-  const sp = document.createElement('span'); sp.textContent = `「${nm}」は非表示なので、カレンダーには出ません`;
-  const btn = document.createElement('button'); btn.type = 'button'; btn.dataset.showCat = ''; btn.textContent = '表示する';
-  el.append(sp, btn);
-  btn.addEventListener('click', async () => {
-    clearTimeout(hnTimer); el.remove();
-    try {
-      if (d.type === 'iphone') {
-        setLink({ calendarIds: [...new Set([...link.calendarIds, d.id])] });
-        X.failKey = ''; loadExt(true); render();
-      } else {
-        const c = state.categories.find((x) => x.id === d.id);
-        if (c) await commitCats({ catPuts: [{ ...c, hidden: false, updatedAt: Date.now() }] });
-      }
-      say(`「${nm}」を表示に戻しました。`);
-    } catch { say('保存できませんでした。もう一度お試しください。'); }
-  });
-  document.body.append(el);
-  hnTimer = setTimeout(() => el.remove(), 6000);
 }
 
 // ---------- 範囲シート（この予定のみ／これ以降すべて／すべて） ----------
@@ -2306,7 +2273,6 @@ scopeDlg.addEventListener('click', async (ev) => {
   closePanel(dlg);
   set({ selected: dayOf(form0.start) });
   if (mv === 'toX' && scope === 'all') createNative(cur.p.id); else say('予定を保存しました。');
-  if (mv) hiddenNotice({ type: 'iphone', id: dsel.id });
 });
 
 // ---------- 削除（通常は確認のみ、繰り返しは範囲→確認） ----------
@@ -3074,8 +3040,8 @@ function renderCalScreen() {
 }
 // 新しい予定の追加先の一覧（編集シートと同じ並び・同じ見せ方）。
 function renderSetDestPop() {
-  const cur = destNow(), gs = destGroups(false);
-  $('#m-destpop').innerHTML = gs.map((g) => `<h4>${esc(g.head)}</h4>${g.items.map((i) => { const on = cur.type === i.type && cur.id === i.id; return `<button type="button" class="dopt${i.hidden ? ' hid' : ''}" role="option" aria-selected="${on}" data-sdtype="${i.type}" data-sdid="${esc(i.id)}"><i class="cdot" style="background:${esc(i.color)}" aria-hidden="true"></i><span class="dn">${esc(i.name)}</span>${i.hidden ? '<span class="dhid">非表示</span>' : ''}<span class="dck" aria-hidden="true">${on ? '✓' : ''}</span></button>`; }).join('')}`).join('');
+  const cur = destNow(), raw = destGroups(false), gs = visibleDestGroups(raw, null);
+  $('#m-destpop').innerHTML = (allDestHidden(raw) ? '<p class="dnote">すべて非表示になっています。設定 › カレンダーで ✓ を付けると表示されます。</p>' : '') + gs.map((g) => `<h4>${esc(g.head)}</h4>${g.items.map((i) => { const on = cur.type === i.type && cur.id === i.id; return `<button type="button" class="dopt${i.hidden ? ' hid' : ''}" role="option" aria-selected="${on}" data-sdtype="${i.type}" data-sdid="${esc(i.id)}"><i class="cdot" style="background:${esc(i.color)}" aria-hidden="true"></i><span class="dn">${esc(i.name)}</span>${i.hidden ? '<span class="dhid">非表示</span>' : ''}<span class="dck" aria-hidden="true">${on ? '✓' : ''}</span></button>`; }).join('')}`).join('');
 }
 // ---- Duo 段の編集モード（右上の編集/完了）。削除・並べ替えは即保存、名前と色は1枚の編集で。外部（iPhone）の名前・色は触らない ----
 let calEdit = false, calDel = null, calTarget = '', calUndo = null, calUndoTimer = 0, calFocusId = '';

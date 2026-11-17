@@ -21,41 +21,22 @@ const openBackup = async (page) => {
 const pick = (page, content) => page.setInputFiles('#bk-file', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(content)) });
 
 test.describe('非表示カテゴリと新しい予定', () => {
-  test('既定は表示中の先頭。編集フォームでは非表示も選べる', async ({ page }) => {
+  test('既定は表示中の先頭。非表示のカテゴリは候補に出ない', async ({ page }) => {
     await openApp(page);
     await hideCat(page, CAT_IDS.work);
     await page.getByRole('button', { name: '予定を追加' }).click();
     await expect(page.locator('#dest-name')).toHaveText('プライベート');
     await page.locator('#f-dest').click();
-    await expect(page.locator('#dest-pop .dopt')).toHaveCount(5);
-    const w = page.locator(`#dest-pop .dopt[data-did="${CAT_IDS.work}"]`);
-    await expect(w).toContainText('仕事');
-    await expect(w.locator('.dhid')).toHaveText('非表示');
-    await expect(page.locator('#dest-pop .dopt').last()).toHaveAttribute('data-did', CAT_IDS.work); // 非表示は後ろ
+    await expect(page.locator('#dest-pop .dopt')).toHaveCount(4);
+    await expect(page.locator(`#dest-pop .dopt[data-did="${CAT_IDS.work}"]`)).toHaveCount(0);
+    await expect(page.locator('#dest-pop .dhid')).toHaveCount(0);
   });
-  test('非表示のカテゴリに保存 → 6秒の知らせ →「表示する」で戻る', async ({ page }) => {
+  test('非表示のカテゴリへは追加できず、保存後に非表示の知らせも出ない', async ({ page }) => {
     await openApp(page);
     await hideCat(page, CAT_IDS.work);
-    await addEvent(page, { title: '隠れる予定', cat: 'work' });
-    const note = page.locator('#hidden-notice');
-    await expect(note).toContainText('「仕事」は非表示なので、カレンダーには出ません');
-    await tab(page, '日').click();
-    await expect(page.locator('.tlev')).toHaveCount(0);
-    await note.getByRole('button', { name: '表示する' }).click();
-    await expect(note).toBeHidden();
-    expect((await dbCats(page)).find((c) => c.id === CAT_IDS.work).hidden).toBe(false);
-    expect(await dbEvents(page)).toHaveLength(1);
-    await expect(page.locator('.tlev')).toContainText('隠れる予定');
-  });
-  test('知らせは6秒で消え、表示中のカテゴリへの保存では出ない', async ({ page }) => {
-    await openApp(page);
-    await hideCat(page, CAT_IDS.work);
-    await addEvent(page, { title: 'A', cat: 'work' });
-    await expect(page.locator('#hidden-notice')).toBeVisible();
-    await page.waitForTimeout(6300);
-    await expect(page.locator('#hidden-notice')).toHaveCount(0);
     await addEvent(page, { title: 'B', cat: 'family' });
     await expect(page.locator('#hidden-notice')).toHaveCount(0);
+    expect((await dbEvents(page))[0].categoryId).toBe(CAT_IDS.family);
   });
 });
 

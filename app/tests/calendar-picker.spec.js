@@ -54,25 +54,26 @@ test.describe('新規予定のカレンダー選択', () => {
     await page.locator('#f-dest').click();
     await expect(page.locator('#f-dest')).toHaveAttribute('aria-expanded', 'true');
     await expect(page.locator('#dest-pop h4')).toHaveText(['Duo（この端末だけ）', 'iPhone ・ Gmail', 'iPhone ・ iCloud']);
-    await expect(page.locator('#dest-pop .dopt .dn')).toHaveText(['仕事', 'プライベート', '家族', '外出', 'その他', '個人', '仕事', '趣味']);
+    await expect(page.locator('#dest-pop .dopt .dn')).toHaveText(['仕事', 'プライベート', '家族', '外出', 'その他', '個人', '仕事']); // 趣味（非表示）は出ない
     await expect(page.locator('#dest-pop .dopt[data-did="cal-r"]')).toHaveCount(0); // 読み取り専用は出ない
     await expect(page.locator('#dest-pop .dopt[aria-selected="true"]')).toHaveCount(1);
     await expect(page.locator('#dest-pop .dopt[aria-selected="true"] .dck')).toHaveText('✓');
   });
 
-  test('非表示（設定でオフ）は各段の後ろに「非表示」札つきで並び、選べる。✓とフォーカスが戻る', async ({ page }) => {
+  test('非表示（設定でオフ）のカレンダーは候補に出ない。表示中だけ選べて✓とフォーカスが戻る', async ({ page }) => {
     await setup(page);
     await openNew(page);
     await page.locator('#f-dest').click();
     const icloud = page.locator('#dest-pop .dopt[data-dtype="iphone"]');
-    await expect(icloud.locator('.dn')).toHaveText(['個人', '仕事', '趣味']); // 趣味（cal-h）は非表示なので iCloud 段の仕事の後ろ
-    await expect(page.locator('#dest-pop .dopt[data-did="cal-h"] .dhid')).toHaveText('非表示');
-    await page.locator('#dest-pop .dopt[data-did="cal-h"]').click();
+    await expect(icloud.locator('.dn')).toHaveText(['個人', '仕事']); // 趣味（cal-h）は非表示なので出ない
+    await expect(page.locator('#dest-pop .dopt[data-did="cal-h"]')).toHaveCount(0);
+    await expect(page.locator('#dest-pop .dhid')).toHaveCount(0);
+    await page.locator('#dest-pop .dopt[data-did="cal-g"]').click();
     await expect(page.locator('#dest-pop')).toBeHidden();
     await expect(page.locator('#f-dest')).toBeFocused();
-    await expect(page.locator('#dest-name')).toHaveText('趣味（iCloud）');
+    await expect(page.locator('#dest-name')).toHaveText('個人（Gmail）');
     await page.locator('#f-dest').click();
-    await expect(page.locator('#dest-pop .dopt[data-did="cal-h"] .dck')).toHaveText('✓');
+    await expect(page.locator('#dest-pop .dopt[data-did="cal-g"] .dck')).toHaveText('✓');
   });
 
   test('Duo のカテゴリを選ぶと createEvent を呼ばず、categoryId で1件だけ保存。設定の追加先は変わらない', async ({ page }) => {
@@ -125,34 +126,21 @@ test.describe('新規予定のカレンダー選択', () => {
     expect(await dbEvents(page)).toHaveLength(1);
   });
 
-  test('非表示のカテゴリにも保存でき、6秒の名前入りの知らせ →「表示する」で✓が戻る', async ({ page }) => {
-    await setup(page);
-    await page.evaluate(async () => { const db = await import('/js/db.js'); const c = (await db.listCategories()).find((x) => x.id === 'cat-family' || x.name === '家族'); await db.putCategory?.({ ...c, hidden: true }); });
+  test('非表示のカテゴリは候補に出ず、非表示の既定先でも新規は表示中の先へ。保存後の知らせも出ない', async ({ page }) => {
+    await setup(page, { link: LINK({ defaultDest: { type: 'duo', id: CAT_IDS.family } }) });
+    await page.evaluate(async () => { const db = await import('/js/db.js'); const c = (await db.listCategories()).find((x) => x.name === '家族'); await db.putCategory?.({ ...c, hidden: true }); });
     await page.reload();
     await page.waitForSelector('html[data-ready]');
     await openNew(page);
-    await pick(page, CAT_IDS.family);
-    await page.locator('#f-title').fill('隠れる');
-    await save(page);
-    const note = page.locator('#hidden-notice');
-    await expect(note).toContainText('「家族」は非表示なので、カレンダーには出ません');
-    expect(await dbEvents(page)).toHaveLength(1);
-    await note.getByRole('button', { name: '表示する' }).click();
-    await openNew(page);
+    await expect(page.locator('#dest-name')).not.toHaveText('家族'); // resolveDest が表示中へ代替
     await page.locator('#f-dest').click();
-    await expect(page.locator('#dest-pop .dopt[data-did="' + CAT_IDS.family + '"] .dhid')).toHaveCount(0);
-  });
-
-  test('非表示の iPhone カレンダーに保存 →「表示する」で calendarIds に戻る', async ({ page }) => {
-    await setup(page);
-    await openNew(page);
-    await pick(page, 'cal-h');
-    await page.locator('#f-title').fill('趣味の会');
+    await expect(page.locator('#dest-pop .dopt[data-did="' + CAT_IDS.family + '"]')).toHaveCount(0);
+    await page.locator('#dest-pop .dopt').first().click();
+    await page.locator('#f-title').fill('見える');
     await save(page);
-    const note = page.locator('#hidden-notice');
-    await expect(note).toContainText('「趣味」は非表示なので、カレンダーには出ません');
-    await note.getByRole('button', { name: '表示する' }).click();
-    expect((await lk(page)).calendarIds).toContain('cal-h');
+    await expect(page.locator('#hidden-notice')).toHaveCount(0);
+    expect((await dbEvents(page))[0].categoryId).not.toBe(CAT_IDS.family);
+    expect((await lk(page)).defaultDest).toEqual({ type: 'duo', id: CAT_IDS.family }); // 設定値は書き換えない
   });
 
   test('旧下書き（categoryId / xadd / xcal）を追加先へ読み替え、本文を保つ', async ({ page }) => {
@@ -166,7 +154,7 @@ test.describe('新規予定のカレンダー選択', () => {
     await expect(page.locator('#dest-name')).toHaveText('個人（Gmail）');
   });
 
-  test('すべて非表示のときは一覧の上に案内を出し、それでも選べる', async ({ page }) => {
+  test('すべて非表示のときは案内だけを出し、候補は空になる', async ({ page }) => {
     await setup(page, { link: LINK({ calendarIds: [] }) });
     await page.evaluate(async () => { const db = await import('/js/db.js'); for (const c of await db.listCategories()) await db.putCategory?.({ ...c, hidden: true }); });
     await page.reload();
@@ -174,8 +162,7 @@ test.describe('新規予定のカレンダー選択', () => {
     await openNew(page);
     await page.locator('#f-dest').click();
     await expect(page.locator('#dest-pop .dnote')).toContainText('すべて非表示になっています');
-    await page.locator('#dest-pop .dopt').first().click();
-    await expect(page.locator('#dest-pop')).toBeHidden();
+    await expect(page.locator('#dest-pop .dopt')).toHaveCount(0);
   });
 
   test('Escape は一覧だけ閉じ、シートは残る。外側のタップでも閉じる', async ({ page }) => {

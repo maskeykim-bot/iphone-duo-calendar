@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { dedupe, refreshLinks, relink, toDisplay, uniqueRequestIds, withIdent } from '../js/iphone.js';
+import { allDestHidden, visibleDestGroups, dedupe, refreshLinks, relink, toDisplay, uniqueRequestIds, withIdent } from '../js/iphone.js';
 import { R, ev } from './fixtures.mjs';
 
 const L = (x = {}) => ({ v: 2, state: 'linked', requestId: 'rq1', calendarId: 'c1', itemId: 'i1', externalId: 'x1', eventId: 'e1', seriesStart: '2026-11-12T10:00', ...x });
@@ -92,4 +92,27 @@ test('pickAddCal: シート選択 → 設定の既定 → iPhone の既定 → �
   assert.equal(_pick(c, '', 'zz'), 'b');
   assert.equal(_pick([{ id: 'a', allowsModify: true }], '', ''), 'a');
   assert.equal(_pick([{ id: 'r', allowsModify: false, isDefault: true }], '', ''), '');
+});
+
+const DG = () => [
+  { head: 'Duo', items: [{ type: 'duo', id: 'a', hidden: false }, { type: 'duo', id: 'b', hidden: true }] },
+  { head: 'iPhone', items: [{ type: 'iphone', id: 'x', hidden: true }, { type: 'iphone', id: 'y', hidden: true }] },
+];
+test('visibleDestGroups: 非表示は出さず、空の段も消える', () => {
+  const g = visibleDestGroups(DG(), null);
+  assert.deepEqual(g.map((x) => x.items.map((i) => i.id)), [['a']]);
+});
+test('visibleDestGroups: 編集中の現在先だけは非表示でも段の先頭に1件残す', () => {
+  const g = visibleDestGroups(DG(), { type: 'duo', id: 'b' });
+  assert.deepEqual(g[0].items.map((i) => i.id), ['b', 'a']);
+  const h = visibleDestGroups(DG(), { type: 'iphone', id: 'y' });
+  assert.deepEqual(h.map((x) => x.items.map((i) => i.id)), [['a'], ['y']]);
+  assert.equal(h[1].items.length, 1);
+});
+test('visibleDestGroups: 入力を書き換えない。allDestHidden は全非表示だけ真', () => {
+  const d = DG(); visibleDestGroups(d, null);
+  assert.equal(d[0].items.length, 2);
+  assert.equal(allDestHidden(d), false);
+  assert.equal(allDestHidden(d.map((g) => ({ ...g, items: g.items.map((i) => ({ ...i, hidden: true })) }))), true);
+  assert.deepEqual(visibleDestGroups([], null), []);
 });

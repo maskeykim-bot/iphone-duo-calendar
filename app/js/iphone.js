@@ -230,6 +230,17 @@ export function pickAddCal(cals, sel, defId) {
   return w.find((c) => c.isDefault)?.id || w[0]?.id || '';
 }
 
+// 追加先の候補（可視のみ）。groups: [{head, items:[{type,id,hidden,...}]}]。非表示は出さない。
+// keep（編集中の予定の現在先）だけは非表示でも、その段の先頭に1件残す。空になった段は除く。
+export function visibleDestGroups(groups, keep) {
+  const same = (i) => !!keep && i.type === keep.type && i.id === keep.id;
+  return (groups || [])
+    .map((g) => ({ ...g, items: [...g.items.filter((i) => same(i)), ...g.items.filter((i) => !same(i) && !i.hidden)] }))
+    .filter((g) => g.items.length);
+}
+// 候補が1件も表示中でない（異常な全非表示）。
+export const allDestHidden = (groups) => (groups || []).every((g) => g.items.every((i) => i.hidden));
+
 // 追加先の解決（表示中のものだけ）。dest が表示中・書込可ならそのまま。
 // 非表示・消失・読取専用・連携オフは代替へ：同じ source の表示中 → 表示中の「その他」→ 表示中の Duo 先頭。全部非表示だけ「その他」を仮選択。
 // ctx: { cats, cals, ids（表示するカレンダー id）, usable（カレンダー連携が使える）}。

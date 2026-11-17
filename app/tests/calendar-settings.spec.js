@@ -122,6 +122,10 @@ test.describe('設定 › カレンダー（PR8）', () => {
     await expect(page.locator('#m-cal-ip .calsec', { hasText: 'work@example.com' })).toBeVisible();
     await expect(page.locator('[data-cal="cal-gm"]')).toHaveCount(1);
     await page.locator('#m-dest').click();
+    await expect(page.locator('#m-destpop')).not.toContainText('Gmail予定'); // 表示（✓）にするまで候補に出ない
+    await page.locator('#m-dest').click();
+    await page.locator('[data-cal="cal-gm"]').click();
+    await page.locator('#m-dest').click();
     await expect(page.locator('#m-destpop')).toContainText('Gmail予定');
   });
 
@@ -154,21 +158,23 @@ test.describe('設定 › カレンダー（PR8）', () => {
     expect(cats.filter((c) => !c.hidden)).toHaveLength(1);
   });
 
-  test('追加先の行: 同じ一覧から選び、再起動後も保持。非表示の先も選べる', async ({ page }) => {
+  test('追加先の行: 同じ一覧から選び、再起動後も保持。非表示の先は出ない', async ({ page }) => {
     await setup(page);
     await openMenu(page, 'calendar');
     await expect(rows(page)).toHaveCount(5);
     await page.locator('[data-cal="cal-g"]').click(); // 非表示にする
     await page.locator('#m-dest').click();
     await expect(page.locator('#m-destpop .dopt[data-sdid="cal-r"]')).toHaveCount(0); // 表示のみは出ない
-    await page.locator('#m-destpop .dopt[data-sdid="cal-g"]').click();
-    expect((await ls(page)).defaultDest).toMatchObject({ type: 'iphone', id: 'cal-g' }); // 非表示でも保存できる
+    await expect(page.locator('#m-destpop .dopt[data-sdid="cal-g"]')).toHaveCount(0); // 非表示は出ない
+    await expect(page.locator('#m-destpop .dhid')).toHaveCount(0);
+    await page.locator('#m-destpop .dopt[data-sdid="cal-a"]').click();
+    expect((await ls(page)).defaultDest).toMatchObject({ type: 'iphone', id: 'cal-a' });
     await page.locator('[data-cal="cal-g"]').click(); // 表示に戻す
-    await expect(page.locator('#m-dest')).toContainText('個人');
+    await expect(page.locator('#m-dest')).toContainText('仕事');
     await page.reload();
     await openMenu(page, 'calendar');
-    await expect(page.locator('#m-dest')).toContainText('個人');
-    expect((await ls(page)).defaultDest).toMatchObject({ type: 'iphone', id: 'cal-g' });
+    await expect(page.locator('#m-dest')).toContainText('仕事');
+    expect((await ls(page)).defaultDest).toMatchObject({ type: 'iphone', id: 'cal-a' });
   });
 
   test('リマインダーの段: 既存の一覧を出し、✓で表示するリストを切り替える', async ({ page }) => {
