@@ -230,3 +230,30 @@ test('復元：replace でも applyImport は現ノート・folder・ピンを�
   assert.deepEqual([p2.added, p2.notePuts.length, p2.folderPuts.length], [0, 0, 0]);
   assert.equal((await m.listNotes({ includeDeleted: true })).length, 14);
 });
+
+test('PR1: date の往復・date 無しは sourceDate・明示 null は保つ・同じ sourceDate の複数は件数が増えない', async () => {
+  const mk = (id, extra) => ({ id, body: `本${id}`, folderId: null, pinned: false, pinnedAt: null, createdAt: 1, updatedAt: 2, deletedAt: null, ...extra });
+  const notes = [mk('a', { sourceDate: '2026-03-04', date: '2026-03-04' }), mk('b', { sourceDate: '2026-03-04', date: '2026-03-04' }), mk('c', { sourceDate: '2026-03-04', date: null }), mk('d', { date: '2026-05-06' }), mk('e', {})];
+  const o = JSON.parse(JSON.stringify(buildBackup([], {}, NOW, [], [], [], notes, [])));
+  assert.equal(o.version, 5);
+  assert.deepEqual(o.notes.map((x) => x.date), ['2026-03-04', '2026-03-04', null, '2026-05-06', null]);
+  assert.equal(o.notes[2].sourceDate, '2026-03-04');
+  // v5 の date 無しファイル
+  const legacy = JSON.parse(JSON.stringify(o)); legacy.notes.forEach((x) => delete x.date);
+  const v = validateBackup(JSON.stringify(legacy));
+  assert.equal(v.ok, true);
+  assert.deepEqual(v.data.notes.map((x) => x.date), ['2026-03-04', '2026-03-04', '2026-03-04', null, null]);
+  // 明示 null は sourceDate があっても null
+  const v2 = validateBackup(JSON.stringify(o));
+  assert.deepEqual(v2.data.notes.map((x) => x.date), ['2026-03-04', '2026-03-04', null, '2026-05-06', null]);
+  // 不正な date は拒否
+  const bad = JSON.parse(JSON.stringify(o)); bad.notes[0].date = '2026-13-01';
+  assert.equal(validateBackup(JSON.stringify(bad)).ok, false);
+  // 戻しても件数は増えない
+  const cur = v2.data.notes;
+  const p = planNotes(cur, v2.data.notes, [], [], false);
+  assert.equal(p.added, 0);
+  // 旧 memos 由来は date = memo.date
+  const lp = planLegacyNotes([], [], [{ date: '2026-07-08', text: 'm', createdAt: 1, updatedAt: 2, ink: null }], ['0'.repeat(64)], 5);
+  assert.equal(lp.notePuts[0].date, '2026-07-08');
+});

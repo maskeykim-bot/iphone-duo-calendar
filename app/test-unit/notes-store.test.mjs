@@ -117,3 +117,18 @@ test('splitBody/joinBody は元の文字列に戻る（CRLF・末尾改行・題
     assert.equal(joinBody({ ...s, rest, crlf }), t);
   }
 });
+
+test('PR1: setMeta/getMeta は date を扱う（新規は最初の保存に載る、既存は patchNote）', async () => {
+  const st = mem(), db = fakeDb();
+  db.patchNote = async (i, p) => { const n = db.rows.get(i); if (!n) return null; Object.assign(n, p); return n; };
+  const s = createNoteStore({ db, storage: st });
+  db.rows.set('x', { id: 'x', body: '古', sourceDate: '2026-01-02', createdAt: 1, updatedAt: 2, deletedAt: null });
+  assert.equal((await s.getMeta('x')).date, '2026-01-02');
+  await s.setMeta('x', { date: null });
+  assert.equal((await s.getMeta('x')).date, null);
+  assert.equal(db.rows.get('x').sourceDate, '2026-01-02');
+  const id2 = s.newNote(); await s.setMeta(id2, { date: '2026-11-18' });
+  assert.equal((await s.getMeta(id2)).date, '2026-11-18');
+  s.setText(id2, '本文'); await s.flushNote(id2);
+  assert.equal(db.rows.get(id2).date, '2026-11-18');
+});

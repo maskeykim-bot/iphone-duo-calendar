@@ -49,7 +49,7 @@ export function noteFromMemo(m, idSuffix = '') {
   const kind = headingKind(m.text.split('\n', 1)[0], m.date);
   const heading = dailyHeading(m.date);
   const note = { id: `memo-${m.date}${idSuffix}`, body: m.text, title: '', folderId: DAILY_ID, pinned: false, pinnedAt: null,
-    createdAt: m.createdAt, updatedAt: m.updatedAt, sourceDate: m.date, sourceHeading: false, ink: m.ink ?? null, deletedAt: null };
+    createdAt: m.createdAt, updatedAt: m.updatedAt, sourceDate: m.date, date: m.date, sourceHeading: false, ink: m.ink ?? null, deletedAt: null };
   if (kind === null) {
     note.body = `${heading}\n${m.text}`;
     note.sourceHeading = true;
@@ -62,6 +62,22 @@ export function noteFromMemo(m, idSuffix = '') {
   }
   note.title = titleOf(note.body);
   return note;
+}
+
+// ノートの日付（'YYYY-MM-DD' | null）。date の項目があればそれ（不正は null）、無ければ sourceDate。
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+export const normDay = (v) => {
+  if (typeof v !== 'string' || !DAY_RE.test(v)) return null;
+  const [y, m, d] = v.split('-').map(Number), t = new Date(Date.UTC(y, m - 1, d));
+  return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d ? v : null;
+};
+export function noteDateOf(n) {
+  if (!n) return null;
+  return 'date' in n ? normDay(n.date) : normDay(n.sourceDate);
+}
+// その日を持つ（削除されていない）自分以外のノート。
+export function dateOccupants(rows, date, exceptId) {
+  return (rows || []).filter((n) => n && n.deletedAt == null && n.id !== exceptId && noteDateOf(n) === date && date != null);
 }
 
 // ノート → 元のメモ本文（確かめ・旧形式への書き戻し用）。sourceDate の無いノートは本文そのもの。

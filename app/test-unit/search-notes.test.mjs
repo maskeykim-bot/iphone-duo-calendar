@@ -43,3 +43,9 @@ test('searchNotes: 40000件の測定（Nodeの実測。実機の合格値には�
   assert.ok(cold.total > 5000);
   assert.equal(searchNotes(rows, '', { limit: null }).items.length, 40000);
 });
+
+test('PR1: 日付は noteDateOf で検索（sourceDate だけの行も、明示 null は対象外）', () => {
+  assert.deepEqual(searchNotes([N('a', 'x', 1, { sourceDate: '2026-11-18' })], '2026-11-18').items.map((n) => n.id), ['a']);
+  assert.deepEqual(searchNotes([N('b', 'x', 1, { date: '2026-11-19' })], '2026-11-19').items.map((n) => n.id), ['b']);
+  assert.equal(searchNotes([N('c', 'x', 1, { sourceDate: '2026-11-18', date: null })], '2026-11-18').items.length, 0);
+});

@@ -99,3 +99,17 @@ test('folderOps：作成・改名・移動・削除（中のノートは folderI
   assert.deepEqual(g.pinned.map((x) => x.id), ['z', 'y', 'x']); assert.deepEqual(g.others.map((x) => x.id), ['v', 'w']);
   assert.deepEqual(filterByFolder([{ id: 'p', folderId: 'gone' }, { id: 'q', folderId: 'f' }, { id: 'r', folderId: null }], 'none', [{ id: 'f' }]).map((x) => x.id), ['p', 'r']);
 });
+
+test('PR1: date の正規化と patchNote（本文・updatedAt は不変、sourceDate は残る）', async () => {
+  const m = await fresh();
+  await m.putNote({ id: 'a', body: 'x', sourceDate: '2026-03-04', createdAt: 1, updatedAt: 10 });
+  assert.equal((await m.getNote('a')).date, '2026-03-04');
+  await m.putNote({ id: 'b', body: 'x', sourceDate: '2026-03-04', date: null, createdAt: 1, updatedAt: 10 });
+  assert.equal((await m.getNote('b')).date, null);
+  await m.putNote({ id: 'c', body: 'x', date: 'bad', createdAt: 1, updatedAt: 10 });
+  assert.equal((await m.getNote('c')).date, null);
+  const r = await m.patchNote('b', { date: '2026-05-06' });
+  assert.equal(r.date, '2026-05-06'); assert.equal(r.updatedAt, 10); assert.equal(r.body, 'x'); assert.equal(r.sourceDate, '2026-03-04');
+  assert.equal((await m.patchNote('b', { date: null })).date, null);
+  assert.equal((await m.getNote('b')).sourceDate, '2026-03-04');
+});

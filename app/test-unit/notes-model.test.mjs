@@ -123,3 +123,17 @@ test('旧v4 validator fixture：v4ファイルを読み、v5は丸ごと拒否�
   const r = validateBackupV4(JSON.stringify({ app: 'duo-calendar', version: 5, events: [] }));
   assert.equal(r.ok, false); assert.match(r.reason, /未対応のバージョン/);
 });
+
+test('PR1: noteFromMemo は date = sourceDate。noteDateOf / dateOccupants', async () => {
+  const { noteDateOf, dateOccupants } = await import('../js/notes-model.js');
+  const n = noteFromMemo(memo('2026-11-18', '本文'));
+  assert.equal(n.date, '2026-11-18');
+  assert.equal(n.sourceDate, '2026-11-18');
+  assert.equal(noteDateOf({ sourceDate: '2026-01-02' }), '2026-01-02');
+  assert.equal(noteDateOf({ sourceDate: '2026-01-02', date: null }), null);
+  assert.equal(noteDateOf({ date: '2026-02-30' }), null);
+  assert.equal(noteDateOf({}), null);
+  const rows = [{ id: 'a', date: '2026-01-01' }, { id: 'b', sourceDate: '2026-01-01' }, { id: 'c', date: '2026-01-01', deletedAt: 5 }, { id: 'd', date: null, sourceDate: '2026-01-01' }];
+  assert.deepEqual(dateOccupants(rows, '2026-01-01').map((x) => x.id), ['a', 'b']);
+  assert.deepEqual(dateOccupants(rows, '2026-01-01', 'a').map((x) => x.id), ['b']);
+});

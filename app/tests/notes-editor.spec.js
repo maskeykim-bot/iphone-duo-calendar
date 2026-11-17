@@ -149,3 +149,90 @@ test.describe('ノートの編集部品', () => {
     expect((await getNote(page, 'c')).body).toBe('題名\r\n中身\r\n');
   });
 });
+
+// 第17版 PR2: ノート見出しの「日付 ›」。付け外し・衝突（開く／付け替え）・明示 null のあとも sourceDate が残る。
+test.describe('ノートの日付', () => {
+  const T = { id: 'x', body: 'X\n本文', createdAt: 1, updatedAt: 30, folderId: null };
+  async function openNote(page, id) {
+    const { pagePick } = await import('./helpers.js');
+    await pagePick(page, 'right', 'ノート').click();
+    const back = page.locator('[data-act="noteback"]').first();
+    if (await back.isVisible().catch(() => false)) await back.click(); // 再読込後は前回のノートが開いている
+    await page.locator(`[data-nrow="${id}"]`).first().click();
+    await page.locator('.ndate').first().waitFor();
+  }
+  test.beforeEach(async ({ page }) => { await openApp(page, SIZES.openLandscape951); });
+
+  test('日付を付ける→見出しと一覧に出る→外す。ノートは消えない', async ({ page }) => {
+    await putNote(page, T);
+    await page.reload(); await page.waitForSelector('html[data-ready]');
+    await openNote(page, 'x');
+    await expect(page.locator('.ndate').first()).toHaveText('日付 ›');
+    await page.locator('.ndate').first().click();
+    await page.locator('.ndpop [data-ndday]:not(.out)').nth(17).click();
+    await expect.poll(async () => (await getNote(page, 'x')).date).toMatch(/^\d{4}-\d\d-\d\d$/);
+    await expect(page.locator('.ndate').first()).toContainText('›');
+    await expect(page.locator('.ndate').first()).toContainText('（');
+    await page.locator('[data-act="noteback"]').first().click();
+    await expect(page.locator('[data-nrw="x"] .nsrc')).toHaveCount(1);
+    await page.locator('[data-nrow="x"]').first().click();
+    await page.locator('.ndate').first().click();
+    await page.locator('[data-act="ndclear"]').click();
+    await expect.poll(async () => (await getNote(page, 'x')).date).toBe(null);
+    await expect(page.locator('.ndate').first()).toHaveText('日付 ›');
+    expect((await getNote(page, 'x')).body).toBe(T.body);
+  });
+
+  test('衝突: そのノートを開く／付け替える（相手は消えない）', async ({ page }) => {
+    await putNote(page, T);
+    await putNote(page, { id: 'y', body: 'Y\n先客', createdAt: 1, updatedAt: 20, folderId: null, date: '2026-11-18' });
+    await page.reload(); await page.waitForSelector('html[data-ready]');
+    await openNote(page, 'x');
+    const pick = async () => { await page.locator('.ndate').first().click(); await page.locator('.ndpop [data-ndday="2026-11-18"]').click(); };
+    await pick();
+    await expect(page.locator('.ndconf')).toContainText('この日にはすでにノートがあります。');
+    await page.locator('[data-act="ndcancel"]').click();
+    await page.locator('[data-act="ndclose"]').click();
+    expect((await getNote(page, 'x')).date ?? null).toBe(null);
+    await page.locator('.ndate').first().click(); await page.locator('.ndpop [data-ndday="2026-11-18"]').click();
+    await page.locator('[data-act="ndopen"]').click();
+    await expect(page.locator('.nhost textarea, .nhost input').first()).toHaveValue(/Y/);
+    await expect(page.locator('.nhost').first()).toBeVisible();
+    // 戻って X を開き直し、付け替える
+    await page.locator('[data-act="noteback"]').first().click();
+    await page.locator('[data-nrow="x"]').first().click();
+    await pick();
+    await page.locator('[data-act="ndswap"]').click();
+    await expect.poll(async () => (await getNote(page, 'x')).date).toBe('2026-11-18');
+    const y = await getNote(page, 'y');
+    expect(y.date).toBe(null); expect(y.body).toBe('Y\n先客'); expect(y.deletedAt ?? null).toBe(null);
+  });
+
+  test('明示 null のあとも sourceDate は残る（日付を外しても元の日付は消えない）', async ({ page }) => {
+    await putNote(page, { ...T, id: 'm', sourceDate: '2026-11-12' });
+    await page.reload(); await page.waitForSelector('html[data-ready]');
+    await openNote(page, 'm');
+    await expect(page.locator('.ndate').first()).toContainText('11月12日');
+    await page.locator('.ndate').first().click();
+    await page.locator('[data-act="ndclear"]').click();
+    await expect.poll(async () => (await getNote(page, 'm')).date).toBe(null);
+    expect((await getNote(page, 'm')).sourceDate).toBe('2026-11-12');
+    await page.reload(); await page.waitForSelector('html[data-ready]');
+    await openNote(page, 'm');
+    await expect(page.locator('.ndate').first()).toHaveText('日付 ›');
+  });
+
+  test('複数件ある日の「そのノートを開く」は、その日に絞った一覧', async ({ page }) => {
+    await putNote(page, T);
+    await putNote(page, { id: 'p', body: 'P\n1', createdAt: 1, updatedAt: 20, folderId: null, date: '2026-11-18' });
+    await putNote(page, { id: 'q', body: 'Q\n2', createdAt: 1, updatedAt: 10, folderId: null, date: '2026-11-18' });
+    await page.reload(); await page.waitForSelector('html[data-ready]');
+    await openNote(page, 'x');
+    await page.locator('.ndate').first().click(); await page.locator('.ndpop [data-ndday="2026-11-18"]').click();
+    await page.locator('[data-act="ndopen"]').click();
+    await expect(page.locator('.nday')).toContainText('11月18日（水）のノート');
+    await expect(page.locator('[data-mlist]').first().locator('[data-nrow]')).toHaveCount(2);
+    await page.locator('[data-act="ndayclear"]').first().click();
+    await expect(page.locator('[data-mlist]').first().locator('[data-nrow]')).toHaveCount(3);
+  });
+});

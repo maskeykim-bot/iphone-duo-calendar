@@ -1,5 +1,6 @@
 // 検索: 正規化（NFKC → 小文字 → カタカナ→ひらがな）と、正規化位置の原文への対応付け。DOM に依存しない。
 import { dayOf, daysInMonth, dkey, parseKey } from './util.js';
+import { noteDateOf } from './notes-model.js';
 import { expand, occurrenceAt } from './recur.js';
 
 export const LIMIT = 200;
@@ -151,9 +152,9 @@ const noteIdx = new Map();
 export const noteIndexSize = () => noteIdx.size;
 export function noteHay(n) {
   const c = noteIdx.get(n.id);
-  if (c && c.b === n.body && c.t === n.title && c.s === n.sourceDate) return c.h;
-  const h = normalize(`${n.title ?? ''}\n${n.body}\n${n.sourceDate || ''}`);
-  noteIdx.set(n.id, { b: n.body, t: n.title, s: n.sourceDate, h });
+  if (c && c.b === n.body && c.t === n.title && c.s === noteDateOf(n)) return c.h;
+  const h = normalize(`${n.title ?? ''}\n${n.body}\n${noteDateOf(n) || ''}`);
+  noteIdx.set(n.id, { b: n.body, t: n.title, s: noteDateOf(n), h });
   return h;
 }
 export const byNoteUpdated = (a, b) => b.updatedAt - a.updatedAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);

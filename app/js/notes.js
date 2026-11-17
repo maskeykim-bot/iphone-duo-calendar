@@ -2,6 +2,7 @@
 // 下書きは localStorage（namespace 付き、noteId ごと）。DB に commit できた世代だけ下書きを消す。
 // memos.js/createMemoStore と同じ世代保護。通常の画面入口はまだ切り替えない（PR28）。
 import * as realDb from './db.js';
+import { noteDateOf, normDay } from './notes-model.js';
 
 export const DRAFT_PREFIX = 'duo.note.draft.v1:';
 export const DEBOUNCE_MS = 1000;
@@ -57,7 +58,7 @@ export function createNoteStore({ db = realDb, storage = globalThis.localStorage
           const base = await db.getNote(id); // 他の変更（フォルダ・固定・削除印）を失わないよう毎回読む
           const stamp = now();
           const m = e.meta || {};
-          const rec = base ? { ...base, body: t, updatedAt: stamp } : { id, body: t, createdAt: e.createdAt ?? stamp, updatedAt: stamp, folderId: m.folderId ?? null, pinned: !!m.pinned, pinnedAt: m.pinned ? (m.pinnedAt ?? stamp) : null, deletedAt: null };
+          const rec = base ? { ...base, body: t, updatedAt: stamp } : { id, body: t, createdAt: e.createdAt ?? stamp, updatedAt: stamp, folderId: m.folderId ?? null, pinned: !!m.pinned, pinnedAt: m.pinned ? (m.pinnedAt ?? stamp) : null, date: normDay(m.date), deletedAt: null };
           await db.putNote(rec);
           if (!base) e.meta = null;
           e.saved = Math.max(e.saved, g); e.failed = false; e.fresh = false;
@@ -152,9 +153,9 @@ export function createNoteStore({ db = realDb, storage = globalThis.localStorage
   }
   async function getMeta(id) {
     const e = E.get(id);
-    if (e && e.fresh) return { folderId: e.meta?.folderId ?? null, pinned: !!e.meta?.pinned };
+    if (e && e.fresh) return { folderId: e.meta?.folderId ?? null, pinned: !!e.meta?.pinned, date: e.meta && 'date' in e.meta ? (e.meta.date ?? null) : null };
     const n = await db.getNote(id);
-    return n ? { folderId: n.folderId ?? null, pinned: !!n.pinned } : null;
+    return n ? { folderId: n.folderId ?? null, pinned: !!n.pinned, date: noteDateOf(n) } : null;
   }
 
   const failedIds = () => [...E.entries()].filter(([, e]) => e.failed && dirty(e)).map(([i]) => i);

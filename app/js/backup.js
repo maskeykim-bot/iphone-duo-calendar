@@ -5,7 +5,7 @@ import { alarmsOk, okAllDay, okTimed } from './alarms.js';
 import { normNotify } from './notify.js';
 import { PAGE_IDS, BOTTOM_IDS, normalizePages } from './pages.js';
 import { validateTask } from './tasks.js';
-import { noteCharLimit, titleOf, noteFromMemo, memoTextOf, ensureDailyFolder } from './notes-model.js';
+import { noteCharLimit, titleOf, noteFromMemo, memoTextOf, ensureDailyFolder, noteDateOf } from './notes-model.js';
 import { CAT_IDS, DEFAULTS_NEW, LEGACY, UNCATEGORIZED, legacyToId, validateCategory } from './categories.js';
 
 export const APP = 'duo-calendar';
@@ -75,6 +75,7 @@ const exportTask = (t) => { const r = validateTask(t); const x = r.ok ? r.task :
 const exportNote = (n) => {
   const o = { id: n.id, body: n.body, folderId: typeof n.folderId === 'string' ? n.folderId : null, pinned: !!n.pinned, pinnedAt: n.pinned && Number.isFinite(n.pinnedAt) ? n.pinnedAt : null,
     createdAt: n.createdAt, updatedAt: n.updatedAt, deletedAt: Number.isFinite(n.deletedAt) ? n.deletedAt : null };
+  o.date = noteDateOf(n);
   if (typeof n.sourceDate === 'string') o.sourceDate = n.sourceDate;
   if (n.sourceHeading) o.sourceHeading = true;
   if (typeof n.sourceOriginalFirstLine === 'string') o.sourceOriginalFirstLine = n.sourceOriginalFirstLine;
@@ -188,6 +189,7 @@ function checkNotes(list) {
     seen.add(n.id);
     if (typeof n.body !== 'string') return { error: `${where}: 本文が不正です` };
     if (n.sourceDate !== undefined && !isKey(n.sourceDate)) return { error: `${where}: 元の日付が不正です` };
+    if (n.date !== undefined && n.date !== null && !isKey(n.date)) return { error: `${where}: 日付が不正です` };
     if (n.sourceHeading !== undefined && typeof n.sourceHeading !== 'boolean') return { error: `${where}: 見出しの印が不正です` };
     if (n.sourceOriginalFirstLine !== undefined && typeof n.sourceOriginalFirstLine !== 'string') return { error: `${where}: 元の第一行が不正です` };
     const lim = noteCharLimit(n);

@@ -222,6 +222,8 @@ for (const [name, size, setup2] of [
       await expect(page.locator('#f-end')).toHaveJSProperty('value', '2026/11/20');
       await page.keyboard.press('Escape');
       await monthPress(page, a); await page.mouse.up();
+      await expect(page.locator('#editor')).toBeHidden(); // 1日だけ離したら小さなメニュー（第17版 PR3）
+      await page.locator('.cmenu [data-dm="ev"]').click();
       await expect(page.locator('#f-start')).toHaveJSProperty('value', '2026/11/20');
       await expect(page.locator('#f-end')).toHaveJSProperty('value', '2026/11/20');
       await page.locator('#f-title').fill('期間');

@@ -10,13 +10,14 @@ const reload = async (page) => { await page.reload(); await page.waitForSelector
 const title = (page) => page.locator('.ned-title').first();
 const body = (page) => page.locator('.ned-body').first();
 
-test('月のマスにも帯にもメモの線は出ない（旧メモがあっても）', async ({ page }) => {
+test('移したメモには date が付くので月のマスに線が出る。帯の旧メモ印は出ない', async ({ page }) => {
   await openApp(page, SIZES.openLandscape951);
   await putMemo(page, '2026-11-20', '会議');
   await migrate(page);
   await reload(page);
   await expect(page.locator('.week .day[data-date="2026-11-20"]')).toBeVisible();
-  await expect(page.locator('.mline')).toHaveCount(0);
+  await expect(page.locator('.week .day[data-date="2026-11-20"] .mline')).toHaveCount(1);
+  await expect(page.locator('.week .day[data-date="2026-11-19"] .mline')).toHaveCount(0);
   await expect(page.locator('.cmemo.has')).toHaveCount(0);
 });
 
