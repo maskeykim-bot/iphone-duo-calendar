@@ -27,8 +27,7 @@
       <p id="ext-gone" class="gonebar" hidden>この予定は見つかりません。カレンダーで確認してください。</p>
       <label>予定名<input id="f-title" name="title" maxlength="80" placeholder="例：プロジェクト定例" required></label>
       <div id="dest-l" class="destrow">
-        <button type="button" id="f-dest" class="destbtn" aria-haspopup="listbox" aria-expanded="false" aria-controls="dest-pop"><span class="dlbl">カレンダー</span><span class="dval"><i id="dest-dot" class="cdot big" aria-hidden="true"></i><span id="dest-name"></span><span aria-hidden="true">›</span></span></button>
-        <div id="dest-pop" class="destpop" role="listbox" aria-label="カレンダー" hidden></div>
+        <button type="button" id="f-dest" class="destbtn" aria-haspopup="true" aria-expanded="false" aria-controls="dest-pop"><span class="dlbl">カレンダー</span><span class="dval"><i id="dest-dot" class="cdot big" aria-hidden="true"></i><span id="dest-name"></span><span aria-hidden="true">›</span></span></button>
       </div>
       <label class="check"><input id="f-all" name="all" type="checkbox">終日</label>
       <div id="dtbox" class="dtbox">
@@ -95,6 +94,7 @@
       <div id="copyrow" class="copyrow" hidden><button type="button" id="copy">コピー</button></div>
     </div>
   </form>
+  <div id="dest-pop" class="destpage" role="group" aria-label="カレンダー" hidden></div>
 </dialog>
 <dialog id="confirm" aria-labelledby="confirmtitle">
   <h2 id="confirmtitle">この予定を削除しますか？</h2>
@@ -126,7 +126,7 @@
       <button type="button" class="srow" data-go="display"><span class="sic"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 10h18" stroke="currentColor" stroke-width="2"/></svg></span><span class="sname">表示形式</span><span class="shint">月の表現・文字・時間軸</span><span class="sch" aria-hidden="true">›</span></button>
       <button type="button" class="srow" id="m-notify" data-m="notify" hidden><span class="sic"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 17h14M7 17V11a5 5 0 0 1 10 0v6" fill="currentColor" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="20.5" r="1.5" fill="currentColor"/></svg></span><span class="sname">通知</span><span class="sch" aria-hidden="true">›</span></button>
       <button type="button" class="srow" data-go="calendar"><span class="sic"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 9h18" stroke="currentColor" stroke-width="2"/></svg></span><span class="sname">カレンダー</span><span class="sch" aria-hidden="true">›</span></button>
-      <button type="button" class="srow" data-go="reminders" id="m-reminders" hidden><span class="sic"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 12.5l3 3 5-6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span><span class="sname">リマインダー</span><span class="sch" aria-hidden="true">›</span></button>
+      <button type="button" class="srow" data-go="reminders" id="m-reminders" hidden><span class="sic"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 12.5l3 3 5-6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span><span class="sname">タスク</span><span class="sch" aria-hidden="true">›</span></button>
       <hr class="ssep">
       <button type="button" class="srow" data-go="google"><span class="sic"><b class="gl" aria-hidden="true">G</b></span><span class="sname">Google カレンダー</span><span class="sch" aria-hidden="true">›</span></button>
       <button type="button" class="srow" data-m="backup"><span class="sic"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="7" width="18" height="10" rx="3" fill="currentColor"/></svg></span><span class="sname">バックアップ</span><span class="sch" aria-hidden="true">›</span></button>
@@ -135,6 +135,8 @@
     </div>
     <div class="menurows" data-screen="general" hidden>
       <button type="button" data-m="week" id="m-week">週の始まり</button>
+      <button type="button" data-m="holiday" id="m-holiday" class="swrow" role="switch" aria-checked="true" aria-describedby="m-holiday-d"><span>祝日を赤で表示</span><i class="rkswitch" aria-hidden="true"></i></button>
+      <p id="m-holiday-d" class="swnote">祝日の日付を赤にします。日曜は常に赤です。名前は内蔵の祝日表から出し、連携がなくても使えます。</p>
       <button type="button" data-m="rokuyo" id="m-rokuyo" class="swrow" role="switch" aria-checked="true" aria-describedby="m-rokuyo-d"><span>六曜を表示</span><i class="rkswitch" aria-hidden="true"></i></button>
       <p id="m-rokuyo-d" class="swnote">月のマスと日の見出しに、大安・仏滅などを出します。</p>
       <button type="button" data-m="desk" id="m-desk">卓上表示</button>
@@ -150,10 +152,8 @@
       <div id="m-cal">
         <div id="m-cal-duo"></div>
         <div id="m-cal-ip"></div>
-        <div id="m-cal-rem"></div>
       </div>
-      <button type="button" id="m-dest" class="destrow" aria-expanded="false" aria-controls="m-destpop"></button>
-      <div id="m-destpop" class="destpop" role="listbox" aria-label="新しい予定の追加先" hidden></div>
+      <button type="button" id="m-dest" class="destrow" aria-haspopup="true" aria-expanded="false" aria-controls="m-destpop"></button>
       <div id="m-cal-foot" class="lkfoot" hidden></div>
       <div id="m-legend" class="mlegend" hidden></div>
     </div>
@@ -161,6 +161,8 @@
       <div id="m-tk" hidden>
         <button type="button" data-m="tkmonth" id="m-tkmonth" class="swrow" role="switch" aria-checked="false" aria-describedby="m-tkmonth-d"><span>月にタスクを表示</span><i class="rkswitch" aria-hidden="true"></i></button>
         <p id="m-tkmonth-d" class="swnote">開いた画面の月に、期限の日の未完了の数（✓2）を出します。</p>
+        <div class="swrow fixrow"><span>完了の表示期間</span><b id="m-tkwin">30日</b></div>
+        <p class="swnote">完了したタスクは30日間、一覧に残ります。古い完了も自動では削除せず、検索で見つかります。</p>
       </div>
     </div>
     <div class="menurows" data-screen="google" hidden>
@@ -178,8 +180,14 @@
       <button type="button" data-m="sample" id="m-sample">サンプルを入れる</button>
       <button type="button" data-m="touch" id="touch-check-open" class="diagbtn">タッチ確認</button>
       <p id="layout-diagnostics" class="diag" aria-label="画面の寸法の診断"></p>
+      <p id="screen-diagnostics" class="diag" aria-label="画面寸法の診断（長押しでコピー）" style="white-space:pre-line"></p>
+      <p id="kb-metrics" class="diag" aria-label="キーボード計測"></p>
+      <section id="about-app" class="about" aria-labelledby="about-t"><h3 id="about-t">このアプリについて</h3>
+        <p>祝日: 内閣府「国民の祝日について」のCSV（https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html）を、Duo 作者が加工して作成（公共データ利用規約 第1.0版）。2027年までは公式の値、2028〜2050年は現行法と春分・秋分の計算による予定の値で、制度の変更や官報で変わることがあります。</p>
+        <p>六曜: 天保暦の規則に基づき、Duo 作者が天文計算から作成した2000〜2050年の表です。</p></section>
     </div>
   </div>
+  <div id="m-destpop" class="destpage" role="group" aria-label="新しい予定の追加先" hidden></div>
 </dialog>
 <dialog id="search" class="panel full" aria-labelledby="sr-title">
   <div class="phead"><h2 id="sr-title">予定を検索</h2><button type="button" id="sr-close">閉じる</button></div>
@@ -219,7 +227,7 @@
   <div id="tk-body" class="pbody"></div>
   <div class="pfoot">
     <p id="tk-err" class="error" role="alert"></p>
-    <p id="tk-note" class="small" role="note">iPhone のリマインダーに保存されます。</p>
+    <p id="tk-note" class="small" role="note">Duo 内に保存されます。</p>
     <div class="xdact"><button type="button" id="tk-del" class="danger">削除</button><button type="button" id="tk-save" class="primary">保存</button></div>
   </div>
 </dialog>

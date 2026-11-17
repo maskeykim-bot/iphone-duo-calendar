@@ -1,8 +1,10 @@
 // IndexedDB データ層。schema を変えるときは SCHEMA_VERSION を上げ、MIGRATIONS に追記する。
 import { withDefaults, isKey } from './util.js';
+import { validateTask, newTaskId } from './tasks.js';
+import { noteFromMemo, ensureDailyFolder, titleOf, noteCharLimit } from './notes-model.js';
 import { CAT_IDS, DEFAULTS_NEW, LEGACY, UNCATEGORIZED, legacyToId, planCategoryRetarget, sortCategories } from './categories.js';
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 const BASE_NAME = 'duo-calendar';
 
 // v2 の既定値（v1→v3 を1回で上がるとき、v2 と v3 のカーソルが並行して走るので、どちらでも補う）。
@@ -68,7 +70,26 @@ const MIGRATIONS = {
       s.createIndex('date', 'date');
     }
   },
+  // v5: タスク・ノート・フォルダ。ストアと索引を作り、同じ versionchange トランザクションで旧メモをノートへ複製する。
+  // 失敗したら全体が巻き戻って v4 のまま（元データ・印なし）。memos へは書かない。
+  5(db, tx) {
+    createV5Stores(db, tx);
+    MIGRATIONS[4](db); // memos / meta が無い異常な旧DBでも変換できるよう、足りないストアだけ作る（あれば何もしない）
+    if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'key' });
+    migrateNotesInTx({ memos: tx.objectStore('memos'), notes: tx.objectStore('notes'), folders: tx.objectStore('folders'), meta: tx.objectStore('meta') }, Date.now());
+  },
 };
+
+// 既にあるストアは触らず、無い索引だけ足す。tx は versionchange トランザクション。
+export function createV5Stores(db, tx) {
+  const ensure = (name, indexes) => {
+    const s = db.objectStoreNames.contains(name) ? tx.objectStore(name) : db.createObjectStore(name, { keyPath: 'id' });
+    for (const [n, kp] of indexes) if (!s.indexNames.contains(n)) s.createIndex(n, kp);
+  };
+  ensure('tasks', [['dueDate', 'due.date'], ['order', 'order'], ['updatedAt', 'updatedAt']]);
+  ensure('notes', [['updatedAt', 'updatedAt'], ['folderId', 'folderId'], ['sourceDate', 'sourceDate'], ['pinnedAt', 'pinnedAt']]);
+  ensure('folders', [['order', 'order']]);
+}
 
 let handle = null;
 let dbName = BASE_NAME;
@@ -154,10 +175,18 @@ export const applyCategoryChanges = ({ catPuts = [], catDels = [], eventPuts = [
 });
 // バックアップの読み込み: カテゴリと予定を1トランザクションで。replace のときは両方を clear してから put。
 // outbox（任意）: 送信待ちの更新関数。同じトランザクションで meta に書き、新しい送信待ちを返す。
+// taskPuts / taskReplace: タスクも同じトランザクション（検証済みの値だけ渡す）。
+// notePuts/folderPuts（任意）: ノート・フォルダ。noteReplace/folderReplace のときは先に全部消す（未指定は現在を保持）。
 // memoPuts（任意）: 書くメモ。memoReplace のときは先にメモを全部消す。予定・カテゴリ・メモ・送信待ちは同じトランザクション。
-export const applyImport = ({ catPuts = [], eventPuts = [], replace = false, outbox = null, memoPuts = [], memoReplace = false }) => run(['events', 'categories', 'meta', 'memos'], 'readwrite', ({ events, categories, meta, memos }, set) => {
+export const applyImport = ({ catPuts = [], eventPuts = [], replace = false, outbox = null, memoPuts = [], memoReplace = false, taskPuts = [], taskReplace = false, notePuts = [], noteReplace = false, folderPuts = [], folderReplace = false }) => run(['events', 'categories', 'meta', 'memos', 'tasks', 'notes', 'folders'], 'readwrite', ({ events, categories, meta, memos, tasks, notes, folders }, set) => {
   if (replace) { events.clear(); categories.clear(); }
   if (memoReplace) memos.clear();
+  if (taskReplace) tasks.clear();
+  if (noteReplace) notes.clear();
+  if (folderReplace) folders.clear();
+  folderPuts.forEach((f) => folders.put(validateFolder(f))); // 不正は例外 → tx 全体 rollback
+  notePuts.forEach((n) => notes.put(validateNote(n))); // title は本文から作り直す
+  taskPuts.forEach((t) => tasks.put(t));
   memoPuts.forEach((m) => memos.put(m));
   catPuts.forEach((c) => categories.put(c));
   eventPuts.forEach((e) => events.put(e));
@@ -214,6 +243,38 @@ export async function listMemoDays() {
     req.onerror = () => reject(req.error);
   });
 }
+
+// ---------- タスク（tasks ストア。Duo 内保存。型・検証は tasks.js） ----------
+const TASK = ['tasks'];
+const bad = (r) => { throw new Error(r.error); };
+export async function listTasks() {
+  const db = await open();
+  return wrap(db.transaction('tasks').objectStore('tasks').index('order').getAll());
+}
+export async function getTask(id) {
+  const db = await open();
+  return (await wrap(db.transaction('tasks').objectStore('tasks').get(id))) ?? null;
+}
+// 検証してから put（不正なら何も書かず例外）。戻り値は保存したタスク。
+export const putTask = (t) => run(TASK, 'readwrite', ({ tasks }, set) => {
+  const r = validateTask(t);
+  if (!r.ok) bad(r);
+  tasks.put(r.task);
+  set(r.task);
+});
+// 新規追加。order は同じトランザクションで現在の最大 + 1（単調増加）。同じ id が既にあれば上書きせずそれを返す（再試行で重複しない）。
+export const addTask = (input, now = Date.now()) => run(TASK, 'readwrite', ({ tasks }, set) => {
+  const base = { ...input, done: false, doneAt: null, createdAt: now, updatedAt: now, notify: input.notify ?? false, note: input.note ?? '', id: input.id ?? newTaskId(now) };
+  const v = validateTask({ ...base, order: 0 });
+  if (!v.ok) bad(v); // 不正は書く前に例外（何も書かない）
+  const put = () => tasks.index('order').openCursor(null, 'prev').onsuccess = (ev) => {
+    const t = validateTask({ ...base, order: ev.target.result ? ev.target.result.value.order + 1 : 1 }).task;
+    tasks.put(t);
+    set(t);
+  };
+  tasks.get(base.id).onsuccess = (ev) => { if (ev.target.result) set(ev.target.result); else put(); };
+});
+export const deleteTask = (id) => run(TASK, 'readwrite', ({ tasks }) => { tasks.delete(id); });
 
 // ---------- iPhone への反映の送信待ち（meta ストア。バックアップには出さない） ----------
 export async function getOutbox() {
@@ -324,7 +385,7 @@ export const backfillNotifyOnce = (now = new Date()) => run(['meta'], 'readwrite
 
 // 既存端末の証拠（読み取りだけ・起動の最初に採る。この起動で作る印や種カテゴリは含めない）。
 // events・memos が1件でもある、旧い meta の印（旧backfill・送信待ち等）がある、旧固定カテゴリ（ゴルフ・経済指標）が残る。
-const NEW_META = new Set(['categoryRetargetV1']);
+const NEW_META = new Set(['categoryRetargetV1', 'notesMigrationV1', 'lastNoteId']); // 新しい版が自分で書く印は「既存端末の証拠」に数えない
 export const readLegacyEvidence = () => run(['events', 'memos', 'meta', 'categories'], 'readonly', ({ events, memos, meta, categories }, set) => {
   const out = { events: 0, memos: 0, meta: 0, legacyCats: 0 };
   set(out);
@@ -333,3 +394,212 @@ export const readLegacyEvidence = () => run(['events', 'memos', 'meta', 'categor
   meta.getAllKeys().onsuccess = (e) => { out.meta = e.target.result.filter((k) => !NEW_META.has(k)).length; };
   categories.getAllKeys().onsuccess = (e) => { const L = new Set([LEGACY.golf.id, LEGACY.economy.id]); out.legacyCats = e.target.result.filter((k) => L.has(k)).length; };
 });
+
+// ---------- ノート・フォルダ（notes / folders ストア。件数に上限は設けない） ----------
+// Note = { id, body, title, folderId|null, pinned, pinnedAt|null, createdAt, updatedAt, deletedAt|null, sourceDate?, sourceHeading?, sourceOriginalFirstLine?, ink? }
+// Folder = { id, name(30字まで), order, createdAt, updatedAt }
+export const FOLDER_MAX = 100;
+export const FOLDER_NAME_MAX = 30;
+export const TRASH_DAYS = 30;
+const DAY_MS = 86400000;
+const NOTE = ['notes'], FOLDER = ['folders'];
+
+// 検証して正規化（title は本文から作り直す）。不正は例外。
+export function validateNote(n) {
+  if (!n || typeof n !== 'object' || typeof n.id !== 'string' || !n.id) throw new Error('invalid note id');
+  if (typeof n.body !== 'string') throw new Error('invalid note body');
+  if (Array.from(n.body).length > noteCharLimit(n)) throw new Error('note too long');
+  const num = (v, d) => (Number.isFinite(v) ? v : d);
+  const now = Date.now();
+  return { ...n, title: titleOf(n.body), folderId: typeof n.folderId === 'string' ? n.folderId : null, pinned: !!n.pinned,
+    pinnedAt: n.pinned ? num(n.pinnedAt, now) : null, createdAt: num(n.createdAt, now), updatedAt: num(n.updatedAt, now), deletedAt: Number.isFinite(n.deletedAt) ? n.deletedAt : null };
+}
+export function validateFolder(f) {
+  if (!f || typeof f !== 'object' || typeof f.id !== 'string' || !f.id) throw new Error('invalid folder id');
+  const name = typeof f.name === 'string' ? f.name.trim() : '';
+  if (!name || Array.from(name).length > FOLDER_NAME_MAX) throw new Error('invalid folder name');
+  const now = Date.now();
+  return { ...f, name, order: Number.isFinite(f.order) ? f.order : 0, createdAt: Number.isFinite(f.createdAt) ? f.createdAt : now, updatedAt: Number.isFinite(f.updatedAt) ? f.updatedAt : now };
+}
+
+export async function getNote(id) {
+  const db = await open();
+  return (await wrap(db.transaction('notes').objectStore('notes').get(id))) ?? null;
+}
+// 通常一覧：削除済みを除く。更新の新しい順。
+export async function listNotes({ includeDeleted = false } = {}) {
+  const db = await open();
+  const all = await wrap(db.transaction('notes').objectStore('notes').index('updatedAt').getAll());
+  return all.filter((n) => includeDeleted || n.deletedAt == null).reverse();
+}
+export async function listTrashedNotes(now = Date.now()) {
+  const all = await listNotes({ includeDeleted: true });
+  return all.filter((n) => n.deletedAt != null && now - n.deletedAt <= TRASH_DAYS * DAY_MS).sort((a, b) => b.deletedAt - a.deletedAt);
+}
+export const putNote = (n) => run(NOTE, 'readwrite', ({ notes }, set) => { const v = validateNote(n); notes.put(v); set(v); });
+// 削除は deletedAt を付けるだけ（本文・updatedAt はそのまま）。
+export const trashNote = (id, now = Date.now()) => run(NOTE, 'readwrite', ({ notes }, set) => {
+  notes.get(id).onsuccess = (ev) => { const n = ev.target.result; if (!n) { set(null); return; } const t = { ...n, deletedAt: now }; notes.put(t); set(t); };
+});
+// 30日以内なら戻す。過ぎていれば null。
+export const restoreNote = (id, now = Date.now()) => run(NOTE, 'readwrite', ({ notes }, set) => {
+  notes.get(id).onsuccess = (ev) => {
+    const n = ev.target.result;
+    if (!n || n.deletedAt == null || now - n.deletedAt > TRASH_DAYS * DAY_MS) { set(null); return; }
+    const t = { ...n, deletedAt: null }; notes.put(t); set(t);
+  };
+});
+// 期限（30日）を過ぎた削除済みだけ完全に消す。戻り値は消した件数。
+export const purgeTrashedNotes = (now = Date.now()) => run(NOTE, 'readwrite', ({ notes }, set) => {
+  let n = 0;
+  notes.openCursor().onsuccess = (ev) => {
+    const c = ev.target.result;
+    if (!c) { set(n); return; }
+    if (c.value.deletedAt != null && now - c.value.deletedAt > TRASH_DAYS * DAY_MS) { c.delete(); n++; }
+    c.continue();
+  };
+});
+
+export async function listFolders() {
+  const db = await open();
+  return wrap(db.transaction('folders').objectStore('folders').index('order').getAll());
+}
+export const putFolder = (f) => run(FOLDER, 'readwrite', ({ folders }, set) => {
+  const v = validateFolder(f);
+  folders.count().onsuccess = (ev) => {
+    folders.get(v.id).onsuccess = (e2) => {
+      if (!e2.target.result && ev.target.result >= FOLDER_MAX) { folders.transaction.abort(); return; }
+      folders.put(v); set(v);
+    };
+  };
+});
+// ノートの分類だけを1トランザクションで直す（folderId / pinned）。本文・updatedAt は変えない。無いノートは null。
+export const patchNote = (id, patch) => run(NOTE, 'readwrite', ({ notes }, set) => {
+  notes.get(id).onsuccess = (ev) => {
+    const n = ev.target.result;
+    if (!n) { set(null); return; }
+    const t = { ...n };
+    if ('folderId' in patch) t.folderId = typeof patch.folderId === 'string' ? patch.folderId : null;
+    if ('pinned' in patch) { t.pinned = !!patch.pinned; t.pinnedAt = t.pinned ? (Number.isFinite(patch.pinnedAt) ? patch.pinnedAt : Date.now()) : null; }
+    notes.put(t); set(t);
+  };
+});
+// フォルダの並びを ids の順に振り直す（1トランザクション）。ids に無いフォルダは後ろへ。
+export const reorderFolders = (ids, now = Date.now()) => run(FOLDER, 'readwrite', ({ folders }, set) => {
+  folders.getAll().onsuccess = (ev) => {
+    const all = ev.target.result, by = new Map(all.map((f) => [f.id, f]));
+    const seq = [...ids.filter((i) => by.has(i)), ...all.filter((f) => !ids.includes(f.id)).sort((a, b) => a.order - b.order).map((f) => f.id)];
+    seq.forEach((id, i) => { const f = by.get(id); if (f.order !== i) folders.put({ ...f, order: i, updatedAt: now }); });
+    set(seq);
+  };
+});
+// 同じトランザクションで、中のノートを folderId=null にしてからフォルダを消す（本文・updatedAt は変えない）。戻り値は移したノート数。
+export const deleteFolder = (id) => run(['folders', 'notes'], 'readwrite', ({ folders, notes }, set) => {
+  let moved = 0;
+  notes.index('folderId').openCursor(IDBKeyRange.only(id)).onsuccess = (ev) => {
+    const c = ev.target.result;
+    if (c) { c.update({ ...c.value, folderId: null }); moved++; c.continue(); return; }
+    folders.delete(id);
+    set(moved);
+  };
+});
+
+// ---------- 旧メモ → ノートの移行（v4→v5 は MIGRATIONS[5]、途中版で既に v5 の端末は起動時に migrateNotesOnce） ----------
+export const NOTES_MIGRATION = 'notesMigrationV1';
+// 1つの readwrite（または versionchange）トランザクション内で実行。外部の非同期は待たず、memos へは書かない。
+// stores = { memos, notes, folders, meta }。完了で done(marker)。途中の例外は tx を abort（印も残らない）。
+// opts.beforeCopy(n) は試験用の差込み（n 件目のコピー直前。例外を投げると全体が巻き戻る）。
+export function migrateNotesInTx({ memos, notes, folders, meta }, now = Date.now(), done = () => {}, opts = {}) {
+  const c = { seen: 0, copied: 0, existed: 0, blank: 0, folderCreated: false };
+  const tx = notes.transaction;
+  const fail = (e) => { try { tx.abort(); } catch { /* 既に終了 */ } };
+  let folderReady = false;
+  const finish = () => {
+    const marker = { seen: c.seen, copied: c.copied, existed: c.existed, blank: c.blank, folderCreated: c.folderCreated, at: new Date(now).toISOString() };
+    meta.put({ key: NOTES_MIGRATION, value: marker });
+    done(marker);
+  };
+  const copy = (m, next) => {
+    const put = () => {
+      try { opts.beforeCopy?.(c.copied + 1); notes.put(noteFromMemo(m)); } catch (e) { fail(e); return; }
+      c.copied++; next();
+    };
+    if (folderReady) { put(); return; }
+    folders.getAll().onsuccess = (ev) => {
+      try {
+        const r = ensureDailyFolder(ev.target.result, now);
+        if (r.created) { folders.put(r.folder); c.folderCreated = true; }
+      } catch (e) { fail(e); return; }
+      folderReady = true; put();
+    };
+  };
+  const req = memos.openCursor();
+  req.onerror = () => fail(req.error);
+  req.onsuccess = (ev) => {
+    const cur = ev.target.result;
+    if (!cur) { finish(); return; }
+    const m = cur.value;
+    c.seen++;
+    const next = () => cur.continue();
+    if (isBlankMemo(m.text)) { c.blank++; next(); return; }
+    const g = notes.get(`memo-${m.date}`);
+    g.onsuccess = () => { if (g.result) { c.existed++; next(); } else copy(m, next); };
+    g.onerror = () => fail(g.error);
+  };
+}
+export const migrateNotesOnce = (now = Date.now(), opts = {}) => run(['memos', 'notes', 'folders', 'meta'], 'readwrite', (st, set) => {
+  migrateNotesInTx(st, now, set, opts);
+});
+export const readNotesMigration = () => run(['meta'], 'readonly', ({ meta }, set) => { meta.get(NOTES_MIGRATION).onsuccess = (e) => set(e.target.result?.value ?? null); });
+// 起動時の共通移行: 印が無ければ1 readwrite トランザクションで変換する。あれば何もしない。失敗は例外（元データ・印なしのまま）。
+export async function ensureNotesMigrated(now = Date.now()) {
+  if (await readNotesMigration()) return null;
+  return migrateNotesOnce(now);
+}
+
+// ---------- 旧メモの下書き（duo.memo.draft.v1:<Day>）をノートへ取り込む ----------
+// drafts: [{ date, text, at }]。DB の旧メモより新しいものだけ取り込む（同じトランザクション。memos へは書かない）。
+// 未編集で移行しただけのノートなら本文を更新、編集済み（または削除済み）なら `memo-<Day>-draft` へ別保存（内容違いは決定的な接尾辞）。
+// 戻り値: [{ date, result: 'stale'|'blank'|'created'|'updated'|'separate'|'same' }]。呼ぶ側は commit 後にだけ旧キーを消す。
+const fnv = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
+export const importMemoDrafts = (drafts, now = Date.now()) => run(['memos', 'notes', 'folders'], 'readwrite', ({ memos, notes, folders }, set) => {
+  const out = []; let folder = null;
+  const withFolder = (cb) => {
+    if (folder) { cb(folder); return; }
+    folders.getAll().onsuccess = (ev) => { const r = ensureDailyFolder(ev.target.result, now); if (r.created) folders.put(r.folder); folder = r.folder; cb(folder); };
+  };
+  const step = (i) => {
+    if (i >= drafts.length) { set(out); return; }
+    const d = drafts[i], done = (result) => { out.push({ date: d.date, result }); step(i + 1); };
+    memos.get(d.date).onsuccess = (e1) => {
+      const m = e1.target.result;
+      if (m && m.updatedAt >= d.at) { done('stale'); return; }
+      if (isBlankMemo(d.text)) { done('blank'); return; }
+      const conv = (suffix) => noteFromMemo({ date: d.date, text: d.text, createdAt: m?.createdAt ?? d.at, updatedAt: d.at, ink: m?.ink ?? null }, suffix);
+      notes.get(`memo-${d.date}`).onsuccess = (e2) => {
+        const n = e2.target.result;
+        if (!n) { withFolder((f) => { notes.put(validateNote({ ...conv(''), folderId: f.id })); done('created'); }); return; }
+        const untouched = m && !n.deletedAt && n.updatedAt <= m.updatedAt && n.body === noteFromMemo(m).body;
+        if (untouched) {
+          const c = conv(''), { sourceOriginalFirstLine: _o, sourceHeading: _h, ...keep } = n; void _o; void _h;
+          notes.put(validateNote({ ...keep, body: c.body, sourceHeading: c.sourceHeading, ...(c.sourceOriginalFirstLine !== undefined ? { sourceOriginalFirstLine: c.sourceOriginalFirstLine } : {}), updatedAt: d.at }));
+          done('updated'); return;
+        }
+        const tryId = (suffix, k) => {
+          const c = conv(suffix);
+          notes.get(c.id).onsuccess = (e3) => {
+            const hit = e3.target.result;
+            if (!hit) { withFolder((f) => { notes.put(validateNote({ ...c, folderId: f.id })); done('separate'); }); return; }
+            if (hit.body === c.body) { done('same'); return; }
+            tryId(`-draft-${fnv(d.text)}${k ? `-${k}` : ''}`, k + 1);
+          };
+        };
+        tryId('-draft', 0);
+      };
+    };
+  };
+  step(0);
+});
+// 最後に開いたノート（meta）。
+export const getLastNote = () => run(['meta'], 'readonly', ({ meta }, set) => { meta.get('lastNoteId').onsuccess = (e) => set(e.target.result?.value ?? null); });
+export const setLastNote = (id) => run(['meta'], 'readwrite', ({ meta }) => { if (id) meta.put({ key: 'lastNoteId', value: id }); else meta.delete('lastNoteId'); });

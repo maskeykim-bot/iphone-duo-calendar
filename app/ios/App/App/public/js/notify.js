@@ -83,6 +83,27 @@ export function notifyText(occ, alarm, showTitle = true) {
 // 展開前の親で除外する：iPhone 由来と、iPhone と結びついた（linked / pending）予定。unlinked は対象。
 const excluded = (e) => e.origin === 'iphone' || e.nativeLink?.state === 'linked' || e.nativeLink?.state === 'pending';
 
+// タスクの通知候補（第16版 PR21）。notify が真・未完了・期限ありだけ。時刻ありは期限ちょうど、日付だけは当日 8:00。
+export const TASK_ID_PREFIX = 'duo.task.';
+export const TASK_ALL_DAY_AT = '08:00';
+export const taskFireAt = (t) => (t && !t.done && t.notify === true && t.due && typeof t.due.date === 'string' ? `${t.due.date}T${t.due.time || TASK_ALL_DAY_AT}` : null);
+function taskCandidates(tasks, now, limit, showTitle) {
+  const out = [];
+  for (const t of Array.isArray(tasks) ? tasks : []) {
+    const fire = taskFireAt(t);
+    if (!fire || !/^\d{4}-\d{2}-\d{2}T\d\d:\d\d$/.test(fire)) continue;
+    const fd = toDate(fire);
+    if (!(fd > now) || fd > limit) continue;
+    const when = t.due.time ? `${mdw(t.due.date)} ${hm(fire)}` : `${mdw(t.due.date)}`;
+    out.push({
+      id: `${TASK_ID_PREFIX}${t.id}`, title: showTitle ? `タスク：${clip(t.title)}` : 'タスクの期限です', body: showTitle ? `期限 ${when}` : `期限 ${when}`,
+      fireDate: fire, thread: `duo.${t.due.date}`, day: t.due.date, eventId: `task:${t.id}`,
+    });
+  }
+  return out;
+}
+const taskBeyondWindow = (tasks, limit) => (Array.isArray(tasks) ? tasks : []).some((t) => { const f = taskFireAt(t); return f && /^\d{4}-\d{2}-\d{2}T\d\d:\d\d$/.test(f) && toDate(f) > limit; });
+
 export const REFRESH_ID = 'duo.refresh';
 export const REFRESH_TITLE = 'Duo カレンダーを開いてください';
 export const REFRESH_BODY = 'この先の予定の通知を受け取るには、アプリを開いて通知を更新してください。';
@@ -110,7 +131,7 @@ function hasBeyondWindow(targets, limit) {
 
 // 予約する通知の一覧。{ items, truncated }。
 // 実通知が上限（max）または30日窓で切れるときは、実通知を max-1 件にして最後に duo.refresh を1件足す。切れないときは実通知だけ最大 max 件。
-export function planNotifications(events, now, s, { days = WINDOW_DAYS, max = MAX_PENDING, visible = null } = {}) {
+export function planNotifications(events, now, s, { days = WINDOW_DAYS, max = MAX_PENDING, visible = null, tasks = [] } = {}) {
   const n = normNotify(s);
   if (!n.enabled) return { items: [], truncated: false };
   const today = dkey(now);
@@ -129,9 +150,10 @@ export function planNotifications(events, now, s, { days = WINDOW_DAYS, max = MA
       pool.push({ id: `duo.${parentId}@${occ.occKey ?? occ.start}#${i}`, title, body, fireDate: fire, thread: `duo.${dayOf(occ.start)}`, day: dayOf(occ.start), eventId: parentId });
     });
   }
+  pool.push(...taskCandidates(tasks, now, limit, n.showTitle));
   pool.sort((a, b) => (a.fireDate < b.fireDate ? -1 : a.fireDate > b.fireDate ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const byCount = pool.length > max;
-  if (!byCount && !hasBeyondWindow(targets, limit)) return { items: pool, truncated: false };
+  if (!byCount && !hasBeyondWindow(targets, limit) && !taskBeyondWindow(tasks, limit)) return { items: pool, truncated: false };
   const items = pool.slice(0, max - 1);
   const last = items.length ? items[items.length - 1].fireDate : null;
   let fire;

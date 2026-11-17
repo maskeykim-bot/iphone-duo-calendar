@@ -1,4 +1,4 @@
-:root{--paper:#f7f4ed;--card:#fffdfa;--ink:#293b35;--muted:#68716a;--line:#dddcd3;--green:#294e42;--focus:#a77538;
+:root{--holiday:#B43C3C;--paper:#f7f4ed;--card:#fffdfa;--ink:#293b35;--muted:#68716a;--line:#dddcd3;--green:#294e42;--focus:#a77538;
  --sat:env(safe-area-inset-top,0px);--sar:env(safe-area-inset-right,0px);--sab:env(safe-area-inset-bottom,0px);--sal:env(safe-area-inset-left,0px);--vy:0px;--vb:0px;
  --rt:max(var(--vy),var(--sat));--rb:max(var(--vb),var(--sab));--rl:var(--sal);--rr:var(--sar);
  --danger:#963e38}
@@ -47,7 +47,7 @@ button[aria-pressed=true]{background:var(--green);color:#fff}
 .legend span:before{content:'';display:inline-block;background:var(--cat);width:6px;height:6px;border-radius:50%;margin-right:5px;vertical-align:middle}
 
 .weekdays{position:sticky;top:0;z-index:3;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));background:var(--paper);color:var(--muted);font-size:11px;text-align:center;padding-bottom:4px}
-.weekdays .sun{color:#9a4a45}.weekdays .sat{color:#3f6a8a}
+.weekdays .sun{color:var(--holiday)}.weekdays .sat{color:#3f6a8a}
 .week{position:relative;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--line)}
 .day{min-width:0;min-height:0;border-radius:0;padding:2px 1px;text-align:center;overflow:hidden;display:flex;flex-direction:column;align-items:center}
 .dhead{display:flex;align-items:center;justify-content:center;gap:2px;width:100%;flex:none}
@@ -398,7 +398,7 @@ input,select,textarea,.date-text{font-size:16px}
 .week .day.sat{background:#EEF1F4}
 .week .day.sat:hover{background:#e3e8ee}
 .week .num{width:auto;min-width:18px;height:var(--date-h);padding:0 4px;margin-top:0;border-radius:9px;font-size:11px;line-height:var(--date-h);flex:none}
-.week .day.sun .num{color:#c0392b}
+.week .day.sun .num,.week .day.hol .num{color:var(--holiday)}
 .week .day.out .num{color:#A8ABA4}
 .week .day.selected{box-shadow:inset 0 0 0 2px #294E42}
 .week .day.today .num{background:var(--green);color:#fff}
@@ -484,6 +484,7 @@ input,select,textarea,.date-text{font-size:16px}
 .tabs .pill,.pgsw .pill{display:flex;align-items:center;justify-content:center;width:min(56px,calc(100% - 2px));height:36px;border-radius:18px;font-size:15px;font-weight:600}
 .tabs button[aria-pressed=true] .pill,.pgsw button[aria-pressed=true] .pill{background:var(--green);color:#fff}
 .pgsw .pill{width:min(54px,calc(100% - 2px));font-size:14px;font-weight:700}
+.pgsw{grid-template-columns:repeat(5,minmax(0,1fr))}
 .pgsw.pgr{left:var(--sw-r-x)}
 .desktop{position:relative}
 .desk .tabs{position:absolute;left:0;right:0;top:auto;bottom:8px;margin:0 auto;width:min(270px,calc(100% - 32px))}
@@ -725,11 +726,11 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .pgrip:hover{background:transparent}
 .pgrip i{position:absolute;left:32px;top:5px;width:36px;height:5px;border-radius:2.5px;background:#C9C6BC}
 .pdate{position:absolute;left:calc(20px * var(--ux));top:12px;height:44px;margin:0;max-width:calc(50% - 70px);overflow:hidden;white-space:nowrap;font:700 17px/44px -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif}
-.pswitch{position:absolute;right:calc(20px * var(--ux) + 56px);top:12px;width:168px;height:44px;display:grid;grid-template-columns:repeat(3,56px)}
+.pswitch{position:absolute;right:calc(20px * var(--ux) + 56px);top:12px;width:184px;height:44px;display:grid;grid-template-columns:repeat(4,46px)}
 .pswitch:before{content:'';position:absolute;left:0;right:0;top:6px;height:32px;border-radius:16px;background:#F0EDE4}
 .pswitch button{position:relative;height:44px;min-height:44px;padding:0;background:transparent;border-radius:0}
 .pswitch button:hover{background:transparent}
-.pswitch .pill{display:flex;align-items:center;justify-content:center;width:56px;height:32px;border-radius:16px;font-size:13px;font-weight:700;color:var(--ink)}
+.pswitch .pill{display:flex;align-items:center;justify-content:center;width:46px;height:32px;border-radius:16px;font-size:13px;font-weight:700;color:var(--ink)}
 .pswitch button[aria-pressed=true] .pill{background:var(--green);color:#fff}
 .pclose{position:absolute;right:calc(20px * var(--ux));top:12px;width:44px;height:44px;min-height:44px;padding:0;border-radius:50%;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);font-size:22px;line-height:1}
 .pbody2{position:absolute;left:calc(20px * var(--ux));right:calc(20px * var(--ux));top:60px;bottom:0;display:flex;flex-direction:column;min-height:0}
@@ -752,11 +753,11 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 
 /* 第14版 PR11: メモの印（月のマス）・一覧・検索の「メモ」段 */
 .week .day .mline{position:absolute;left:50%;top:15.5px;width:12px;height:2px;margin-left:-6px;border-radius:1px;background:#8A7E5C;pointer-events:none}
-.mtools{display:flex;justify-content:flex-end;flex:none}
-.mlbtn{flex:none;min-width:60px;width:60px;height:44px;padding:0;background:transparent}
-.mlbtn:hover{background:transparent}
-.mlbtn span{display:flex;align-items:center;justify-content:center;width:60px;height:32px;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);font-size:14px}
-.mlbtn[aria-pressed=true] span{background:var(--green);color:#fff}
+.mtools{display:flex;justify-content:space-between;align-items:center;gap:8px;flex:none;min-height:44px}
+.mseggrp{display:flex;border-radius:16px;box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
+.mseg{min-width:64px;height:44px;padding:0 12px;background:transparent;font-size:14px;border-radius:0}
+.mseg[aria-pressed=true]{background:var(--green);color:#fff}
+.mback{min-width:44px;height:44px;padding:0 12px;font-size:14px;background:transparent}
 .rhead.dh .spanbtn[aria-pressed=true] span{background:var(--green);color:#fff}
 .mlist{padding-bottom:0}
 .mlsb{flex:none;padding:0 0 8px}
@@ -780,12 +781,12 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .rmrow{display:flex;align-items:center;gap:12px;min-height:44px;padding:0 4px;box-sizing:border-box}
 .rmrow.two{min-height:56px}
 .rmrow{touch-action:pan-y}
-.rmckb{flex:none;width:44px;height:44px;margin:0 -8px 0 -10px;padding:0;border:0;background:none;display:flex;align-items:center;justify-content:center}
+.rmckb{flex:none;width:44px;height:48px;margin:0 -8px 0 -10px;padding:0;border:0;background:none;display:flex;align-items:center;justify-content:center}
 .rmckb:disabled{opacity:.6}
 .rmbody{border:0;background:none;padding:0;text-align:left;font:inherit;color:inherit;min-height:44px;justify-content:center}
-.rmck{flex:none;width:24px;height:24px;border-radius:50%;border:2px solid var(--rc);box-sizing:border-box}
+.rmck{flex:none;width:22px;height:22px;border-radius:6px;border:2px solid var(--rc);box-sizing:border-box}
 .rmrow.done .rmck{background:var(--rc);position:relative}
-.rmrow.done .rmck::after{content:'✓';position:absolute;inset:0;color:#fff;font-size:14px;line-height:20px;text-align:center}
+.rmrow.done .rmck::after{content:'✓';position:absolute;inset:0;color:#fff;font-size:14px;line-height:18px;text-align:center}
 .rmbody{flex:1;min-width:0;display:flex;flex-direction:column}
 .rmt{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rmrow.done .rmt{color:#A8ABA4;text-decoration:line-through}
@@ -802,6 +803,8 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .rmaddbtn{display:block;width:100%;height:44px;border:0;border-radius:10px;background:#F0EDE5;color:#293B35;font-size:15px;text-align:left;padding:0 12px;box-sizing:border-box}
 .rmaddbtn:disabled{color:#A8ABA4}
 .rmaddin{display:flex;align-items:center;gap:8px;height:44px;border-radius:10px;background:#F0EDE5;padding:0 8px 0 12px;box-sizing:border-box}
+.rmaddgo{flex:none;height:44px;min-width:52px;border:0;border-radius:8px;background:#293B35;color:#fff;font-size:14px;padding:0 12px}
+.rmaddgo:disabled{opacity:.5}
 .remin{flex:1;min-width:0;height:44px;border:0;background:transparent;font-size:16px;color:#293B35;outline:none;padding:0}
 .rmchip{flex:none;display:inline-flex;align-items:center;gap:2px;height:24px;border-radius:12px;padding:0 4px 0 8px;background:#fff;font-size:11px;color:#294E42;border:1px solid #E3E0D7;box-sizing:border-box}
 .rmchip0{padding:0 8px;min-height:24px}
@@ -909,8 +912,26 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .destbtn .dlbl{flex:none}.destbtn .dval{display:flex;align-items:center;gap:6px;min-width:0;color:#68716A;font-size:14px}
 .destbtn .dval #dest-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .destbtn .cdot.big{width:12px;height:12px}
-.destpop{position:absolute;left:0;top:calc(100% + 4px);z-index:20;box-sizing:border-box;width:min(296px,100%);max-height:min(320px,50vh);overflow:auto;padding:6px 0;border-radius:14px;background:#fff;border:1px solid #DCD7CB;box-shadow:0 8px 24px #0002}
+.destpop{position:absolute;left:0;top:calc(100% + 4px);z-index:20;box-sizing:border-box;width:min(296px,100%);max-height:min(320px,50vh);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:6px 0;border-radius:14px;background:#fff;border:1px solid #DCD7CB;box-shadow:0 8px 24px #0002}
 .destpop[hidden]{display:none}
+/* 編集シートの候補ページ（第16版 PR3）: シートの中を全面で覆う1本のスクロール。 */
+.destpage{position:absolute;inset:0;z-index:5;box-sizing:border-box;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:#fff;padding-bottom:calc(8px + env(safe-area-inset-bottom,0px));animation:destin .25s ease-out}
+.destpage[hidden]{display:none}
+@keyframes destin{from{transform:translateX(100%)}to{transform:none}}
+@media (prefers-reduced-motion:reduce){.destpage{animation:none}}
+.destpage .dphead{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:8px;min-height:56px;padding:0 12px 0 8px;background:#fff;border-bottom:1px solid var(--line)}
+.destpage .dback{flex:none;min-width:44px;min-height:44px;padding:0 10px;border:0;background:transparent;font-size:16px;color:#294E42;white-space:nowrap}
+.destpage .dptitle{margin:0;font:700 17px/1.3 -apple-system,'Hiragino Sans',sans-serif}
+.destpage h4{margin:0;padding:0 20px;min-height:28px;display:flex;align-items:center;font-size:12px;font-weight:600;color:#68716A}
+.destpage .dnote{margin:8px 20px;font-size:12px;color:#68716A}
+.destpage .dopt{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:0 20px;border:0;background:transparent;font-size:16px;text-align:left}
+.destpage .dopt .dn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.destpage .dopt .cdot{flex:none;width:12px;height:12px;border-radius:50%}
+.destpage .dopt .dhid{flex:none;font-size:11px;color:#A8ABA4}
+.destpage .dopt .dck{flex:none;width:18px;color:#2E8B57;font-weight:700}
+.destpage .dopt.hid .dn{color:#A8ABA4}.destpage .dopt.hid .cdot{opacity:.4}
+.destpage .dset{display:flex;align-items:center;width:100%;min-height:44px;margin-top:8px;padding:0 20px;border:0;border-top:1px solid var(--line);background:transparent;font-size:16px;color:#2E8B57;text-align:left}
+.destpage button:focus-visible{outline:2px solid #294E42;outline-offset:-2px}
 .destbtn:disabled{opacity:.6}.destbtn:disabled .dval>span:last-child{visibility:hidden}
 .destpop h4{margin:0;padding:0 14px;min-height:26px;display:flex;align-items:center;font-size:12px;font-weight:600;color:#68716A}
 .destpop .dnote{margin:2px 14px 6px;font-size:12px;color:#68716A}
@@ -981,14 +1002,8 @@ body.settings-open .ctl.band [data-act=menu] .bi::after{content:"×";font-size:2
 .destrow .dname{flex:1;min-width:0}
 .destrow .cdot{flex:none;width:12px;height:12px;border-radius:50%}
 .destrow .dval{font-size:14px;color:#68716A;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.destpop{margin:0 12px 6px;border:1px solid #ECE9E1;border-radius:14px;overflow:hidden;background:#fff}
-.destpop h4{margin:0;padding:6px 14px 2px;font-size:12px;font-weight:400;color:#8C918B}
-.destpop .dopt{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:0 14px;border:0;background:transparent;text-align:left;font-size:15px}
-.destpop .dopt .cdot{flex:none;width:12px;height:12px;border-radius:50%}
-.destpop .dopt .dn{flex:1;min-width:0}
-.destpop .dopt.hid .dn{color:#A8ABA4}.destpop .dopt.hid .cdot{opacity:.4}
-.destpop .dopt .dhid{font-size:11px;color:#A8ABA4}
-.destpop .dopt .dck{width:18px;text-align:right;color:#2E6B5A;font-weight:700}
+/* 設定の追加先ページ（第16版 PR4）は .destpage（編集シートと同じ）。シートの外枠に重ねる */
+dialog#menu #m-destpop{border-radius:inherit}
 #m-cal-foot{padding:8px 20px 0;font-size:12px;color:#68716A}
 #m-cal-foot button{min-height:32px;padding:0 12px;border:1px solid #DCD7CB;border-radius:16px;background:#fff;font-size:12px;width:auto}
 
@@ -1029,11 +1044,11 @@ body.settings-open .ctl.band [data-act=menu] .bi::after{content:"×";font-size:2
 .dpnav{width:44px;height:44px;padding:0;border:0;background:none;font-size:22px;color:#294E42}
 .dpmt{font-size:15px;font-weight:700}
 .dpwk,.dpgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
-.dpwk span{text-align:center;font-size:12px;color:#68716A}.dpwk .hol{color:#B43C3C}
+.dpwk span{text-align:center;font-size:12px;color:#68716A}.dpwk .hol{color:var(--holiday)}
 .dpgrid{touch-action:pan-y}
 .dcell{height:38px;min-width:0;padding:0;border:0;background:none;font-size:15px;color:#293B35;display:flex;align-items:center;justify-content:center}
 .dcell .n{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;box-sizing:border-box}
-.dcell.hol{color:#B43C3C}
+.dcell.hol{color:var(--holiday)}
 .dcell.out{color:#C9C6BC}
 .dcell.tod .n{border:1.5px solid #294E42}
 .dcell.sel .n{background:#294E42;color:#fff;font-weight:700;border:0}
@@ -1073,3 +1088,222 @@ body.settings-open .ctl.band [data-act=menu] .bi::after{content:"×";font-size:2
 .rmtimeon.on{color:#294E42;border-color:#294E42}
 .rmtimeon:disabled{color:#C9C6BC}
 .rmdp .tpop{margin-top:6px}
+
+/* 第16版 PR9: 祝日。数字は --holiday、名前は日見出し・週の行に。狭幅は六曜を省く */
+@media (prefers-color-scheme:dark){:root{--holiday:#E58A82}}
+.hdt.hol,.wdt.hol,.mmc.hol .n{color:var(--holiday)}
+.hnm{margin-left:8px;font:400 13px/1 -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif;color:var(--holiday);white-space:nowrap}
+.wrk.whn{color:var(--holiday)}
+.about{margin-top:12px;padding:0 12px;font-size:12px;line-height:1.5;color:#68716A}.about h3{margin:0 0 4px;font-size:13px;color:var(--ink)}.about p{margin:0 0 6px;overflow-wrap:anywhere}
+@media (max-width:420px){.hrk.hx{display:none}}
+
+/* ===== 第16版 PR12: 右の帯のタスク・メモ（丸48・当たり56） ===== */
+.cb .bi{position:relative}
+.cb.on .bi{background:#DDE7E2;box-shadow:inset 0 0 0 1.5px #294E42}
+.cb.cstrip:hover .bi{background:#ecebe2}
+.cb.cstrip.on:hover .bi{background:#DDE7E2}
+.cb .bdg{position:absolute;top:-4px;right:-4px;box-sizing:border-box;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:#B43C3C;color:#fff;font-size:10px;font-weight:700;line-height:18px;text-align:center;box-shadow:0 0 0 1.5px #fff}
+.cb.cmemo.has .bi::after{content:"";position:absolute;left:50%;bottom:6px;width:12px;height:2px;margin-left:-6px;border-radius:1px;background:#294E42}
+.stip{position:fixed;z-index:30;transform:translateY(-50%);padding:4px 8px;border-radius:6px;background:#293B35;color:#fff;font-size:12px;line-height:1.3;white-space:nowrap;pointer-events:none}
+.chsp{flex:none;width:44px}
+.page.flash{animation:pgflash .2s ease-out}
+@keyframes pgflash{0%{box-shadow:inset 0 0 0 3px #294E42;background:#DDE7E2}100%{box-shadow:inset 0 0 0 0 transparent}}
+/* 閉じた画面の全面ページ（帯のタスク・メモ） */
+.closed.strp .mpane{padding:0 8px 0 8px}
+.stripp{flex:1;min-height:0}
+.stripp .sph{flex:none;display:flex;align-items:flex-end;height:var(--head-h);padding:0 12px 6px}
+.stripp .sph h2{margin:0;font:20px/1.3 -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif;font-weight:800}
+.stripp .sph small{font-size:13px;font-weight:600;color:#5b655f;margin-left:6px}
+.stripp .padb,.stripp .taskl{padding-bottom:calc(var(--end-pad-closed,56px) + 4px)}
+.stripp .memopage{padding-left:12px;padding-right:12px}
+@media (prefers-reduced-motion:reduce){.page.flash{animation:none;box-shadow:inset 0 0 0 3px #294E42}}
+
+/* 第16版 PR13: ホームのページ見出しと、時間ページの予定リスト（日見出し 32・行 40） */
+.rhead.hh{flex-wrap:nowrap;align-items:flex-start}
+.rhead.hh h2{flex:1 1 0;min-width:0}
+.rhead.hh .sctl{flex:none;margin-left:auto}
+.agenda-list{flex:1;min-height:0;overflow:auto;padding:0 8px}
+.spread .agenda-list{padding-bottom:64px}
+.agd{display:block}
+.agh{display:flex;align-items:center;gap:8px;height:32px;margin:0;font-size:14px;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden}
+.agh.hol{color:#B43C3C}
+.agh .hnm{font-size:12px;font-weight:600}
+.agrow{display:flex;align-items:center;gap:8px;width:100%;height:40px;min-height:40px;padding:0 4px;border-radius:0;background:transparent;text-align:left;border:0;color:var(--ink)}
+.agrow:hover{background:transparent}
+.agrow .agt{flex:none;width:44px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.agrow .agbar{flex:none;width:4px;height:20px;border-radius:2px;background:var(--cat,var(--green))}
+.agrow strong{flex:1;min-width:0;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* 第16版 PR14: ホームの今日のカード（design/14 案A）。全体を1本でスクロール、タブは固定 */
+.home.listview{overflow-y:auto;overscroll-behavior:contain;gap:10px;touch-action:pan-y pinch-zoom}
+.closed .home.listview{padding-bottom:calc(var(--end-pad-closed,56px) + 8px)}
+.hcards{display:flex;flex-direction:column;gap:10px;flex:none}
+.hcard{display:block;width:100%;text-align:left;background:#fff;border-radius:14px;padding:10px 12px;border:1px solid #E3E0D7;box-sizing:border-box}
+.hh3{display:flex;align-items:center;justify-content:space-between;min-height:28px}
+.hh3 h3{margin:0;font-size:13px;font-weight:700;color:#68716A}
+.hgo{min-height:44px;margin:-8px -6px -8px 0;padding:0 6px;font-size:12px;color:var(--green);background:none;border:0}
+.hrow{display:flex;align-items:center;gap:8px;width:100%;min-height:32px;text-align:left;background:none;border:0;padding:0}
+.hrow .ht{font-size:13px;min-width:44px;color:#4a524c}
+.hrow .hbar{width:4px;height:18px;border-radius:2px;background:var(--cat,#6E8F7F);flex:none}
+.hrow strong{font-size:15px;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hmore{display:block;min-height:32px;font-size:12px;color:var(--green);background:none;border:0;padding:0}
+.hempty{color:#8a8f88;font-size:12px;margin:4px 0}
+.htask{display:flex;align-items:center;gap:4px;min-height:48px}
+.htask .rmck{--rc:#68716A}
+.htask.done .rmck{background:var(--rc);position:relative}
+.htask.done .rmck::after{content:'✓';position:absolute;inset:0;color:#fff;font-size:14px;line-height:18px;text-align:center}
+.htask .htt{flex:1;min-width:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.htask.done .htt{text-decoration:line-through;color:#8a8f88}
+.hdue{font-size:12px;color:#68716A}.hdue.od{color:#B43C3C}
+.hadd{min-height:44px;font-size:13px;color:var(--green);background:none;border:0;padding:0}
+.hmemob{display:flex;flex-direction:column;gap:0;width:100%;min-height:44px;text-align:left;background:none;border:0;padding:0}
+.hmemob span{font-size:14px;line-height:22px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.htmr{min-height:52px;background:#fff;font-size:13px}.htmr b{font-weight:700}.htmr small{color:#68716A}.htmr span{display:block;font-size:13px}
+/* 開いた横: 今日の予定は 9〜19 時の小さな時間軸（1時間14pt） */
+.haxis{position:relative;margin:6px 0 2px}
+.haxis .hh{position:absolute;left:0;width:22px;font-size:10px;line-height:10px;color:#8a8f88;transform:translateY(-5px)}
+.haxis .hbars{position:absolute;left:26px;right:0;top:0;bottom:0;border-left:1px solid #E3E0D7;background:repeating-linear-gradient(to bottom,transparent 0,transparent 13px,#EFEDE6 13px,#EFEDE6 14px)}
+.hbarev{position:absolute;left:2px;right:2px;padding:0 6px;border:0;border-radius:3px;background:var(--tint,#DCE7E0);box-shadow:inset 3px 0 0 var(--cat,#6E8F7F);font-size:11px;text-align:left;overflow:hidden;color:var(--ink,#222);min-height:0}
+.hbarev.past{opacity:.45}
+.hbarev span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:12px}
+.hnow{position:absolute;left:0;right:0;height:0;border-top:1.5px solid #B43C3C;pointer-events:none}
+.spread .home.listview{padding-bottom:72px}
+@media (max-height:560px){.hm-axis .htmr{display:none}}
+/* 開いた縦の下段: 次の予定・タスク・今日のメモの3列 */
+.hcols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:start}
+.hcols .hcol{min-width:0}
+.hcols .next .time{font-size:20px}
+
+/* ノートの常設エディタ（第16版 PR27。通常の画面にはまだ接続しない） */
+.ned { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.ned textarea { width: 100%; box-sizing: border-box; border: 0; background: transparent; color: inherit; font: inherit; resize: none; outline: none; padding: 6px 8px; }
+.ned .ned-title { font-size: 20px; font-weight: 700; line-height: 1.3; overflow: hidden; }
+.ned .ned-body { font-size: 16px; line-height: 1.5; min-height: 6em; overflow: hidden; display: block; }
+.ned .ned-body.has-checks { padding-left: 52px; }
+.ned-bodywrap { position: relative; flex: 1; min-height: 0; overflow-y: auto; }
+.ned-gutter { position: absolute; left: 0; top: 0; width: 44px; }
+.ned-gutter[hidden] { display: none; }
+.ned .ned-chk { position: absolute; left: 0; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; display: flex; align-items: center; justify-content: center; }
+.ned-box { width: 22px; height: 22px; box-sizing: border-box; border: 2px solid currentColor; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-style: normal; font-size: 15px; line-height: 1; }
+.ned-chk[data-checked="1"] .ned-box { background: #294e42; border-color: #294e42; color: #fff; }
+.ned-mirror { position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none; box-sizing: border-box; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; border: 0; }
+.ned-mirror .ned-mline { min-height: 1lh; }
+.ned-fmt { display: flex; gap: 8px; padding: 0 8px; }
+.ned-fmt button:disabled { opacity: .4; }
+.ned-status { font-size: 12px; color: #b3261e; padding: 2px 8px; display: flex; gap: 8px; align-items: center; }
+.ned-status[hidden], .ned-trash[hidden], .ned-retry[hidden] { display: none; }
+.ned-bar { display: flex; gap: 8px; padding: 0 8px; }
+.ned button { min-height: 44px; min-width: 44px; }
+.ned-trashrow { display: flex; align-items: center; gap: 8px; padding: 0 8px; }
+.ned-trashtitle { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ned-left, .ned-note, .ned-empty { font-size: 12px; opacity: .7; padding: 0 8px; }
+/* ノート（第16版 PR28）。一覧は旧メモの行を流用し、元の日付への小さな導線を右に置く */
+.ntools .ntitle{font-size:15px;font-weight:700;padding-left:4px}
+.notepage{padding-top:4px}
+.nhost{flex:1;min-height:0;display:flex;flex-direction:column}
+.nhost .ned{flex:1;min-height:0;display:flex;flex-direction:column}
+.nrw{display:flex;align-items:center;border-bottom:1px solid var(--line)}
+.nrw .mrow{flex:1;min-width:0;border-bottom:0}
+.nsrc{flex:none;min-width:44px;height:44px;padding:0 8px;font-size:12px;background:transparent;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line)}
+/* ノートのフォルダとピン留め（第16版 PR29）。当たりは44pt以上 */
+.nchips{display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;overflow-y:hidden;flex:none;padding:0 0 8px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.nchips::-webkit-scrollbar{display:none}
+.nchip{flex:none;min-height:44px;min-width:44px;max-width:60vw;padding:0 14px;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:transparent;border-radius:22px;box-shadow:inset 0 0 0 1px var(--line);touch-action:manipulation}
+.nchip.on{background:var(--green);color:#fff;box-shadow:none}
+.nchip.nadd{font-size:18px}
+.nsec{margin:8px 4px 2px;font-size:12px;line-height:20px;color:#68716A;font-weight:700}
+.nrw{touch-action:pan-y;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.nrw.pinned{background:rgba(41,78,66,.05)}
+.npin{font-style:normal;margin-right:4px}
+.nmore{flex:none;min-width:44px;height:44px;padding:0;font-size:20px;background:transparent;border-radius:12px}
+.nmeta{flex:none;display:flex;align-items:center;gap:8px;padding:0 0 6px}
+.nmeta .nmlab{flex:1;min-width:0;display:flex;align-items:center;gap:6px;font-size:13px;color:#68716A}
+.nmeta select{flex:1;min-width:0;min-height:44px;font-size:14px}
+.nmpin{flex:none;min-height:44px;min-width:44px;padding:0 12px;font-size:14px;background:transparent;border-radius:22px;box-shadow:inset 0 0 0 1px var(--line)}
+.nmpin.on{box-shadow:inset 0 0 0 2px #294E42;color:#294E42}
+.nmenu{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.35)}
+.nmbox{box-sizing:border-box;width:min(100%,420px);max-height:80vh;overflow-y:auto;background:var(--bg,#fff);color:inherit;border-radius:16px 16px 0 0;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px))}
+.nmbox h3{margin:0 0 8px;font-size:15px;overflow-wrap:anywhere}
+.nmbox p{margin:0 0 8px;font-size:13px}
+.nmbox .nerr{color:#b3261e}
+.nfin{width:100%;box-sizing:border-box;min-height:44px;font-size:16px;margin-bottom:8px}
+.nmrow{display:flex;gap:8px;margin-bottom:8px}
+.nmrow .nmbtn{flex:1}
+.nmlist{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.nmbtn{min-height:44px;min-width:44px;padding:0 12px;font-size:14px;background:transparent;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);overflow-wrap:anywhere}
+.nmbtn.danger{color:#b3261e}
+.nmbtn:disabled{opacity:.4}
+
+/* PR31: ノート一覧の仮想表示（固定の行高。見える範囲だけ DOM に置く） */
+.nvs{position:relative;width:100%}
+.nvs>*{position:absolute;left:0;right:0;margin:0;box-sizing:border-box}
+.nvs .nrw{height:57px}
+.nvs .hcount{height:28px;line-height:28px}
+.nvs .nsec{height:30px;padding:8px 4px 0;line-height:20px}
+
+/* 開いた縦の集中モード（第16版 PR32）。切替は上の帯、タスク／ノートは全面の専用面。 */
+.fmodes{pointer-events:auto;position:fixed;z-index:6;display:flex;box-sizing:border-box;padding:2px;border-radius:18px;background:#e6e9e4;box-shadow:inset 0 0 0 1px var(--line)}
+.fmodes button{flex:1 1 0;min-width:0;padding:0 2px;border-radius:16px;background:transparent;color:var(--ink);font-size:14px;font-weight:700;line-height:1;white-space:nowrap;touch-action:manipulation;position:relative}
+.fmodes button::before{content:"";position:absolute;left:0;right:0;top:-4px;bottom:-4px}
+.fmodes button[aria-pressed=true]{background:#fff;color:var(--green);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.fmodes.compact{padding:2px 1px}
+.fmodes.compact button{flex:1 1 auto;padding:0;font-size:10px;letter-spacing:-.04em;overflow:hidden}
+.fdate{position:fixed;z-index:5;display:flex;align-items:center;font-size:15px;font-weight:800;color:var(--ink);white-space:nowrap;pointer-events:none;max-width:calc(100px * var(--ux,1));overflow:hidden}
+.shell.focus .fcol{height:100%;padding-top:var(--head-h);box-sizing:border-box;display:flex;flex-direction:column;min-height:0}
+.shell.focus .fpage{flex:1;min-height:0;display:flex;flex-direction:column}
+.shell.focus .fpage .padb,.shell.focus .fpage .taskl{padding-bottom:calc(var(--safe-b,0px) + 24px)}
+.shell.focus .fpage .memopage,.shell.focus .fpage .mlist{padding-left:16px;padding-right:16px}
+/* 第16版 PR33: 集中タスク（上面＝四つの見方、下面＝追加と詳細） */
+.ftask{flex:1;min-height:0;display:flex;flex-direction:column}
+.ftup{flex:1 1 45%;min-height:0;display:flex;flex-direction:column}
+.tvseg{display:flex;gap:2px;margin:12px 16px 8px;padding:2px;height:36px;box-sizing:border-box;border-radius:18px;background:#e6e9e4;box-shadow:inset 0 0 0 1px var(--line);flex:none}
+.tvseg button{flex:1 1 0;min-width:0;border-radius:16px;background:transparent;color:var(--ink);font-size:14px;font-weight:700;position:relative;touch-action:manipulation}
+.tvseg button::before{content:"";position:absolute;left:0;right:0;top:-4px;bottom:-4px}
+.tvseg button[aria-pressed=true]{background:#fff;color:var(--green);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.tvseg small{font-size:11px;font-weight:700;opacity:.8}
+.ftlist{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:0 16px}
+.ftlist .rmrow{min-height:44px}.ftlist .rmrow.two{min-height:48px}
+.ftlist .rmrow.sel{background:#e6f0e9;border-radius:8px}
+.ftdn{flex:1 1 55%;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:8px 16px calc(var(--safe-b,0px) + 24px);border-top:1px solid var(--line);box-sizing:border-box}
+.ftchips{display:flex;gap:8px;margin:8px 0}
+.ftchips .rmchip{min-height:28px;position:relative}
+.ftchips .rmchip::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
+.ftchips .rmchip[aria-pressed=true]{background:var(--green);color:#fff}
+.ftcard{margin-top:8px;padding:12px;border-radius:12px;background:#fff;box-shadow:inset 0 0 0 1px var(--line)}
+.fttitle{width:100%;box-sizing:border-box;font-size:20px;font-weight:800;border:0;background:transparent;padding:4px 0;min-height:44px}
+.ftrow{display:flex;align-items:center;gap:12px;min-height:44px}
+.ftrow>span{width:48px;font-weight:700;color:var(--muted,#68716A)}
+.ftrow input[type=date],.ftrow input[type=time]{font-size:16px;min-height:36px}
+.ftnote{align-items:flex-start}
+.ftnote textarea{flex:1;min-height:88px;font-size:16px;box-sizing:border-box}
+.ftdel{width:100%;min-height:44px;margin-top:8px;color:#c0392b;font-weight:800;border-radius:10px;background:transparent;box-shadow:inset 0 0 0 1px #e3b4ae}
+.ftdel:disabled{opacity:.4}
+.ftnone .rmh{margin:0 0 4px}
+
+/* 第16版 PR34: 入力欄・本文をキーボード上端(kbTop)と折り目の溝に合わせる。位置は keyboard-layout.js が --kl-* に出す（機種の固定 y は持たない）。 */
+html.kbl .shell.focus .fcol{padding-top:var(--head-h)}
+html.kbl[data-kbl=task] .ftask{display:block;position:static}
+html.kbl[data-kbl=task] .ftup{flex:none;height:var(--kl-up-h);overflow:hidden}
+html.kbl[data-kbl=task] .ftdn{position:fixed;left:0;right:0;top:var(--kl-dn-top);height:var(--kl-dn-h);padding-bottom:8px;z-index:3;background:var(--paper)}
+html.kbl[data-kbl=task][data-kbdn="0"] .ftdn{visibility:hidden;height:0;padding:0;border:0;overflow:visible}
+html.kbl[data-kbl=task] .rmadd,html.kbl[data-kbl=task] .ftchips{visibility:visible}
+html.kbl[data-kbl=task] .rmadd{position:fixed;left:16px;right:16px;top:var(--kl-add-top);height:48px;margin:0;z-index:5}
+html.kbl[data-kbl=task] .rmadd .rmaddin{height:48px}
+html.kbl[data-kbl=task] .ftchips{position:fixed;left:0;right:0;top:var(--kl-as-top);height:var(--kl-as-h);margin:0;padding:var(--kl-as-pad) 16px 0;box-sizing:border-box;align-items:center;background:#E6E8EB;z-index:5}
+html.kbl[data-kbl=note] .nmeta{display:none}
+html.kbl[data-kbl=note] .fpage .notepage{padding:0;flex:none}
+html.kbl[data-kbl=note] .nhost{position:fixed;left:0;right:0;top:var(--kl-ed-top);height:var(--kl-ed-h);z-index:3;background:var(--paper);overflow:hidden;box-sizing:border-box;padding:0 16px}
+html.kbl[data-kbl=note] .nhost .ned{height:100%}
+html.kbl[data-kbl=note] .ned-bodywrap{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+html.kbl[data-kbl=note] .ned-fmt{position:fixed;left:0;right:0;top:var(--kl-as-top);height:var(--kl-as-h);box-sizing:border-box;padding:var(--kl-as-pad) 16px 0;align-items:center;background:#E6E8EB;z-index:5}
+html.kbl[data-kbl=note] .ned-status,html.kbl[data-kbl=note] .ned-bar,html.kbl[data-kbl=note] .ned-trash{display:none}
+html.kbl[data-kbl=note] .nup{position:fixed;left:0;right:0;top:var(--kl-nu-top);height:var(--kl-nu-h);z-index:3;box-sizing:border-box;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+html.kbl[data-kbl=note][data-kbe=up] .nupb{min-height:32px;height:32px;position:relative}
+html.kbl[data-kbl=note][data-kbe=up] .nupb::before{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+html.kbl[data-kbl=note][data-kbe=up] .nup{display:flex;align-items:center;gap:8px;padding:0 16px;overflow-x:auto;overflow-y:hidden;background:#CFD3D8}
+html.kbl[data-kbl=note][data-kbe=dn] .nup{display:flex;flex-direction:column;overflow-y:auto;background:var(--paper);padding:0 16px}
+html.kbl[data-kbl=note][data-kbnu="0"] .nup{display:none}
+.nupb{flex:none;max-width:70%;min-height:44px;padding:0 14px;border-radius:22px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);font-size:14px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+html.kbl[data-kbe=dn] .nupb{max-width:none;width:100%;border-radius:8px;background:transparent;box-shadow:none;border-bottom:1px solid var(--line)}
+.nupe{font-size:13px;color:var(--muted)}
+@media (prefers-color-scheme:dark){ html.kbl .ftchips,html.kbl .ned-fmt{background:#2b2f2d} html.kbl[data-kbe=up] .nup{background:#262a28} }
