@@ -1230,6 +1230,7 @@ async function remSubmit() {
     const list = RM.data?.reminders || [];
     if (!list.some((x) => x.itemId === r.reminder.itemId)) RM.data = { lists: [LOCAL_LIST], reminders: [...list, r.reminder] };
     RM.sig = ''; a.focus = true; render(); scheduleTasks(); say('タスクを追加しました。');
+    if (r.reminder.alarms?.length) askNotifyPerm(); // 結果を待たない。拒否されても保存は成立
   } else {
     a.err = taskErrText(r.code, 'もう一度 Enter か「追加」で試せます。'); // 文字は残す
     a.focus = true; render(); say(a.err);
@@ -1340,7 +1341,7 @@ async function loadTasks() {
     if (!RM.data) { RM.err = true; render(); }
   }
 }
-function scheduleTasks() { clearTimeout(RM.timer); RM.timer = setTimeout(loadTasks, 300); }
+function scheduleTasks() { clearTimeout(RM.timer); RM.timer = setTimeout(loadTasks, 300); requestNotifySync('task'); } // タスクの追加・完了・削除・編集・復元はすべてここを通る
 function renderPage(side, id) {
   const cls = side === 'left' ? 'lp' : 'rp';
   if (id === 'home') return `<section class="page ${cls}" data-page="home" aria-label="ホーム"><div class="rhead hh"><h2>ホーム</h2>${side === 'right' ? rctl() : ''}${side === 'left' ? `<div class="sctl">${gearBtn()}</div>` : ''}</div><div class="listpane">${listView('axis')}</div></section>`;
@@ -2343,7 +2344,7 @@ $('#tk-save').addEventListener('click', async () => {
   if (TK !== t) return;
   t.busy = false;
   if (r.ok) {
-    if (!r.noop && RM.data) { RM.data = { ...RM.data, reminders: RM.data.reminders.map((x) => (x.itemId === orig.itemId ? r.reminder : x)) }; RM.sig = ''; render(); scheduleTasks(); }
+    if (!r.noop && RM.data) { RM.data = { ...RM.data, reminders: RM.data.reminders.map((x) => (x.itemId === orig.itemId ? r.reminder : x)) }; RM.sig = ''; render(); scheduleTasks(); if (r.reminder.alarms?.length) askNotifyPerm(); }
     fadeClose(taskDlg, closeTask);
     if (!r.noop) say('タスクを保存しました。');
     return;
@@ -4264,8 +4265,27 @@ function onNotifyTap(p) {
   if (!N.ready) { N.tap = p; return; }
   openNotifyTarget(p);
 }
+// タスクの通知: 期限日を開き、タスクがあれば詳細、無ければタスク一覧へ。
+async function openTaskNotifyTarget(day, id) {
+  const kind = layoutKind();
+  if (!RM.data?.reminders.some((x) => x.itemId === id)) { try { await loadTasks(); } catch { /* 一覧へ */ } }
+  const found = !!RM.data?.reminders.some((x) => x.itemId === id);
+  if (kind === 'spread') {
+    const has = state.pages.left === 'task' || state.pages.right === 'task';
+    const side = PG().left === 'home' ? 'right' : PG().right === 'home' ? 'left' : state.lastSide;
+    set({ selected: day, home: false, ...(has ? {} : { pages: selectPage(state.pages, side, 'task'), lastSide: side }) });
+  } else if (kind === 'open') {
+    set({ selected: day, home: false, pages: selectPage(state.pages, 'portraitBottom', 'task') });
+    if (!state.pages.portraitShown) setPanel(true);
+  } else {
+    set({ selected: day, home: false, view: 'day' });
+    if (state.strip !== 'task') toggleStrip('task');
+  }
+  if (found) { openTask(id); say(`${dayLabel(day)}のタスクを開きました。`); } else say('このタスクは見つかりません。タスク一覧を開きました。');
+}
 function openNotifyTarget({ day, eventId }) {
-  for (const d of [menuDlg, searchDlg, backupDlg, xdDlg, xrDlg, catsDlg, notifyDlg]) if (d.open) closePanel(d, false);
+  for (const d of [menuDlg, searchDlg, backupDlg, xdDlg, xrDlg, catsDlg, notifyDlg, taskDlg]) if (d.open) closePanel(d, false);
+  if (typeof eventId === 'string' && eventId.startsWith('task:')) { openTaskNotifyTarget(day, eventId.slice(5)); return; }
   const target = eventsOnDay(occIn(day, day), day).find((e) => !isX(e) && (e.id === eventId || e.parentId === eventId));
   const spreadKind = layoutKind() === 'spread';
   // 見開きで時間ページがどちらにも無いときは、予定を見せるため右を時間にする。日付は左右共通。
@@ -4309,7 +4329,10 @@ async function runNotifySync(gen) {
     if (gen !== N.gen) return;
     N.perm = st?.status || null;
     if (!NOTIFY_OK.includes(N.perm)) { N.scheduled = null; return; } // 許可はここでは要求しない
-    const { items } = planNotifications(state.events, new Date(), n, { visible: duoVisible() });
+    let tasks = [];
+    try { tasks = await db.listTasks(); } catch { tasks = []; } // 読めなくても予定の通知は予約する
+    if (gen !== N.gen) return;
+    const { items } = planNotifications(state.events, new Date(), n, { visible: duoVisible(), tasks });
     if (gen !== N.gen) return;
     const r = await call('notifySync', { items });
     if (gen === N.gen) { N.scheduled = Number.isFinite(r?.scheduled) ? r.scheduled : items.length; N.err = ''; updateNotifyCount(); }

@@ -289,3 +289,52 @@ test('PR36 再計画で refresh は作り直され、近づくと実通知に置
   assert.equal(a.filter((x) => x.id === 'duo.refresh').length, 1);
   assert.equal(b.filter((x) => x.id === 'duo.refresh').length, b.length === 60 && planR(evs, new Date(2026, 10, 16, 9, 0)).truncated ? 1 : 0);
 });
+
+// ---------- タスクの通知（第16版 PR21） ----------
+const TK = (id, due, o = {}) => ({ id, title: `タスク${id}`, due, done: false, doneAt: null, createdAt: 1, updatedAt: 1, order: 1, note: '', notify: true, ...o });
+
+test('タスク通知: 時刻ありは期限ちょうど、日付だけは当日8時。ID・eventId・dayの形', () => {
+  const r = planR([], NOW, S, { tasks: [TK('a', { date: '2026-11-15', time: '13:30' }), TK('b', { date: '2026-11-16' })] });
+  assert.deepEqual(r.items.map((i) => [i.id, i.fireDate, i.eventId, i.day]), [
+    ['duo.task.a', '2026-11-15T13:30', 'task:a', '2026-11-15'],
+    ['duo.task.b', '2026-11-16T08:00', 'task:b', '2026-11-16'],
+  ]);
+  assert.equal(r.truncated, false);
+  assert.match(r.items[0].title, /タスクa/);
+});
+
+test('タスク通知: 対象外（notify偽・完了・期限なし・過去・31日先・全体OFF）は0。showTitle:falseは題名を出さない', () => {
+  const tasks = [
+    TK('off', { date: '2026-11-15' }, { notify: false }), TK('done', { date: '2026-11-15' }, { done: true, doneAt: '2026-11-14T09:00' }),
+    TK('nodue', null), TK('past', { date: '2026-11-14', time: '08:59' }), TK('far', { date: '2026-12-20' }),
+  ];
+  assert.deepEqual(plan([], NOW, S, { tasks }).map((i) => i.id), ['duo.refresh']); // 実通知は0。窓の外のタスクがあるので更新用だけ
+  assert.equal(planR([], NOW, normNotify({ enabled: false }), { tasks: [TK('x', { date: '2026-11-15' })] }).items.length, 0);
+  const hid = plan([], NOW, normNotify({ enabled: true, showTitle: false }), { tasks: [TK('x', { date: '2026-11-15' }, { title: '秘密' })] })[0];
+  assert.ok(!hid.title.includes('秘密') && !hid.body.includes('秘密'));
+  assert.equal(plan([], NOW, S, { tasks: [TK('edge', { date: '2026-11-14', time: '09:00' })] }).length, 0); // 今ちょうどは過去
+});
+
+test('タスク通知: 予定IDと衝突しない（予定の id が task.x でも別）', () => {
+  const r = plan([al({ id: 'task.a', s: '2026-11-15T10:00', e: '2026-11-15T11:00', alarms: [{ before: 30 }] })], NOW, S, { tasks: [TK('a', { date: '2026-11-15', time: '10:00' })] });
+  assert.equal(new Set(r.map((i) => i.id)).size, 2);
+});
+
+test('タスク通知: 予定とタスク合わせて近い順の59件＋refresh（61件以上）', () => {
+  const evs = Array.from({ length: 35 }, (_, i) => al({ id: `e${i}`, s: `2026-11-15T${String(8 + Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`, e: `2026-11-15T23:59`, alarms: [{ before: 0 }] }));
+  const tasks = Array.from({ length: 30 }, (_, i) => TK(`t${i}`, { date: '2026-11-16', time: `${String(i % 24).padStart(2, '0')}:${String(i).padStart(2, '0')}` }));
+  const r = planR(evs, NOW, S, { tasks });
+  assert.equal(r.items.length, 60); assert.equal(r.truncated, true);
+  assert.equal(r.items.at(-1).id, 'duo.refresh');
+  const real = r.items.slice(0, 59);
+  assert.deepEqual(real.map((i) => i.fireDate), [...real.map((i) => i.fireDate)].sort());
+  assert.ok(real.filter((i) => i.id.startsWith('duo.task.')).length > 0 && real.filter((i) => !i.id.startsWith('duo.task.')).length > 0);
+  // ちょうど60件なら refresh なし
+  const r60 = planR(evs.slice(0, 30), NOW, S, { tasks });
+  assert.equal(r60.items.length, 60); assert.equal(r60.truncated, false);
+});
+
+test('タスク通知: 窓の外のタスクだけがあれば refresh を足す', () => {
+  const r = planR([], NOW, S, { tasks: [TK('n', { date: '2026-11-15' }), TK('f', { date: '2026-12-20' })] });
+  assert.equal(r.truncated, true); assert.equal(r.items.at(-1).id, 'duo.refresh');
+});
