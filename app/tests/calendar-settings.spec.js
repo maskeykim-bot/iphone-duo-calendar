@@ -211,3 +211,21 @@ test.describe('設定 › カレンダー（PR8）', () => {
     for (const m of ['createEvent', 'createEvents', 'updateEvent', 'deleteEvent', 'deleteExternalEvent', 'createReminder', 'updateReminder', 'deleteReminder']) expect(await mockCalls(page, m)).toHaveLength(0);
   });
 });
+
+// 第16版 PR1: 設定側の追加先一覧も、長いときは箱の中でスクロールして最後の候補まで選べる（DP-1）。
+test('DP-1 設定 › 新しい予定の追加先: 20候補でも下まで届き、最後を選べる', async ({ page }) => {
+  const many = Array.from({ length: 20 }, (_, i) => ({ id: `cal-m${i}`, title: `予備${String(i).padStart(2, '0')}`, color: '#1a73e8', sourceId: 's-i', source: 'iCloud', sourceType: 'caldav', allowsModify: true, isDefault: i === 0 }));
+  await setup(page, { cals: many });
+  await openMenu(page, 'calendar');
+  await page.locator('#m-dest').click();
+  const pop = page.locator('#m-destpop');
+  await expect(pop).toBeVisible();
+  const m = await pop.evaluate((e) => ({ ov: getComputedStyle(e).overflowY, sh: e.scrollHeight, ch: e.clientHeight }));
+  expect(m.ov).toBe('auto');
+  expect(m.sh).toBeGreaterThan(m.ch);
+  const last = pop.locator('[data-sdid="cal-m19"]');
+  await last.scrollIntoViewIfNeeded();
+  await last.click();
+  await expect(pop).toBeHidden();
+  expect((await ls(page)).defaultDest).toEqual({ type: 'iphone', id: 'cal-m19' });
+});

@@ -1,7 +1,7 @@
 // 第15版 PR5: 新規予定の「カレンダー」1行（Duo のカテゴリと iPhone の書込可カレンダーを同じ一覧から選ぶ）
 import { test, expect } from '@playwright/test';
 import { CAT_IDS } from '../js/categories.js';
-import { openApp, dbEvents } from './helpers.js';
+import { openApp, dbEvents, SIZES } from './helpers.js';
 
 const CALS = [
   { id: 'cal-a', title: '仕事', color: '#1a73e8', sourceId: 's-i', source: 'iCloud', sourceType: 'caldav', allowsModify: true, isDefault: true },
@@ -11,7 +11,7 @@ const CALS = [
 ];
 const LINK = (o = {}) => ({ version: 1, enabled: true, enabledMig: true, calendarIds: ['cal-a', 'cal-g', 'cal-r'], selectionInitialized: true, defaultDest: { type: 'duo', id: CAT_IDS.work }, ...o });
 
-async function setup(page, { link = LINK(), cals = CALS, createFail = 0, cats } = {}) {
+async function setup(page, { link = LINK(), cals = CALS, createFail = 0, cats, size } = {}) {
   await page.addInitScript(({ link, cals, createFail }) => {
     if (!localStorage.getItem('duo-native-cal')) localStorage.setItem('duo-native-cal', JSON.stringify(link));
     const M = window.__mock = { calls: [], created: {}, createFail, listeners: {} };
@@ -33,7 +33,7 @@ async function setup(page, { link = LINK(), cals = CALS, createFail = 0, cats } 
       },
     };
   }, { link, cals, createFail });
-  await openApp(page);
+  await openApp(page, size);
   await page.waitForFunction(() => window.__mock.calls.some((c) => c.method === 'listCalendars'));
 }
 const openNew = async (page) => { await page.locator('[data-act="add"]:visible').first().click(); await expect(page.locator('#editor')).toBeVisible(); };
@@ -190,3 +190,28 @@ test.describe('新規予定のカレンダー選択', () => {
     await expect(page.locator('#dest-pop')).toBeHidden();
   });
 });
+
+// 第16版 PR1: 候補が多いときも一覧の箱の中だけがスクロールし、最後の候補まで選べる（DP-1）。
+const MANY = Array.from({ length: 20 }, (_, i) => ({ id: `cal-m${i}`, title: `予備${String(i).padStart(2, '0')}`, color: '#1a73e8', sourceId: 's-i', source: 'iCloud', sourceType: 'caldav', allowsModify: true, isDefault: i === 0 }));
+for (const [name, size] of [['閉じた', SIZES.closedPortrait], ['開いた縦', SIZES.openPortrait669], ['見開き', SIZES.openLandscape951]]) {
+  test(`DP-1 ${name}: 20候補で一覧がスクロールでき、最後の候補を選べる。背景は動かない`, async ({ page }) => {
+    await setup(page, { cals: MANY, link: LINK({ calendarIds: MANY.map((c) => c.id), defaultDest: { type: 'iphone', id: 'cal-m0' } }), size });
+    await openNew(page);
+    await page.locator('#f-dest').click();
+    const pop = page.locator('#dest-pop');
+    await expect(pop).toBeVisible();
+    const m = await pop.evaluate((e) => ({ ov: getComputedStyle(e).overflowY, sh: e.scrollHeight, ch: e.clientHeight, oc: getComputedStyle(e).overscrollBehaviorY }));
+    expect(m.ov).toBe('auto');
+    expect(m.oc).toBe('contain');
+    expect(m.sh).toBeGreaterThan(m.ch);
+    const before = await page.locator('#editor').evaluate((e) => e.scrollTop);
+    await pop.evaluate((e) => { e.scrollTop = e.scrollHeight; });
+    expect(await pop.evaluate((e) => e.scrollTop)).toBeGreaterThan(0);
+    expect(await page.locator('#editor').evaluate((e) => e.scrollTop)).toBe(before);
+    const last = page.locator('#dest-pop .dopt[data-did="cal-m19"]');
+    await last.scrollIntoViewIfNeeded();
+    await last.click();
+    await expect(pop).toBeHidden();
+    await expect(page.locator('#dest-name')).toContainText('予備19');
+  });
+}
