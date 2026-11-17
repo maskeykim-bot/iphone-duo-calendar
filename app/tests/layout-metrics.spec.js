@@ -326,3 +326,26 @@ test.describe('月の日付・配色・前後月', () => {
     expect(await page.locator('[data-date="2026-11-12"] .num').evaluate((e) => getComputedStyle(e).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
   });
 });
+
+test.describe('キーボード計測（設定 › 詳細だけ）', () => {
+  test('詳細に出て、visualViewport の変化に追随し、値を読むだけで高さを変えない', async ({ page }) => {
+    await openApp(page, { width: 466, height: 678 });
+    await expect(page.locator('#kb-metrics')).toBeHidden();
+    await openMenu(page, 'details');
+    const k = page.locator('#kb-metrics');
+    await expect(k).toBeVisible();
+    await expect(k).toContainText('innerHeight 678');
+    await expect(k).toContainText('未取得');
+    const before = await page.evaluate(() => document.documentElement.style.cssText);
+    await page.evaluate(() => {
+      const vv = window.visualViewport;
+      Object.defineProperty(window, 'visualViewport', { configurable: true, value: { height: 400, offsetTop: 20, scale: 1, addEventListener() {} } });
+      void vv; window.dispatchEvent(new Event('resize'));
+    });
+    await page.setViewportSize({ width: 466, height: 677 });
+    await page.setViewportSize({ width: 466, height: 678 });
+    await expect(k).toContainText('kbTop 420');
+    await expect(k).toContainText('推定キーボード 258');
+    expect(typeof before).toBe('string');
+  });
+});

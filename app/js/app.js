@@ -17,6 +17,7 @@ import { DELETE_UNDO_MS, checkReminderAccess, requestReminderAccess, taskAccessH
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
 import { call, errCode, errReason, errText, haptic, listen, nativeAvailable, reminderErrText } from './native.js';
 import { createDestPage, destRowsHtml } from './destination-ui.js';
+import { KB_METRICS_ENABLED, kbMetrics, kbText } from './kbmetrics.js';
 import { makeVisible, buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normDest, normSettings, pickAddCal, planLinkMigration, planNativeOps, resolveDest, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, visibleDestGroups, allDestHidden, withIdent, writable, ymdSlash } from './iphone.js';
 import {
   DOW, addDays, addMonths, assignSharedLanes, dayLabel, dayOf, dkey, eventsOnDay, isKey, isMulti,
@@ -321,7 +322,17 @@ function diagText() {
   const S = safe();
   return `${window.innerWidth}×${window.innerHeight} px · DPR ${num(window.devicePixelRatio || 1)} · safe 上${num(S.top)} 右${num(S.right)} 下${num(S.bottom)} 左${num(S.left)} px`;
 }
-function updateDiagnostics() { const el = $('#layout-diagnostics'); if (el) el.textContent = diagText(); }
+function updateDiagnostics() {
+  const el = $('#layout-diagnostics'); if (el) el.textContent = diagText();
+  updateKbMetrics();
+}
+// キーボード計測は設定 › 詳細が開いているときだけ読む（常時ポーリングしない・値は読むだけで何も変更しない）。
+function updateKbMetrics() {
+  const el = $('#kb-metrics');
+  if (!el) return;
+  if (!KB_METRICS_ENABLED) { el.hidden = true; return; }
+  el.textContent = kbText(kbMetrics({ innerHeight: window.innerHeight, vv: window.visualViewport, posture: 'devicePosture' in navigator, segments: !!window.visualViewport?.segments || 'getWindowSegments' in window }));
+}
 
 // タッチ確認モード（実機の座標確認用。保存しない・通常時は DOM に層がない）。
 let touchLayer = null;
