@@ -111,6 +111,7 @@ function saveUi() {
 function setPage(side, id) { set({ pages: selectPage(state.pages, side, id) }); }
 function set(patch) {
   if (memoStore.anyDirty() && ['selected', 'pages', 'view', 'home', 'desk'].some((k) => k in patch)) { memoSync(); memoStore.flushAll(); } // 日付・ページを変える前に未保存のメモを書く
+  if (patch.pages) for (const w of Object.keys(ML.open)) if (patch.pages[w] === 'memo' && state.pages[w] !== 'memo') ML.open[w] = false; // メモへ入り直したら本文（この日）から始める
   Object.assign(state, patch); if ('weekStart' in patch) setFirstDay(state.weekStart); saveUi(); render(); }
 
 // ---------- レイアウト寸法 L（キーボードで変わらない寸法）と可視範囲 V ----------
@@ -905,7 +906,7 @@ const gearBtn = () => (POS.band ? '' : `<button type="button" class="sset" data-
 const paneNav = (side, dir) => `<button type="button" data-act="${dir > 0 ? 'next' : 'prev'}" data-pane="${side}" aria-label="${dir > 0 ? '次' : '前'}の${state.pages[side] === 'time' && tmode(side) === 'week' ? '週' : '日'}">${dir > 0 ? '›' : '‹'}</button>`;
 // 時間・タスク・メモの見出し: 日付（たたくと小さな月）｜（右は 今日・検索・＋）｜（時間のみ）カプセル ｜ 前・次（左右とも）。帯がなければ左は設定もここ。
 function dateHead(side, id) {
-  return `<div class="rhead dh"><h2 class="rdate"><button type="button" class="datebtn" data-act="mini" data-pane="${side}" aria-haspopup="dialog" aria-expanded="${MM.open === side}" aria-label="日付を選ぶ: ${esc(dayLabel(state.selected))}">${dayTitle(state.selected)}</button></h2>${side === 'right' ? rctl() : ''}${id === 'time' ? timeCapsule(side) : id === 'memo' ? memoCapsule(side) : ''}<div class="sctl">${paneNav(side, -1)}${paneNav(side, 1)}${side === 'left' ? gearBtn() : ''}</div></div>`;
+  return `<div class="rhead dh"><h2 class="rdate"><button type="button" class="datebtn" data-act="mini" data-pane="${side}" aria-haspopup="dialog" aria-expanded="${MM.open === side}" aria-label="日付を選ぶ: ${esc(dayLabel(state.selected))}">${dayTitle(state.selected)}</button></h2>${side === 'right' ? rctl() : ''}${id === 'time' ? timeCapsule(side) : ''}<div class="sctl">${paneNav(side, -1)}${paneNav(side, 1)}${side === 'left' ? gearBtn() : ''}</div></div>`;
 }
 // 小さな月（幅 280・高さ 260、1マス 40×36）。選んでいる日は共通。六曜は出さない。メモの印は memoMark の差込口。
 const MM = { open: null, ym: '' };
@@ -955,13 +956,18 @@ let memoComposing = false, renderPending = false, rendering = false;
 const memoSaid = new Set(), memoSynced = new Map();
 function memoBody(where) {
   const k = state.selected, e = memoStore.get(k);
-  if (ML.open[where]) return `${where === 'bottom' ? memoTools(where) : ''}${memoListHtml(where)}`;
-  return `${where === 'bottom' ? memoTools(where) : ''}<div class="memopage padb" data-memo-wrap="${where}"><textarea class="memota" data-memo="${k}" data-where="${where}" aria-label="${esc(dayLabel(k))}のメモ" placeholder="この日のメモ" spellcheck="false"${e?.loaded ? '' : ' readonly'}></textarea><div class="memost" data-memost="${k}">自動で保存</div></div>`;
+  if (ML.open[where]) return `${memoTools(where)}${memoListHtml(where)}`;
+  return `${memoTools(where)}<div class="memopage padb" data-memo-wrap="${where}"><textarea class="memota" data-memo="${k}" data-where="${where}" aria-label="${esc(dayLabel(k))}のメモ" placeholder="この日のメモ" spellcheck="false"${e?.loaded ? '' : ' readonly'}></textarea><div class="memost" data-memost="${k}">自動で保存</div></div>`;
 }
 // ---- メモの一覧（メモがある日を新しい順・1行56・検索欄） ----
 const ML = { open: { left: false, right: false, bottom: false }, q: { left: '', right: '', bottom: '' }, rows: null, seq: 0, failed: false };
-const memoTools = (where) => `<div class="mtools"><button type="button" class="mlbtn" data-act="memolist" data-where="${where}" aria-pressed="${ML.open[where]}" aria-label="メモの一覧${ML.open[where] ? '（表示中）' : ''}"><span aria-hidden="true">一覧</span></button></div>`;
-const memoCapsule = (side) => `<button type="button" class="spanbtn" data-act="memolist" data-where="${side}" aria-pressed="${ML.open[side]}" aria-label="メモの一覧${ML.open[side] ? '（表示中）' : ''}"><span aria-hidden="true">一覧</span></button>`;
+// 「この日｜一覧」は明示選択（トグルにしない）。今日以外の日は「今日に戻る」、一覧からは「戻る」を出す。
+const memoTools = (where) => {
+  const o = ML.open[where], seg = (mode, label, aria, on) => `<button type="button" class="mseg" data-act="memolist" data-where="${where}" data-mode="${mode}" aria-pressed="${on}" aria-label="${aria}${on ? '（表示中）' : ''}">${label}</button>`;
+  const back = o ? `<button type="button" class="mback" data-act="memolist" data-where="${where}" data-mode="day" aria-label="この日のメモに戻る">戻る</button>`
+    : state.selected !== todayKey() ? `<button type="button" class="mback" data-act="today" aria-label="今日に戻る">今日に戻る</button>` : '';
+  return `<div class="mtools"><div class="mseggrp" role="group" aria-label="メモの表示">${seg('day', 'この日', 'この日のメモ', !o)}${seg('list', '一覧', 'メモの一覧', o)}</div>${back}</div>`;
+};
 function memoRowsHtml(where) {
   if (ML.failed) return '<p class="smsg">メモを読み込めませんでした。</p>';
   if (!ML.rows) return '<p class="smsg" role="status">読み込んでいます…</p>';
@@ -1462,7 +1468,7 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'today') set({ selected: todayKey() }); // 今日へ戻るのは選択日だけ。表示（一覧・日・週・月）は保つ
   else if (d.act === 'prev') move(-1, d.pane);
   else if (d.act === 'next') move(1, d.pane);
-  else if (d.act === 'memolist') { const w = d.where; ML.open[w] = !ML.open[w]; render(); if (ML.open[w]) { loadMemoList(); root.querySelector(`[data-mlq="${w}"]`)?.focus({ preventScroll: true }); } }
+  else if (d.act === 'memolist') { const w = d.where, want = d.mode ? d.mode === 'list' : !ML.open[w]; if (ML.open[w] === want) return; memoSync(); ML.open[w] = want; render(); if (ML.open[w]) { loadMemoList(); root.querySelector(`[data-mlq="${w}"]`)?.focus({ preventScroll: true }); } }
   else if (d.act === 'remreq') remRequest(d.where);
   else if (d.act === 'remsettings') { call('openSettings').catch(() => {}); }
   else if (d.act === 'memoretry') memoStore.flushMemo(d.mdate);

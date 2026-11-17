@@ -104,3 +104,45 @@ test('下パネルで一覧が使え、線は六曜・+N・チップと重なら
   await expect(page.locator('.pnl .mrow')).toHaveCount(1);
   await expect(page.locator('.pnl .mrow')).toContainText('下メモ');
 });
+
+// 第16版 PR6: 日ごとのメモの戻り道を明示する
+test('この日｜一覧は明示選択。今日以外だけ「今日に戻る」、一覧から「戻る」、入り直しは本文から', async ({ page }) => {
+  await openApp(page, SIZES.openLandscape951);
+  await putMemo(page, '2026-11-01', '過去のメモ');
+  await page.reload(); await page.waitForSelector('html[data-ready]');
+  await pagePick(page, 'right', 'メモ').click();
+  const rp = page.locator('.page.rp');
+  const dayBtn = rp.getByRole('button', { name: /^この日のメモ/ }), listBtn = rp.getByRole('button', { name: /^メモの一覧/ });
+  await expect(dayBtn).toHaveAttribute('aria-pressed', 'true');
+  await expect(rp.locator('.mback', { hasText: '今日に戻る' })).toHaveCount(0);
+  await listBtn.click(); await listBtn.click(); // 再押下しても一覧のまま（トグルではない）
+  await expect(listBtn).toHaveAttribute('aria-pressed', 'true');
+  await expect(rp.locator('.mrow')).toHaveCount(1);
+  await rp.getByRole('button', { name: 'この日のメモに戻る' }).click();
+  await expect(dayBtn).toHaveAttribute('aria-pressed', 'true');
+  await listBtn.click();
+  await rp.locator('.mrow').first().click();
+  await expect(ta(page)).toHaveValue('過去のメモ');
+  await rp.locator('.mback', { hasText: '今日に戻る' }).click();
+  await expect(rp.locator('.mback', { hasText: '今日に戻る' })).toHaveCount(0);
+  await expect(ta(page)).toHaveValue('');
+  // 一覧を開いたまま別ページへ→戻ると本文から
+  await listBtn.click();
+  await pagePick(page, 'right', '時間').click();
+  await pagePick(page, 'right', 'メモ').click();
+  await expect(page.locator('.page.rp').getByRole('button', { name: /^この日のメモ/ })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('別日へ移動しても入力は保持され、保存失敗でも下書きが残る', async ({ page }) => {
+  await openApp(page, SIZES.openLandscape951);
+  await pagePick(page, 'right', 'メモ').click();
+  await page.evaluate(() => { const o = IDBObjectStore.prototype.put; window.__failPut = true; IDBObjectStore.prototype.put = function (...a) { if (window.__failPut && this.name === 'memos') throw new Error('boom'); return o.apply(this, a); }; });
+  await ta(page).fill('書きかけ');
+  await page.locator('.page.rp').getByRole('button', { name: '次の日' }).click();
+  await expect(page.locator('.page.rp .mback', { hasText: '今日に戻る' })).toHaveCount(1);
+  const draft = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('duo.memo.draft.v1:')).map((k) => JSON.parse(localStorage.getItem(k)).text));
+  expect(draft).toContain('書きかけ');
+  await page.evaluate(() => { window.__failPut = false; });
+  await page.locator('.page.rp .mback', { hasText: '今日に戻る' }).click();
+  await expect(ta(page)).toHaveValue('書きかけ');
+});
