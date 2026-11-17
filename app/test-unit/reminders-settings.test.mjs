@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normRemSettings, initRemLists, shownListIds, pruneRemSettings, resolveAddList, filterByLists, dueCounts, createReminderLoader, pickAddList } from '../js/reminders.js';
+import { normRemSettings, initRemLists, shownListIds, pruneRemSettings, resolveAddList, filterByLists, dueCounts } from '../js/reminders.js';
 
 const L = (id, o = {}) => ({ id, title: id, color: '#336699', allowsModify: true, isDefault: false, ...o });
 const R = (o) => ({ itemId: 'i', listId: 'A', due: null, done: false, ...o });
@@ -49,7 +49,6 @@ test('追加先: ✓付きで書けるリストだけが候補。読み取り専
   assert.equal(resolveAddList(ls, '', []), null);
   const noDef = [L('A', { allowsModify: false }), L('B'), L('C')];
   assert.equal(resolveAddList(noDef, ''), 'B');
-  assert.equal(pickAddList(noDef), 'B');
   assert.equal(resolveAddList([L('A', { allowsModify: false })], ''), null);
   assert.equal(resolveAddList(undefined, 'B'), null);
 });
@@ -71,19 +70,4 @@ test('件数: 未完了・表示リスト・期限の日だけ。完了・期限
   // 完了操作中の上書き: 1 を完了扱い／3 を未完了扱い
   const o = dueCounts(rs, new Set(['A']), new Map([['1', true], ['3', false]]));
   assert.equal(o.get('2026-11-16'), 2);
-});
-test('ローダー: pick で絞った id だけ native へ渡す。lists は全件返す（追加先用）', async () => {
-  const calls = [];
-  const call = async (m, o) => { calls.push([m, o]); return m === 'listReminderLists' ? { lists: [L('A'), L('B')] } : { reminders: [] }; };
-  const r = await createReminderLoader(call, { pick: () => ['B'] }).load(30, new Date(2026, 10, 16));
-  assert.deepEqual(r.lists.map((l) => l.id), ['A', 'B']);
-  assert.deepEqual(calls[1][1].listIds, ['B']);
-  const r2 = await createReminderLoader(call).load(30, new Date(2026, 10, 16));
-  assert.deepEqual(calls[3][1].listIds, ['A', 'B']); assert.ok(r2);
-});
-test('ローダー: 選択が空なら listReminders を呼ばず空', async () => {
-  const calls = [];
-  const call = async (m, o) => { calls.push(m); return m === 'listReminderLists' ? { lists: [L('A')] } : { reminders: [R()] }; };
-  const r = await createReminderLoader(call, { pick: () => [] }).load(30, new Date(2026, 10, 16));
-  assert.deepEqual(r.reminders, []); assert.deepEqual(calls, ['listReminderLists']);
 });

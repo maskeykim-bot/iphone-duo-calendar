@@ -1,58 +1,10 @@
 import { todayTasks, dueCounts as dueCountsOf } from './tasks.js';
 import { monthPopParts, hourCellsHtml, minCellsHtml, splitHm, oddMinute, monthOf } from './datetime-ui.js';
-// タスク（iPhone のリマインダー）: 許可の確認と案内。状態確認だけでは許可を求めない。
-export const REM_STATES = ['notDetermined', 'granted', 'denied', 'restricted'];
-const norm = (s) => (REM_STATES.includes(s) ? s : 'denied');
-
-// 状態だけ確認する（request はしない）。bridge 不在・失敗は 'unavailable'。
-export async function checkReminderAccess(call) {
-  try { const r = await call('reminderPermission', {}); return norm(r?.status); } catch { return 'unavailable'; }
-}
-// ボタンからだけ呼ぶ。許可ダイアログを出し、結果の状態を返す。
-export async function requestReminderAccess(call) {
-  try { const r = await call('requestReminderPermission', {}); return norm(r?.status); } catch { return 'unavailable'; }
-}
-
-// 一覧取得（第14版 PR14）。listIds は全 id を渡す（空は空結果）。completedSince は Stamp。
-// 失敗は呼び出し側へ投げる（CANCELLED は後続の取得に置き換わった印）。タスク本文は保存しない。
-export async function listReminders(call, listIds, completedSince) {
-  const r = await call('listReminders', { listIds: [...listIds], completedSince });
-  return Array.isArray(r?.reminders) ? r.reminders : [];
-}
-
-// 追加（第14版 PR16）。UI へはまだ公開しない。同じ requestId の再試行は同じ内容で呼ぶこと（異内容は INVALID_ARGUMENT）。
-// listId は '' で OS 既定→書ける先頭。優先度・繰返し・URL は送れない。本文は保存しない。
-export async function createReminder(call, { requestId, listId, title, notes = '', due = null, notify }) {
-  const o = { requestId, listId, title, notes, due };
-  if (typeof notify === 'boolean') o.notify = notify; // 省略＝通知なし（第15版）。明示 true だけ期限の時刻（日付のみは 8:00）に付ける
-  const r = await call('createReminder', o);
-  if (!r || !r.reminder) throw { code: 'UNAVAILABLE' };
-  return r.reminder;
-}
-
-// 差分更新（第14版 PR18）。patch は変えた欄だけ（title/notes/listId/due/notify。notify は利用者が操作した時だけ。省略＝変更なし、due:null＝期限なし）。
-// expectModifiedAt は読み込んだ時の modifiedAt（予定の expectModified とは別）。conflicted は差分上書きした印。
-export async function updateReminder(call, target, expectModifiedAt, patch = {}) {
-  const o = { itemId: target.itemId, expectModifiedAt: expectModifiedAt ?? null, patch: { ...patch } };
-  if (target.externalId) o.externalId = target.externalId;
-  const r = await call('updateReminder', o);
-  if (!r || !r.reminder) throw { code: 'UNAVAILABLE' };
-  return { reminder: r.reminder, conflicted: r.conflicted === true };
-}
-// 完了／戻し（同じ API）。衝突確認なし。
-export async function setReminderDone(call, target, done) {
-  const o = { itemId: target.itemId, done: !!done };
-  if (target.externalId) o.externalId = target.externalId;
-  const r = await call('setReminderDone', o);
-  if (!r || !r.reminder) throw { code: 'UNAVAILABLE' };
-  return r.reminder;
-}
-
 // 削除（第14版 PR20）。force はない。expectModifiedAt は読み込んだ時の modifiedAt。不在は成功（missing）。
-export async function deleteReminder(call, target, expectModifiedAt) {
+export async function removeTaskVia(call, target, expectModifiedAt) {
   const o = { itemId: target.itemId, expectModifiedAt: expectModifiedAt ?? null };
   if (target.externalId) o.externalId = target.externalId;
-  const r = await call('deleteReminder', o);
+  const r = await call('taskDelete', o);
   if (!r || r.deleted !== true) throw { code: 'UNAVAILABLE' };
   return { missing: r.missing === true };
 }
@@ -93,30 +45,6 @@ export function groupReminders(items, { now = new Date(), selected, histDays = H
   return g;
 }
 
-// 一覧の読込。リスト一覧→listIds（すべて）→listReminders。古い要求は世代で捨てる（捨てた分は null）。
-// 権限エラーは投げる。CANCELLED は後続の要求に置き換わった印として null。
-export function createReminderLoader(call, { pick } = {}) {
-  let gen = 0;
-  return {
-    cancel() { gen++; },
-    async load(days = HIST_DAYS, now = new Date()) {
-      const g = ++gen;
-      try {
-        const l = await call('listReminderLists', {});
-        if (g !== gen) return null;
-        const lists = Array.isArray(l?.lists) ? l.lists : [];
-        const ids = pick ? pick(lists) : lists.map((x) => x.id);
-        const reminders = ids.length ? await listReminders(call, ids, completedSinceStamp(now, days)) : [];
-        if (g !== gen) return null;
-        return { lists, reminders };
-      } catch (e) {
-        if (g !== gen || e?.code === 'CANCELLED') return null;
-        throw e;
-      }
-    },
-  };
-}
-
 const escH = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const DOWJ = ['日', '月', '火', '水', '木', '金', '土'];
 const mdLabel = (k) => { const [, m, d] = k.split('-').map(Number); return `${m}/${d}`; };
@@ -155,68 +83,12 @@ export function tasksHtml(data, { selected, now = new Date(), doneOpen = false, 
   return `<div class="pagewait padb taskl" data-wait="task">${addH}${h}</div>`;
 }
 
-export const REM_TEXT = {
-  intro: 'iPhone のリマインダーと同じタスクを、ここで見たり追加したりできます。',
-  allow: 'リマインダーへのアクセスを許可',
-  denied: '設定アプリでリマインダーへのアクセスを許可すると使えます。',
-  settings: '設定を開く',
-  restricted: 'この端末ではリマインダーへのアクセスが制限されています。',
-  web: 'タスクは iPhone のアプリで使えます。',
-  off: 'リマインダーの同期がオフです。設定のカレンダーでオンにすると使えます。',
-};
-
-// state: null（確認中）| 'unavailable' | 'notDetermined' | 'denied' | 'restricted'。granted は呼び出し側が通常のページを出す。
-export function taskOffHtml(where) {
-  const w = String(where).replace(/[^a-z]/g, '');
-  return `<div class="pagewait padb remgate" data-wait="task" data-remstate="off" data-where="${w}"><p class="remtx">${REM_TEXT.off}</p></div>`;
-}
-export function taskAccessHtml(state, where, native) {
-  const w = String(where).replace(/[^a-z]/g, '');
-  let body;
-  if (!native || state === 'unavailable') body = `<p class="remtx">${REM_TEXT.web}</p>`;
-  else if (state === 'denied') body = `<p class="remtx">${REM_TEXT.denied}</p><button type="button" class="rembtn" data-act="remsettings" data-where="${w}">${REM_TEXT.settings}</button>`;
-  else if (state === 'restricted') body = `<p class="remtx">${REM_TEXT.restricted}</p>`;
-  else if (state === 'notDetermined') body = `<p class="remtx">${REM_TEXT.intro}</p><button type="button" class="rembtn" data-act="remreq" data-where="${w}">${REM_TEXT.allow}</button>`;
-  else body = `<p class="remtx">${REM_TEXT.intro}</p>`; // 確認中
-  return `<div class="pagewait padb remgate" data-wait="task" data-remstate="${native ? state || 'checking' : 'web'}" data-where="${w}">${body}</div>`;
-}
-
 // ---- 第14版 PR17: タスクを続けて追加する（追加先の選び方・排他・再試行。本文は保存しない） ----
 // 追加先: OS 既定（書ける場合）→ 書ける先頭。書けるリストがなければ null。
-export function pickAddList(lists) {
+function pickAddList(lists) {
   const ok = (Array.isArray(lists) ? lists : []).filter((l) => l && typeof l.id === 'string' && l.allowsModify !== false);
   return (ok.find((l) => l.isDefault) || ok[0] || null)?.id ?? null;
 }
-const newRequestId = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID() : `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`);
-// 1つの入力欄に対する追加の制御。保存中は排他（busy）。失敗では本文を残し、同じ内容の再試行は同じ requestId、
-// 内容（題名・期限・追加先）が変わったら新しい requestId、成功したら次の新タスク用に requestId を捨てる。
-export function createAddController(call) {
-  let pend = null, busy = false; // pend: { requestId, fp }
-  return {
-    get busy() { return busy; },
-    // -> { ok:true, reminder } | { ok:false, code } | { ok:false, busy|empty|nolist:true }
-    async submit({ title, listId, due = null, time = '', notify }) {
-      if (busy) return { ok: false, busy: true };
-      const t = String(title ?? '').trim();
-      if (!t) return { ok: false, empty: true };
-      if (!listId) return { ok: false, nolist: true };
-      const dueV = due ? (time ? { date: due, time } : { date: due }) : null; // 日付のみ／時刻あり／なしを区別して送る
-      const nv = dueV && notify === true ? true : undefined; // 既定なし（省略）。明示オンだけ送る。期限なしは送らない
-      const fp = JSON.stringify([listId, t, dueV, nv ?? null]);
-      if (!pend || pend.fp !== fp) pend = { requestId: newRequestId(), fp, args: { listId, title: t, due: dueV, notify: nv } };
-      const req = pend; // 再試行は最初に送った引数のまま（requestId と内容を一致させる）
-      busy = true;
-      try {
-        const reminder = await createReminder(call, { requestId: req.requestId, ...req.args, notes: '' });
-        if (pend === req) pend = null;
-        return { ok: true, reminder };
-      } catch (e) {
-        return { ok: false, code: e?.code || 'UNAVAILABLE' };
-      } finally { busy = false; }
-    },
-  };
-}
-
 // 追加の行。draft: { open, title, due(日付キー|null|undefined=選択日に従う), busy, err }。入力値は描画後に呼び出し側が入れる。
 export function addRowHtml(d, { selected, noList = false } = {}) {
   if (noList) return `<div class="rmadd off"><button type="button" class="rmaddbtn" disabled aria-describedby="rmaddwhy">＋ タスクを追加</button><p class="rmwhy" id="rmaddwhy">書き込めるリストがないため、追加できません。</p></div>`;
@@ -282,7 +154,7 @@ export async function saveTask(call, orig, form) {
   if (b.error) return { ok: false, invalid: b.error };
   if (!Object.keys(b.patch).length) return { ok: true, noop: true, reminder: orig, conflicted: false };
   try {
-    const r = await call('updateReminder', { itemId: orig.itemId, patch: b.patch }); // Duo 内保存の口（native は呼ばない）
+    const r = await call('taskUpdate', { itemId: orig.itemId, patch: b.patch }); // Duo 内保存の口（native は呼ばない）
     return { ok: true, reminder: r.reminder, conflicted: false };
   } catch (e) { return { ok: false, code: e?.code || 'UNAVAILABLE' }; }
 }
@@ -311,7 +183,7 @@ export function createDeleteController(call, { delay = DELETE_UNDO_MS, onChange,
     if (e.sent) return;
     e.sent = true; clearTimeout(e.timer);
     let out;
-    try { const x = await deleteReminder(call, { itemId: e.r.itemId, externalId: e.r.externalId }, e.r.modifiedAt); out = { ok: true, missing: x.missing }; }
+    try { const x = await removeTaskVia(call, { itemId: e.r.itemId, externalId: e.r.externalId }, e.r.modifiedAt); out = { ok: true, missing: x.missing }; }
     catch (err) { out = { ok: false, err }; }
     if (map.get(e.r.itemId) !== e) return;
     map.delete(e.r.itemId);

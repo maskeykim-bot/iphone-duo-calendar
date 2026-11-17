@@ -1652,7 +1652,6 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'prev') move(-1, d.pane);
   else if (d.act === 'next') move(1, d.pane);
   else if (d.act === 'memolist') { const w = d.where, want = d.mode ? d.mode === 'list' : !ML.open[w]; if (ML.open[w] === want) return; memoSync(); ML.open[w] = want; render(); if (ML.open[w]) { loadMemoList(); root.querySelector(`[data-mlq="${w}"]`)?.focus({ preventScroll: true }); } }
-  else if (d.act === 'remsettings') { call('openSettings').catch(() => {}); }
   else if (d.act === 'memoretry') memoStore.flushMemo(d.mdate);
   else if (d.act === 'sample') loadSample();
   else if (d.act === 'pickrange') startRangeKbd(b);
@@ -2685,7 +2684,7 @@ menuDlg.addEventListener('click', (ev) => {
   if (cv) { calToggleCat(cv.dataset.cvis, cv); return; }
   if (cc) { calToggleIphone(cc.dataset.cal); return; }
   if (ev.target.closest('#lk-req')) { lkRequest(); return; }
-  if (ev.target.closest('#lk-settings, [data-act="remsettings"]')) { openSettings(); return; }
+  if (ev.target.closest('#lk-settings')) { openSettings(); return; }
   if (ev.target.closest('#lk-reload')) { X.failKey = ''; loadExt(true); renderCalScreen(); return; }
   if (ev.target.closest('#m-dest')) { if (!setDestPage.isOpen()) setDestPage.open(); return; }
   const go = ev.target.closest('[data-go]');

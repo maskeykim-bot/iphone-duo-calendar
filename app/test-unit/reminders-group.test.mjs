@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { groupReminders, completedSinceStamp, createReminderLoader, tasksHtml } from '../js/reminders.js';
+import { groupReminders, completedSinceStamp, tasksHtml } from '../js/reminders.js';
 
 const R = (o) => ({ itemId: 'i', externalId: 'e', listId: 'L', title: 't', notes: '', due: null, done: false, doneAt: null, alarms: [], alarmsExtra: 0, priority: 0, recurring: false, createdAt: null, modifiedAt: null, readOnly: false, ...o });
 const NOW = new Date(2026, 10, 16, 12, 0); // 11/16 12:00
@@ -39,23 +39,6 @@ test('完了: 30日の境界と、もっと前（60日）', () => {
 });
 test('重複 id は1つ、壊れた要素は無視', () => {
   assert.equal(G([R({ itemId: 'a' }), R({ itemId: 'a' }), null, {}]).nodue.length, 1);
-});
-test('loader: 旧応答は捨て、CANCELLED は null、権限エラーは投げる', async () => {
-  const pend = [];
-  const call = (m, o) => (m === 'listReminderLists' ? Promise.resolve({ lists: [{ id: 'L' }] }) : new Promise((res, rej) => pend.push({ res, rej, o })));
-  const ld = createReminderLoader(call);
-  const p1 = ld.load(30, NOW); await new Promise((r) => setTimeout(r, 0));
-  const p2 = ld.load(30, NOW); await new Promise((r) => setTimeout(r, 0));
-  pend[1].res({ reminders: [R({ itemId: 'new' })] }); pend[0].res({ reminders: [R({ itemId: 'old' })] });
-  assert.equal(await p1, null);
-  assert.equal((await p2).reminders[0].itemId, 'new');
-  assert.deepEqual(pend[0].o.listIds, ['L']);
-  const p3 = ld.load(30, NOW); await new Promise((r) => setTimeout(r, 0)); pend[2].rej({ code: 'CANCELLED' });
-  assert.equal(await p3, null);
-  const p4 = ld.load(30, NOW); await new Promise((r) => setTimeout(r, 0)); pend[3].rej({ code: 'PERMISSION_DENIED' });
-  await assert.rejects(p4);
-  const p5 = ld.load(30, NOW); await new Promise((r) => setTimeout(r, 0)); ld.cancel(); pend[4].res({ reminders: [] });
-  assert.equal(await p5, null);
 });
 test('表示: 見出し・行の高さ種別・!・繰り返し・読み取り専用・エスケープ', () => {
   const data = { lists: [{ id: 'L', color: '#112233' }], reminders: [R({ itemId: 'a<b', title: '<x>', priority: 5, recurring: true, readOnly: true, due: { date: '2026-11-16', time: '09:00' } }), R({ itemId: 'n' })] };

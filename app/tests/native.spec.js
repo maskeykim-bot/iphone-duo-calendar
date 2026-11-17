@@ -1268,48 +1268,14 @@ test.describe('新規の標準オン（第13版 PR5）', () => {
   });
 });
 
-test.describe('リマインダーの許可とリスト取得の契約（偽装。Swift 実動作の証明ではない）', () => {
-  const L = { id: 'rl-1', title: '買い物', color: '#ff9500', sourceId: 's1', source: 'iCloud', sourceType: 'caldav', allowsModify: true, isDefault: true };
-  const rc = (page, m) => page.evaluate((m) => window.__mock.calls.filter((c) => c.method === m).length, m);
-
-  test('起動してもリマインダー許可は要求せず、カレンダー許可と独立', async ({ page }) => {
+test.describe('リマインダー連携は外した（PR22。偽装。Swift 実動作の証明ではない）', () => {
+  test('起動してもリマインダー系の要求は0で、カレンダー許可の状態確認は従来どおり', async ({ page }) => {
     await mock(page, { perm: 'denied', remPerm: 'notDetermined' });
     await page.goto('/');
     await page.waitForTimeout(500);
-    expect(await rc(page, 'requestReminderPermission')).toBe(0);
-    // PR13: 起動時は状態確認（reminderPermission）だけ。許可要求はボタンのみ。
-    expect(await rc(page, 'reminderPermission')).toBeGreaterThan(0);
-    const r = await page.evaluate(async () => { const n = await import('/js/native.js'); return [await n.call('reminderPermission', {}), await n.call('checkPermission', {})]; });
-    expect(r[0]).toEqual({ status: 'notDetermined' });
-    expect(r[1]).toEqual({ status: 'denied' });
-  });
-
-  for (const st of ['denied', 'restricted']) {
-    test(`${st}: 要求しても状態のまま、リスト取得は専用エラー`, async ({ page }) => {
-      await mock(page, { remPerm: st, remAfter: 'granted' });
-      await page.goto('/');
-      const r = await page.evaluate(async () => {
-        const n = await import('/js/native.js');
-        const st = await n.call('requestReminderPermission', {});
-        let err = null; try { await n.call('listReminderLists', {}); } catch (e) { err = { code: e.code, text: n.reminderErrText(e, 'x'), cal: n.errText(e, 'x') }; }
-        return { st, err };
-      });
-      expect(r.st.status).toBe(st);
-      expect(r.err.code).toBe(st === 'denied' ? 'PERMISSION_DENIED' : 'RESTRICTED');
-      expect(r.err.text).toContain('リマインダー');
-      if (st === 'denied') expect(r.err.cal).toBe('カレンダーへのアクセスが許可されていません。');
-    });
-  }
-
-  test('許可後にリストを取得（型の全欄）、空リストも成功', async ({ page }) => {
-    await mock(page, { remPerm: 'notDetermined', remAfter: 'granted', remLists: [L] });
-    await page.goto('/');
-    const r = await page.evaluate(async () => { const n = await import('/js/native.js'); const a = await n.call('requestReminderPermission', {}); return { a, l: await n.call('listReminderLists', {}) }; });
-    expect(r.a).toEqual({ status: 'granted' });
-    expect(r.l.lists[0]).toEqual(L);
-    await mock(page, { remPerm: 'granted', remLists: [] });
-    await page.goto('/');
-    expect(await page.evaluate(async () => (await import('/js/native.js')).call('listReminderLists', {}))).toEqual({ lists: [] });
+    const n = await page.evaluate(() => window.__mock.calls.filter((c) => /Reminder/.test(c.method)).length);
+    expect(n).toBe(0);
+    expect(await page.evaluate(async () => (await import('/js/native.js')).call('checkPermission', {}))).toEqual({ status: 'denied' });
   });
 });
 

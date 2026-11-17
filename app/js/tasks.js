@@ -123,11 +123,11 @@ export function createTaskStore(db) {
 export function createLocalCall(store) {
   return async (method, o = {}) => {
     switch (method) {
-      case 'listReminderLists': return { lists: [LOCAL_LIST] };
-      case 'listReminders': return { reminders: (await store.list()).map(rowOf) };
-      case 'setReminderDone': return { reminder: rowOf(await store.setDone(o.itemId, o.done)) };
-      case 'deleteReminder': return { deleted: true, ...(await store.remove(o.itemId)) };
-      case 'updateReminder': {
+      case 'taskLists': return { lists: [LOCAL_LIST] };
+      case 'taskList': return { reminders: (await store.list()).map(rowOf) };
+      case 'taskSetDone': return { reminder: rowOf(await store.setDone(o.itemId, o.done)) };
+      case 'taskDelete': return { deleted: true, ...(await store.remove(o.itemId)) };
+      case 'taskUpdate': {
         const p = o.patch || {}, patch = {};
         if ('title' in p) patch.title = p.title;
         if ('notes' in p) patch.note = p.notes;

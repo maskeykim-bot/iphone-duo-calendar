@@ -212,7 +212,7 @@ test.describe('設定 › カレンダー（PR8）', () => {
     await page.locator('#m-cedit').click();
     await expect(page.locator('#m-cal-ip [data-cal="cal-a"]')).toHaveAttribute('aria-checked', 'true');
     expect(await ls(page)).toEqual(before);
-    for (const m of ['createEvent', 'createEvents', 'updateEvent', 'deleteEvent', 'deleteExternalEvent', 'createReminder', 'updateReminder', 'deleteReminder']) expect(await mockCalls(page, m)).toHaveLength(0);
+    for (const m of ['createEvent', 'createEvents', 'updateEvent', 'deleteEvent', 'deleteExternalEvent', 'createReminder', 'updateReminder', 'deleteReminder', 'setReminderDone', 'listReminders', 'listReminderLists', 'reminderPermission', 'requestReminderPermission']) expect(await mockCalls(page, m)).toHaveLength(0);
   });
 });
 
