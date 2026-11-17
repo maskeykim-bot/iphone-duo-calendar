@@ -38,15 +38,15 @@ const creates = (page) => page.evaluate(() => window.__m.calls.filter((c) => c[0
 async function ready(page) {
   await openApp(page, OPEN);
   await page.locator('.pgl [data-pick="task"]').first().click();
-  await expect(page.locator('.page.lp .rmaddbtn')).toBeVisible();
+  await expect(page.locator('.page.lp input.remin')).toBeVisible();
 }
 const lp = (page) => page.locator('.page.lp');
-async function openAdd(page) { await lp(page).locator('[data-act="remadd"]').click(); const i = lp(page).locator('input.remin'); await expect(i).toBeFocused(); return i; }
+async function openAdd(page) { const i = lp(page).locator('input.remin'); await i.click(); await expect(i).toBeFocused(); return i; }
 
 test.describe('タスクの続けて追加', () => {
   test('追加行は高さ44・既定リスト（OS既定）・期限チップは選択日・Enterで保存して続けて入力', async ({ page }) => {
     await mock(page); await ready(page);
-    expect(await lp(page).locator('.rmaddbtn').evaluate((e) => e.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+    expect(await lp(page).locator('.rmaddgo').evaluate((e) => e.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
     const i = await openAdd(page);
     expect(await i.evaluate((e) => e.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
     await expect(lp(page).locator('.rmchip:not(.rmnote)')).toContainText('期限 11/12');
@@ -97,11 +97,11 @@ test.describe('タスクの続けて追加', () => {
     await mock(page); await ready(page);
     const i = await openAdd(page);
     await i.fill('かいもの');
-    await i.evaluate((e) => { e.dispatchEvent(new CompositionEvent('compositionstart')); });
+    await i.evaluate((e) => { e.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true })); });
     await i.evaluate((e) => { e.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 229, bubbles: true, cancelable: true })); });
     await page.evaluate(() => window.__m.cbs && 0);
     expect((await creates(page)).length).toBe(0);
-    await i.evaluate((e) => { e.dispatchEvent(new CompositionEvent('compositionend')); });
+    await i.evaluate((e) => { e.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })); });
     await i.press('Enter');
     await expect(lp(page).locator('[data-key="rm:x1"]')).toBeVisible();
     expect((await creates(page))[0].title).toBe('かいもの');
@@ -111,11 +111,11 @@ test.describe('タスクの続けて追加', () => {
     await mock(page); await ready(page);
     const i = await openAdd(page);
     await i.fill('abc');
-    await i.evaluate((e) => { e.dataset.mark = '1'; e.dispatchEvent(new CompositionEvent('compositionstart')); });
+    await i.evaluate((e) => { e.dataset.mark = '1'; e.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true })); });
     await page.locator('.page.lp .tlrow, .page.lp').first().evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
     await page.locator('[data-pick="task"]').first().evaluate(() => 0);
     await expect(lp(page).locator('input.remin')).toHaveAttribute('data-mark', '1');
-    await i.evaluate((e) => e.dispatchEvent(new CompositionEvent('compositionend')));
+    await i.evaluate((e) => e.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })));
   });
 
   test('失敗では本文を残し、再試行は同じ requestId。応答喪失でも二重にならない', async ({ page }) => {
@@ -166,7 +166,7 @@ test.describe('タスクの続けて追加', () => {
 
   test('書けるリストがなければ disabled＋理由', async ({ page }) => {
     await mock(page, { lists: [{ id: 'R', title: 'R', color: '#111111', allowsModify: false, isDefault: true }] });
-    await ready(page);
+    await openApp(page, OPEN); await page.locator('.pgl [data-pick="task"]').first().click();
     await expect(lp(page).locator('.rmaddbtn')).toBeDisabled();
     await expect(lp(page).locator('.rmwhy')).toContainText('書き込めるリストがない');
   });
@@ -213,5 +213,48 @@ test.describe('タスクの続けて追加', () => {
     const c = (await creates(page))[0];
     expect(c.due).toEqual({ date: '2026-11-20', time: '10:30' });
     expect('notify' in c).toBe(false);
+  });
+
+  test('PR5: 日英3連続・同じ入力ノード・229でも実変換中でなければ保存・連打は1件', async ({ page }) => {
+    await mock(page); await ready(page);
+    const i = await openAdd(page);
+    await i.evaluate((e) => { e.dataset.same = '1'; });
+    for (const t of ['りんご', 'banana', 'みかん']) { await i.pressSequentially(t); await i.press('Enter'); await expect(i).toHaveValue(''); await expect(i).toBeFocused(); }
+    await expect(lp(page).locator('input.remin')).toHaveAttribute('data-same', '1');
+    expect((await creates(page)).map((x) => x.title)).toEqual(['りんご', 'banana', 'みかん']);
+    // keyCode 229 でも変換中でなければ保存する
+    await i.fill('二重'); await page.evaluate(() => { window.__m.delay = 300; });
+    await i.evaluate((e) => { for (let n = 0; n < 3; n++) e.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 229, bubbles: true, cancelable: true })); });
+    await expect(i).toHaveValue('');
+    expect((await creates(page)).filter((x) => x.title === '二重').length).toBe(1);
+  });
+
+  test('PR5: 変換確定前に追加ボタン→確定後に1回だけ保存。ボタンはフォーカスを奪わない', async ({ page }) => {
+    await mock(page); await ready(page);
+    const i = await openAdd(page);
+    await i.fill('ぱん');
+    await i.evaluate((e) => e.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true })));
+    const go = lp(page).locator('[data-act="remsubmit"]');
+    const pd = await go.evaluate((b) => { const ev = new PointerEvent('pointerdown', { bubbles: true, cancelable: true }); b.dispatchEvent(ev); return ev.defaultPrevented; });
+    expect(pd).toBe(true);
+    await go.click();
+    expect((await creates(page)).length).toBe(0);
+    await i.evaluate((e) => { e.value = 'パン'; e.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })); });
+    await expect(i).toHaveValue('');
+    const c = await creates(page); expect(c.length).toBe(1); expect(c[0].title).toBe('パン');
+    // blur 後の再入力
+    await i.evaluate((e) => e.blur()); await i.click(); await i.pressSequentially('next'); await i.press('Enter');
+    await expect(i).toHaveValue(''); expect((await creates(page)).length).toBe(2);
+  });
+
+  test('PR5: 失敗は欄の近くに理由を出し文字を残す。追加ボタンでも再試行できる', async ({ page }) => {
+    await mock(page); await ready(page);
+    const i = await openAdd(page);
+    await page.evaluate(() => { window.__m.failNext = 'UNAVAILABLE'; });
+    await i.fill('残る'); await lp(page).locator('[data-act="remsubmit"]').click();
+    await expect(lp(page).locator('.rmadd .rmwhy.err')).toBeVisible();
+    await expect(i).toHaveValue('残る');
+    await lp(page).locator('[data-act="remsubmit"]').click();
+    await expect(i).toHaveValue(''); await expect(lp(page).locator('.rmwhy.err')).toHaveCount(0);
   });
 });

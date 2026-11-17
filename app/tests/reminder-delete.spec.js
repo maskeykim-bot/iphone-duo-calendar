@@ -32,7 +32,7 @@ const lp = (page) => page.locator('.page.lp');
 async function ready(page) {
   await openApp(page, SIZES.openLandscape);
   await page.locator('.pgl [data-pick="task"]').first().click();
-  await expect(page.locator('.page.lp .rmaddbtn')).toBeVisible();
+  await expect(page.locator('.page.lp input.remin')).toBeVisible();
 }
 async function swipe(page, id) {
   const b = await lp(page).locator(`[data-key="rm:${id}"] .rmbody`).boundingBox();

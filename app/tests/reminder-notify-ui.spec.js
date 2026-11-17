@@ -35,7 +35,7 @@ const lp = (page) => page.locator('.page.lp');
 async function ready(page) {
   await openApp(page, SIZES.openLandscape);
   await page.locator('.pgl [data-pick="task"]').first().click();
-  await expect(lp(page).locator('.rmaddbtn')).toBeVisible();
+  await expect(lp(page).locator('input.remin')).toBeVisible();
 }
 async function edit(page, id) { await lp(page).locator(`[data-key="rm:${id}"] [data-act="remedit"]`).click(); await expect(page.locator('#taskdlg')).toBeVisible(); }
 
@@ -96,7 +96,7 @@ test.describe('タスクの通知の選択', () => {
 
   test('追加: 既定は通知なし（notify 省略）、オンにしたときだけ true、期限なしでは送らない', async ({ page }) => {
     await mock(page, []); await ready(page);
-    await lp(page).locator('[data-act="remadd"]').click();
+    await lp(page).locator('input.remin').click();
     const i = lp(page).locator('input.remin');
     await expect(lp(page).locator('[data-act="remnote"]')).toHaveAttribute('aria-checked', 'false');
     await i.fill('一'); await i.press('Enter');

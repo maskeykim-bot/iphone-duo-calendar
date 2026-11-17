@@ -219,7 +219,6 @@ export function createAddController(call) {
 // 追加の行。draft: { open, title, due(日付キー|null|undefined=選択日に従う), busy, err }。入力値は描画後に呼び出し側が入れる。
 export function addRowHtml(d, { selected, noList = false } = {}) {
   if (noList) return `<div class="rmadd off"><button type="button" class="rmaddbtn" disabled aria-describedby="rmaddwhy">＋ タスクを追加</button><p class="rmwhy" id="rmaddwhy">書き込めるリストがないため、追加できません。</p></div>`;
-  if (!d.open) return `<div class="rmadd"><button type="button" class="rmaddbtn" data-act="remadd">＋ タスクを追加</button></div>`;
   const due = d.due === undefined ? selected : d.due;
   const time = due ? d.time || '' : '';
   const label = due ? `期限 ${mdLabel(due)}${time ? ` ${time}` : ''}` : '期限なし';
@@ -230,7 +229,7 @@ export function addRowHtml(d, { selected, noList = false } = {}) {
   const nchip = due
     ? `<button type="button" class="rmchip rmnote${on ? ' on' : ''}" data-act="remnote" role="switch" aria-checked="${on}" aria-label="通知">${on ? '通知あり' : '通知なし'}</button>`
     : '';
-  return `<div class="rmadd open"><div class="rmaddin"><input type="text" class="remin" enterkeyhint="done" autocomplete="off" aria-label="タスクの題名" placeholder="タスクを入力"${d.busy ? ' readonly aria-busy="true"' : ''}>${chip}${nchip}</div>`
+  return `<div class="rmadd open"><div class="rmaddin"><input type="text" class="remin" enterkeyhint="done" autocomplete="off" aria-label="タスクの題名" placeholder="タスクを入力"${d.busy ? ' readonly aria-busy="true"' : ''}>${chip}${nchip}<button type="button" class="rmaddgo" data-act="remsubmit" aria-label="タスクを追加"${d.busy ? ' disabled' : ''}>追加</button></div>`
     + (d.pop ? addDuePopHtml(d, due, time) : '')
     + `<p class="rmwhy" id="rmnotewhy">${due ? (on ? (time ? '期限の時刻に通知します。' : '期限の日の 8:00 に通知します。') : '通知しません。') : '期限がないタスクは通知されません。'}</p>`
     + `${d.err ? `<p class="rmwhy err" role="alert">${escH(d.err)}</p>` : ''}</div>`;

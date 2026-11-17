@@ -1018,16 +1018,22 @@ function memoSync() {
   root.querySelectorAll('textarea.memota').forEach((ta) => { const e = memoStore.get(ta.dataset.memo); if (e?.loaded && e.text !== ta.value) memoStore.setText(ta.dataset.memo, ta.value); });
 }
 root.addEventListener('input', (ev) => { const ta = ev.target.closest?.('textarea.memota'); if (ta && !ev.isComposing && !memoComposing && !ta.readOnly) memoStore.setText(ta.dataset.memo, ta.value); });
-root.addEventListener('compositionstart', (ev) => { if (ev.target.closest?.('textarea.memota, input.remin')) memoComposing = true; });
+let remComposing = false; // 題名欄の実変換中だけ true（入力欄のノードは再描画で保たれるので描画は待たない）
+root.addEventListener('compositionstart', (ev) => { if (ev.target.closest?.('input.remin')) { remComposing = true; return; } if (ev.target.closest?.('textarea.memota')) memoComposing = true; });
 root.addEventListener('compositionend', (ev) => {
   const rin = ev.target.closest?.('input.remin');
-  if (rin) { memoComposing = false; RM.add.title = rin.value; if (renderPending) { renderPending = false; render(); } return; }
+  if (rin) {
+    remComposing = false;
+    if (!RM.add.busy) RM.add.title = rin.value;
+    if (RM.add.want) { RM.add.want = false; remSubmit(); } // 変換確定前に追加を押していたら、確定後に1回だけ保存
+    return;
+  }
   const ta = ev.target.closest?.('textarea.memota'); if (!ta) return;
   memoComposing = false;
   if (!ta.readOnly) memoStore.setText(ta.dataset.memo, ta.value);
   if (renderPending) { renderPending = false; render(); }
 });
-root.addEventListener('focusout', (ev) => { if (memoComposing && ev.target.closest?.('textarea.memota, input.remin')) { memoComposing = false; if (renderPending) { renderPending = false; setTimeout(render, 0); } } });
+root.addEventListener('focusout', (ev) => { if (ev.target.closest?.('input.remin')) remComposing = false; if (memoComposing && ev.target.closest?.('textarea.memota')) { memoComposing = false; if (renderPending) { renderPending = false; setTimeout(render, 0); } } });
 const flushMemosNow = () => { memoSync(); return memoStore.flushAll(); };
 // バックアップの前後: 未保存のメモを保存し終えるまで待つ。保存できなかった日があれば false。
 const flushMemosAwait = async () => { try { const r = await flushMemosNow(); return r.every((x) => x !== false) && !memoStore.anyDirty(); } catch { return false; } };
@@ -1038,39 +1044,47 @@ root.addEventListener('input', (ev) => { const i = ev.target.closest?.('input.re
 root.addEventListener('keydown', (ev) => {
   const i = ev.target.closest?.('input.remin'); if (!i) return;
   if (ev.key !== 'Enter') return;
-  if (ev.isComposing || ev.keyCode === 229 || memoComposing) return; // IME 変換中の Enter は確定だけ（保存しない）
+  if (ev.isComposing || remComposing) return; // 実変換中の Enter は確定だけ（229 だけでは捨てない）
   ev.preventDefault(); remSubmit();
 });
 const remInput = () => root.querySelector('input.remin');
 function fillAdd(keep) {
   const i = remInput(); if (!i) return;
-  i.value = RM.add.title;
+  if (i.value !== RM.add.title && !RM.add.busy) i.value = RM.add.title;
   if (keep || RM.add.focus) {
     RM.add.focus = false;
     i.focus({ preventScroll: true });
     try { const n = i.value.length; i.setSelectionRange(keep ? Math.min(keep.s, n) : n, keep ? Math.min(keep.e, n) : n); } catch { /* 無視 */ }
   }
 }
-function openAdd() { RM.add.open = true; RM.add.focus = true; render(); }
+function openAdd() { const i = remInput(); if (i) i.focus({ preventScroll: true }); else { RM.add.focus = true; render(); } }
+// 追加ボタンは入力欄からフォーカスを奪わない（キーボードを保つ）
+for (const t of ['pointerdown', 'mousedown']) root.addEventListener(t, (ev) => { if (ev.target.closest?.('[data-act="remsubmit"]')) ev.preventDefault(); });
 async function remSubmit() {
   const a = RM.add, i = remInput();
   if (a.busy || !i) return;
+  if (remComposing) { a.want = true; return; } // 実変換中は確定を待つ
   a.title = i.value;
   const due = a.due === undefined ? state.selected : a.due;
   const time = due ? a.time || '' : '';
   const listId = addList();
   if (!a.title.trim() || !listId) return;
   a.busy = true; a.err = ''; i.readOnly = true; i.setAttribute('aria-busy', 'true');
+  root.querySelectorAll('[data-act="remsubmit"]').forEach((b) => { b.disabled = true; });
+  root.querySelectorAll('.rmwhy.err').forEach((e) => e.remove());
   const r = await addCtl.submit({ title: a.title, listId, due, time, notify: a.notify });
   if (RM.add !== a) return; // 許可の取消などで下書きごと捨てられた
   a.busy = false;
+  const cur = remInput() || i; // 再描画されても同じノード（保たれている）
+  cur.readOnly = false; cur.removeAttribute('aria-busy');
+  root.querySelectorAll('[data-act="remsubmit"]').forEach((b) => { b.disabled = false; });
   if (r.ok) {
-    a.title = ''; a.err = '';
+    a.title = ''; a.err = ''; cur.value = ''; // 成功した後だけ同じノードを空にする
     const list = RM.data?.reminders;
     if (list && !list.some((x) => x.itemId === r.reminder.itemId)) RM.data = { ...RM.data, reminders: [...list, r.reminder] };
     RM.sig = ''; a.focus = true; render(); scheduleTasks(); say('タスクを追加しました。');
   } else {
-    a.err = reminderErrText({ code: r.code }, '追加できませんでした。もう一度 Enter で試せます。');
+    a.err = reminderErrText({ code: r.code }, '追加できませんでした。もう一度 Enter か「追加」で試せます。'); // 文字は残す
     a.focus = true; render(); say(a.err);
     if (r.code === 'PERMISSION_DENIED') refreshReminderAccess();
     else if (r.code === 'LIST_NOT_FOUND' || r.code === 'READ_ONLY') loadTasks(); // 追加先を取り直す
@@ -1356,9 +1370,11 @@ function render() {
   const memoKeep = ma && ma.matches?.('textarea.memota') ? { where: ma.dataset.where, s: ma.selectionStart, e: ma.selectionEnd, d: ma.selectionDirection, sc: ma.scrollTop } : null;
   const ra = document.activeElement;
   const remKeep = ra && ra.matches?.('input.remin') ? { s: ra.selectionStart, e: ra.selectionEnd } : null;
+  const remNode = root.querySelector('input.remin'); // 入力欄は一覧の再描画で作り直さず、同じノードを戻す
   rendering = true;
   root.innerHTML = { home: () => closed('home'), browse: () => closed('browse'), open, desk, spread }[kind]();
   rendering = false;
+  if (remNode) { const nn = root.querySelector('input.remin'); if (nn && nn !== remNode) { nn.replaceWith(remNode); remNode.readOnly = !!RM.add.busy; } }
   fillMemos(memoKeep);
   fillAdd(remKeep);
   ensureMarks();
@@ -1419,7 +1435,7 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'list') set({ home: true });
   else if (d.act === 'remck') toggleDone(d.id);
   else if (d.act === 'remedit') openTask(d.id, b);
-  else if (d.act === 'remadd') openAdd();
+  else if (d.act === 'remsubmit') remSubmit();
   else if (d.act === 'remnote') { RM.add.notify = RM.add.notify !== true; RM.add.focus = true; render(); }
   else if (d.act === 'remdue0') { RM.add.due = null; RM.add.time = ''; RM.add.pop = null; RM.add.focus = true; render(); }
   else if (d.act === 'remdue2') { const a = RM.add, cur = a.due === undefined ? state.selected : a.due; a.pop = a.pop ? null : { vm: monthOf(cur || todayKey()) }; a.focus = true; render(); }

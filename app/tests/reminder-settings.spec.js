@@ -141,7 +141,7 @@ test.describe('リストの表示と追加先（カレンダー内のリマイ�
     expect((await stored(page)).lists).toEqual(['B']);
     await closeMenu(page);
     await expect(lp.locator('[data-key="rm:a1"]')).toHaveCount(0);
-    await lp.locator('[data-act="remadd"]').click();
+    await lp.locator('input.remin').click();
     await lp.locator('input.remin').fill('新しい');
     await lp.locator('input.remin').press('Enter');
     await expect.poll(() => createCalls(page)).toEqual(['B']); // 追加先は✓付き書込可のみ（A は非表示）
@@ -168,7 +168,7 @@ test.describe('リストの表示と追加先（カレンダー内のリマイ�
     expect((await stored(page)).addTo).toBe('B');
     await closeMenu(page);
     const lp = page.locator('.page.rp');
-    await lp.locator('[data-act="remadd"]').click();
+    await lp.locator('input.remin').click();
     await lp.locator('input.remin').fill('家のこと');
     await lp.locator('input.remin').press('Enter');
     await expect.poll(() => createCalls(page)).toEqual(['B']);
@@ -177,7 +177,7 @@ test.describe('リストの表示と追加先（カレンダー内のリマイ�
     await expect(rb.locator('[data-tkadd="B"]')).toHaveCount(0);
     await expect(rb.locator('[data-tkadd=""]')).toHaveAttribute('aria-checked', 'true');
     await closeMenu(page);
-    if (await lp.locator('[data-act="remadd"]').count()) await lp.locator('[data-act="remadd"]').click();
+    if (await lp.locator('input.remin').count()) await lp.locator('input.remin').click();
     await lp.locator('input.remin').fill('仕事');
     await lp.locator('input.remin').press('Enter');
     await expect.poll(() => createCalls(page)).toEqual(['B', 'A']);
@@ -197,7 +197,7 @@ test.describe('リストの表示と追加先（カレンダー内のリマイ�
     await openApp(page, OPEN);
     await page.locator('.pgr [data-pick="task"]').first().click();
     const lp = page.locator('.page.rp');
-    await lp.locator('[data-act="remadd"]').click();
+    await lp.locator('input.remin').click();
     await lp.locator('input.remin').fill('x');
     await lp.locator('input.remin').press('Enter');
     await expect.poll(() => createCalls(page)).toEqual(['B']);

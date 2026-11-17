@@ -34,7 +34,7 @@ const lp = (page) => page.locator('.page.lp');
 async function ready(page, sz = SIZES.openLandscape) {
   await openApp(page, sz);
   await page.locator('.pgl [data-pick="task"]').first().click();
-  await expect(page.locator('.page.lp .rmaddbtn')).toBeVisible();
+  await expect(page.locator('.page.lp input.remin')).toBeVisible();
 }
 
 test.describe('タスクの編集と完了', () => {
