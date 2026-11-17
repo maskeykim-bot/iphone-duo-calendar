@@ -6,7 +6,7 @@ import { initSwipe } from './swipe.js';
 import { initDirectInput, dayRange, rangeText, minutesAt, dragRange, tapRange, moveHandle, spanText, hm as hmText, snap15, edgeZone, edgeVelocity, createDwell, createFrameLoop } from './direct-input.js';
 import { occurrenceAt, parseOccId, planDelete, planEdit, editInfo, normRule } from './recur.js';
 import { bumpRevision, occBetween } from './occcache.js';
-import { LIMIT, groupByDay, highlight, excerpt, searchEvents, searchMemos } from './search.js';
+import { LIMIT, groupByDay, highlight, excerpt, searchEvents, searchMemos, searchTasks } from './search.js';
 import { backupName, buildBackup, countStats, localIso, planAppend, planMemos, planTasks, validateBackup, MAX_BYTES } from './backup.js';
 import { CAT_IDS, LIMITS as CAT_LIMITS, canHideCategory, defaultDeleteTarget, ensureOneVisible, supplementForReplace, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, RETARGET_TOAST, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory } from './categories.js';
 import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAlarms, encAlarm, fireAt, nextNotifyText, normNotify, pastForNotify, planNotifications, planNotifyPolicy, MAX_PENDING, WINDOW_DAYS } from './notify.js';
@@ -15,8 +15,8 @@ import { holidayOf } from './holidays.js';
 import { splitEvents, eveningFirst, homeTasks, dueText, tomorrowSummary, axisBars, firstLines } from './home.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS } from './pages.js';
 import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.js';
-import { DELETE_UNDO_MS, tasksHtml, HIST_DAYS, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDeleteController, TASK_DELETED, dueCounts, overdueTodayCount } from './reminders.js';
-import { LOCAL_LIST, TASK_STORE_TEXT, createTaskStore, createLocalCall, createLocalAddController, rowOf, createTaskDoneController, DONE_UNDO_MS, inheritTaskSettings, normTaskSettings } from './tasks.js';
+import { DELETE_UNDO_MS, tasksHtml, HIST_DAYS, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDeleteController, TASK_DELETED } from './reminders.js';
+import { LOCAL_LIST, TASK_STORE_TEXT, createTaskStore, createLocalCall, createLocalAddController, rowOf, createTaskDoneController, DONE_UNDO_MS, dueCounts, todayTasks, inheritTaskSettings, normTaskSettings } from './tasks.js';
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
 import { call, errCode, errReason, errText, haptic, listen, nativeAvailable } from './native.js';
 import { createDestPage, destRowsHtml } from './destination-ui.js';
@@ -489,7 +489,7 @@ const stripOn = (id) => (layoutKind() === 'spread' ? PG().left === id || PG().ri
 const stripTaskCount = () => {
   if (!RM.data) return 0;
   const ids = delCtl.ids(), list = ids.size ? RM.data.reminders.filter((x) => !ids.has(x.itemId)) : RM.data.reminders;
-  return overdueTodayCount(list, shownIds(), doneCtl.pending(), todayKey());
+  return todayTasks(list, todayKey(), doneCtl.pending()).total;
 };
 const monthAll = () => viewNow() === 'month' && !listShown();
 // 帯／見出しの上の操作群。帯があるとき（閉じた画面・開いた横）は帯に5つ（全は月のみ）、なければ見出し・下段へ。
@@ -1259,7 +1259,7 @@ function monthTaskCounts(kind) {
   if (kind === 'browse' || !remSet.monthTasks || !RM.data) return null;
   const over = doneCtl.pending(), ids = delCtl.ids();
   const list = ids.size ? RM.data.reminders.filter((x) => !ids.has(x.itemId)) : RM.data.reminders;
-  return dueCounts(list, shownIds(), over);
+  return dueCounts(list, over);
 }
 const taskStore = createTaskStore(db);
 const localCall = createLocalCall(taskStore); // 完了・削除・編集の controller の口（Duo 内保存へ）
@@ -2796,7 +2796,7 @@ catsDlg.addEventListener('close', () => {
 
 // ---------- 検索 ----------
 const SR = { q: $('#sr-q'), clear: $('#sr-clear'), range: $('#sr-range'), xrange: $('#sr-xrange'), body: $('#sr-body') };
-let srSeq = 0, srTimer = 0, srToday = todayKey(), srItems = [], srSnap = null, srMemos = [], srMemoSeq = 0;
+let srSeq = 0, srTimer = 0, srToday = todayKey(), srItems = [], srSnap = null, srMemos = [], srMemoSeq = 0, srTasks = [], srTaskSeq = 0;
 const ymd = (k) => k.replaceAll('-', '/');
 function openSearch(from) {
   srToday = todayKey();
@@ -2805,6 +2805,8 @@ function openSearch(from) {
   SR.q.value = '';
   srMemos = []; const ms = ++srMemoSeq; // メモは全期間。未保存分を書いてから読む（失敗しても予定の検索は使える）
   flushMemosNow().then(() => db.listMemos()).then((m) => { if (ms === srMemoSeq) { srMemos = m; if (SR.q.value.trim()) renderSearch(true, true); } }, () => {});
+  srTasks = []; const ts0 = ++srTaskSeq; // タスクも全期間（古い完了を含む）。保存済みの集合から読む
+  taskStore.list().then((t) => { if (ts0 === srTaskSeq) { srTasks = t; if (SR.q.value.trim()) renderSearch(true, true); } }, () => {});
   renderSearch(true);
   openPanel(searchDlg, from);
   SR.q.focus({ preventScroll: true });
@@ -2822,9 +2824,16 @@ function memoHitHtml(m, ts) {
   const ex = excerpt(m.text, ts) || m.text.slice(0, 80);
   return `<button type="button" class="mhit" data-mhit="${m.date}" aria-label="${esc(`${lab}のメモ ${ex}`)}"><span class="hmeta">${esc(lab)}</span><span class="hnote">${highlight(ex, ts, esc)}</span></button>`;
 }
+function taskHitHtml(t, ts) {
+  const due = t.due ? `${t.due.date.slice(5, 7)}/${t.due.date.slice(8, 10)}${t.due.time ? ` ${t.due.time}` : ''}` : '期限なし';
+  const meta = `${t.done ? '完了' : '未完了'} · ${due}`;
+  const ex = t.note && !ts.every((x) => highlight(t.title, [x], esc).includes('<mark>')) ? excerpt(t.note, ts) : '';
+  return `<button type="button" class="mhit thit${t.done ? ' done' : ''}" data-thit="${esc(t.id)}" aria-label="${esc(`タスク ${meta} ${t.title}`)}"><span class="hmeta">${esc(meta)}</span><strong>${highlight(t.title, ts, esc)}</strong>${ex ? `<span class="hnote">${highlight(ex, ts, esc)}</span>` : ''}</button>`;
+}
 function renderSearch(initial = false, quiet = false) {
   const say2 = (m) => { if (!quiet) say(m); };
   const mres = searchMemos(srMemos, SR.q.value);
+  const tres = searchTasks(srTasks, SR.q.value);
   const res = searchEvents(state.events, SR.q.value, srToday, srSnap ? searchExt(srSnap.events, SR.q.value, srToday) : [], duoVisible());
   SR.clear.hidden = !SR.q.value;
   SR.range.textContent = `検索範囲：${ymd(res.range.from)}–${ymd(res.range.to)}・最大${LIMIT}件`;
@@ -2833,15 +2842,16 @@ function renderSearch(initial = false, quiet = false) {
   srItems = res.items;
   const yr = Number(srToday.slice(0, 4));
   if (!res.ts.length) { SR.body.innerHTML = '<p class="smsg">探したい予定の言葉を入力してください。予定名・メモ・場所から探せます。</p>'; if (!initial) say2('検索語を消しました。'); return; }
-  if (!res.total && !mres.total) { SR.body.innerHTML = '<p class="smsg">該当する予定はありません。検索語や検索範囲を確認してください。</p>'; say2('該当する予定はありません。'); return; }
+  if (!res.total && !mres.total && !tres.total) { SR.body.innerHTML = '<p class="smsg">該当する予定はありません。検索語や検索範囲を確認してください。</p>'; say2('該当する予定はありません。'); return; }
   const groups = groupByDay(res.items).map((g) => {
     const label = Number(g.key.slice(0, 4)) === yr ? dayLabel(g.key) : `${g.key.slice(0, 4)}年${dayLabel(g.key)}`;
     return `<section class="hgroup"><h3>${label}</h3>${g.items.map((e) => hitHtml(e, res.ts)).join('')}</section>`;
   }).join('');
   const evHtml = res.total ? `<p class="small hcount">${res.total}件の予定</p>${res.capped ? `<p class="small">${LIMIT}件を表示しています。検索語を追加して絞り込んでください</p>` : ''}${groups}` : '<p class="smsg">該当する予定はありません。検索語や検索範囲を確認してください。</p>';
   const mHtml = mres.total ? `<section class="ssec" data-sec="memo" aria-label="メモ"><h2 class="srhead">メモ</h2><p class="small hcount">${mres.total}件のメモ（全期間・最大${LIMIT}件）</p>${mres.capped ? `<p class="small">${LIMIT}件を表示しています。検索語を追加して絞り込んでください</p>` : ''}${mres.items.map((m) => memoHitHtml(m, mres.ts)).join('')}</section>` : '';
-  SR.body.innerHTML = `<section class="ssec" data-sec="events">${evHtml}</section>${mHtml}`;
-  say2(`${res.total}件の予定${mres.total ? `、${mres.total}件のメモ` : ''}が見つかりました。`);
+  const tHtml = tres.total ? `<section class="ssec" data-sec="task" aria-label="タスク"><h2 class="srhead">タスク</h2><p class="small hcount">${tres.total}件のタスク（全期間・最大${LIMIT}件）</p>${tres.capped ? `<p class="small">${LIMIT}件を表示しています。検索語を追加して絞り込んでください</p>` : ''}${tres.items.map((t) => taskHitHtml(t, tres.ts)).join('')}</section>` : '';
+  SR.body.innerHTML = `<section class="ssec" data-sec="events">${evHtml}</section>${mHtml}${tHtml}`;
+  say2(`${res.total}件の予定${mres.total ? `、${mres.total}件のメモ` : ''}${tres.total ? `、${tres.total}件のタスク` : ''}が見つかりました。`);
 }
 SR.q.addEventListener('input', () => {
   clearTimeout(srTimer);
@@ -2860,6 +2870,13 @@ SR.body.addEventListener('click', (ev) => {
     closePanel(searchDlg, false);
     set({ selected: k, view: 'day', home: false });
     say(`${dayLabel(k)}へ移動しました。`);
+    return;
+  }
+  const th = ev.target.closest('[data-thit]');
+  if (th) {
+    const id = th.dataset.thit;
+    closePanel(searchDlg, false);
+    if (RM.data?.reminders.some((x) => x.itemId === id)) openTask(id); else say('このタスクは見つかりません。');
     return;
   }
   const b = ev.target.closest('[data-hit]');

@@ -142,3 +142,24 @@ export function searchMemos(memos, query) {
   hits.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   return { items: hits.slice(0, LIMIT), total: hits.length, capped: hits.length > LIMIT, ts };
 }
+
+// タスク検索: 全期間（古い完了も含む）・題名とメモのAND検索（予定と同じ正規化）。予定・メモの件数とは混ぜず、別枠で最大 LIMIT 件。
+// 並び: 未完了（期限順）→ 期限なしの未完了 → 完了（完了の新しい順）。戻り値: { items, total, capped, ts }
+export function searchTasks(tasks, query) {
+  const ts = terms(query);
+  if (!ts.length) return { items: [], total: 0, capped: false, ts };
+  const open = [], noDue = [], done = [];
+  for (const t of tasks || []) {
+    if (!t || typeof t.title !== 'string') continue;
+    const f = [normalize(t.title), normalize(t.note)];
+    if (!ts.every((x) => f.some((y) => y.includes(x)))) continue;
+    (t.done ? done : t.due?.date ? open : noDue).push(t);
+  }
+  const key = (t) => `${t.due.date}T${t.due.time || '00:00'}`;
+  const byId = (a, b) => collator.compare(String(a.id), String(b.id));
+  open.sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : (a.order - b.order) || byId(a, b)));
+  noDue.sort((a, b) => (a.order - b.order) || byId(a, b));
+  done.sort((a, b) => ((b.doneAt || '') < (a.doneAt || '') ? -1 : (b.doneAt || '') > (a.doneAt || '') ? 1 : byId(a, b)));
+  const all = open.concat(noDue, done);
+  return { items: all.slice(0, LIMIT), total: all.length, capped: all.length > LIMIT, ts };
+}

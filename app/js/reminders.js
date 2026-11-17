@@ -1,3 +1,4 @@
+import { todayTasks, dueCounts as dueCountsOf } from './tasks.js';
 import { monthPopParts, hourCellsHtml, minCellsHtml, splitHm, oddMinute, monthOf } from './datetime-ui.js';
 // タスク（iPhone のリマインダー）: 許可の確認と案内。状態確認だけでは許可を求めない。
 export const REM_STATES = ['notDetermined', 'granted', 'denied', 'restricted'];
@@ -392,19 +393,8 @@ export function filterByLists(reminders, shown) {
 // 日付キー → 未完了で期限がその日のタスク数（表示リストのみ）。doneOverride: id→done（完了操作中の表示上の上書き）。タスク名は返さない。
 // 右の帯のタスクの数: 期限が今日以前（期限切れ＋今日）の未完了。doneOverride は完了操作の途中の見え方。
 export function overdueTodayCount(reminders, shown, doneOverride, today) {
-  let n = 0;
-  for (const r of filterByLists(reminders, shown)) {
-    const done = doneOverride && doneOverride.has(r.itemId) ? doneOverride.get(r.itemId) : r.done;
-    if (!done && r.due?.date && r.due.date <= today) n++;
-  }
-  return n;
+  return todayTasks(filterByLists(reminders, shown), today, doneOverride).total;
 }
 export function dueCounts(reminders, shown, doneOverride) {
-  const m = new Map();
-  for (const r of filterByLists(reminders, shown)) {
-    const done = doneOverride && doneOverride.has(r.itemId) ? doneOverride.get(r.itemId) : r.done;
-    if (done || !r.due?.date) continue;
-    m.set(r.due.date, (m.get(r.due.date) || 0) + 1);
-  }
-  return m;
+  return dueCountsOf(filterByLists(reminders, shown), doneOverride);
 }

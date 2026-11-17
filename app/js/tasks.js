@@ -213,3 +213,33 @@ export function createTaskDoneController(store, { delay = DONE_DELAY_MS, onSettl
     reset() { for (const e of map.values()) clearTimer(e.timer); map.clear(); },
   };
 }
+
+// ---------- 件数と並びの共通関数（第16版 PR20） ----------
+// 帯・ホーム・月の件数はすべてここから出す。入力は Task（id）でも行（itemId）でもよい。pending は完了操作中の表示上書き（id→done）。
+const idOf = (r) => r.itemId ?? r.id;
+const doneOf = (r, pending) => (pending && pending.has(idOf(r)) ? pending.get(idOf(r)) : !!r.done);
+const dueKey = (r) => `${r.due.date}T${r.due.time || '00:00'}`;
+const cmpStr = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+// 日付キー → その日が期限の未完了数（期限なし・完了は数えない）。
+export function dueCounts(list, pending) {
+  const m = new Map();
+  for (const r of list || []) {
+    if (!r?.due?.date || doneOf(r, pending)) continue;
+    m.set(r.due.date, (m.get(r.due.date) || 0) + 1);
+  }
+  return m;
+}
+// 期限が今日以前（期限切れ＋今日）の未完了。items は期限順で、完了操作中に完了へ押した行も取り消せるよう残す。total は未完了の件数（帯の数）。
+export function todayTasks(list, today, pending) {
+  const rows = [];
+  let total = 0;
+  for (const r of list || []) {
+    if (!r?.due?.date || r.due.date > today) continue;
+    const pend = pending && pending.has(idOf(r));
+    const d = doneOf(r, pending);
+    if (!d) total++;
+    if (pend || !r.done) rows.push(r);
+  }
+  rows.sort((a, b) => cmpStr(dueKey(a), dueKey(b)) || cmpStr(String(a.title || ''), String(b.title || '')) || cmpStr(String(idOf(a)), String(idOf(b))));
+  return { items: rows, total };
+}

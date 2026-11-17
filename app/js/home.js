@@ -1,3 +1,4 @@
+import { todayTasks } from './tasks.js';
 // ホーム（今日のカード）の純粋な集合計算。描画・保存は持たない（app.js が使う）。第16版 PR14。
 export const MAX_EVENTS = 3, MAX_TASKS = 3, EVENING_HOUR = 20;
 export const AXIS_FROM = 9, AXIS_TO = 19, HOUR_PX = 14;
@@ -16,11 +17,8 @@ export const eveningFirst = (stamp) => Number(String(stamp).slice(11, 13)) >= EV
 
 // 期限が今日以前の未完了。pending は完了操作中の表示上書き（id→done）。完了にした行は押した直後も取り消せるよう残す。
 export function homeTasks(reminders, today, pending) {
-  const rows = (Array.isArray(reminders) ? reminders : []).filter((r) => r && r.due?.date && r.due.date <= today);
-  const keep = rows.filter((r) => (pending && pending.has(r.itemId) ? true : !r.done));
-  keep.sort((a, b) => `${a.due.date}T${a.due.time || '00:00'}`.localeCompare(`${b.due.date}T${b.due.time || '00:00'}`) || String(a.title || '').localeCompare(String(b.title || '')) || String(a.itemId).localeCompare(String(b.itemId)));
-  const open = keep.filter((r) => !(pending && pending.get(r.itemId) === true));
-  return { items: keep.slice(0, MAX_TASKS), total: open.length };
+  const r = todayTasks(Array.isArray(reminders) ? reminders : [], today, pending);
+  return { items: r.items.slice(0, MAX_TASKS), total: r.total };
 }
 const addDay = (k, n) => { const d = new Date(`${k}T00:00:00`); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 // 期限の短い表記: 期限切れは「昨日」「11/14」、今日は時刻（なければ空）。
