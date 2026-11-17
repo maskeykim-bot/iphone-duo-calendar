@@ -4,16 +4,18 @@ import { expand, normRule } from './recur.js';
 import { alarmsOk, okAllDay, okTimed } from './alarms.js';
 import { normNotify } from './notify.js';
 import { PAGE_IDS, BOTTOM_IDS, normalizePages } from './pages.js';
+import { validateTask } from './tasks.js';
 import { CAT_IDS, DEFAULTS_NEW, LEGACY, UNCATEGORIZED, legacyToId, validateCategory } from './categories.js';
 
 export const APP = 'duo-calendar';
-export const VERSION = 4;
-export const SCHEMA = 4; // 書き出した端末の IndexedDB SCHEMA_VERSION（参考情報）
-export const READABLE = [1, 2, 3, 4];
+export const VERSION = 5;
+export const SCHEMA = 5; // 書き出した端末の IndexedDB SCHEMA_VERSION（参考情報）
+export const READABLE = [1, 2, 3, 4, 5];
 export const MAX_BYTES = 10 * 1024 * 1024;
 export const MAX_EVENTS = 10000;
 export const MAX_EXCEPTIONS = 100000;
 export const MAX_MEMOS = 40000;
+export const MAX_TASKS = 100000;
 export const MAX_MEMO_CHARS = 100000;
 const VIEWS = ['day', 'week', 'month'];
 const STYLES = { simple: 'simple', named: 'named', names: 'named' };
@@ -58,13 +60,15 @@ function shape(e) {
 export const exportEvent = shape;
 
 // categories: 現在のカテゴリ一覧。settings: { view, style, desk, monthExpand, weekStart(0|1), notify? }。
-// memos: 現在のメモ一覧（db.listMemos）。タスクはメモリのみなので含めない。
+// memos: 現在のメモ一覧（db.listMemos）。tasks: 現在のタスク一覧（db.listTasks）。order→id の安定順で出す。
 const exportMemo = (m) => ({ id: m.date, date: m.date, text: m.text, createdAt: m.createdAt, updatedAt: m.updatedAt });
-export function buildBackup(events, settings = {}, now = new Date(), categories = [], memos = []) {
+const taskCmp = (a, b) => a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+const exportTask = (t) => { const r = validateTask(t); const x = r.ok ? r.task : t; return { id: x.id, title: x.title, due: x.due ? { ...x.due } : null, done: x.done, doneAt: x.doneAt, createdAt: x.createdAt, updatedAt: x.updatedAt, order: x.order, note: x.note, notify: x.notify }; };
+export function buildBackup(events, settings = {}, now = new Date(), categories = [], memos = [], tasks = []) {
   const s = { view: settings.view, style: settings.style, desk: !!settings.desk, monthExpand: !!settings.monthExpand, rokuyo: settings.rokuyo !== false, holidayRed: settings.holidayRed !== false, pages: normalizePages(settings.pages) };
   if (settings.weekStart === 0 || settings.weekStart === 1) s.weekStart = settings.weekStart;
   { const { version, ...n } = normNotify(settings.notify); void version; s.notify = n; } // 未保存でも既定込みで常に出す
-  return { app: APP, version: VERSION, schema: SCHEMA, exportedAt: localIso(now), categories: categories.map((c) => deepClean(c)), events: events.map(exportEvent), memos: [...memos].sort((a, b) => (a.date < b.date ? -1 : 1)).map(exportMemo), settings: s };
+  return { app: APP, version: VERSION, schema: SCHEMA, exportedAt: localIso(now), categories: categories.map((c) => deepClean(c)), events: events.map(exportEvent), memos: [...memos].sort((a, b) => (a.date < b.date ? -1 : 1)).map(exportMemo), tasks: [...tasks].sort(taskCmp).map(exportTask), settings: s };
 }
 export const countStats = (events) => ({
   total: events.length,
@@ -141,6 +145,24 @@ function checkMemos(list) {
   return { memos };
 }
 
+// タスクの検証。{ tasks } | { error }。1件でも不正なら全体を拒否する（id 重複も拒否）。
+function checkTasks(list) {
+  if (!Array.isArray(list)) return { error: 'タスクの一覧が不正です' };
+  if (list.length > MAX_TASKS) return { error: `タスクが多すぎます（上限${MAX_TASKS}件）` };
+  const seen = new Set(), tasks = [];
+  for (const [i, t] of list.entries()) {
+    const where = `タスク${i + 1}件目`;
+    if (!isObj(t)) return { error: `${where}: 形式が不正です` };
+    const r = validateTask(t);
+    if (!r.ok) return { error: `${where}: ${r.error}` };
+    if (t.done !== undefined && typeof t.done !== 'boolean') return { error: `${where}: 完了状態が不正です` };
+    if (seen.has(r.task.id)) return { error: `${where}: idが重複しています` };
+    seen.add(r.task.id);
+    tasks.push(exportTask(r.task));
+  }
+  return { tasks };
+}
+
 // 設定の検証（未知のキーは無視）。{ value } | { error }
 export function checkSettings(s) {
   if (!isObj(s)) return { error: '設定が不正です' };
@@ -207,6 +229,14 @@ export function validateBackup(text, current = {}) {
     const r = checkMemos(obj.memos);
     if (r.error) return { ok: false, reason: r.error };
     memos = r.memos;
+  }
+  // ノート／フォルダ付きの v5 は、このバージョンでは復元できない。黙って落とさず全体を拒否する。
+  if (obj.notes !== undefined || obj.folders !== undefined) return { ok: false, reason: 'ノートやフォルダを含むバックアップは、このバージョンのDuoでは読み込めません。Duoを更新してからお試しください。' };
+  let tasks = null; // null = ファイルにタスクの項目がない（置換でも今のタスクを残す）。v5 の空配列は「タスクなし」（置換で空にする）
+  if (obj.version >= 5 && obj.tasks !== undefined) {
+    const r = checkTasks(obj.tasks);
+    if (r.error) return { ok: false, reason: r.error };
+    tasks = r.tasks;
   }
   const categories = [], catIds = new Set();
   const hasCategories = obj.categories !== undefined;
@@ -288,7 +318,7 @@ export function validateBackup(text, current = {}) {
   for (const key of legacyUsed) if (!have.has(LEGACY[key].id)) { addCat(LEGACY[key]); report.legacyAdded++; }
   if (usedOther && !have.has(CAT_IDS.other)) addCat(DEFAULTS_NEW.find((d) => d.id === CAT_IDS.other));
   if (usedNone && !have.has(CAT_IDS.none)) addCat(UNCATEGORIZED);
-  return { ok: true, data: { version: obj.version, exportedAt: obj.exportedAt, events, memos, settings, categories, hasCategories }, report };
+  return { ok: true, data: { version: obj.version, exportedAt: obj.exportedAt, events, memos, tasks, settings, categories, hasCategories }, report };
 }
 // 読み込み時に cat / categoryId を分ける前の複製（runtime・危険キーを除く）。
 const shapeIn = (o) => stripRuntime(o);
@@ -324,7 +354,24 @@ export function planMemos(current = [], incoming = [], now = Date.now()) {
   }
   return { puts, added, merged, same };
 }
-export function planAppend(current, incoming, curMemos = [], inMemos = []) {
+// タスクの追加計画。同ID同内容は無操作。同IDで内容が違えば既存を残し、決定的な別IDで追加する（再取込でも同じIDになり重複しない）。
+const taskBody = (t) => JSON.stringify(sortObj({ ...exportTask(t), id: '' }));
+const hash = (str) => { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
+export function planTasks(current = [], incoming = []) {
+  const byId = new Map(current.map((t) => [t.id, t]));
+  const puts = []; let added = 0, same = 0, renamed = 0;
+  for (const t of incoming || []) {
+    const cur = byId.get(t.id), body = taskBody(t);
+    if (!cur) { byId.set(t.id, t); puts.push(t); added++; continue; }
+    if (taskBody(cur) === body) { same++; continue; }
+    let id = `${t.id}-i${hash(body)}`, n = 1, hit;
+    while ((hit = byId.get(id)) && taskBody(hit) !== body) id = `${t.id}-i${hash(body)}${n++}`;
+    if (hit) { same++; continue; }
+    const x = { ...t, id }; byId.set(id, x); puts.push(x); added++; renamed++;
+  }
+  return { puts, added, same, renamed };
+}
+export function planAppend(current, incoming, curMemos = [], inMemos = [], curTasks = [], inTasks = []) {
   const byId = new Map(current.map((e) => [e.id, e]));
   const keys = new Set(current.map(contentKey));
   const links = new Set(current.flatMap(linkKeys));
@@ -336,5 +383,5 @@ export function planAppend(current, incoming, curMemos = [], inMemos = []) {
     if (lk.some((x) => links.has(x)) || keys.has(k)) { dup++; continue; }
     keys.add(k); lk.forEach((x) => links.add(x)); add.push(e);
   }
-  return { add, dup, conflict, skipped: dup + conflict, memo: planMemos(curMemos, inMemos) };
+  return { add, dup, conflict, skipped: dup + conflict, memo: planMemos(curMemos, inMemos), task: planTasks(curTasks, inTasks) };
 }

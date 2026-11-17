@@ -108,3 +108,30 @@ test('容量失敗（QuotaExceededError）で put が失敗しても既存は残
   try { await assert.rejects(m.addTask({ id: 'n', title: '入らない' }, 2)); } finally { FDBObjectStore.prototype.put = orig; }
   assert.deepEqual((await m.listTasks()).map((t) => t.id), ['k']);
 });
+
+const TK = (id, o = {}) => ({ id, title: id, due: null, done: false, doneAt: null, createdAt: 1, updatedAt: 2, order: 1, note: '', notify: false, ...o });
+const EV = (id) => ({ id, title: id, categoryId: 'c', all: false, start: '2026-11-17T10:00', end: '2026-11-17T11:00', place: '', notes: '', recurrence: null, exdates: [], overrides: {} });
+
+test('applyImport: 追加・置換（空配列で空）・未指定は保持', async () => {
+  const m = await fresh();
+  await m.addTask({ id: 'old', title: '既存' }, 1);
+  await m.applyImport({ eventPuts: [EV('e1')], taskPuts: [TK('n1')] });
+  assert.deepEqual((await m.listTasks()).map((t) => t.id).sort(), ['n1', 'old']);
+  await m.applyImport({ eventPuts: [EV('e2')], replace: true }); // tasks 未指定は現在を保持
+  assert.equal((await m.listTasks()).length, 2);
+  await m.applyImport({ eventPuts: [EV('e3')], replace: true, taskReplace: true, taskPuts: [TK('r1')] });
+  assert.deepEqual((await m.listTasks()).map((t) => t.id), ['r1']);
+  await m.applyImport({ replace: true, taskReplace: true, taskPuts: [] });
+  assert.deepEqual(await m.listTasks(), []);
+});
+
+test('applyImport: 容量失敗で予定・タスクとも全体 rollback', async () => {
+  const m = await fresh();
+  await m.addTask({ id: 'keep', title: '残る' }, 1);
+  await m.applyImport({ eventPuts: [EV('ev0')] });
+  const orig = FDBObjectStore.prototype.put;
+  FDBObjectStore.prototype.put = function (v) { if (v?.id === 'bad') throw new DOMException('full', 'QuotaExceededError'); return orig.apply(this, arguments); };
+  try { await assert.rejects(m.applyImport({ replace: true, eventPuts: [EV('ev1')], taskReplace: true, taskPuts: [TK('x'), TK('bad')] })); } finally { FDBObjectStore.prototype.put = orig; }
+  assert.deepEqual((await m.listTasks()).map((t) => t.id), ['keep']);
+  assert.deepEqual((await m.listEvents()).map((e) => e.id), ['ev0']);
+});

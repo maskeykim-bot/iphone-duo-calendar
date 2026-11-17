@@ -148,7 +148,7 @@ test('バックアップ v2（旧 cat）→ 固定 id に変換、ファイル�
   assert.equal(r.data.categories.find((c) => c.id === CAT_IDS.other).name, 'その他');
   assert.equal(r.report.retargeted, 2); assert.equal(r.report.legacyAdded, 1);
   assert.equal(r.data.hasCategories, false);
-  assert.equal(validateBackup(JSON.stringify({ ...file, version: 5 })).ok, false);
+  assert.equal(validateBackup(JSON.stringify({ ...file, version: 6 })).ok, false);
 });
 
 test('バックアップ: categoryId とカテゴリ一覧が往復する。不正なカテゴリは拒否', () => {

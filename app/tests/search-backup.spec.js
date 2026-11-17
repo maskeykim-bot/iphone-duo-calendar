@@ -190,13 +190,14 @@ test.describe('バックアップ', () => {
     await dl.saveAs(p);
     const j = JSON.parse(readFileSync(p, 'utf8'));
     expect(j.app).toBe('duo-calendar');
-    expect(j.version).toBe(4);
-    expect(j.schema).toBe(4);
+    expect(j.version).toBe(5);
+    expect(j.schema).toBe(5);
     expect(j.categories.length).toBeGreaterThanOrEqual(5);
     expect(j.exportedAt).toMatch(/^2026-11-12T09:41:00\+09:00$/);
     expect(j.events).toHaveLength(7);
-    expect(j.settings).toEqual({ view: 'month', style: 'simple', desk: false, monthExpand: false, rokuyo: true, holidayRed: true, pages: { left: 'month', right: 'time', portraitBottom: 'time', portraitShown: false }, weekStart: 1, notify: { enabled: false, showTitle: true, defaultTimed: null, defaultAllDay: null } });
+    expect(j.settings).toEqual({ view: 'month', style: 'simple', desk: false, monthExpand: false, rokuyo: true, holidayRed: true, pages: { left: 'month', right: 'time', portraitBottom: 'time', portraitShown: false }, weekStart: 1, notify: { enabled: true, showTitle: true, defaultTimed: null, defaultAllDay: null } });
     expect(j.memos).toEqual([]);
+    expect(j.tasks).toEqual([]);
   });
 
   test('往復: 書き出して別の DB へ置き換え読み込み → 同一内容', async ({ page }, info) => {
@@ -382,7 +383,7 @@ test.describe('バックアップ', () => {
     ['壊れた JSON', '{"app": "duo-calendar", "events": [', '壊れた'],
     ['形式違い', { hello: 'world' }, '未対応の形式'],
     ['別アプリ', { app: 'other', version: 2, events: [] }, '未対応の形式'],
-    ['将来版', { app: 'duo-calendar', version: 5, exportedAt: '2026-11-13T00:00:00Z', events: [] }, '未対応のバージョン'],
+    ['将来版', { app: 'duo-calendar', version: 6, exportedAt: '2026-11-13T00:00:00Z', events: [] }, '未対応のバージョン'],
     ['events が配列でない', { app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T00:00:00Z', events: {} }, 'events'],
     ['不正な日時', { app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T00:00:00Z', events: [{ ...SEED[0], start: '2026-13-40T10:00' }] }, '不正な日時'],
     ['必須欠落', { app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T00:00:00Z', events: [{ id: 'x', start: '2026-11-12T10:00', end: '2026-11-12T11:00' }] }, '予定名'],
@@ -411,8 +412,57 @@ const putMemoDb = (page, d, t) => page.evaluate(async ([d, t]) => (await import(
 const M = (date, text) => ({ id: date, date, text, createdAt: 1000, updatedAt: 2000 });
 const V4 = (o) => ({ app: 'duo-calendar', version: 4, exportedAt: '2026-11-13T00:00:00Z', events: [], ...o });
 
+const dbTasks = (page) => page.evaluate(async () => (await import('/js/db.js')).listTasks());
+const TK = (id, o = {}) => ({ id, title: `t-${id}`, due: null, done: false, doneAt: null, createdAt: 1000, updatedAt: 2000, order: 1, note: '', notify: false, ...o });
+const V5 = (o) => ({ ...V4({ version: 5 }), ...o });
+
+test.describe('タスクのバックアップ（v5）', () => {
+  test('書き出して別の DB へ置き換えると、完了・期限なし・通知付きのタスクが同一に戻る', async ({ page }, info) => {
+    await openApp(page, SIZES.closedPortrait, '?ns=tsrc&nosw');
+    const rows = [TK('a'), TK('b', { order: 2, due: { date: '2026-11-20', time: '10:07' }, notify: true }), TK('c', { order: 3, done: true, doneAt: '2026-11-17T09:00', due: { date: '2026-11-18' }, note: 'メモ' })];
+    await page.evaluate(async (r) => { const d = await import('/js/db.js'); for (const t of r) await d.putTask(t); }, rows);
+    const p = info.outputPath('t.json');
+    await exportFile(page, p);
+    const j = JSON.parse(readFileSync(p, 'utf8'));
+    expect(j.tasks).toEqual(rows);
+    await openApp(page, SIZES.closedPortrait, '?ns=tdst&nosw');
+    await page.evaluate(async () => (await import('/js/db.js')).putTask({ id: 'gone', title: '消える', due: null, done: false, doneAt: null, createdAt: 1, updatedAt: 1, order: 1, note: '', notify: false }));
+    await openBackup(page);
+    await page.setInputFiles('#bk-file', p);
+    await expect(page.locator('#bk-body')).toContainText('タスク');
+    await page.locator('#bk-replace').click();
+    await page.locator('#bk-rdo').click();
+    await expect(page.locator('#backup')).toBeHidden();
+    expect(await dbTasks(page)).toEqual(rows);
+    // 追加で再取込しても重複しない
+    await openBackup(page);
+    await page.setInputFiles('#bk-file', p);
+    await page.locator('#bk-add').click();
+    await expect(page.locator('#backup')).toBeHidden();
+    expect((await dbTasks(page)).length).toBe(3);
+  });
+
+  test('tasks 欠落の v5 は現在のタスクを残し、不正なタスクや notes 付きは全体拒否で DB 不変', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(async () => (await import('/js/db.js')).putTask({ id: 'keep', title: '守る', due: null, done: false, doneAt: null, createdAt: 1, updatedAt: 1, order: 1, note: '', notify: false }));
+    for (const f of [V5({ tasks: [TK('ok'), { ...TK('bad'), title: '' }] }), V5({ notes: [] }), V5({ folders: [] })]) {
+      await openBackup(page);
+      await pick(page, 'bad.json', f);
+      await expect(page.locator('#backup')).toContainText('読み込めませんでした');
+      await page.locator('#bk-back').click(); await page.keyboard.press('Escape');
+    }
+    expect((await dbTasks(page)).map((t) => t.id)).toEqual(['keep']);
+    await openBackup(page);
+    await pick(page, 'ok.json', V5({ events: [] }));
+    await page.locator('#bk-replace').click();
+    await page.locator('#bk-rdo').click();
+    await expect(page.locator('#backup')).toBeHidden();
+    expect((await dbTasks(page)).map((t) => t.id)).toEqual(['keep']);
+  });
+});
+
 test.describe('メモ・設定のバックアップ', () => {
-  test('書き出しに保存前のメモと六曜・pages が入り、タスクは入らない', async ({ page }, info) => {
+  test('書き出しに保存前のメモと六曜・pages が入る（タスクは空配列、リマインダー系は入らない）', async ({ page }, info) => {
     await openApp(page, SIZES.openLandscape);
     await page.evaluate(() => { const k = 'duo.ui.v1'; const u = JSON.parse(localStorage.getItem(k) || '{}'); u.rokuyo = false; u.pages = { left: 'memo', right: 'month', portraitBottom: 'task', portraitShown: true }; localStorage.setItem(k, JSON.stringify(u)); });
     await page.reload(); await page.waitForSelector('html[data-ready]');
@@ -425,7 +475,8 @@ test.describe('メモ・設定のバックアップ', () => {
     expect(j.memos[0].id).toBe(j.memos[0].date);
     expect(j.settings.rokuyo).toBe(false);
     expect(j.settings.pages).toEqual({ left: 'memo', right: 'month', portraitBottom: 'task', portraitShown: true });
-    expect(Object.keys(j).filter((k) => /task|reminder/i.test(k))).toEqual([]);
+    expect(Object.keys(j).filter((k) => /task|reminder/i.test(k))).toEqual(['tasks']);
+    expect(j.tasks).toEqual([]);
   });
 
   test('置き換え: メモ・rokuyo・pages が復元され、下書きは失効する', async ({ page }) => {
@@ -472,7 +523,7 @@ test.describe('メモ・設定のバックアップ', () => {
   test('不正なメモ・v5 は読み込み全体を拒否し、何も変えない', async ({ page }) => {
     await openApp(page);
     await putMemoDb(page, '2026-11-01', '守る');
-    for (const f of [V4({ memos: [M('2026-11-02', 'a'), M('2026-11-02', 'b')] }), V4({ memos: [{ ...M('2026-11-02', 'a'), id: 'x' }] }), V4({ memos: [M('2026-11-02', 'a'), { ...M('2026-11-03', 'b'), updatedAt: 'z' }] }), V4({ version: 5 }), V4({ settings: { rokuyo: 'x' } })]) {
+    for (const f of [V4({ memos: [M('2026-11-02', 'a'), M('2026-11-02', 'b')] }), V4({ memos: [{ ...M('2026-11-02', 'a'), id: 'x' }] }), V4({ memos: [M('2026-11-02', 'a'), { ...M('2026-11-03', 'b'), updatedAt: 'z' }] }), V4({ version: 6 }), V4({ version: 5, notes: [] }), V4({ version: 5, tasks: [{ id: 'x' }] }), V4({ settings: { rokuyo: 'x' } })]) {
       await openBackup(page);
       await pick(page, 'bad.json', f);
       await expect(page.locator('#backup')).toContainText('読み込めませんでした');

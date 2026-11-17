@@ -168,10 +168,13 @@ export const applyCategoryChanges = ({ catPuts = [], catDels = [], eventPuts = [
 });
 // バックアップの読み込み: カテゴリと予定を1トランザクションで。replace のときは両方を clear してから put。
 // outbox（任意）: 送信待ちの更新関数。同じトランザクションで meta に書き、新しい送信待ちを返す。
+// taskPuts / taskReplace: タスクも同じトランザクション（検証済みの値だけ渡す）。
 // memoPuts（任意）: 書くメモ。memoReplace のときは先にメモを全部消す。予定・カテゴリ・メモ・送信待ちは同じトランザクション。
-export const applyImport = ({ catPuts = [], eventPuts = [], replace = false, outbox = null, memoPuts = [], memoReplace = false }) => run(['events', 'categories', 'meta', 'memos'], 'readwrite', ({ events, categories, meta, memos }, set) => {
+export const applyImport = ({ catPuts = [], eventPuts = [], replace = false, outbox = null, memoPuts = [], memoReplace = false, taskPuts = [], taskReplace = false }) => run(['events', 'categories', 'meta', 'memos', 'tasks'], 'readwrite', ({ events, categories, meta, memos, tasks }, set) => {
   if (replace) { events.clear(); categories.clear(); }
   if (memoReplace) memos.clear();
+  if (taskReplace) tasks.clear();
+  taskPuts.forEach((t) => tasks.put(t));
   memoPuts.forEach((m) => memos.put(m));
   catPuts.forEach((c) => categories.put(c));
   eventPuts.forEach((e) => events.put(e));

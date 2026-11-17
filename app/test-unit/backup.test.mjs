@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildBackup, contentKey, planAppend, stripRuntime, validateBackup, VERSION } from '../js/backup.js';
+import { buildBackup, contentKey, planAppend, planTasks, stripRuntime, validateBackup, VERSION } from '../js/backup.js';
 import { CAT_IDS, DEFAULTS_NEW, UNCATEGORIZED } from '../js/categories.js';
 import { R, ev } from './fixtures.mjs';
 
@@ -19,9 +19,9 @@ const full = () => ev('F', '2026-11-02T10:00', '2026-11-02T11:00', R('weekly', {
 });
 
 const DP = { left: 'home', right: 'month', portraitBottom: 'time', portraitShown: false };
-test('バージョンは 4、schema と settings の形', () => {
+test('バージョンは 5、schema と settings の形', () => {
   const bk = buildBackup([], { ...settings, monthExpand: true, notify: { enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } } }, new Date(), cats);
-  assert.equal(bk.version, VERSION); assert.equal(VERSION, 4); assert.equal(bk.schema, 4);
+  assert.equal(bk.version, VERSION); assert.equal(VERSION, 5); assert.equal(bk.schema, 5);
   assert.deepEqual(bk.settings, { view: 'month', style: 'simple', desk: false, monthExpand: true, rokuyo: true, holidayRed: true, pages: DP, notify: { enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } } });
   assert.equal(bk.categories.length, 2);
 });
@@ -177,8 +177,8 @@ test('終了日より後の個別変更キーは捨てられ report.dropped=1（
   assert.equal(w.report.dropped, 2);
 });
 
-test('version: 5 → 拒否、1 → 受理、未知のトップレベルキー（ink）は無視して件数だけ数える', () => {
-  assert.equal(validateBackup(file({ version: 5, events: [] })).ok, false);
+test('version: 6 → 拒否、1 → 受理、未知のトップレベルキー（ink）は無視して件数だけ数える', () => {
+  assert.equal(validateBackup(file({ version: 6, events: [] })).ok, false);
   assert.equal(validateBackup(JSON.stringify({ app: 'duo-calendar', version: 1, exportedAt: '2026-11-12T09:41:00+09:00', events: [] })).ok, true);
   const v = validateBackup(file({ events: [], ink: [{ a: 1 }, { a: 2 }], other: 1 }));
   assert.equal(v.ok, true); assert.equal(v.report.ink, 2);
@@ -231,11 +231,11 @@ import { planMemos } from '../js/backup.js';
 const memo = (date, text, extra = {}) => ({ id: date, date, text, createdAt: 1000, updatedAt: 2000, ...extra });
 const f4 = (o) => file({ version: 4, events: [], ...o });
 
-test('v4: メモ・rokuyo・pages を書き出して往復する。タスクは含まれない', () => {
+test('v4: メモ・rokuyo・pages を書き出して往復する。タスクは空配列で出る', () => {
   const bk = buildBackup([], { ...settings, rokuyo: false, pages: { left: 'memo', right: 'month', portraitBottom: 'memo', portraitShown: true } }, new Date(), cats, [{ ...memo('2026-11-20', 'b'), ink: null }, memo('2026-11-02', 'a')]);
   assert.deepEqual(bk.memos.map((m) => m.date), ['2026-11-02', '2026-11-20']);
   assert.equal(bk.settings.rokuyo, false); assert.equal(bk.settings.pages.left, 'memo');
-  assert.equal('tasks' in bk, false); assert.equal(JSON.stringify(bk).includes('"task"'), false);
+  assert.deepEqual(bk.tasks, []);
   const v = validateBackup(JSON.stringify(bk));
   assert.equal(v.ok, true); assert.equal(v.data.memos.length, 2); assert.equal(v.data.settings.rokuyo, false); assert.deepEqual(v.data.settings.pages, bk.settings.pages);
 });
@@ -289,4 +289,60 @@ test('PR9: holidayRed は往復し、不正はエラー、欠落は未指定（�
   assert.equal(buildBackup([], { ...settings }, new Date(), cats, []).settings.holidayRed, true); // 欠落はオン
   assert.equal(validateBackup(f4({ settings: { holidayRed: 'x' } })).ok, false);
   assert.equal('holidayRed' in validateBackup(f4({ settings: { view: 'day' } })).data.settings, false);
+});
+
+// ---------- タスク（バックアップ v5） ----------
+const T = (id, o = {}) => ({ id, title: `t-${id}`, due: null, done: false, doneAt: null, createdAt: 1000, updatedAt: 2000, order: 1, note: '', notify: false, ...o });
+const TASKS = [T('b', { order: 2, due: { date: '2026-11-20', time: '10:07' }, notify: true }), T('a', { order: 1 }), T('c', { order: 3, done: true, doneAt: '2026-11-17T09:00', due: { date: '2026-11-18' }, note: 'メモ' })];
+const v5 = (extra) => JSON.stringify({ app: 'duo-calendar', version: 5, exportedAt: '2026-11-17T10:00:00+09:00', events: [], ...extra });
+
+test('v5: タスクは order→id の安定順で出て、往復で一致する', () => {
+  const bk = buildBackup([], settings, new Date(), cats, [], [...TASKS].reverse());
+  assert.deepEqual(bk.tasks.map((t) => t.id), ['a', 'b', 'c']);
+  const r = validateBackup(JSON.stringify(bk));
+  assert.equal(r.ok, true, r.reason);
+  assert.deepEqual(r.data.tasks, bk.tasks);
+  assert.deepEqual(r.data.tasks[1].due, { date: '2026-11-20', time: '10:07' }); assert.equal(r.data.tasks[1].notify, true);
+  assert.equal(buildBackup([], settings, new Date(), cats).tasks.length, 0);
+});
+
+test('v5: tasks 欠落・旧版は null（現在を保持）、空配列は空（置換で空にする）', () => {
+  assert.equal(validateBackup(v5({})).data.tasks, null);
+  assert.equal(validateBackup(v5({ tasks: [] })).data.tasks.length, 0);
+  assert.equal(validateBackup(JSON.stringify({ app: 'duo-calendar', version: 4, exportedAt: '2026-11-17T10:00:00+09:00', events: [], tasks: [T('x')] })).data.tasks, null);
+});
+
+test('v5: 不正なタスク 1 件で全体拒否', () => {
+  for (const bad of [{ ...T('x'), title: '' }, { ...T('x'), due: { date: '2026-13-40' } }, { ...T('x'), done: 'yes' }, { ...T('x'), order: 'a' }, 5, { ...T('x'), id: '' }]) {
+    assert.equal(validateBackup(v5({ tasks: [T('ok'), bad] })).ok, false);
+  }
+  assert.equal(validateBackup(v5({ tasks: [T('x'), T('x')] })).ok, false);
+  assert.equal(validateBackup(v5({ tasks: {} })).ok, false);
+});
+
+test('v5: notes / folders 付きは全体拒否（黙って落とさない）', () => {
+  assert.equal(validateBackup(v5({ notes: [] })).ok, false);
+  assert.equal(validateBackup(v5({ folders: [], tasks: [] })).ok, false);
+});
+
+test('旧アプリ（v4 読取器）は v5 を丸ごと拒否する', () => {
+  const old = (t) => { const o = JSON.parse(t); return o.app === 'duo-calendar' && [1, 2, 3, 4].includes(o.version); };
+  assert.equal(old(JSON.stringify(buildBackup([], settings, new Date(), cats))), false);
+});
+
+test('planTasks: 同ID同内容は無操作、異内容は既存を残し決定的な別ID、再取込で重複しない', () => {
+  const cur = [T('a'), T('b', { order: 2 })];
+  const p = planTasks(cur, [T('a'), T('b', { order: 2, title: '違う' }), T('n', { order: 3 })]);
+  assert.equal(p.same, 1); assert.equal(p.added, 2); assert.equal(p.renamed, 1);
+  assert.ok(p.puts.every((t) => t.id !== 'b'));
+  const renamed = p.puts.find((t) => t.id.startsWith('b-i'));
+  assert.equal(renamed.title, '違う');
+  const after = [...cur, ...p.puts];
+  const p2 = planTasks(after, [T('a'), T('b', { order: 2, title: '違う' }), T('n', { order: 3 })]);
+  assert.equal(p2.added, 0); assert.equal(p2.same, 3);
+  assert.equal(planTasks(cur, [T('b', { order: 2, title: '違う' })]).puts[0].id, renamed.id);
+});
+
+test('planAppend は task の計画も返す', () => {
+  assert.equal(planAppend([], [], [], [], [T('a')], [T('a'), T('z')]).task.added, 1);
 });
