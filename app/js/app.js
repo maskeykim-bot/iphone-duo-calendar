@@ -228,7 +228,7 @@ function vpTick() {
   const { kb } = updateVars();
   const sc = safeChanged();
   updateDiagnostics();
-  if (changed || sc) { directCtl?.cancel('rotate'); render(); }
+  if (changed || sc) { directCtl?.cancel('rotate'); flushEditing(); render(); }
   applyKbLayout();
   const a = document.activeElement;
   if (kb && isTextEl(a)) {
@@ -1319,6 +1319,13 @@ function fillNotes(keep) {
     t.scrollTop = keep.sc;
   }
 }
+// 回転・開閉の前に、編集中の文字を最新のまま保存へ流す（失敗時は draft が端末に残る。IME 中でも落とさない）。
+function flushEditing() { try { noteSync(); noteStore.flushAll().catch(() => {}); ftFlush(); } catch { /* 保存失敗でも描画は続ける */ } }
+// 集中画面のスクロール位置は姿勢（kind）をまたいで保つ。同じ種類の n 番目の要素へ戻す。
+const KEEP_SCROLL = '.ftlist, .ftdn, .ftup, .nup, .mlrows, .ned-bodywrap, .taskl';
+const keepScrollKey = (el, i) => `${i}|${NB.cur || ''}|${el.className}`;
+function captureScrolls() { const m = new Map(); root.querySelectorAll(KEEP_SCROLL).forEach((el, i) => { if (el.scrollTop) m.set(keepScrollKey(el, i), el.scrollTop); }); return m; }
+function restoreScrolls(m) { if (!m.size) return; root.querySelectorAll(KEEP_SCROLL).forEach((el, i) => { const v = m.get(keepScrollKey(el, i)); if (v && !el.scrollTop) el.scrollTop = v; }); }
 const noteKeepOf = (ma) => (NB.ed && ma && (ma === NB.ed.titleEl || ma === NB.ed.bodyEl) ? { which: ma === NB.ed.titleEl ? 'title' : 'body', s: ma.selectionStart, e: ma.selectionEnd, d: ma.selectionDirection, sc: ma.scrollTop } : null);
 // 本文の見出し: フォルダの選択とピン留め
 async function paintNoteMeta() {
@@ -1765,6 +1772,7 @@ function render() {
   const ra = document.activeElement;
   const remKeep = ra && ra.matches?.('input.remin') ? { s: ra.selectionStart, e: ra.selectionEnd } : null;
   const fa = document.activeElement, ftKeep = fa && fa.matches?.('[data-ft]') && fa.closest('.ftcard') ? { k: fa.dataset.ft, v: fa.value, s: fa.selectionStart, e: fa.selectionEnd } : null;
+  const keepScrolls = captureScrolls();
   const remNode = root.querySelector('input.remin'); // 入力欄は一覧の再描画で作り直さず、同じノードを戻す
   rendering = true;
   root.innerHTML = { home: () => closed('home'), browse: () => closed('browse'), open, desk, spread }[kind]();
@@ -1775,6 +1783,7 @@ function render() {
   if (ftKeep) { const n = root.querySelector(`.ftcard [data-ft="${ftKeep.k}"]`); if (n && !n.disabled) { if (ftKeep.k === 'title' || ftKeep.k === 'notes') n.value = ftKeep.v; n.focus({ preventScroll: true }); try { if (ftKeep.s != null) n.setSelectionRange(ftKeep.s, ftKeep.e); } catch { /* date/time は無視 */ } } }
   lastKind = kind;
   root.querySelectorAll('[data-scroll]').forEach((el) => { el.scrollTop = scrolls[`${kind}:${el.dataset.scroll}${el.dataset.pane || ''}`] || 0; });
+  restoreScrolls(keepScrolls);
   restoreAll(anchor);
   measureMonthPane();
   initTimeline();
