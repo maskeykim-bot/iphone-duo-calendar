@@ -61,7 +61,7 @@ export const exportEvent = shape;
 // memos: 現在のメモ一覧（db.listMemos）。タスクはメモリのみなので含めない。
 const exportMemo = (m) => ({ id: m.date, date: m.date, text: m.text, createdAt: m.createdAt, updatedAt: m.updatedAt });
 export function buildBackup(events, settings = {}, now = new Date(), categories = [], memos = []) {
-  const s = { view: settings.view, style: settings.style, desk: !!settings.desk, monthExpand: !!settings.monthExpand, rokuyo: settings.rokuyo !== false, pages: normalizePages(settings.pages) };
+  const s = { view: settings.view, style: settings.style, desk: !!settings.desk, monthExpand: !!settings.monthExpand, rokuyo: settings.rokuyo !== false, holidayRed: settings.holidayRed !== false, pages: normalizePages(settings.pages) };
   if (settings.weekStart === 0 || settings.weekStart === 1) s.weekStart = settings.weekStart;
   { const { version, ...n } = normNotify(settings.notify); void version; s.notify = n; } // 未保存でも既定込みで常に出す
   return { app: APP, version: VERSION, schema: SCHEMA, exportedAt: localIso(now), categories: categories.map((c) => deepClean(c)), events: events.map(exportEvent), memos: [...memos].sort((a, b) => (a.date < b.date ? -1 : 1)).map(exportMemo), settings: s };
@@ -150,8 +150,10 @@ export function checkSettings(s) {
   if (s.monthExpand !== undefined && typeof s.monthExpand !== 'boolean') return { error: '設定の月の広げる表示が不正です' };
   if (s.weekStart !== undefined && s.weekStart !== 0 && s.weekStart !== 1) return { error: '設定の週の始まりが不正です' };
   if (s.rokuyo !== undefined && typeof s.rokuyo !== 'boolean') return { error: '設定の六曜表示が不正です' };
+  if (s.holidayRed !== undefined && typeof s.holidayRed !== 'boolean') return { error: '設定の祝日の赤表示が不正です' };
   const out = {};
   if (s.rokuyo !== undefined) out.rokuyo = s.rokuyo;
+  if (s.holidayRed !== undefined) out.holidayRed = s.holidayRed;
   if (s.pages != null && pagesOk(s.pages)) out.pages = normalizePages(s.pages); // 不正な pages はその設定だけ捨てる
   if (s.weekStart !== undefined) out.weekStart = s.weekStart;
   if (s.view !== undefined) out.view = s.view;

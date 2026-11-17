@@ -88,7 +88,7 @@ test('日の見出し: 時間ページ・日表示・範囲外、日付の右8px
   await setUi(page, { view: 'month', selected: '2026-11-16' }); await page.reload(); await page.waitForSelector('html[data-ready]');
   const rd = page.locator('.rdate');
   await expect(rd).toHaveText('11月16日（月）大安');
-  const g = await rd.evaluate((h0) => { const h = h0.querySelector('.datebtn'), k = h.querySelector('.hrk'), s = getComputedStyle(k), r = document.createRange(); r.setStart(h.firstChild, 0); r.setEnd(h.firstChild, h.firstChild.length); return { gap: k.getBoundingClientRect().left - r.getBoundingClientRect().right, fs: s.fontSize, col: s.color, clip: h0.scrollWidth > h0.clientWidth }; });
+  const g = await rd.evaluate((h0) => { const h = h0.querySelector('.datebtn'), k = h.querySelector('.hrk'), s = getComputedStyle(k), r = document.createRange(); const t = h.querySelector('.hdt').firstChild; r.setStart(t, 0); r.setEnd(t, t.length); return { gap: k.getBoundingClientRect().left - r.getBoundingClientRect().right, fs: s.fontSize, col: s.color, clip: h0.scrollWidth > h0.clientWidth }; });
   expect(g.gap).toBeCloseTo(8, 0); expect(g.fs).toBe('13px'); expect(g.col).toBe('rgb(104, 113, 106)'); expect(g.clip).toBe(false);
   await goTo(page, '2026-11-16');
   await expect(page.locator('.page.rp .rdate .hrk')).toHaveText('大安'); // 見開きの日は右の時間ページ（旧 view=day の左右は PR5 で廃止）

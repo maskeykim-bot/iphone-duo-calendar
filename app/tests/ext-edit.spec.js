@@ -504,14 +504,15 @@ test.describe('削除（09 §3）', () => {
   });
 });
 
-// 第15版 PR17: 小さな月の祝日の赤は iPhone の購読カレンダー「祝日」の終日予定（既存の祝日データ源）から。
-test('日付の小さな月: 購読カレンダーの祝日が赤。ローカル予定は祝日にならない', async ({ page }) => {
+// 第16版 PR9: 小さな月の祝日の赤は内蔵の祝日表から。購読カレンダー「祝日」の予定は通常予定のまま。
+test('日付の小さな月: 内蔵表の祝日が赤。購読「祝日」の予定は赤にならない', async ({ page }) => {
   await setup(page);
   await page.locator('[data-act="add"]:visible').first().click();
   await expect(page.locator('#editor')).toBeVisible();
   await page.locator('#f-start').click();
   const col = (d) => page.locator(`#dp-grid [data-day="${d}"]`).evaluate((e) => getComputedStyle(e).color);
-  expect(await col('2026-11-12')).toBe('rgb(180, 60, 60)'); // 祝日の予定（cal-2）
+  expect(await page.locator('#dp-grid [data-day="2026-11-12"]').getAttribute('class')).not.toContain('hol'); // 購読「祝日」の予定（cal-2）は通常予定（選択中なので色は見ない）
   expect(await col('2026-11-11')).toBe('rgb(41, 59, 53)'); // 平日
-  expect(await col('2026-11-13')).toBe('rgb(41, 59, 53)'); // 家族カレンダーの予定は祝日にならない
+  expect(await col('2026-11-23')).toBe('rgb(180, 60, 60)'); // 勤労感謝の日（内蔵表）
+  expect(await col('2026-11-22')).toBe('rgb(180, 60, 60)'); // 日曜
 });

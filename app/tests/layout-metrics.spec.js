@@ -315,7 +315,7 @@ test.describe('月の日付・配色・前後月', () => {
     await openApp(page, SIZES.openPortrait669);
     await setStyle(page, '予定名');
     expect(await page.locator('[data-date="2026-11-14"]').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(238, 241, 244)');
-    expect(await page.locator('[data-date="2026-11-15"] .num').evaluate((e) => getComputedStyle(e).color)).toBe('rgb(192, 57, 43)');
+    expect(await page.locator('[data-date="2026-11-15"] .num').evaluate((e) => getComputedStyle(e).color)).toBe('rgb(180, 60, 60)');
     // 選択日 = 今日（11/12）。選択は 2px 枠 #294E42
     expect(await page.locator('[data-date="2026-11-12"]').evaluate((e) => getComputedStyle(e).boxShadow)).toContain('rgb(41, 78, 66) 0px 0px 0px 2px inset');
     await page.locator('[data-date="2026-11-18"]').click({ position: { x: 10, y: 10 } }); // 開いた縦は日表示へ進む

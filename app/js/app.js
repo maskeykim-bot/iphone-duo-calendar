@@ -11,6 +11,7 @@ import { backupName, buildBackup, countStats, localIso, planAppend, planMemos, v
 import { CAT_IDS, LIMITS as CAT_LIMITS, canHideCategory, defaultDeleteTarget, ensureOneVisible, supplementForReplace, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, RETARGET_TOAST, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory } from './categories.js';
 import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAlarms, encAlarm, fireAt, nextNotifyText, normNotify, pastForNotify, planNotifications, planNotifyPolicy, MAX_PENDING, WINDOW_DAYS } from './notify.js';
 import { rokuyoOf } from './rokuyo.js';
+import { holidayOf } from './holidays.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS } from './pages.js';
 import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.js';
 import { DELETE_UNDO_MS, checkReminderAccess, requestReminderAccess, taskAccessHtml, taskOffHtml, initRemLists, createReminderLoader, tasksHtml, HIST_DAYS, createAddController, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDoneController, TASK_CONFLICT, createDeleteController, TASK_DELETED, TASK_DELETE_CONFLICT, normRemSettings, shownListIds, pruneRemSettings, resolveAddList, filterByLists, dueCounts } from './reminders.js';
@@ -56,6 +57,7 @@ function loadUi() {
     pages: normalizePages(s.pages), // 開いた横の左右ページ（月・時間・タスク・メモ）と縦の下パネル。旧 home/view は閉じた画面・縦の従来表示用に保持
     timeMode: normTimeMode(s.timeMode), // 時間ページの表示（左右別）: '1' 1日 | '3' 3日 | 'week' 週 | 'list' 一覧
     lastSide: s.lastSide === 'left' ? 'left' : 'right', // 最後に触ったページ（＋の行き先）
+    holidayRed: s.holidayRed !== false, // 祝日を赤で表示（既定オン。boolean の false だけが切。日曜の赤は常に出す）
     rokuyo: s.rokuyo !== false, // 六曜を表示（既定オン。boolean の false だけが切。未保存・破損・欠落はオン）
   };
 }
@@ -105,8 +107,8 @@ async function applyNotifyPolicy() {
 }
 const chipTime = (iso) => iso.slice(11).replace(/^0/, ''); // 月チップの時刻は先頭の0なし（3:00 / 10:00）
 function saveUi() {
-  const { selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize, rokuyo, pages, timeMode, lastSide } = state;
-  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTimeV: 11, monthTextSize, rokuyo, pages, timeMode, lastSide })); } catch { /* 保存不可でも動作は続ける */ }
+  const { selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide } = state;
+  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTimeV: 11, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide })); } catch { /* 保存不可でも動作は続ける */ }
 }
 // 左右（または縦の下パネル）のページを選ぶ。同じ種類が左右に並ぶ場合は交換。
 function setPage(side, id) { set({ pages: selectPage(state.pages, side, id) }); }
@@ -490,7 +492,12 @@ function periodTitle() {
 // 六曜（表示のみ）。日付の文字列 k のまま引く（Date を通さない）。オフ・範囲外・不正は null → 要素ごと出さない。
 const rkOf = (k) => (state.rokuyo ? rokuyoOf(k) : null);
 const rkSpan = (k, cls) => { const r = rkOf(k); return r ? `<span class="${cls}" aria-hidden="true">${r.name}</span>` : ''; };
-const dayTitle = (k) => `${dayLabel(k)}${rkSpan(k, 'hrk')}`; // 日の見出し（日付のすぐ右に六曜）
+// 祝日（内蔵表）。名前は設定に関わらず出し、赤は「祝日を赤で表示」がオンのときだけ。日曜の赤は設定に関わらず常に出す。
+const holName = (k) => holidayOf(k);
+const isRed = (k) => parseKey(k).getDay() === 0 || (state.holidayRed && !!holidayOf(k));
+const holSpan = (k) => { const n = holName(k); return n ? `<span class="hnm" aria-hidden="true">${esc(n)}</span>` : ''; };
+const holSpoken = (k) => { const n = holName(k); return n ? `、祝日、${n}` : ''; };
+const dayTitle = (k) => `<span class="hdt${isRed(k) ? ' hol' : ''}">${dayLabel(k)}</span>${holSpan(k)}${rkSpan(k, holName(k) ? 'hrk hx' : 'hrk')}`; // 日の見出し（日付、祝日名、六曜。狭幅は六曜を省く）
 const unit = () => ({ month: '月', week: '週', day: '日' }[viewNow()]);
 const navBtn = (dir) => `<button type="button" data-act="${dir > 0 ? 'next' : 'prev'}" aria-label="${dir > 0 ? '次' : '前'}の${unit()}">${dir > 0 ? '›' : '‹'}</button>`;
 const arrows = () => `<div class="arrows">${navBtn(-1)}${navBtn(1)}</div>`;
@@ -592,7 +599,7 @@ function weekInner(w, { mode, cur, sel, today, cap, time, tk = null }) {
     const tn = tk?.get(k) || 0; // 月にタスクの件数（開いた画面だけ。タスク名は出さない）
     const dots = mode === 'simple' ? `<span class="dots">${es.slice(0, cap).map((e) => `<i class="dot ${catCls(e)}"${catSty(e)}></i>`).join('')}</span>` : '';
     const ps = PS.on ? PS.days.includes(k) : false, pSrc = PS.on && k === PS.srcDay;
-    html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}${dow === 6 ? ' sat' : dow === 0 ? ' sun' : ''}${ps ? ' psel' : ''}${pSrc ? ' psrc' : ''}" data-date="${k}" aria-label="${dayLabel(k)}${r ? `、${r.name}` : ''}、予定${es.length}件${xCount(es)}${tn ? `、未完了のタスク${tn}件` : ''}${PS.on ? `${pSrc ? '、コピー元' : ''}、${ps ? '選択中。この日を外す' : 'この日を選ぶ'}` : ''}" aria-pressed="${PS.on ? ps : k === sel}">${pSrc ? '<span class="pcsrc" aria-hidden="true">コピー元</span>' : ''}${ps ? '<i class="pck" aria-hidden="true">✓</i>' : ''}${r ? `<span class="rk" aria-hidden="true">${r.name}</span>` : ''}<span class="num${state.rokuyo && d.getDate() === 1 ? ' sd' : ''}">${label}</span>${memoMark(k)}${tn ? `<span class="tkn" aria-hidden="true">✓${tn}</span>` : ''}${dots}</button>`;
+    html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}${dow === 6 ? ' sat' : dow === 0 ? ' sun' : ''}${state.holidayRed && holName(k) ? ' hol' : ''}${ps ? ' psel' : ''}${pSrc ? ' psrc' : ''}" data-date="${k}" aria-label="${dayLabel(k)}${holSpoken(k)}${r ? `、${r.name}` : ''}、予定${es.length}件${xCount(es)}${tn ? `、未完了のタスク${tn}件` : ''}${PS.on ? `${pSrc ? '、コピー元' : ''}、${ps ? '選択中。この日を外す' : 'この日を選ぶ'}` : ''}" aria-pressed="${PS.on ? ps : k === sel}">${pSrc ? '<span class="pcsrc" aria-hidden="true">コピー元</span>' : ''}${ps ? '<i class="pck" aria-hidden="true">✓</i>' : ''}${r ? `<span class="rk" aria-hidden="true">${r.name}</span>` : ''}<span class="num${state.rokuyo && d.getDate() === 1 ? ' sd' : ''}">${label}</span>${memoMark(k)}${tn ? `<span class="tkn" aria-hidden="true">✓${tn}</span>` : ''}${dots}</button>`;
     const extra = mode === 'simple' ? es.length - cap : hidden[col];
     if (extra > 0) html += `<button type="button" class="plus" data-jump="${k}" style="right:calc(${6 - col} * 100% / 7)" aria-label="${dayLabel(k)}の予定をすべて見る（ほか${extra}件）">+${extra}</button>`;
   });
@@ -694,9 +701,9 @@ function weekEvent(e, k, vlist = false) {
 }
 function weekRow(k, short, vlist = false) {
   const list = eventsOnDay(occIn(k, k), k), d = parseKey(k);
-  const head = `${short ? `${d.getDate()}（${DOW[d.getDay()]}）` : dayLabel(k)}${rkSpan(k, 'wrk')}`;
+  const head = `<span class="wdt${isRed(k) ? ' hol' : ''}">${short ? `${d.getDate()}（${DOW[d.getDay()]}）` : dayLabel(k)}</span>${holName(k) ? `<span class="wrk whn" aria-hidden="true">${esc(holName(k))}</span>` : ''}${rkSpan(k, 'wrk')}`;
   const body = list.map((e) => weekEvent(e, k, vlist)).join('') || '<div class="empty-row">予定なし</div>';
-  return `<section class="weekrow${k === todayKey() ? ' today' : ''}${k === state.selected ? ' selected' : ''}"><button type="button" class="wd" data-jump="${k}" aria-label="${dayLabel(k)}を日表示で開く">${head}</button>${vlist ? `<div class="wevents">${body}</div>` : body}</section>`;
+  return `<section class="weekrow${k === todayKey() ? ' today' : ''}${k === state.selected ? ' selected' : ''}"><button type="button" class="wd" data-jump="${k}" aria-label="${dayLabel(k)}${holSpoken(k)}を日表示で開く">${head}</button>${vlist ? `<div class="wevents">${body}</div>` : body}</section>`;
 }
 const weekNotes = '<div class="weeknotes"><div class="eyebrow">今週の余白</div>日付から一日の詳細へ。予定を選ぶと全文を確認できます。</div>';
 
@@ -943,7 +950,7 @@ function miniMonth(side) {
   const d = parseKey(MM.ym || state.selected);
   const cells = monthWeeks(MM.ym || state.selected).flat().map((k) => {
     const c = parseKey(k), out = c.getMonth() !== d.getMonth();
-    return `<button type="button" class="mmc${out ? ' out' : ''}${k === state.selected ? ' sel' : ''}${k === todayKey() ? ' tod' : ''}" data-mmday="${k}" data-pane="${side}" aria-label="${esc(dayLabel(k))}${k === state.selected ? '、選択中' : ''}" aria-pressed="${k === state.selected}"><span class="n">${c.getDate()}</span>${memoMark(k)}</button>`;
+    return `<button type="button" class="mmc${out ? ' out' : ''}${isRed(k) ? ' hol' : ''}${k === state.selected ? ' sel' : ''}${k === todayKey() ? ' tod' : ''}" data-mmday="${k}" data-pane="${side}" aria-label="${esc(dayLabel(k))}${esc(holSpoken(k))}${k === state.selected ? '、選択中' : ''}" aria-pressed="${k === state.selected}"><span class="n">${c.getDate()}</span>${memoMark(k)}</button>`;
   }).join('');
   return `<div class="mmenu" role="dialog" aria-label="日付を選ぶ" data-pane="${side}" style="width:min(280px,${Math.max(0, paneWidth(side))}px)"><div class="mmh"><button type="button" data-mmnav="-1" data-pane="${side}" aria-label="前の月">‹</button><span class="mmt" aria-live="polite">${d.getFullYear()}年${d.getMonth() + 1}月</span><button type="button" data-mmnav="1" data-pane="${side}" aria-label="次の月">›</button></div><div class="mmg">${cells}</div></div>`;
 }
@@ -1626,21 +1633,13 @@ function afterTimeEdit() {
 }
 // 日付のカプセル。値（F.start / F.end の value）は保存の入口の「2026/11/12」。表示は dateLabel。
 function syncDateFields() { if (dt) { F.start.value = slash(dt.start); F.end.value = slash(dt.end); } }
-// 祝日の赤は iPhone の購読カレンダー「祝日」の終日予定（既存の祝日データ源）。読み込めている範囲だけ。ローカルの予定では代用しない。
-function holidayDays() {
-  const hc = new Set(X.calendars.filter((c) => c.sourceType === 'subscribed' && /祝日|holiday/i.test(c.title || '')).map((c) => c.id));
-  const out = new Set();
-  if (!hc.size) return out;
-  for (const e of visExt()) if (e.all && hc.has(e.calId)) for (let k = dayOf(e.start); k <= dayOf(e.end) && out.size < 1000; k = addDays(k, 1)) out.add(k);
-  return out;
-}
 const dui = createDateUi({
   box: $('#dtbox'), start: $('#f-start'), end: $('#f-end'), rows: { start: $('#row-s'), end: $('#row-e') }, pop: $('#dpop'),
   chips: $('#dp-chips'), title: $('#dp-title'), prev: $('#dp-prev'), next: $('#dp-next'), heads: $('#dp-heads'), grid: $('#dp-grid'),
 }, {
   get: () => dt,
   buzz: () => { haptic('light').catch(() => {}); },
-  holiday: (() => { let memo = null, c0 = null, l0 = null; return (k) => { if (!memo || c0 !== X.cache || l0 !== X.calendars) { memo = holidayDays(); c0 = X.cache; l0 = X.calendars; } return memo.has(k); }; })(),
+  holiday: (k) => state.holidayRed && !!holidayOf(k),
   pick: (which, k) => { if (!dt) return; dt = which === 'start' ? setStartDate(dt, k) : pickEndDate(dt, k); afterTimeEdit(); },
 });
 const tui = createTimeUi({
@@ -1653,7 +1652,7 @@ const tui = createTimeUi({
   setDuration: (min) => { if (!dt) return; dt = setDuration(dt, min); afterTimeEdit(); },
 });
 // 繰り返しの終了日: 予定の日付と同じカプセル＋小さな月。値は F.runtil.value（「2026/12/31」。旧下書きと同じ形）。
-const holidayMemo = (() => { let memo = null, c0 = null, l0 = null; return (k) => { if (!memo || c0 !== X.cache || l0 !== X.calendars) { memo = holidayDays(); c0 = X.cache; l0 = X.calendars; } return memo.has(k); }; })();
+const holidayMemo = (k) => state.holidayRed && !!holidayOf(k);
 const untilUi = createDateField(F.runtil, {
   after: R.untilL, scope: $('#rpanel'), label: '終了日', empty: '終了日を選ぶ',
   get: () => { const u = parseInput(F.runtil.value, true); return u ? dayOf(u) : ''; },
@@ -2500,7 +2499,7 @@ function tkChanged(reload) {
   if (calScreenOpen()) renderCalScreen();
   if (reload) loadTasks();
 }
-function syncRokuyoMenu() { $('#m-rokuyo').setAttribute('aria-checked', String(state.rokuyo)); }
+function syncRokuyoMenu() { $('#m-holiday').setAttribute('aria-checked', String(state.holidayRed)); $('#m-rokuyo').setAttribute('aria-checked', String(state.rokuyo)); }
 // 月の表現（手帳｜予定名｜全部）。月表示のときだけ。1回選ぶと閉じる。
 function syncModeMenu() {
   const on = viewNow() === 'month' && !listShown() && (layoutKind() !== 'spread' || state.pages.left === 'month' || state.pages.right === 'month');
@@ -2548,6 +2547,7 @@ menuDlg.addEventListener('click', (ev) => {
   else if (m === 'sample') { closePanel(menuDlg); loadSample(); }
   else if (m === 'mode') { const v = $('#m-variant'); v.hidden = !v.hidden; b.setAttribute('aria-expanded', String(!v.hidden)); if (!v.hidden) v.querySelector('button')?.focus({ preventScroll: true }); }
   else if (m === 'mtime') { set({ [timeKey()]: !state[timeKey()] }); syncMonthMenu(); say(`月表示の時刻を${state[timeKey()] ? '出します' : '出しません'}。`); }
+  else if (m === 'holiday') { set({ holidayRed: !state.holidayRed }); syncRokuyoMenu(); say(`祝日を赤で${state.holidayRed ? '表示します' : '表示しません'}。`); }
   else if (m === 'rokuyo') { set({ rokuyo: !state.rokuyo }); syncRokuyoMenu(); say(`六曜を${state.rokuyo ? '出します' : '出しません'}。`); }
   else if (m === 'msize') { set({ monthTextSize: state.monthTextSize === 'large' ? 'normal' : 'large' }); syncMonthMenu(); say(`月の文字を${state.monthTextSize === 'large' ? '大' : '標準'}にしました。`); }
   else if (m === 'tlin' || m === 'tlout') { const T = TLP[paneOf(firstTl())]; setHh(T.hh * (m === 'tlin' ? 1.25 : 0.8)); say(`時間軸を${m === 'tlin' ? '拡大' : '縮小'}しました（1時間 ${Math.round(T.hh)}px）。`); }

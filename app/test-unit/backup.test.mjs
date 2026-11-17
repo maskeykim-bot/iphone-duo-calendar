@@ -22,7 +22,7 @@ const DP = { left: 'month', right: 'time', portraitBottom: 'time', portraitShown
 test('バージョンは 4、schema と settings の形', () => {
   const bk = buildBackup([], { ...settings, monthExpand: true, notify: { enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } } }, new Date(), cats);
   assert.equal(bk.version, VERSION); assert.equal(VERSION, 4); assert.equal(bk.schema, 4);
-  assert.deepEqual(bk.settings, { view: 'month', style: 'simple', desk: false, monthExpand: true, rokuyo: true, pages: DP, notify: { enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } } });
+  assert.deepEqual(bk.settings, { view: 'month', style: 'simple', desk: false, monthExpand: true, rokuyo: true, holidayRed: true, pages: DP, notify: { enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } } });
   assert.equal(bk.categories.length, 2);
 });
 
@@ -59,7 +59,7 @@ test('表示用の項目（recurring / occKey / parentId / moved / origin）は�
 test('設定の往復（view/style/desk/monthExpand/notify）。未知のキーは無視', () => {
   const notify = { enabled: false, showTitle: true, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '09:30' } };
   const v = roundtrip([], { view: 'week', style: 'named', desk: true, monthExpand: true, weekStart: 0, notify });
-  assert.deepEqual(v.data.settings, { view: 'week', style: 'named', desk: true, monthExpand: true, rokuyo: true, pages: DP, weekStart: 0, notify });
+  assert.deepEqual(v.data.settings, { view: 'week', style: 'named', desk: true, monthExpand: true, rokuyo: true, holidayRed: true, pages: DP, weekStart: 0, notify });
   const w = validateBackup(file({ events: [], settings: { view: 'day', weekStart: 1, bogus: 1 } }));
   assert.deepEqual(w.data.settings, { view: 'day', weekStart: 1 });
   assert.equal(validateBackup(file({ events: [], settings: { weekStart: 2 } })).ok, false);
@@ -280,4 +280,13 @@ test('planMemos: 同日同文は追加なし、異文は空行で連結して1�
   const q = planMemos(cur, [memo('2026-11-02', 'B')], 9);
   assert.equal(q.puts.length, 1); assert.equal(q.puts[0].text, 'A\n\nB'); assert.equal(q.puts[0].createdAt, 5); assert.equal(q.puts[0].updatedAt, 9);
   assert.equal(planAppend([], [], cur, [memo('2026-11-02', 'B')]).memo.merged, 1);
+});
+
+test('PR9: holidayRed は往復し、不正はエラー、欠落は未指定（現在値保持）', () => {
+  const bk = buildBackup([], { ...settings, holidayRed: false }, new Date(), cats, []);
+  assert.equal(bk.settings.holidayRed, false);
+  assert.equal(validateBackup(JSON.stringify(bk)).data.settings.holidayRed, false);
+  assert.equal(buildBackup([], { ...settings }, new Date(), cats, []).settings.holidayRed, true); // 欠落はオン
+  assert.equal(validateBackup(f4({ settings: { holidayRed: 'x' } })).ok, false);
+  assert.equal('holidayRed' in validateBackup(f4({ settings: { view: 'day' } })).data.settings, false);
 });

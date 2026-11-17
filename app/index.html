@@ -135,6 +135,8 @@
     </div>
     <div class="menurows" data-screen="general" hidden>
       <button type="button" data-m="week" id="m-week">週の始まり</button>
+      <button type="button" data-m="holiday" id="m-holiday" class="swrow" role="switch" aria-checked="true" aria-describedby="m-holiday-d"><span>祝日を赤で表示</span><i class="rkswitch" aria-hidden="true"></i></button>
+      <p id="m-holiday-d" class="swnote">祝日の日付を赤にします。日曜は常に赤です。名前は内蔵の祝日表から出し、連携がなくても使えます。</p>
       <button type="button" data-m="rokuyo" id="m-rokuyo" class="swrow" role="switch" aria-checked="true" aria-describedby="m-rokuyo-d"><span>六曜を表示</span><i class="rkswitch" aria-hidden="true"></i></button>
       <p id="m-rokuyo-d" class="swnote">月のマスと日の見出しに、大安・仏滅などを出します。</p>
       <button type="button" data-m="desk" id="m-desk">卓上表示</button>
@@ -178,6 +180,9 @@
       <button type="button" data-m="touch" id="touch-check-open" class="diagbtn">タッチ確認</button>
       <p id="layout-diagnostics" class="diag" aria-label="画面の寸法の診断"></p>
       <p id="kb-metrics" class="diag" aria-label="キーボード計測"></p>
+      <section id="about-app" class="about" aria-labelledby="about-t"><h3 id="about-t">このアプリについて</h3>
+        <p>祝日: 内閣府「国民の祝日について」のCSV（https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html）を、Duo 作者が加工して作成（公共データ利用規約 第1.0版）。2027年までは公式の値、2028〜2050年は現行法と春分・秋分の計算による予定の値で、制度の変更や官報で変わることがあります。</p>
+        <p>六曜: 天保暦の規則に基づき、Duo 作者が天文計算から作成した2000〜2050年の表です。</p></section>
     </div>
   </div>
   <div id="m-destpop" class="destpage" role="group" aria-label="新しい予定の追加先" hidden></div>
