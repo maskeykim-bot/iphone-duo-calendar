@@ -107,9 +107,13 @@ test.describe('チップ長押しのメニュー', () => {
     await page.mouse.click(5, 5);
     await expect(page.locator('.cmenu')).toHaveCount(0);
   });
-  test('チップのない所（日の数字）の長押しは従来どおり期間選択', async ({ page }) => {
+  test('チップのない所（日の数字）の長押しは、同じ日なら終日の予定とこの日のノートのメニュー', async ({ page }) => {
     await boot(page);
     await longPress(page, dayBtn(page, '2026-11-25'));
+    const menu = page.locator('.cmenu[data-daymenu]');
+    await expect(menu).toBeVisible();
+    await expect(page.locator('#editor')).toBeHidden();
+    await menu.getByRole('menuitem', { name: '終日の予定' }).click();
     await expect(page.locator('#editor')).toBeVisible();
     await expect(page.locator('.cmenu')).toHaveCount(0);
   });
