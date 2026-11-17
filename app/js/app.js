@@ -17,8 +17,8 @@ import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LA
 import { noteStore, setNoteHook, recoverNoteDrafts, importLegacyMemoDrafts, folderOps, groupNotes, filterByFolder, FOLDER_NAME_MAX } from './notes.js';
 import { mountNoteEditor } from './notes-ui.js';
 import { titleOf } from './notes-model.js';
-import { DELETE_UNDO_MS, tasksHtml, HIST_DAYS, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDeleteController, TASK_DELETED } from './reminders.js';
-import { LOCAL_LIST, TASK_STORE_TEXT, createTaskStore, createLocalCall, createLocalAddController, rowOf, createTaskDoneController, DONE_UNDO_MS, dueCounts, todayTasks, inheritTaskSettings, normTaskSettings } from './tasks.js';
+import { DELETE_UNDO_MS, tasksHtml, focusTasksHtml, HIST_DAYS, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDeleteController, TASK_DELETED } from './reminders.js';
+import { LOCAL_LIST, TASK_STORE_TEXT, createTaskStore, createLocalCall, createLocalAddController, rowOf, createTaskDoneController, DONE_UNDO_MS, TASK_VIEWS, TASK_VIEW_LABELS, normTaskView, dueCounts, todayTasks, inheritTaskSettings, normTaskSettings } from './tasks.js';
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
 import { call, errCode, errReason, errText, haptic, listen, nativeAvailable } from './native.js';
 import { createDestPage, destRowsHtml } from './destination-ui.js';
@@ -61,6 +61,7 @@ function loadUi() {
     monthTextSize: s.monthTextSize === 'large' ? 'large' : 'normal', // 月の文字: 標準 / 大
     pages: normalizePages(s.pages), // 開いた横の左右ページ（月・時間・タスク・メモ）と縦の下パネル。旧 home/view は閉じた画面・縦の従来表示用に保持
     timeMode: normTimeMode(s.timeMode), // 時間ページの表示（左右別）: '1' 1日 | '3' 3日 | 'week' 週 | 'list' 一覧
+    taskView: normTaskView(s.taskView), // 集中タスクの見方（today|plan|all|done）
     focusMode: normFocusMode(s.focusMode), // 開いた縦の集中モード（calendar|task|note）。他の姿勢では使わず、保存だけ保つ
     lastSide: s.lastSide === 'left' ? 'left' : 'right', // 最後に触ったページ（＋の行き先）
     holidayRed: s.holidayRed !== false, // 祝日を赤で表示（既定オン。boolean の false だけが切。日曜の赤は常に出す）
@@ -113,8 +114,8 @@ async function applyNotifyPolicy() {
 }
 const chipTime = (iso) => iso.slice(11).replace(/^0/, ''); // 月チップの時刻は先頭の0なし（3:00 / 10:00）
 function saveUi() {
-  const { selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode } = state;
-  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTimeV: 11, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode })); } catch { /* 保存不可でも動作は続ける */ }
+  const { selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView } = state;
+  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTimeV: 11, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView })); } catch { /* 保存不可でも動作は続ける */ }
 }
 // 左右（または縦の下パネル）のページを選ぶ。同じ種類が左右に並ぶ場合は交換。
 function setPage(side, id) { set({ pages: selectPage(state.pages, side, id) }); }
@@ -857,7 +858,7 @@ function stripPage(id) {
 // 開いた縦のタスク／ノート専用面。カレンダーの部品（月・下の段・タブ）は出さない。既存のタスク・ノート部品を全面に置く。
 function focusPage(m) {
   const id = m === 'note' ? 'memo' : 'task';
-  return `<section class="page stripp fpage" data-page="${id}" aria-label="${FOCUS_LABELS[m]}">${id === 'memo' ? noteBody('closed') : taskBody('closed')}</section>`;
+  return `<section class="page stripp fpage" data-page="${id}" aria-label="${FOCUS_LABELS[m]}">${id === 'memo' ? noteBody('closed') : focusTaskBody()}</section>`;
 }
 // 開いた縦: 全幅の月（下に予定一覧は置かない）。見出し（設定・前・題名・次・全・検索）は上 safe の帯の中、下に 今日・タブ・＋。
 function open() {
@@ -1321,7 +1322,7 @@ root.addEventListener('click', (ev) => { if (NB.swallow && performance.now() < N
 // 変換中などで input が届いていない本文を DOM から拾う。
 function noteSync() { NB.ed?.sync(); }
 let remComposing = false; // 題名欄の実変換中だけ true（入力欄のノードは再描画で保たれるので描画は待たない）
-root.addEventListener('compositionstart', (ev) => { if (ev.target.closest?.('input.remin')) { remComposing = true; return; } if (ev.target.closest?.('.ned')) noteComposing = true; });
+root.addEventListener('compositionstart', (ev) => { if (ev.target.closest?.('input.remin')) { remComposing = true; return; } if (ev.target.closest?.('.ned, [data-ft]')) noteComposing = true; });
 root.addEventListener('compositionend', (ev) => {
   const rin = ev.target.closest?.('input.remin');
   if (rin) {
@@ -1330,11 +1331,12 @@ root.addEventListener('compositionend', (ev) => {
     if (RM.add.want) { RM.add.want = false; remSubmit(); } // 変換確定前に追加を押していたら、確定後に1回だけ保存
     return;
   }
-  if (!ev.target.closest?.('.ned')) return;
+  if (!ev.target.closest?.('.ned, [data-ft]')) return;
   noteComposing = false;
   if (renderPending) { renderPending = false; render(); }
+  if (ev.target.closest?.('[data-ft]')) ftChanged(ev.target, false);
 });
-root.addEventListener('focusout', (ev) => { if (ev.target.closest?.('input.remin')) remComposing = false; if (noteComposing && ev.target.closest?.('.ned')) { noteComposing = false; if (renderPending) { renderPending = false; setTimeout(render, 0); } } });
+root.addEventListener('focusout', (ev) => { if (ev.target.closest?.('input.remin')) remComposing = false; if (noteComposing && ev.target.closest?.('.ned, [data-ft]')) { noteComposing = false; if (renderPending) { renderPending = false; setTimeout(render, 0); } } });
 const flushNotesNow = () => { noteSync(); return noteStore.flushAll(); };
 // バックアップの前後: 未保存のノートを保存し終えるまで待つ。保存できなかったものがあれば false。
 const flushNotesAwait = async () => { try { const r = await flushNotesNow(); return r.every((x) => x !== false) && !noteStore.anyDirty(); } catch { return false; } };
@@ -1342,6 +1344,38 @@ setNoteHook((id) => { if (NB.rows && !noteStore.dirty(id) && !noteStore.get(id)?
 document.addEventListener('visibilitychange', () => { if (document.hidden) { flushNotesNow(); delCtl.flush(); doneCtl.flush(); } });
 window.addEventListener('pagehide', () => { doneCtl.flush(); delCtl.flush(); });
 window.addEventListener('pagehide', flushNotesNow);
+// ---------- 集中タスクの詳細（PR33）: 入力はすぐ保存へ流す。保存は共通の saveTask（編集シートと同じ）、同じ項目への保存は順番に ----------
+function ftCard() { return root.querySelector('.ftcard[data-id]'); }
+function ftFlush() { clearTimeout(FT.timer); FT.timer = 0; const c = ftCard(); if (c) ftSave(c.dataset.id); }
+function ftChanged(el, soon) {
+  const c = el.closest('.ftcard'); if (!c) return;
+  clearTimeout(FT.timer);
+  if (soon) { if (el.dataset.ft === 'title') FT.timer = setTimeout(() => { if (!noteComposing) ftSave(c.dataset.id); }, 500); return; }
+  ftSave(c.dataset.id);
+}
+function ftSave(id) {
+  FT.chain = FT.chain.then(async () => {
+    const c = ftCard(), orig = RM.data?.reminders.find((x) => x.itemId === id);
+    if (!c || c.dataset.id !== id || !orig) return;
+    const v = (k) => c.querySelector(`[data-ft="${k}"]`);
+    const date = v('date').value;
+    const form = { title: v('title').value, date, time: date ? v('time').value : '', notes: v('notes').value, notify: v('notify').checked };
+    const err = c.querySelector('[data-ft-err]');
+    const r = await saveTask(localCall, orig, form);
+    const c2 = ftCard(); const e2 = c2?.querySelector('[data-ft-err]') || err;
+    if (r.ok) {
+      if (e2) { e2.hidden = true; e2.textContent = ''; }
+      if (!r.noop && RM.data) { RM.mut++; RM.data = { ...RM.data, reminders: RM.data.reminders.map((x) => (x.itemId === id ? r.reminder : x)) }; RM.sig = ''; render(); scheduleTasks(); if (r.reminder.alarms?.length) askNotifyPerm(); }
+      return;
+    }
+    const m = r.invalid || taskErrText(r.code, 'もう一度お試しください。');
+    if (r.code === 'NOT_FOUND') { FT.sel = null; loadTasks(); }
+    if (e2) { e2.hidden = false; e2.textContent = m; }
+    say(m);
+  }).catch(() => {});
+}
+root.addEventListener('input', (ev) => { const el = ev.target.closest?.('[data-ft]'); if (el && !ev.isComposing) ftChanged(el, true); });
+root.addEventListener('change', (ev) => { const el = ev.target.closest?.('[data-ft]'); if (el) ftChanged(el, false); });
 // ---------- タスク: 続けて追加（PR17） ----------
 root.addEventListener('input', (ev) => { const i = ev.target.closest?.('input.remin'); if (i && !RM.add.busy) RM.add.title = i.value; });
 root.addEventListener('keydown', (ev) => {
@@ -1473,6 +1507,11 @@ function toggleDone(id) {
   if (!r || !doneCtl.toggle(r)) return;
   const now = doneCtl.pending().get(id);
   say(now ? '完了にしました。' : '未完了に戻しました。');
+}
+// 集中タスク（開いた縦）。見方・選択・もっと前の開閉は画面だけの状態（見方は保存）。
+const FT = { sel: null, older: false, timer: 0, chain: Promise.resolve() };
+function focusTaskBody() {
+  return focusTasksHtml(RM.data ? { ...RM.data, reminders: RM.data.reminders.filter((x) => !delCtl.has(x.itemId)) } : RM.data, { view: state.taskView, sel: FT.sel, olderOpen: FT.older, selected: state.selected, pending: doneCtl.pending(), add: RM.data ? { draft: RM.add } : null, loading: !RM.err, error: RM.err });
 }
 function taskBody(where) {
   return tasksHtml(RM.data ? { ...RM.data, reminders: RM.data.reminders.filter((x) => !delCtl.has(x.itemId)) } : RM.data, { selected: state.selected, doneOpen: RM.doneOpen, histDays: RM.histDays, loading: !RM.err, error: RM.err, busyMore: RM.more, pending: doneCtl.pending(), add: RM.data ? { draft: RM.add } : null });
@@ -1668,6 +1707,7 @@ function render() {
   const noteKeep = noteKeepOf(ma);
   const ra = document.activeElement;
   const remKeep = ra && ra.matches?.('input.remin') ? { s: ra.selectionStart, e: ra.selectionEnd } : null;
+  const fa = document.activeElement, ftKeep = fa && fa.matches?.('[data-ft]') && fa.closest('.ftcard') ? { k: fa.dataset.ft, v: fa.value, s: fa.selectionStart, e: fa.selectionEnd } : null;
   const remNode = root.querySelector('input.remin'); // 入力欄は一覧の再描画で作り直さず、同じノードを戻す
   rendering = true;
   root.innerHTML = { home: () => closed('home'), browse: () => closed('browse'), open, desk, spread }[kind]();
@@ -1675,6 +1715,7 @@ function render() {
   if (remNode) { const nn = root.querySelector('input.remin'); if (nn && nn !== remNode) { nn.replaceWith(remNode); remNode.readOnly = !!RM.add.busy; } }
   fillNotes(noteKeep);
   fillAdd(remKeep);
+  if (ftKeep) { const n = root.querySelector(`.ftcard [data-ft="${ftKeep.k}"]`); if (n && !n.disabled) { if (ftKeep.k === 'title' || ftKeep.k === 'notes') n.value = ftKeep.v; n.focus({ preventScroll: true }); try { if (ftKeep.s != null) n.setSelectionRange(ftKeep.s, ftKeep.e); } catch { /* date/time は無視 */ } } }
   lastKind = kind;
   root.querySelectorAll('[data-scroll]').forEach((el) => { el.scrollTop = scrolls[`${kind}:${el.dataset.scroll}${el.dataset.pane || ''}`] || 0; });
   restoreAll(anchor);
@@ -1780,6 +1821,10 @@ root.addEventListener('click', (ev) => {
   if (d.view) set({ view: d.view, home: false });
   else if (d.act === 'list') set({ home: true });
   else if (d.act === 'homego') homeGo2(d, b);
+  else if (d.act === 'tview') { set({ taskView: normTaskView(d.v) }); root.querySelector(`[data-act="tview"][data-v="${d.v}"]`)?.focus({ preventScroll: true }); }
+  else if (d.act === 'ftolder') { FT.older = true; render(); }
+  else if (d.act === 'ftdue') { const a = RM.add, t = new Date(); if (d.d === 'tomorrow') t.setDate(t.getDate() + 1); a.due = d.d === 'none' ? null : dkey(t); a.time = ''; a.pop = null; a.focus = true; render(); }
+  else if (d.act === 'ftdel') { ftFlush(); FT.sel = null; deleteTask(d.id); render(); }
   else if (d.act === 'remck') toggleDone(d.id);
   else if (d.act === 'remedit') openTask(d.id, b);
   else if (d.act === 'remsubmit') remSubmit();
@@ -2471,6 +2516,7 @@ function tkFields() {
 function openTask(id, from) {
   const r = RM.data?.reminders.find((x) => x.itemId === id);
   if (!r || anyPanel()) return;
+  if (fmode() === 'task') { FT.sel = id; render(); return; } // 集中タスクは下面の詳細で編集する（シートは開かない）
   TK = { ed: openTaskEditor(r, RM.data.lists), busy: false, gone: false, notify: undefined }; tkKey = r.itemId;
   $('#tk-body').innerHTML = taskEditorHtml(TK.ed);
   tkFields();

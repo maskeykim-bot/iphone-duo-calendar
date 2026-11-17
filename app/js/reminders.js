@@ -1,4 +1,4 @@
-import { todayTasks, dueCounts as dueCountsOf } from './tasks.js';
+import { todayTasks, dueCounts as dueCountsOf, taskViews, TASK_VIEWS, TASK_VIEW_LABELS, normTaskView, TASK_NOTE_MAX } from './tasks.js';
 import { monthPopParts, hourCellsHtml, minCellsHtml, splitHm, oddMinute, monthOf } from './datetime-ui.js';
 // 削除（第14版 PR20）。force はない。expectModifiedAt は読み込んだ時の modifiedAt。不在は成功（missing）。
 export async function removeTaskVia(call, target, expectModifiedAt) {
@@ -269,4 +269,47 @@ export function overdueTodayCount(reminders, shown, doneOverride, today) {
 }
 export function dueCounts(reminders, shown, doneOverride) {
   return dueCountsOf(filterByLists(reminders, shown), doneOverride);
+}
+
+// ---- 第16版 PR33: 開いた縦の集中タスク（上面＝四つの見方の一覧、下面＝追加と選んだタスクの詳細） ----
+// ui: { view, sel(選んだ id), olderOpen, add: { draft }, selected(選んでいる日=チップ初期値だけ), pending }
+export function focusTasksHtml(data, { view = 'today', sel = null, olderOpen = false, selected, now = new Date(), pending = null, add = null, loading = false, error = false } = {}) {
+  if (!data) return `<div class="ftask"><div class="ftup"><p class="remtx pad">${error ? 'タスクを読み込めませんでした。' : loading ? '読み込み中…' : ''}</p></div></div>`;
+  view = normTaskView(view);
+  const colors = new Map((data.lists || []).map((l) => [l.id, l.color]));
+  const v = taskViews(data.reminders, { now });
+  const row = (r, late) => taskRowHtml(pending?.has(r.itemId) ? { ...r, done: pending.get(r.itemId) } : r, colors.get(r.listId), late).replace('class="rmrow', `class="rmrow${r.itemId === sel ? ' sel' : ''}`);
+  const sec = (key, title, arr, late) => (arr.length ? `<section class="rmsec" data-sec="${key}"><h3 class="rmh${late ? ' late' : ''}">${escH(title)}</h3><div role="list">${arr.map((r) => row(r, late)).join('')}</div></section>` : '');
+  const empty = (t) => `<p class="remtx pad rmempty">${t}</p>`;
+  let body = '';
+  if (view === 'today') body = sec('overdue', '期限切れ', v.overdue, true) + sec('today', '今日', v.todayItems, false) || empty('今日のタスクはありません。');
+  else if (view === 'plan') body = v.plan.map((g) => sec(`day:${g.date}`, mdFull(g.date), g.items, false)).join('') || empty('明日以降のタスクはありません。');
+  else if (view === 'all') body = sec('overdue', '期限切れ', v.overdue, true) + sec('today', '今日', v.todayItems, false) + sec('upcoming', 'この先', v.plan.flatMap((g) => g.items), false) + sec('nodue', '期限なし', v.nodue, false) || empty('未完了のタスクはありません。');
+  else {
+    body = sec('done', `完了（${v.recent.length}）`, v.recent, false) || empty('最近30日の完了はありません。');
+    if (v.older.length) body += olderOpen ? sec('older', `もっと前（${v.older.length}）`, v.older, false) : `<button type="button" class="rmmore" data-act="ftolder">もっと前を表示（${v.older.length}）</button>`;
+  }
+  const counts = { today: v.count }; // 件数は「今日」だけ（design/18）
+  const seg = TASK_VIEWS.map((k, i) => `<button type="button" data-act="tview" data-v="${k}" aria-pressed="${k === view}" aria-description="4個中${i + 1}番目">${TASK_VIEW_LABELS[k]}${counts[k] ? ` <small>${counts[k]}</small>` : ''}</button>`).join('');
+  const picked = sel ? data.reminders.find((r) => r.itemId === sel) : null;
+  const dueSel = add ? (add.draft.due === undefined ? selected : add.draft.due) : null;
+  const dchip = (k, t, on) => `<button type="button" class="rmchip" data-act="ftdue" data-d="${k}" aria-pressed="${on}">${t}</button>`;
+  const nextK = (() => { const d = new Date(now); d.setDate(d.getDate() + 1); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; })();
+  const todayK = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+  const chips = add ? `<div class="ftchips" role="group" aria-label="期限">${dchip('today', '今日', dueSel === todayK)}${dchip('tomorrow', '明日', dueSel === nextK)}${dchip('none', '日付なし', dueSel === null)}</div>` : '';
+  return `<div class="ftask" data-view="${view}"><div class="ftup"><div class="tvseg" role="group" aria-label="タスクの見方">${seg}</div><div class="ftlist" data-scroll="ftl">${body}</div></div>`
+    + `<div class="ftdn">${add ? addRowHtml(add.draft, { selected }) : ''}${chips}${picked ? taskDetailHtml(picked, pending) : `<div class="ftcard ftnone"><h3 class="rmh">期限なし</h3><div role="list">${v.nodue.map((r) => row(r, false)).join('') || '<p class="remtx pad">期限なしのタスクはありません。</p>'}</div></div>`}</div></div>`;
+}
+// 選んだタスクの詳細。入力は data-ft で識別し、変更は共通の保存（saveTask）へ流す。
+function taskDetailHtml(r, pending) {
+  const done = pending?.has(r.itemId) ? pending.get(r.itemId) : r.done;
+  const dis = r.readOnly || r.recurring ? ' disabled' : '';
+  const due = r.due || {};
+  return `<div class="ftcard" data-id="${escH(r.itemId)}"><input class="fttitle" data-ft="title" maxlength="200" aria-label="題名" value="${escH(r.title || '')}"${dis}>`
+    + `<label class="ftrow"><span>期限</span><input type="date" data-ft="date" value="${escH(due.date || '')}"${dis}></label>`
+    + `<label class="ftrow"><span>時刻</span><input type="time" data-ft="time" value="${escH(due.time || '')}"${dis}${due.date ? '' : ' disabled'}></label>`
+    + `<label class="ftrow"><span>通知</span><input type="checkbox" role="switch" data-ft="notify"${hasNotify(r) ? ' checked' : ''}${dis}${due.date ? '' : ' disabled'}><small>${due.date ? '' : NOTE_NEED_DUE}</small></label>`
+    + `<label class="ftrow ftnote"><span>メモ</span><textarea data-ft="notes" maxlength="${TASK_NOTE_MAX}"${dis}>${escH(r.notes || '')}</textarea></label>`
+    + `<p class="small ftst" aria-live="polite">${done ? '完了済み' : ''}</p><p class="rmwhy err" role="alert" data-ft-err hidden></p>`
+    + `<button type="button" class="ftdel" data-act="ftdel" data-id="${escH(r.itemId)}"${r.readOnly || r.recurring ? ' disabled' : ''}>削除</button></div>`;
 }

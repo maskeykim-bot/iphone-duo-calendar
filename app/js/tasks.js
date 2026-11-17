@@ -243,3 +243,36 @@ export function todayTasks(list, today, pending) {
   rows.sort((a, b) => cmpStr(dueKey(a), dueKey(b)) || cmpStr(String(a.title || ''), String(b.title || '')) || cmpStr(String(idOf(a)), String(idOf(b))));
   return { items: rows, total };
 }
+
+// ---------- 集中タスクの四つの見方（第16版 PR33） ----------
+// 今日＝期限切れ＋今日／予定＝明日以降を日別／すべて＝未完了の全部（期限なし含む）／完了＝30日窓＋もっと前。
+// 見方の「今日」は実際の今日。選んでいる日（state.selected）では動かさない。
+export const TASK_VIEWS = ['today', 'plan', 'all', 'done'];
+export const TASK_VIEW_LABELS = { today: '今日', plan: '予定', all: 'すべて', done: '完了' };
+export const normTaskView = (v) => (TASK_VIEWS.includes(v) ? v : 'today');
+const dkOf = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const dueCmp = (a, b) => cmpStr(dueKey(a), dueKey(b)) || cmpStr(String(a.title || ''), String(b.title || '')) || cmpStr(String(idOf(a)), String(idOf(b)));
+const hasNum = (v) => typeof v === 'number' && Number.isFinite(v);
+const createdCmp = (a, b) => (hasNum(a.createdAt) && hasNum(b.createdAt) ? a.createdAt - b.createdAt : hasNum(a.createdAt) ? -1 : hasNum(b.createdAt) ? 1 : 0) || cmpStr(String(a.title || ''), String(b.title || '')) || cmpStr(String(idOf(a)), String(idOf(b)));
+// list: Task か行。分類は保存済みの done で行う（完了操作の途中でも行は動かさない）。どの行も open/done のどちらか1か所だけに入る。
+export function taskViews(list, { now = new Date(), days = TASK_WINDOW_DAYS } = {}) {
+  const today = dkOf(now), hm = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+  const since = (() => { const d = new Date(now.getTime()); d.setDate(d.getDate() - days); return stampNow(d); })();
+  const overdue = [], todayL = [], future = [], nodue = [], recent = [], older = [];
+  const seen = new Set();
+  for (const r of list || []) {
+    if (!r || seen.has(idOf(r))) continue;
+    seen.add(idOf(r));
+    if (r.done) { (!r.doneAt || r.doneAt >= since ? recent : older).push(r); continue; }
+    if (!r.due?.date) { nodue.push(r); continue; }
+    if (r.due.date < today || (r.due.date === today && r.due.time && r.due.time < hm)) overdue.push(r);
+    else if (r.due.date === today) todayL.push(r);
+    else future.push(r);
+  }
+  overdue.sort(dueCmp); todayL.sort(dueCmp); future.sort(dueCmp); nodue.sort(createdCmp);
+  const byDoneAt = (a, b) => cmpStr(b.doneAt || '', a.doneAt || '') || cmpStr(String(a.title || ''), String(b.title || '')) || cmpStr(String(idOf(a)), String(idOf(b)));
+  recent.sort(byDoneAt); older.sort(byDoneAt);
+  const plan = [];
+  for (const r of future) { const last = plan[plan.length - 1]; if (last && last.date === r.due.date) last.items.push(r); else plan.push({ date: r.due.date, items: [r] }); }
+  return { today, overdue, todayItems: todayL, count: overdue.length + todayL.length, plan, planCount: future.length, all: [...overdue, ...todayL, ...future, ...nodue], nodue, recent, older };
+}

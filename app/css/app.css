@@ -1253,3 +1253,29 @@ dialog#menu #m-destpop{border-radius:inherit}
 .shell.focus .fpage{flex:1;min-height:0;display:flex;flex-direction:column}
 .shell.focus .fpage .padb,.shell.focus .fpage .taskl{padding-bottom:calc(var(--safe-b,0px) + 24px)}
 .shell.focus .fpage .memopage,.shell.focus .fpage .mlist{padding-left:16px;padding-right:16px}
+/* 第16版 PR33: 集中タスク（上面＝四つの見方、下面＝追加と詳細） */
+.ftask{flex:1;min-height:0;display:flex;flex-direction:column}
+.ftup{flex:1 1 45%;min-height:0;display:flex;flex-direction:column}
+.tvseg{display:flex;gap:2px;margin:12px 16px 8px;padding:2px;height:36px;box-sizing:border-box;border-radius:18px;background:#e6e9e4;box-shadow:inset 0 0 0 1px var(--line);flex:none}
+.tvseg button{flex:1 1 0;min-width:0;border-radius:16px;background:transparent;color:var(--ink);font-size:14px;font-weight:700;position:relative;touch-action:manipulation}
+.tvseg button::before{content:"";position:absolute;left:0;right:0;top:-4px;bottom:-4px}
+.tvseg button[aria-pressed=true]{background:#fff;color:var(--green);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.tvseg small{font-size:11px;font-weight:700;opacity:.8}
+.ftlist{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:0 16px}
+.ftlist .rmrow{min-height:44px}.ftlist .rmrow.two{min-height:48px}
+.ftlist .rmrow.sel{background:#e6f0e9;border-radius:8px}
+.ftdn{flex:1 1 55%;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:8px 16px calc(var(--safe-b,0px) + 24px);border-top:1px solid var(--line);box-sizing:border-box}
+.ftchips{display:flex;gap:8px;margin:8px 0}
+.ftchips .rmchip{min-height:28px;position:relative}
+.ftchips .rmchip::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
+.ftchips .rmchip[aria-pressed=true]{background:var(--green);color:#fff}
+.ftcard{margin-top:8px;padding:12px;border-radius:12px;background:#fff;box-shadow:inset 0 0 0 1px var(--line)}
+.fttitle{width:100%;box-sizing:border-box;font-size:20px;font-weight:800;border:0;background:transparent;padding:4px 0;min-height:44px}
+.ftrow{display:flex;align-items:center;gap:12px;min-height:44px}
+.ftrow>span{width:48px;font-weight:700;color:var(--muted,#68716A)}
+.ftrow input[type=date],.ftrow input[type=time]{font-size:16px;min-height:36px}
+.ftnote{align-items:flex-start}
+.ftnote textarea{flex:1;min-height:88px;font-size:16px;box-sizing:border-box}
+.ftdel{width:100%;min-height:44px;margin-top:8px;color:#c0392b;font-weight:800;border-radius:10px;background:transparent;box-shadow:inset 0 0 0 1px #e3b4ae}
+.ftdel:disabled{opacity:.4}
+.ftnone .rmh{margin:0 0 4px}
