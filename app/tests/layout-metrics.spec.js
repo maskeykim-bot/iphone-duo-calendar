@@ -97,6 +97,18 @@ test.describe('寸法変数（safe=0 では 06 の基準位置に一致する）
 });
 
 test.describe('診断行（設定メニュー）', () => {
+  test('画面寸法の診断行が出て、リサイズで更新される', async ({ page }) => {
+    await openApp(page, SIZES.closedPortrait);
+    await openMenu(page, 'details');
+    const d = page.locator('#screen-diagnostics');
+    await expect(d).toBeVisible();
+    const w = SIZES.closedPortrait.width, h = SIZES.closedPortrait.height;
+    await expect(d).toContainText(`画面 ${w}×${h} CSS px ・ DPR 1 ・ screen `);
+    await expect(d).toContainText('safe-area 上0 右0 下0 左0');
+    await page.setViewportSize({ width: 626, height: 890 });
+    await expect(d).toContainText('画面 626×890 CSS px');
+  });
+
   for (const [name, size] of SIZES5) {
     test(`${name}: メニューに W×H・DPR・safe が出る`, async ({ page }) => {
       await openApp(page, size);

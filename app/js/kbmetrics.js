@@ -31,3 +31,10 @@ export function kbText(m) {
     'division/frame/angle/status 未取得',
   ].join(' · ');
 }
+
+// 画面寸法の診断（設定 › 詳細。コピー用に2行の文字列へ整形する）。
+const dn = (n) => (Number.isFinite(n) ? String(Math.round(n * 1000) / 1000) : '—');
+export function screenText({ innerWidth, innerHeight, dpr, screenW, screenH, safe } = {}) {
+  const S = safe || {};
+  return `画面 ${dn(innerWidth)}×${dn(innerHeight)} CSS px ・ DPR ${dn(dpr)} ・ screen ${dn(screenW)}×${dn(screenH)}\nsafe-area 上${dn(S.top)} 右${dn(S.right)} 下${dn(S.bottom)} 左${dn(S.left)}`;
+}

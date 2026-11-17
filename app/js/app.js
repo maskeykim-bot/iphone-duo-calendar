@@ -18,7 +18,7 @@ import { DELETE_UNDO_MS, checkReminderAccess, requestReminderAccess, taskAccessH
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
 import { call, errCode, errReason, errText, haptic, listen, nativeAvailable, reminderErrText } from './native.js';
 import { createDestPage, destRowsHtml } from './destination-ui.js';
-import { KB_METRICS_ENABLED, kbMetrics, kbText } from './kbmetrics.js';
+import { KB_METRICS_ENABLED, kbMetrics, kbText, screenText } from './kbmetrics.js';
 import { createPosture, postureText } from './posture.js';
 import { makeVisible, buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normDest, normSettings, pickAddCal, planLinkMigration, planNativeOps, resolveDest, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, visibleDestGroups, allDestHidden, withIdent, writable, ymdSlash } from './iphone.js';
 import {
@@ -335,6 +335,28 @@ function updateDiagnostics() {
   postureCtl?.reapply(); // 閉じた画面⇄開いたで外面除外を再評価
   const el = $('#layout-diagnostics'); if (el) el.textContent = diagText();
   updateKbMetrics();
+  updateScreenDiag();
+}
+// 画面寸法の診断（読むだけ）。長押し（約500ms・touch/マウス）でクリップボードへコピー。
+function screenDiagText() {
+  return screenText({ innerWidth: window.innerWidth, innerHeight: window.innerHeight, dpr: window.devicePixelRatio || 1, screenW: window.screen?.width, screenH: window.screen?.height, safe: safe() });
+}
+function updateScreenDiag() { const el = $('#screen-diagnostics'); if (el) el.textContent = screenDiagText(); }
+function initScreenDiagCopy() {
+  const el = $('#screen-diagnostics'); if (!el) return;
+  let timer = 0;
+  const cancel = () => { clearTimeout(timer); timer = 0; };
+  el.addEventListener('pointerdown', () => {
+    cancel();
+    timer = setTimeout(async () => {
+      timer = 0;
+      const t = screenDiagText();
+      try { await navigator.clipboard.writeText(t); notice('コピーしました', null, 2000); }
+      catch { const sel = getSelection(); const rg = document.createRange(); rg.selectNodeContents(el); sel?.removeAllRanges(); sel?.addRange(rg); notice('コピーできません。選択したので手動でコピーしてください', null, 3500); }
+    }, 500);
+  });
+  for (const t of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(t, cancel);
+  el.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 // キーボード計測は設定 › 詳細が開いているときだけ読む（常時ポーリングしない・値は読むだけで何も変更しない）。
 function updateKbMetrics() {
@@ -4753,6 +4775,7 @@ $('#xd-copy').addEventListener('click', () => {
 // 寸法 L が変わった時だけ再描画する。キーボードの出入りは位置・寸法の変数更新だけ。
 window.addEventListener('resize', vpSchedule);
 window.addEventListener('orientationchange', vpSchedule);
+initScreenDiagCopy();
 window.visualViewport?.addEventListener('resize', vpSchedule);
 window.visualViewport?.addEventListener('scroll', vpSchedule);
 // safe area だけが変わった場合（回転を伴わない変化・検証用の注入）も再配置する。自分が書く --vy/--vb では再入しない。

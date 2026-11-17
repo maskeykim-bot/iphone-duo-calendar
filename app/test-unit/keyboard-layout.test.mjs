@@ -24,3 +24,10 @@ test('不正値・posture/segments の有無・未取得表示', () => {
   const t = kbText(kbMetrics({ innerHeight: 800, vv: { height: 500, offsetTop: 0, scale: 1 }, posture: true, segments: false }));
   assert.match(t, /devicePosture あり · segments なし/); assert.match(t, /未取得/); assert.match(t, /kbTop 500/);
 });
+
+import { screenText } from '../js/kbmetrics.js';
+test('画面寸法の診断テキスト整形', () => {
+  assert.equal(screenText({ innerWidth: 412, innerHeight: 915, dpr: 2.625, screenW: 412, screenH: 915, safe: { top: 24, right: 0, bottom: 16, left: 0 } }),
+    '画面 412×915 CSS px ・ DPR 2.625 ・ screen 412×915\nsafe-area 上24 右0 下16 左0');
+  assert.match(screenText({}), /画面 —×— CSS px/);
+});
