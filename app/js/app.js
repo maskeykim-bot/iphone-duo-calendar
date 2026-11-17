@@ -3,7 +3,7 @@ import { isoFromInput, stateFromInput, setStartDate, pickEndDate, setStartTime, 
 import { createTimeUi, createDateUi, createDateField, createTimeField, fireInput, monthOf, withHm } from './datetime-ui.js';
 import { SAMPLE } from './sample.js';
 import { initSwipe } from './swipe.js';
-import { initDirectInput, dayRange, rangeText, minutesAt, dragRange, tapRange, moveHandle, spanText, hm as hmText, snap15, edgeZone, edgeVelocity, createDwell, createFrameLoop } from './direct-input.js';
+import { initDirectInput, dayRange, rangeText, minutesAt, dragRange, tapRange, moveHandle, moveBox, spanText, hm as hmText, snap15, edgeZone, edgeVelocity, createDwell, createFrameLoop } from './direct-input.js';
 import { occurrenceAt, parseOccId, planDelete, planEdit, editInfo, normRule } from './recur.js';
 import { bumpRevision, occBetween } from './occcache.js';
 import { LIMIT, groupByDay, highlight, excerpt, normalize, terms, searchEvents, searchNotes, searchTasks, noteIndexSize } from './search.js';
@@ -1823,10 +1823,42 @@ function tlTap(ev, col) {
   Object.assign(DF, { mode: 'temp', day: col.dataset.day, pane }, tapRange(minAtY(ev.clientY, col, pane)));
   paintDraft();
 }
+// 仮枠の本体（取っ手の外側）を押したまま上下に引くと、同じ日の中で枠ごと動く（15分刻み）。8pt 以下の動きはたたき（click→openDraft）。
+const BOXMOVE_SLOP = 8, BOXMOVE_EDGE = 48;
+const BM = { on: false, id: 0, y0: 0, raw0: 0, r0: null, moved: false };
+const rawAt = (y, col, pane) => ((y - col.getBoundingClientRect().top - TL_PAD) / hhOf(pane)) * 60;
+function boxMoveRecalc(y) {
+  const col = colOf(DF.pane, DF.day); if (!col) return;
+  const r = moveBox(BM.r0, BM.r0.start + rawAt(y, col, DF.pane) - BM.raw0);
+  if (r.start !== DF.start || r.end !== DF.end) { Object.assign(DF, r); paintDraft(); feel('light'); }
+}
+function startBoxMove(ev) {
+  if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+  const col = colOf(DF.pane, DF.day); if (!col || BM.on) return;
+  ev.preventDefault();
+  const id = ev.pointerId;
+  Object.assign(BM, { on: true, id, y0: ev.clientY, raw0: rawAt(ev.clientY, col, DF.pane), r0: { start: DF.start, end: DF.end }, moved: false });
+  EG.y = ev.clientY;
+  const mv = (e) => {
+    if (e.pointerId !== id || DF.mode !== 'temp') return;
+    EG.y = e.clientY;
+    if (!BM.moved) { if (Math.abs(e.clientY - BM.y0) <= BOXMOVE_SLOP) return; BM.moved = true; EG.carry = 0; EG.tl = null; EG.origin = { kind: 'boxmove' }; edgeLoop.start(); }
+    if (e.cancelable) e.preventDefault();
+    boxMoveRecalc(e.clientY);
+  };
+  const done = (e) => {
+    if (e.pointerId !== id) return;
+    window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', done); window.removeEventListener('pointercancel', done);
+    if (BM.moved) { edgeLoop.stop(); EG.tl = null; EG.carry = 0; EG.origin = null; TLQ.quiet = performance.now() + 400; }
+    BM.on = false; BM.moved = false;
+  };
+  window.addEventListener('pointermove', mv); window.addEventListener('pointerup', done); window.addEventListener('pointercancel', done);
+}
 // 仮枠の取っ手（見た目12・押せる範囲44）。押してすぐ動かし、離したあとの click は抑止する。
 root.addEventListener('pointerdown', (ev) => {
+  if (DF.mode !== 'temp') return;
   const h = ev.target.closest?.('.hdl');
-  if (!h || DF.mode !== 'temp') return;
+  if (!h) { if (ev.target.closest?.('.dbox')) startBoxMove(ev); return; }
   ev.preventDefault();
   const which = h.dataset.h, id = ev.pointerId;
   const mv = (e) => {
@@ -4904,17 +4936,18 @@ function timeRecalc() {
   if (r.start !== DF.start || r.end !== DF.end) { Object.assign(DF, r); paintDraft(); feel('light'); }
 }
 const edgeLoop = createFrameLoop((dt) => {
-  const o = EG.origin;
-  if (!o || o.kind !== 'time' || DF.mode !== 'drag') return;
-  const tl = EG.tl?.isConnected ? EG.tl : (EG.tl = colOf(o.pane, o.day)?.closest('.tl') ?? null);
+  const o = EG.origin, bm = o?.kind === 'boxmove' && DF.mode === 'temp' && BM.moved;
+  if (!o || !(bm || (o.kind === 'time' && DF.mode === 'drag'))) return;
+  const tl = EG.tl?.isConnected ? EG.tl : (EG.tl = (bm ? colOf(DF.pane, DF.day) : colOf(o.pane, o.day))?.closest('.tl') ?? null);
   if (!tl) return;
-  const rc = tl.getBoundingClientRect(), v = edgeVelocity(EG.y, rc.top, rc.bottom);
+  const rc = tl.getBoundingClientRect();
+  const v = bm ? edgeZone(EG.y, rc.top, rc.bottom, BOXMOVE_EDGE) * hhOf(DF.pane) : edgeVelocity(EG.y, rc.top, rc.bottom); // 枠の移動は 1時間/秒
   if (!v) { EG.carry = 0; return; }
   const d = v * dt + EG.carry, w = Math.trunc(d);
   EG.carry = d - w;
   if (!w) return;
   const before = tl.scrollTop; tl.scrollTop = before + w;
-  if (tl.scrollTop !== before) timeRecalc();
+  if (tl.scrollTop !== before) { if (bm) boxMoveRecalc(EG.y); else timeRecalc(); }
 });
 const monthDwell = createDwell({
   fire: (dir) => {

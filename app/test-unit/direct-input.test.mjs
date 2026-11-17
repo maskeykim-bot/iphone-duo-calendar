@@ -80,7 +80,7 @@ test('dayAt / dayRange', () => {
 });
 
 // ---- PR25 ----
-import { tapRange, moveHandle, spanText, durText } from '../js/direct-input.js';
+import { tapRange, moveHandle, moveBox, spanText, durText } from '../js/direct-input.js';
 test('tapRange: 15分刻み・1時間・日末で詰める', () => {
   assert.deepEqual(tapRange(14 * 60 + 20), { start: 14 * 60 + 15, end: 15 * 60 + 15 });
   assert.deepEqual(tapRange(23 * 60 + 50), { start: 23 * 60, end: 1440 });
@@ -133,4 +133,13 @@ test('createFrameLoop: dt を渡し、stop 後は呼ばず rAF も残さない',
   l.start(); l.start(); t = 500; cb(500); t = 516; cb(516);
   assert.equal(dts[0], 0.1); assert.ok(Math.abs(dts[1] - 0.016) < 1e-9);
   l.stop(); assert.equal(cb, null); assert.equal(l.active, false);
+});
+test('moveBox: 15分刻み・長さ維持・0:00/24:00 で clamp', () => {
+  const r = { start: 600, end: 690 };
+  assert.deepEqual(moveBox(r, 700), { start: 705, end: 795 });
+  assert.deepEqual(moveBox(r, 607), { start: 600, end: 690 });
+  assert.deepEqual(moveBox(r, -300), { start: 0, end: 90 });
+  assert.deepEqual(moveBox(r, 5000), { start: 1350, end: 1440 });
+  assert.deepEqual(moveBox({ start: 0, end: 1440 }, 300), { start: 0, end: 1440 });
+  assert.deepEqual(moveBox({ start: 600, end: 615 }, 1439), { start: 1425, end: 1440 });
 });
