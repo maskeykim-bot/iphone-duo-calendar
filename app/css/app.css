@@ -848,10 +848,15 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .dbox{position:absolute;z-index:4;left:0;right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:calc(var(--d) * var(--hh) / 60);box-sizing:border-box;border:2px solid var(--cat);border-radius:6px;background:var(--tint);color:var(--cat);padding:1px 6px;overflow:visible;pointer-events:auto;touch-action:none}
 .dbox .dt{display:block;font-size:13px;line-height:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dbox .ds{display:block;font-size:11px;line-height:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hdl{position:absolute;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px var(--cat);touch-action:none}
+.hdl{position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px var(--cat);touch-action:none}
 .hdl:before{content:'';position:absolute;left:50%;top:50%;width:44px;height:44px;transform:translate(-50%,-50%)}
-.hdl-s{right:6px;top:-6px}
-.hdl-e{left:6px;bottom:-6px}
+.hdl-s{left:6px;top:-7px}
+.hdl-e{left:6px;bottom:-7px}
+.dbox[data-short] .hdl-s:before{transform:translate(-50%,-100%)}
+.dbox[data-short] .hdl-e:before{transform:translate(-50%,0)}
+.dx{position:absolute;right:2px;top:-10px;width:20px;height:20px;padding:0;border:0;border-radius:50%;background:#fff;color:var(--cat);box-shadow:0 0 0 2px var(--cat);font-size:12px;line-height:20px;font-weight:700;text-align:center;touch-action:none;z-index:1}
+.dx:before{content:'';position:absolute;left:50%;top:50%;width:44px;height:44px;transform:translate(-50%,-50%)}
+.dbox[data-short] .dx:before{transform:translate(-50%,-75%)}
 .dtag{position:absolute;z-index:5;left:3px;width:44px;height:18px;border-radius:4px;background:#294E42;color:#fff;font-size:10px;font-weight:700;line-height:18px;text-align:center;pointer-events:none;font-variant-numeric:tabular-nums}
 .allday .adcols{align-self:stretch}
 .tlx .tlhd{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding:0;font-size:12px;line-height:1.15;overflow:hidden}

@@ -3,7 +3,7 @@ import { isoFromInput, stateFromInput, setStartDate, pickEndDate, setStartTime, 
 import { createTimeUi, createDateUi, createDateField, createTimeField, fireInput, monthOf, withHm } from './datetime-ui.js';
 import { SAMPLE } from './sample.js';
 import { initSwipe } from './swipe.js';
-import { initDirectInput, dayRange, rangeText, minutesAt, dragRange, tapRange, moveHandle, moveBox, spanText, hm as hmText, snap15, edgeZone, edgeVelocity, createDwell, createFrameLoop } from './direct-input.js';
+import { initDirectInput, dayRange, rangeText, minutesAt, dragRange, tapRange, moveHandle, moveBox, spanText, hm as hmText, snap15, hitDraftPart, edgeZone, edgeVelocity, createDwell, createFrameLoop } from './direct-input.js';
 import { occurrenceAt, parseOccId, planDelete, planEdit, editInfo, normRule } from './recur.js';
 import { bumpRevision, occBetween } from './occcache.js';
 import { LIMIT, groupByDay, highlight, excerpt, normalize, terms, searchEvents, searchNotes, searchTasks, noteIndexSize } from './search.js';
@@ -1796,7 +1796,11 @@ function paintDraft() {
   const box = document.createElement('div');
   box.className = 'dbox'; box.dataset.mode = DF.mode;
   box.setAttribute('style', `${colorVars(cat.color)}--m:${DF.start};--d:${DF.end - DF.start}`);
-  box.innerHTML = `<b class="dt">新しい予定</b><span class="ds">${spanText(DF)}</span>${DF.mode === 'temp' ? '<i class="hdl hdl-s" data-h="start"></i><i class="hdl hdl-e" data-h="end"></i>' : ''}`;
+  box.innerHTML = `<b class="dt">新しい予定</b><span class="ds">${spanText(DF)}</span>${DF.mode === 'temp' ? '<i class="hdl hdl-s" data-h="start"></i><i class="hdl hdl-e" data-h="end"></i><button type="button" class="dx" aria-label="仮の枠を取り消す">✕</button>' + DRAFT_ACTIONS.map(([k, l]) => `<button type="button" class="vh" data-nudge="${k}">${l}</button>`).join('') : ''}`;
+  if ((DF.end - DF.start) * hhOf(DF.pane) / 60 < 60) box.dataset.short = '';
+  if (DF.mode === 'temp') {
+    box.tabIndex = 0; box.setAttribute('role', 'group'); box.setAttribute('aria-label', `新しい予定の仮枠 ${spanText(DF)}`);
+  }
   col.append(box);
   const inner = col.closest('.tlin'), hh = hhOf(DF.pane);
   [['s', DF.start], ['e', DF.end]].forEach(([k, m], i) => {
@@ -1807,16 +1811,37 @@ function paintDraft() {
     inner.append(t);
   });
 }
+// VoiceOver のカスタム操作（仮枠）。15分単位で動かす／長さを変える。
+function nudgeDraft(kind) {
+  if (DF.mode !== 'temp') return;
+  const r = kind === 'earlier' ? moveBox(DF, DF.start - 15) : kind === 'later' ? moveBox(DF, DF.start + 15)
+    : kind === 'longer' ? moveHandle(DF, 'end', DF.end + 15) : moveHandle(DF, 'end', DF.end - 15);
+  if (r.start === DF.start && r.end === DF.end) return;
+  Object.assign(DF, r); paintDraft(); feel('light');
+  const nb = root.querySelector(`.dbox [data-nudge="${kind}"]`) || root.querySelector('.dbox');
+  nb?.focus({ preventScroll: true });
+}
+const DRAFT_ACTIONS = [['earlier', '15分早く'], ['later', '15分遅く'], ['longer', '15分長く'], ['shorter', '15分短く']];
 function clearDraftBox() { if (!DF.mode) return; DF.mode = null; paintDraft(); }
 function openDraft() {
   const { day, start, end } = DF;
   DF.mode = 'sheet'; paintDraft();
   openEditor(null, root.querySelector('[data-act="add"]'), day, start, { endMin: end, direct: true });
 }
+root.addEventListener('keydown', (ev) => {
+  if (DF.mode !== 'temp' || !ev.target.classList?.contains('dbox')) return;
+  const k = { ArrowUp: ev.shiftKey ? 'shorter' : 'earlier', ArrowDown: ev.shiftKey ? 'longer' : 'later' }[ev.key];
+  if (k) { ev.preventDefault(); nudgeDraft(k); }
+});
 // 空きタップ: 1回目＝その時刻（15分刻み）から1時間の仮枠、枠の上の2回目＝編集シート、枠の外＝枠を消す。
 function tlTap(ev, col) {
   if (performance.now() < TLQ.quiet) return;
-  if (ev.target.closest('.hdl')) return;
+  const hd = ev.target.closest('.hdl');
+  if (hd) { // 丸の中心から16pt 以内は取っ手（たたきは無視）、内側は枠本体のたたき
+    const bb = hd.closest('.dbox')?.getBoundingClientRect();
+    if (!bb || hitDraftPart(bb.height, ev.clientY - bb.top) !== 'move') return;
+    openDraft(); return;
+  }
   if (DF.mode === 'temp') { if (ev.target.closest('.dbox')) openDraft(); else clearDraftBox(); return; }
   if (DF.mode) return;
   const pane = paneOf(col.closest('.tl'));
@@ -1857,7 +1882,13 @@ function startBoxMove(ev) {
 // 仮枠の取っ手（見た目12・押せる範囲44）。押してすぐ動かし、離したあとの click は抑止する。
 root.addEventListener('pointerdown', (ev) => {
   if (DF.mode !== 'temp') return;
-  const h = ev.target.closest?.('.hdl');
+  if (ev.target.closest?.('.dx, [data-nudge]')) return;
+  let h = ev.target.closest?.('.hdl');
+  if (h) { // 丸の中心から16pt より内側は移動
+    const bb = ev.target.closest('.dbox').getBoundingClientRect();
+    const part = hitDraftPart(bb.height, ev.clientY - bb.top);
+    if (part === 'move') h = null; else if (part) h = root.querySelector(`.dbox .hdl-${part === 'start' ? 's' : 'e'}`);
+  }
   if (!h) { if (ev.target.closest?.('.dbox')) startBoxMove(ev); return; }
   ev.preventDefault();
   const which = h.dataset.h, id = ev.pointerId;
@@ -2001,6 +2032,12 @@ function say(msg) { $('#status').textContent = ''; requestAnimationFrame(() => {
 root.addEventListener('click', (ev) => {
   if (DF.mode === 'temp' && !ev.target.closest('.dbox') && (!ev.target.closest('.tlcol') || ev.target.closest('button'))) clearDraftBox();
   const col = ev.target.closest('.tlcol');
+  if (DF.mode === 'temp' && ev.target.closest('.dbox button')) { // ✕・VoiceOver の15分操作
+    if (performance.now() < TLQ.quiet) return;
+    const nb = ev.target.closest('[data-nudge]');
+    if (nb) nudgeDraft(nb.dataset.nudge); else clearDraftBox();
+    return;
+  }
   if (col && !ev.target.closest('button')) { tlTap(ev, col); return; }
   const b = ev.target.closest('button');
   if (TLM.open && !ev.target.closest('.tlmenu, [data-act="tlmenu"]')) { TLM.open = null; render(); return; } // 選択肢の外をたたくと閉じる（たたいた先の操作はしない）

@@ -164,6 +164,40 @@ for (const [name, size, setup2] of [
       await expect(page.locator('#editor')).toBeHidden();
     });
 
+    test('仮枠の✕で取り消し、丸の中心16pt以内は長さ・内側は移動、VoiceOver用の15分操作', async ({ page }) => {
+      const p = await pointAt(page, 14 * 60 + 20);
+      await page.mouse.click(p.x, p.y);
+      await expect(page.locator('.dbox .ds')).toHaveText('14:15〜15:15（1時間）');
+      await page.waitForTimeout(450);
+      const hh = await hhOfCol(page, '.tlcol');
+      // 15分操作（読み上げ用ボタン）
+      await page.locator('.dbox [data-nudge="later"]').dispatchEvent('click');
+      await expect(page.locator('.dbox .ds')).toHaveText('14:30〜15:30（1時間）');
+      await page.locator('.dbox [data-nudge="earlier"]').dispatchEvent('click');
+      await page.locator('.dbox [data-nudge="longer"]').dispatchEvent('click');
+      await expect(page.locator('.dbox .ds')).toHaveText('14:15〜15:30（1時間15分）');
+      await page.locator('.dbox [data-nudge="shorter"]').dispatchEvent('click');
+      await expect(page.locator('.dbox .ds')).toHaveText('14:15〜15:15（1時間）');
+      await expect(page.locator('#editor')).toBeHidden();
+      // 丸の中心の下 30pt（16pt より内側）から引くと移動
+      const hs = await page.locator('.hdl-s').boundingBox();
+      const sx = hs.x + 7, sy = hs.y + 7;
+      await page.mouse.move(sx, sy + 30); await page.mouse.down(); await page.mouse.move(sx, sy + 30 + hh / 2, { steps: 5 }); await page.mouse.up();
+      await expect(page.locator('.dbox .ds')).toHaveText('14:45〜15:45（1時間）');
+      await page.waitForTimeout(500);
+      // 丸の中心から引くと長さ
+      const hs2 = await page.locator('.hdl-s').boundingBox();
+      await page.mouse.move(hs2.x + 7, hs2.y + 7); await page.mouse.down(); await page.mouse.move(hs2.x + 7, hs2.y + 7 + hh / 2, { steps: 5 }); await page.mouse.up();
+      await expect(page.locator('.dbox .ds')).toHaveText('15:15〜15:45（30分）');
+      await page.waitForTimeout(500);
+      // ✕で取り消し（シートは開かない）
+      const x = await page.locator('.dbox .dx').boundingBox();
+      expect(x.width).toBe(20);
+      await page.mouse.click(x.x + 10, x.y + 10);
+      await expect(page.locator('.dbox')).toHaveCount(0);
+      await expect(page.locator('#editor')).toBeHidden();
+    });
+
     test('既存予定の上の長押しは何もしない。終日段の長押しは終日シート', async ({ page }) => {
       await seed(page, [ev('x1', '既存', '2026-11-12T10:00', '2026-11-12T11:00')]);
       const b = await page.locator('.tlev').first().boundingBox();

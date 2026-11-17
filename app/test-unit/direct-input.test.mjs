@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createPressMachine, minutesAt, dragRange, dayAt, dayRange, rangeText, snap15, edgeZone, edgeVelocity, createDwell, createFrameLoop } from '../js/direct-input.js';
+import { createPressMachine, minutesAt, dragRange, dayAt, dayRange, rangeText, snap15, hitDraftPart, edgeZone, edgeVelocity, createDwell, createFrameLoop } from '../js/direct-input.js';
 
 function rig(extra = {}) {
   let t = 0, timers = [];
@@ -142,4 +142,20 @@ test('moveBox: 15分刻み・長さ維持・0:00/24:00 で clamp', () => {
   assert.deepEqual(moveBox(r, 5000), { start: 1350, end: 1440 });
   assert.deepEqual(moveBox({ start: 0, end: 1440 }, 300), { start: 0, end: 1440 });
   assert.deepEqual(moveBox({ start: 600, end: 615 }, 1439), { start: 1425, end: 1440 });
+});
+test('hitDraftPart: 16pt の境・高さ60未満・範囲外', () => {
+  assert.equal(hitDraftPart(120, 0), 'start');
+  assert.equal(hitDraftPart(120, 16), 'start');
+  assert.equal(hitDraftPart(120, 17), 'move');
+  assert.equal(hitDraftPart(120, 103), 'move');
+  assert.equal(hitDraftPart(120, 120 - 16), 'end');
+  assert.equal(hitDraftPart(120, 136), 'end');
+  assert.equal(hitDraftPart(60, 30), 'move');
+  assert.equal(hitDraftPart(59, 5), 'move');
+  assert.equal(hitDraftPart(59, 1), 'move');
+  assert.equal(hitDraftPart(59, -1), 'start');
+  assert.equal(hitDraftPart(30, 10), 'move');
+  assert.equal(hitDraftPart(30, 31), 'end');
+  assert.equal(hitDraftPart(30, -23), null);
+  assert.equal(hitDraftPart(30, 53), null);
 });
