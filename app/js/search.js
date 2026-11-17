@@ -144,6 +144,30 @@ export function searchMemos(memos, query) {
   return { items: hits.slice(0, LIMIT), total: hits.length, capped: hits.length > LIMIT, ts };
 }
 
+// ノート検索: 題名・本文（と元の日付）を印なしでAND照合。フォルダは見ず全ノートが対象、deletedAt 付きは除く。
+// 並びは更新の新しい順（同時刻はID順）。limit が既定（LIMIT）なら全体検索の別枠、limit:null なら件数制限なし（ノート一覧用）。
+// 正規化結果は id ごとに1件だけ保持し、本文・題名・元の日付が変わったノートだけ作り直す。
+const noteIdx = new Map();
+export const noteIndexSize = () => noteIdx.size;
+export function noteHay(n) {
+  const c = noteIdx.get(n.id);
+  if (c && c.b === n.body && c.t === n.title && c.s === n.sourceDate) return c.h;
+  const h = normalize(`${n.title ?? ''}\n${n.body}\n${n.sourceDate || ''}`);
+  noteIdx.set(n.id, { b: n.body, t: n.title, s: n.sourceDate, h });
+  return h;
+}
+export const byNoteUpdated = (a, b) => b.updatedAt - a.updatedAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+export function searchNotes(notes, query, { limit = LIMIT } = {}) {
+  const ts = terms(query);
+  const live = [];
+  for (const n of notes || []) if (n && typeof n.body === 'string' && n.deletedAt == null) live.push(n);
+  if (noteIdx.size > live.length * 2 + 100) { const ids = new Set(live.map((n) => n.id)); for (const k of noteIdx.keys()) if (!ids.has(k)) noteIdx.delete(k); }
+  const hits = ts.length ? live.filter((n) => { const h = noteHay(n); return ts.every((t) => h.includes(t)); }) : live;
+  hits.sort(byNoteUpdated);
+  const all = limit == null ? hits : hits.slice(0, limit);
+  return { items: all, total: hits.length, capped: all.length < hits.length, ts };
+}
+
 // タスク検索: 全期間（古い完了も含む）・題名とメモのAND検索（予定と同じ正規化）。予定・メモの件数とは混ぜず、別枠で最大 LIMIT 件。
 // 並び: 未完了（期限順）→ 期限なしの未完了 → 完了（完了の新しい順）。戻り値: { items, total, capped, ts }
 export function searchTasks(tasks, query) {

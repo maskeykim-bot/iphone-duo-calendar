@@ -44,14 +44,15 @@ test('一覧: 新しい順・1行56・検索欄。タップで開く。旧メモ
   await expect(body(page)).toHaveValue('A古い\n2行目');
 });
 
-test('一覧は多数でも作れ、200件ごとに「さらに表示」で末尾まで届く', async ({ page }) => {
+test("一覧は多数でも仮想表示で作れ、末尾まで届く（DOMは一括で作らない）", async ({ page }) => {
   await openApp(page, SIZES.openLandscape951);
   await page.evaluate(async () => { const db = await import('/js/db.js'); for (let i = 1; i <= 230; i++) await db.putNote({ id: `n${i}`, body: `ノート${i}`, createdAt: i, updatedAt: i, folderId: null }); });
   await reload(page);
   await pagePick(page, 'left', 'ノート').click();
-  await expect(page.locator('.page.lp .mrow')).toHaveCount(200);
-  await page.locator('.page.lp [data-act="notemore"]').click();
-  await expect(page.locator('.page.lp .mrow')).toHaveCount(230);
+  await expect(page.locator('.page.lp .mrow').first()).toBeVisible();
+  await page.locator('.page.lp [data-mlist]').evaluate((e) => { e.scrollTop = e.scrollHeight; });
+  await expect(page.locator('.page.lp [data-nrow="n1"]')).toBeVisible();
+  await expect(page.locator('.page.lp [data-nrow="n230"]')).toHaveCount(0);
 });
 
 test('全体検索: 別「ノート」段・正規化AND・XSS安全・ノートを開く・予定件数と別', async ({ page }) => {

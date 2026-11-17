@@ -6,7 +6,7 @@ import { initSwipe } from './swipe.js';
 import { initDirectInput, dayRange, rangeText, minutesAt, dragRange, tapRange, moveHandle, spanText, hm as hmText, snap15, edgeZone, edgeVelocity, createDwell, createFrameLoop } from './direct-input.js';
 import { occurrenceAt, parseOccId, planDelete, planEdit, editInfo, normRule } from './recur.js';
 import { bumpRevision, occBetween } from './occcache.js';
-import { LIMIT, groupByDay, highlight, excerpt, normalize, terms, searchEvents, searchMemos, searchTasks } from './search.js';
+import { LIMIT, groupByDay, highlight, excerpt, normalize, terms, searchEvents, searchNotes, searchTasks, noteIndexSize } from './search.js';
 import { backupName, buildBackup, countStats, localIso, legacyHashes, planAppend, planLegacyNotes, planNotes, planTasks, validateBackup, MAX_BYTES } from './backup.js';
 import { CAT_IDS, LIMITS as CAT_LIMITS, canHideCategory, defaultDeleteTarget, ensureOneVisible, supplementForReplace, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, RETARGET_TOAST, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory } from './categories.js';
 import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAlarms, encAlarm, fireAt, nextNotifyText, normNotify, pastForNotify, planNotifications, planNotifyPolicy, MAX_PENDING, WINDOW_DAYS } from './notify.js';
@@ -1072,7 +1072,7 @@ function timeBody(side, w) {
 // ---------- ノート（旧「日ごとのメモ」。左右ページ・縦の下パネル・閉じた画面の帯で同じ一覧と同じエディタ。保存は notes.js） ----------
 // 画面からは旧 memos へ一切書かない。旧メモは起動時にノートへ複製済み（db.js の移行）。
 let noteComposing = false, renderPending = false, rendering = false;
-const NB = { cur: null, rows: null, q: { left: '', right: '', bottom: '', closed: '' }, seq: 0, failed: false, blocked: false, ed: null, opening: null, focusNew: false, shown: 200, said: false, folders: null, sel: 'all', menu: null, swallow: 0 };
+const NB = { cur: null, rows: null, q: { left: '', right: '', bottom: '', closed: '' }, seq: 0, failed: false, blocked: false, ed: null, opening: null, focusNew: false, said: false, folders: null, sel: 'all', menu: null, swallow: 0 };
 const noteHead = (side) => `<div class="rhead dh"><h2 class="rdate">ノート</h2>${side === 'right' ? rctl() : ''}<div class="sctl">${side === 'left' ? gearBtn() : ''}</div></div>`;
 function noteEditor() {
   if (!NB.ed) NB.ed = mountNoteEditor(document.createElement('div'), {
@@ -1088,25 +1088,68 @@ function noteBody(where) {
   return `<div class="ntools mtools"><span class="ntitle">ノート</span><button type="button" class="mback" data-act="notenew" aria-label="新しいノート">＋ 新規</button></div><div class="memopage mlist padb" data-mlist-wrap="${where}"><div class="mlsb"><input type="search" class="mlq" data-mlq="${where}" placeholder="ノートを検索" aria-label="ノートを検索" value="${esc(NB.q[where])}" autocomplete="off" spellcheck="false"></div><div class="nchips" data-nchips="${where}" role="toolbar" aria-label="フォルダ">${noteChipsHtml()}</div><div class="mlrows" data-mlist="${where}">${noteRowsHtml(where)}</div><div data-nmenu="${where}">${noteMenuHtml()}</div></div>`;
 }
 const noteDayText = (ms) => { const d = new Date(ms), t = new Date(); return `${d.getFullYear() === t.getFullYear() ? '' : `${d.getFullYear()}/`}${d.getMonth() + 1}/${d.getDate()}`; };
-const noteHay = (n) => n._h ?? (n._h = normalize(`${n.title || titleOf(n.body)}\n${n.body}\n${n.sourceDate || ''}`));
+// 一覧は固定の行高で仮想表示する（40000件でも描くのは見える範囲＋前後だけ）。件数の行・見出し・ノート行を縦に並べた平らな表を持つ。
+const NV = { ROW: 57, SEC: 30, CNT: 28, BUF: 700 };
+NB.flat = {}; NB.perf = {}; globalThis.__duoNotePerf = NB.perf;
+const nowMs = () => (globalThis.performance || Date).now();
 function noteRowsHtml(where) {
+  NB.flat[where] = null;
   if (NB.failed) return '<p class="smsg">ノートを読み込めませんでした。</p>';
   if (!NB.rows) return '<p class="smsg" role="status">読み込んでいます…</p>';
-  const q = NB.q[where], ts = terms(q), rows = ts.length ? NB.rows.filter((n) => ts.every((t) => noteHay(n).includes(t))) : filterByFolder(NB.rows, NB.sel, NB.folders || []);
+  const t0 = nowMs(), idx0 = noteIndexSize();
+  const q = NB.q[where], hasQ = !!terms(q).length;
+  // 検索中はフォルダを見ず全ノートが対象。検索語なしのときだけフォルダで絞る。
+  const base = hasQ ? NB.rows : filterByFolder(NB.rows, NB.sel, NB.folders || []);
+  const res = searchNotes(base, q, { limit: null }), ts = res.ts, rows = res.items;
+  const t1 = nowMs();
+  NB.perf.search = Math.round((t1 - t0) * 10) / 10; if (noteIndexSize() !== idx0) NB.perf.index = NB.perf.search; NB.perf.count = NB.rows.length; NB.perf.hits = rows.length;
   if (!rows.length) return `<p class="smsg">${q.trim() ? '該当するノートはありません。' : (NB.sel === 'all' ? 'ノートはまだありません。「＋ 新規」から書けます。' : 'このフォルダにノートはありません。')}</p>`;
   const { pinned, others } = groupNotes(rows);
   const rowHtml = (n) => {
     const title = n.title || titleOf(n.body), second = n.body.split('\n').slice(1).map((l) => l.trim()).find(Boolean) || '';
     return `<div class="nrw${n.pinned ? ' pinned' : ''}" data-nrw="${esc(n.id)}"><button type="button" class="mrow" data-nrow="${esc(n.id)}" aria-label="${esc(title)}"><b>${n.pinned ? '<i class="npin" aria-hidden="true">📌</i>' : ''}${ts.length ? highlight(title, ts, esc) : esc(title)}</b><span>${esc(noteDayText(n.updatedAt))}${second ? ` ${esc(second)}` : ''}</span></button>${n.sourceDate ? `<button type="button" class="nsrc" data-nsrc="${n.sourceDate}" aria-label="元の日付 ${esc(dayLabel(n.sourceDate))}を開く">${n.sourceDate.slice(5, 7).replace(/^0/, '')}/${n.sourceDate.slice(8, 10).replace(/^0/, '')}</button>` : ''}<button type="button" class="nmore" data-nf="rowmenu" data-id="${esc(n.id)}" aria-label="${esc(title)}の操作">⋯</button></div>`;
   };
-  const shownPinned = pinned.slice(0, NB.shown), shownOthers = others.slice(0, Math.max(0, NB.shown - shownPinned.length));
-  const list = [];
-  if (pinned.length) list.push('<h3 class="nsec">ピン留め</h3>', ...shownPinned.map(rowHtml), '<h3 class="nsec">ノート</h3>');
-  list.push(...shownOthers.map(rowHtml));
-  return `<p class="small hcount">${rows.length}件</p>${list.join('')}${rows.length > NB.shown ? `<button type="button" class="hmore" data-act="notemore">さらに表示（残り${rows.length - NB.shown}件）</button>` : ''}`;
+  const items = []; let top = 0;
+  const add = (k, h, v) => { items.push({ k, h, top, v }); top += h; };
+  add('cnt', NV.CNT, rows.length);
+  if (pinned.length) { add('sec', NV.SEC, 'ピン留め'); for (const n of pinned) add('row', NV.ROW, n); add('sec', NV.SEC, 'ノート'); }
+  for (const n of others) add('row', NV.ROW, n);
+  NB.flat[where] = { items, height: top, rowHtml, ts, key: '' };
+  NB.perf.list = Math.round((nowMs() - t0) * 10) / 10;
+  return `<div class="nvs" data-nvs style="height:${top}px"></div>`;
 }
+// 見える範囲（＋前後 BUF px）の行だけを .nvs に描く。同じ範囲なら何もしない。
+function paintNoteWindow(el) {
+  const f = NB.flat[el.dataset.mlist], box = el.querySelector('[data-nvs]');
+  if (!f || !box) return;
+  const lo = el.scrollTop - NV.BUF, hi = el.scrollTop + (el.clientHeight || 800) + NV.BUF, L = f.items;
+  let a = 0, b = L.length;
+  while (a < b) { const m = (a + b) >> 1; if (L[m].top + L[m].h < lo) a = m + 1; else b = m; }
+  let z = a; while (z < L.length && L[z].top <= hi) z++;
+  const key = `${a}:${z}`;
+  if (f.key === key) return;
+  f.key = key;
+  const t0 = nowMs();
+  let h = '';
+  for (let i = a; i < z; i++) {
+    const it = L[i], st = ` style="top:${it.top}px"`;
+    if (it.k === 'cnt') h += `<p class="small hcount"${st}>${it.v}件</p>`;
+    else if (it.k === 'sec') h += `<h3 class="nsec"${st}>${it.v}</h3>`;
+    else h += f.rowHtml(it.v).replace('<div class="nrw', `<div style="top:${it.top}px" class="nrw`);
+  }
+  const act = document.activeElement, id = act && box.contains(act) ? act.closest('[data-nrw]')?.dataset.nrw : null;
+  box.innerHTML = h;
+  if (id) box.querySelector(`[data-nrw="${CSS.escape(id)}"] .mrow`)?.focus({ preventScroll: true });
+  NB.perf.window = Math.round((nowMs() - t0) * 10) / 10; NB.perf.rendered = z - a;
+}
+let nvRaf = 0;
+root.addEventListener('scroll', (ev) => {
+  const el = ev.target; if (!el?.matches?.('[data-mlist]')) return;
+  if (nvRaf) return;
+  nvRaf = requestAnimationFrame(() => { nvRaf = 0; paintNoteWindow(el); });
+}, true);
 function paintNoteLists() {
-  root.querySelectorAll('[data-mlist]').forEach((el) => { el.innerHTML = noteRowsHtml(el.dataset.mlist); });
+  root.querySelectorAll('[data-mlist]').forEach((el) => { el.innerHTML = noteRowsHtml(el.dataset.mlist); paintNoteWindow(el); });
   root.querySelectorAll('[data-nchips]').forEach((el) => { const sl = el.scrollLeft; el.innerHTML = noteChipsHtml(); el.scrollLeft = sl; });
   paintNoteMenu();
 }
@@ -1151,9 +1194,16 @@ async function loadNoteList() {
   try { await flushNotesNow(); db.purgeTrashedNotes().catch(() => {}); await loadFolders(); const all = await db.listNotes(); if (seq !== NB.seq) return; NB.rows = all.sort((a, b) => b.updatedAt - a.updatedAt || (a.id < b.id ? -1 : 1)); NB.failed = false; } catch { if (seq !== NB.seq) return; NB.failed = true; }
   paintNoteLists();
 }
-const invalidateNoteList = () => { NB.rows = null; NB.seq++; NB.shown = 200; };
+const invalidateNoteList = () => { NB.rows = null; NB.seq++; };
 const noteListUsed = () => !!root.querySelector('[data-mlist]');
-root.addEventListener('input', (ev) => { const q = ev.target.closest?.('input.mlq'); if (q) { NB.q[q.dataset.mlq] = q.value; NB.shown = 200; paintNoteLists(); } });
+// 検索語は150ms待ってから反映（古い入力の結果は捨てる）。結果が変わるので一覧は先頭へ戻す。
+let nqTimer = 0, nqSeq = 0;
+root.addEventListener('input', (ev) => {
+  const q = ev.target.closest?.('input.mlq'); if (!q) return;
+  NB.q[q.dataset.mlq] = q.value;
+  const seq = ++nqSeq; clearTimeout(nqTimer);
+  nqTimer = setTimeout(() => { if (seq !== nqSeq) return; root.querySelectorAll('[data-mlist]').forEach((el) => { el.scrollTop = 0; }); paintNoteLists(); }, 150);
+});
 async function noteOpen(id) {
   if (NB.ed && NB.cur && NB.cur !== id) { const ok = await NB.ed.leave(); if (ok === false) return; }
   NB.cur = id; render();
@@ -1173,7 +1223,7 @@ async function noteNew() {
 function fillNotes(keep) {
   if (NB.blocked) return;
   const host = root.querySelector('[data-nhost]');
-  if (!host || !NB.cur) { if (noteListUsed() && !NB.rows && !NB.failed) loadNoteList(); return; }
+  if (!host || !NB.cur) { if (noteListUsed()) { if (!NB.rows && !NB.failed) loadNoteList(); else root.querySelectorAll('[data-mlist]').forEach(paintNoteWindow); } return; }
   const ed = noteEditor(), id = NB.cur;
   host.append(ed.el); paintNoteMeta();
   if (ed.id !== id && NB.opening !== id) {
@@ -1211,7 +1261,7 @@ async function noteFolderAct(b) {
   const d = b.dataset, a = d.nf;
   const val = () => root.querySelector('[data-nmenu] [data-nfin]')?.value ?? '';
   const fail = (msg) => { if (NB.menu) { NB.menu.err = msg; paintNoteMenu(); } };
-  if (a === 'sel') { NB.sel = d.id; NB.shown = 200; paintNoteLists(); root.querySelector(`[data-nchips] [data-id="${CSS.escape(d.id)}"]`)?.focus({ preventScroll: true }); }
+  if (a === 'sel') { NB.sel = d.id; root.querySelectorAll('[data-mlist]').forEach((el) => { el.scrollTop = 0; }); paintNoteLists(); root.querySelector(`[data-nchips] [data-id="${CSS.escape(d.id)}"]`)?.focus({ preventScroll: true }); }
   else if (a === 'newf') openNoteMenu({ k: 'new' });
   else if (a === 'menuclose') { NB.menu = null; paintNoteMenu(); }
   else if (a === 'newfgo') { const r = await folderOps.create(val()); if (r.error) return fail(r.error); NB.menu = null; NB.sel = r.folder.id; await loadFolders(); paintNoteLists(); paintNoteMeta(); }
@@ -1727,7 +1777,6 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'next') move(1, d.pane);
   else if (d.act === 'noteback') noteBack();
   else if (d.act === 'notenew') noteNew();
-  else if (d.act === 'notemore') { NB.shown += 200; paintNoteLists(); }
   else if (d.nf) noteFolderAct(b);
   else if (d.nrow) noteOpen(d.nrow);
   else if (d.nsrc) { set({ selected: d.nsrc, strip: null }); say(`${dayLabel(d.nsrc)}を開きました。`); }
@@ -2881,7 +2930,7 @@ function openSearch(from) {
   srSnap = extActive() ? { events: [...visExt()], range: X.cache?.range || null } : null;
   SR.q.value = '';
   srMemos = []; const ms = ++srMemoSeq; // メモは全期間。未保存分を書いてから読む（失敗しても予定の検索は使える）
-  flushNotesNow().then(() => db.listNotes()).then((ns) => { if (ms === srMemoSeq) { srMemos = ns.map((n) => ({ id: n.id, date: n.sourceDate || localDay(n.updatedAt), text: `${n.sourceDate || ''}\n${n.body}`, body: n.body })); if (SR.q.value.trim()) renderSearch(true, true); } }, () => {});
+  flushNotesNow().then(() => db.listNotes()).then((ns) => { if (ms === srMemoSeq) { srMemos = ns; if (SR.q.value.trim()) renderSearch(true, true); } }, () => {});
   srTasks = []; const ts0 = ++srTaskSeq; // タスクも全期間（古い完了を含む）。保存済みの集合から読む
   taskStore.list().then((t) => { if (ts0 === srTaskSeq) { srTasks = t; if (SR.q.value.trim()) renderSearch(true, true); } }, () => {});
   renderSearch(true);
@@ -2897,6 +2946,7 @@ function hitHtml(e, ts) {
   return `<button type="button" class="hit ${catCls(e)}"${catSty(e)} data-hit="${esc(e.id)}"${repLabel(e, `${dayLabel(dayOf(e.start))} ${time} ${e.title}`)}><span class="hmeta">${esc(time)} · ${esc(tagText(e))}</span><strong>${xi(e)}${rep(e)}${hl(e.title)}</strong>${e.place ? `<span class="hplace">${hl(e.place)}</span>` : ''}${ex ? `<span class="hnote">${hl(ex)}</span>` : ''}</button>`;
 }
 function memoHitHtml(m, ts) {
+  m = { id: m.id, date: m.sourceDate || localDay(m.updatedAt), body: m.body };
   const yr = Number(srToday.slice(0, 4)), lab = Number(m.date.slice(0, 4)) === yr ? dayLabel(m.date) : `${m.date.slice(0, 4)}年${dayLabel(m.date)}`;
   const ex = excerpt(m.body ?? m.text, ts) || (m.body ?? m.text).slice(0, 80);
   return `<button type="button" class="mhit" data-mhit="${esc(m.id)}" aria-label="${esc(`${lab}のノート ${ex}`)}"><span class="hmeta">${esc(lab)}</span><span class="hnote">${highlight(ex, ts, esc)}</span></button>`;
@@ -2909,7 +2959,7 @@ function taskHitHtml(t, ts) {
 }
 function renderSearch(initial = false, quiet = false) {
   const say2 = (m) => { if (!quiet) say(m); };
-  const mres = searchMemos(srMemos, SR.q.value);
+  const mres = searchNotes(srMemos, SR.q.value);
   const tres = searchTasks(srTasks, SR.q.value);
   const res = searchEvents(state.events, SR.q.value, srToday, srSnap ? searchExt(srSnap.events, SR.q.value, srToday) : [], duoVisible());
   SR.clear.hidden = !SR.q.value;
@@ -2936,7 +2986,7 @@ SR.q.addEventListener('input', () => {
   SR.clear.hidden = !SR.q.value;
   if (!SR.q.value.trim()) { renderSearch(); return; }
   SR.body.innerHTML = '<p class="smsg" role="status">検索しています…</p>';
-  srTimer = setTimeout(() => { if (seq === srSeq) renderSearch(); }, 250); // 古い応答は破棄
+  srTimer = setTimeout(() => { if (seq === srSeq) renderSearch(); }, 150); // 古い応答は破棄
 });
 SR.clear.addEventListener('click', () => { clearTimeout(srTimer); srSeq++; SR.q.value = ''; renderSearch(); SR.q.focus({ preventScroll: true }); });
 $('#sr-close').addEventListener('click', () => closePanel(searchDlg));
@@ -3025,7 +3075,9 @@ async function doExport() {
   try {
     if (!await flushNotesAwait()) { bk.err = '保存できていないノートがあるため書き出せません。ノートの再試行をしてからもう一度お試しください。'; say(bk.err); renderBackup(); return; }
     // ノート有効: tasks+notes+folders を出し、旧 memos は出さない（旧メモは端末内の控えに残る）。
+    const tx0 = performance.now();
     const text = JSON.stringify(buildBackup(state.events, { ...state, notify: loadNotify(), tasks: remSet }, new Date(), state.categories, [], await db.listTasks(), await db.listNotes({ includeDeleted: true }), await db.listFolders()), null, 2);
+    NB.perf.export = Math.round((performance.now() - tx0) * 10) / 10; // 書き出し（読み出し＋JSON化）の実測。端末ごとの記録用
     const file = new File([text], backupName(), { type: 'application/json' });
     if (NATIVE) {
       // ネイティブは共有シート（shareFile）を優先。失敗したときだけ従来の共有／ダウンロードへ。
