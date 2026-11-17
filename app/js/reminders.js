@@ -427,6 +427,15 @@ export function filterByLists(reminders, shown) {
   return (Array.isArray(reminders) ? reminders : []).filter((r) => r && set.has(r.listId));
 }
 // 日付キー → 未完了で期限がその日のタスク数（表示リストのみ）。doneOverride: id→done（完了操作中の表示上の上書き）。タスク名は返さない。
+// 右の帯のタスクの数: 期限が今日以前（期限切れ＋今日）の未完了。doneOverride は完了操作の途中の見え方。
+export function overdueTodayCount(reminders, shown, doneOverride, today) {
+  let n = 0;
+  for (const r of filterByLists(reminders, shown)) {
+    const done = doneOverride && doneOverride.has(r.itemId) ? doneOverride.get(r.itemId) : r.done;
+    if (!done && r.due?.date && r.due.date <= today) n++;
+  }
+  return n;
+}
 export function dueCounts(reminders, shown, doneOverride) {
   const m = new Map();
   for (const r of filterByLists(reminders, shown)) {

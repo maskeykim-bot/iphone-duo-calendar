@@ -34,7 +34,7 @@ const bandBtns = ['設定', '予定を検索', '今日に戻る', '予定を追�
 
 test.describe('閉じた 466×678 + 右 safe（帯あり）', () => {
   for (const R of [84, 70, 56]) {
-    test(`R=${R}: 帯 [W-R,W] に設定・検索・全・今日・＋、本文は [0,W-R]、列幅 (W-R)/7`, async ({ page }) => {
+    test(`R=${R}: 帯 [W-R,W] に設定・検索・タスク・メモ・今日・＋、本文は [0,W-R]、列幅 (W-R)/7`, async ({ page }) => {
       await withSafe(page, SIZES.closedPortrait, { r: R }, '月');
       const W = 466, q = 1, cx = W - R / 2;
       await expect(page.locator('.ctl.band')).toHaveCount(1);
@@ -45,12 +45,12 @@ test.describe('閉じた 466×678 + 右 safe（帯あり）', () => {
       const bg = await bx(page.locator('.bandbg'));
       near(bg.x, W - R); near(bg.width, R);
       // 48角の見た目の top = T+[172,232,292]q、今日 H-B-140q、＋ H-B-80q。押せる範囲は 56 角（上に 4px 広い）
-      const want = { 設定: 172, 予定を検索: 232, 全部の予定を表示: 292, 今日に戻る: 538, 予定を追加: 598 };
+      const want = { 設定: 172, 予定を検索: 232, タスク: 418, メモ: 478, 今日に戻る: 538, 予定を追加: 598 }; // PR12: 全は月の見出しへ移り、帯にはタスク・メモ
       for (const [n, top] of Object.entries(want)) {
         const b = btn(page, n), r = await bx(b);
         near(r.width, 56); near(r.height, 56); near(r.x + r.width / 2, cx); near(r.y, top * q - 4);
         const vis = await bx(b.locator('.bi, span').first());
-        near(vis.width, n === '全部の予定を表示' ? 28 : 48);
+        near(vis.width, 48);
         expect(await reaches(page, b), n).toBe(true);
       }
       const rs = await noOverlaps(page, Object.keys(want).map((n) => btn(page, n)));
@@ -60,11 +60,12 @@ test.describe('閉じた 466×678 + 右 safe（帯あり）', () => {
       near((await bx(page.locator('.weekdays'))).y + (await bx(page.locator('.weekdays'))).height, 92 * q);
       const tabs = await bx(page.locator('.tabs'));
       near(tabs.x + tabs.width / 2, (W - R) / 2); near(tabs.y + tabs.height / 2, 622); near(tabs.width, Math.min(286, W - R - 16)); near(tabs.height, 46);
-      // 見出しは前後矢印＋題名のみ（全は帯）
-      await expect(page.locator('.chead [data-act="allmonth"]')).toHaveCount(0);
-      await expect(page.locator('.chead button')).toHaveCount(2);
+      // 見出しは前後矢印＋題名＋全（PR12: 全は月ヘッダーへ。帯にはない）
+      await expect(page.locator('.ctl [data-act="allmonth"]')).toHaveCount(0);
+      await expect(page.locator('.chead [data-act="allmonth"]')).toHaveCount(1);
+      await expect(page.locator('.chead button')).toHaveCount(3);
       // 帯の何もない所は遮らない（本体の帯）
-      expect(await page.evaluate((cx) => !document.elementFromPoint(cx, 450)?.closest('.ctl, .bandbg'), cx)).toBe(true);
+      expect(await page.evaluate((cx) => !document.elementFromPoint(cx, 350)?.closest('.ctl, .bandbg'), cx)).toBe(true);
       expect(await findTextOverlaps(page)).toEqual([]);
     });
   }

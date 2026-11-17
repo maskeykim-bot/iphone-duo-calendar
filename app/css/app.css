@@ -1095,3 +1095,24 @@ dialog#menu #m-destpop{border-radius:inherit}
 .wrk.whn{color:var(--holiday)}
 .about{margin-top:12px;padding:0 12px;font-size:12px;line-height:1.5;color:#68716A}.about h3{margin:0 0 4px;font-size:13px;color:var(--ink)}.about p{margin:0 0 6px;overflow-wrap:anywhere}
 @media (max-width:420px){.hrk.hx{display:none}}
+
+/* ===== 第16版 PR12: 右の帯のタスク・メモ（丸48・当たり56） ===== */
+.cb .bi{position:relative}
+.cb.on .bi{background:#DDE7E2;box-shadow:inset 0 0 0 1.5px #294E42}
+.cb.cstrip:hover .bi{background:#ecebe2}
+.cb.cstrip.on:hover .bi{background:#DDE7E2}
+.cb .bdg{position:absolute;top:-4px;right:-4px;box-sizing:border-box;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:#B43C3C;color:#fff;font-size:10px;font-weight:700;line-height:18px;text-align:center;box-shadow:0 0 0 1.5px #fff}
+.cb.cmemo.has .bi::after{content:"";position:absolute;left:50%;bottom:6px;width:12px;height:2px;margin-left:-6px;border-radius:1px;background:#294E42}
+.stip{position:fixed;z-index:30;transform:translateY(-50%);padding:4px 8px;border-radius:6px;background:#293B35;color:#fff;font-size:12px;line-height:1.3;white-space:nowrap;pointer-events:none}
+.chsp{flex:none;width:44px}
+.page.flash{animation:pgflash .2s ease-out}
+@keyframes pgflash{0%{box-shadow:inset 0 0 0 3px #294E42;background:#DDE7E2}100%{box-shadow:inset 0 0 0 0 transparent}}
+/* 閉じた画面の全面ページ（帯のタスク・メモ） */
+.closed.strp .mpane{padding:0 8px 0 8px}
+.stripp{flex:1;min-height:0}
+.stripp .sph{flex:none;display:flex;align-items:flex-end;height:var(--head-h);padding:0 12px 6px}
+.stripp .sph h2{margin:0;font:20px/1.3 -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif;font-weight:800}
+.stripp .sph small{font-size:13px;font-weight:600;color:#5b655f;margin-left:6px}
+.stripp .padb,.stripp .taskl{padding-bottom:calc(var(--end-pad-closed,56px) + 4px)}
+.stripp .memopage{padding-left:12px;padding-right:12px}
+@media (prefers-reduced-motion:reduce){.page.flash{animation:none;box-shadow:inset 0 0 0 3px #294E42}}
