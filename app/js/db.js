@@ -1,6 +1,7 @@
 // IndexedDB データ層。schema を変えるときは SCHEMA_VERSION を上げ、MIGRATIONS に追記する。
 import { withDefaults, isKey } from './util.js';
 import { validateTask, newTaskId } from './tasks.js';
+import { noteFromMemo, ensureDailyFolder, titleOf, noteCharLimit } from './notes-model.js';
 import { CAT_IDS, DEFAULTS_NEW, LEGACY, UNCATEGORIZED, legacyToId, planCategoryRetarget, sortCategories } from './categories.js';
 
 export const SCHEMA_VERSION = 5;
@@ -382,3 +383,140 @@ export const readLegacyEvidence = () => run(['events', 'memos', 'meta', 'categor
   meta.getAllKeys().onsuccess = (e) => { out.meta = e.target.result.filter((k) => !NEW_META.has(k)).length; };
   categories.getAllKeys().onsuccess = (e) => { const L = new Set([LEGACY.golf.id, LEGACY.economy.id]); out.legacyCats = e.target.result.filter((k) => L.has(k)).length; };
 });
+
+// ---------- ノート・フォルダ（notes / folders ストア。件数に上限は設けない） ----------
+// Note = { id, body, title, folderId|null, pinned, pinnedAt|null, createdAt, updatedAt, deletedAt|null, sourceDate?, sourceHeading?, sourceOriginalFirstLine?, ink? }
+// Folder = { id, name(30字まで), order, createdAt, updatedAt }
+export const FOLDER_MAX = 100;
+export const FOLDER_NAME_MAX = 30;
+export const TRASH_DAYS = 30;
+const DAY_MS = 86400000;
+const NOTE = ['notes'], FOLDER = ['folders'];
+
+// 検証して正規化（title は本文から作り直す）。不正は例外。
+export function validateNote(n) {
+  if (!n || typeof n !== 'object' || typeof n.id !== 'string' || !n.id) throw new Error('invalid note id');
+  if (typeof n.body !== 'string') throw new Error('invalid note body');
+  if (Array.from(n.body).length > noteCharLimit(n)) throw new Error('note too long');
+  const num = (v, d) => (Number.isFinite(v) ? v : d);
+  const now = Date.now();
+  return { ...n, title: titleOf(n.body), folderId: typeof n.folderId === 'string' ? n.folderId : null, pinned: !!n.pinned,
+    pinnedAt: n.pinned ? num(n.pinnedAt, now) : null, createdAt: num(n.createdAt, now), updatedAt: num(n.updatedAt, now), deletedAt: Number.isFinite(n.deletedAt) ? n.deletedAt : null };
+}
+export function validateFolder(f) {
+  if (!f || typeof f !== 'object' || typeof f.id !== 'string' || !f.id) throw new Error('invalid folder id');
+  const name = typeof f.name === 'string' ? f.name.trim() : '';
+  if (!name || Array.from(name).length > FOLDER_NAME_MAX) throw new Error('invalid folder name');
+  const now = Date.now();
+  return { ...f, name, order: Number.isFinite(f.order) ? f.order : 0, createdAt: Number.isFinite(f.createdAt) ? f.createdAt : now, updatedAt: Number.isFinite(f.updatedAt) ? f.updatedAt : now };
+}
+
+export async function getNote(id) {
+  const db = await open();
+  return (await wrap(db.transaction('notes').objectStore('notes').get(id))) ?? null;
+}
+// 通常一覧：削除済みを除く。更新の新しい順。
+export async function listNotes({ includeDeleted = false } = {}) {
+  const db = await open();
+  const all = await wrap(db.transaction('notes').objectStore('notes').index('updatedAt').getAll());
+  return all.filter((n) => includeDeleted || n.deletedAt == null).reverse();
+}
+export async function listTrashedNotes(now = Date.now()) {
+  const all = await listNotes({ includeDeleted: true });
+  return all.filter((n) => n.deletedAt != null && now - n.deletedAt <= TRASH_DAYS * DAY_MS).sort((a, b) => b.deletedAt - a.deletedAt);
+}
+export const putNote = (n) => run(NOTE, 'readwrite', ({ notes }, set) => { const v = validateNote(n); notes.put(v); set(v); });
+// 削除は deletedAt を付けるだけ（本文・updatedAt はそのまま）。
+export const trashNote = (id, now = Date.now()) => run(NOTE, 'readwrite', ({ notes }, set) => {
+  notes.get(id).onsuccess = (ev) => { const n = ev.target.result; if (!n) { set(null); return; } const t = { ...n, deletedAt: now }; notes.put(t); set(t); };
+});
+// 30日以内なら戻す。過ぎていれば null。
+export const restoreNote = (id, now = Date.now()) => run(NOTE, 'readwrite', ({ notes }, set) => {
+  notes.get(id).onsuccess = (ev) => {
+    const n = ev.target.result;
+    if (!n || n.deletedAt == null || now - n.deletedAt > TRASH_DAYS * DAY_MS) { set(null); return; }
+    const t = { ...n, deletedAt: null }; notes.put(t); set(t);
+  };
+});
+// 期限（30日）を過ぎた削除済みだけ完全に消す。戻り値は消した件数。
+export const purgeTrashedNotes = (now = Date.now()) => run(NOTE, 'readwrite', ({ notes }, set) => {
+  let n = 0;
+  notes.openCursor().onsuccess = (ev) => {
+    const c = ev.target.result;
+    if (!c) { set(n); return; }
+    if (c.value.deletedAt != null && now - c.value.deletedAt > TRASH_DAYS * DAY_MS) { c.delete(); n++; }
+    c.continue();
+  };
+});
+
+export async function listFolders() {
+  const db = await open();
+  return wrap(db.transaction('folders').objectStore('folders').index('order').getAll());
+}
+export const putFolder = (f) => run(FOLDER, 'readwrite', ({ folders }, set) => {
+  const v = validateFolder(f);
+  folders.count().onsuccess = (ev) => {
+    folders.get(v.id).onsuccess = (e2) => {
+      if (!e2.target.result && ev.target.result >= FOLDER_MAX) { folders.transaction.abort(); return; }
+      folders.put(v); set(v);
+    };
+  };
+});
+// 同じトランザクションで、中のノートを folderId=null にしてからフォルダを消す（本文・updatedAt は変えない）。戻り値は移したノート数。
+export const deleteFolder = (id) => run(['folders', 'notes'], 'readwrite', ({ folders, notes }, set) => {
+  let moved = 0;
+  notes.index('folderId').openCursor(IDBKeyRange.only(id)).onsuccess = (ev) => {
+    const c = ev.target.result;
+    if (c) { c.update({ ...c.value, folderId: null }); moved++; c.continue(); return; }
+    folders.delete(id);
+    set(moved);
+  };
+});
+
+// ---------- 旧メモ → ノートの移行（まだ起動・MIGRATIONS には接続しない） ----------
+export const NOTES_MIGRATION = 'notesMigrationV1';
+// 1つの readwrite（または versionchange）トランザクション内で実行。外部の非同期は待たず、memos へは書かない。
+// stores = { memos, notes, folders, meta }。完了で done(marker)。途中の例外は tx を abort（印も残らない）。
+// opts.beforeCopy(n) は試験用の差込み（n 件目のコピー直前。例外を投げると全体が巻き戻る）。
+export function migrateNotesInTx({ memos, notes, folders, meta }, now = Date.now(), done = () => {}, opts = {}) {
+  const c = { seen: 0, copied: 0, existed: 0, blank: 0, folderCreated: false };
+  const tx = notes.transaction;
+  const fail = (e) => { try { tx.abort(); } catch { /* 既に終了 */ } };
+  let folderReady = false;
+  const finish = () => {
+    const marker = { seen: c.seen, copied: c.copied, existed: c.existed, blank: c.blank, folderCreated: c.folderCreated, at: new Date(now).toISOString() };
+    meta.put({ key: NOTES_MIGRATION, value: marker });
+    done(marker);
+  };
+  const copy = (m, next) => {
+    const put = () => {
+      try { opts.beforeCopy?.(c.copied + 1); notes.put(noteFromMemo(m)); } catch (e) { fail(e); return; }
+      c.copied++; next();
+    };
+    if (folderReady) { put(); return; }
+    folders.getAll().onsuccess = (ev) => {
+      try {
+        const r = ensureDailyFolder(ev.target.result, now);
+        if (r.created) { folders.put(r.folder); c.folderCreated = true; }
+      } catch (e) { fail(e); return; }
+      folderReady = true; put();
+    };
+  };
+  const req = memos.openCursor();
+  req.onerror = () => fail(req.error);
+  req.onsuccess = (ev) => {
+    const cur = ev.target.result;
+    if (!cur) { finish(); return; }
+    const m = cur.value;
+    c.seen++;
+    const next = () => cur.continue();
+    if (isBlankMemo(m.text)) { c.blank++; next(); return; }
+    const g = notes.get(`memo-${m.date}`);
+    g.onsuccess = () => { if (g.result) { c.existed++; next(); } else copy(m, next); };
+    g.onerror = () => fail(g.error);
+  };
+}
+export const migrateNotesOnce = (now = Date.now(), opts = {}) => run(['memos', 'notes', 'folders', 'meta'], 'readwrite', (st, set) => {
+  migrateNotesInTx(st, now, set, opts);
+});
+export const readNotesMigration = () => run(['meta'], 'readonly', ({ meta }, set) => { meta.get(NOTES_MIGRATION).onsuccess = (e) => set(e.target.result?.value ?? null); });
