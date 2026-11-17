@@ -3,7 +3,7 @@ import { isoFromInput, stateFromInput, setStartDate, pickEndDate, setStartTime, 
 import { createTimeUi, createDateUi, createDateField, createTimeField, fireInput, monthOf, withHm } from './datetime-ui.js';
 import { SAMPLE } from './sample.js';
 import { initSwipe } from './swipe.js';
-import { initDirectInput, dayRange, rangeText, minutesAt, dragRange, tapRange, moveHandle, spanText, hm as hmText, snap15, edgeZone, edgeVelocity, createDwell, createFrameLoop } from './direct-input.js';
+import { initDirectInput, dayRange, rangeText, minutesAt, dragRange, tapRange, moveHandle, moveBox, spanText, hm as hmText, snap15, hitDraftPart, edgeZone, edgeVelocity, createDwell, createFrameLoop } from './direct-input.js';
 import { occurrenceAt, parseOccId, planDelete, planEdit, editInfo, normRule } from './recur.js';
 import { bumpRevision, occBetween } from './occcache.js';
 import { LIMIT, groupByDay, highlight, excerpt, normalize, terms, searchEvents, searchNotes, searchTasks, noteIndexSize } from './search.js';
@@ -16,7 +16,7 @@ import { splitEvents, eveningFirst, homeTasks, dueText, tomorrowSummary, axisBar
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS, FOCUS_MODES, FOCUS_LABELS, normFocusMode } from './pages.js';
 import { noteStore, setNoteHook, recoverNoteDrafts, importLegacyMemoDrafts, folderOps, groupNotes, filterByFolder, FOLDER_NAME_MAX } from './notes.js';
 import { mountNoteEditor } from './notes-ui.js';
-import { titleOf } from './notes-model.js';
+import { titleOf, noteDateOf, dateOccupants, dailyHeading, ensureDailyFolder } from './notes-model.js';
 import { DELETE_UNDO_MS, tasksHtml, focusTasksHtml, HIST_DAYS, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDeleteController, TASK_DELETED } from './reminders.js';
 import { LOCAL_LIST, TASK_STORE_TEXT, createTaskStore, createLocalCall, createLocalAddController, rowOf, createTaskDoneController, DONE_UNDO_MS, TASK_VIEWS, TASK_VIEW_LABELS, normTaskView, dueCounts, todayTasks, inheritTaskSettings, normTaskSettings } from './tasks.js';
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
@@ -724,7 +724,7 @@ function weekInner(w, { mode, cur, sel, today, cap, time, tk = null }) {
     const tn = tk?.get(k) || 0; // 月にタスクの件数（開いた画面だけ。タスク名は出さない）
     const dots = mode === 'simple' ? `<span class="dots">${es.slice(0, cap).map((e) => `<i class="dot ${catCls(e)}"${catSty(e)}></i>`).join('')}</span>` : '';
     const ps = PS.on ? PS.days.includes(k) : false, pSrc = PS.on && k === PS.srcDay;
-    html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}${dow === 6 ? ' sat' : dow === 0 ? ' sun' : ''}${state.holidayRed && holName(k) ? ' hol' : ''}${ps ? ' psel' : ''}${pSrc ? ' psrc' : ''}" data-date="${k}" aria-label="${dayLabel(k)}${holSpoken(k)}${r ? `、${r.name}` : ''}、予定${es.length}件${xCount(es)}${tn ? `、未完了のタスク${tn}件` : ''}${PS.on ? `${pSrc ? '、コピー元' : ''}、${ps ? '選択中。この日を外す' : 'この日を選ぶ'}` : ''}" aria-pressed="${PS.on ? ps : k === sel}">${pSrc ? '<span class="pcsrc" aria-hidden="true">コピー元</span>' : ''}${ps ? '<i class="pck" aria-hidden="true">✓</i>' : ''}${r ? `<span class="rk" aria-hidden="true">${r.name}</span>` : ''}<span class="num${state.rokuyo && d.getDate() === 1 ? ' sd' : ''}">${label}</span>${tn ? `<span class="tkn" aria-hidden="true">✓${tn}</span>` : ''}${dots}</button>`;
+    html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}${dow === 6 ? ' sat' : dow === 0 ? ' sun' : ''}${state.holidayRed && holName(k) ? ' hol' : ''}${ps ? ' psel' : ''}${pSrc ? ' psrc' : ''}" data-date="${k}" aria-label="${dayLabel(k)}${holSpoken(k)}${r ? `、${r.name}` : ''}、予定${es.length}件${xCount(es)}${NB.marks.has(k) ? '、ノートあり' : ''}${tn ? `、未完了のタスク${tn}件` : ''}${PS.on ? `${pSrc ? '、コピー元' : ''}、${ps ? '選択中。この日を外す' : 'この日を選ぶ'}` : ''}" aria-pressed="${PS.on ? ps : k === sel}">${pSrc ? '<span class="pcsrc" aria-hidden="true">コピー元</span>' : ''}${ps ? '<i class="pck" aria-hidden="true">✓</i>' : ''}${r ? `<span class="rk" aria-hidden="true">${r.name}</span>` : ''}<span class="num${state.rokuyo && d.getDate() === 1 ? ' sd' : ''}">${label}</span>${tn ? `<span class="tkn" aria-hidden="true">✓${tn}</span>` : ''}${NB.marks.has(k) ? '<i class="mline" aria-hidden="true"></i>' : ''}${dots}</button>`;
     const extra = mode === 'simple' ? es.length - cap : hidden[col];
     if (extra > 0) html += `<button type="button" class="plus" data-jump="${k}" style="right:calc(${6 - col} * 100% / 7)" aria-label="${dayLabel(k)}の予定をすべて見る（ほか${extra}件）">+${extra}</button>`;
   });
@@ -1088,8 +1088,9 @@ const gearBtn = () => (POS.band ? '' : `<button type="button" class="sset" data-
 const paneNav = (side, dir) => `<button type="button" data-act="${dir > 0 ? 'next' : 'prev'}" data-pane="${side}" aria-label="${dir > 0 ? '次' : '前'}の${PG()[side] === 'time' && tmode(side) === 'week' ? '週' : '日'}">${dir > 0 ? '›' : '‹'}</button>`;
 // 時間・タスク・メモの見出し: 日付（たたくと小さな月）｜（右は 今日・検索・＋）｜（時間のみ）カプセル ｜ 前・次（左右とも）。帯がなければ左は設定もここ。
 function dateHead(side, id) {
-  return `<div class="rhead dh"><h2 class="rdate"><button type="button" class="datebtn" data-act="mini" data-pane="${side}" aria-haspopup="dialog" aria-expanded="${MM.open === side}" aria-label="日付を選ぶ: ${esc(dayLabel(state.selected))}">${dayTitle(state.selected)}</button></h2>${side === 'right' ? rctl() : ''}${id === 'time' ? timeCapsule(side) : ''}<div class="sctl">${paneNav(side, -1)}${paneNav(side, 1)}${side === 'left' ? gearBtn() : ''}</div></div>`;
+  return `<div class="rhead dh"><h2 class="rdate"><button type="button" class="datebtn" data-act="mini" data-pane="${side}" aria-haspopup="dialog" aria-expanded="${MM.open === side}" aria-label="日付を選ぶ: ${esc(dayLabel(state.selected))}">${dayTitle(state.selected)}</button>${id === 'time' ? noteChip() : ''}</h2>${side === 'right' ? rctl() : ''}${id === 'time' ? timeCapsule(side) : ''}<div class="sctl">${paneNav(side, -1)}${paneNav(side, 1)}${side === 'left' ? gearBtn() : ''}</div></div>`;
 }
+const noteChip = () => { const n = NB.marks.get(state.selected) || 0; return `<button type="button" class="ndchip${n ? ' has' : ''}" data-act="notedayjump" aria-label="${esc(dayLabel(state.selected))}のノート${n}件を開く">ノート${n ? ` ${n}` : ''}</button>`; };
 // 小さな月（幅 280・高さ 260、1マス 40×36）。選んでいる日は共通。六曜は出さない。
 const MM = { open: null, ym: '' };
 function miniMonth(side) {
@@ -1097,7 +1098,7 @@ function miniMonth(side) {
   const d = parseKey(MM.ym || state.selected);
   const cells = monthWeeks(MM.ym || state.selected).flat().map((k) => {
     const c = parseKey(k), out = c.getMonth() !== d.getMonth();
-    return `<button type="button" class="mmc${out ? ' out' : ''}${isRed(k) ? ' hol' : ''}${k === state.selected ? ' sel' : ''}${k === todayKey() ? ' tod' : ''}" data-mmday="${k}" data-pane="${side}" aria-label="${esc(dayLabel(k))}${esc(holSpoken(k))}${k === state.selected ? '、選択中' : ''}" aria-pressed="${k === state.selected}"><span class="n">${c.getDate()}</span></button>`;
+    return `<button type="button" class="mmc${out ? ' out' : ''}${isRed(k) ? ' hol' : ''}${k === state.selected ? ' sel' : ''}${k === todayKey() ? ' tod' : ''}" data-mmday="${k}" data-pane="${side}" aria-label="${esc(dayLabel(k))}${esc(holSpoken(k))}${k === state.selected ? '、選択中' : ''}" aria-pressed="${k === state.selected}"><span class="n">${c.getDate()}</span>${NB.marks.has(k) ? '<i class="mline" aria-hidden="true"></i>' : ''}</button>`;
   }).join('');
   return `<div class="mmenu" role="dialog" aria-label="日付を選ぶ" data-pane="${side}" style="width:min(280px,${Math.max(0, paneWidth(side))}px)"><div class="mmh"><button type="button" data-mmnav="-1" data-pane="${side}" aria-label="前の月">‹</button><span class="mmt" aria-live="polite">${d.getFullYear()}年${d.getMonth() + 1}月</span><button type="button" data-mmnav="1" data-pane="${side}" aria-label="次の月">›</button></div><div class="mmg">${cells}</div></div>`;
 }
@@ -1152,7 +1153,7 @@ function timeBody(side, w) {
 // ---------- ノート（旧「日ごとのメモ」。左右ページ・縦の下パネル・閉じた画面の帯で同じ一覧と同じエディタ。保存は notes.js） ----------
 // 画面からは旧 memos へ一切書かない。旧メモは起動時にノートへ複製済み（db.js の移行）。
 let noteComposing = false, renderPending = false, rendering = false;
-const NB = { cur: null, rows: null, q: { left: '', right: '', bottom: '', closed: '' }, seq: 0, failed: false, blocked: false, ed: null, opening: null, focusNew: false, said: false, folders: null, sel: 'all', menu: null, swallow: 0 };
+const NB = { marks: new Map(), day: null, dp: null, cur: null, rows: null, q: { left: '', right: '', bottom: '', closed: '' }, seq: 0, failed: false, blocked: false, ed: null, opening: null, focusNew: false, said: false, folders: null, sel: 'all', menu: null, swallow: 0 };
 const noteHead = (side) => `<div class="rhead dh"><h2 class="rdate">ノート</h2>${side === 'right' ? rctl() : ''}<div class="sctl">${side === 'left' ? gearBtn() : ''}</div></div>`;
 function noteEditor() {
   if (!NB.ed) NB.ed = mountNoteEditor(document.createElement('div'), {
@@ -1165,7 +1166,7 @@ function noteEditor() {
 function noteBody(where) {
   if (NB.blocked) return '<div class="memopage padb"><p class="smsg" role="alert">ノートを準備できませんでした。アプリを閉じて、もう一度開いてください。（予定と元のメモは変わっていません）</p></div>';
   if (NB.cur) return noteOthers(where) + `<div class="ntools mtools"><button type="button" class="mback" data-act="noteback" aria-label="ノートの一覧に戻る">一覧</button><button type="button" class="mback" data-act="notenew" aria-label="新しいノート">＋ 新規</button></div><div class="memopage notepage padb" data-note-wrap="${where}"><div class="nmeta" data-nmeta="${where}"></div><div class="nhost" data-nhost="${where}"></div></div>`;
-  return `<div class="ntools mtools"><span class="ntitle">ノート</span><button type="button" class="mback" data-act="notenew" aria-label="新しいノート">＋ 新規</button></div><div class="memopage mlist padb" data-mlist-wrap="${where}"><div class="mlsb"><input type="search" class="mlq" data-mlq="${where}" placeholder="ノートを検索" aria-label="ノートを検索" value="${esc(NB.q[where])}" autocomplete="off" spellcheck="false"></div><div class="nchips" data-nchips="${where}" role="toolbar" aria-label="フォルダ">${noteChipsHtml()}</div><div class="mlrows" data-mlist="${where}">${noteRowsHtml(where)}</div><div data-nmenu="${where}">${noteMenuHtml()}</div></div>`;
+  return `<div class="ntools mtools"><span class="ntitle">ノート</span><button type="button" class="mback" data-act="notenew" aria-label="新しいノート">＋ 新規</button></div><div class="memopage mlist padb" data-mlist-wrap="${where}">${NB.day ? `<div class="nday"><span>${esc(dayLabel(NB.day))}のノート</span><button type="button" data-act="ndayplus" aria-label="この日のノートを開く・作る">＋</button><button type="button" data-act="ndayclear" aria-label="日の絞りを外す">✕</button></div>` : ''}<div class="mlsb"><input type="search" class="mlq" data-mlq="${where}" placeholder="ノートを検索" aria-label="ノートを検索" value="${esc(NB.q[where])}" autocomplete="off" spellcheck="false"></div><div class="nchips" data-nchips="${where}" role="toolbar" aria-label="フォルダ">${noteChipsHtml()}</div><div class="mlrows" data-mlist="${where}">${noteRowsHtml(where)}</div><div data-nmenu="${where}">${noteMenuHtml()}</div></div>`;
 }
 const noteDayText = (ms) => { const d = new Date(ms), t = new Date(); return `${d.getFullYear() === t.getFullYear() ? '' : `${d.getFullYear()}/`}${d.getMonth() + 1}/${d.getDate()}`; };
 // 一覧は固定の行高で仮想表示する（40000件でも描くのは見える範囲＋前後だけ）。件数の行・見出し・ノート行を縦に並べた平らな表を持つ。
@@ -1179,7 +1180,7 @@ function noteRowsHtml(where) {
   const t0 = nowMs(), idx0 = noteIndexSize();
   const q = NB.q[where], hasQ = !!terms(q).length;
   // 検索中はフォルダを見ず全ノートが対象。検索語なしのときだけフォルダで絞る。
-  const base = hasQ ? NB.rows : filterByFolder(NB.rows, NB.sel, NB.folders || []);
+  const base = NB.day ? NB.rows.filter((n) => noteDateOf(n) === NB.day) : hasQ ? NB.rows : filterByFolder(NB.rows, NB.sel, NB.folders || []); // 日で絞っているときはフォルダを見ない
   const res = searchNotes(base, q, { limit: null }), ts = res.ts, rows = res.items;
   const t1 = nowMs();
   NB.perf.search = Math.round((t1 - t0) * 10) / 10; if (noteIndexSize() !== idx0) NB.perf.index = NB.perf.search; NB.perf.count = NB.rows.length; NB.perf.hits = rows.length;
@@ -1187,7 +1188,10 @@ function noteRowsHtml(where) {
   const { pinned, others } = groupNotes(rows);
   const rowHtml = (n) => {
     const title = n.title || titleOf(n.body), second = n.body.split('\n').slice(1).map((l) => l.trim()).find(Boolean) || '';
-    return `<div class="nrw${n.pinned ? ' pinned' : ''}" data-nrw="${esc(n.id)}"><button type="button" class="mrow" data-nrow="${esc(n.id)}" aria-label="${esc(title)}"><b>${n.pinned ? '<i class="npin" aria-hidden="true">📌</i>' : ''}${ts.length ? highlight(title, ts, esc) : esc(title)}</b><span>${esc(noteDayText(n.updatedAt))}${second ? ` ${esc(second)}` : ''}</span></button>${n.sourceDate ? `<button type="button" class="nsrc" data-nsrc="${n.sourceDate}" aria-label="元の日付 ${esc(dayLabel(n.sourceDate))}を開く">${n.sourceDate.slice(5, 7).replace(/^0/, '')}/${n.sourceDate.slice(8, 10).replace(/^0/, '')}</button>` : ''}<button type="button" class="nmore" data-nf="rowmenu" data-id="${esc(n.id)}" aria-label="${esc(title)}の操作">⋯</button></div>`;
+    const nd = noteDateOf(n), fname = (NB.folders || []).find((x) => x.id === n.folderId)?.name || '';
+    const dshort = nd ? `${nd.slice(5, 7).replace(/^0/, '')}/${nd.slice(8, 10).replace(/^0/, '')}` : '';
+    const line2 = [noteDayText(n.updatedAt), fname, dshort].filter(Boolean).join(' ・ ');
+    return `<div class="nrw${n.pinned ? ' pinned' : ''}" data-nrw="${esc(n.id)}"><button type="button" class="mrow" data-nrow="${esc(n.id)}" aria-label="${esc(title)}"><b>${n.pinned ? '<i class="npin" aria-hidden="true">📌</i>' : ''}${ts.length ? highlight(title, ts, esc) : esc(title)}</b><span>${esc(line2)}${second ? ` ${esc(second)}` : ''}</span></button>${nd ? `<button type="button" class="nsrc" data-nsrc="${nd}" aria-label="日付 ${esc(dayLabel(nd))}を開く">${dshort}</button>` : ''}<button type="button" class="nmore" data-nf="rowmenu" data-id="${esc(n.id)}" aria-label="${esc(title)}の操作">⋯</button></div>`;
   };
   const items = []; let top = 0;
   const add = (k, h, v) => { items.push({ k, h, top, v }); top += h; };
@@ -1282,7 +1286,7 @@ async function loadNoteList() {
   try { await flushNotesNow(); db.purgeTrashedNotes().catch(() => {}); await loadFolders(); const all = await db.listNotes(); if (seq !== NB.seq) return; NB.rows = all.sort((a, b) => b.updatedAt - a.updatedAt || (a.id < b.id ? -1 : 1)); NB.failed = false; } catch { if (seq !== NB.seq) return; NB.failed = true; }
   paintNoteLists();
 }
-const invalidateNoteList = () => { NB.rows = null; NB.seq++; };
+const invalidateNoteList = () => { NB.rows = null; NB.seq++; refreshNoteMarks(); };
 const noteListUsed = () => !!root.querySelector('[data-mlist]');
 // 検索語は150ms待ってから反映（古い入力の結果は捨てる）。結果が変わるので一覧は先頭へ戻す。
 let nqTimer = 0, nqSeq = 0;
@@ -1292,13 +1296,58 @@ root.addEventListener('input', (ev) => {
   const seq = ++nqSeq; clearTimeout(nqTimer);
   nqTimer = setTimeout(() => { if (seq !== nqSeq) return; root.querySelectorAll('[data-mlist]').forEach((el) => { el.scrollTop = 0; }); paintNoteLists(); }, 150);
 });
+// 月の印: 日付のあるノート（削除済みを除く）の件数。1日に複数あっても線は1本。保存の変更のたびに取り直す。
+let marksSeq = 0;
+async function refreshNoteMarks() {
+  const seq = ++marksSeq;
+  try {
+    const m = new Map();
+    for (const n of await db.listNotes()) { const k = noteDateOf(n); if (k) m.set(k, (m.get(k) || 0) + 1); }
+    if (seq !== marksSeq) return;
+    const same = m.size === NB.marks.size && [...m].every(([k, v]) => NB.marks.get(k) === v);
+    NB.marks = m;
+    if (!same) render();
+  } catch { /* 印が出ないだけ */ }
+}
+async function filterNotesByDay(day) {
+  if (NB.blocked) return;
+  if (NB.ed && NB.cur) { const ok = await NB.ed.leave(); if (ok === false) return; NB.cur = null; NB.dp = null; invalidateNoteList(); }
+  NB.day = day; render();
+}
+// 「この日のノート」: 0件=日ごとのメモに新規（1行目は日付見出し）、1件=開く、複数=その日に絞った一覧。
+let dayNoteBusy = false;
+async function openDayNote(day) {
+  if (!day || NB.blocked || dayNoteBusy) return;
+  dayNoteBusy = true;
+  try {
+    let all; try { all = await db.listNotes(); } catch { say('ノートを読み込めませんでした。'); return; }
+    const occ = dateOccupants(all, day, null);
+    if (occ.length === 1) { NB.day = null; await noteOpen(occ[0].id); return; }
+    if (occ.length > 1) { await filterNotesByDay(day); return; }
+    if (NB.ed && NB.cur) { const ok = await NB.ed.leave(); if (ok === false) return; }
+    let fid = null;
+    try { const r = ensureDailyFolder(await db.listFolders()); if (r.created) await db.putFolder(r.folder); fid = r.folder.id; invalidateNoteList(); NB.folders = null; } catch { /* フォルダなしで作る */ }
+    const id = noteStore.newNote();
+    await noteStore.setMeta(id, { date: day, ...(fid ? { folderId: fid } : {}) });
+    noteStore.setText(id, `${dailyHeading(day)}\n`);
+    NB.day = null; NB.cur = id; NB.focusNew = true; NB.dp = null; render();
+  } finally { dayNoteBusy = false; }
+}
+// 長押しメニューと見出しのチップから: 右ページ（なければ下・帯）をノートにして、その日のノートへ。
+function showNotePage() {
+  const kind = layoutKind();
+  if (kind === 'spread') { const side = PG().right === 'memo' ? 'right' : PG().left === 'memo' ? 'left' : 'right'; if (PG()[side] !== 'memo') set({ pages: selectPage(state.pages, side, 'memo'), lastSide: side }); }
+  else if (panelOn()) set({ pages: selectPage(state.pages, 'portraitBottom', 'memo') });
+  else set({ strip: 'memo' });
+}
+async function noteDayJump(day) { showNotePage(); await filterNotesByDay(day); }
 async function noteOpen(id) {
   if (NB.ed && NB.cur && NB.cur !== id) { const ok = await NB.ed.leave(); if (ok === false) return; }
-  NB.cur = id; render();
+  NB.cur = id; NB.dp = null; render();
 }
 async function noteBack() {
   if (NB.ed && NB.cur) { const ok = await NB.ed.leave(); if (ok === false) return; }
-  NB.cur = null; db.setLastNote(null).catch(() => {}); invalidateNoteList(); render();
+  NB.cur = null; NB.dp = null; db.setLastNote(null).catch(() => {}); invalidateNoteList(); render();
 }
 async function noteNew() {
   if (NB.blocked) return;
@@ -1341,11 +1390,50 @@ async function paintNoteMeta() {
   let m = null, f = NB.folders;
   try { if (!f) { await loadFolders(); f = NB.folders; } m = await noteStore.getMeta(id); } catch { m = null; }
   if (NB.cur !== id) return;
-  const cur = m?.folderId || '';
+  const cur = m?.folderId || '', date = m?.date || null;
   for (const h of root.querySelectorAll('[data-nmeta]')) {
     if (document.activeElement?.matches?.('[data-nfsel]') && h.contains(document.activeElement)) continue;
-    h.innerHTML = `<label class="nmlab">フォルダ<select data-nfsel aria-label="フォルダ">${[{ id: '', name: 'フォルダなし' }, ...(f || [])].map((x) => `<option value="${esc(x.id)}"${x.id === cur ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label><button type="button" class="nmpin${m?.pinned ? ' on' : ''}" data-nf="pin" aria-pressed="${!!m?.pinned}">${m?.pinned ? '📌 ピン留め中' : 'ピン留め'}</button>`;
+    h.innerHTML = `<label class="nmlab">フォルダ<select data-nfsel aria-label="フォルダ">${[{ id: '', name: 'フォルダなし' }, ...(f || [])].map((x) => `<option value="${esc(x.id)}"${x.id === cur ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label><button type="button" class="ndate${date ? ' on' : ''}" data-act="ndate" aria-haspopup="dialog" aria-expanded="${!!NB.dp}" aria-label="日付${date ? `: ${esc(dayLabel(date))}` : 'を付ける'}">${date ? `${esc(dayLabel(date))} ›` : '日付 ›'}</button><button type="button" class="nmpin${m?.pinned ? ' on' : ''}" data-nf="pin" aria-pressed="${!!m?.pinned}">${m?.pinned ? '📌 ピン留め中' : 'ピン留め'}</button>${noteDatePopHtml(date)}`;
   }
+}
+// ノートの日付: 小さな月で日を選ぶ。月の下に「日付を外す」。選んだ日に別のノートがあれば、開くか付け替えるかを確認する。
+function noteDatePopHtml(date) {
+  const dp = NB.dp; if (!dp) return '';
+  if (dp.confirm) {
+    const c = dp.confirm;
+    return `<div class="ndpop ndconf" role="alertdialog" aria-label="この日にはすでにノートがあります"><p>この日にはすでにノートがあります。</p><div class="nmrow"><button type="button" class="nmbtn" data-act="ndopen">そのノートを開く</button></div><div class="nmrow"><button type="button" class="nmbtn" data-act="ndswap">このノートに付け替える</button></div><div class="nmrow"><button type="button" class="nmbtn" data-act="ndcancel">やめる</button></div></div>`;
+  }
+  const base = dp.ym || date || state.selected, d = parseKey(base);
+  const cells = monthWeeks(base).flat().map((k) => {
+    const c = parseKey(k), out = c.getMonth() !== d.getMonth();
+    return `<button type="button" class="mmc${out ? ' out' : ''}${isRed(k) ? ' hol' : ''}${k === date ? ' sel' : ''}${k === todayKey() ? ' tod' : ''}" data-ndday="${k}" aria-label="${esc(dayLabel(k))}${k === date ? '、選択中' : ''}" aria-pressed="${k === date}"><span class="n">${c.getDate()}</span></button>`;
+  }).join('');
+  return `<div class="ndpop" role="dialog" aria-label="ノートの日付を選ぶ"><div class="mmh"><button type="button" data-ndnav="-1" aria-label="前の月">‹</button><span class="mmt" aria-live="polite">${d.getFullYear()}年${d.getMonth() + 1}月</span><button type="button" data-ndnav="1" aria-label="次の月">›</button></div><div class="mmg">${cells}</div><div class="ndfoot"><button type="button" class="nmbtn" data-act="ndclear"${date ? '' : ' disabled'}>日付を外す</button><button type="button" class="nmbtn" data-act="ndclose">閉じる</button></div></div>`;
+}
+async function noteDateAct(d) {
+  const id = NB.cur; if (!id) return;
+  const refresh = () => { paintNoteMeta(); if (NB.rows) invalidateNoteList(); };
+  try {
+    if (d.act === 'ndate') { NB.dp = NB.dp ? null : { ym: '', confirm: null }; return paintNoteMeta(); }
+    if (d.act === 'ndclose' || d.act === 'ndcancel') { NB.dp = d.act === 'ndcancel' && NB.dp?.confirm ? { ym: NB.dp.ym, confirm: null } : null; return paintNoteMeta(); }
+    if (d.ndnav) { NB.dp.ym = addMonths(NB.dp.ym || (await noteStore.getMeta(id))?.date || state.selected, Number(d.ndnav)); return paintNoteMeta(); }
+    if (d.act === 'ndclear') { await noteStore.setMeta(id, { date: null }); NB.dp = null; say('日付を外しました。'); return refresh(); }
+    if (d.ndday) {
+      const others = dateOccupants(await db.listNotes(), d.ndday, id);
+      if (others.length) { NB.dp = { ym: NB.dp?.ym || '', confirm: { date: d.ndday, ids: others.map((n) => n.id) } }; return paintNoteMeta(); }
+      await noteStore.setMeta(id, { date: d.ndday }); NB.dp = null; say(`${dayLabel(d.ndday)}を付けました。`); return refresh();
+    }
+    const c = NB.dp?.confirm; if (!c) return;
+    if (d.act === 'ndswap') {
+      for (const oid of c.ids) await noteStore.setMeta(oid, { date: null }); // 相手の本体は消さない。日付だけ外す
+      await noteStore.setMeta(id, { date: c.date }); NB.dp = null; say(`${dayLabel(c.date)}を付け替えました。`); return refresh();
+    }
+    if (d.act === 'ndopen') {
+      NB.dp = null;
+      if (c.ids.length === 1) return noteOpen(c.ids[0]);
+      await noteBack(); NB.day = c.date; paintNoteLists(); render();
+    }
+  } catch { say('日付を付けられませんでした。'); }
 }
 root.addEventListener('change', async (ev) => {
   const sel = ev.target.closest?.('[data-nfsel]'); if (!sel || !NB.cur) return;
@@ -1411,7 +1499,7 @@ root.addEventListener('focusout', (ev) => { if (ev.target.closest?.('input.remin
 const flushNotesNow = () => { noteSync(); return noteStore.flushAll(); };
 // バックアップの前後: 未保存のノートを保存し終えるまで待つ。保存できなかったものがあれば false。
 const flushNotesAwait = async () => { try { const r = await flushNotesNow(); return r.every((x) => x !== false) && !noteStore.anyDirty(); } catch { return false; } };
-setNoteHook((id) => { if (NB.rows && !noteStore.dirty(id) && !noteStore.get(id)?.failed) { invalidateNoteList(); if (noteListUsed()) loadNoteList(); } });
+setNoteHook((id) => { refreshNoteMarks(); if (NB.rows && !noteStore.dirty(id) && !noteStore.get(id)?.failed) { invalidateNoteList(); if (noteListUsed()) loadNoteList(); } });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { flushNotesNow(); delCtl.flush(); doneCtl.flush(); } });
 window.addEventListener('pagehide', () => { doneCtl.flush(); delCtl.flush(); });
 window.addEventListener('pagehide', flushNotesNow);
@@ -1708,7 +1796,11 @@ function paintDraft() {
   const box = document.createElement('div');
   box.className = 'dbox'; box.dataset.mode = DF.mode;
   box.setAttribute('style', `${colorVars(cat.color)}--m:${DF.start};--d:${DF.end - DF.start}`);
-  box.innerHTML = `<b class="dt">新しい予定</b><span class="ds">${spanText(DF)}</span>${DF.mode === 'temp' ? '<i class="hdl hdl-s" data-h="start"></i><i class="hdl hdl-e" data-h="end"></i>' : ''}`;
+  box.innerHTML = `<b class="dt">新しい予定</b><span class="ds">${spanText(DF)}</span>${DF.mode === 'temp' ? '<i class="hdl hdl-s" data-h="start"></i><i class="hdl hdl-e" data-h="end"></i><button type="button" class="dx" aria-label="仮の枠を取り消す">✕</button>' + DRAFT_ACTIONS.map(([k, l]) => `<button type="button" class="vh" data-nudge="${k}">${l}</button>`).join('') : ''}`;
+  if ((DF.end - DF.start) * hhOf(DF.pane) / 60 < 60) box.dataset.short = '';
+  if (DF.mode === 'temp') {
+    box.tabIndex = 0; box.setAttribute('role', 'group'); box.setAttribute('aria-label', `新しい予定の仮枠 ${spanText(DF)}`);
+  }
   col.append(box);
   const inner = col.closest('.tlin'), hh = hhOf(DF.pane);
   [['s', DF.start], ['e', DF.end]].forEach(([k, m], i) => {
@@ -1719,26 +1811,85 @@ function paintDraft() {
     inner.append(t);
   });
 }
+// VoiceOver のカスタム操作（仮枠）。15分単位で動かす／長さを変える。
+function nudgeDraft(kind) {
+  if (DF.mode !== 'temp') return;
+  const r = kind === 'earlier' ? moveBox(DF, DF.start - 15) : kind === 'later' ? moveBox(DF, DF.start + 15)
+    : kind === 'longer' ? moveHandle(DF, 'end', DF.end + 15) : moveHandle(DF, 'end', DF.end - 15);
+  if (r.start === DF.start && r.end === DF.end) return;
+  Object.assign(DF, r); paintDraft(); feel('light');
+  const nb = root.querySelector(`.dbox [data-nudge="${kind}"]`) || root.querySelector('.dbox');
+  nb?.focus({ preventScroll: true });
+}
+const DRAFT_ACTIONS = [['earlier', '15分早く'], ['later', '15分遅く'], ['longer', '15分長く'], ['shorter', '15分短く']];
 function clearDraftBox() { if (!DF.mode) return; DF.mode = null; paintDraft(); }
 function openDraft() {
   const { day, start, end } = DF;
   DF.mode = 'sheet'; paintDraft();
   openEditor(null, root.querySelector('[data-act="add"]'), day, start, { endMin: end, direct: true });
 }
+root.addEventListener('keydown', (ev) => {
+  if (DF.mode !== 'temp' || !ev.target.classList?.contains('dbox')) return;
+  const k = { ArrowUp: ev.shiftKey ? 'shorter' : 'earlier', ArrowDown: ev.shiftKey ? 'longer' : 'later' }[ev.key];
+  if (k) { ev.preventDefault(); nudgeDraft(k); }
+});
 // 空きタップ: 1回目＝その時刻（15分刻み）から1時間の仮枠、枠の上の2回目＝編集シート、枠の外＝枠を消す。
 function tlTap(ev, col) {
   if (performance.now() < TLQ.quiet) return;
-  if (ev.target.closest('.hdl')) return;
+  const hd = ev.target.closest('.hdl');
+  if (hd) { // 丸の中心から16pt 以内は取っ手（たたきは無視）、内側は枠本体のたたき
+    const bb = hd.closest('.dbox')?.getBoundingClientRect();
+    if (!bb || hitDraftPart(bb.height, ev.clientY - bb.top) !== 'move') return;
+    openDraft(); return;
+  }
   if (DF.mode === 'temp') { if (ev.target.closest('.dbox')) openDraft(); else clearDraftBox(); return; }
   if (DF.mode) return;
   const pane = paneOf(col.closest('.tl'));
   Object.assign(DF, { mode: 'temp', day: col.dataset.day, pane }, tapRange(minAtY(ev.clientY, col, pane)));
   paintDraft();
 }
+// 仮枠の本体（取っ手の外側）を押したまま上下に引くと、同じ日の中で枠ごと動く（15分刻み）。8pt 以下の動きはたたき（click→openDraft）。
+const BOXMOVE_SLOP = 8, BOXMOVE_EDGE = 48;
+const BM = { on: false, id: 0, y0: 0, raw0: 0, r0: null, moved: false };
+const rawAt = (y, col, pane) => ((y - col.getBoundingClientRect().top - TL_PAD) / hhOf(pane)) * 60;
+function boxMoveRecalc(y) {
+  const col = colOf(DF.pane, DF.day); if (!col) return;
+  const r = moveBox(BM.r0, BM.r0.start + rawAt(y, col, DF.pane) - BM.raw0);
+  if (r.start !== DF.start || r.end !== DF.end) { Object.assign(DF, r); paintDraft(); feel('light'); }
+}
+function startBoxMove(ev) {
+  if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+  const col = colOf(DF.pane, DF.day); if (!col || BM.on) return;
+  ev.preventDefault();
+  const id = ev.pointerId;
+  Object.assign(BM, { on: true, id, y0: ev.clientY, raw0: rawAt(ev.clientY, col, DF.pane), r0: { start: DF.start, end: DF.end }, moved: false });
+  EG.y = ev.clientY;
+  const mv = (e) => {
+    if (e.pointerId !== id || DF.mode !== 'temp') return;
+    EG.y = e.clientY;
+    if (!BM.moved) { if (Math.abs(e.clientY - BM.y0) <= BOXMOVE_SLOP) return; BM.moved = true; EG.carry = 0; EG.tl = null; EG.origin = { kind: 'boxmove' }; edgeLoop.start(); }
+    if (e.cancelable) e.preventDefault();
+    boxMoveRecalc(e.clientY);
+  };
+  const done = (e) => {
+    if (e.pointerId !== id) return;
+    window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', done); window.removeEventListener('pointercancel', done);
+    if (BM.moved) { edgeLoop.stop(); EG.tl = null; EG.carry = 0; EG.origin = null; TLQ.quiet = performance.now() + 400; }
+    BM.on = false; BM.moved = false;
+  };
+  window.addEventListener('pointermove', mv); window.addEventListener('pointerup', done); window.addEventListener('pointercancel', done);
+}
 // 仮枠の取っ手（見た目12・押せる範囲44）。押してすぐ動かし、離したあとの click は抑止する。
 root.addEventListener('pointerdown', (ev) => {
-  const h = ev.target.closest?.('.hdl');
-  if (!h || DF.mode !== 'temp') return;
+  if (DF.mode !== 'temp') return;
+  if (ev.target.closest?.('.dx, [data-nudge]')) return;
+  let h = ev.target.closest?.('.hdl');
+  if (h) { // 丸の中心から16pt より内側は移動
+    const bb = ev.target.closest('.dbox').getBoundingClientRect();
+    const part = hitDraftPart(bb.height, ev.clientY - bb.top);
+    if (part === 'move') h = null; else if (part) h = root.querySelector(`.dbox .hdl-${part === 'start' ? 's' : 'e'}`);
+  }
+  if (!h) { if (ev.target.closest?.('.dbox')) startBoxMove(ev); return; }
   ev.preventDefault();
   const which = h.dataset.h, id = ev.pointerId;
   const mv = (e) => {
@@ -1881,6 +2032,12 @@ function say(msg) { $('#status').textContent = ''; requestAnimationFrame(() => {
 root.addEventListener('click', (ev) => {
   if (DF.mode === 'temp' && !ev.target.closest('.dbox') && (!ev.target.closest('.tlcol') || ev.target.closest('button'))) clearDraftBox();
   const col = ev.target.closest('.tlcol');
+  if (DF.mode === 'temp' && ev.target.closest('.dbox button')) { // ✕・VoiceOver の15分操作
+    if (performance.now() < TLQ.quiet) return;
+    const nb = ev.target.closest('[data-nudge]');
+    if (nb) nudgeDraft(nb.dataset.nudge); else clearDraftBox();
+    return;
+  }
   if (col && !ev.target.closest('button')) { tlTap(ev, col); return; }
   const b = ev.target.closest('button');
   if (TLM.open && !ev.target.closest('.tlmenu, [data-act="tlmenu"]')) { TLM.open = null; render(); return; } // 選択肢の外をたたくと閉じる（たたいた先の操作はしない）
@@ -1916,6 +2073,7 @@ root.addEventListener('click', (ev) => {
     const compact = ['home', 'browse'].includes(layoutKind()) || (isPortrait() && !panelOn());
     // 閉じた画面・開いた縦では選択日サイド（一覧）が無いので、日付選択でその日の日表示へ進む。
     set(compact && state.view === 'month' ? { selected: d.date, view: 'day' } : { selected: d.date });
+    if (!compact && layoutKind() === 'spread' && PG().left === 'month' && PG().right === 'memo') filterNotesByDay(d.date); // 左の月の日で右のノート一覧を絞る
   } else if (d.jump) set({ selected: d.jump, view: 'day' });
   else if (d.event) openEditor(d.event, b);
   else if (d.new) openEditor(null, b, d.new);
@@ -1932,6 +2090,10 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'noteback') noteBack();
   else if (d.act === 'notenew') noteNew();
   else if (d.nf) noteFolderAct(b);
+  else if (d.act === 'ndayclear') { NB.day = null; render(); }
+  else if (d.act === 'ndayplus') openDayNote(NB.day);
+  else if (d.act === 'notedayjump') noteDayJump(state.selected);
+  else if (d.ndday || d.ndnav || (d.act && d.act.startsWith('nd'))) noteDateAct(d);
   else if (d.nrow) noteOpen(d.nrow);
   else if (d.nsrc) { set({ selected: d.nsrc, strip: null }); say(`${dayLabel(d.nsrc)}を開きました。`); }
   else if (d.act === 'sample') loadSample();
@@ -3103,7 +3265,7 @@ function hitHtml(e, ts) {
   return `<button type="button" class="hit ${catCls(e)}"${catSty(e)} data-hit="${esc(e.id)}"${repLabel(e, `${dayLabel(dayOf(e.start))} ${time} ${e.title}`)}><span class="hmeta">${esc(time)} · ${esc(tagText(e))}</span><strong>${xi(e)}${rep(e)}${hl(e.title)}</strong>${e.place ? `<span class="hplace">${hl(e.place)}</span>` : ''}${ex ? `<span class="hnote">${hl(ex)}</span>` : ''}</button>`;
 }
 function memoHitHtml(m, ts) {
-  m = { id: m.id, date: m.sourceDate || localDay(m.updatedAt), body: m.body };
+  m = { id: m.id, date: noteDateOf(m) || localDay(m.updatedAt), body: m.body };
   const yr = Number(srToday.slice(0, 4)), lab = Number(m.date.slice(0, 4)) === yr ? dayLabel(m.date) : `${m.date.slice(0, 4)}年${dayLabel(m.date)}`;
   const ex = excerpt(m.body ?? m.text, ts) || (m.body ?? m.text).slice(0, 80);
   return `<button type="button" class="mhit" data-mhit="${esc(m.id)}" aria-label="${esc(`${lab}のノート ${ex}`)}"><span class="hmeta">${esc(lab)}</span><span class="hnote">${highlight(ex, ts, esc)}</span></button>`;
@@ -4811,17 +4973,18 @@ function timeRecalc() {
   if (r.start !== DF.start || r.end !== DF.end) { Object.assign(DF, r); paintDraft(); feel('light'); }
 }
 const edgeLoop = createFrameLoop((dt) => {
-  const o = EG.origin;
-  if (!o || o.kind !== 'time' || DF.mode !== 'drag') return;
-  const tl = EG.tl?.isConnected ? EG.tl : (EG.tl = colOf(o.pane, o.day)?.closest('.tl') ?? null);
+  const o = EG.origin, bm = o?.kind === 'boxmove' && DF.mode === 'temp' && BM.moved;
+  if (!o || !(bm || (o.kind === 'time' && DF.mode === 'drag'))) return;
+  const tl = EG.tl?.isConnected ? EG.tl : (EG.tl = (bm ? colOf(DF.pane, DF.day) : colOf(o.pane, o.day))?.closest('.tl') ?? null);
   if (!tl) return;
-  const rc = tl.getBoundingClientRect(), v = edgeVelocity(EG.y, rc.top, rc.bottom);
+  const rc = tl.getBoundingClientRect();
+  const v = bm ? edgeZone(EG.y, rc.top, rc.bottom, BOXMOVE_EDGE) * hhOf(DF.pane) : edgeVelocity(EG.y, rc.top, rc.bottom); // 枠の移動は 1時間/秒
   if (!v) { EG.carry = 0; return; }
   const d = v * dt + EG.carry, w = Math.trunc(d);
   EG.carry = d - w;
   if (!w) return;
   const before = tl.scrollTop; tl.scrollTop = before + w;
-  if (tl.scrollTop !== before) timeRecalc();
+  if (tl.scrollTop !== before) { if (bm) boxMoveRecalc(EG.y); else timeRecalc(); }
 });
 const monthDwell = createDwell({
   fire: (dir) => {
@@ -4875,6 +5038,7 @@ directCtl = initDirectInput({
       if (MR.mode !== 'drag') return;
       const k = dayAtPoint(x, y, monthScope()); if (k) MR.cur = k;
       if (PS.on) { const r = dayRange(MR.anchor, MR.cur); clearRange(); pasteAddDays(daysBetween(r.start, r.end)); return; }
+      if (MR.anchor === MR.cur) { openDayMenu(MR.cur, root.querySelector(`.week .day[data-date="${MR.cur}"]`)); return; } // 1日だけ離した: 終日の予定かこの日のノートを選ぶ
       openRangeSheet(); return;
     }
     if (o.kind === 'allday') { openEditor(null, root.querySelector('[data-act="add"]'), o.day, null, { all: true, direct: true }); return; }
@@ -5061,7 +5225,7 @@ async function copyFrom(id) {
 
 // チップの長押しメニュー（幅160・1行44・角丸12）。書けない iPhone の予定は編集・削除を無効にし、コピーは使える。
 let chipMenu = null;
-function closeChipMenu() { chipMenu?.remove(); chipMenu = null; document.removeEventListener('pointerdown', chipMenuOutside, true); }
+function closeChipMenu() { if (chipMenu?.dataset.daymenu && MR.mode === 'menu') clearRange(); chipMenu?.remove(); chipMenu = null; document.removeEventListener('pointerdown', chipMenuOutside, true); }
 function chipMenuOutside(ev) { if (chipMenu && !chipMenu.contains(ev.target)) closeChipMenu(); }
 function openChipMenu(id, chipEl) {
   closeChipMenu();
@@ -5083,6 +5247,25 @@ function openChipMenu(id, chipEl) {
   document.body.append(m); chipMenu = m;
   document.addEventListener('pointerdown', chipMenuOutside, true);
   m.querySelector('[data-cm="copy"]').focus({ preventScroll: true });
+}
+// 月の日を長押しして同じ日で離したときの小さなメニュー（チップのメニューと同じ寸法）。
+function openDayMenu(day, el) {
+  closeChipMenu();
+  const m = document.createElement('div');
+  m.className = 'cmenu'; m.setAttribute('role', 'menu'); m.setAttribute('aria-label', `${dayLabel(day)}の操作`); m.dataset.daymenu = day;
+  m.innerHTML = '<button type="button" role="menuitem" data-dm="ev">終日の予定</button><button type="button" role="menuitem" data-dm="note">この日のノート</button>';
+  const r = (el || root).getBoundingClientRect(), W = 160, H = 88;
+  m.style.left = `${Math.round(Math.min(Math.max(4, r.left), window.innerWidth - W - 4))}px`;
+  m.style.top = `${Math.round(r.bottom + 4 + H > window.innerHeight - 4 ? Math.max(4, r.top - H - 4) : r.bottom + 4)}px`;
+  m.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-dm]'); if (!b) return;
+    closeChipMenu();
+    if (b.dataset.dm === 'ev') openRangeSheet();
+    else { clearRange(); showNotePage(); openDayNote(day); }
+  });
+  document.body.append(m); chipMenu = m; MR.mode = 'menu';
+  document.addEventListener('pointerdown', chipMenuOutside, true);
+  m.querySelector('[data-dm="ev"]').focus({ preventScroll: true });
 }
 window.addEventListener('orientationchange', closeChipMenu);
 document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && chipMenu) closeChipMenu(); });
@@ -5125,6 +5308,7 @@ async function bootNotes() {
   try { await db.ensureNotesMigrated(); } catch { NB.blocked = true; return; }
   try { await importLegacyMemoDrafts(); } catch { /* 旧下書きは残る。次の起動で再試行 */ }
   try { await recoverNoteDrafts(); } catch { /* 下書きは残る */ }
+  refreshNoteMarks();
   try {
     const id = await db.getLastNote(), n = id ? await db.getNote(id) : null;
     NB.cur = n && !n.deletedAt ? id : null;

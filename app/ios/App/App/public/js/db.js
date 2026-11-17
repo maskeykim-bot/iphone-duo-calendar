@@ -1,7 +1,7 @@
 // IndexedDB データ層。schema を変えるときは SCHEMA_VERSION を上げ、MIGRATIONS に追記する。
 import { withDefaults, isKey } from './util.js';
 import { validateTask, newTaskId } from './tasks.js';
-import { noteFromMemo, ensureDailyFolder, titleOf, noteCharLimit } from './notes-model.js';
+import { noteFromMemo, ensureDailyFolder, titleOf, noteCharLimit, noteDateOf } from './notes-model.js';
 import { CAT_IDS, DEFAULTS_NEW, LEGACY, UNCATEGORIZED, legacyToId, planCategoryRetarget, sortCategories } from './categories.js';
 
 export const SCHEMA_VERSION = 5;
@@ -396,7 +396,7 @@ export const readLegacyEvidence = () => run(['events', 'memos', 'meta', 'categor
 });
 
 // ---------- ノート・フォルダ（notes / folders ストア。件数に上限は設けない） ----------
-// Note = { id, body, title, folderId|null, pinned, pinnedAt|null, createdAt, updatedAt, deletedAt|null, sourceDate?, sourceHeading?, sourceOriginalFirstLine?, ink? }
+// Note = { id, body, title, folderId|null, pinned, pinnedAt|null, createdAt, updatedAt, deletedAt|null, date(YYYY-MM-DD|null), sourceDate?, sourceHeading?, sourceOriginalFirstLine?, ink? }
 // Folder = { id, name(30字まで), order, createdAt, updatedAt }
 export const FOLDER_MAX = 100;
 export const FOLDER_NAME_MAX = 30;
@@ -411,7 +411,7 @@ export function validateNote(n) {
   if (Array.from(n.body).length > noteCharLimit(n)) throw new Error('note too long');
   const num = (v, d) => (Number.isFinite(v) ? v : d);
   const now = Date.now();
-  return { ...n, title: titleOf(n.body), folderId: typeof n.folderId === 'string' ? n.folderId : null, pinned: !!n.pinned,
+  return { ...n, date: noteDateOf(n), title: titleOf(n.body), folderId: typeof n.folderId === 'string' ? n.folderId : null, pinned: !!n.pinned,
     pinnedAt: n.pinned ? num(n.pinnedAt, now) : null, createdAt: num(n.createdAt, now), updatedAt: num(n.updatedAt, now), deletedAt: Number.isFinite(n.deletedAt) ? n.deletedAt : null };
 }
 export function validateFolder(f) {
@@ -480,6 +480,7 @@ export const patchNote = (id, patch) => run(NOTE, 'readwrite', ({ notes }, set) 
     if (!n) { set(null); return; }
     const t = { ...n };
     if ('folderId' in patch) t.folderId = typeof patch.folderId === 'string' ? patch.folderId : null;
+    if ('date' in patch) t.date = noteDateOf({ date: patch.date });
     if ('pinned' in patch) { t.pinned = !!patch.pinned; t.pinnedAt = t.pinned ? (Number.isFinite(patch.pinnedAt) ? patch.pinnedAt : Date.now()) : null; }
     notes.put(t); set(t);
   };

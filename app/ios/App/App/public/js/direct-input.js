@@ -30,6 +30,27 @@ export function moveHandle(r, which, m) {
   if (which === 'start') return { start: Math.max(0, Math.min(snap15(m), r.end - 15)), end: r.end };
   return { start: r.start, end: Math.min(1440, Math.max(snap15(m), r.start + 15)) };
 }
+// 枠ごと動かす。長さ（end-start）は保ち、開始を15分刻み（最も近い線）に合わせ、0:00〜24:00 の外へ出ないよう開始をずらす。
+export function moveBox(r, minutes) {
+  const len = Math.min(1440, Math.max(15, r.end - r.start));
+  const start = Math.max(0, Math.min(Math.round(minutes / 15) * 15, 1440 - len));
+  return { start, end: start + len };
+}
+// 仮枠の押した位置の振り分け。y は枠の上端からの pt（枠の外側は負／高さ超え）、h は枠の高さ pt。
+// 丸の中心（上端・下端）から reach(16) 以内は長さ変え（'start'/'end'）、それより内側は 'move'。
+// h < 60 の短い枠は丸の押せる範囲を枠の外側へ寄せ（上は y<0、下は y>h）、内側は全部 'move'。範囲外は null。
+export function hitDraftPart(h, y, reach = 16) {
+  if (y < -22 || y > h + 22) return null;
+  if (h < 60) {
+    if (y < 0) return 'start';
+    if (y > h) return 'end';
+    return 'move';
+  }
+  const ds = Math.abs(y), de = Math.abs(y - h);
+  if (ds <= reach && ds <= de) return 'start';
+  if (de <= reach) return 'end';
+  return 'move';
+}
 export const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 export function durText(min) {
   const h = Math.floor(min / 60), m = min % 60;
