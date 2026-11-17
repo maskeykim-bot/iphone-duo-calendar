@@ -1,30 +1,21 @@
 // 第16版 PR12: 右の帯にタスクとメモの入口（DP-3）。閉じた画面・開いた横の帯に6項目。縦の上帯には置かない。
 import { test, expect } from '@playwright/test';
 import { openApp, tab, SIZES } from './helpers.js';
+import { spy, seedTasks, T } from './task-helpers.js';
 
-// 期限切れ＋今日の未完了を over 件、他に完了・先の予定を seed。
-async function mock(page, over = 3, perm = 'granted') {
-  await page.addInitScript(([p, over]) => {
-    const pad = (n) => String(n).padStart(2, '0');
-    const day = (off) => { const d = new Date(2026, 10, 12 + off); return `${d.getFullYear()}-${d.getMonth() + 1 < 10 ? '0' : ''}${d.getMonth() + 1}-${pad(d.getDate())}`; };
-    const R = (o) => ({ itemId: 'i', externalId: 'e', listId: 'L1', title: 't', notes: '', due: null, done: false, doneAt: null, alarms: [], alarmsExtra: 0, priority: 0, recurring: false, createdAt: null, modifiedAt: null, readOnly: false, ...o });
-    const M = window.__m = { items: [] };
-    for (let i = 0; i < over; i++) M.items.push(R({ itemId: `o${i}`, title: `対象${i}`, due: { date: day(i % 2 ? 0 : -1 - (i % 5)) } }));
-    M.items.push(R({ itemId: 'soon', title: '先', due: { date: day(3) } }), R({ itemId: 'nd', title: 'なし' }), R({ itemId: 'dn', title: '済', due: { date: day(0) }, done: true, doneAt: `${day(0)}T08:00` }));
-    window.Capacitor = {
-      isNativePlatform: () => true, getPlatform: () => 'ios', nativeCallback: () => 'c',
-      nativePromise: async (pl, m, o) => {
-        if (m === 'checkPermission') return { status: 'denied' };
-        if (m === 'reminderPermission') return { status: p };
-        if (m === 'listReminderLists') return { lists: [{ id: 'L1', title: 'L', color: '#336699' }] };
-        if (m === 'listReminders') return { reminders: M.items };
-        throw { code: 'UNAVAILABLE' };
-      },
-    };
-  }, [perm, over]);
+// 期限切れ＋今日の未完了を over 件、他に完了・先の予定を Duo 内保存へ seed（band が起動後に入れる）。native は偽装のみ。
+const PEND = new WeakMap();
+async function mock(page, over = 3) {
+  await spy(page);
+  const day = (off) => { const d = new Date(2026, 10, 12 + off); const pad = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+  const L = [];
+  const T1 = (id, title, due, o = {}) => L.push(T(id, { title, due, order: L.length + 1, createdAt: L.length + 1, updatedAt: L.length + 1, ...o }));
+  for (let i = 0; i < over; i++) T1(`o${i}`, `対象${i}`, { date: day(i % 2 ? 0 : -1 - (i % 5)) });
+  T1('soon', '先', { date: day(3) }); T1('nd', 'なし', null); T1('dn', '済', { date: day(0) }, { done: true, doneAt: `${day(0)}T08:00` });
+  PEND.set(page, L);
 }
 const setSafe = (page, r) => page.evaluate((r) => { const s = document.documentElement.style; s.setProperty('--sar', `${r}px`); }, r);
-const band = async (page, size, r = 84) => { await openApp(page, size); await setSafe(page, r); await page.waitForTimeout(80); };
+const band = async (page, size, r = 84) => { await openApp(page, size); if (PEND.get(page)?.length) await seedTasks(page, PEND.get(page)); await setSafe(page, r); await page.waitForTimeout(80); };
 const sb = (page, id) => page.locator(`.ctl [data-strip="${id}"]`);
 const near = (a, b, tol = 0.8) => expect(Math.abs(a - b), `${a} ≈ ${b}`).toBeLessThanOrEqual(tol);
 const names = (page) => page.locator('.ctl button').evaluateAll((e) => e.map((b) => b.dataset.act + (b.dataset.strip ? `:${b.dataset.strip}` : '')));

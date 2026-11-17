@@ -141,7 +141,7 @@ export function taskRowHtml(r, color, overdue) {
 }
 // ui: { doneOpen, histDays }。loading（初回）/ error は呼び出し側が渡す。
 export function tasksHtml(data, { selected, now = new Date(), doneOpen = false, histDays = HIST_DAYS, loading = false, error = false, busyMore = false, add = null, pending = null } = {}) {
-  if (!data) return `<div class="pagewait padb taskl" data-wait="task"><p class="remtx pad">${error ? 'リマインダーを読み込めませんでした。' : loading ? '読み込み中…' : ''}</p></div>`;
+  if (!data) return `<div class="pagewait padb taskl" data-wait="task"><p class="remtx pad">${error ? 'タスクを読み込めませんでした。' : loading ? '読み込み中…' : ''}</p></div>`;
   const colors = new Map((data.lists || []).map((l) => [l.id, l.color]));
   const g = groupReminders(data.reminders, { now, selected, histDays });
   const row = (r, late) => taskRowHtml(pending?.has(r.itemId) ? { ...r, done: pending.get(r.itemId) } : r, colors.get(r.listId), late);
@@ -150,7 +150,7 @@ export function tasksHtml(data, { selected, now = new Date(), doneOpen = false, 
   const doneHead = `<button type="button" class="rmdonebtn" data-act="remdone" aria-expanded="${doneOpen}">完了（${g.done.length}） <span aria-hidden="true">${doneOpen ? '⌄' : '›'}</span></button>`;
   h += `<section class="rmsec" data-sec="done">${doneHead}${doneOpen ? `<div role="list">${g.done.map((r) => row(r, false)).join('')}</div><button type="button" class="rmmore" data-act="remmore"${busyMore ? ' disabled' : ''}>もっと前を表示</button>` : ''}</section>`;
   if (!g.overdue.length && !g.selected.length && !g.upcoming.length && !g.nodue.length) h = `<p class="remtx pad rmempty">未完了のタスクはありません。</p>${h}`;
-  const addH = add ? addRowHtml(add.draft, { selected, noList: !add.listId }) : '';
+  const addH = add ? addRowHtml(add.draft, { selected, noList: add.noList === true }) : '';
   return `<div class="pagewait padb taskl" data-wait="task">${addH}${h}</div>`;
 }
 
@@ -257,7 +257,7 @@ export const hasNotify = (r) => Array.isArray(r?.alarms) && r.alarms.length > 0;
 const sameDue = (a, b) => JSON.stringify(normDue(a)) === JSON.stringify(normDue(b));
 // 編集シートの初期状態。lock: 'ro'（書けないリスト）| 'rec'（繰り返し＝完了だけ）| null。
 export function openTaskEditor(r, lists = []) {
-  const form = { title: r.title || '', date: r.due?.date || '', time: r.due?.time || '', listId: r.listId, notes: r.notes || '' };
+  const form = { title: r.title || '', date: r.due?.date || '', time: r.due?.time || '', notes: r.notes || '' };
   const ls = (Array.isArray(lists) ? lists : []).filter((l) => l.id === r.listId || l.allowsModify !== false);
   return { itemId: r.itemId, orig: r, form, base: JSON.stringify(form), lists: ls, lock: r.readOnly ? 'ro' : r.recurring ? 'rec' : null, err: '' };
 }
@@ -291,7 +291,6 @@ export async function saveTask(call, orig, form) {
 export function taskEditorHtml(ed) {
   const f = ed.form, dis = ed.lock ? ' disabled' : '';
   const r = ed.orig;
-  const opts = ed.lists.map((l) => `<option value="${escH(l.id)}"${l.id === f.listId ? ' selected' : ''}>${escH(l.title || '')}</option>`).join('');
   const meta = (r.priority > 0 ? '<span class="rmpri" aria-label="優先度あり">!</span> 優先度あり　' : '') + (r.recurring ? '繰り返し（リマインダーで変更できます）' : '');
   const why = ed.lock === 'ro' ? '<p class="small" role="note">読み取り専用のリストのため変更できません。</p>' : ed.lock === 'rec' ? '<p class="small" role="note">繰り返しのタスクは完了だけ変更できます。</p>' : '';
   return `<div class="tkwrap"><label>題名<input id="tk-title" maxlength="200" value="${escH(f.title)}"${dis}></label>`
@@ -299,7 +298,6 @@ export function taskEditorHtml(ed) {
     + `<div class="dtrow tkrow" id="tk-timerow"><label class="tkck tkton"><input id="tk-timeon" type="checkbox" role="switch"${dis}> 時刻を入れる</label><button type="button" id="tk-time" class="tcap" aria-haspopup="true" aria-expanded="false" value="${escH(f.time)}"${dis}${f.time ? '' : ' hidden'}></button></div>`
     + `<div class="tknote"><label class="tkck"><input id="tk-notify" type="checkbox"${dis}> 通知する</label><p class="small" id="tk-notewhy" role="note"></p>`
     + `${r.alarmsExtra > 0 ? `<p class="small tkextra" role="note">${NOTE_EXTRA}</p>` : ''}</div>`
-    + `<label>リスト<select id="tk-list"${dis}>${opts}</select></label>`
     + `<label>メモ<textarea id="tk-notes"${dis}>${escH(f.notes)}</textarea></label>`
     + (meta ? `<p class="small tkmeta">${meta}</p>` : '') + why + '</div>';
 }
@@ -338,7 +336,7 @@ export function createDoneController(call, { delay = 1500, onSettle, onPending }
 
 // ---- 第14版 PR20: 削除（4秒の取消）。即非表示、4秒たつか画面が裏に回ったら native で削除。再作成での取消はしない ----
 export const DELETE_UNDO_MS = 4000;
-export const TASK_DELETED = 'リマインダーから削除しました';
+export const TASK_DELETED = 'タスクを削除しました';
 export const TASK_DELETE_CONFLICT = 'iPhone のリマインダー側で変更されていたため、削除せずに残しました。';
 // onChange(): 非表示の集合が変わった。onSettle(id, { ok, missing, err }): native の結果が出た（ok=false なら表示へ戻す）。
 export function createDeleteController(call, { delay = DELETE_UNDO_MS, onChange, onSettle } = {}) {

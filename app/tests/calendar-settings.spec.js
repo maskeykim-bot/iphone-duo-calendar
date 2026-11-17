@@ -177,13 +177,11 @@ test.describe('設定 › カレンダー（PR8）', () => {
     expect((await ls(page)).defaultDest).toMatchObject({ type: 'iphone', id: 'cal-a' });
   });
 
-  test('リマインダーの段: 既存の一覧を出し、✓で表示するリストを切り替える', async ({ page }) => {
-    await setup(page, { remLists: [{ id: 'l1', title: '買い物', color: '#ff9500', source: 'iCloud', allowsModify: true, isDefault: true }, { id: 'l2', title: '仕事', color: '#007aff', source: 'iCloud', allowsModify: true, isDefault: false }] });
+  test('リマインダーの段は無い（タスクは Duo 内保存。リスト・許可の設定を持たない）', async ({ page }) => {
+    await setup(page, { remLists: [{ id: 'l1', title: '買い物', color: '#ff9500', source: 'iCloud', allowsModify: true, isDefault: true }] });
     await openMenu(page, 'calendar');
-    await expect(page.locator('#m-cal-rem [data-tkshow]')).toHaveCount(2);
-    await expect(page.locator('#m-cal-rem [data-tkshow][aria-checked="true"]')).toHaveCount(2);
-    await page.locator('#m-cal-rem [data-tkshow="l2"]').click();
-    await expect(page.locator('#m-cal-rem [data-tkshow="l2"]')).toHaveAttribute('aria-checked', 'false');
+    await expect(page.locator('#m-cal-rem')).toBeEmpty();
+    await expect(page.locator('#m-cal-rem [data-tkshow]')).toHaveCount(0);
     for (const m of WRITE_METHODS) expect(await mockCalls(page, m)).toHaveLength(0);
   });
 

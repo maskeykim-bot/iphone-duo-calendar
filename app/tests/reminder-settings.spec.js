@@ -1,76 +1,54 @@
-// 第14版 PR23: タスクのリスト設定（表示リスト／追加先）と月の「✓N」。
+// 第16版 PR17: 月のタスク件数（✓N）の設定と、廃止した同期・リスト・追加先・許可の設定が無いこと。タスクは Duo 内保存。
 import { test, expect } from '@playwright/test';
 import { openApp, openMenu, SIZES, OPEN_SIZES } from './helpers.js';
+import { spy, legacyCalls, seedTasks, T } from './task-helpers.js';
 
-async function mock(page, { store = null, lists = null } = {}) {
-  await page.addInitScript(({ store, lists }) => {
-    if (store && !localStorage.getItem('duo-native-rem')) localStorage.setItem('duo-native-rem', JSON.stringify(store));
-    const pad = (n) => String(n).padStart(2, '0');
-    const day = (off) => { const d = new Date(2026, 10, 12 + off); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
-    const R = (o) => ({ itemId: 'i', externalId: 'e', listId: 'A', title: 't', notes: '', due: null, done: false, doneAt: null, alarms: [], alarmsExtra: 0, priority: 0, recurring: false, createdAt: null, modifiedAt: 1, readOnly: false, ...o });
-    const M = window.__m = { calls: [], day };
-    M.lists = lists || [
-      { id: 'A', title: '仕事', color: '#336699', allowsModify: true, isDefault: true },
-      { id: 'B', title: '家', color: '#B43C3C', allowsModify: true, isDefault: false },
-      { id: 'C', title: '共有', color: '#2E7D32', allowsModify: false, isDefault: false },
-    ];
-    M.items = [
-      R({ itemId: 'a1', title: '秘密のA1', due: { date: day(0) } }),
-      R({ itemId: 'a2', title: '秘密のA2', due: { date: day(0), time: '10:00' } }),
-      R({ itemId: 'b1', title: '秘密のB1', listId: 'B', due: { date: day(0) } }),
-      R({ itemId: 'c1', title: '秘密のC1', listId: 'C', readOnly: true, due: { date: day(1) } }),
-      R({ itemId: 'd1', title: '済み', due: { date: day(1) }, done: true, doneAt: `${day(-1)}T08:00` }),
-    ];
-    window.Capacitor = {
-      isNativePlatform: () => true, getPlatform: () => 'ios',
-      nativeCallback: () => 'c',
-      nativePromise: async (pl, m, o) => {
-        M.calls.push([m, o]);
-        if (m === 'checkPermission') return { status: 'denied' };
-        if (m === 'reminderPermission') return { status: 'granted' };
-        if (m === 'listReminderLists') return { lists: M.lists };
-        if (m === 'listReminders') return { reminders: M.items.filter((r) => o.listIds.includes(r.listId) && (!r.done || r.doneAt >= o.completedSince)) };
-        if (m === 'setReminderDone') { const r = M.items.find((x) => x.itemId === o.itemId); r.done = o.done; r.doneAt = o.done ? `${day(0)}T09:00` : null; return { reminder: r }; }
-        if (m === 'createReminder') { const r = R({ itemId: `n${M.items.length}`, listId: o.listId, title: o.title, due: o.due }); M.items.push(r); return { reminder: r }; }
-        throw { code: 'UNAVAILABLE' };
-      },
-    };
-  }, { store, lists });
+const D0 = '2026-11-12', D1 = '2026-11-13';
+const SEED = [
+  T('a1', { title: '秘密のA1', order: 1 }),
+  T('a2', { title: '秘密のA2', order: 2, due: { date: D0, time: '10:00' } }),
+  T('b1', { title: '秘密のB1', order: 3 }),
+  T('c1', { title: '秘密のC1', order: 4, due: { date: D1 } }),
+  T('d1', { title: '済み', order: 5, due: { date: D1 }, done: true, doneAt: '2026-11-11T08:00' }),
+  T('n1', { title: '期限なし', order: 6, due: null }),
+];
+// store: localStorage の旧設定（初回だけ入れる）。
+async function boot(page, size, { store = null } = {}) {
+  await spy(page);
+  await page.addInitScript((st) => { if (st && !localStorage.getItem('duo-native-rem')) localStorage.setItem('duo-native-rem', JSON.stringify(st)); }, store);
+  await openApp(page, size);
+  await seedTasks(page, SEED);
 }
 const OPEN = SIZES.openLandscape;
 const cnt = (page, k) => page.locator(`.page.lp .day[data-date="${k}"] .tkn, .day[data-date="${k}"] .tkn`).first();
 const stored = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('duo-native-rem') || 'null'));
-const listCalls = (page) => page.evaluate(() => window.__m.calls.filter((c) => c[0] === 'listReminders').map((c) => c[1].listIds));
-const D0 = '2026-11-12', D1 = '2026-11-13';
+const ON = { lists: null, addTo: '', monthTasks: true };
 
 test.describe('月にタスクを表示', () => {
   test('初期は off（件数なし）。オンにすると開いた画面にだけ ✓N、タスク名は出ない', async ({ page }) => {
-    await mock(page);
-    await openApp(page, OPEN);
+    await boot(page, OPEN);
     await expect(page.locator('.day[data-date="2026-11-12"]').first()).toBeVisible();
     await expect(page.locator('.tkn')).toHaveCount(0);
     await openMenu(page, 'reminders');
     await expect(page.locator('#m-tkmonth')).toHaveAttribute('aria-checked', 'false');
     await page.locator('#m-tkmonth').click();
     await expect(page.locator('#m-tkmonth')).toHaveAttribute('aria-checked', 'true');
-    await expect(cnt(page, D0)).toHaveText('✓3'); // A×2＋B×1（完了・期限なしは除く）
-    await expect(cnt(page, D1)).toHaveText('✓1'); // 読み取り専用リストも表示対象。完了は数えない
+    await expect(cnt(page, D0)).toHaveText('✓3');
+    await expect(cnt(page, D1)).toHaveText('✓1'); // 完了・期限なしは数えない
     expect((await stored(page)).monthTasks).toBe(true);
-    const html = await page.locator('body').innerHTML();
-    expect(html).not.toContain('秘密のA1');
+    expect(await page.locator('body').innerHTML()).not.toContain('秘密のA1');
     expect(await page.evaluate(() => JSON.stringify(Object.entries(localStorage)))).not.toContain('秘密の');
     await expect(page.locator('.day[data-date="2026-11-12"] >> nth=0')).toHaveAttribute('aria-label', /未完了のタスク3件/);
+    expect(await legacyCalls(page)).toEqual([]);
   });
   test('閉じた画面では出さない', async ({ page }) => {
-    await mock(page, { store: { lists: null, addTo: '', monthTasks: true } });
-    await openApp(page, SIZES.closedPortrait);
+    await boot(page, SIZES.closedPortrait, { store: ON });
     await page.getByRole('button', { name: '月', exact: true }).first().click().catch(() => {});
     await expect(page.locator('.tkn')).toHaveCount(0);
   });
   for (const size of OPEN_SIZES) {
     test(`位置: 数字の中心から右14pt・8pt、+N と重ならない ${size.width}x${size.height}`, async ({ page }) => {
-      await mock(page, { store: { lists: null, addTo: '', monthTasks: true } });
-      await openApp(page, size);
+      await boot(page, size, { store: ON });
       const t = page.locator(`.day[data-date="${D0}"] .tkn`).first();
       await expect(t).toBeVisible();
       const g = await page.evaluate((k) => {
@@ -99,193 +77,42 @@ test.describe('月にタスクを表示', () => {
       expect(hit).toEqual([]);
     });
   }
-  test('完了で件数が減り、戻すと増える。日付変更の再取得でも更新', async ({ page }) => {
-    await mock(page, { store: { lists: null, addTo: '', monthTasks: true } });
-    await openApp(page, OPEN);
+  test('完了で件数が減り、戻すと増える。保存の変更（期限）後の再読込でも更新', async ({ page }) => {
+    await boot(page, OPEN, { store: ON });
     await expect(cnt(page, D0)).toHaveText('✓3');
     await page.locator('.pgr [data-pick="task"]').first().click();
-    const lp = page.locator('.page.rp');
-    await lp.locator('[data-key="rm:a1"] [data-act="remck"]').click();
+    const rp = page.locator('.page.rp');
+    await rp.locator('[data-key="rm:a1"] [data-act="remck"]').click();
     await expect(cnt(page, D0)).toHaveText('✓2');
-    await lp.locator('[data-key="rm:a1"] [data-act="remck"]').click();
+    await rp.locator('[data-key="rm:a1"] [data-act="remck"]').click();
     await expect(cnt(page, D0)).toHaveText('✓3');
-    // iPhone 側で期限が変わった → 次の取得で件数が動く
-    await page.evaluate(() => { window.__m.items.find((r) => r.itemId === 'a2').due = { date: window.__m.day(5) }; });
-    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await page.waitForTimeout(1800);
+    await page.evaluate(async () => { const d = await import('/js/db.js'); const t = (await d.listTasks()).find((x) => x.id === 'a2'); await d.putTask({ ...t, due: { date: '2026-11-17' } }); });
+    await page.reload(); await page.waitForSelector('html[data-ready]');
     await expect(cnt(page, D0)).toHaveText('✓2');
   });
 });
 
-const closeMenu = async (page) => { await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await expect(page.locator('#menu')).toBeHidden(); };
-const createCalls = (page) => page.evaluate(() => window.__m.calls.filter((c) => c[0] === 'createReminder').map((c) => c[1].listId));
-const taskCalls = (page) => page.evaluate(() => window.__m.calls.filter((c) => c[0] === 'listReminders' || c[0] === 'listReminderLists').length);
-
-test.describe('リストの表示と追加先（カレンダー内のリマインダー段）', () => {
-  test('初回は全 id を保存。選ぶと native へはその id だけ、追加先は独立のまま。全オフも保持', async ({ page }) => {
-    await mock(page);
-    await openApp(page, OPEN);
-    await page.locator('.pgr [data-pick="task"]').first().click();
-    const lp = page.locator('.page.rp');
-    await expect(lp.locator('[data-key="rm:b1"]')).toBeVisible();
-    await expect.poll(() => stored(page)).toMatchObject({ enabled: true, lists: ['A', 'B', 'C'] });
+test.describe('廃止した設定（同期・リスト・追加先・許可）', () => {
+  test('設定›カレンダーのリマインダー段は空。許可・同期・リストの操作は無い。native 呼出0', async ({ page }) => {
+    await boot(page, OPEN);
     await openMenu(page, 'calendar');
-    const rb = page.locator('#m-cal-rem');
-    await expect(rb.locator('[data-tkshow="C"]')).toContainText('表示のみ');
-    await expect(rb.locator('[data-tkadd="C"]')).toHaveCount(0); // 読み取り専用は追加先に出ない
-    await expect(rb.locator('[data-tkadd=""]')).toHaveAttribute('aria-checked', 'true');
-    await expect(rb.locator('#m-remhist')).toHaveText('完了したタスク：30日分を表示');
-    await rb.locator('[data-tkshow="A"]').click();
-    await rb.locator('[data-tkshow="C"]').click();
-    await expect.poll(async () => (await listCalls(page)).at(-1)).toEqual(['B']);
-    expect((await stored(page)).lists).toEqual(['B']);
-    await closeMenu(page);
-    await expect(lp.locator('[data-key="rm:a1"]')).toHaveCount(0);
-    await lp.locator('input.remin').click();
-    await lp.locator('input.remin').fill('新しい');
-    await lp.locator('input.remin').press('Enter');
-    await expect.poll(() => createCalls(page)).toEqual(['B']); // 追加先は✓付き書込可のみ（A は非表示）
-    // 全オフ: 最後の1つも外せる。表示は空、追加不可、リロードしても全件に戻らない
-    await openMenu(page, 'calendar');
-    await rb.locator('[data-tkshow="B"]').click();
-    await expect(rb.locator('[data-tkshow][aria-checked="true"]')).toHaveCount(0);
-    await expect(rb).toContainText('追加できるリストがありません');
-    expect((await stored(page)).lists).toEqual([]);
-    await closeMenu(page);
-    await expect(lp.locator('.rmrow')).toHaveCount(0);
-    await page.reload(); await page.waitForSelector('html[data-ready]');
-    expect((await stored(page)).lists).toEqual([]);
-    await expect(page.locator('.rmrow')).toHaveCount(0);
+    await expect(page.locator('#m-cal-rem')).toBeEmpty();
+    await expect(page.locator('#m-remsync, #m-remreq, [data-tkshow], [data-tkadd], #m-remhist')).toHaveCount(0);
+    expect(await legacyCalls(page)).toEqual([]);
   });
-  test('追加先を B にすると B へ。非表示にすると自動へ', async ({ page }) => {
-    await mock(page);
-    await openApp(page, OPEN);
-    await page.locator('.pgr [data-pick="task"]').first().click();
-    await openMenu(page, 'calendar');
-    const rb = page.locator('#m-cal-rem');
-    await rb.locator('[data-tkadd="B"]').click();
-    await expect(rb.locator('[data-tkadd="B"]')).toHaveAttribute('aria-checked', 'true');
-    expect((await stored(page)).addTo).toBe('B');
-    await closeMenu(page);
-    const lp = page.locator('.page.rp');
-    await lp.locator('input.remin').click();
-    await lp.locator('input.remin').fill('家のこと');
-    await lp.locator('input.remin').press('Enter');
-    await expect.poll(() => createCalls(page)).toEqual(['B']);
-    await openMenu(page, 'calendar');
-    await rb.locator('[data-tkshow="B"]').click(); // B を非表示 → 追加先は自動（A）
-    await expect(rb.locator('[data-tkadd="B"]')).toHaveCount(0);
-    await expect(rb.locator('[data-tkadd=""]')).toHaveAttribute('aria-checked', 'true');
-    await closeMenu(page);
-    if (await lp.locator('input.remin').count()) await lp.locator('input.remin').click();
-    await lp.locator('input.remin').fill('仕事');
-    await lp.locator('input.remin').press('Enter');
-    await expect.poll(() => createCalls(page)).toEqual(['B', 'A']);
-  });
-  test('消えたリストの id は除かれ、追加先は自動に戻る。旧設定は enabled=true で移行', async ({ page }) => {
-    await mock(page, { store: { lists: ['B', 'GONE'], addTo: 'GONE', monthTasks: true } });
-    await openApp(page, OPEN);
-    await expect.poll(() => stored(page)).toEqual({ enabled: true, lists: ['B'], addTo: '', monthTasks: true });
-    await expect(cnt(page, D0)).toHaveText('✓1'); // B だけ
-    expect((await listCalls(page)).at(-1)).toEqual(['B']);
-  });
-  test('増えたリストは選ばない。書込可が✓にない時は追加不可。既定なしは✓の書ける先頭', async ({ page }) => {
-    await mock(page, { store: { lists: ['A', 'B'], addTo: '', monthTasks: false }, lists: [
-      { id: 'A', title: '仕事', color: '#336699', allowsModify: false, isDefault: false },
-      { id: 'B', title: '家', color: '#B43C3C', allowsModify: true, isDefault: false },
-    ] });
-    await openApp(page, OPEN);
-    await page.locator('.pgr [data-pick="task"]').first().click();
-    const lp = page.locator('.page.rp');
-    await lp.locator('input.remin').click();
-    await lp.locator('input.remin').fill('x');
-    await lp.locator('input.remin').press('Enter');
-    await expect.poll(() => createCalls(page)).toEqual(['B']);
-    await page.evaluate(() => { window.__m.lists.push({ id: 'N', title: '新', color: '#000000', allowsModify: true, isDefault: false }); window.__m.items.push({ itemId: 'n1', externalId: 'e', listId: 'N', title: '新規', notes: '', due: null, done: false, doneAt: null, alarms: [], alarmsExtra: 0, priority: 0, recurring: false, createdAt: 1, modifiedAt: 1, readOnly: false }); });
-    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-    await openMenu(page, 'calendar');
-    await expect(page.locator('#m-cal-rem [data-tkshow="N"]')).toHaveAttribute('aria-checked', 'false'); // 増加分は未選択
-    expect((await stored(page)).lists).toEqual(['A', 'B']);
-    await expect(lp.locator('[data-key="rm:n1"]')).toHaveCount(0);
-    await closeMenu(page);
-  });
-  test('一覧の一時的な空では選択を失わない', async ({ page }) => {
-    await mock(page, { store: { lists: ['A', 'B'], addTo: 'B', monthTasks: false } });
-    await openApp(page, OPEN);
-    await page.locator('.pgr [data-pick="task"]').first().click();
-    await expect(page.locator('.page.rp [data-key="rm:a1"]')).toBeVisible();
-    await page.evaluate(() => { window.__m.lists = []; });
-    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-    await page.waitForTimeout(600);
-    expect(await stored(page)).toMatchObject({ lists: ['A', 'B'], addTo: 'B', monthTasks: false });
-  });
-});
-
-test.describe('リマインダーの同期スイッチ', () => {
-  test('オフで一覧取得0・タスクページは案内・✓N は出ない。選択は残り、オンで復帰', async ({ page }) => {
-    await mock(page, { store: { lists: ['A', 'B'], addTo: 'B', monthTasks: true } });
-    await openApp(page, OPEN);
-    await expect(cnt(page, D0)).toHaveText('✓3');
-    await openMenu(page, 'calendar');
-    const sw = page.locator('#m-remsync');
-    await expect(sw).toHaveAttribute('aria-checked', 'true');
-    await sw.click();
-    await expect(sw).toHaveAttribute('aria-checked', 'false');
-    await expect(page.locator('#m-cal-rem [data-tkshow]')).toHaveCount(0);
-    await closeMenu(page);
-    await expect(page.locator('.tkn')).toHaveCount(0);
-    await page.locator('.pgr [data-pick="task"]').first().click();
-    await expect(page.locator('.page.rp .remgate')).toContainText('リマインダーの同期がオフ');
-    const n0 = await taskCalls(page);
-    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-    await page.waitForTimeout(700);
-    expect(await taskCalls(page)).toBe(n0);
-    expect(await stored(page)).toEqual({ enabled: false, lists: ['A', 'B'], addTo: 'B', monthTasks: true });
-    // 再起動でもオフのまま（呼出0）
-    await page.reload(); await page.waitForSelector('html[data-ready]');
-    await page.waitForTimeout(500);
-    expect(await taskCalls(page)).toBe(0);
-    // オンで復帰
-    await openMenu(page, 'calendar');
-    await page.locator('#m-remsync').click();
-    await expect(cnt(page, D0)).toHaveText('✓3');
-    expect((await stored(page)).enabled).toBe(true);
-    expect((await stored(page)).lists).toEqual(['A', 'B']);
-  });
-  test('オフ前に始めた遅い listReminders の応答は捨てる', async ({ page }) => {
-    await mock(page, { store: { lists: null, addTo: '', monthTasks: true } });
-    await page.addInitScript(() => {
-      const orig = () => window.Capacitor.nativePromise;
-      const t = setInterval(() => {
-        const f = window.Capacitor?.nativePromise; if (!f || f.__w) return;
-        const w = async (pl, m, o) => { const r = await f(pl, m, o); if (m === 'listReminders' && window.__slow) await new Promise((res) => setTimeout(res, 800)); return r; };
-        w.__w = true; window.Capacitor.nativePromise = w; clearInterval(t);
-      }, 1);
-      void orig;
-    });
-    await openApp(page, OPEN);
-    await expect(cnt(page, D0)).toHaveText('✓3');
-    await page.evaluate(() => { window.__slow = true; document.dispatchEvent(new Event('visibilitychange')); });
-    await page.evaluate(() => { window.__m.items.push({ itemId: 'z1', externalId: 'e', listId: 'A', title: '遅い', notes: '', due: { date: window.__m.day(0) }, done: false, doneAt: null, alarms: [], alarmsExtra: 0, priority: 0, recurring: false, createdAt: 1, modifiedAt: 1, readOnly: false }); });
-    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-    await page.waitForTimeout(450); // 取得が飛んでいる間にオフ
-    await openMenu(page, 'calendar');
-    await page.locator('#m-remsync').click();
-    await closeMenu(page);
-    await page.waitForTimeout(1400);
-    await expect(page.locator('.tkn')).toHaveCount(0);
-    const html = await page.locator('body').innerHTML();
-    expect(html).not.toContain('遅い');
-  });
-});
-
-test.describe('その他', () => {
-  test('バックアップの説明に設定を含まないと明記。ネイティブ以外ではタスク設定を出さない', async ({ page }) => {
-    await page.goto('/index.html');
-    await page.setViewportSize(SIZES.openLandscape);
-    await page.waitForSelector('html[data-ready]');
-    await openMenu(page);
-    await expect(page.locator('#m-reminders')).toBeHidden(); // ネイティブ以外はリマインダーの入口を出さない
-    await expect(page.locator('#m-tk')).toBeHidden();
+  test('旧設定（lists・addTo・enabled:false）は消さず、読まない: タスクは隠れず追加もできる', async ({ page }) => {
+    const old = { enabled: false, lists: [], addTo: 'L9', monthTasks: false };
+    await boot(page, OPEN, { store: old });
+    await page.locator('.pgl [data-pick="task"]').first().click();
+    const lp = page.locator('.page.lp');
+    await expect(lp.locator('[data-key="rm:a1"]')).toBeVisible();
+    await expect(lp.locator('.remgate')).toHaveCount(0);
+    const i = lp.locator('input.remin');
+    await i.click(); await i.fill('新しい'); await i.press('Enter');
+    await expect(i).toHaveValue('');
+    await expect(lp.locator('.rmt', { hasText: '新しい' })).toHaveCount(1);
+    expect(await stored(page)).toMatchObject(old); // 旧設定はそのまま
+    expect(await legacyCalls(page)).toEqual([]);
   });
 });

@@ -1,23 +1,14 @@
 // 第16版 PR14: ホームに今日のカード（design/14 案A）。2026-11-12 09:41 JST 固定。
 import { test, expect } from '@playwright/test';
 import { openApp, SIZES, seed, ev, tab } from './helpers.js';
+import { spy, seedTasks, dbTasks, legacyCalls } from './task-helpers.js';
 
-async function mockTasks(page, items = [], perm = 'granted') {
-  await page.addInitScript(([p, items]) => {
-    const R = (o) => ({ itemId: 'i', externalId: 'e', listId: 'L1', title: 't', notes: '', due: null, done: false, doneAt: null, alarms: [], alarmsExtra: 0, priority: 0, recurring: false, createdAt: null, modifiedAt: null, readOnly: false, ...o });
-    const M = window.__m = { items: items.map(R) };
-    window.Capacitor = {
-      isNativePlatform: () => true, getPlatform: () => 'ios', nativeCallback: () => 'c',
-      nativePromise: async (pl, m, o) => {
-        if (m === 'checkPermission') return { status: 'denied' };
-        if (m === 'reminderPermission') return { status: p };
-        if (m === 'listReminderLists') return { lists: [{ id: 'L1', title: 'L', color: '#336699' }] };
-        if (m === 'listReminders') return { reminders: M.items };
-        if (m === 'setReminderDone') { const r = M.items.find((x) => x.itemId === o.itemId); if (r) r.done = !!o.done; return { reminder: r }; }
-        throw { code: 'UNAVAILABLE' };
-      },
-    };
-  }, [perm, items]);
+// native は偽装（旧リマインダー集合つき・呼出は legacyCalls で0を検査）。タスクは Duo 内保存へ seed する。
+const toTask = (o, n) => ({ id: o.itemId, title: o.title, due: o.due ?? null, done: !!o.done, doneAt: null, createdAt: n + 1, updatedAt: n + 1, order: n + 1, note: '', notify: false });
+async function openH(page, size, items = []) {
+  await spy(page);
+  await openApp(page, size);
+  if (items.length) await seedTasks(page, items.map(toTask));
 }
 const seedUi = async (page, patch) => {
   await page.evaluate((p) => { const s = JSON.parse(localStorage.getItem('duo.ui.v1') || '{}'); localStorage.setItem('duo.ui.v1', JSON.stringify({ ...s, ...p })); }, patch);
@@ -42,8 +33,7 @@ const TASKS = [
 ];
 
 test('閉じたホーム: 次の予定・今日の予定3件＋ほか・タスク3件・メモ・明日。次の予定は二重掲載しない', async ({ page }) => {
-  await mockTasks(page, TASKS);
-  await openApp(page, SIZES.closedPortrait);
+  await openH(page, SIZES.closedPortrait, TASKS);
   await seed(page, EVS);
   await tab(page, 'ホーム').click();
   await expect(page.locator('.next')).toContainText('会議');
@@ -68,8 +58,7 @@ test('閉じたホーム: 次の予定・今日の予定3件＋ほか・タス�
 });
 
 test('閉じたホーム: 全体がスクロールし、タブは固定', async ({ page }) => {
-  await mockTasks(page, TASKS);
-  await openApp(page, SIZES.closedPortrait);
+  await openH(page, SIZES.closedPortrait, TASKS);
   await seed(page, EVS);
   await tab(page, 'ホーム').click();
   const sc = page.locator('.home.listview');
@@ -83,8 +72,7 @@ test('閉じたホーム: 全体がスクロールし、タブは固定', async 
 });
 
 test('20時以降は明日が今日の予定の上。選択日と独立して今日固定', async ({ page }) => {
-  await mockTasks(page, []);
-  await openApp(page, SIZES.closedPortrait);
+  await openH(page, SIZES.closedPortrait, []);
   await seed(page, EVS);
   await page.clock.setFixedTime(new Date('2026-11-12T21:00:00+09:00'));
   await seedUi(page, { selected: '2026-12-25' });
@@ -96,8 +84,7 @@ test('20時以降は明日が今日の予定の上。選択日と独立して今
 });
 
 test('0件案内と次の予定なし', async ({ page }) => {
-  await mockTasks(page, []);
-  await openApp(page, SIZES.closedPortrait);
+  await openH(page, SIZES.closedPortrait, []);
   await tab(page, 'ホーム').click();
   await expect(page.locator('.htasks')).toContainText('今日のタスクはありません');
   await expect(page.locator('.hevents')).toContainText('この後の予定はありません');
@@ -106,28 +93,32 @@ test('0件案内と次の予定なし', async ({ page }) => {
 });
 
 test('今日の予定のあと次の予定なし（今日が終わった）は明日以降を次に出す', async ({ page }) => {
-  await mockTasks(page, []);
-  await openApp(page, SIZES.closedPortrait);
+  await openH(page, SIZES.closedPortrait, []);
   await seed(page, [EVS[0], EVS[6]]);
   await tab(page, 'ホーム').click();
   await expect(page.locator('.next')).toContainText('出張');
   await expect(page.locator('.hevents .hrow')).toHaveCount(0);
 });
 
-test('タスクの完了: 丸で完了にして取り消せる（行は完了表示で残り、件数は減る）', async ({ page }) => {
-  await mockTasks(page, TASKS);
-  await openApp(page, SIZES.closedPortrait);
+test('タスクの完了: 丸で完了にして取り消せる（行は完了表示で残り、件数は減る。Duo 内に保存）', async ({ page }) => {
+  await openH(page, SIZES.closedPortrait, TASKS);
   await tab(page, 'ホーム').click();
   await page.locator('.htask').first().locator('[data-act="remck"]').click();
   await expect(page.locator('.htask.done')).toHaveCount(1);
   await expect(page.locator('.htasks h3')).toContainText('3件');
   const b = await page.locator('.htask [data-act="remck"]').first().boundingBox();
   expect(b.height).toBeGreaterThanOrEqual(44);
+  await expect.poll(async () => (await dbTasks(page)).find((t) => t.id === 'c').done).toBe(true);
+  // 取り消し（もう一度押す）で未完了へ戻り、保存も戻る
+  await page.locator('.htask.done [data-act="remck"]').click();
+  await expect(page.locator('.htask.done')).toHaveCount(0);
+  await expect(page.locator('.htasks h3')).toContainText('4件');
+  await expect.poll(async () => (await dbTasks(page)).find((t) => t.id === 'c').done).toBe(false);
+  expect(await legacyCalls(page)).toEqual([]);
 });
 
 test('導線: タイムライン›は日表示の今日、明日は明日、すべて›はタスク', async ({ page }) => {
-  await mockTasks(page, TASKS);
-  await openApp(page, SIZES.closedPortrait);
+  await openH(page, SIZES.closedPortrait, TASKS);
   await seed(page, EVS);
   await tab(page, 'ホーム').click();
   await page.locator('.hevents .hgo').click();
@@ -143,8 +134,7 @@ test('導線: タイムライン›は日表示の今日、明日は明日、す
 });
 
 test('今日のメモ: 最初の2行を出し、たたくとメモを開く', async ({ page }) => {
-  await mockTasks(page, []);
-  await openApp(page, SIZES.closedPortrait);
+  await openH(page, SIZES.closedPortrait, []);
   await page.evaluate(async () => { await (await import('/js/db.js')).putMemo('2026-11-12', '一行目\n\n二行目\n三行目', Date.now()); });
   await page.reload(); await page.waitForSelector('html[data-ready]');
   await tab(page, 'ホーム').click();
@@ -154,8 +144,7 @@ test('今日のメモ: 最初の2行を出し、たたくとメモを開く', as
 });
 
 test('開いた横: ホームは9〜19時の小さな時間軸。予定をたたくと反対側の時間へ', async ({ page }) => {
-  await mockTasks(page, TASKS);
-  await openApp(page, SIZES.openLandscape951);
+  await openH(page, SIZES.openLandscape951, TASKS);
   await seed(page, EVS);
   await seedUi(page, { pages: { left: 'home', right: 'month', portraitBottom: 'time', portraitShown: false } });
   const ax = page.locator('.page.lp .haxis');
@@ -170,8 +159,7 @@ test('開いた横: ホームは9〜19時の小さな時間軸。予定をたた
 });
 
 test('開いた縦の下段: 次の予定・タスク・今日のメモの3列', async ({ page }) => {
-  await mockTasks(page, TASKS);
-  await openApp(page, SIZES.openPortrait669);
+  await openH(page, SIZES.openPortrait669, TASKS);
   await seed(page, EVS);
   await seedUi(page, { pages: { left: 'home', right: 'month', portraitBottom: 'home', portraitShown: true } });
   const cols = page.locator('.pnl .hcol');

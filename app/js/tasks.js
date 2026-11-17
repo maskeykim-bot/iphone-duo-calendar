@@ -50,3 +50,87 @@ export function classifyTasks(list) {
   for (const t of list) (t.done ? done : open).push(t);
   return { open: open.sort(cmp), done: done.sort(cmp) };
 }
+
+// ---------- Duo 内保存（local）アダプタ（第16版 PR17） ----------
+// 画面の表示・完了・削除・編集は「行」（旧リマインダーと同じ形）で動く。行 = Task を写したもの。native は一切呼ばない。
+export const LOCAL_LIST = { id: 'duo', title: 'タスク', color: '#68716A', allowsModify: true, isDefault: true, source: 'Duo' };
+const pad2 = (n) => String(n).padStart(2, '0');
+export const stampNow = (d = new Date()) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+export const rowOf = (t) => ({ itemId: t.id, listId: LOCAL_LIST.id, title: t.title, notes: t.note, due: t.due, done: t.done, doneAt: t.doneAt, alarms: t.notify ? [{}] : [], alarmsExtra: 0, priority: 0, recurring: false, createdAt: t.createdAt, modifiedAt: t.updatedAt, readOnly: false });
+const fail = (code, e) => Object.assign(new Error(e?.message || code), { code });
+// 保存の失敗は理由を分けて表示できるよう code にする（容量超過は STORAGE_FULL、それ以外は STORE_FAILED）。
+const storeErr = (e) => (e && (e.code === 'INVALID_ARGUMENT' || e.code === 'NOT_FOUND') ? e : fail(/quota/i.test(`${e?.name} ${e?.message}`) ? 'STORAGE_FULL' : /^(タスク|題名)/.test(e?.message || '') ? 'INVALID_ARGUMENT' : 'STORE_FAILED', e));
+export const TASK_STORE_TEXT = { STORAGE_FULL: '端末の空きが足りず保存できませんでした。', STORE_FAILED: 'Duo 内に保存できませんでした。', INVALID_ARGUMENT: 'タスクの内容を確かめてください。' };
+
+// db: { listTasks, getTask, putTask, addTask, deleteTask }（db.js）。
+export function createTaskStore(db) {
+  return {
+    async list() { try { return await db.listTasks(); } catch (e) { throw storeErr(e); } },
+    // id は呼び出し側が決める（同じ要求の再試行は同じ id → db.addTask が重複させない）。
+    async add({ id, title, due = null, notify = false, note = '' }) { try { return await db.addTask({ id, title, due, notify, note }); } catch (e) { throw storeErr(e); } },
+    // patch: { title?, note?, due?, notify? }。変えていない項目は保持する。
+    async update(id, patch, now = Date.now()) {
+      try {
+        const cur = await db.getTask(id);
+        if (!cur) throw fail('NOT_FOUND');
+        const due = 'due' in patch ? patch.due : cur.due;
+        return await db.putTask({ ...cur, ...('title' in patch ? { title: patch.title } : {}), ...('note' in patch ? { note: patch.note } : {}), due, ...('notify' in patch ? { notify: !!patch.notify } : {}), updatedAt: now });
+      } catch (e) { throw storeErr(e); }
+    },
+    async setDone(id, done, now = Date.now()) {
+      try {
+        const cur = await db.getTask(id);
+        if (!cur) throw fail('NOT_FOUND');
+        return await db.putTask({ ...cur, done: !!done, doneAt: done ? stampNow(new Date(now)) : null, updatedAt: now });
+      } catch (e) { throw storeErr(e); }
+    },
+    async remove(id) { try { const cur = await db.getTask(id); await db.deleteTask(id); return { missing: !cur }; } catch (e) { throw storeErr(e); } },
+  };
+}
+
+// 旧リマインダーの controller（完了・削除・編集）が呼ぶ口を、そのまま Duo 内保存へ向ける。native は呼ばない。
+export function createLocalCall(store) {
+  return async (method, o = {}) => {
+    switch (method) {
+      case 'listReminderLists': return { lists: [LOCAL_LIST] };
+      case 'listReminders': return { reminders: (await store.list()).map(rowOf) };
+      case 'setReminderDone': return { reminder: rowOf(await store.setDone(o.itemId, o.done)) };
+      case 'deleteReminder': return { deleted: true, ...(await store.remove(o.itemId)) };
+      case 'updateReminder': {
+        const p = o.patch || {}, patch = {};
+        if ('title' in p) patch.title = p.title;
+        if ('notes' in p) patch.note = p.notes;
+        if ('due' in p) patch.due = p.due;
+        if ('notify' in p) patch.notify = p.notify;
+        return { reminder: rowOf(await store.update(o.itemId, patch)), conflicted: false };
+      }
+      default: throw fail('UNAVAILABLE');
+    }
+  };
+}
+
+// 追加の制御。保存中は排他。失敗では本文を残し、同じ内容の再試行は同じ id（二重に作らない）、内容が変われば新しい id、成功したら捨てる。
+export function createLocalAddController(store) {
+  let pend = null, busy = false;
+  const rid = () => `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+  return {
+    get busy() { return busy; },
+    async submit({ title, due = null, time = '', notify }) {
+      if (busy) return { ok: false, busy: true };
+      const t = String(title ?? '').trim();
+      if (!t) return { ok: false, empty: true };
+      const dueV = due ? (time ? { date: due, time } : { date: due }) : null;
+      const nv = !!dueV && notify === true;
+      const fp = JSON.stringify([t, dueV, nv]);
+      if (!pend || pend.fp !== fp) pend = { id: rid(), fp, args: { title: t, due: dueV, notify: nv } };
+      const req = pend;
+      busy = true;
+      try {
+        const task = await store.add({ id: req.id, ...req.args });
+        if (pend === req) pend = null;
+        return { ok: true, task, reminder: rowOf(task) };
+      } catch (e) { return { ok: false, code: e?.code || 'STORE_FAILED' }; }
+      finally { busy = false; }
+    },
+  };
+}

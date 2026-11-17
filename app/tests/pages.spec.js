@@ -159,13 +159,13 @@ test('左を時間・右を月にしても、右の月は月の見出しと前�
   await expect(page.locator('.page.lp .rdate')).toContainText('20日');
 });
 
-test('＋の行き先は最後に触ったページ。タスク・メモは予定を開かず案内のみ', async ({ page }) => {
+test('＋の行き先は最後に触ったページ。タスクは入力欄へ、メモ・タスクは予定を開かない', async ({ page }) => {
   await openApp(page, SIZES.openLandscape951);
   await pagePick(page, 'left', 'タスク').click(); // 左=タスク 右=時間（月は交換されず右の時間が残る）… 左を触った
   expect(await kinds(page)).toEqual(['task', 'time']);
   await page.getByRole('button', { name: '予定を追加' }).first().click();
   await expect(page.locator('#editor')).not.toHaveAttribute('open', /.*/);
-  await expect(page.getByRole('status')).toContainText('タスクの入力は準備中');
+  await expect(page.locator('.page.lp input.remin')).toBeFocused();
   await page.locator('.page.rp [data-act="tlmenu"]').click(); // 右を触った
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: '予定を追加' }).first().click();
