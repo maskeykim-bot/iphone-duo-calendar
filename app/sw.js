@@ -1,8 +1,8 @@
 // 静的アセットのみをキャッシュ。同一オリジン以外には一切アクセスしない。
-const CACHE = 'duo-static-v131';
+const CACHE = 'duo-static-v132';
 const ASSETS = [
   './', './index.html', './manifest.json', './css/app.css',
-  './js/app.js', './js/db.js', './js/util.js', './js/sample.js', './js/swipe.js', './js/recur.js', './js/search.js', './js/backup.js', './js/native.js', './js/iphone.js', './js/categories.js', './js/occcache.js', './js/alarms.js', './js/notify.js', './js/rokuyo.js', './js/rokuyo-table.js', './js/pages.js', './js/home.js', './js/memos.js', './js/notes-model.js', './js/notes.js', './js/notes-ui.js', './js/reminders.js', './js/direct-input.js', './js/paste.js', './js/datetime.js', './js/datetime-ui.js', './js/destination-ui.js', './js/kbmetrics.js', './js/posture.js', './js/holidays.js', './js/holidays-table.js', './js/tasks.js',
+  './js/app.js', './js/db.js', './js/util.js', './js/sample.js', './js/swipe.js', './js/recur.js', './js/search.js', './js/backup.js', './js/native.js', './js/iphone.js', './js/categories.js', './js/occcache.js', './js/alarms.js', './js/notify.js', './js/rokuyo.js', './js/rokuyo-table.js', './js/pages.js', './js/home.js', './js/memos.js', './js/notes-model.js', './js/notes.js', './js/notes-ui.js', './js/note-lines.js', './js/reminders.js', './js/direct-input.js', './js/paste.js', './js/datetime.js', './js/datetime-ui.js', './js/destination-ui.js', './js/kbmetrics.js', './js/posture.js', './js/holidays.js', './js/holidays-table.js', './js/tasks.js',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
 ];
 self.addEventListener('install', (e) => {
