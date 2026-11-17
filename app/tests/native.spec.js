@@ -1240,6 +1240,7 @@ test.describe('新規の標準オン（第13版 PR5）', () => {
     await openLinkPanel(page);
     await page.locator('#m-dest').click();
     await expect(page.locator('#m-destpop .dopt[data-sdtype="iphone"]')).toHaveCount(0);
+    await page.locator('#m-destpop .dback').click(); // 追加先ページから設定へ戻る
     await expect(page.locator('[data-cal]')).toHaveCount(1); // 表示のみのカレンダーは✓で選べる
     await closeSettings(page);
     await openNew(page);

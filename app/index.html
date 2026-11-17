@@ -152,8 +152,7 @@
         <div id="m-cal-ip"></div>
         <div id="m-cal-rem"></div>
       </div>
-      <button type="button" id="m-dest" class="destrow" aria-expanded="false" aria-controls="m-destpop"></button>
-      <div id="m-destpop" class="destpop" role="listbox" aria-label="新しい予定の追加先" hidden></div>
+      <button type="button" id="m-dest" class="destrow" aria-haspopup="true" aria-expanded="false" aria-controls="m-destpop"></button>
       <div id="m-cal-foot" class="lkfoot" hidden></div>
       <div id="m-legend" class="mlegend" hidden></div>
     </div>
@@ -180,6 +179,7 @@
       <p id="layout-diagnostics" class="diag" aria-label="画面の寸法の診断"></p>
     </div>
   </div>
+  <div id="m-destpop" class="destpage" role="group" aria-label="新しい予定の追加先" hidden></div>
 </dialog>
 <dialog id="search" class="panel full" aria-labelledby="sr-title">
   <div class="phead"><h2 id="sr-title">予定を検索</h2><button type="button" id="sr-close">閉じる</button></div>

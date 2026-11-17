@@ -999,14 +999,8 @@ body.settings-open .ctl.band [data-act=menu] .bi::after{content:"×";font-size:2
 .destrow .dname{flex:1;min-width:0}
 .destrow .cdot{flex:none;width:12px;height:12px;border-radius:50%}
 .destrow .dval{font-size:14px;color:#68716A;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#m-destpop{margin:0 12px 6px;border:1px solid #ECE9E1;border-radius:14px;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:#fff}
-#m-destpop h4{margin:0;padding:6px 14px 2px;font-size:12px;font-weight:400;color:#8C918B}
-#m-destpop .dopt{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:0 14px;border:0;background:transparent;text-align:left;font-size:15px}
-#m-destpop .dopt .cdot{flex:none;width:12px;height:12px;border-radius:50%}
-#m-destpop .dopt .dn{flex:1;min-width:0}
-#m-destpop .dopt.hid .dn{color:#A8ABA4}#m-destpop .dopt.hid .cdot{opacity:.4}
-#m-destpop .dopt .dhid{font-size:11px;color:#A8ABA4}
-#m-destpop .dopt .dck{width:18px;text-align:right;color:#2E6B5A;font-weight:700}
+/* 設定の追加先ページ（第16版 PR4）は .destpage（編集シートと同じ）。シートの外枠に重ねる */
+dialog#menu #m-destpop{border-radius:inherit}
 #m-cal-foot{padding:8px 20px 0;font-size:12px;color:#68716A}
 #m-cal-foot button{min-height:32px;padding:0 12px;border:1px solid #DCD7CB;border-radius:16px;background:#fff;font-size:12px;width:auto}
 

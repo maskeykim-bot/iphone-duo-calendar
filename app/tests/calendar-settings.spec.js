@@ -123,7 +123,7 @@ test.describe('設定 › カレンダー（PR8）', () => {
     await expect(page.locator('[data-cal="cal-gm"]')).toHaveCount(1);
     await page.locator('#m-dest').click();
     await expect(page.locator('#m-destpop')).not.toContainText('Gmail予定'); // 表示（✓）にするまで候補に出ない
-    await page.locator('#m-dest').click();
+    await page.locator('#m-destpop .dback').click();
     await page.locator('[data-cal="cal-gm"]').click();
     await page.locator('#m-dest').click();
     await expect(page.locator('#m-destpop')).toContainText('Gmail予定');
@@ -228,10 +228,36 @@ test('DP-1 設定 › 新しい予定の追加先: 20候補でも下まで届き
   await expect(pop).toBeVisible();
   const m = await pop.evaluate((e) => ({ ov: getComputedStyle(e).overflowY, sh: e.scrollHeight, ch: e.clientHeight }));
   expect(m.ov).toBe('auto');
-  expect(m.sh).toBeGreaterThan(m.ch);
+  expect(m.sh).toBeGreaterThan(m.ch); // ページ全体が1本のスクロール
   const last = pop.locator('[data-sdid="cal-m19"]');
   await last.scrollIntoViewIfNeeded();
   await last.click();
-  await expect(pop).toBeHidden();
+  await expect(pop).toBeHidden(); // 0.15秒後に設定 › カレンダーへ戻る
+  await expect(page.locator('#m-dest')).toContainText('予備19');
   expect((await ls(page)).defaultDest).toEqual({ type: 'iphone', id: 'cal-m19' });
+});
+
+test('PR4 追加先ページ: 戻る・Escape では保存せず、下層から戻っても設定画面に戻る', async ({ page }) => {
+  await setup(page);
+  await openMenu(page, 'calendar');
+  const before = (await ls(page)).defaultDest;
+  const pop = page.locator('#m-destpop');
+  await page.locator('#m-dest').click();
+  await expect(pop).toBeVisible();
+  await expect(pop.locator('.dback')).toBeVisible();
+  await pop.locator('.dback').click();
+  await expect(pop).toBeHidden();
+  expect((await ls(page)).defaultDest).toEqual(before);
+  await page.locator('#m-dest').click();
+  await expect(pop).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(pop).toBeHidden();
+  await expect(page.locator('#menu')).toHaveJSProperty('open', true); // 設定は閉じない
+  await expect(page.locator('#m-title')).toHaveText('カレンダー');
+  expect((await ls(page)).defaultDest).toEqual(before);
+  await page.locator('#m-dest').click();
+  await pop.locator('.dopt[data-sdid="cal-a"]').click();
+  await expect(pop).toBeHidden();
+  expect((await ls(page)).defaultDest).toMatchObject({ type: 'iphone', id: 'cal-a' });
+  await expect(page.locator('#m-back')).toBeEnabled(); // 戻ったあとは通常操作
 });

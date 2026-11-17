@@ -2392,10 +2392,12 @@ function showMenuScreen(name, focus = true, opener = null) {
   document.body.classList.toggle('settings-open', menuDlg.open);
   menuDlg.querySelector('.mscreens').scrollTop = 0;
   if (focus) (opener?.isConnected ? opener : menuDlg.querySelector(`[data-screen="${name}"] button:not([hidden])`) || back).focus({ preventScroll: true });
-  if (name === 'calendar') { $('#m-destpop').hidden = true; enterCalScreen(); }
+  if (name === 'calendar') { setDestPage.close(false); enterCalScreen(); }
+  else setDestPage.close(false);
 }
 // 下層なら1つ戻り（戻り先の行へフォーカス）、一番上なら閉じる。
 function menuBack() {
+  if (setDestPage.isOpen()) { setDestPage.close(); return; } // 追加先ページが開いていれば、まずそこから戻る
   if (menuScreen === 'root' || (menuFromEditor && menuScreen === 'calendar')) { closePanel(menuDlg); return; }
   const prev = menuScreen;
   showMenuScreen('root', true, menuDlg.querySelector(`[data-go="${prev}"]`));
@@ -2495,9 +2497,7 @@ menuDlg.addEventListener('click', (ev) => {
   if (ev.target.closest('#lk-settings, [data-act="remsettings"]')) { openSettings(); return; }
   if (ev.target.closest('#m-remreq')) { remRequest('menu').then(() => { if (calScreenOpen()) renderCalScreen(); }); return; }
   if (ev.target.closest('#lk-reload')) { X.failKey = ''; loadExt(true); renderCalScreen(); return; }
-  if (ev.target.closest('#m-dest')) { const p = $('#m-destpop'); p.hidden = !p.hidden; renderCalScreen(); if (!p.hidden) (p.querySelector('[aria-selected="true"]') || p.querySelector('.dopt'))?.focus({ preventScroll: true }); return; }
-  const sd = ev.target.closest('[data-sdtype]');
-  if (sd) { setDest({ type: sd.dataset.sdtype, id: sd.dataset.sdid }); $('#m-destpop').hidden = true; renderCalScreen(); $('#m-dest').focus({ preventScroll: true }); say('新しい予定の追加先を変えました。'); return; }
+  if (ev.target.closest('#m-dest')) { if (!setDestPage.isOpen()) setDestPage.open(); return; }
   const go = ev.target.closest('[data-go]');
   if (go) { showMenuScreen(go.dataset.go, true); return; }
   if (ev.target.closest('#m-back')) { menuBack(); return; }
@@ -3026,10 +3026,10 @@ function renderCalScreen() {
     rb.innerHTML = `<h3 class="calsec">リマインダー</h3>${sw}${body}`;
   }
   // 新しい予定の追加先
-  const d = destInfo(destNow()), open = !$('#m-destpop').hidden;
+  const d = destInfo(destNow()), open = setDestPage.isOpen();
   $('#m-dest').innerHTML = `<span class="dname">新しい予定の追加先</span>${calDot(d.color)}<span class="dval">${esc(d.name)}</span><span class="sch" aria-hidden="true">›</span>`;
   $('#m-dest').setAttribute('aria-expanded', String(open));
-  if (open) renderSetDestPop();
+  if (open) setDestPage.render();
   // 再読込／最終取得（カレンダー末尾に小さく）
   const foot = $('#m-cal-foot');
   if (NATIVE && X.avail && X.perm === 'granted') {
@@ -3042,11 +3042,23 @@ function renderCalScreen() {
     foot.innerHTML = `<span id="lk-status" role="status">${esc(st)}</span><button type="button" id="lk-reload"${loading ? ' disabled' : ''}>再読み込み</button>`;
   } else { foot.hidden = true; foot.innerHTML = ''; }
 }
-// 新しい予定の追加先の一覧（編集シートと同じ並び・同じ見せ方）。
-function renderSetDestPop() {
-  const cur = destNow(), raw = destGroups(false), gs = visibleDestGroups(raw, null);
-  $('#m-destpop').innerHTML = (allDestHidden(raw) ? '<p class="dnote">すべて非表示になっています。設定 › カレンダーで ✓ を付けると表示されます。</p>' : '') + gs.map((g) => `<h4>${esc(g.head)}</h4>${g.items.map((i) => { const on = cur.type === i.type && cur.id === i.id; return `<button type="button" class="dopt${i.hidden ? ' hid' : ''}" role="option" aria-selected="${on}" data-sdtype="${i.type}" data-sdid="${esc(i.id)}"><i class="cdot" style="background:${esc(i.color)}" aria-hidden="true"></i><span class="dn">${esc(i.name)}</span>${i.hidden ? '<span class="dhid">非表示</span>' : ''}<span class="dck" aria-hidden="true">${on ? '✓' : ''}</span></button>`; }).join('')}`).join('');
-}
+// 新しい予定の追加先の一覧（編集シートと同じ部品・同じ並び）。設定の中の専用ページで、開いている間は下の画面を inert にする。
+const setDestPage = createDestPage($('#m-destpop'), {
+  title: '新しい予定の追加先',
+  settings: false,
+  bodyHtml() {
+    const cur = destNow(), raw = destGroups(false), gs = visibleDestGroups(raw, null);
+    return (allDestHidden(raw) ? '<p class="dnote">すべて非表示になっています。設定 › カレンダーで ✓ を付けると表示されます。</p>' : '') + destRowsHtml(gs, cur, { typeAttr: 'sdtype', idAttr: 'sdid' });
+  },
+  onOpen() { menuDlg.querySelector('.mhead').inert = true; menuDlg.querySelector('.mscreens').inert = true; $('#m-dest').setAttribute('aria-expanded', 'true'); },
+  onClose(focus) {
+    menuDlg.querySelector('.mhead').inert = false; menuDlg.querySelector('.mscreens').inert = false;
+    $('#m-dest').setAttribute('aria-expanded', 'false');
+    if (focus && menuDlg.open) $('#m-dest').focus({ preventScroll: true });
+  },
+  onPick(d) { setDest(d); renderCalScreen(); say('新しい予定の追加先を変えました。'); },
+});
+menuDlg.addEventListener('close', () => setDestPage.close(false));
 // ---- Duo 段の編集モード（右上の編集/完了）。削除・並べ替えは即保存、名前と色は1枚の編集で。外部（iPhone）の名前・色は触らない ----
 let calEdit = false, calDel = null, calTarget = '', calUndo = null, calUndoTimer = 0, calFocusId = '';
 function calEditRows() {
