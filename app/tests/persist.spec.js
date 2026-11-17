@@ -185,4 +185,20 @@ test.describe('永続化', () => {
     await page.waitForSelector('html[data-ready]');
     expect(await page.evaluate(async () => (await (await import('/js/db.js')).listMemoDays()).length)).toBe(1);
   });
+  test('ノート変換規則（notes-model.js）がブラウザでも同じ結果になり、旧memosは変わらない', async ({ page }) => {
+    await openApp(page);
+    const r = await page.evaluate(async () => {
+      const m = await import('/js/notes-model.js');
+      const d = await import('/js/db.js?nm');
+      d.configure('nm-spec');
+      await d.putMemo('2026-11-15', '11月15日（日）\r\n本文', 1000);
+      await d.putMemo('2026-11-14', '会議', 1000);
+      const memos = await d.listMemos();
+      const notes = memos.map((x) => m.noteFromMemo(x));
+      return { notes: notes.map((n) => [n.id, n.title, n.sourceHeading, m.memoTextOf(n)]), texts: memos.map((x) => x.text), after: (await d.listMemos()).length };
+    });
+    expect(r.notes.map((n) => n[3])).toEqual(r.texts);
+    expect(r.notes.map((n) => n[1]).sort()).toEqual(['2026年11月14日（土）', '2026年11月15日（日）']);
+    expect(r.after).toBe(2);
+  });
 });

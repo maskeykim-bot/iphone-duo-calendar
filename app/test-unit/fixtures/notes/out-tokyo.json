@@ -1,0 +1,238 @@
+{
+  "path1": {
+    "memosBefore": 3008,
+    "notes": 3008,
+    "memosKept": 3008,
+    "allIn": true,
+    "memoStoreUnchanged": true,
+    "sha256Before": "6a4d19cecd001490ea2554638351ef6b5193722de7661905d5b9251d7b4fffd7",
+    "sha256After": "6a4d19cecd001490ea2554638351ef6b5193722de7661905d5b9251d7b4fffd7",
+    "meta": {
+      "seen": 3008,
+      "copied": 3008,
+      "existed": 0,
+      "blank": 0,
+      "folderCreated": true,
+      "at": 1794881586153
+    },
+    "migrateMs": 140,
+    "folders": [
+      "folder-daily-memos:日ごとのメモ"
+    ],
+    "allInDaily": true,
+    "samples": [
+      {
+        "id": "memo-2025-12-31",
+        "title": "2025年12月31日（水）",
+        "headingAdded": true,
+        "first2": [
+          "2025年12月31日（水）",
+          "- [ ] 牛乳"
+        ]
+      },
+      {
+        "id": "memo-2026-11-14",
+        "title": "2026年11月14日（土）",
+        "headingAdded": true,
+        "first2": [
+          "2026年11月14日（土）",
+          "会議メモ"
+        ]
+      },
+      {
+        "id": "memo-2026-11-15",
+        "title": "11月15日（日）",
+        "headingAdded": false,
+        "first2": [
+          "11月15日（日）",
+          "既に日付が1行目"
+        ]
+      },
+      {
+        "id": "memo-2026-11-16",
+        "title": "2026年11月16日（月）",
+        "headingAdded": false,
+        "first2": [
+          "2026年11月16日（月）",
+          "年付きの見出し"
+        ]
+      }
+    ],
+    "rerun": {
+      "notes": 3008,
+      "folders": 1,
+      "meta": {
+        "seen": 3008,
+        "copied": 0,
+        "existed": 3008,
+        "blank": 0,
+        "folderCreated": false,
+        "at": 1794881586295
+      }
+    }
+  },
+  "abort": {
+    "versionAfter": 4,
+    "stores": [
+      "categories",
+      "events",
+      "memos",
+      "meta"
+    ],
+    "memosBefore": 58,
+    "memosAfter": 58,
+    "same": true
+  },
+  "path3": {
+    "fileMemos": 208,
+    "validated": true,
+    "keep": {
+      "notesBefore": 9,
+      "notesAfter": 210,
+      "foldersBefore": [
+        "仕事",
+        "日ごとのメモ"
+      ],
+      "foldersAfter": [
+        "仕事",
+        "日ごとのメモ"
+      ],
+      "import1": {
+        "added": 200,
+        "same": 7,
+        "side": 1,
+        "folderMade": null
+      },
+      "import2": {
+        "added": 0,
+        "same": 208,
+        "side": 0,
+        "folderMade": null
+      },
+      "allFileMemosPresent": true,
+      "existingUntouched": true,
+      "dailyFolders": [
+        "日ごとのメモ"
+      ],
+      "newNotesInDaily": true,
+      "newNotes": 201,
+      "pinnedKept": [
+        "memo-2026-11-14",
+        "n-free"
+      ],
+      "preNullFolderNotes": 0
+    },
+    "deleted": {
+      "notesBefore": 9,
+      "notesAfter": 210,
+      "foldersBefore": [
+        "仕事"
+      ],
+      "foldersAfter": [
+        "仕事",
+        "日ごとのメモ"
+      ],
+      "import1": {
+        "added": 200,
+        "same": 7,
+        "side": 1,
+        "folderMade": "日ごとのメモ"
+      },
+      "import2": {
+        "added": 0,
+        "same": 208,
+        "side": 0,
+        "folderMade": null
+      },
+      "allFileMemosPresent": true,
+      "existingUntouched": true,
+      "dailyFolders": [
+        "日ごとのメモ"
+      ],
+      "newNotesInDaily": true,
+      "newNotes": 201,
+      "pinnedKept": [
+        "memo-2026-11-14",
+        "n-free"
+      ],
+      "preNullFolderNotes": 8
+    },
+    "renamed": {
+      "notesBefore": 9,
+      "notesAfter": 210,
+      "foldersBefore": [
+        "仕事",
+        "昔のメモ"
+      ],
+      "foldersAfter": [
+        "仕事",
+        "昔のメモ"
+      ],
+      "import1": {
+        "added": 200,
+        "same": 7,
+        "side": 1,
+        "folderMade": null
+      },
+      "import2": {
+        "added": 0,
+        "same": 208,
+        "side": 0,
+        "folderMade": null
+      },
+      "allFileMemosPresent": true,
+      "existingUntouched": true,
+      "dailyFolders": [
+        "昔のメモ"
+      ],
+      "newNotesInDaily": true,
+      "newNotes": 201,
+      "pinnedKept": [
+        "memo-2026-11-14",
+        "n-free"
+      ],
+      "preNullFolderNotes": 0
+    }
+  },
+  "noMemos": {
+    "v4WithZeroMemos_folders": 0,
+    "brandNew_folders": 0
+  },
+  "path2": {
+    "notes": 3008,
+    "restored": 3008,
+    "notesSha": true,
+    "foldersSha": true,
+    "pinned": 2,
+    "inFolder": 1,
+    "inDaily": 3007,
+    "folders": [
+      "家",
+      "日ごとのメモ"
+    ],
+    "memosStillAsNotes": true,
+    "fileBytes": 3695458,
+    "oldAppReads": {
+      "ok": false,
+      "reason": "未対応のバージョンです（version: 5）"
+    }
+  },
+  "perf": {
+    "5000": {
+      "avgChars": 308,
+      "normalizeMs": 118,
+      "searchMs": 35,
+      "hits": 52,
+      "sortMs": 0,
+      "firstPinned": "n4500"
+    },
+    "40000": {
+      "avgChars": 309,
+      "normalizeMs": 989,
+      "searchMs": 340,
+      "hits": 413,
+      "sortMs": 3,
+      "firstPinned": "n39500"
+    }
+  }
+}

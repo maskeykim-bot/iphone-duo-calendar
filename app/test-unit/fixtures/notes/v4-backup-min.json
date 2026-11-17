@@ -1,0 +1,3 @@
+{"app":"duo-calendar","version":4,"schema":4,"exportedAt":"2026-11-17T09:00:00+09:00","categories":[],"events":[],"memos":[
+{"id":"2026-11-14","date":"2026-11-14","text":"会議メモ\n・A社 10時","createdAt":1,"updatedAt":2},
+{"id":"2026-11-15","date":"2026-11-15","text":"11月15日（日）\r\n既に日付が1行目","createdAt":3,"updatedAt":4}],"settings":{}}
