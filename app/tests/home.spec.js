@@ -100,21 +100,37 @@ test('今日の予定のあと次の予定なし（今日が終わった）は�
   await expect(page.locator('.hevents .hrow')).toHaveCount(0);
 });
 
-test('タスクの完了: 丸で完了にして取り消せる（行は完了表示で残り、件数は減る。Duo 内に保存）', async ({ page }) => {
+test('タスクの完了: ✓と打消線は即、1.5秒後に1回だけ保存して行が消え、6秒の「元に戻す」で戻る', async ({ page }) => {
   await openH(page, SIZES.closedPortrait, TASKS);
   await tab(page, 'ホーム').click();
-  await page.locator('.htask').first().locator('[data-act="remck"]').click();
+  const ck = page.locator('.htask').first().locator('[data-act="remck"]');
+  const b = await ck.boundingBox();
+  expect(b.height).toBeGreaterThanOrEqual(48); expect(b.width).toBeGreaterThanOrEqual(44);
+  const bx = await page.locator('.htask .rmck').first().boundingBox();
+  expect(Math.round(bx.width)).toBe(22);
+  await ck.click();
   await expect(page.locator('.htask.done')).toHaveCount(1);
-  await expect(page.locator('.htasks h3')).toContainText('3件');
-  const b = await page.locator('.htask [data-act="remck"]').first().boundingBox();
-  expect(b.height).toBeGreaterThanOrEqual(44);
-  await expect.poll(async () => (await dbTasks(page)).find((t) => t.id === 'c').done).toBe(true);
-  // 取り消し（もう一度押す）で未完了へ戻り、保存も戻る
-  await page.locator('.htask.done [data-act="remck"]').click();
+  expect((await dbTasks(page)).find((t) => t.id === 'c').done).toBe(false); // まだ保存しない
+  await expect.poll(async () => (await dbTasks(page)).find((t) => t.id === 'c').done, { timeout: 4000 }).toBe(true);
   await expect(page.locator('.htask.done')).toHaveCount(0);
-  await expect(page.locator('.htasks h3')).toContainText('4件');
+  await expect(page.locator('.htasks h3')).toContainText('3件');
+  await expect(page.locator('#native-toast')).toContainText('完了にしました');
+  await page.locator('#native-toast button', { hasText: '元に戻す' }).click();
   await expect.poll(async () => (await dbTasks(page)).find((t) => t.id === 'c').done).toBe(false);
+  expect((await dbTasks(page)).find((t) => t.id === 'c').doneAt).toBeNull();
+  await expect(page.locator('.htasks h3')).toContainText('4件');
   expect(await legacyCalls(page)).toEqual([]);
+});
+
+test('タスクの完了: 1.5秒内の押し直しは保存0回で未完了のまま', async ({ page }) => {
+  await openH(page, SIZES.closedPortrait, TASKS);
+  await tab(page, 'ホーム').click();
+  const ck = page.locator('.htask').first().locator('[data-act="remck"]');
+  await ck.click(); await expect(page.locator('.htask.done')).toHaveCount(1);
+  await ck.click(); await expect(page.locator('.htask.done')).toHaveCount(0);
+  await page.waitForTimeout(2000);
+  expect((await dbTasks(page)).find((t) => t.id === 'c').done).toBe(false);
+  await expect(page.locator('#native-toast')).toHaveCount(0);
 });
 
 test('導線: タイムライン›は日表示の今日、明日は明日、すべて›はタスク', async ({ page }) => {

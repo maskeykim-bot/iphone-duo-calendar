@@ -302,38 +302,6 @@ export function taskEditorHtml(ed) {
     + (meta ? `<p class="small tkmeta">${meta}</p>` : '') + why + '</div>';
 }
 
-// 完了の丸（即 native へ。1.5 秒後に完了段へ移す。再 tap は同じタスク内で直列化。失敗は表示を戻す）。
-// onSettle(id, { result, failed, err }) — 表示を確定する時に呼ぶ。pending() は表示だけの上書き（id→done）。
-export function createDoneController(call, { delay = 1500, onSettle, onPending } = {}) {
-  const map = new Map();
-  const settle = (e) => {
-    if (e.dead || e.inflight > 0) return;
-    if (!e.broken && !e.fired) return;
-    map.delete(e.id); e.dead = true; clearTimeout(e.timer);
-    onSettle?.(e.id, { result: e.result, failed: e.broken, err: e.err });
-  };
-  return {
-    has: (id) => map.has(id),
-    pending() { return new Map([...map].map(([id, e]) => [id, e.want])); },
-    toggle(r) {
-      if (!r || r.readOnly) return false;
-      let e = map.get(r.itemId);
-      if (!e) { e = { id: r.itemId, target: { itemId: r.itemId, externalId: r.externalId }, want: !!r.done, inflight: 0, fired: false, broken: false, dead: false, result: null, err: null, timer: 0, chain: Promise.resolve() }; map.set(r.itemId, e); }
-      const want = (e.want = !e.want);
-      clearTimeout(e.timer); e.fired = false;
-      e.timer = setTimeout(() => { e.fired = true; settle(e); }, delay);
-      e.inflight++;
-      e.chain = e.chain.then(async () => {
-        if (e.broken || e.dead) return;
-        try { e.result = await setReminderDone(call, e.target, want); } catch (x) { e.broken = true; e.err = x; }
-      }).finally(() => { e.inflight--; settle(e); });
-      onPending?.();
-      return true;
-    },
-    reset() { for (const e of map.values()) { e.dead = true; clearTimeout(e.timer); } map.clear(); },
-  };
-}
-
 // ---- 第14版 PR20: 削除（4秒の取消）。即非表示、4秒たつか画面が裏に回ったら native で削除。再作成での取消はしない ----
 export const DELETE_UNDO_MS = 4000;
 export const TASK_DELETED = 'タスクを削除しました';

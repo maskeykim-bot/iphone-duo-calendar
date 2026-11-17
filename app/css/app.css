@@ -781,12 +781,12 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .rmrow{display:flex;align-items:center;gap:12px;min-height:44px;padding:0 4px;box-sizing:border-box}
 .rmrow.two{min-height:56px}
 .rmrow{touch-action:pan-y}
-.rmckb{flex:none;width:44px;height:44px;margin:0 -8px 0 -10px;padding:0;border:0;background:none;display:flex;align-items:center;justify-content:center}
+.rmckb{flex:none;width:44px;height:48px;margin:0 -8px 0 -10px;padding:0;border:0;background:none;display:flex;align-items:center;justify-content:center}
 .rmckb:disabled{opacity:.6}
 .rmbody{border:0;background:none;padding:0;text-align:left;font:inherit;color:inherit;min-height:44px;justify-content:center}
-.rmck{flex:none;width:24px;height:24px;border-radius:50%;border:2px solid var(--rc);box-sizing:border-box}
+.rmck{flex:none;width:22px;height:22px;border-radius:6px;border:2px solid var(--rc);box-sizing:border-box}
 .rmrow.done .rmck{background:var(--rc);position:relative}
-.rmrow.done .rmck::after{content:'✓';position:absolute;inset:0;color:#fff;font-size:14px;line-height:20px;text-align:center}
+.rmrow.done .rmck::after{content:'✓';position:absolute;inset:0;color:#fff;font-size:14px;line-height:18px;text-align:center}
 .rmbody{flex:1;min-width:0;display:flex;flex-direction:column}
 .rmt{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rmrow.done .rmt{color:#A8ABA4;text-decoration:line-through}
@@ -1148,7 +1148,10 @@ dialog#menu #m-destpop{border-radius:inherit}
 .hrow strong{font-size:15px;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hmore{display:block;min-height:32px;font-size:12px;color:var(--green);background:none;border:0;padding:0}
 .hempty{color:#8a8f88;font-size:12px;margin:4px 0}
-.htask{display:flex;align-items:center;gap:4px;min-height:44px}
+.htask{display:flex;align-items:center;gap:4px;min-height:48px}
+.htask .rmck{--rc:#68716A}
+.htask.done .rmck{background:var(--rc);position:relative}
+.htask.done .rmck::after{content:'✓';position:absolute;inset:0;color:#fff;font-size:14px;line-height:18px;text-align:center}
 .htask .htt{flex:1;min-width:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .htask.done .htt{text-decoration:line-through;color:#8a8f88}
 .hdue{font-size:12px;color:#68716A}.hdue.od{color:#B43C3C}

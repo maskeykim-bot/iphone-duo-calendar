@@ -8,16 +8,17 @@ async function ready(page, seed, sz = SIZES.openLandscape) { await spy(page); aw
 const one = async (page, id = 'a') => (await dbTasks(page)).find((t) => t.id === id);
 
 test.describe('タスクの編集と完了', () => {
-  test('完了は即保存、1.5秒は同じ段で完了表示、その後完了段へ。native 呼出0', async ({ page }) => {
+  test('完了は表示だけ即、1.5秒は同じ段で完了表示（保存はその後1回）、その後完了段へ。native 呼出0', async ({ page }) => {
     await ready(page, [T('a')]);
     const row = lp(page).locator('[data-key="rm:a"]');
     await row.locator('[data-act="remck"]').click();
     await expect(row).toHaveClass(/done/);
-    await expect.poll(async () => (await one(page)).done).toBe(true);
-    expect((await one(page)).doneAt).toMatch(/^2026-11-12T\d\d:\d\d$/);
     await expect(lp(page).locator('[data-sec="selected"] [data-key="rm:a"]')).toHaveCount(1); // まだ同じ段
+    expect((await one(page)).done).toBe(false); // 1.5秒の間は保存しない
     await expect(lp(page).locator('[data-sec="selected"]')).toHaveCount(0, { timeout: 3500 }); // 移った
     await expect(lp(page).locator('[data-act="remdone"]')).toContainText('完了（1）');
+    expect((await one(page)).done).toBe(true);
+    expect((await one(page)).doneAt).toMatch(/^2026-11-12T\d\d:\d\d$/);
     expect(await legacyCalls(page)).toEqual([]);
   });
 

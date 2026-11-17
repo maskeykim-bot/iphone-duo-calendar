@@ -15,8 +15,8 @@ import { holidayOf } from './holidays.js';
 import { splitEvents, eveningFirst, homeTasks, dueText, tomorrowSummary, axisBars, firstLines } from './home.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS } from './pages.js';
 import { memoStore, setMemoHook, recoverMemoDraft, SAVE_FAILED } from './memos.js';
-import { DELETE_UNDO_MS, tasksHtml, HIST_DAYS, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDoneController, TASK_CONFLICT, createDeleteController, TASK_DELETED, normRemSettings, dueCounts, overdueTodayCount } from './reminders.js';
-import { LOCAL_LIST, TASK_STORE_TEXT, createTaskStore, createLocalCall, createLocalAddController, rowOf } from './tasks.js';
+import { DELETE_UNDO_MS, tasksHtml, HIST_DAYS, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, TASK_CONFLICT, createDeleteController, TASK_DELETED, normRemSettings, dueCounts, overdueTodayCount } from './reminders.js';
+import { LOCAL_LIST, TASK_STORE_TEXT, createTaskStore, createLocalCall, createLocalAddController, rowOf, createTaskDoneController, DONE_UNDO_MS } from './tasks.js';
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
 import { call, errCode, errReason, errText, haptic, listen, nativeAvailable } from './native.js';
 import { createDestPage, destRowsHtml } from './destination-ui.js';
@@ -1183,7 +1183,8 @@ root.addEventListener('focusout', (ev) => { if (ev.target.closest?.('input.remin
 const flushMemosNow = () => { memoSync(); return memoStore.flushAll(); };
 // バックアップの前後: 未保存のメモを保存し終えるまで待つ。保存できなかった日があれば false。
 const flushMemosAwait = async () => { try { const r = await flushMemosNow(); return r.every((x) => x !== false) && !memoStore.anyDirty(); } catch { return false; } };
-document.addEventListener('visibilitychange', () => { if (document.hidden) { flushMemosNow(); delCtl.flush(); } });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { flushMemosNow(); delCtl.flush(); doneCtl.flush(); } });
+window.addEventListener('pagehide', () => { doneCtl.flush(); delCtl.flush(); });
 window.addEventListener('pagehide', flushMemosNow);
 // ---------- タスク: 続けて追加（PR17） ----------
 root.addEventListener('input', (ev) => { const i = ev.target.closest?.('input.remin'); if (i && !RM.add.busy) RM.add.title = i.value; });
@@ -1256,20 +1257,32 @@ function monthTaskCounts(kind) {
 const taskStore = createTaskStore(db);
 const localCall = createLocalCall(taskStore); // 完了・削除・編集の controller の口（Duo 内保存へ）
 const addCtl = createLocalAddController(taskStore);
-// 完了の丸: 即保存し、1.5 秒後に完了段へ移す。確定時に返ってきた1件で置き換える。失敗は表示を戻す。
-const doneCtl = createDoneController(localCall, {
+// 完了の丸: 押すと表示だけ即変え、1.5秒後に最後の状態を1回保存して完了段へ移す。6秒は「元に戻す」。失敗は表示を戻して理由を出す。
+const doneCtl = createTaskDoneController(taskStore, {
   onPending: () => render(),
-  onSettle: (id, { result, failed, err }) => {
+  onSettle: (id, { result, failed, err, done }) => {
     RM.mut++;
-    if (result && RM.data) RM.data = { ...RM.data, reminders: RM.data.reminders.map((x) => (x.itemId === id ? result : x)) };
+    if (result && RM.data) RM.data = { ...RM.data, reminders: RM.data.reminders.map((x) => (x.itemId === id ? rowOf(result) : x)) };
     RM.sig = '';
     render(); scheduleTasks();
     if (failed) {
       const m = taskErrText(errCode(err), '完了の変更はもとに戻しました。');
       notice(m); say(m);
+    } else if (result && done) {
+      notice('完了にしました', { label: '元に戻す', fn: () => undoDone(id) }, DONE_UNDO_MS);
     }
   },
 });
+async function undoDone(id) {
+  document.querySelector('#native-toast')?.remove();
+  if (doneCtl.has(id)) return;
+  const r = await doneCtl.undo(id);
+  RM.mut++;
+  if (r.ok) {
+    if (RM.data) RM.data = { ...RM.data, reminders: RM.data.reminders.map((x) => (x.itemId === id ? rowOf(r.task) : x)) };
+    RM.sig = ''; render(); scheduleTasks(); say('完了を取り消しました。');
+  } else { const m = taskErrText(errCode(r.err), '完了は取り消せませんでした。'); notice(m); say(m); }
+}
 // 削除: 即非表示、4秒は取り消せる。確定は Duo 内の保存。失敗は表示へ戻す。
 const delCtl = createDeleteController(localCall, {
   onChange: () => { RM.sig = ''; render(); },

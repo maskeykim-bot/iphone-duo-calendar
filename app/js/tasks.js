@@ -134,3 +134,51 @@ export function createLocalAddController(store) {
     },
   };
 }
+
+// ---------- 完了の制御（第16版 PR18） ----------
+// 押すと表示だけ即変わり（✓と打消線）、1.5秒そのままなら最後の状態だけを1回保存する。1.5秒内の再タップは保存せず表示だけ戻る。
+// 保存済みの完了は6秒だけ元に戻せる（undo）。離脱時は flush で待たずに最後の状態を保存する。保存失敗は行を戻して理由を出す。
+export const DONE_DELAY_MS = 1500;
+export const DONE_UNDO_MS = 6000;
+// store: { setDone(id, done) }。onPending(): 表示の上書きが変わった。onSettle(id, { result, failed, err, done }): 確定（result は保存後の行 Task）。
+export function createTaskDoneController(store, { delay = DONE_DELAY_MS, onSettle, onPending, setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
+  const map = new Map();
+  const finish = (e, out) => { map.delete(e.id); clearTimer(e.timer); e.timer = 0; onSettle?.(e.id, out); };
+  async function commit(e) {
+    e.timer = 0;
+    if (e.saving || map.get(e.id) !== e) return;
+    if (e.want === e.base) return finish(e, { result: null, failed: false, err: null, done: e.base, unchanged: true }); // 押し直して元に戻った: 保存0回
+    const want = e.want;
+    e.saving = true;
+    let task = null, err = null;
+    try { task = await store.setDone(e.id, want); } catch (x) { err = x; }
+    e.saving = false;
+    if (map.get(e.id) !== e) return;
+    if (err) return finish(e, { result: null, failed: true, err, done: e.base });
+    e.base = want; e.last = task;
+    if (e.timer) return; // 保存中に押し直された: 時間が来たら最後の状態で改めて保存
+    if (e.want !== e.base) return commit(e);
+    finish(e, { result: task, failed: false, err: null, done: want });
+  }
+  return {
+    has: (id) => map.has(id),
+    pending() { return new Map([...map].map(([id, e]) => [id, e.want])); },
+    toggle(r) {
+      if (!r || r.readOnly) return false;
+      let e = map.get(r.itemId);
+      if (!e) { e = { id: r.itemId, base: !!r.done, want: !!r.done, timer: 0, saving: false, last: null }; map.set(r.itemId, e); }
+      e.want = !e.want;
+      clearTimer(e.timer);
+      e.timer = setTimer(() => commit(e), delay);
+      onPending?.();
+      return true;
+    },
+    // 画面が裏に回る・離れる時: 待っている分を今すぐ保存する。
+    flush() { const ps = []; for (const e of [...map.values()]) { clearTimer(e.timer); e.timer = 0; ps.push(commit(e)); } return Promise.all(ps); },
+    // 完了のあと6秒の取り消し。完了の保存を取り消して未完了へ（doneAt は null）。
+    async undo(id) {
+      try { return { ok: true, task: await store.setDone(id, false) }; } catch (err) { return { ok: false, err }; }
+    },
+    reset() { for (const e of map.values()) clearTimer(e.timer); map.clear(); },
+  };
+}
