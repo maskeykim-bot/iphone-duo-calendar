@@ -1173,3 +1173,16 @@ dialog#menu #m-destpop{border-radius:inherit}
 .hcols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:start}
 .hcols .hcol{min-width:0}
 .hcols .next .time{font-size:20px}
+
+/* ノートの常設エディタ（第16版 PR27。通常の画面にはまだ接続しない） */
+.ned { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.ned textarea { width: 100%; box-sizing: border-box; border: 0; background: transparent; color: inherit; font: inherit; resize: none; outline: none; padding: 6px 8px; }
+.ned .ned-title { font-size: 20px; font-weight: 700; line-height: 1.3; overflow: hidden; }
+.ned .ned-body { font-size: 16px; line-height: 1.5; min-height: 6em; flex: 1; overflow-y: auto; }
+.ned-status { font-size: 12px; color: #b3261e; padding: 2px 8px; display: flex; gap: 8px; align-items: center; }
+.ned-status[hidden], .ned-trash[hidden], .ned-retry[hidden] { display: none; }
+.ned-bar { display: flex; gap: 8px; padding: 0 8px; }
+.ned button { min-height: 44px; min-width: 44px; }
+.ned-trashrow { display: flex; align-items: center; gap: 8px; padding: 0 8px; }
+.ned-trashtitle { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ned-left, .ned-note, .ned-empty { font-size: 12px; opacity: .7; padding: 0 8px; }
