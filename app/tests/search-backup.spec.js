@@ -510,6 +510,24 @@ test.describe('メモ・設定のバックアップ', () => {
     expect(await dbMemos(page)).toEqual([]);
   });
 
+  test('古いメモの復元はノートへ追加専用（置換でも今のノートを消さない／2回目は増えない／確認画面に件数）', async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(async () => { const m = await import('/js/db.js'); await m.applyImport({ notePuts: [{ id: 'mine', body: '自分のノート', title: '', folderId: null, pinned: true, pinnedAt: 9, createdAt: 1, updatedAt: 2, deletedAt: null }] }); });
+    const notes = () => page.evaluate(async () => (await import('/js/db.js')).listNotes({ includeDeleted: true }));
+    await openBackup(page);
+    await pick(page, 'n.json', V4({ memos: [M('2026-12-05', '戻るメモ'), M('2026-12-06', '二つ目')] }));
+    await expect(page.locator('#backup')).toContainText('追加2件・同じ0件・別ノート0件');
+    await page.locator('#bk-replace').click();
+    await page.locator('#bk-rdo').click();
+    await expect(page.locator('#backup')).toBeHidden();
+    let ns = await notes();
+    expect(ns.map((n) => n.id).sort()).toEqual(['memo-2026-12-05', 'memo-2026-12-06', 'mine']);
+    expect(ns.find((n) => n.id === 'mine').pinned).toBe(true);
+    await openBackup(page);
+    await pick(page, 'n.json', V4({ memos: [M('2026-12-05', '戻るメモ'), M('2026-12-06', '二つ目')] }));
+    await expect(page.locator('#backup')).toContainText('追加0件・同じ2件・別ノート0件');
+  });
+
   test('追加: 同日同文は増えず、異文は空行で連結して1件', async ({ page }) => {
     await openApp(page);
     await putMemoDb(page, '2026-11-01', 'A'); await putMemoDb(page, '2026-11-02', 'S');

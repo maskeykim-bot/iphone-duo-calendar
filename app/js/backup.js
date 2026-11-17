@@ -5,7 +5,7 @@ import { alarmsOk, okAllDay, okTimed } from './alarms.js';
 import { normNotify } from './notify.js';
 import { PAGE_IDS, BOTTOM_IDS, normalizePages } from './pages.js';
 import { validateTask } from './tasks.js';
-import { noteCharLimit, titleOf } from './notes-model.js';
+import { noteCharLimit, titleOf, noteFromMemo, memoTextOf, ensureDailyFolder } from './notes-model.js';
 import { CAT_IDS, DEFAULTS_NEW, LEGACY, UNCATEGORIZED, legacyToId, validateCategory } from './categories.js';
 
 export const APP = 'duo-calendar';
@@ -492,7 +492,46 @@ export function planNotes(curNotes = [], inNotes = null, curFolders = [], inFold
   }
   return r;
 }
-export function planAppend(current, incoming, curMemos = [], inMemos = [], curTasks = [], inTasks = [], curNotes = [], inNotes = null, curFolders = [], inFolders = null) {
+// 旧メモ（v1〜4／途中版v5の memos）を追加専用でノートへ変換する計画。置換でも現在のノート・フォルダ・ピンは消さない。
+// hashes: legacyHashes(memos) の結果（tx の外で先に計算する。planLegacyNotes 自体は同期）。
+// 同日・同本文（取込済みの削除ノートを含む）は無操作。異なる本文は `memo-<Day>-<sha256先頭8桁>`（衝突時は桁を伸ばす）で別ノートにする。
+// 固定フォルダは改名済みでも使い、無いときは新規ノートがある時だけ作る。既存ノートの folderId は動かさない。
+export async function legacyHashes(memos = []) {
+  const enc = new TextEncoder();
+  return Promise.all((memos || []).map(async (m) => Array.from(new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', enc.encode(m.text)))).map((b) => b.toString(16).padStart(2, '0')).join('')));
+}
+export function planLegacyNotes(curNotes = [], curFolders = [], memos = [], hashes = [], now = Date.now()) {
+  const r = { notePuts: [], folderPuts: [], added: 0, same: 0, differ: 0, folderCreated: false };
+  const byId = new Map(curNotes.map((n) => [n.id, n]));
+  const seen = new Set(curNotes.filter((n) => n.sourceDate).map((n) => `${n.sourceDate}\u0000${memoTextOf(n)}`));
+  (memos || []).forEach((m, i) => {
+    const key = `${m.date}\u0000${m.text}`;
+    if (seen.has(key)) { r.same++; return; }
+    const base = noteFromMemo(m), cur = byId.get(base.id);
+    if (cur && cur.body === base.body) { r.same++; return; }
+    let note = base, differ = false;
+    if (cur) {
+      differ = true;
+      const hex = hashes[i];
+      if (typeof hex !== 'string' || hex.length < 8) throw new Error('legacy hash missing');
+      for (let n = 8; ; n++) {
+        const cand = noteFromMemo(m, `-${hex.slice(0, n)}`), hit = byId.get(cand.id);
+        if (!hit) { note = cand; break; }
+        if (hit.body === cand.body) { r.same++; return; }
+        if (n >= hex.length) throw new Error('legacy id collision');
+      }
+    }
+    byId.set(note.id, note); seen.add(key); r.notePuts.push(note);
+    if (differ) r.differ++; else r.added++;
+  });
+  if (r.notePuts.length) {
+    const f = ensureDailyFolder(curFolders, now);
+    if (f.created) { r.folderPuts.push(f.folder); r.folderCreated = true; }
+    r.notePuts = r.notePuts.map((n) => ({ ...n, folderId: f.folder.id }));
+  }
+  return r;
+}
+export function planAppend(current, incoming, curMemos = [], inMemos = [], curTasks = [], inTasks = [], curNotes = [], inNotes = null, curFolders = [], inFolders = null, legacyHex = null, now = Date.now()) {
   const byId = new Map(current.map((e) => [e.id, e]));
   const keys = new Set(current.map(contentKey));
   const links = new Set(current.flatMap(linkKeys));
@@ -504,5 +543,8 @@ export function planAppend(current, incoming, curMemos = [], inMemos = [], curTa
     if (lk.some((x) => links.has(x)) || keys.has(k)) { dup++; continue; }
     keys.add(k); lk.forEach((x) => links.add(x)); add.push(e);
   }
-  return { add, dup, conflict, skipped: dup + conflict, memo: planMemos(curMemos, inMemos), task: planTasks(curTasks, inTasks), note: planNotes(curNotes, inNotes, curFolders, inFolders, false) };
+  const note = planNotes(curNotes, inNotes, curFolders, inFolders, false);
+  // 新形式の notes があるファイルはそちらを正とし、memos は二重に取り込まない。
+  const legacy = !inNotes && legacyHex && inMemos?.length ? planLegacyNotes(curNotes, [...curFolders, ...note.folderPuts], inMemos, legacyHex, now) : null;
+  return { add, dup, conflict, skipped: dup + conflict, memo: planMemos(curMemos, inMemos), task: planTasks(curTasks, inTasks), note, legacy };
 }

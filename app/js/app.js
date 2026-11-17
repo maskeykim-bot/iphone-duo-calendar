@@ -7,7 +7,7 @@ import { initDirectInput, dayRange, rangeText, minutesAt, dragRange, tapRange, m
 import { occurrenceAt, parseOccId, planDelete, planEdit, editInfo, normRule } from './recur.js';
 import { bumpRevision, occBetween } from './occcache.js';
 import { LIMIT, groupByDay, highlight, excerpt, searchEvents, searchMemos, searchTasks } from './search.js';
-import { backupName, buildBackup, countStats, localIso, planAppend, planMemos, planTasks, validateBackup, MAX_BYTES } from './backup.js';
+import { backupName, buildBackup, countStats, localIso, legacyHashes, planAppend, planLegacyNotes, planMemos, planTasks, validateBackup, MAX_BYTES } from './backup.js';
 import { CAT_IDS, LIMITS as CAT_LIMITS, canHideCategory, defaultDeleteTarget, ensureOneVisible, supplementForReplace, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, RETARGET_TOAST, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory } from './categories.js';
 import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAlarms, encAlarm, fireAt, nextNotifyText, normNotify, pastForNotify, planNotifications, planNotifyPolicy, MAX_PENDING, WINDOW_DAYS } from './notify.js';
 import { rokuyoOf } from './rokuyo.js';
@@ -2916,7 +2916,7 @@ function renderBackup() {
     BK.body.innerHTML = `<section class="card"><h3>この内容を読み込みますか？</h3>
       <dl class="facts"><dt>ファイル</dt><dd>${esc(bk.name)}</dd><dt>書き出し日時</dt><dd>${esc(fmtStamp(bk.data.exportedAt))}</dd>
       <dt>ファイルの予定</dt><dd>${f.total}件（繰り返し${f.recurring}件・個別変更／削除指定${f.exceptions}件）</dd>
-      <dt>現在の予定</dt><dd>${st.total}件</dd><dt>追加見込み</dt><dd>${p.add.length}件（重複${p.dup}件・競合${p.conflict}件）</dd>${bk.data.memos ? `<dt>メモ</dt><dd>ファイル${bk.data.memos.length}件／現在${bk.curMemos.length}件／追加${p.memo.added}件・連結${p.memo.merged}件</dd>` : ''}${bk.data.tasks ? `<dt>タスク</dt><dd>ファイル${bk.data.tasks.length}件／現在${bk.curTasks.length}件／追加${p.task.added}件</dd>` : ''}</dl>
+      <dt>現在の予定</dt><dd>${st.total}件</dd><dt>追加見込み</dt><dd>${p.add.length}件（重複${p.dup}件・競合${p.conflict}件）</dd>${bk.data.memos ? `<dt>メモ</dt><dd>ファイル${bk.data.memos.length}件／現在${bk.curMemos.length}件／追加${p.memo.added}件・連結${p.memo.merged}件</dd>` : ''}${p.legacy ? `<dt>ノート（古いメモから）</dt><dd>追加${p.legacy.added}件・同じ${p.legacy.same}件・別ノート${p.legacy.differ}件（今のノートは消えません）</dd>` : ''}${bk.data.tasks ? `<dt>タスク</dt><dd>ファイル${bk.data.tasks.length}件／現在${bk.curTasks.length}件／追加${p.task.added}件</dd>` : ''}</dl>
       ${p.conflict ? `<p class="small">競合${p.conflict}件は現在の予定を残します</p>` : ''}${catLine()}</section>
       <button type="button" class="row" id="bk-add"${dis}>追加（同じ予定は重複させない）<small>今の予定と設定を残します</small></button>
       <button type="button" class="row" id="bk-replace"${dis}>置き換え<small>今の予定はすべて消えて、このファイルの内容になります。設定も置き換わります（メモとタスクも、ファイルに項目があれば置き換わります）</small></button>
@@ -2972,15 +2972,17 @@ async function doExport() {
 async function onPicked(file) {
   bk = { stage: 'main', busy: true, msg: '', err: '' };
   renderBackup();
-  let res, curMemos = [], curTasks = [];
+  let res, curMemos = [], curTasks = [], curNotes = [], curFolders = [], hex = null;
   try {
     if (!await flushMemosAwait()) { bk = { stage: 'main', busy: false, msg: '', err: '保存できていないメモがあるため読み込めません。メモの再試行をしてからもう一度お試しください。' }; renderBackup(); return; }
     curMemos = await db.listMemos(); curTasks = await db.listTasks();
+    curNotes = await db.listNotes({ includeDeleted: true }); curFolders = await db.listFolders();
     if (file.size > MAX_BYTES) res = { ok: false, reason: 'ファイルが大きすぎます（上限10MiB）' };
     else res = validateBackup(await file.text(), { categories: state.categories });
+    if (res.ok && !res.data.notes && res.data.memos?.length) hex = await legacyHashes(res.data.memos);
   } catch { res = { ok: false, reason: 'ファイルを読み取れません' }; }
   if (!res.ok) bk = { stage: 'invalid', busy: false, name: file.name, reason: res.reason };
-  else bk = { stage: 'confirm', busy: false, name: file.name, data: res.data, report: res.report, curMemos, curTasks, plan: planAppend(state.events, res.data.events, curMemos, res.data.memos || [], curTasks, res.data.tasks || []), err: '' };
+  else bk = { stage: 'confirm', busy: false, name: file.name, data: res.data, report: res.report, curMemos, curTasks, plan: planAppend(state.events, res.data.events, curMemos, res.data.memos || [], curTasks, res.data.tasks || [], curNotes, null, curFolders, null, hex), err: '' };
   renderBackup();
   BK.body.querySelector('button')?.focus({ preventScroll: true });
 }
@@ -2992,7 +2994,7 @@ BK.file.addEventListener('change', () => {
 async function finishImport(kind) {
   if (bk.busy) return;
   const { plan } = bk, name = bk.name;
-  let data = bk.data, dupLinks = 0, tp = null;
+  let data = bk.data, dupLinks = 0, tp = null, lp = null;
   if (kind === 'replace') { const u = uniqueRequestIds(data.events); data = { ...data, events: u.events }; dupLinks = u.unlinked; } // 二重の requestId は先の1件だけ結びつけ
   bk = { ...bk, busy: true, err: '' };
   renderBackup();
@@ -3002,6 +3004,9 @@ async function finishImport(kind) {
     const memoNow = Date.now(), curMemos = await db.listMemos();
     const mp = kind === 'add' ? planMemos(curMemos, data.memos || [], memoNow) : null;
     tp = kind === 'add' ? planTasks(await db.listTasks(), data.tasks || []) : null;
+    // 古いメモは追加専用（置換でも今のノート・フォルダ・ピンを消さない）。ハッシュは tx の前に計算する。
+    lp = !data.notes && data.memos?.length ? planLegacyNotes(await db.listNotes({ includeDeleted: true }), await db.listFolders(), data.memos, await legacyHashes(data.memos), memoNow) : null;
+    const legacyPuts = lp ? { notePuts: lp.notePuts, folderPuts: lp.folderPuts } : {};
     // カテゴリと予定を1トランザクションで。参照先のカテゴリが無い予定は未分類に付け替える。
     const now = Date.now(), cin = data.categories.map((c) => ({ ...c, createdAt: c.createdAt || now, updatedAt: c.updatedAt || now }));
     if (kind === 'add') {
@@ -3009,13 +3014,13 @@ async function finishImport(kind) {
       const fin = ensureOneVisible(fx.categories, now).list; // 書く結果が全部 hidden なら先頭だけ表示に戻す
       const cur = new Map(state.categories.map((c) => [c.id, c]));
       const same = (c) => cur.get(c.id)?.name === c.name && cur.get(c.id)?.color === c.color && !!cur.get(c.id)?.hidden === !!c.hidden;
-      await db.applyImport({ catPuts: fin.filter((c) => !cur.has(c.id) || !same(c)), eventPuts: fx.events, memoPuts: mp.puts, taskPuts: tp.puts });
+      await db.applyImport({ catPuts: fin.filter((c) => !cur.has(c.id) || !same(c)), eventPuts: fx.events, memoPuts: mp.puts, taskPuts: tp.puts, ...legacyPuts });
     } else {
       let cats = data.hasCategories ? mergeCategories([], cin, 'replace').categories : mergeCategories(state.categories, cin, 'add').categories;
       if (!cats.length) cats = state.categories;
       if (data.hasCategories) cats = supplementForReplace(cats, data.events, now).list; // 不足する家族/外出/その他（と参照される仕事/私用）を補う
       const fx = fixEventCategories(data.events, cats, now);
-      OBX.items = await db.applyImport({ catPuts: ensureOneVisible(fx.categories, now).list, eventPuts: fx.events, replace: true, outbox: (cur) => keepAfterReplace(cur, fx.events), ...(data.memos ? { memoReplace: true, memoPuts: data.memos } : {}), ...(data.tasks ? { taskReplace: true, taskPuts: data.tasks } : {}) });
+      OBX.items = await db.applyImport({ catPuts: ensureOneVisible(fx.categories, now).list, eventPuts: fx.events, replace: true, outbox: (cur) => keepAfterReplace(cur, fx.events), ...(data.memos ? { memoReplace: true, memoPuts: data.memos } : {}), ...(data.tasks ? { taskReplace: true, taskPuts: data.tasks } : {}), ...legacyPuts });
     }
   } catch {
     try { state.events = await db.listEvents(); } catch { /* 無視 */ }
@@ -3030,9 +3035,9 @@ async function finishImport(kind) {
   bumpRevision();
   try { setCategories(await db.listCategories()); } catch { /* 直前の一覧で続ける */ }
   let msg;
-  if (kind === 'add') msg = `${plan.add.length}件を追加しました（重複${plan.skipped}件を除外）。${data.memos?.length ? `メモは追加${plan.memo.added}件・連結${plan.memo.merged}件。` : ''}${data.tasks?.length ? `タスクは追加${tp.added}件。` : ''}`;
+  if (kind === 'add') msg = `${plan.add.length}件を追加しました（重複${plan.skipped}件を除外）。${data.memos?.length ? `メモは追加${plan.memo.added}件・連結${plan.memo.merged}件。` : ''}${lp ? `古いメモからノートを追加${lp.added}件・別ノート${lp.differ}件（同じ${lp.same}件）。` : ''}${data.tasks?.length ? `タスクは追加${tp.added}件。` : ''}`;
   else {
-    msg = `${data.events.length}件の予定${data.settings ? 'と設定' : ''}に置き換えました。${data.memos?.length ? `メモ${data.memos.length}件。` : ''}${data.tasks?.length ? `タスク${data.tasks.length}件。` : ''}${dupLinks ? `同じiPhone連携の印を持つ予定があったため、${dupLinks}件の結びつきを外しました。` : ''}`;
+    msg = `${data.events.length}件の予定${data.settings ? 'と設定' : ''}に置き換えました。${data.memos?.length ? `メモ${data.memos.length}件。` : ''}${lp ? `古いメモからノートを追加${lp.added}件・別ノート${lp.differ}件（同じ${lp.same}件）。` : ''}${data.tasks?.length ? `タスク${data.tasks.length}件。` : ''}${dupLinks ? `同じiPhone連携の印を持つ予定があったため、${dupLinks}件の結びつきを外しました。` : ''}`;
     if (data.settings) { const { notify, tasks: tset, ...ui } = data.settings; Object.assign(state, ui); saveUi(); if (tset) setRemSettings(tset); setFirstDay(state.weekStart); if (notify) saveNotify(notify); }
   }
   // 復元した linked の予定は、この端末の iPhone の予定と照合し直す（代わりの照合は復元直後の予定だけ）。
