@@ -151,10 +151,10 @@ test.describe('バッジ', () => {
 
 test.describe('開いた横の帯', () => {
   for (const size of [SIZES.openLandscape, SIZES.openLandscape951]) {
-    test(`${size.width}×${size.height}: 6項目、右ページを切替・再押下で戻る`, async ({ page }) => {
+    test(`${size.width}×${size.height}: 6項目（第18版: 見開きの型のボタンが検索とタスクの間に加わる）、右ページを切替・再押下で戻る`, async ({ page }) => {
       await mock(page);
       await band(page, size);
-      expect(await names(page)).toEqual(['menu', 'search', 'strip:task', 'strip:memo', 'today', 'add']);
+      expect(await names(page)).toEqual(['menu', 'search', 'spreadtype', 'strip:task', 'strip:memo', 'today', 'add']);
       const q = size.height / 669;
       near((await sb(page, 'task').boundingBox()).y, (size.height - 249 * q) - 4);
       near((await sb(page, 'memo').boundingBox()).y, (size.height - 189 * q) - 4);

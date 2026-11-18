@@ -68,3 +68,22 @@ test('集中モードの正規化（未設定・不正は calendar、有効値�
   for (const v of [undefined, null, '', 'x', 3, {}, 'memo']) assert.equal(normFocusMode(v), 'calendar');
   for (const v of FOCUS_MODES) assert.equal(normFocusMode(v), v);
 });
+
+import { SPREAD_TYPES, normSpreadType, normTtSplit, TT_SPLIT_DEFAULT } from '../js/pages.js';
+test('第18版 PR1: 見開きの型（不正は pages）。左右の種類は書き換えない', () => {
+  assert.deepEqual(SPREAD_TYPES, ['pages', 'tt']);
+  for (const v of [undefined, null, '', 'x', 1, {}, 'TT']) assert.equal(normSpreadType(v), 'pages');
+  assert.equal(normSpreadType('tt'), 'tt');
+  assert.equal(normSpreadType('pages'), 'pages');
+  const p = { left: 'month', right: 'time', portraitBottom: 'time', portraitShown: false };
+  assert.deepEqual(normalizePages(p), p); // tt は pages の左右に関与しない
+  assert.deepEqual(normalizePages({ left: 'time', right: 'time' }).left, 'time'); // 同じ種類を2つ並べない決まりは今のまま
+  assert.notEqual(normalizePages({ left: 'time', right: 'time' }).right, 'time');
+});
+test('第18版 PR1: 予定欄の高さ ttSplit（既定300・不正は既定・範囲に詰める）', () => {
+  assert.equal(TT_SPLIT_DEFAULT, 300);
+  for (const v of [undefined, null, '300', NaN, Infinity, {}]) assert.equal(normTtSplit(v), 300);
+  assert.equal(normTtSplit(200), 200);
+  assert.equal(normTtSplit(10), 64);
+  assert.equal(normTtSplit(99999), 900);
+});

@@ -46,3 +46,11 @@ export function normTimeMode(t) {
 export const FOCUS_MODES = ['calendar', 'task', 'note'];
 export const FOCUS_LABELS = { calendar: 'カレンダー', task: 'タスク', note: 'ノート' };
 export const normFocusMode = (v) => (FOCUS_MODES.includes(v) ? v : 'calendar');
+
+// 見開きの型（開いた横）。'pages'＝今の左右自由の見開き（既定）、'tt'＝今日＋明日（左右とも1日ページ）。
+// 左右の種類（pages）とは別に持つ。tt をやめれば元の左右に戻る。不正値は 'pages'。
+export const SPREAD_TYPES = ['pages', 'tt'];
+export const normSpreadType = (v) => (SPREAD_TYPES.includes(v) ? v : 'pages');
+// 1日ページの予定欄の高さ（pt）。既定 300。保存値の下限は 64（160 未満は時間軸をやめて一覧）、上限はページの高さで描画時に詰める。
+export const TT_SPLIT_DEFAULT = 300, TT_SPLIT_MIN = 64, TT_SPLIT_MAX = 900;
+export const normTtSplit = (v) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(TT_SPLIT_MAX, Math.max(TT_SPLIT_MIN, Math.round(v))) : TT_SPLIT_DEFAULT);

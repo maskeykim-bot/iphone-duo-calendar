@@ -1325,3 +1325,38 @@ html.kbl[data-kbe=dn] .nupb{max-width:none;width:100%;border-radius:8px;backgrou
 .ndchip::before{content:"";position:absolute;left:-4px;right:-4px;top:-11px;bottom:-11px}
 .ndchip.has{color:#294E42;box-shadow:inset 0 0 0 1px #8A7E5C}
 .nday>span{display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:14px;background:rgba(138,126,92,.14);color:#294E42}
+
+/* ===== 第18版 PR1: 見開きの型「今日＋明日」（左右とも1日ページ）===== */
+/* 縦の寸法: 見出し82／予定欄 --tt-split（既定300）／つまみ24／ノート（残り）。左右で同じ。ページの高さは --tt-h（y0〜603）。溝（--fold-keepout）には何も置かない */
+.shell.spread.tt{background:#FFFDFA}
+.spread .dpage{height:var(--tt-h,603px);background:#FFFDFA;overflow:clip}
+.dpage{display:flex;flex-direction:column;background:#FFFDFA}
+.dpage .dph{flex:none;height:82px;box-sizing:border-box;padding:18px 16px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.dpage .dd{display:flex;align-items:baseline;min-width:0;margin:0;font:20px/44px -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif;font-weight:600;white-space:nowrap;overflow:hidden}
+.dpage .dd .hdt.hol{color:var(--holiday)}
+.dpage .drk{flex:none;font-size:13px;line-height:44px;color:var(--muted)}
+.dpage .dev{flex:none;height:var(--tt-split,300px);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.dpage .tl{flex:1;min-height:0}
+.dpage .tlin{margin-bottom:0}
+.dpage .hlab{left:16px;width:40px}
+.dpage .hl{left:60px;right:0}
+.dpage .tlcols{left:60px;right:20px}
+.dpage .allday{flex:none;box-sizing:border-box;height:28px;margin-bottom:4px;padding:0 20px 0 16px}
+.dpage .adl{width:44px}
+.dpage .dlist{flex:1;min-height:0;overflow-y:auto;padding:0 16px;overscroll-behavior:contain;touch-action:pan-y}
+.dpage .dlrow{height:32px;min-height:32px;flex:none}
+.dpage .dnone{margin:0;padding:0 4px;font-size:13px;line-height:32px;color:var(--muted)}
+.dpage .dgrip{flex:none;position:relative;height:24px;touch-action:none;cursor:ns-resize}
+.dpage .dgrip i{position:absolute;left:50%;top:10px;width:36px;height:4px;margin-left:-18px;border-radius:2px;background:#C9C5BA}
+.dpage .dgrip.drag i,.dpage .dgrip:focus-visible i{background:#8A7E5C}
+.dpage .dnote{flex:1;min-height:0;display:block;width:auto;margin:0 16px;padding:0;overflow:hidden;text-align:left;border-radius:0;color:var(--ink);background:repeating-linear-gradient(to bottom,transparent 0,transparent 29px,#EEEAE1 29px,#EEEAE1 30px)}
+.dpage .dnote:hover{background:repeating-linear-gradient(to bottom,transparent 0,transparent 29px,#EEEAE1 29px,#EEEAE1 30px)}
+.dpage .dnt{display:block;font-size:15px;line-height:30px;white-space:pre-wrap;word-break:break-word;overflow:hidden}
+/* 開いた縦: 上＝選択日、下＝次の日（紙のめくりは使わない。横すべり 0.25 秒） */
+.pcol.ttp{position:fixed;left:var(--content-x);width:var(--content-w);top:var(--head-h);height:calc(var(--controls-y) - var(--head-h) - 8px);display:flex;flex-direction:column;gap:0}
+.ttp .dpage{position:relative;flex:1 1 0;min-height:0}
+.ttp .dpage+.dpage{border-top:1px solid #EEEAE1}
+.ttp .dph{height:48px;padding-top:2px}
+.ttp .dev{flex:1;height:auto}
+.ttp .dnote{flex:none;height:90px;margin-bottom:6px}
+.cb.ctt.on .bi{background:var(--green);color:#fff;box-shadow:none}
