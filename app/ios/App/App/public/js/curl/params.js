@@ -31,7 +31,13 @@ export const TIME = Object.freeze({
   showFrom: 0.6,   // 透かし 16%→0 を始める位置（0.30 秒の後ろ 40%）
   lift: 100,       // 辺 24pt から触れたときに角を持ち上げる時間
 });
-export const JUDGE = Object.freeze({ flick: 500, liftPx: 12, edge: 24, dragStart: 12 }); // 500pt/秒以上の払い・持ち上げ量・辺の幅・動きの始め
+// 判定（第18.1版で感度を直した。design/26 §追記 18.1）
+//  flick: 払いとみなす速さ（pt/秒。500→350）・liftPx: 持ち上げ量・edge: 角を持ち上げる辺の幅
+//  band / bandFrac: 始められる帯の幅＝min(band, ページ幅×bandFrac)（24→110 / 35%）
+//  decide: 向きを決める動き（12→10pt）・ratio: 横 ≥ 縦×ratio なら横（1→0.7）
+//  quickMs / quickPx: 押してから 280ms 以内に 36pt 以上めくる向きへ動かして離したら、位置によらず進む
+//  velMs: 速さを測る直近の時間・flickMinPx: 払いとみなすには押した所から最低これだけ横に動かす
+export const JUDGE = Object.freeze({ flick: 350, liftPx: 12, edge: 24, band: 110, bandFrac: 0.35, decide: 10, ratio: 0.7, quickMs: 280, quickPx: 36, velMs: 100, flickMinPx: 24 });
 export const easeOut3 = (u) => 1 - Math.pow(1 - u, 3);
 // cubic-bezier(.2,.8,.2,1) を数値で解く
 export const easeStd = (u) => {

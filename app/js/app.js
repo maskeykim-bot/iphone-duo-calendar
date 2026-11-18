@@ -5061,11 +5061,18 @@ function ttMetrics() { // めくりの寸法（アプリ座標）。見えてい
   const a = l.getBoundingClientRect(), b = r.getBoundingClientRect();
   return a.width > 0 && b.width > 0 ? { lx0: a.left, lx1: a.right, spine: b.left, edge: b.right, py0: a.top, py1: a.bottom } : null;
 }
-const CURL_EXCLUDE = `${SWIPE_EXCLUDE}, .tlev, .adpill, .adplus, .dlrow`; // 予定の枠・終日のピル・つまみ・操作の上からは始めない
+// 第18.1版：帯の中なら予定の枠・終日・時間の目盛り・ノートの上からでも、横に動いたらめくる（向きが決まるまでは何もしないので、タップ・長押し・縦スクロールは従来どおり）。
+// 始めないのは つまみ・編集中の枠・ボタン類の帯（右の帯・タブ・ページ切替）・入力欄・入力中（フォーカス中）の文字の上だけ。
+const CURL_EXCLUDE = '.dgrip, .dbox, .hdl, .dx, .tlmenu, .mmenu, .ctl, .bandbg, .tabs, .pgsw, .foldband, .hline, .top, .foot, .add, input, select, label, dialog, [contenteditable="true"]';
+const curlCanStart = (t) => {
+  if (!(t instanceof Element) || !t.closest('.dpage') || t.closest(CURL_EXCLUDE)) return false;
+  const ta = t.closest('textarea'); if (ta && ta === document.activeElement) return false;
+  return t.closest('.tlev, .adpill, .adplus, .dlrow, .dnote, button, textarea') ? 'quiet' : true; // タップで開く物の上：角は持ち上げず、横に動いたらめくる
+};
 ttCurl = createCurl({
   root, metrics: ttMetrics, pages: ttPainter(), swipe: swipeCtl, reduced,
   enabled: () => ttSpreadOn() && !TT.drag && !anyPanel(),
-  canStart: (t) => !!t.closest('.dpage') && !t.closest(CURL_EXCLUDE),
+  canStart: curlCanStart,
   onTurn: (dir) => { swipePane = null; swipeMove(dir); }, // state.selected を ±2 日にして render()（今日＋明日の日送りと同じ）
 });
 

@@ -59,7 +59,7 @@ test.describe('js/curl/ の部品（第18版 PR2）', () => {
     expect(Object.isFrozen(K)).toBe(true); expect(Object.isFrozen(TUNE)).toBe(true); expect(Object.isFrozen(DARK)).toBe(true);
     expect(K).toMatchObject({ show: 0.16, nextOnBack: 0, hiF: 0.38, dkF0: 0.06, dkF1: 0.36, dkFa: 43, dkFb: 89, dkFm: 0.0045, dkB: 0.30, hiB: 0.45, hiMinW: 3, hiMask: 1, hiDark: 0.25, ampR0: 8, ampR1: 28, rootA0: 0.12, rootIn: 10, rootOut0: 9, rootOutK: 1, shBl0: 7, shBlK: 34, shOp0: 0.42, shOpK: 0.22, darkShadow: 0.5, grid: 2 });
     expect(TUNE).toEqual({ maxTilt: 35, r0: 14, rk: 0.18, rMax: 58, flatten: 90 });
-    expect(TIME).toMatchObject({ page: 300, back: 220, fade: 150, showFrom: 0.6 }); expect(JUDGE.flick).toBe(500);
+    expect(TIME).toMatchObject({ page: 300, back: 220, fade: 150, showFrom: 0.6 }); expect(JUDGE.flick).toBe(350);
     const light = await import('../js/curl/params.js'); expect(light.LIGHT.paper).toBe('#FFFDFA'); expect(light.LIGHT.back).toBe('#FFFDFA'); expect(light.LIGHT.line).toBe('#EEEAE1');
     const idx = readFileSync('js/curl/index.js', 'utf8'); expect(idx).not.toMatch(/import\s*\(/);
     for (const f of ['js/swipe.js', 'js/direct-input.js']) expect(readFileSync(f, 'utf8')).not.toMatch(/curl\//); // アプリの操作からは import しない

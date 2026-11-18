@@ -7,7 +7,7 @@ import { makeSet, clampF } from './geom.js';
 import { CurlRenderer } from './renderer.js';
 import { createGesture, judgeDone } from './gesture.js';
 import { clock, createAnim, lift, runTurn, runSwap } from './landing.js';
-import { DARK, LIGHT } from './params.js';
+import { DARK, LIGHT, JUDGE } from './params.js';
 import { curlPerfOn, curlPerfAuto, createPerf } from './perf.js';
 
 export const curlDark = () => !!DARK.enabled && typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches;
@@ -69,16 +69,22 @@ export function createCurl(opts = {}) {
   }
   function begin(dir, p, m) {
     const s = makeSet(m)[dir], gy = Math.min(m.py1, Math.max(m.py0, p[1]));
-    st = { dir, s, g: [s.edge, gy], start: p, f: [s.edge, gy], started: false, moved: false, released: false, done: false, m };
+    // k：帯の内側から押したとき、指が境目（mid）に着いたら紙の端も mid に来るよう、動きを広げる（18.1。辺から押したときはほぼ 1）
+    const k = Math.min(2, Math.max(1, (s.edge - s.mid) / ((p[0] - s.mid) || 1)));
+    st = { dir, s, g: [s.edge, gy], start: p, down: p, k, liftOff: 0, f: [s.edge, gy], started: false, moved: false, released: false, done: false, m };
   }
   const draw = () => { if (st && renderer && !renderer.lost) st.shape = renderer.draw(st.g, st.f); };
-  function startCurl() { // 触れた向きの絵だけを作る（pointerdown）
+  function prepareCurl() { // 触れた向きの絵だけを作る（pointerdown）。まだ見せない
     const t0 = performance.now(), scene = pages.prepare(st.dir);
     if (renderer.lost) return false;
     if (!['Lo', 'Ln', 'Ro', 'Rn', 'front', 'next'].every((k) => scene[k]?.t) || renderer.gl.getError()) { fail(); return false; } // テクスチャの作成に失敗 → 横すべりへ
-    renderer.setScene(scene); st.prepMs = performance.now() - t0; st.shown = true;
-    cv.style.opacity = ''; cv.style.display = 'block'; draw(); perf?.first(renderer.gl, pages.stats().last, st.g[1]); return true;
+    renderer.setScene(scene); st.prepMs = performance.now() - t0; st.ready = true; return true;
   }
+  function showCurl() {
+    if (!st?.ready || st.shown || renderer.lost) return false;
+    st.shown = true; cv.style.opacity = ''; cv.style.display = 'block'; draw(); perf?.first(renderer.gl, pages.stats().last, st.g[1]); return true;
+  }
+  function startCurl() { return prepareCurl() && showCurl(); }
   const ctx = () => ({ st, R: renderer, draw, fade: (a) => { cv.style.opacity = String(a); }, landed: () => hook.onLanded?.() });
   function cleanup() { hide(); try { pages.release(); } catch { /* 捨てるだけ */ } st = null; blocking = false; mark(false); perf?.end(); }
 
@@ -117,16 +123,27 @@ export function createCurl(opts = {}) {
       if (!m) return;
       begin(g.dir, g.down, m);
       if (mode() === 'reduce') return;
-      try { if (!startCurl()) return; } catch (e) { fail(e); return; }
+      try { if (!prepareCurl()) return; } catch (e) { fail(e); return; }
+      if (!g.lift) return; // 帯の内側：向きが決まるまで何も見せない（タップ・長押し・縦スクロールを邪魔しない）
+      try { showCurl(); } catch (e) { fail(e); return; }
       lift(ctx(), anim); // 辺 24pt に触れたら 0.10 秒で角を少し持ち上げる（§6.1）
     },
-    onStart(g, p) { if (!st) return; swipe?.cancel(); st.started = true; st.moved = true; st.start = p; blocking = true; mark(true); },
+    onStart(g, p) {
+      if (!st) return; swipe?.cancel();
+      st.liftOff = Math.abs(st.f[0] - st.g[0]); // 持ち上げていた分はそのまま続ける（決めた瞬間に紙が落ちない）
+      st.started = true; st.moved = true; blocking = true; mark(true);
+      if (mode() !== 'reduce' && !st.shown) { try { showCurl(); } catch (e) { fail(e); } }
+    },
     onMove(g, p) {
       if (!st || !st.started) return;
-      const s = st.s, f = [st.g[0] + (p[0] - st.start[0]), st.g[1] + (p[1] - st.start[1])];
+      const s = st.s, f = [st.g[0] - s.sgn * st.liftOff + (p[0] - st.down[0]) * st.k, st.g[1] + (p[1] - st.down[1])];
       st.f = clampF(s, st.g, f); st.vx = g.vx; if (!reduced()) draw();
     },
-    onEnd(g) { if (!st) return; finishTurn(judgeDone(st.s, st.f[0], g.vx)); },
+    onEnd(g, p) {
+      if (!st) return; st.vx = g.vx;
+      const vx = Math.abs(p[0] - st.down[0]) >= JUDGE.flickMinPx ? g.vx : 0; // ほんの少し動かして離しただけを払いとみなさない
+      finishTurn(judgeDone(st.s, st.f[0], vx) || !!g.quick);
+    },
     onAbort(g, reason) { if (resetting || !st || st.released) return; finishTurn(false); },
   });
   // めくっている間（離したあとの動き）は他のタップを止める
