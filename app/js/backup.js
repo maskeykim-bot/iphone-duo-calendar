@@ -67,7 +67,11 @@ export const exportEvent = shape;
 
 // categories: 現在のカテゴリ一覧。settings: { view, style, desk, monthExpand, weekStart(0|1), notify? }。
 // memos: 現在のメモ一覧（db.listMemos）。tasks: 現在のタスク一覧（db.listTasks）。order→id の安定順で出す。
-const exportMemo = (m) => ({ id: m.date, date: m.date, text: m.text, createdAt: m.createdAt, updatedAt: m.updatedAt });
+const exportMemo = (m) => {
+  const o = { id: m.date, date: m.date, text: m.text, createdAt: m.createdAt, updatedAt: m.updatedAt };
+  if (m.ink != null) o.ink = deepClean(m.ink); // 古い手書きは消さない（D15）。無いときは今までと同じ形
+  return o;
+};
 const taskCmp = (a, b) => a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 const exportTask = (t) => { const r = validateTask(t); const x = r.ok ? r.task : t; return { id: x.id, title: x.title, due: x.due ? { ...x.due } : null, done: x.done, doneAt: x.doneAt, createdAt: x.createdAt, updatedAt: x.updatedAt, order: x.order, note: x.note, notify: x.notify }; };
 // ノート有効時用の書出。notes: 現在のノート一覧（db.listNotes({includeDeleted:true})）、folders: db.listFolders()。
@@ -171,7 +175,8 @@ function checkMemos(list) {
     seen.add(m.date);
     if (typeof m.text !== 'string' || /^\s*$/.test(m.text) || m.text.length > MAX_MEMO_CHARS) return { error: `${where}: 本文が不正です` };
     if (!goodTime(m.createdAt) || !goodTime(m.updatedAt)) return { error: `${where}: 時刻が不正です` };
-    memos.push({ id: m.date, date: m.date, text: m.text, createdAt: m.createdAt, updatedAt: m.updatedAt, ink: null });
+    if (m.ink !== undefined && m.ink !== null && typeof m.ink !== 'object' && typeof m.ink !== 'string') return { error: `${where}: 手書きが不正です` };
+    memos.push({ id: m.date, date: m.date, text: m.text, createdAt: m.createdAt, updatedAt: m.updatedAt, ink: m.ink == null ? null : deepClean(m.ink) });
   }
   return { memos };
 }
@@ -443,7 +448,7 @@ export function planMemos(current = [], incoming = [], now = Date.now()) {
     const cur = byDate.get(m.date);
     if (!cur) { puts.push(m); added++; continue; }
     if (cur.text === m.text) { same++; continue; }
-    puts.push({ ...cur, text: `${cur.text}\n\n${m.text}`, updatedAt: now, ink: null }); merged++;
+    puts.push({ ...cur, text: `${cur.text}\n\n${m.text}`, updatedAt: now, ink: cur.ink ?? null }); merged++;
   }
   return { puts, added, merged, same };
 }

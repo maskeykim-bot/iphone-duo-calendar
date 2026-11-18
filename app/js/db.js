@@ -200,7 +200,7 @@ export const isBlankMemo = (text) => typeof text !== 'string' || /^\s*$/.test(te
 export function makeMemo(date, text, now = Date.now(), prev = null) {
   if (!isKey(date)) throw new Error('invalid memo date');
   if (typeof text !== 'string') throw new Error('invalid memo text');
-  return { id: date, date, text, createdAt: prev?.createdAt ?? now, updatedAt: now, ink: null };
+  return { id: date, date, text, createdAt: prev?.createdAt ?? now, updatedAt: now, ink: prev?.ink ?? null };
 }
 const MEMO = ['memos'];
 export async function getMemo(date) {
