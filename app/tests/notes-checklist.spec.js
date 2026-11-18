@@ -60,6 +60,7 @@ test.describe('ノートのチェック欄と書式', () => {
     const chk = page.locator('.ned-chk');
     await expect(chk).toHaveCount(4);
     await expect.poll(async () => { const b = await chk.first().boundingBox(); return b && Math.min(b.width, b.height); }).toBeGreaterThanOrEqual(44);
+    await expect(page.locator('.ned-box').first()).toBeVisible();
     const box = await page.locator('.ned-box').first().boundingBox();
     expect(Math.round(box.width)).toBe(22);
     await chk.nth(0).click();

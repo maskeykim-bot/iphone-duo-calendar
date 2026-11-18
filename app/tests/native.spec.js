@@ -1,6 +1,7 @@
 // 第7版: iPhone カレンダー連携。window.Capacitor を偽装して、DuoNative の契約どおりに呼ばれ表示されることを確認する。
 import { test, expect } from '@playwright/test';
 import { notifyOn, openApp, SIZES, tab, seed, ev, dbEvents, setStyle, openMenu, pickDest, enableCalendars, fillDateTime, setDateUi } from './helpers.js';
+import { VERSION as BACKUP_VERSION } from '../js/backup.js';
 // 新規予定のカレンダー選択: 種別の先頭を選ぶ（第15版 PR5）
 const pickKind = async (page, type) => { await page.locator('#f-dest').click(); await page.locator(`#dest-pop .dopt[data-dtype="${type}"]`).first().click(); };
 const toIphone = (page) => pickKind(page, 'iphone');
@@ -680,7 +681,7 @@ test.describe('ネイティブ（偽装）', () => {
     expect(s[0].opts.mime).toBe('application/json');
     expect(s[0].opts.name).toMatch(/^duo-calendar-backup-\d{4}-\d{2}-\d{2}\.json$/);
     const json = JSON.parse(s[0].opts.text);
-    expect(json).toMatchObject({ app: 'duo-calendar', version: 4 });
+    expect(json).toMatchObject({ app: 'duo-calendar', version: BACKUP_VERSION });
     expect(JSON.stringify(json)).not.toMatch(/歯医者/);
     expect(json.events[0].nativeLink).toEqual({ state: 'linked', requestId: 'r1', eventId: 'zzz', calendarId: 'cal-1' });
     // キャンセル（completed:false）は通知しない

@@ -34,7 +34,8 @@ test.describe('許可なしでタスクを使える', () => {
     await spy(page);
     await openTasks(page, OPEN);
     await openMenu(page, 'calendar');
-    await expect(page.locator('#m-cal-rem')).toBeEmpty();
+    await expect(page.locator('#m-dest')).toHaveCount(1); // 設定›カレンダーが開いている
+    await expect(page.locator('#m-cal-rem')).toHaveCount(0);
     await expect(page.locator('#m-remreq, #m-remsync')).toHaveCount(0);
     expect(await legacyCalls(page)).toEqual([]);
   });

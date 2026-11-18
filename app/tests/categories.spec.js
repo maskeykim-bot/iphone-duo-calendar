@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { CAT_IDS, LEGACY, DEFAULTS_NEW } from '../js/categories.js';
+import { SCHEMA_VERSION } from '../js/db.js';
 import { openApp, seed, dbEvents, ev, tab, catId, SIZES, openMenu, addEvent, pickDest } from './helpers.js';
 // カテゴリの凡例は設定メニューの中（月には常設しない）
 const legendCheck = async (page, fn) => { await openMenu(page, 'calendar'); await fn(page.locator('#menu .legend')); await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); };
@@ -79,7 +80,7 @@ test.describe('DB v2 → v3 移行', () => {
     ]);
     expect(cats.slice(0, 2).map((c) => c.id)).toEqual([CAT_IDS.work, CAT_IDS.private]);
     const r = await raw(page, 'duo-calendar-mig3');
-    expect(r.version).toBe(4);
+    expect(r.version).toBe(SCHEMA_VERSION);
     expect(r.rows).toHaveLength(v2.length);
     for (const row of r.rows) { expect(typeof row.categoryId).toBe('string'); expect(row).not.toHaveProperty('cat'); }
     const by = Object.fromEntries(r.rows.map((x) => [x.id, x]));

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildBackup, contentKey, planAppend, planTasks, stripRuntime, validateBackup, VERSION } from '../js/backup.js';
+import { buildBackup, contentKey, planAppend, planTasks, stripRuntime, validateBackup, VERSION, READABLE } from '../js/backup.js';
 import { CAT_IDS, DEFAULTS_NEW, UNCATEGORIZED } from '../js/categories.js';
 import { R, ev } from './fixtures.mjs';
 
@@ -349,4 +349,8 @@ test('planTasks: 同ID同内容は無操作、異内容は既存を残し決定�
 
 test('planAppend は task の計画も返す', () => {
   assert.equal(planAppend([], [], [], [], [T('a')], [T('a'), T('z')]).task.added, 1);
+});
+
+test('READABLE は 1 から VERSION までの整数が全部入っている（版を上げても直さない）', () => {
+  assert.deepEqual([...READABLE], Array.from({ length: VERSION }, (_, i) => i + 1));
 });

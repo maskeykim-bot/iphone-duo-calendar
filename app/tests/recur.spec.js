@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { CAT_IDS } from '../js/categories.js';
+import { SCHEMA_VERSION } from '../js/db.js';
 import { openApp, tab, setStyle, pickDay, addRepeat, openOccurrence, chip, dbEvents, fillEditor, fillRepeat, ev, seed } from './helpers.js';
 
 // recur.js を実ブラウザで import して展開結果を検証する。
@@ -274,7 +275,7 @@ test.describe('schema v1 → v2 移行', () => {
         g.onsuccess = () => res({ version: r.result.version, rows: g.result });
       };
     }));
-    expect(raw.version).toBe(4);
+    expect(raw.version).toBe(SCHEMA_VERSION);
     expect(raw.rows).toHaveLength(3);
     for (const row of raw.rows) {
       expect(row.notes).toBe('');
