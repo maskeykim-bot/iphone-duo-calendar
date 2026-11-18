@@ -57,7 +57,7 @@ test.describe('js/curl/ の部品（第18版 PR2）', () => {
     expect(DARK.enabled).toBe(false);
     expect(DARK.paper).toBe('#262A27'); expect(DARK.line).toBe('#343A36');
     expect(Object.isFrozen(K)).toBe(true); expect(Object.isFrozen(TUNE)).toBe(true); expect(Object.isFrozen(DARK)).toBe(true);
-    expect(K).toMatchObject({ show: 0.16, nextOnBack: 0, hiF: 0.38, dkF0: 0.06, dkF1: 0.36, dkFa: 43, dkFb: 89, dkFm: 0.0045, dkB: 0.30, hiB: 0.45, hiMinW: 3, hiMask: 1, hiDark: 0.25, ampR0: 8, ampR1: 28, rootA0: 0.12, rootIn: 10, rootOut0: 9, rootOutK: 1, shBl0: 7, shBlK: 34, shOp0: 0.42, shOpK: 0.22, darkShadow: 0.5, grid: 2 });
+    expect(K).toMatchObject({ show: 0.16, nextOnBack: 1, hiF: 0.38, dkF0: 0.06, dkF1: 0.36, dkFa: 43, dkFb: 89, dkFm: 0.0045, dkB: 0.30, hiB: 0.45, hiMinW: 3, hiMask: 1, hiDark: 0.25, ampR0: 8, ampR1: 28, rootA0: 0.12, rootIn: 10, rootOut0: 9, rootOutK: 1, shBl0: 7, shBlK: 34, shOp0: 0.42, shOpK: 0.22, darkShadow: 0.5, grid: 2 });
     expect(TUNE).toEqual({ maxTilt: 35, r0: 14, rk: 0.18, rMax: 58, flatten: 90 });
     expect(TIME).toMatchObject({ page: 300, back: 220, fade: 150, showFrom: 0.6 }); expect(JUDGE.flick).toBe(350);
     const light = await import('../js/curl/params.js'); expect(light.LIGHT.paper).toBe('#FFFDFA'); expect(light.LIGHT.back).toBe('#FFFDFA'); expect(light.LIGHT.line).toBe('#EEEAE1');
@@ -73,7 +73,7 @@ test.describe('js/curl/ の部品（第18版 PR2）', () => {
     test(`curl-v1 との一致 ${dn}：同じ寸法・姿勢・紙（plain #F7F4ED）で画素の差 2 段まで`, async ({ page, browser, browserName }) => {
       const p2 = await page.context().newPage(); // curl-v1
       await openV1(p2); await openHarness(page);
-      await init(page, { dims: V1, dpr: 2, paper: '#F7F4ED', text: false });
+      await init(page, { dims: V1, dpr: 2, paper: '#F7F4ED', text: false, k: { nextOnBack: 0 } }); // 曲がり方・陰影の一致を見る（18.2 の裏の絵は別の試験）
       let worst = 0;
       for (const [name, f, gy] of poses) {
         const a = await p2.evaluate(async ([dir, gy, f]) => {

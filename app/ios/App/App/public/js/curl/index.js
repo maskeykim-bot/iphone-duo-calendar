@@ -69,8 +69,10 @@ export function createCurl(opts = {}) {
   }
   function begin(dir, p, m) {
     const s = makeSet(m)[dir], gy = Math.min(m.py1, Math.max(m.py0, p[1]));
-    // k：帯の内側から押したとき、指が境目（mid）に着いたら紙の端も mid に来るよう、動きを広げる（18.1。辺から押したときはほぼ 1）
-    const k = Math.min(2, Math.max(1, (s.edge - s.mid) / ((p[0] - s.mid) || 1)));
+    // k：紙の端はページの端からめくり始め、指の動き×k で動く（18.2）。指が押した所から反対側の端（前へ＝左ページの左端、戻り＝右ページの右端）まで動けば
+    // 紙がめくり切れる倍率。辺から押せば 1（今まで通り）、中ほど・反対の端から押すほど大きく（上限 kMax）
+    const land = 2 * s.spine - s.edge, reach = s.sgn > 0 ? p[0] - Math.max(m.lx0, 20) : m.edge - p[0];
+    const k = Math.min(JUDGE.kMax, Math.max(1, Math.abs(s.edge - land) / Math.max(1, reach)));
     st = { dir, s, g: [s.edge, gy], start: p, down: p, k, liftOff: 0, f: [s.edge, gy], started: false, moved: false, released: false, done: false, m };
   }
   const draw = () => { if (st && renderer && !renderer.lost) st.shape = renderer.draw(st.g, st.f); };
@@ -117,19 +119,25 @@ export function createCurl(opts = {}) {
     root, now: () => clock.now(), metrics,
     enabled: () => !disposed && !st && !copy && mode() !== 'slide' && enabled(),
     canStart: (t, ev) => canStart(t, ev),
-    onDown(g) {
+    onDown(g) { // 辺 24 に触れたときだけ、すぐ絵を作って角を持ち上げる。それ以外は向きが決まってから（タップ・縦スクロールのたびに絵を作らない）
       perf?.down(g.dir);
+      if (!g.lift) return;
       let m = null; try { m = mode() === 'reduce' ? metrics() : ensure(); } catch (e) { fail(e); return; }
       if (!m) return;
       begin(g.dir, g.down, m);
       if (mode() === 'reduce') return;
-      try { if (!prepareCurl()) return; } catch (e) { fail(e); return; }
-      if (!g.lift) return; // 帯の内側：向きが決まるまで何も見せない（タップ・長押し・縦スクロールを邪魔しない）
-      try { showCurl(); } catch (e) { fail(e); return; }
+      try { if (!prepareCurl()) return; showCurl(); } catch (e) { fail(e); return; }
       lift(ctx(), anim); // 辺 24pt に触れたら 0.10 秒で角を少し持ち上げる（§6.1）
     },
     onStart(g, p) {
-      if (!st) return; swipe?.cancel();
+      if (st && st.dir !== g.dir) { anim.cancel(); anim = createAnim(); hide(); try { pages.release(); } catch { /* 捨てるだけ */ } st = null; } // 辺で持ち上げた向きと逆へ動かした
+      if (!st) {
+        let m = null; try { m = mode() === 'reduce' ? metrics() : ensure(); } catch (e) { fail(e); return; }
+        if (!m) return;
+        begin(g.dir, g.down, m);
+        if (mode() !== 'reduce') { try { if (!prepareCurl()) { st = null; return; } } catch (e) { fail(e); return; } }
+      }
+      swipe?.cancel();
       st.liftOff = Math.abs(st.f[0] - st.g[0]); // 持ち上げていた分はそのまま続ける（決めた瞬間に紙が落ちない）
       st.started = true; st.moved = true; blocking = true; mark(true);
       if (mode() !== 'reduce' && !st.shown) { try { showCurl(); } catch (e) { fail(e); } }

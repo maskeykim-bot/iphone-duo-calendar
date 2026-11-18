@@ -27,7 +27,7 @@ void main(){vec2 Q=vX;vec3 c=bg;
  else if(Q.x>uGx.x&&Q.x<uGx.y)c=groove;
  c*=1.-dropShadow(Q);gl_FragColor=vec4(c,1.);}`;
 export const FS_PAPER = COMMON + `uniform sampler2D tF,tN;uniform float kAmpR0,kAmpR1,kDkFm,kHiMinW,kHiDark,kHiMask,kShow,kBackLine,kNext,kHiF,kHiFd,kHiFw,kDkF0,kDkF1,kDkFa,kDkFb,kDkB,kHiB,kHiBd,kHiBw,kFlatB,kFlatBw,kRootA0,kRootAK,kRootIn,kRootOut0,kRootOutK,kGroove;
-uniform vec3 backPaper,lineCol,edgeCol,frontPaper;uniform float uDebug,uPaperA;uniform vec4 uFrontRect;varying vec2 vX,vQ;varying float vD;
+uniform vec3 backPaper,lineCol,edgeCol,frontPaper;uniform float uDebug,uPaperA,uSpine;uniform vec4 uFrontRect,uBackRect;varying vec2 vX,vQ;varying float vD;
 const float PI=3.14159265;float g(float x,float c,float w){float t=(x-c)/w;return exp(-t*t);}
 // 巻きが細い（半径が小さい）うちは、巻きの明暗を弱める。細い筒に 4 つの筋が 6pt に詰まって段に見えるため（第3報）
 float ampR(){return smoothstep(kAmpR0,kAmpR1,uR);}
@@ -54,7 +54,7 @@ void main(){vec2 uv=(vX-uRect.xy)/(uRect.zw-uRect.xy);vec2 fuv=(vX-uFrontRect.xy
  vec3 c;
  if(back){float ly=mod(vX.y-uRect.y,30.);float ln=clamp(1.-abs(ly-29.5),0.,1.)*kBackLine;
    c=mix(backPaper,lineCol,ln);
-   if(kNext>0.){vec3 N=texture2D(tN,vec2(1.-uv.x,uv.y)).rgb;c=mix(c,N,kNext);}
+   if(kNext>0.){vec2 bq=vec2(2.*uSpine-vX.x,vX.y),bu=(bq-uBackRect.xy)/(uBackRect.zw-uBackRect.xy);vec3 N=(bu.x>=0.&&bu.x<=1.)?texture2D(tN,bu).rgb:backPaper;c=mix(c,N,kNext);} // 第18.2版：裏＝着地した所に置かれる次のページ（背で折り返した位置の絵）
    c=mix(c,F,kShow*(1.-kNext)); // 表の内容が左右反対に透ける（同じ紙の点の表の色を混ぜる）
    float e=smoothstep(-1.4,-0.2,sdRect(vX,uRect));c=mix(c,edgeCol,e*0.8);
  } else c=F;

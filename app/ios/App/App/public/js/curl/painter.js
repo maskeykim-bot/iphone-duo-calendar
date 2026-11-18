@@ -208,7 +208,7 @@ export function createPainter(opts) {
     return {
       Lo: { day: d, kind: 'L', dpr: dprs.front }, Ln: { day: a(fwd ? 2 : -2), kind: 'L', dpr: dprs.front },
       Ro: { day: a(1), kind: 'R', dpr: dprs.front }, Rn: { day: a(fwd ? 3 : -1), kind: 'R', dpr: dprs.front },
-      back: { day: a(fwd ? 2 : -1), kind: 'R', dpr: dprs.back }, // 裏（着地の面。右ページと同じ幅）
+      // 裏（第18.2版）：めくる紙の裏は、着地したときに見えるページそのもの＝次の左（前へ）／次の右（戻り）の絵を使う（別の絵は作らない）
       front: fwd ? 'Ro' : 'Lo', // めくる紙の表
     };
   }
@@ -220,7 +220,7 @@ export function createPainter(opts) {
   function prepare(dir) {
     if (!renderer) throw new Error('renderer がありません');
     free();
-    const tp = performance.now(), D = dims(), n = need(dir), names = ['Lo', 'Ln', 'Ro', 'Rn', 'back'], lastTex = [];
+    const tp = performance.now(), D = dims(), n = need(dir), names = ['Lo', 'Ln', 'Ro', 'Rn'], lastTex = [];
     const cmds = measure(names.map((k) => ({ key: k, day: n[k].day, kind: n[k].kind })));
     const T = {};
     for (const k of names) {
@@ -231,8 +231,10 @@ export function createPainter(opts) {
     }
     st.maxBytes = Math.max(st.maxBytes, st.bytes);
     st.last = { totalMs: performance.now() - tp, tex: lastTex };
-    return { dir, Lo: T.Lo, Ln: T.Ln, Ro: T.Ro, Rn: T.Rn, front: T[n.front], next: T.back,
-      frontRect: dir === 'forward' ? [D.spine, D.py0, D.edge, D.py1] : [D.lx0, D.py0, D.lx1, D.py1] };
+    const fwd = dir === 'forward';
+    return { dir, Lo: T.Lo, Ln: T.Ln, Ro: T.Ro, Rn: T.Rn, front: T[n.front], next: fwd ? T.Ln : T.Rn,
+      frontRect: fwd ? [D.spine, D.py0, D.edge, D.py1] : [D.lx0, D.py0, D.lx1, D.py1],
+      backRect: fwd ? [D.lx0, D.py0, D.lx1, D.py1] : [D.spine, D.py0, D.edge, D.py1] }; // 裏の絵（next）が着地後に置かれる矩形
   }
   return {
     dims, need, canvas, prepare, release: free,

@@ -57,7 +57,7 @@ export class CurlRenderer {
     const dir = scene.dir;
     this.cur = { ...scene };
     // 着地の見せ方（design/21 §6.11）。landing.js（④）がこの値を動かす
-    this.land = { stripMix: 0, Lnew: dir === 'forward' ? 0 : 1, Rnew: 0, paperA: 1, showMul: 1 };
+    this.land = { stripMix: 0, Lnew: dir === 'forward' ? 0 : 1, Rnew: dir === 'forward' ? 1 : 0, paperA: 1, showMul: 1 }; // 第18.2版：めくった下には最初から次のページ（前へ＝次の右・戻り＝次の左）
     this.mesh(dir);
   }
   uni(p, name, ...v) { const l = this.gl.getUniformLocation(p, name); if (l == null) return; if (v.length === 1) this.gl.uniform1f(l, v[0]); else if (v.length === 2) this.gl.uniform2f(l, ...v); else if (v.length === 3) this.gl.uniform3f(l, ...v); else this.gl.uniform4f(l, ...v); }
@@ -86,7 +86,7 @@ export class CurlRenderer {
     this.uni(p, 'uC', this.W / 2, this.H / 2); this.uni(p, 'uPersp', k.persp);
     for (const [n, u] of Object.entries(MAP)) this.uni(p, u, k[n]);
     this.uni(p, 'kShow', k.show * (L.showMul ?? 1)); // §6.11-10：着地前に透かしを消す
-    this.uni(p, 'kNext', L.landingFace ? 1 : 0); this.uni(p, 'uDebug', k.debug || 0); this.uni(p, 'uPaperA', L.paperA); this.uni(p, 'uFrontRect', ...cur.frontRect); this.uni(p, 'frontPaper', ...hex(c.paper));
+    this.uni(p, 'kNext', Math.max(k.nextOnBack ?? 0, L.landingFace ? 1 : 0)); this.uni(p, 'uSpine', d.spine); this.uni(p, 'uBackRect', ...(cur.backRect || [d.lx0, d.py0, d.lx1, d.py1])); this.uni(p, 'uDebug', k.debug || 0); this.uni(p, 'uPaperA', L.paperA); this.uni(p, 'uFrontRect', ...cur.frontRect); this.uni(p, 'frontPaper', ...hex(c.paper));
     this.uni(p, 'backPaper', ...hex(c.back)); this.uni(p, 'lineCol', ...hex(c.line)); this.uni(p, 'edgeCol', ...hex(c.edge));
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, cur.front.t); gl.uniform1i(gl.getUniformLocation(p, 'tF'), 0);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, cur.next.t); gl.uniform1i(gl.getUniformLocation(p, 'tN'), 1);

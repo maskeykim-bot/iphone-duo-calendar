@@ -45,7 +45,7 @@ test('CURLPERF: ?curlperf=1&auto=2 で前へ・戻り各2回、JSON の項目が
   expect(typeof r.env.reducedMotion).toBe('boolean'); expect(typeof r.env.dark).toBe('boolean');
   expect(r.firstFrameMs.all.n).toBe(r.turns);
   for (const k of ['p50', 'p95', 'p99', 'max']) { expect(r.firstFrameMs.all[k]).toBeGreaterThanOrEqual(0); expect(r.frames[k]).toBeGreaterThanOrEqual(0); }
-  for (const g of ['frontLeft', 'frontRight', 'back']) { expect(r.textures.byKind[g].paintMs.n).toBeGreaterThan(0); expect(r.textures.byKind[g].uploadMs.p50).toBeGreaterThanOrEqual(0); }
+  for (const g of ['frontLeft', 'frontRight']) { expect(r.textures.byKind[g].paintMs.n).toBeGreaterThan(0); expect(r.textures.byKind[g].uploadMs.p50).toBeGreaterThanOrEqual(0); }
   expect(r.frames.n).toBeGreaterThan(0); expect(r.frames.dropRate).toBeGreaterThanOrEqual(0);
   expect(r.longTasks.over50ms).toBeGreaterThanOrEqual(0); expect(typeof r.longTasks.supported).toBe('boolean');
   expect(r.contextLost).toBe(0);

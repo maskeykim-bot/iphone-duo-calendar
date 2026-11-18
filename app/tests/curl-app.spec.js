@@ -51,26 +51,24 @@ const slowTo = async (page, from, to, y = 300) => { await moves(page, [[from, y,
 const finishAll = (page) => adv(page, 800);
 
 test.describe('めくりの始まり（確認表 1章④）', () => {
-  test('始める場所（18.1）：前へ x741〜851（右ページの外側 110）、戻り x20〜118（左ページの外側 110・左 20 は除く）。中ほどは始めない', async ({ page }) => {
+  test('始める場所（18.2）：左右どちらのページのどこからでも、動かした向きでめくる（左へ＝前へ・右へ＝戻り）。画面の左 20 は除く', async ({ page }) => {
     await land(page, { events: null }); await manual(page);
-    let yy = 110; const at = async (x, y = (yy = 110 + ((yy - 80) % 240))) => { await down(page, x, y); await moves(page, [[x + (x < 400 ? 30 : -30), y, 0]]); const s = await cv(page); await page.mouse.up(); await adv(page, 800); await page.waitForTimeout(250); if (await page.locator('#editor').isVisible()) { await page.keyboard.press('Escape'); await expect(page.locator('#editor')).toBeHidden(); } return s; };
-    for (const x of [741, 790, 828, 850]) { const s = await at(x); expect(s.shown, `x${x}`).toBe(true); expect(s.dir).toBe('forward'); }
-    for (const x of [20, 27, 60, 118]) { const s = await at(x); expect(s.shown, `x${x}`).toBe(true); expect(s.dir).toBe('backward'); }
-    expect((await at(119)).shown, 'x119').toBe(false);
-    expect((await at(739)).shown, 'x739 は帯の外').toBe(false);
-    expect((await at(19)).shown, 'x19（左 20 は端の戻る操作）').toBe(false);
-    // ページの中ほど：横に大きく動かしても始めない・日も送らない
-    await down(page, 700, 300); await moves(page, [[690, 300, 16], [600, 300, 16], [500, 300, 16]]); expect((await cv(page)).shown).toBe(false); await page.mouse.up(); await adv(page, 800);
+    let yy = 110; const at = async (x, dx, y = (yy = 110 + ((yy - 80) % 240))) => { await down(page, x, y); await moves(page, [[x + dx, y, 0]]); const s = await cv(page); await page.mouse.up(); await adv(page, 800); await page.waitForTimeout(250); if (await page.locator('#editor').isVisible()) { await page.keyboard.press('Escape'); await expect(page.locator('#editor')).toBeHidden(); } return s; };
+    for (const x of [100, 300, 460, 490, 668, 760, 850]) { const s = await at(x, -30); expect(s.shown, `x${x} 左へ`).toBe(true); expect(s.dir, `x${x} 左へ`).toBe('forward'); }
+    for (const x of [22, 200, 460, 490, 668, 800, 845]) { const s = await at(x, 30); expect(s.shown, `x${x} 右へ`).toBe(true); expect(s.dir, `x${x} 右へ`).toBe('backward'); }
+    expect((await at(19, 30)).shown, 'x19（左 20 は端の戻る操作）').toBe(false);
     expect(await heads(page)).toEqual(['11月12日（木）', '11月13日（金）']);
   });
 
-  test('辺 24 だけ触れた瞬間に角が上がる。帯の内側は向きが決まるまで何も出さない（タップでは出ない）', async ({ page }) => {
+  test('辺 24 だけ触れた瞬間に角が上がる。それ以外は向きが決まるまで何も出さない（タップでは出ない）。辺で上げた向きと逆へ動かしても、動かした向きでめくる', async ({ page }) => {
     await land(page, { events: null }); await manual(page);
     await down(page, 780, 300); await moves(page, [[770, 300, 16]]); expect((await cv(page)).shown, '帯の内側・横に 10').toBe(true); await page.mouse.up(); await finishAll(page);
     expect(await heads(page)).toEqual(['11月12日（木）', '11月13日（金）']);
     await down(page, 780, 300); await adv(page, 32); expect((await cv(page)).shown, '帯の内側・押しただけ').toBe(false); await page.mouse.up(); await finishAll(page); expect((await cv(page)).busy).toBe(false);
     await page.keyboard.press('Escape'); await page.waitForTimeout(200); // 短いタップは時間軸の仮枠（直接入力）になるので消す
-    await down(page, 840, 200); await adv(page, 32); expect((await cv(page)).shown, '辺').toBe(true); await page.mouse.up(); await finishAll(page);
+    await down(page, 840, 200); await adv(page, 32); expect((await cv(page)).shown, '辺').toBe(true); expect((await cv(page)).dir).toBe('forward'); await page.mouse.up(); await finishAll(page);
+    await down(page, 40, 200); await adv(page, 32); expect((await cv(page)).dir, '左の辺').toBe('backward');
+    await moves(page, [[28, 200, 16]]); expect((await cv(page)).dir, '左の辺から左へ＝前へ').toBe('forward'); await page.mouse.up(); await finishAll(page);
   });
 
   test('10pt で決める。横 ≥ 縦×0.7 なら横（斜めでもめくる）。縦が大きければ縦スクロール（最後まで横に乗り換えない）', async ({ page }) => {
@@ -91,28 +89,38 @@ test.describe('めくりの始まり（確認表 1章④）', () => {
     expect(await heads(page)).toEqual(['11月12日（木）', '11月13日（金）']);
   });
 
-  test('境目 x668.25：離したときそれより左なら進む（右なら戻る）。2日進む', async ({ page }) => {
+  test('境目 x668.25：離したときそれより左なら進む（右なら戻る）。2日進む。中ほど・反対の端からも、指についてくる', async ({ page }) => {
     await land(page); await manual(page);
     const m = await page.evaluate(() => __duoCurl.metrics()); expect((m.spine + m.edge) / 2).toBe(668.25);
-    // 紙の端（つかんだ所）の x ＝ edge − 持ち上げ分 + (指 − 押した指)×k、k＝(edge−境目)/(押した x−境目)（1〜2）。押した x840 なら k＝182.75/171.75
-    const k = 182.75 / 171.75, fx = (f) => 840 + (f - 851) / k;
-    await down(page, 840, 300); await slowTo(page, 820, fx(668.25 + 14));
+    // 紙の端 ＝ ページの端 − 持ち上げ分 + (指 − 押した指)×k。k＝めくる幅 731 ÷ 押した所から反対側の端までの距離（1〜3）
+    const kF = (x0) => Math.min(3, Math.max(1, 731 / (x0 - 20))), kB = (x0) => Math.min(3, Math.max(1, 731 / (851 - x0)));
+    const fx = (x0, f) => x0 + (f - 851) / kF(x0);
+    await down(page, 840, 300); await slowTo(page, 820, fx(840, 668.25 + 14));
     expect((await cv(page)).f[0]).toBeGreaterThan(668.25); await page.mouse.up(); await finishAll(page);
     expect(await heads(page), '境目の右で離すと戻る').toEqual(['11月12日（木）', '11月13日（金）']);
-    await down(page, 840, 300); await slowTo(page, 820, fx(668.25 - 12));
+    await down(page, 840, 300); await slowTo(page, 820, fx(840, 668.25 - 12));
     expect((await cv(page)).f[0]).toBeLessThan(668.25); await page.mouse.up(); await finishAll(page);
     expect(await heads(page), '境目の左で離すと進む（2日）').toEqual(['11月14日（土）', '11月15日（日）']);
-    // 帯の内側（x760）から：k＝182.75/91.75。指が境目に近づけば紙の端も境目へ
-    await down(page, 760, 300); await slowTo(page, 750, 760 + (668.25 - 12 - 851) / (182.75 / 91.75));
+    // ページの中ほど（x600）から：紙はページの端から、指の動き×k
+    await down(page, 600, 300); await moves(page, [[590, 300, 16]]); expect((await cv(page)).f[0], '決めた瞬間の紙は端の近く').toBeGreaterThan(820);
+    await slowTo(page, 590, fx(600, 668.25 - 12));
     expect((await cv(page)).f[0]).toBeLessThan(668.25); await page.mouse.up(); await finishAll(page);
-    expect(await heads(page), '帯の内側からでも進む').toEqual(['11月16日（月）', '11月17日（火）']);
-    // 戻り：左の端から（紙の端は x120 より左から押すので k＝1）。境目は (120+485.5)/2 = 302.75
+    expect(await heads(page), '中ほどからでも進む').toEqual(['11月16日（月）', '11月17日（火）']);
+    // 反対の端（左ページ x150）から左へ：前へ。k＝3
+    await down(page, 150, 300); await slowTo(page, 140, 150 - (182.75 + 12) / 3);
+    expect((await cv(page)).f[0]).toBeLessThan(668.25); await page.mouse.up(); await finishAll(page);
+    expect(await heads(page), '反対の端からでも進む').toEqual(['11月18日（水）', '11月19日（木）']);
+    // 戻り：左の端から（k＝1）。境目は (120+485.5)/2 = 302.75
     await down(page, 40, 300); await slowTo(page, 60, 40 + 182.75 - 12);
     await page.mouse.up(); await finishAll(page);
-    expect(await heads(page), '戻りの境目の手前で離すと戻らない').toEqual(['11月16日（月）', '11月17日（火）']);
+    expect(await heads(page), '戻りの境目の手前で離すと戻らない').toEqual(['11月18日（水）', '11月19日（木）']);
     await down(page, 40, 300); await slowTo(page, 60, 40 + 182.75 + 12);
     await page.mouse.up(); await finishAll(page);
-    expect(await heads(page), '戻る（2日）').toEqual(['11月14日（土）', '11月15日（日）']);
+    expect(await heads(page), '戻る（2日）').toEqual(['11月16日（月）', '11月17日（火）']);
+    // 戻り：右ページ x700 から右へ（k＝731/151 → 3）
+    await down(page, 700, 300); await slowTo(page, 710, 700 + (182.75 + 12) / kB(700));
+    await page.mouse.up(); await finishAll(page);
+    expect(await heads(page), '右ページからでも戻る').toEqual(['11月14日（土）', '11月15日（日）']);
   });
 
   test('速い払い：押してから 280ms 以内に 36pt 以上めくる向きへ動かして離すと進む（短くても）', async ({ page }) => {
@@ -170,31 +178,34 @@ test.describe('めくりの始まり（確認表 1章④）', () => {
     await finishAll(page);
   });
 
-  test('裏は今のページの左右反転の透かしだけ（次の日は混ぜない）。着地の 25・50・75% で前の日の透かしが見えない（§6.11-10）', async ({ page }) => {
+  test('18.2 めくり中に次のページが見える：下は次の右（前へ）、裏は次の左。着地の前後で絵が変わらず、着地後は次の見開き', async ({ page }) => {
     await land(page); await manual(page);
     const params = await page.evaluate(async () => { const p = await import('/js/curl/params.js'); return { nextOnBack: p.K.nextOnBack, show: p.K.show }; });
-    expect(params).toEqual({ nextOnBack: 0, show: 0.16 });
-    // めくり途中の裏（ページの絵は本物）。裏の面の暗い所が透かし（16%）より濃くない＝次の日の文字は出ていない
-    await down(page, 840, 300); await slowTo(page, 820, 560); await page.evaluate(() => __duoCurl.pose('forward', 300, [200, 300]));
-    const r = await page.evaluate(() => { const s = __duoCurl.state(), P = s.dims; const px = __duoCurl.probe({ x: 300, y: 100, w: 160, h: 360 }); const u = px.data; let mn = 255, n = 0; for (let i = 0; i < u.length; i += 4) { const l = (u[i] * 299 + u[i + 1] * 587 + u[i + 2] * 114) / 1000; if (l < mn) mn = l; n++; } return { mn, n, lnew: s.land.Lnew, land: s.land.landingFace }; });
-    expect(r.land).toBeFalsy();
-    expect(r.mn, '裏の最も暗い所').toBeGreaterThan(190);
+    expect(params).toEqual({ nextOnBack: 1, show: 0.16 });
+    const lum = (page, rect) => page.evaluate((rect) => { const q = __duoCurl.probe(rect).data; let mn = 255; for (let i = 0; i < q.length; i += 4) { const l = (q[i] * 299 + q[i + 1] * 587 + q[i + 2] * 114) / 1000; if (l < mn) mn = l; } return mn; }, rect);
+    // 中ほど（x660）から左へ引いて止める。f≈531：紙は x531〜 で巻き、右ページの右寄り（x700〜）は下の次の右（15日 11:00〜12:30 の予定）が見える
+    await down(page, 660, 300); await moves(page, [[648, 300, 16]]); await slowTo(page, 648, 400);
+    const s1 = await cv(page); expect(s1.land.Rnew, '下の右は次の右').toBe(1); expect(s1.land.Lnew).toBe(0);
+    const under = await lum(page, { x: 760, y: 290, w: 40, h: 20 }); // 15日の予定の枠（13日のこの時刻は空）
+    expect(under, '下に次の日（15日）の予定').toBeLessThan(235);
+    const under2 = await lum(page, { x: 760, y: 225, w: 40, h: 10 }); // 13日の予定（10:00〜11:00）の所は、15日では空
+    expect(under2, '下に今の日（13日）の予定は出ない').toBeGreaterThan(235);
     await page.mouse.up();
-    // 着地まで進め、0.15 秒の 25・50・75% で、紙（plain の裏）に前の日の透かしがない
-    await page.evaluate(async () => { let n = 0; while (!__duoCurl.state().land?.Lnew && n++ < 60) await __duoCurl.advance(16); });
-    for (const k of [1, 2, 3]) {
-      const t = await page.evaluate(() => { const s = __duoCurl.state(); return { sm: s.land.showMul, op: s.opacity }; });
-      const px = await page.evaluate(() => { const q = __duoCurl.probe({ x: 130, y: 100, w: 300, h: 360 }).data; let mn = 255; for (let i = 0; i < q.length; i += 4) { const l = (q[i] * 299 + q[i + 1] * 587 + q[i + 2] * 114) / 1000; if (l < mn) mn = l; } return mn; });
-      expect(t.sm, `透かしの強さ ${k}/4`).toBe(0); expect(px, `${k * 25}% の紙の最も暗い所（罫線 #EEEAE1 の濃さ以上）`).toBeGreaterThan(215);
-      await adv(page, 38);
-    }
+    // 着地まで：紙の裏（x130〜470）の 14日 9:30〜10:30 の予定の所は、裏に描かれた次の左。着地の前後で同じ
+    const seq = [];
+    for (let i = 0; i < 40; i++) { await adv(page, 16); const st = await cv(page); if (!st.shown) break; seq.push({ L: st.land.Lnew, v: await lum(page, { x: 300, y: 200, w: 20, h: 20 }) }); }
+    const pre = seq.filter((q) => !q.L).slice(-3), post = seq.filter((q) => q.L);
+    expect(pre.length).toBeGreaterThan(0); expect(post.length).toBeGreaterThan(0);
+    for (const q of [...pre, ...post]) expect(Math.abs(q.v - post[0].v), '着地の前後で絵が変わらない').toBeLessThan(6);
+    expect(post[0].v, '14日の予定の枠').toBeLessThan(235);
     await finishAll(page);
     expect(await heads(page)).toEqual(['11月14日（土）', '11月15日（日）']);
+    expect((await cv(page)).shown).toBe(false);
   });
 });
 
 test.describe('操作の取り合い', () => {
-  test('予定のタップで編集が開く。帯の中なら予定の枠の上からでも横に動かせばめくる（角は持ち上げない）。つまみの上からは始めない', async ({ page }) => {
+  test('予定のタップで編集が開く。予定の枠の上からでも横に動かせばめくる（角は持ち上げない）。つまみの上からは始めない', async ({ page }) => {
     await land(page);
     const b = await page.locator('.dpage.rp .tlev').first().evaluate((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, r: r.right }; });
     const x = Math.min(b.r - 2, 830), y = b.y + b.h / 2;
@@ -249,6 +260,32 @@ test.describe('操作の取り合い', () => {
     expect((await cv(page)).shown).toBe(false);
   });
 
+  test('18.2 iOS の縦スクロールとの取り合い：縦寄りの動きは止めない（本物のスクロール）。横寄りだけ先取りし、そのあと縦なら代わりに動かして慣性で滑らせる', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'Touch の組み立ては Chromium だけで試す');
+    await land(page);
+    const r = await page.evaluate(async () => {
+      const x = 600, y = 300, t = document.elementFromPoint(x, y), tl = t.closest('.tl');
+      const P = (n, cx, cy) => t.dispatchEvent(new PointerEvent(n, { bubbles: true, cancelable: true, composed: true, pointerId: 5, pointerType: 'touch', isPrimary: true, clientX: cx, clientY: cy, button: 0, buttons: 1 }));
+      const T = (cx, cy) => { const e = new TouchEvent('touchmove', { bubbles: true, cancelable: true, touches: [new Touch({ identifier: 5, target: t, clientX: cx, clientY: cy })], changedTouches: [new Touch({ identifier: 5, target: t, clientX: cx, clientY: cy })] }); t.dispatchEvent(e); return e.defaultPrevented; };
+      const out = {};
+      P('pointerdown', x, y); out.vert = T(x + 1, y + 4); P('pointermove', x + 1, y + 4); P('pointercancel', x + 1, y + 4); // 縦寄り → ブラウザに任せる（iOS はここで pointercancel）
+      P('pointerdown', x, y); out.horiz = T(x - 3, y + 1); P('pointermove', x - 3, y + 1);
+      // 先取りしたあと縦と分かった：代わりにスクロール
+      const top0 = tl.scrollTop; out.canScroll = tl.scrollHeight > tl.clientHeight;
+      for (let i = 1; i <= 6; i++) { const yy = y - 10 * i; T(x - 3, yy); P('pointermove', x - 3, yy); await new Promise((r) => setTimeout(r, 16)); }
+      out.dragged = tl.scrollTop - top0; P('pointerup', x - 3, y - 60);
+      const top1 = tl.scrollTop; await new Promise((r) => setTimeout(r, 300)); out.glided = tl.scrollTop - top1;
+      return out;
+    });
+    expect(r.vert, '縦寄りは preventDefault しない').toBe(false);
+    expect(r.horiz, '横寄りは先取り').toBe(true);
+    expect(r.canScroll).toBe(true);
+    expect(r.dragged, '代わりにスクロール').toBeGreaterThan(30);
+    expect(r.glided, '離したあと慣性で滑る').toBeGreaterThan(10);
+    expect((await cv(page)).started).toBeFalsy();
+    expect(await heads(page)).toEqual(['11月12日（木）', '11月13日（金）']);
+  });
+
   test('2本目の指で中止し、元へ戻す（日は進まない）', async ({ page }) => {
     await land(page); await manual(page);
     await page.evaluate(() => {
@@ -290,7 +327,7 @@ test.describe('幅の変化・隠れた・WebGL なし・視差効果を減ら�
   test('幅の変化（951→890）で止まり、元に戻る（日は進めない）。テクスチャ 0。作り直せる', async ({ page }) => {
     await land(page); await manual(page);
     await down(page, 840, 300); await moves(page, [[800, 300, 16], [700, 300, 16]]);
-    expect((await cv(page)).textures).toBe(5);
+    expect((await cv(page)).textures).toBe(4);
     await page.setViewportSize(SIZES.openLandscape);
     await page.waitForFunction(() => !__duoCurl.state().canvas, null, { timeout: 4000 });
     const s = await cv(page); expect(s.textures).toBe(0); expect(s.busy).toBe(false); expect(s.stats.live).toBe(0); expect(s.stats.made).toBe(s.stats.freed);
@@ -324,10 +361,10 @@ test.describe('幅の変化・隠れた・WebGL なし・視差効果を減ら�
       await expect(page.locator('.curlcopy')).toHaveCount(1); // 今の見開きの写し（0.15 秒で薄くなる）
       await page.waitForFunction(() => !__duoCurl.state().busy && !document.querySelector('.curlcopy'));
     }
-    // 端の外の横スワイプでは日を送らない
+    // 18.2：ページの中ほどからの横スワイプでも送る（入れ替え）
     await swipe(page, { x0: 700, y0: 250, dx: -200 });
-    await page.waitForTimeout(200);
-    expect(await heads(page)).toEqual(want[1]);
+    await page.waitForFunction(() => !__duoCurl.state().busy && !document.querySelector('.curlcopy'));
+    expect(await heads(page)).toEqual(want[0]);
   });
 
   test('WebGL なし：めくりの部品を作らず、端に限らない横すべりで ±2 日（0.25 秒）', async ({ page }) => {

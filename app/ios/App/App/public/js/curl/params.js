@@ -3,7 +3,7 @@
 export const K = Object.freeze({
   show: 0.16,        // 裏の透かし（表の内容を左右反転して混ぜる割合）
   backLine: 0.75,    // 裏の罫線の濃さ（表の罫線に対する割合）
-  nextOnBack: 0,     // 裏には次の日を混ぜない。着地専用の紙だけ別途描く
+  nextOnBack: 1,     // 第18.2版：めくる紙の裏に次のページ（前へ＝次の左、戻り＝次の右）を描く。着地した所の本物の絵と同じなので、着地で入れ替わって見えない
   debug: 0,          // 1＝面の色分け（撮影の自動チェック用）
   hiF: 0.38, hiFdeg: 24, hiFw: 11,   // 巻きの表の光る筋
   ampR0: 8, ampR1: 28, // 半径 8pt 以下で巻きの明暗 0、28pt 以上で 100%
@@ -33,11 +33,12 @@ export const TIME = Object.freeze({
 });
 // 判定（第18.1版で感度を直した。design/26 §追記 18.1）
 //  flick: 払いとみなす速さ（pt/秒。500→350）・liftPx: 持ち上げ量・edge: 角を持ち上げる辺の幅
-//  band / bandFrac: 始められる帯の幅＝min(band, ページ幅×bandFrac)（24→110 / 35%）
+//  （18.1 の帯 band/bandFrac は 18.2 でやめた：ページのどこからでも始める）
+//  kMax: 指の動きを紙の端の動きへ広げる倍率の上限（中ほど・反対の端から押したとき。design/26 §8 追記 18.2）
 //  decide: 向きを決める動き（12→10pt）・ratio: 横 ≥ 縦×ratio なら横（1→0.7）
 //  quickMs / quickPx: 押してから 280ms 以内に 36pt 以上めくる向きへ動かして離したら、位置によらず進む
 //  velMs: 速さを測る直近の時間・flickMinPx: 払いとみなすには押した所から最低これだけ横に動かす
-export const JUDGE = Object.freeze({ flick: 350, liftPx: 12, edge: 24, band: 110, bandFrac: 0.35, decide: 10, ratio: 0.7, quickMs: 280, quickPx: 36, velMs: 100, flickMinPx: 24 });
+export const JUDGE = Object.freeze({ flick: 350, liftPx: 12, edge: 24, kMax: 3, decide: 10, ratio: 0.7, quickMs: 280, quickPx: 36, velMs: 100, flickMinPx: 24 });
 export const easeOut3 = (u) => 1 - Math.pow(1 - u, 3);
 // cubic-bezier(.2,.8,.2,1) を数値で解く
 export const easeStd = (u) => {

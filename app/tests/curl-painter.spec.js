@@ -180,7 +180,7 @@ test.describe('内容の一致', () => {
 });
 
 test.describe('テクスチャの枚数・向き・捨て方', () => {
-  test('向きごとに5枚。向きを変えると前の絵を先に捨てる。dpr は表3・裏2', async ({ page }) => {
+  test('向きごとに4枚（18.2：裏は次のページの絵を使い回す）。向きを変えると前の絵を先に捨てる', async ({ page }) => {
     await land(page, { events: EVENTS, notes: NOTES });
     const r = await page.evaluate(async () => {
       const { createCurl } = await import('/js/curl/index.js');
@@ -191,9 +191,9 @@ test.describe('テクスチャの枚数・向き・捨て方', () => {
       R.createTexture = (c) => { log.push('c'); return ct(c); }; R.deleteTexture = (h) => { if (h) log.push('d'); return dt(h); };
       p.setRenderer(R);
       const out = {}; const sizes = (sc) => ['Lo', 'Ln', 'Ro', 'Rn', 'next'].map((k) => [sc[k].w, sc[k].h]);
-      const s1 = p.prepare('forward'); out.f = { stats: p.stats(), tex: R.textures.size, sizes: sizes(s1), frontIsRo: s1.front === s1.Ro, rect: s1.frontRect, days: p.need('forward') };
+      const s1 = p.prepare('forward'); out.f = { stats: p.stats(), tex: R.textures.size, sizes: sizes(s1), frontIsRo: s1.front === s1.Ro, nextIsLn: s1.next === s1.Ln, rect: s1.frontRect, back: s1.backRect, days: p.need('forward') };
       log.length = 0; const s2 = p.prepare('backward');
-      out.b = { stats: p.stats(), tex: R.textures.size, log: log.join(''), frontIsLo: s2.front === s2.Lo, rect: s2.frontRect, days: p.need('backward') };
+      out.b = { stats: p.stats(), tex: R.textures.size, log: log.join(''), frontIsLo: s2.front === s2.Lo, nextIsRn: s2.next === s2.Rn, rect: s2.frontRect, back: s2.backRect, days: p.need('backward') };
       // 描ける（落ちない）
       const s = curl.set.forward; out.drew = !!(R.setScene(s2), R.draw([s.edge, 300], [s.edge - 100, 300]));
       p.release(); out.rel = { stats: p.stats(), tex: R.textures.size };
@@ -201,16 +201,18 @@ test.describe('テクスチャの枚数・向き・捨て方', () => {
       curl.dispose(); return { ...out, D };
     });
     const w3 = (w) => Math.round(w * 3), w2 = (w) => Math.round(w * 2), H3 = Math.round(603 * 3), H2 = Math.round(603 * 2);
-    expect(r.f.sizes).toEqual([[w3(r.D.lw), H3], [w3(r.D.lw), H3], [w3(r.D.rw), H3], [w3(r.D.rw), H3], [w2(r.D.rw), H2]]);
-    expect(r.f.stats).toMatchObject({ made: 5, freed: 0, live: 5, dpr: { front: 3, back: 2 } });
-    expect(r.f.tex).toBe(5);
-    expect(r.f.frontIsRo).toBe(true);
-    expect(r.f.days).toMatchObject({ Lo: { day: '2026-11-12' }, Ln: { day: '2026-11-14' }, Ro: { day: '2026-11-13' }, Rn: { day: '2026-11-15' }, back: { day: '2026-11-14' }, front: 'Ro' });
-    expect(r.b.days).toMatchObject({ Lo: { day: '2026-11-12' }, Ln: { day: '2026-11-10' }, Ro: { day: '2026-11-13' }, Rn: { day: '2026-11-11' }, back: { day: '2026-11-11' }, front: 'Lo' });
+    void w2; void H2;
+    expect(r.f.sizes).toEqual([[w3(r.D.lw), H3], [w3(r.D.lw), H3], [w3(r.D.rw), H3], [w3(r.D.rw), H3], [w3(r.D.lw), H3]]);
+    expect(r.f.stats).toMatchObject({ made: 4, freed: 0, live: 4, dpr: { front: 3, back: 2 } });
+    expect(r.f.tex).toBe(4);
+    expect(r.f.frontIsRo).toBe(true); expect(r.f.nextIsLn, '前へ：裏＝次の左').toBe(true); expect(r.b.nextIsRn, '戻り：裏＝次の右').toBe(true);
+    expect(r.f.days).toMatchObject({ Lo: { day: '2026-11-12' }, Ln: { day: '2026-11-14' }, Ro: { day: '2026-11-13' }, Rn: { day: '2026-11-15' }, front: 'Ro' });
+    expect(r.b.days).toMatchObject({ Lo: { day: '2026-11-12' }, Ln: { day: '2026-11-10' }, Ro: { day: '2026-11-13' }, Rn: { day: '2026-11-11' }, front: 'Lo' });
     expect(r.f.rect[0]).toBe(r.D.spine); expect(r.b.rect[0]).toBe(r.D.lx0);
-    expect(r.b.stats).toMatchObject({ made: 10, freed: 5, live: 5 });
-    expect(r.b.tex).toBe(5);
-    expect(r.b.log).toBe('ddddd' + 'ccccc'); // 前の向きの5枚を先に全部捨ててから作る
+    expect(r.f.back[0]).toBe(r.D.lx0); expect(r.b.back[0]).toBe(r.D.spine);
+    expect(r.b.stats).toMatchObject({ made: 8, freed: 4, live: 4 });
+    expect(r.b.tex).toBe(4);
+    expect(r.b.log).toBe('dddd' + 'cccc'); // 前の向きの4枚を先に全部捨ててから作る
     expect(r.b.frontIsLo).toBe(true);
     expect(r.drew).toBe(true);
     expect(r.rel.stats).toMatchObject({ live: 0, bytes: 0 }); expect(r.rel.tex).toBe(0);
