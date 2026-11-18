@@ -159,3 +159,22 @@ test('hitDraftPart: 16pt の境・高さ60未満・範囲外', () => {
   assert.equal(hitDraftPart(30, -23), null);
   assert.equal(hitDraftPart(30, 53), null);
 });
+
+// 第19版 PR8: つかめる画面・指の位置→落とす日
+import { grabAllowed } from '../js/direct-input.js';
+test('grabAllowed: 月が同じ画面にある開いた横（今日＋明日でない）と開いた縦だけ', () => {
+  assert.equal(grabAllowed({ layout: 'spread', monthDays: 35 }), true);
+  assert.equal(grabAllowed({ layout: 'open', monthDays: 14 }), true);
+  assert.equal(grabAllowed({ layout: 'spread', tt: true, monthDays: 0 }), false);
+  assert.equal(grabAllowed({ layout: 'spread', tt: true, monthDays: 35 }), false);
+  assert.equal(grabAllowed({ layout: 'browse', monthDays: 7 }), false);
+  assert.equal(grabAllowed({ layout: 'home', monthDays: 7 }), false);
+  assert.equal(grabAllowed({ layout: 'spread', pasting: true, monthDays: 35 }), false);
+  assert.equal(grabAllowed({ layout: 'spread', monthDays: 0 }), false);
+});
+test('dayAt: 指の位置→落とす日。月の外・溝の上は null', () => {
+  const rects = [{ key: '2026-11-19', left: 0, right: 50, top: 0, bottom: 40 }, { key: '2026-11-20', left: 50, right: 100, top: 0, bottom: 40 }];
+  assert.equal(dayAt(60, 10, rects), '2026-11-20');
+  assert.equal(dayAt(100, 10, rects), null);
+  assert.equal(dayAt(10, 45, rects), null);
+});

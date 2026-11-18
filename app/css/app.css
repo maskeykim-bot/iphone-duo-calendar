@@ -1611,3 +1611,12 @@ dialog.panel.tface-open{overflow:visible}
   .shell.fd .tabs [aria-pressed=true] .pill,.shell.fd .tabs [aria-pressed=true]{background:#6FA08C;color:#1C1F1D}
   .shell.fd .tabs [aria-pressed=true] .pill{color:#1C1F1D}
 }
+
+/* 第19版 PR8: 予定を長押しでつかんで別の日へ落とす（design/21 §1.3）。元の場所は点線の空き枠、落とす先の日は緑の枠2＋薄い緑の地 */
+.grabbed{background:transparent!important;box-shadow:none!important;outline:1.5px dashed var(--cat,#294E42);outline-offset:-1.5px;color:transparent!important;filter:none!important}
+.grabbed *{opacity:.0}
+.gchip{position:fixed;left:0;top:0;z-index:99998;max-width:220px;padding:6px 10px;border-radius:8px;background:var(--cat,#294E42);color:#fff;font-size:13px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;box-shadow:0 8px 20px #0003}
+.week .day.mdrop{background:#E5EEE9}
+.week .day.mdrop::after{content:"";position:absolute;inset:0;border:2px solid #294E42;border-radius:6px;pointer-events:none;z-index:3}
+@media (prefers-color-scheme:dark){ .week .day.mdrop{background:#2B3640} .week .day.mdrop::after{border-color:#6FA08C} }
+html[data-grab] .tl,html[data-grab] .tlx{touch-action:none}

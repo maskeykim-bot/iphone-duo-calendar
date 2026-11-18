@@ -200,15 +200,22 @@ for (const [name, size, setup2] of [
       await expect(page.locator('#editor')).toBeHidden();
     });
 
-    test('既存予定の上の長押しは何もしない。終日段の長押しは終日シート', async ({ page }) => {
+    test('既存予定の上の長押しは新しい予定にならない（第19版 PR8: 月と同じ画面ではつかむ。月でない所で離せば取りやめ）。終日段の長押しは終日シート', async ({ page }) => {
       await seed(page, [ev('x1', '既存', '2026-11-12T10:00', '2026-11-12T11:00')]);
       const b = await page.locator('.tlev').first().boundingBox();
       await press(page, { x: b.x + b.width / 2, y: b.y + b.height / 2 });
       await expect(page.locator('.dbox')).toHaveCount(0);
-      await page.mouse.up(); // 離すと従来どおり既存予定の編集シートが開く（新規入力ではない）
-      await expect(page.locator('#f-title')).toHaveValue('既存');
-      await page.keyboard.press('Escape');
-      await expect(page.locator('#editor')).toBeHidden();
+      if (await page.locator('.week .day[data-date]').first().isVisible().catch(() => false)) { // PR8: 月と同じ画面ではつかむ。月の日の上でなく同じ場所で離すので取りやめ（編集シートも開かない）
+        await expect(page.locator('.gchip')).toHaveCount(1);
+        await page.mouse.up();
+        await expect(page.locator('#editor')).toBeHidden();
+        await expect(page.locator('.gchip')).toHaveCount(0);
+      } else { // 閉じた画面などは今までどおり、離すと既存予定の編集シートが開く（新規入力ではない）
+        await page.mouse.up();
+        await expect(page.locator('#f-title')).toHaveValue('既存');
+        await page.keyboard.press('Escape');
+        await expect(page.locator('#editor')).toBeHidden();
+      }
       await page.waitForTimeout(450);
       const a = await page.locator('.adcol').first().boundingBox();
       await press(page, { x: a.x + a.width / 2, y: a.y + a.height / 2 });

@@ -3,7 +3,8 @@ import { isoFromInput, stateFromInput, setStartDate, pickEndDate, setStartTime, 
 import { createTimeUi, createDateUi, createDateField, createTimeField, fireInput, monthOf, withHm } from './datetime-ui.js';
 import { SAMPLE } from './sample.js';
 import { initSwipe } from './swipe.js';
-import { initDirectInput, dayRange, rangeText, minutesAt, dragRange, tapRange, moveHandle, moveBox, spanText, hm as hmText, snap15, hitDraftPart, edgeZone, edgeVelocity, createDwell, createFrameLoop } from './direct-input.js';
+import { planMoveDuo, planMoveDuoUndo, buildMoveExtArgs, buildUndoExtArgs, extUndoAllowed, UNDO_CONFLICT_TEXT } from './move-day.js';
+import { grabAllowed, initDirectInput, dayRange, rangeText, minutesAt, dragRange, tapRange, moveHandle, moveBox, spanText, hm as hmText, snap15, hitDraftPart, edgeZone, edgeVelocity, createDwell, createFrameLoop } from './direct-input.js';
 import { occurrenceAt, parseOccId, planDelete, planEdit, editInfo, normRule } from './recur.js';
 import { bumpRevision, occBetween } from './occcache.js';
 import { LIMIT, groupByDay, highlight, excerpt, normalize, terms, searchEvents, searchNotes, searchTasks, noteIndexSize } from './search.js';
@@ -5492,6 +5493,165 @@ ttCurl = createCurl({
 
 // ---------- 直接入力の起点（PR24 の共通制御へ PR25 で時間軸を接続。月・チップは PR26 以降） ----------
 // 既存予定・操作部品・入力欄の上は null。時刻座標のない行（旧一覧・余白）は時間入力にしない。
+// ---------- 予定を長押しでつかんで別の日へ落とす（第19版 PR8、design/21 §1.3。データは js/move-day.js） ----------
+// つかめるのは、月と同じ画面にある時間軸の枠・終日・一覧の行だけ（開いた横の月＋その日、開いた縦の月タブの下の面）。落とし先は月の日マス。
+const GRAB_SEL = '.tlev:not(.fev), .adpill, .mdev, .agrow';
+const moveDays = () => [...root.querySelectorAll('.week .day[data-date]')].filter((n) => n.getClientRects().length);
+const grabMonthOk = () => grabAllowed({ layout: layoutKind(), tt: ttOn(), pasting: PS.on, monthDays: moveDays().length });
+function grabOrigin(t) {
+  if (!grabMonthOk() || t.closest('.tabs, .mmenu, .tlmenu, .dbox')) return null;
+  const el = t.closest(GRAB_SEL); if (!el?.dataset.event) return null;
+  const from = el.dataset.sday || el.closest('[data-day]')?.dataset.day || null;
+  const tl = el.matches('.tlev') ? el.closest('.tl') : null;
+  return { kind: 'grab', id: el.dataset.event, el, from, tl };
+}
+const dayDiffKeys = (a, b) => Math.round((parseKey(a) - parseKey(b)) / 864e5);
+const hmOfIso = (iso) => Number(iso.slice(11, 13)) * 60 + Number(iso.slice(14, 16));
+const isoPlusMin = (iso, m) => { const t = hmOfIso(iso) + m; return `${iso.slice(0, 10)}T${pad(Math.floor(t / 60))}:${pad(t % 60)}`; };
+const GR = { on: false, o: null, chip: null, drop: '', off: 0, y0: 0, s0: 0, ext: null, gen: 0 };
+function moveDayAt(x, y) {
+  for (const n of document.elementsFromPoint(x, y)) { const d = n.closest?.('.week .day[data-date]'); if (d) return d.dataset.date; }
+  return null;
+}
+function grabPaintDrop(k) {
+  if (k === GR.drop) return;
+  root.querySelectorAll('.day.mdrop').forEach((n) => n.classList.remove('mdrop'));
+  GR.drop = k || '';
+  if (k) root.querySelectorAll(`.week .day[data-date="${k}"]`).forEach((n) => n.classList.add('mdrop'));
+}
+// つかんだ予定の情報（Duo は回を解いた形、iPhone は表示用）。時刻を動かせるのは Duo の時刻つき・1日内の予定の時間軸の枠だけ。
+function grabInfo() {
+  const o = GR.o, ext = visExt().find((x) => x.id === o.id);
+  if (ext) return { ext, title: ext.title, shift: false };
+  const cur = resolve(o.id); if (!cur) return null;
+  const occ = cur.occ, one = !occ.all && dayOf(occ.start) === dayOf(occ.end);
+  return { cur, title: occ.title, shift: !!o.tl && one, sMin: one ? hmOfIso(occ.start) : 0, eMin: one ? hmOfIso(occ.end) : 0 };
+}
+function grabRecalc() {
+  if (!GR.on) return;
+  if (!GR.o.el.isConnected) { // 描き直されたら、同じ予定の要素へ点線の枠を付け直す
+    const n = root.querySelector(`[data-event="${CSS.escape(GR.o.id)}"]${GR.o.from && GR.o.el.dataset.sday ? `[data-sday="${GR.o.from}"]` : ''}`);
+    if (n) { GR.o.el = n; n.classList.add('grabbed'); }
+  }
+  GR.chip.style.transform = `translate(${EG.x + 12}px, ${EG.y - 18}px)`;
+  const tl = GR.o.tl, g = grabInfo();
+  if (tl?.isConnected && g?.shift) {
+    const rc = tl.getBoundingClientRect(), er = GR.o.el.getBoundingClientRect(); // 時刻は、つかんだ枠の列の中で引いている間だけ動く（月へ向かう横の動きでは変わらない）
+    if (Math.abs(EG.x - GR.x0) <= 24 && EG.x >= er.left && EG.x < er.right && EG.y >= rc.top && EG.y < rc.bottom) {
+      const hh = hhOf(paneOf(tl)), dm = ((EG.y - GR.y0) + (tl.scrollTop - GR.s0)) / hh * 60;
+      const off = Math.min(1440 - g.eMin, Math.max(-g.sMin, Math.round(dm / 15) * 15));
+      if (off !== GR.off) { GR.off = off; feel('light'); }
+    }
+  }
+  const d = moveDayAt(EG.x, EG.y);
+  if (d !== (GR.drop || null)) { grabPaintDrop(d); if (d) feel('light'); }
+  GR.chip.textContent = g ? `${g.title}${g.shift ? ` ${hmText(g.sMin + GR.off)}〜${hmText(g.eMin + GR.off)}` : ''}` : '';
+}
+function grabClear() {
+  grabPaintDrop('');
+  GR.chip?.remove(); GR.chip = null;
+  root.querySelectorAll('.grabbed').forEach((n) => n.classList.remove('grabbed'));
+  document.documentElement.removeAttribute('data-grab');
+  GR.on = false; GR.o = null; GR.ext = null; GR.off = 0; GR.gen++;
+}
+function grabRefuse(msg) { // つかめない予定: 軽く震えて戻す
+  feel('warning'); directCtl?.cancel('refuse');
+  if (msg) notice(msg, null, 3000);
+}
+function grabStart(o, x, y) {
+  GR.o = o;
+  const g = grabInfo();
+  if (!g) { GR.o = null; directCtl?.cancel('gone'); return; }
+  if (g.ext) { // iPhone の予定: 書けない予定はつかめない（読み取り専用・誕生日は先に分かる。招待・出席者・詳細が取れないのは getEvent の返事で）
+    const cal = X.calendars.find((c) => c.id === g.ext.calId), pre = preReason(cal);
+    if (pre) { GR.o = null; grabRefuse(REASON_TEXT[pre]); return; }
+    const gen = ++GR.gen;
+    GR.ext = { gen, status: 'loading', cal };
+    call('getEvent', extTarget(g.ext)).then((d) => {
+      if (gen !== GR.gen || !GR.ext) return;
+      const ed = extEditable(g.ext, cal, d);
+      GR.ext = { ...GR.ext, status: ed.editable ? 'ok' : 'no', detail: d, ed, before: { ...toDisplay(d, cal), id: g.ext.id } };
+      if (!ed.editable) grabRefuse(REASON_TEXT[ed.reason] || null);
+    }).catch(() => { if (gen === GR.gen && GR.ext) { GR.ext.status = 'no'; grabRefuse('この予定は取得できませんでした。'); } });
+  }
+  Object.assign(GR, { on: true, drop: '', off: 0, x0: x, y0: y, s0: o.tl?.scrollTop ?? 0 });
+  o.el.classList.add('grabbed');
+  document.documentElement.dataset.grab = '1';
+  const chip = document.createElement('div'); chip.className = 'gchip'; chip.setAttribute('aria-hidden', 'true');
+  chip.style.setProperty('--cat', getComputedStyle(o.el).getPropertyValue('--cat') || '#294E42');
+  document.body.append(chip); GR.chip = chip;
+  feel('medium');
+  if (o.tl) edgeLoop.start();
+  grabRecalc();
+  say(`${g.title}をつかみました。月の日へ落とします。`);
+}
+// ---- 落とす
+const MV = { rec: null, timer: 0 };
+const mvDropUndo = () => { clearTimeout(MV.timer); MV.rec = null; };
+const dayText = (k) => `${parseKey(k).getMonth() + 1}月${parseKey(k).getDate()}日`;
+function moveDone(toDay, note, rec) {
+  mvDropUndo();
+  MV.rec = rec; MV.timer = setTimeout(() => { if (MV.rec === rec) MV.rec = null; }, UNDO_MS);
+  const msg = `${dayText(toDay)}へ移しました。${note || ''}`;
+  notice(msg, { label: '元に戻す', fn: undoMove }, UNDO_MS);
+  say(msg);
+}
+async function moveGrabbed(g, fromDay, toDay, off, st) {
+  if (g.ext) return moveExt(g, fromDay, toDay, st);
+  const { p, occKey, occ } = g.cur;
+  const occ2 = off ? { ...occ, start: isoPlusMin(occ.start, off), end: isoPlusMin(occ.end, off) } : occ;
+  const eff = addDays(dayOf(occ.start), dayDiffKeys(toDay, fromDay || dayOf(occ.start)));
+  const m = planMoveDuo(p, occ2, occKey, eff, newId);
+  const scope = occKey ? 'only' : 'all';
+  const form = { title: occ.title, categoryId: occ.categoryId, all: !!occ.all, place: occ.place || '', notes: occ.notes || '', ...(occ.alarms !== undefined ? { alarms: occ.alarms } : {}), recurrence: p.recurrence || null, start: m.after.start, end: m.after.end };
+  const { ops, plan } = planOps(p, { puts: m.puts, dels: m.dels }, scope, occKey, form);
+  try { await commit(plan, { ops }); } catch { feel('error'); say(SAVE_FAIL); notice(SAVE_FAIL); return; }
+  const moved = plan.puts.find((e) => e.id === p.id);
+  render();
+  moveDone(dayOf(m.after.start), m.note, { kind: 'duo', id: p.id, occKey, scope, start: occ.start, end: occ.end, stamp: moved.updatedAt });
+}
+async function moveExt(g, fromDay, toDay, st) {
+  const e = g.ext;
+  if (!st || st.status === 'loading') {
+    try { const d = await call('getEvent', extTarget(e)); const cal = X.calendars.find((c) => c.id === e.calId); st = { detail: d, cal, ed: extEditable(e, cal, d), before: { ...toDisplay(d, cal), id: e.id } }; } catch { feel('warning'); notice('この予定は取得できませんでした。'); return; }
+  }
+  if (st.status === 'no' || !st.ed?.editable) { feel('warning'); notice(REASON_TEXT[st.ed?.reason] || XD_NOTE); return; }
+  const eff = addDays(dayOf(st.before.start), dayDiffKeys(toDay, fromDay || dayOf(st.before.start)));
+  const mv = buildMoveExtArgs(st.before, eff, st.detail);
+  if (!mv) return;
+  let r;
+  try { r = await call('updateExternalEvent', mv.args); } catch (err) {
+    feel('error');
+    const code = errCode(err);
+    notice(code === 'NOT_FOUND' ? 'この予定は iPhone のカレンダーで削除されています。' : code === 'NOT_EDITABLE' || code === 'READ_ONLY' ? (REASON_TEXT[errReason(err)] || errText(err, SAVE_FAIL_X)) : SAVE_FAIL_X);
+    loadExt(true); return;
+  }
+  loadExt(true);
+  moveDone(dayOf(mv.after.start), mv.note, { kind: 'ext', before: st.before, moved: mv, reply: r, detail: st.detail });
+}
+async function undoMove() {
+  const rec = MV.rec; if (!rec) return;
+  mvDropUndo(); document.querySelector('#native-toast')?.remove();
+  if (rec.kind === 'ext') {
+    try {
+      const cur = await call('getEvent', extTarget({ ...rec.before, start: rec.moved.after.start, occurrenceDate: rec.before.occurrenceDate || rec.before.start }));
+      if (!extUndoAllowed(rec.reply?.modifiedAt, cur?.modifiedAt)) { notice(UNDO_CONFLICT_TEXT); return; }
+      const args = buildUndoExtArgs(rec.before, rec.moved, rec.reply, rec.detail);
+      if (args) await call('updateExternalEvent', args);
+    } catch { feel('error'); notice(UNDO_CONFLICT_TEXT); loadExt(true); return; }
+    loadExt(true); notice('元に戻しました。'); return;
+  }
+  const p2 = state.events.find((e) => e.id === rec.id);
+  if (!p2 || p2.updatedAt !== rec.stamp) { notice('変更されていたため、そのままにしました。'); return; }
+  const occ2 = rec.occKey ? occurrenceAt(p2, rec.occKey) : p2;
+  const u = planMoveDuoUndo(p2, occ2, { occKey: rec.occKey, start: rec.start, end: rec.end }, newId);
+  const form = { title: occ2.title, categoryId: occ2.categoryId, all: !!occ2.all, place: occ2.place || '', notes: occ2.notes || '', ...(occ2.alarms !== undefined ? { alarms: occ2.alarms } : {}), recurrence: p2.recurrence || null, start: rec.start, end: rec.end };
+  const { ops, plan } = planOps(p2, { puts: u.puts, dels: u.dels }, rec.scope, rec.occKey, form);
+  try { await commit(plan, { ops }); } catch { feel('error'); notice('元に戻せませんでした。もう一度お試しください。'); MV.rec = rec; MV.timer = setTimeout(() => { if (MV.rec === rec) MV.rec = null; }, UNDO_MS); return; }
+  render(); notice('元に戻しました。');
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) mvDropUndo(); });
+
 const DIRECT_ZONE_EXCLUDE = '.ev, .strip, .tlev, .dbox, button, input, select, textarea, label, dialog, .tlheads, .tlmenu, .mmenu, .tabs';
 function directOrigin(t) {
   if (anyPanel() || !(t instanceof Element)) return null;
@@ -5500,6 +5660,7 @@ function directOrigin(t) {
   const md = t.closest('.week .day[data-date]'); // 月の日マス（空白・数字）。帯・チップ・+N は別の要素なので起点にならない
   if (md && !t.closest('.tabs, .mmenu, .tlmenu')) return { kind: 'month', day: md.dataset.date, side: pageOf(md)?.side ?? null };
   if (t.closest('.week')) return null; // チップ・+N など月の他の要素は期間選択しない
+  const gr = grabOrigin(t); if (gr) return gr; // 時間軸の枠・終日・一覧の行をつかむ（第19版 PR8）。閉じた画面・今日＋明日・開いた縦の日・週タブでは出ない
   if (t.closest(DIRECT_ZONE_EXCLUDE)) return null;
   const ad = t.closest('.allday');
   if (ad) { const c = t.closest('.adcol'); return c ? { kind: 'allday', day: c.dataset.day } : null; } // 「終日」の文字や段の外は対象外
@@ -5525,6 +5686,14 @@ function timeRecalc() {
 }
 const edgeLoop = createFrameLoop((dt) => {
   const o = EG.origin, bm = o?.kind === 'boxmove' && DF.mode === 'temp' && BM.moved;
+  if (o?.kind === 'grab') { // つかんだ枠: 時間軸の上下 40 で自動スクロール（1秒に2時間分）。指が軸の横の外なら動かさない
+    const tl = o.tl; if (!GR.on || !tl?.isConnected) return;
+    const rc = tl.getBoundingClientRect(); if (EG.x < rc.left || EG.x >= rc.right) { EG.carry = 0; return; }
+    const v = edgeVelocity(EG.y, rc.top, rc.bottom); if (!v) { EG.carry = 0; return; }
+    const d = v * dt + EG.carry, w = Math.trunc(d); EG.carry = d - w; if (!w) return;
+    const before = tl.scrollTop; tl.scrollTop = before + w; if (tl.scrollTop !== before) grabRecalc();
+    return;
+  }
   if (!o || !(bm || (o.kind === 'time' && DF.mode === 'drag'))) return;
   if ((bm ? DF.pane : o.pane) === 'fold') { // 開いた縦: 外側の端だけ（上の窓の上 40・タブの上 40）。折り目の側ではしない。1秒に2時間分
     const z = foldEdgeZone(FD.g, EG.y); if (!z) { EG.carry = 0; return; }
@@ -5568,6 +5737,7 @@ directCtl = initDirectInput({
   onStart: ({ origin: o, x, y }) => {
     EG.x = x; EG.y = y; EG.origin = o; EG.carry = 0; EG.tl = null;
     if (o.kind === 'chip') { openChipMenu(o.id, o.el); feel('light'); return; }
+    if (o.kind === 'grab') { grabStart(o, x, y); return; }
     if (o.kind === 'month') {
       Object.assign(MR, { mode: 'drag', anchor: o.day, cur: o.day, side: o.side }); paintRange(); feel('light');
       monthEdgeUpdate(); return;
@@ -5581,6 +5751,7 @@ directCtl = initDirectInput({
   },
   onMove: ({ x, y, origin: o }) => {
     EG.x = x; EG.y = y;
+    if (o.kind === 'grab') { grabRecalc(); return; }
     if (o.kind === 'month') {
       if (MR.mode !== 'drag') return;
       const k = dayAtPoint(x, y, monthScope());
@@ -5593,6 +5764,13 @@ directCtl = initDirectInput({
   },
   onEnd: ({ x, y, origin: o }) => {
     stopEdge();
+    if (o.kind === 'grab') {
+      if (!GR.on) return;
+      const day = moveDayAt(x, y), g = grabInfo(), off = GR.off, st = GR.ext;
+      grabClear();
+      if (day && g) moveGrabbed(g, o.from, day, off, st); // 月の日以外・溝の上で離したら取りやめ（元のまま）
+      return;
+    }
     if (o.kind === 'month') {
       if (MR.mode !== 'drag') return;
       const k = dayAtPoint(x, y, monthScope()); if (k) MR.cur = k;
@@ -5605,7 +5783,7 @@ directCtl = initDirectInput({
     const m = dragAt(y, o); if (m != null) Object.assign(DF, dragRange(DIR.anchor, m));
     openDraft();
   },
-  onCancel: () => { stopEdge(); if (DF.mode === 'drag') clearDraftBox(); if (MR.mode === 'drag') clearRange(); },
+  onCancel: () => { stopEdge(); if (GR.on) grabClear(); if (DF.mode === 'drag') clearDraftBox(); if (MR.mode === 'drag') clearRange(); },
 });
 // 回転・ページ破棄では入力中の枠を取り消す（指の下の座標系が変わるため）。
 window.addEventListener('orientationchange', () => directCtl?.cancel('rotate'));
