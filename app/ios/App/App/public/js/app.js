@@ -11,9 +11,11 @@ import { backupName, buildBackup, countStats, localIso, legacyHashes, planAppend
 import { CAT_IDS, LIMITS as CAT_LIMITS, canHideCategory, defaultDeleteTarget, ensureOneVisible, supplementForReplace, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, RETARGET_TOAST, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory } from './categories.js';
 import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAlarms, encAlarm, fireAt, nextNotifyText, normNotify, pastForNotify, planNotifications, planNotifyPolicy, MAX_PENDING, WINDOW_DAYS } from './notify.js';
 import { rokuyoOf } from './rokuyo.js';
+import { createPainter } from './curl/painter.js';
+import { createCurl, curlColors } from './curl/index.js';
 import { holidayOf } from './holidays.js';
 import { splitEvents, eveningFirst, homeTasks, dueText, tomorrowSummary, axisBars } from './home.js';
-import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS, FOCUS_MODES, FOCUS_LABELS, normFocusMode } from './pages.js';
+import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS, FOCUS_MODES, FOCUS_LABELS, normFocusMode, normSpreadType, normTtSplit } from './pages.js';
 import { noteStore, setNoteHook, recoverNoteDrafts, importLegacyMemoDrafts, folderOps, groupNotes, filterByFolder, FOLDER_NAME_MAX } from './notes.js';
 import { mountNoteEditor } from './notes-ui.js';
 import { titleOf, noteDateOf, dateOccupants, dailyHeading, ensureDailyFolder } from './notes-model.js';
@@ -62,6 +64,8 @@ function loadUi() {
     monthTextSize: s.monthTextSize === 'large' ? 'large' : 'normal', // 月の文字: 標準 / 大
     pages: normalizePages(s.pages), // 開いた横の左右ページ（月・時間・タスク・メモ）と縦の下パネル。旧 home/view は閉じた画面・縦の従来表示用に保持
     timeMode: normTimeMode(s.timeMode), // 時間ページの表示（左右別）: '1' 1日 | '3' 3日 | 'week' 週 | 'list' 一覧
+    spreadType: normSpreadType(s.spreadType), // 見開きの型: 'pages'（左右自由。既定）| 'tt'（今日＋明日）。左右の種類（pages）は別に保つ
+    ttSplit: normTtSplit(s.ttSplit), // 今日＋明日の1日ページの予定欄の高さ（左右共通）
     taskView: normTaskView(s.taskView), // 集中タスクの見方（today|plan|all|done）
     focusMode: normFocusMode(s.focusMode), // 開いた縦の集中モード（calendar|task|note）。他の姿勢では使わず、保存だけ保つ
     lastSide: s.lastSide === 'left' ? 'left' : 'right', // 最後に触ったページ（＋の行き先）
@@ -115,8 +119,8 @@ async function applyNotifyPolicy() {
 }
 const chipTime = (iso) => iso.slice(11).replace(/^0/, ''); // 月チップの時刻は先頭の0なし（3:00 / 10:00）
 function saveUi() {
-  const { selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView } = state;
-  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTimeV: 11, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView })); } catch { /* 保存不可でも動作は続ける */ }
+  const { selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView, spreadType, ttSplit } = state;
+  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTimeV: 11, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView, spreadType, ttSplit })); } catch { /* 保存不可でも動作は続ける */ }
 }
 // 左右（または縦の下パネル）のページを選ぶ。同じ種類が左右に並ぶ場合は交換。
 function setPage(side, id) { set({ pages: selectPage(state.pages, side, id) }); }
@@ -228,7 +232,7 @@ function vpTick() {
   const { kb } = updateVars();
   const sc = safeChanged();
   updateDiagnostics();
-  if (changed || sc) { directCtl?.cancel('rotate'); flushEditing(); render(); }
+  if (changed || sc) { directCtl?.cancel('rotate'); ttCurl?.reset('rotate'); flushEditing(); render(); }
   applyKbLayout();
   const a = document.activeElement;
   if (kb && isTextEl(a)) {
@@ -251,7 +255,7 @@ const isPortrait = () => layoutKind() === 'open' && L.h >= L.w;
 // 開いた縦の下パネル（月タブのときだけ使える）。設定（pages.portraitShown / portraitBottom）は他のタブへ移っても消さない。
 // 開いた縦の集中モード。開いた縦以外では常に calendar 扱い（保存値は残す）。
 const fmode = () => (layoutKind() === 'open' && isPortrait() ? state.focusMode : 'calendar');
-const panelAvail = () => layoutKind() === 'open' && isPortrait() && fmode() === 'calendar' && state.view === 'month' && !listShown();
+const panelAvail = () => layoutKind() === 'open' && isPortrait() && fmode() === 'calendar' && state.view === 'month' && !listShown() && state.spreadType !== 'tt';
 const panelOn = () => panelAvail() && state.pages.portraitShown;
 // 「一覧」（今日と次の予定のリスト）を本文に出しているか。閉じた画面は home、開いた画面は「一覧」を選んだとき。
 function listShown() { const k = layoutKind(); return k === 'home' || (state.home === true && k !== 'browse' && k !== 'spread'); }
@@ -270,7 +274,8 @@ function safeChanged() { const k = safeKey(safe()); const c = k !== lastSafe; la
 const r2 = (n) => Math.round(n * 100) / 100;
 // 帯（safe area）に置く操作。右の帯は閉じた画面・開いた横の右 safe、開いた縦は上 safe。84/82 など機種の値は書かない（safe() の値だけが基準）。
 const HIT_BAND = 56, VIS_BAND = 48, HIT_HDR = 44;
-const POS = { post: 'closed', band: false, bg: null, hbar: false, set: null, search: null, all: null, task: null, memo: null, today: null, add: null, pnl: null, fm: null, fmode: 'calendar', ux: 1 };
+const POS = { post: 'closed', band: false, bg: null, hbar: false, set: null, search: null, all: null, task: null, memo: null, today: null, add: null, pnl: null, fm: null, tt: null, fmode: 'calendar', ux: 1 };
+let ttPageH = 603; // 開いた横の1日ページの高さ（y0〜603。updateLayoutMetrics が決める）
 function updateLayoutMetrics() {
   const S = safe(); lastSafe = safeKey(S);
   const kind = layoutKind(), W = L.w, H = L.h;
@@ -279,7 +284,7 @@ function updateLayoutMetrics() {
   const post = kind === 'home' || kind === 'browse' ? 'closed' : kind === 'open' && isPortrait() ? 'portrait' : 'landscape';
   const n = monthWeeks(state.selected).length;
   const v = { 'layout-w': W, 'layout-h': H, 'content-x': x0, 'content-y': y0, 'content-w': U, 'content-h': V, 'fold-x': W / 2 };
-  const pos = { post, band: false, bg: null, hbar: false, set: null, search: null, all: null, task: null, memo: null, today: null, add: null, pnl: null, fm: null, fmode: 'calendar', ux: 1 };
+  const pos = { post, band: false, bg: null, hbar: false, set: null, search: null, all: null, task: null, memo: null, today: null, add: null, pnl: null, fm: null, tt: null, fmode: 'calendar', ux: 1 };
   portraitWeekH = 0;
   for (const k of ['pnl-top', 'pnl-h', 'pnl-up-h']) de.style.removeProperty(`--${k}`);
   const box = (x, y, s, vs) => ({ x, y, s, v: vs });
@@ -363,7 +368,11 @@ function updateLayoutMetrics() {
       pos.set = box(bx, tops[0] - m, HIT_BAND, VIS_BAND); pos.search = box(bx, tops[1] - m, HIT_BAND, VIS_BAND);
       pos.task = box(bx, tops[2] - m, HIT_BAND, VIS_BAND); pos.memo = box(bx, tops[3] - m, HIT_BAND, VIS_BAND);
       pos.today = box(bx, tops[4] - m, HIT_BAND, VIS_BAND); pos.add = box(bx, tops[5] - m, HIT_BAND, VIS_BAND);
+      // 見開きの型（今日＋明日）: 検索とタスクの間の空きの真ん中。56 が入らなければ出さない（既存の並びは詰めない）
+      const gTop = tops[1] + VIS_BAND + m, gBot = tops[2] - m;
+      if (gBot - gTop >= HIT_BAND) pos.tt = box(bx, gTop + (gBot - gTop - HIT_BAND) / 2, HIT_BAND, VIS_BAND);
     }
+    ttPageH = Math.max(0, tabsTop - 8 * q - y0); v['tt-h'] = ttPageH;
     Object.assign(v, { 'left-start': left, 'right-end': E });
   }
   Object.assign(POS, pos);
@@ -544,6 +553,7 @@ const focusSwitch = () => {
   const date = on === 'calendar' ? '' : `<span class="fdate" style="left:${r2(POS.set.x + 52 * POS.ux)}px;top:${r2(f.y)}px;height:${f.h}px">${esc(dayLabel(todayKey()))}</span>`;
   return `${date}<div class="fmodes${on === 'calendar' ? ' compact' : ''}" role="group" aria-label="集中モード" style="left:${r2(f.x)}px;top:${r2(f.y)}px;width:${r2(f.w)}px;height:${f.h}px">${FOCUS_MODES.map((m, i) => `<button type="button" data-fmode="${m}" aria-pressed="${m === on}" aria-description="3個中${i + 1}番目">${FOCUS_LABELS[m]}</button>`).join('')}</div>`;
 };
+const ICON_TT = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="3" y="4.5" width="8" height="15" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="13" y="4.5" width="8" height="15" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M5.5 9h3M5.5 12h3M15.5 9h3M15.5 12h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
 const CTL = {
   set: () => `<button type="button" class="cb csettings" data-act="menu" aria-label="設定" aria-haspopup="dialog"${posStyle(POS.set)}><span class="bi">${ICON_GEAR}</span></button>`,
   search: () => `<button type="button" class="cb csearch" data-act="search" aria-label="${FOCUS_NOUN[POS.fmode] || '予定'}を検索"${posStyle(POS.search)}><span class="bi">${ICON_SEARCH}</span></button>`,
@@ -555,6 +565,7 @@ const CTL = {
     const on = stripOn('memo');
     return `<button type="button" class="cb cstrip cmemo${on ? ' on' : ''}" data-act="strip" data-strip="memo" aria-pressed="${on}" aria-label="ノート"${posStyle(POS.memo)}><span class="bi">${ICON_MEMO}</span></button>`;
   },
+  tt: () => { const on = ttOn(); return `<button type="button" class="cb ctt${on ? ' on' : ''}" data-act="spreadtype" aria-pressed="${on}" aria-label="今日と明日の見開き"${posStyle(POS.tt)}><span class="bi">${ICON_TT}</span></button>`; },
   today: () => `<button type="button" class="cb ctoday" data-act="today" aria-label="今日に戻る"${posStyle(POS.today)}><span class="bi" aria-hidden="true">${todayLabel()}</span></button>`,
   pnl: () => { const on = state.pages.portraitShown; return `<button type="button" class="cb cpnl${on ? ' on' : ''}" data-act="pnltoggle" aria-label="${on ? '下の段を隠す' : '下の段を表示'}"${posStyle(POS.pnl)}><span class="bi">${ICON_PNL}</span></button>`; },
   add: () => `<button type="button" class="cb cadd" data-act="add" aria-label="${FOCUS_NOUN[POS.fmode] || '予定'}を追加"${posStyle(POS.add)}><span class="bi" aria-hidden="true">＋</span></button>`,
@@ -574,7 +585,7 @@ function ctl() {
   if (POS.post === 'closed') {
     h = POS.band ? CTL.set() + CTL.search() + CTL.task() + CTL.memo() + CTL.today() + CTL.add() : CTL.set() + CTL.search() + CTL.today() + CTL.add();
   } else if (POS.post === 'portrait') h = CTL.set() + focusSwitch() + CTL.search() + (POS.today ? CTL.today() : '') + (POS.pnl ? CTL.pnl() : '') + CTL.add();
-  else if (POS.band) h = CTL.set() + CTL.search() + CTL.task() + CTL.memo() + CTL.today() + CTL.add();
+  else if (POS.band) h = CTL.set() + CTL.search() + (POS.tt ? CTL.tt() : '') + CTL.task() + CTL.memo() + CTL.today() + CTL.add();
   return `${bg}<div class="ctl${POS.band ? ' band' : ''}" role="group" aria-label="操作">${h}</div>`;
 }
 // 画面・検索・通知で共通の表示条件。入力が変わるまで使い回す。
@@ -918,6 +929,7 @@ function focusPage(m) {
 // 開いた縦: 全幅の月（下に予定一覧は置かない）。見出し（設定・前・題名・次・全・検索）は上 safe の帯の中、下に 今日・タブ・＋。
 function open() {
   if (fmode() !== 'calendar') return `<div class="shell open portrait focus" data-focus="${fmode()}"><div class="pcol fcol">${focusPage(fmode())}</div>${ctl()}</div>`;
+  if (ttOn()) return `<div class="shell open portrait tt"><div class="pcol ttp">${dayPage('left', state.selected, true)}${dayPage('right', addDays(state.selected, 1), true)}</div><div class="hline" aria-hidden="true"></div>${ctl()}${tabs()}</div>`;
   return `<div class="shell open portrait"><div class="pcol">${listShown() ? listView() : calendar('portrait')}</div><div class="hline" aria-hidden="true"></div>${panelOn() ? bottomPanel() : panelAvail() ? '<div class="pgrab" data-grab="1" aria-hidden="true"></div>' : ''}${ctl()}${tabs()}</div>`;
 }
 // ---------- 開いた縦の下パネル（上は月、下は 時間｜タスク｜メモ） ----------
@@ -1057,7 +1069,7 @@ function allDayRow(ks, avail) {
   }).join('');
   return `<div class="allday" aria-label="終日の予定"><span class="adl">終日</span><div class="adcols">${cols}</div></div>`;
 }
-function timelineHtml(ks, avail, pane = 'right') {
+function timelineHtml(ks, avail, pane = 'right', fixedHh = 0) {
   const heads = ks.length > 1 ? `<div class="tlheads"><span class="tlh0"></span>${ks.map((k) => { const d = parseKey(k); return `<button type="button" class="tlhd${k === state.selected ? ' sel' : ''}${k === todayKey() ? ' today' : ''}" data-tlday="${k}" aria-pressed="${k === state.selected}" aria-label="${dayLabel(k)}を選ぶ">${d.getDate()}（${DOW[d.getDay()]}）${rkSpan(k, 'wrk')}</button>`; }).join('')}</div>` : '';
   let lines = '';
   for (let h = 0; h <= 24; h++) {
@@ -1065,7 +1077,7 @@ function timelineHtml(ks, avail, pane = 'right') {
     if (h < 24) lines += `<span class="hlab" style="--m:${h * 60}">${h}:00</span><i class="hl half" style="--m:${h * 60 + 30}"></i>`;
   }
   const cols = ks.map((k) => `<div class="tlcol" data-day="${k}">${dayBlocks(k).map((b) => tlBlock(b, k)).join('')}</div>`).join('');
-  return `${allDayRow(ks, avail)}${heads}<div class="tl" data-scroll="tl" data-pane="${pane}" style="--hh:${TLP[pane].hh}px"><div class="tlin" data-pane="${pane}" data-days="${ks.join(',')}">${lines}<div class="tlcols">${cols}</div><div class="nowl" hidden><span class="nowt"></span></div></div></div>`;
+  return `${allDayRow(ks, avail)}${heads}<div class="tl" data-scroll="tl" data-pane="${pane}" style="--hh:${fixedHh || TLP[pane].hh}px"><div class="tlin" data-pane="${pane}" data-days="${ks.join(',')}">${lines}<div class="tlcols">${cols}</div><div class="nowl" hidden><span class="nowt"></span></div></div></div>`;
 }
 // 右ページの日見出し（11月14日（土））＋ 1日／3日の切替（見た目 60×32・押せる範囲の高さ 44）。帯がないときは 今日・検索・＋ も見出しへ。
 const rctl = () => (POS.band ? '' : `<div class="rctl"><button type="button" class="rbtn s44 rtoday" data-act="today" aria-label="今日に戻る"><span aria-hidden="true">${todayLabel()}</span></button><button type="button" class="rbtn s44 rsearch" data-act="search" aria-label="予定を検索">${ICON_SEARCH}</button><button type="button" class="rbtn s44 radd" data-act="add" aria-label="予定を追加"><span aria-hidden="true">＋</span></button></div>`);
@@ -1142,6 +1154,43 @@ root.addEventListener('scroll', (ev) => {
   AGL[side] = Math.min(AGL_MAX, AGL[side] + AGL_STEP);
   syncExt(); render();
 }, true);
+// 今日＋明日: 左右の時間軸は同じ scrollTop。
+root.addEventListener('scroll', (ev) => {
+  const el = ev.target;
+  if (!el?.matches?.('.dpage .tl')) return;
+  TT.top = el.scrollTop;
+  for (const o of root.querySelectorAll('.dpage .tl')) if (o !== el && Math.abs(o.scrollTop - el.scrollTop) > 0.5) o.scrollTop = el.scrollTop;
+}, true);
+// つまみ（予定欄とノート欄の境目）。上下に引くと左右一緒に変わる。離したときに保存。横スワイプ・めくりの起点にはしない。
+function ttSetSplit(v, commit) {
+  const n = Math.min(ttSplitMax(), Math.max(64, Math.round(v)));
+  const sh = root.querySelector('.shell.tt'); if (sh) sh.style.setProperty('--tt-split', `${n}px`);
+  root.querySelectorAll('.dgrip').forEach((g) => g.setAttribute('aria-valuenow', String(n)));
+  if (commit && n !== state.ttSplit) set({ ttSplit: n }); // 再描画で 160 を境に時間軸と一覧が入れ替わる
+}
+root.addEventListener('pointerdown', (ev) => {
+  const g = ev.target.closest?.('.dgrip');
+  if (!g || TT.drag || ttCurl?.busy() || !ev.isPrimary || (ev.pointerType === 'mouse' && ev.button !== 0)) return; // めくっている間はつまみを動かさない
+  ev.preventDefault();
+  const id = ev.pointerId, y0 = ev.clientY, v0 = ttSplitNow();
+  TT.drag = { id };
+  g.classList.add('drag');
+  const mv = (e) => { if (e.pointerId === id) ttSetSplit(v0 + e.clientY - y0, false); };
+  const done = (e) => {
+    if (e.pointerId !== id) return;
+    window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', done); window.removeEventListener('pointercancel', done);
+    TT.drag = null; g.classList.remove('drag');
+    ttSetSplit(v0 + e.clientY - y0, true);
+    TLQ.quiet = performance.now() + 400;
+  };
+  window.addEventListener('pointermove', mv); window.addEventListener('pointerup', done); window.addEventListener('pointercancel', done);
+});
+root.addEventListener('keydown', (ev) => {
+  if (!ev.target.classList?.contains('dgrip') || !['ArrowUp', 'ArrowDown'].includes(ev.key)) return;
+  ev.preventDefault();
+  ttSetSplit(ttSplitNow() + (ev.key === 'ArrowUp' ? -30 : 30), true);
+  root.querySelector('.dgrip')?.focus({ preventScroll: true });
+});
 // 時間ページの中身（1日・3日は時間軸、週とリストはそのペイン内で描く）。
 function timeBody(side, w) {
   const m = tmode(side);
@@ -1153,7 +1202,7 @@ function timeBody(side, w) {
 // ---------- ノート（旧「日ごとのメモ」。左右ページ・縦の下パネル・閉じた画面の帯で同じ一覧と同じエディタ。保存は notes.js） ----------
 // 画面からは旧 memos へ一切書かない。旧メモは起動時にノートへ複製済み（db.js の移行）。
 let noteComposing = false, renderPending = false, rendering = false;
-const NB = { marks: new Map(), day: null, dp: null, cur: null, rows: null, q: { left: '', right: '', bottom: '', closed: '' }, seq: 0, failed: false, blocked: false, ed: null, opening: null, focusNew: false, said: false, folders: null, sel: 'all', menu: null, swallow: 0 };
+const NB = { marks: new Map(), first: new Map(), day: null, dp: null, cur: null, rows: null, q: { left: '', right: '', bottom: '', closed: '' }, seq: 0, failed: false, blocked: false, ed: null, opening: null, focusNew: false, said: false, folders: null, sel: 'all', menu: null, swallow: 0 };
 const noteHead = (side) => `<div class="rhead dh"><h2 class="rdate">ノート</h2>${side === 'right' ? rctl() : ''}<div class="sctl">${side === 'left' ? gearBtn() : ''}</div></div>`;
 function noteEditor() {
   if (!NB.ed) NB.ed = mountNoteEditor(document.createElement('div'), {
@@ -1301,11 +1350,16 @@ let marksSeq = 0;
 async function refreshNoteMarks() {
   const seq = ++marksSeq;
   try {
-    const m = new Map();
-    for (const n of await db.listNotes()) { const k = noteDateOf(n); if (k) m.set(k, (m.get(k) || 0) + 1); }
+    const m = new Map(), fb = new Map(), best = new Map();
+    for (const n of await db.listNotes()) {
+      if (n.deletedAt != null) continue;
+      const k = noteDateOf(n); if (!k) continue;
+      m.set(k, (m.get(k) || 0) + 1);
+      const b = best.get(k); if (!b || n.updatedAt > b.updatedAt) { best.set(k, n); fb.set(k, String(n.body ?? '').slice(0, 800)); } // 1日ページのノート欄に出す「1件目」（いちばん新しいもの）
+    }
     if (seq !== marksSeq) return;
-    const same = m.size === NB.marks.size && [...m].every(([k, v]) => NB.marks.get(k) === v);
-    NB.marks = m;
+    const same = m.size === NB.marks.size && [...m].every(([k, v]) => NB.marks.get(k) === v) && fb.size === NB.first.size && [...fb].every(([k, v]) => NB.first.get(k) === v);
+    NB.marks = m; NB.first = fb;
     if (!same) render();
   } catch { /* 印が出ないだけ */ }
 }
@@ -1707,15 +1761,53 @@ function renderPage(side, id) {
 // 各ページの下の切替「月｜時間｜タスク｜メモ」（幅 240・高 46）。選んでいるページを押すと何も変えない。
 const PAGE_LABELS = { home: 'ホーム', month: '月', time: '時間', task: 'タスク', memo: 'ノート' };
 function pageSwitch(side) {
-  return `<div class="pgsw ${side === 'left' ? 'pgl' : 'pgr'}" role="group" aria-label="${side === 'left' ? '左' : '右'}ページの種類">${PAGE_IDS.map((id, i) => `<button type="button" data-pick="${id}" data-side="${side}" aria-pressed="${id === PG()[side]}" aria-description="${PAGE_IDS.length}個中${i + 1}番目"><span class="pill">${PAGE_LABELS[id]}</span></button>`).join('')}</div>`;
+  return `<div class="pgsw ${side === 'left' ? 'pgl' : 'pgr'}" role="group" aria-label="${side === 'left' ? '左' : '右'}ページの種類">${PAGE_IDS.map((id, i) => `<button type="button" data-pick="${id}" data-side="${side}" aria-pressed="${!ttOn() && id === PG()[side]}" aria-description="${PAGE_IDS.length}個中${i + 1}番目"><span class="pill">${PAGE_LABELS[id]}</span></button>`).join('')}</div>`;
 }
+// ---------- 見開きの型「今日＋明日」（第18版 PR1）。左＝選択日、右＝その次の日。左右とも1日ページ ----------
+// 開いた横（帯のタスク／メモで右ページを置き換えている間と貼り付け中は今の見開き）と、開いた縦（月・一覧のときだけ）で使う。
+const ttOn = () => {
+  if (state.spreadType !== 'tt') return false;
+  const k = layoutKind();
+  if (k === 'spread') return !state.strip && !PS.on;
+  return k === 'open' && isPortrait() && fmode() === 'calendar' && !listShown() && !PS.on;
+};
+const TT = { top: 0, init: false, drag: null }; // top: 左右共通の時間軸のスクロール位置
+const TT_HEAD = 82, TT_GRIP = 24, TT_NOTE_MIN = 120, TT_TIME_MIN = 160, TT_LIST_ROW = 32;
+const ttSplitMax = () => Math.max(64, ttPageH - TT_HEAD - TT_GRIP - TT_NOTE_MIN);
+const ttSplitNow = () => Math.min(ttSplitMax(), Math.max(64, state.ttSplit));
+// 予定欄が 160 未満のときの一覧（1件 32）。終日が先、あとは開始順。
+function ttList(k) {
+  const list = eventsOnDay(occIn(k, k), k).sort((a, b) => (b.all ? 1 : 0) - (a.all ? 1 : 0) || String(a.start).localeCompare(String(b.start)));
+  const rows = list.map((e) => {
+    const t = e.all || dayOf(e.start) !== k ? '終日' : e.start.slice(11);
+    return `<button type="button" class="agrow dlrow ${catCls(e)}"${catSty(e)} role="listitem" data-event="${esc(e.id)}" data-sday="${k}" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${e.title}${e.recurring ? ' 繰り返し' : ''}${alLabel(e)}`)}"><span class="agt">${t}</span><i class="agbar" aria-hidden="true"></i><strong>${xi(e)}${rep(e)}${esc(e.title)}</strong></button>`;
+  }).join('');
+  return `<div class="dlist" data-scroll="dlist" data-pane="${k}" role="list" aria-label="${esc(dayLabel(k))}の予定">${rows || '<p class="dnone">予定はありません</p>'}</div>`;
+}
+// 1日ページ。縦の寸法（見出し82・予定欄・つまみ24・ノート）は左右で同じ。ノート欄の行の y は CSS の整数 px。
+function dayPage(side, k, portrait = false) {
+  const body = !portrait && ttSplitNow() < TT_TIME_MIN ? ttList(k) : timelineHtml([k], Math.max(0, (portrait ? safeW() : paneWidth(side)) - 80), side, 60);
+  const first = NB.first.get(k), n = NB.marks.get(k) || 0;
+  const note = `<button type="button" class="dnote" data-act="daynote" data-day="${k}" aria-label="${esc(dayLabel(k))}のノート${n ? `${n}件を開く` : 'を書く'}"><span class="dnt">${first ? esc(first) : ''}</span></button>`;
+  const grip = portrait ? '' : `<div class="dgrip" role="separator" aria-orientation="horizontal" tabindex="0" aria-label="予定とノートの境目" aria-valuemin="64" aria-valuemax="${ttSplitMax()}" aria-valuenow="${ttSplitNow()}"><i aria-hidden="true"></i></div>`;
+  return `<section class="page ${side === 'left' ? 'lp' : 'rp'} dpage" data-page="day" data-day="${k}" aria-label="${esc(dayLabel(k))}"><div class="dph"><h2 class="dd"><span class="hdt${isRed(k) ? ' hol' : ''}">${dayLabel(k)}</span>${holSpan(k)}</h2>${rkSpan(k, 'drk')}</div><div class="dev">${body}</div>${grip}${note}</section>`;
+}
+// めくりのページの絵（第18版 PR3）。めくり（js/curl/index.js、PR4）がここから呼ぶ。テスト用に window.__duoPainter.get() で取れる。
+let ttPaint = null, ttCurl = null; // ttCurl: めくりの制御（第18版 PR4。swipe の定義の下で作る）
+const ttPainter = () => (ttPaint ||= createPainter({
+  shell: () => root.querySelector('.shell.spread.tt'), dayHtml: (side, k) => dayPage(side, k),
+  selected: () => state.selected, addDays, scrollTop: () => TT.top, afterMount: (host) => updateNow(host), colors: curlColors(),
+}));
+window.__duoPainter = { get: ttPainter };
+const ttStyle = () => ` style="--tt-split:${ttSplitNow()}px"`;
 function spread() {
+  if (ttOn()) return `<div class="shell spread tt${POS.band ? ' band' : ' fb'}"${ttStyle()}>${dayPage('left', state.selected)}${dayPage('right', addDays(state.selected, 1))}${ctl()}${pageSwitch('left')}${pageSwitch('right')}</div>`;
   return `<div class="shell spread${POS.band ? ' band' : ' fb'}">${renderPage('left', PG().left)}${renderPage('right', PG().right)}${ctl()}${pageSwitch('left')}${pageSwitch('right')}</div>`;
 }
 // 時間軸: 初回／選択日の変更で「今の1時間前」へ。現在時刻の線は毎分更新。
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
-function updateNow() {
-  root.querySelectorAll('.tlin').forEach((inner) => {
+function updateNow(scope = root) {
+  scope.querySelectorAll('.tlin').forEach((inner) => {
     const ks = inner.dataset.days.split(','), i = ks.indexOf(todayKey()), el = inner.querySelector('.nowl');
     if (i < 0) { el.hidden = true; return; }
     el.hidden = false;
@@ -1730,7 +1822,10 @@ function initTimeline() {
   TLP.left.key = tls.length && [...tls].some((t) => paneOf(t) === 'left') ? TLP.left.key : '';
   TLP.right.key = tls.length && [...tls].some((t) => paneOf(t) === 'right') ? TLP.right.key : '';
   TLP.closed.key = tls.length && [...tls].some((t) => paneOf(t) === 'closed') ? TLP.closed.key : '';
+  const dts = [...root.querySelectorAll('.dpage .tl')]; // 今日＋明日: 左右共通のスクロール位置（日を送っても保つ）
+  if (dts.length) { if (!TT.init) { TT.init = true; TT.top = Math.max(0, nowMin() - 60); } dts.forEach((t) => { t.scrollTop = TT.top; }); } else TT.init = false;
   tls.forEach((tl) => {
+    if (tl.closest('.dpage')) return;
     const pane = paneOf(tl), T = TLP[pane];
     const key = `${layoutKind()}|${state.view}|${state.home}|${PG().left}|${PG().right}|${state.selected}|${state.timeMode[pane]}|${pane === 'bottom' ? state.pages.portraitBottom : ''}`;
     if (key !== T.key) { T.key = key; tl.scrollTop = Math.max(0, nowMin() - 60) * T.hh / 60; }
@@ -1740,7 +1835,7 @@ function initTimeline() {
 // 倍率の変更。中心の時刻（画面上の位置 cy）を固定する。
 function setHh(next, cy, tlEl) {
   const tl = tlEl || firstTl();
-  if (!tl) return;
+  if (!tl || tl.closest('.dpage')) return; // 今日＋明日の時間軸は 1時間 60 で固定
   const T = TLP[paneOf(tl)];
   const hh = clampHh(next);
   if (hh === T.hh) return;
@@ -1755,7 +1850,7 @@ const tlPtr = new Map();
 let tlPinch = null;
 root.addEventListener('pointerdown', (ev) => {
   const tl = ev.target.closest?.('.tl');
-  if (!tl) return;
+  if (!tl || tl.closest('.dpage')) return;
   tlPtr.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
   if (tlPtr.size === 2) {
     const [a, b] = [...tlPtr.values()];
@@ -1785,7 +1880,7 @@ window.addEventListener('pointercancel', tlEnd);
 const DF = { mode: null, day: '', pane: '', start: 0, end: 0, anchor: 0 };
 const lastCatOk = () => (state.categories.some((c) => c.id === lastCat) ? lastCat : defaultCatId());
 const colOf = (pane, day) => [...root.querySelectorAll(`.tl[data-pane="${pane}"] .tlcol`)].find((c) => c.dataset.day === day) || null;
-const hhOf = (pane) => TLP[pane]?.hh ?? 60;
+const hhOf = (pane) => (ttOn() ? 60 : TLP[pane]?.hh ?? 60);
 const minAtY = (y, col, pane) => minutesAt(y, col.getBoundingClientRect().top, TL_PAD, hhOf(pane));
 function paintDraft() {
   root.querySelectorAll('.dbox, .dtag').forEach((n) => n.remove());
@@ -1955,19 +2050,32 @@ function render() {
   }
   syncExt();
   applyKbLayout();
+  ttCurl?.sync(); // 寸法が変わった・今日＋明日でなくなった：めくりを止めて絵と canvas を捨てる（めくり中の再描画では何もしない）
 }
 
 // ---------- 操作 ----------
 function move(n, pane) {
   const k = state.selected;
+  if (ttOn()) { set({ selected: addDays(k, n * 2) }); return; } // 今日＋明日は2日ずつ
   if (pane && layoutKind() === 'spread' && PG()[pane] !== 'month') { set({ selected: addDays(k, n * (PG()[pane] === 'time' ? tlStep(pane) : 1)) }); return; }
   set({ selected: viewNow() === 'month' ? addMonths(k, n) : addDays(k, n * (viewNow() === 'week' ? 7 : 1)) });
+}
+// 見開きの型の切替（帯のボタン）。選んでいる日は変えない。帯のタスク／メモで置き換えていた右ページは元へ戻す。
+function setSpreadType(t) {
+  TLM.open = null; MM.open = null;
+  set({ spreadType: normSpreadType(t), strip: null });
+  say(ttOn() ? `今日と明日の見開きにしました。${dayLabel(state.selected)}と${dayLabel(addDays(state.selected, 1))}。` : '左右のページの見開きに戻しました。');
+}
+// 1日ページのノート欄をたたく: 帯の「ノート」と同じく右ページをノートにして、第17版の「この日のノート」の規則（0件=新規、1件=開く、複数=絞った一覧）で開く。
+async function ttOpenNote(day) {
+  if (layoutKind() === 'spread') set({ strip: 'memo', lastSide: 'right' }); else showNotePage();
+  await openDayNote(day);
 }
 // 見開きの切替。左右で同じ種類になるときは入れ替わる。最後に触ったページを記録（＋の行き先）。
 function pickPage(side, id) {
   const before = state.pages, next = selectPage(before, side, id);
   TLM.open = null; MM.open = null;
-  set({ pages: next, lastSide: side });
+  set({ pages: next, lastSide: side, ...(ttOn() ? { spreadType: 'pages' } : {}) }); // 今日＋明日から下のタブで種類を選んだら、左右の見開きへ
   const swapped = before[side] !== id && before[side === 'left' ? 'right' : 'left'] === id;
   say(`${side === 'left' ? '左' : '右'}ページを${PAGE_LABELS[id]}にしました。${swapped ? `${side === 'left' ? '右' : '左'}ページは${PAGE_LABELS[next[side === 'left' ? 'right' : 'left']]}になりました。` : ''}`);
 }
@@ -2079,6 +2187,8 @@ root.addEventListener('click', (ev) => {
   else if (d.new) openEditor(null, b, d.new);
   else if (d.act === 'add') addFromHere(b);
   else if (d.act === 'pnltoggle') setPanel(!state.pages.portraitShown);
+  else if (d.act === 'spreadtype') setSpreadType(ttOn() ? 'pages' : 'tt');
+  else if (d.act === 'daynote') ttOpenNote(d.day);
   else if (d.act === 'pnlhide') setPanel(false);
   else if (d.act === 'pnlgrip') { if (performance.now() >= PN.swallow) setPanel(false); }
   else if (d.pnl) pickBottom(d.pnl);
@@ -4885,16 +4995,17 @@ document.addEventListener('keydown', (ev) => {
 
 // ---------- スワイプ（左＝次、右＝前） ----------
 const SWIPE_ZONE = '.scroll, .agenda, .remaining, .home, .hero, .page, .list, .tlx';
-const SWIPE_EXCLUDE = '.top, .shead, .rhead, .allday, .tlheads, .mmenu, .chead, .foot, .add, .tabs, .pgsw, .tlmenu, .dbox, .ctl, .bandbg, .hline, .foldband, .gutter, input, select, textarea, label, dialog';
+const SWIPE_EXCLUDE = '.top, .shead, .rhead, .allday, .tlheads, .dgrip, .mmenu, .chead, .foot, .add, .tabs, .pgsw, .tlmenu, .dbox, .ctl, .bandbg, .hline, .foldband, .gutter, input, select, textarea, label, dialog';
 let swiping = false;
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const paneContent = () => [...root.querySelectorAll('.scroll > *, .agenda > *, .hero > *, .remaining > *, .margin > *')];
+const paneContent = () => [...root.querySelectorAll('.dpage > *, .scroll > *, .agenda > *, .hero > *, .remaining > *, .margin > *')];
 
 // 見開きでは、なぞり始めたページ（左 'left' / 右 'right'）で動きを決める。月＝月送り、時間＝日送り（時間の週は7日）、タスク＝動かない。
 let swipePane = null;
-const pageOf = (t) => { const pg = t.closest('.page'); return pg && layoutKind() === 'spread' ? { side: pg.classList.contains('lp') ? 'left' : 'right', id: pg.dataset.page } : null; };
+const pageOf = (t) => { const pg = t.closest('.page'); return pg && (layoutKind() === 'spread' || pg.classList.contains('dpage')) ? { side: pg.classList.contains('lp') ? 'left' : 'right', id: pg.dataset.page } : null; };
 function swipeMove(dir) {
   const pane = swipePane; swipePane = null;
+  if (ttOn()) { move(dir); say(`${dayLabel(state.selected)}と${dayLabel(addDays(state.selected, 1))}。`); return; }
   if (pane && PG()[pane] !== 'month') {
     move(dir, pane);
     say(`選択日は${dayLabel(state.selected)}。`);
@@ -4909,15 +5020,16 @@ async function swipeTo(dir) {
   if (reduced()) { swipeMove(dir); return; }
   swiping = true;
   document.documentElement.dataset.swiping = '1';
+  const dur = ttOn() ? 125 : 100; // 今日＋明日の横すべりは出入り合わせて 0.25 秒（今の型は 0.1＋0.1 のまま）
   try {
     const out = paneContent().map((el) => el.animate(
       [{ transform: 'translateX(0)', opacity: 1 }, { transform: `translateX(${-dir * 32}px)`, opacity: 0 }],
-      { duration: 100, easing: 'ease-in', fill: 'forwards' }));
+      { duration: dur, easing: 'ease-in', fill: 'forwards' }));
     await Promise.all(out.map((a) => a.finished));
     swipeMove(dir);
     const back = paneContent().map((el) => el.animate(
       [{ transform: `translateX(${dir * 32}px)`, opacity: 0 }, { transform: 'translateX(0)', opacity: 1 }],
-      { duration: 100, easing: 'ease-out' }));
+      { duration: dur, easing: 'ease-out' }));
     await Promise.all(back.map((a) => a.finished));
   } catch { /* アニメーションが中断されても状態は保つ */ } finally { swiping = false; delete document.documentElement.dataset.swiping; }
 }
@@ -4925,6 +5037,7 @@ const swipeCtl = initSwipe({
   root,
   canStart: (t) => {
     if (anyPanel() || swiping || !(t instanceof Element) || !t.closest(SWIPE_ZONE) || t.closest(SWIPE_EXCLUDE)) return false;
+    if (ttSpreadOn() && ttCurl?.mode() !== 'slide') return false; // 今日＋明日の見開き：端 24 のめくり（または入れ替え）に任せる。端の外の横スワイプでは日を送らない
     const pg = pageOf(t);
     swipePane = null;
     if (!pg) { // 見開き以外の時間軸は従来どおり対象外。閉じた日・週（.tlx）は横にあふれていなければ日・週送りを許す
@@ -4938,6 +5051,22 @@ const swipeCtl = initSwipe({
     return true;
   },
   onSwipe: swipeTo,
+});
+// ---------- 今日＋明日のページめくり（第18版 PR4。js/curl/）----------
+// 紙をめくるのは 開いた横・型が tt・WebGL が使える・視差効果を減らすがオフ のときだけ。WebGL なし・失敗は今の横すべり（swipeTo。0.25 秒）、視差効果を減らすは入れ替え。
+const ttSpreadOn = () => ttOn() && layoutKind() === 'spread';
+function ttMetrics() { // めくりの寸法（アプリ座標）。見えている左右の1日ページの矩形（updateLayoutMetrics の --left-start/--left-end/--right-start/--right-end・--content-y・--tt-h）から
+  if (!ttSpreadOn()) return null;
+  const l = root.querySelector('.dpage.lp'), r = root.querySelector('.dpage.rp'); if (!l || !r) return null;
+  const a = l.getBoundingClientRect(), b = r.getBoundingClientRect();
+  return a.width > 0 && b.width > 0 ? { lx0: a.left, lx1: a.right, spine: b.left, edge: b.right, py0: a.top, py1: a.bottom } : null;
+}
+const CURL_EXCLUDE = `${SWIPE_EXCLUDE}, .tlev, .adpill, .adplus, .dlrow`; // 予定の枠・終日のピル・つまみ・操作の上からは始めない
+ttCurl = createCurl({
+  root, metrics: ttMetrics, pages: ttPainter(), swipe: swipeCtl, reduced,
+  enabled: () => ttSpreadOn() && !TT.drag && !anyPanel(),
+  canStart: (t) => !!t.closest('.dpage') && !t.closest(CURL_EXCLUDE),
+  onTurn: (dir) => { swipePane = null; swipeMove(dir); }, // state.selected を ±2 日にして render()（今日＋明日の日送りと同じ）
 });
 
 // ---------- 直接入力の起点（PR24 の共通制御へ PR25 で時間軸を接続。月・チップは PR26 以降） ----------
@@ -5004,7 +5133,7 @@ function monthEdgeUpdate() {
 }
 function stopEdge() { edgeLoop.stop(); monthDwell.stop(); EG.tl = null; EG.carry = 0; EG.origin = null; }
 directCtl = initDirectInput({
-  root, swipe: swipeCtl,
+  root, swipe: { cancel() { swipeCtl.cancel(); ttCurl?.cancel('hold'); } }, // 長押しで予定のドラッグになったら、スワイプもめくりも止める
   classify: (t) => directOrigin(t),
   onStart: ({ origin: o, x, y }) => {
     EG.x = x; EG.y = y; EG.origin = o; EG.carry = 0; EG.tl = null;
