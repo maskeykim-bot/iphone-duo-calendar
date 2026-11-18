@@ -4,6 +4,8 @@ import CryptoKit
 import EventKit
 import UIKit
 import UserNotifications
+import WebKit
+import os
 
 /// iPhone のカレンダー（EventKit）と共有シートを JS へ橋渡しするプラグイン。
 /// 契約は design/DESIGN.md 第7版 §7。予定のタイトル・メモなどはログへ出さない。
@@ -32,7 +34,16 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         CAPPluginMethod(name: "notifyClear", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "notifyTest", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "selectionHaptic", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "getPosture", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "getPosture", returnType: CAPPluginReturnPromise),
+        // iOS 本来のめくり（B、1段目の試作。連携 第18弾）
+        CAPPluginMethod(name: "curlCaps", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "prepareCurl", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "releaseCurl", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "turnPage", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "backReady", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "webReady", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "cancelCurl", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "curlPerf", returnType: CAPPluginReturnPromise)
     ]
 
     private let store = EKEventStore()
@@ -59,6 +70,8 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
     // UIHinge の記録（配置には使わない）。度と status 文字列。取れたときだけ入る。
     private var hingeAngleDegrees: Double?
     private var hingeStatus: String?
+    // iOS 本来のめくり（B）。UI は main で触る
+    fileprivate lazy var curlCtl = DuoCurlController(owner: self)
 
     public override func load() {
         storeObserver = NotificationCenter.default.addObserver(
@@ -84,6 +97,20 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         ]
         // 折り状態の probe。view がまだ無ければ設置せず、getPosture で再設置する。
         DispatchQueue.main.async { [weak self] in self?.installPostureProbe() }
+        #if DEBUG
+        // 確認用（Debug のみ）：起動引数 -DuoEvalJS "<js>" [-DuoEvalDelay 秒] で、起動後に JS を1回実行する。-DuoSlowAnim 0.1 でアニメーションを遅くする。
+        let args = ProcessInfo.processInfo.arguments
+        func arg(_ k: String) -> String? { if let i = args.firstIndex(of: k), i + 1 < args.count { return args[i + 1] }; return nil }
+        if let js = arg("-DuoEvalJS") {
+            let delay = Double(arg("-DuoEvalDelay") ?? "") ?? 6
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.bridge?.webView?.evaluateJavaScript(js, completionHandler: nil)
+            }
+        }
+        if let sp = arg("-DuoSlowAnim"), let v = Float(sp) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.bridge?.viewController?.view.window?.layer.speed = v }
+        }
+        #endif
     }
 
     deinit {
@@ -2155,4 +2182,314 @@ final class DuoPostureProbeView: UIView {
 
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool { false }
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? { nil }
+}
+
+
+// MARK: - iOS 本来のめくり（B、1段目の試作）
+// 連携 第18弾（data/連携_第18弾_ネイティブめくりの呼び出し.md）の「1段目」の列だけ。指は Web が持ち、離したら turnPage → webReady で
+// UIPageViewController（.pageCurl）の setViewControllers(animated: true) が自動でめくる。紙は指に付かない。時間・緩急・影は iOS のまま。
+// 座標は web view 左上原点の pt（= CSS px。contentInset は never）。重ねるビューは撮った範囲だけに置き、clipsToBounds で紙と影を切る。
+extension DuoNativePlugin {
+    @objc func curlCaps(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            let key = (Bundle.main.object(forInfoDictionaryKey: "CADisableMinimumFrameDurationOnPhone") as? Bool) ?? false
+            call.resolve(["version": DuoCurlController.version, "stage": 1, "maxFps": UIScreen.main.maximumFramesPerSecond, "proMotionKey": key])
+        }
+    }
+    @objc func prepareCurl(_ call: CAPPluginCall) { DispatchQueue.main.async { self.curlCtl.prepare(call) } }
+    @objc func releaseCurl(_ call: CAPPluginCall) { DispatchQueue.main.async { self.curlCtl.release(); call.resolve(["ok": true]) } }
+    @objc func turnPage(_ call: CAPPluginCall) { DispatchQueue.main.async { self.curlCtl.turnPage(call) } }
+    @objc func backReady(_ call: CAPPluginCall) { DispatchQueue.main.async { self.curlCtl.backReady(call) } }
+    @objc func webReady(_ call: CAPPluginCall) { DispatchQueue.main.async { self.curlCtl.webReady(call) } }
+    @objc func cancelCurl(_ call: CAPPluginCall) { DispatchQueue.main.async { self.curlCtl.cancel(reason: call.getString("reason") ?? "cancel"); call.resolve(["ok": true]) } }
+    @objc func curlPerf(_ call: CAPPluginCall) { DispatchQueue.main.async { self.curlCtl.perfEvents = call.getBool("on") ?? false; call.resolve(["ok": true]) } }
+    fileprivate func emitCurl(_ name: String, _ data: [String: Any]) { notifyListeners(name, data: data) }
+}
+
+/// めくる紙1枚（撮った絵）、または次のページ（透明／撮った絵）。
+final class DuoCurlPage: UIViewController {
+    private let image: UIImage?
+    init(image: UIImage?) { self.image = image; super.init(nibName: nil, bundle: nil) }
+    required init?(coder: NSCoder) { nil }
+    override func loadView() {
+        let v = UIImageView(image: image)
+        v.contentMode = .scaleToFill
+        // 紙は #FFFDFA（ダークでもライト。決定③）。次のページを透明にするときは背景も透明
+        v.backgroundColor = image == nil ? .clear : UIColor(red: 1, green: 253 / 255, blue: 250 / 255, alpha: 1)
+        v.isOpaque = image != nil
+        v.isUserInteractionEnabled = false
+        view = v
+    }
+}
+
+/// コマの間隔を測る（めくっている間だけ）。1段目は iOS が描くので目安。Instruments の数字が正。
+final class DuoFrameMeter: NSObject {
+    private var link: CADisplayLink?
+    private var last: CFTimeInterval = 0
+    private(set) var gaps: [Double] = []
+    private var once: (() -> Void)?
+    func start() {
+        stop(); gaps = []; last = 0
+        let l = CADisplayLink(target: self, selector: #selector(tick(_:)))
+        if #available(iOS 15.0, *) { l.preferredFrameRateRange = CAFrameRateRange(minimum: 80, maximum: 120, preferred: 120) }
+        l.add(to: .main, forMode: .common); link = l
+    }
+    /// 次の1コマで1回だけ呼ぶ
+    func nextFrame(_ f: @escaping () -> Void) {
+        stop(); once = f
+        let l = CADisplayLink(target: self, selector: #selector(tick(_:)))
+        l.add(to: .main, forMode: .common); link = l
+    }
+    @objc private func tick(_ l: CADisplayLink) {
+        if let f = once { once = nil; stop(); f(); return }
+        if last > 0 { gaps.append((l.timestamp - last) * 1000) }
+        last = l.timestamp
+    }
+    func stop() { link?.invalidate(); link = nil }
+}
+
+final class DuoCurlController: NSObject {
+    static let version = 2 // 2：18.3 に合わせた版（表はページ全体・動かない側の覆い・backReady で裏を撮る）
+    weak var owner: DuoNativePlugin?
+    var perfEvents = false
+    private var key = ""
+    private var gen = 0
+    private var rects: [String: CGRect] = [:]
+    private var snaps: [String: UIImage] = [:]
+    private var waiters: [String: [(UIImage?) -> Void]] = [:]
+    private var snapStart: CFTimeInterval = 0
+    private var snapMs: Double = 0
+    private var box: UIView?
+    private var cover: UIView?   // 動かない側のページ（触れた瞬間に撮った絵）。着地まで止めておき、終わりに 0.15 秒で薄くする
+    private var backImg: UIImage? // 紙の裏＝着地先のページ全体（backReady で撮る。1段目は isDoubleSided=false なので記録だけ）
+    private var backMs: Double = 0
+    private var pvc: UIPageViewController?
+    private var turnRect: CGRect = .zero
+    private var turnDir = "forward"
+    private var nextMode = "clear"
+    private var animDir: UIPageViewController.NavigationDirection = .forward
+    private var turnId = 0
+    private let meter = DuoFrameMeter()
+    private let waiter = DuoFrameMeter()
+    private let signposter = OSSignposter(subsystem: "com.maskeykim.duocalendar", category: "curl")
+
+    init(owner: DuoNativePlugin) { self.owner = owner }
+    private var webView: WKWebView? { owner?.bridge?.webView }
+    private var host: UIView? { owner?.bridge?.viewController?.view }
+
+    private static func rect(_ o: JSObject?) -> CGRect? {
+        guard let o = o, let x = (o["x"] as? NSNumber)?.doubleValue, let y = (o["y"] as? NSNumber)?.doubleValue,
+              let w = (o["w"] as? NSNumber)?.doubleValue, let h = (o["h"] as? NSNumber)?.doubleValue,
+              x.isFinite, y.isFinite, w.isFinite, h.isFinite, w >= 1, h >= 1 else { return nil }
+        return CGRect(x: x, y: y, width: w, height: h)
+    }
+    private static func now() -> CFTimeInterval { CACurrentMediaTime() }
+
+    /// 触れた瞬間：進む用と戻る用を撮る。rev（Web の描き直し番号ほか）と範囲が同じなら撮らない。
+    func prepare(_ call: CAPPluginCall) {
+        guard let k = call.getString("rev"), let f = Self.rect(call.getObject("fwd")), let b = Self.rect(call.getObject("back")) else {
+            call.reject("invalid arguments", "INVALID_ARGUMENT"); return
+        }
+        if k == key, rects["fwd"] == f, rects["back"] == b, snaps["fwd"] != nil || waiters["fwd"] != nil, snaps["back"] != nil || waiters["back"] != nil {
+            call.resolve(["ok": true, "reused": true]); return
+        }
+        key = k; rects = ["fwd": f, "back": b]
+        shoot()
+        call.resolve(["ok": true, "reused": false])
+    }
+    private func shoot() {
+        gen += 1; snaps = [:]
+        let g = gen
+        snapStart = Self.now()
+        let state = signposter.beginInterval("snapshot")
+        var left = 2
+        for name in ["fwd", "back"] {
+            guard let r = rects[name] else { continue }
+            if waiters[name] == nil { waiters[name] = [] }
+            take(r) { [weak self] img in
+                guard let self = self, g == self.gen else { return }
+                self.snaps[name] = img
+                let ws = self.waiters[name] ?? []; self.waiters[name] = nil
+                for w in ws { w(img) }
+                left -= 1
+                if left == 0 {
+                    self.signposter.endInterval("snapshot", state)
+                    self.snapMs = (Self.now() - self.snapStart) * 1000
+                    self.owner?.emitCurl("curlReady", ["rev": self.key, "ms": (self.snapMs * 10).rounded() / 10])
+                }
+            }
+        }
+    }
+    private func take(_ r: CGRect, _ done: @escaping (UIImage?) -> Void) {
+        guard let wv = webView else { done(nil); return }
+        let cfg = WKSnapshotConfiguration()
+        cfg.rect = r
+        cfg.afterScreenUpdates = true
+        wv.takeSnapshot(with: cfg) { img, _ in DispatchQueue.main.async { done(img) } }
+    }
+    private func image(_ name: String, _ cb: @escaping (UIImage?) -> Void) {
+        if let i = snaps[name] { cb(i); return }
+        if waiters[name] != nil { waiters[name]!.append(cb); return }
+        guard let r = rects[name] else { cb(nil); return }
+        take(r) { [weak self] img in self?.snaps[name] = img; cb(img) }
+    }
+    func release() { gen += 1; key = ""; rects = [:]; snaps = [:]; let ws = waiters; waiters = [:]; for (_, l) in ws { for w in l { w(nil) } } }
+
+    /// 離して、めくると決めた：撮った紙を同じ位置に重ねる（まだ動かさない）。重なったら解決する（curlShown）。
+    func turnPage(_ call: CAPPluginCall) {
+        guard let dir = call.getString("dir"), dir == "forward" || dir == "backward", let r = Self.rect(call.getObject("rect")) else {
+            call.reject("invalid arguments", "INVALID_ARGUMENT"); return
+        }
+        cancel(reason: "replaced")
+        let name = dir == "forward" ? "fwd" : "back", coverName = dir == "forward" ? "back" : "fwd"
+        let coverRect = Self.rect(call.getObject("cover"))
+        let rev = call.getString("rev") ?? ""
+        // 押してから描き直した・範囲が違う：撮り直す
+        if rev != key || rects[name] != r { let keep = rects; release(); rects = keep; key = rev; rects[name] = r }
+        turnDir = dir; turnRect = r
+        nextMode = call.getString("next") == "snap" ? "snap" : "clear"
+        let spineMax = (call.getString("spine") ?? (dir == "forward" ? "min" : "max")) == "max"
+        // 背が右端（.max）のときは .reverse で、今の紙が左の端から背へ巻き上がる（.forward では動かなかった。シミュレータで確認）
+        animDir = (call.getString("animDir") ?? (spineMax ? "reverse" : "forward")) == "reverse" ? .reverse : .forward
+        turnId += 1
+        let id = turnId
+        let t0 = Self.now()
+        backImg = nil; backMs = 0
+        image(name) { [weak self] img in
+          guard let self = self, id == self.turnId else { call.reject("cancelled", "CANCELLED"); return }
+          // 動かない側（進む＝左ページ、戻る＝右ページ）も撮ってある絵で覆う。その下で Web が着地先のページを出して裏を撮る（連携 第18弾 1.2）
+          let wantCover = coverRect != nil && self.rects[coverName] == coverRect
+          let withCover: (@escaping (UIImage?) -> Void) -> Void = { cb in if wantCover { self.image(coverName, cb) } else { cb(nil) } }
+          withCover { [weak self] coverImg in
+            guard let self = self, id == self.turnId else { call.reject("cancelled", "CANCELLED"); return }
+            guard let img = img, let host = self.host, let wv = self.webView else {
+                self.owner?.emitCurl("curlError", ["code": "NO_SNAPSHOT"]); call.reject("no snapshot", "UNAVAILABLE"); return
+            }
+            if coverRect != nil && coverImg == nil {
+                self.owner?.emitCurl("curlError", ["code": "NO_COVER"]); call.reject("no cover", "UNAVAILABLE"); return
+            }
+            if let cr = coverRect, let ci = coverImg {
+                let cv = UIImageView(image: ci)
+                cv.frame = wv.convert(cr, to: host)
+                cv.contentMode = .scaleToFill
+                cv.backgroundColor = UIColor(red: 1, green: 253 / 255, blue: 250 / 255, alpha: 1)
+                cv.isUserInteractionEnabled = false
+                cv.accessibilityElementsHidden = true
+                host.addSubview(cv)
+                self.cover = cv
+            }
+            let frame = wv.convert(r, to: host)
+            let box = UIView(frame: frame)
+            box.clipsToBounds = true
+            box.isUserInteractionEnabled = false
+            box.backgroundColor = .clear
+            box.isAccessibilityElement = false
+            box.accessibilityElementsHidden = true
+            let spine: UIPageViewController.SpineLocation = spineMax ? .max : .min
+            let pvc = UIPageViewController(transitionStyle: .pageCurl, navigationOrientation: .horizontal,
+                                           options: [.spineLocation: NSNumber(value: spine.rawValue)])
+            pvc.isDoubleSided = false
+            pvc.setViewControllers([DuoCurlPage(image: img)], direction: .forward, animated: false, completion: nil)
+            for g in pvc.gestureRecognizers { g.isEnabled = false } // 1段目は指を使わない
+            pvc.view.backgroundColor = .clear
+            pvc.view.isUserInteractionEnabled = false
+            pvc.view.frame = box.bounds
+            pvc.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            if let vc = self.owner?.bridge?.viewController { vc.addChild(pvc) }
+            box.addSubview(pvc.view)
+            host.addSubview(box)
+            pvc.didMove(toParent: self.owner?.bridge?.viewController)
+            self.box = box; self.pvc = pvc
+            host.layoutIfNeeded()
+            CATransaction.flush()
+            // 紙が画面に出てから返す（その後で Web が本物のページを隠す。順を逆にしない）
+            self.waiter.nextFrame { [weak self] in
+                guard let self = self, id == self.turnId else { return }
+                let ms = (Self.now() - t0) * 1000
+                self.owner?.emitCurl("curlShown", ["dir": dir, "ms": (ms * 10).rounded() / 10])
+                call.resolve(["ok": true, "shownMs": (ms * 10).rounded() / 10, "snapMs": (self.snapMs * 10).rounded() / 10, "next": self.nextMode, "cover": self.cover != nil])
+            }
+          }
+        }
+    }
+
+    /// Web が覆いの下で着地先のページ（保存しない仮の表示）を出して rAF を2回待った：その矩形を撮って紙の裏の絵にする（backShot）。
+    /// 覆いは web view の外のビューなので写らない。1段目は isDoubleSided=false（iOS 標準の透け）なので、撮った絵は時間と大きさの記録に使う。
+    func backReady(_ call: CAPPluginCall) {
+        guard box != nil, let r = Self.rect(call.getObject("rect")) else { call.reject("no curl", "UNAVAILABLE"); return }
+        let id = turnId, t0 = Self.now()
+        let state = signposter.beginInterval("back")
+        take(r) { [weak self] img in
+            guard let self = self else { return }
+            self.signposter.endInterval("back", state)
+            guard id == self.turnId else { call.reject("cancelled", "CANCELLED"); return }
+            self.backImg = img
+            self.backMs = (Self.now() - t0) * 1000
+            let ms = (self.backMs * 10).rounded() / 10
+            if img == nil { self.owner?.emitCurl("curlError", ["code": "NO_BACK"]) }
+            self.owner?.emitCurl("backShot", ["ms": ms, "ok": img != nil])
+            var out: [String: Any] = ["ok": img != nil, "ms": ms]
+            if let i = img { out["w"] = Double(i.size.width); out["h"] = Double(i.size.height); out["scale"] = Double(i.scale) }
+            call.resolve(out)
+        }
+    }
+
+    /// Web が紙の下を着地後の DOM にして rAF を2回待った：1コマ重ねたまま待ってからめくる。めくり終わりで解決し、0.15 秒で薄くして外す。
+    func webReady(_ call: CAPPluginCall) {
+        guard let pvc = pvc, box != nil else { call.reject("no curl", "UNAVAILABLE"); return }
+        let id = turnId
+        waiter.nextFrame { [weak self] in
+            guard let self = self, id == self.turnId else { call.reject("cancelled", "CANCELLED"); return }
+            let go: (UIImage?) -> Void = { [weak self] nextImg in
+                guard let self = self, id == self.turnId else { call.reject("cancelled", "CANCELLED"); return }
+                let t0 = Self.now()
+                let state = self.signposter.beginInterval("curl")
+                self.meter.start()
+                pvc.setViewControllers([DuoCurlPage(image: nextImg)], direction: self.animDir, animated: true) { [weak self] finished in
+                    guard let self = self else { return }
+                    self.meter.stop()
+                    self.signposter.endInterval("curl", state)
+                    let dur = (Self.now() - t0) * 1000
+                    let perf = self.perfSummary(durMs: dur)
+                    self.owner?.emitCurl("curlDone", ["done": true, "dir": self.turnDir])
+                    if self.perfEvents { self.owner?.emitCurl("curlPerf", perf) }
+                    call.resolve(["done": true, "finished": finished, "next": self.nextMode, "perf": perf])
+                    guard id == self.turnId, let b = self.box else { return }
+                    let c = self.cover
+                    UIView.animate(withDuration: 0.15, delay: 0, options: [.curveEaseOut, .beginFromCurrentState], animations: { b.alpha = 0; c?.alpha = 0 }) { [weak self] _ in
+                        guard let self = self, id == self.turnId else { return }
+                        self.teardown()
+                        self.owner?.emitCurl("curlEnded", ["dir": self.turnDir])
+                    }
+                }
+            }
+            if self.nextMode == "snap" { self.take(self.turnRect) { img in go(img) } } else { go(nil) }
+        }
+    }
+
+    private func perfSummary(durMs: Double) -> [String: Any] {
+        let g = meter.gaps.sorted()
+        func pct(_ q: Double) -> Double { g.isEmpty ? 0 : g[min(g.count - 1, max(0, Int((q * Double(g.count)).rounded(.up)) - 1))] }
+        let hz = UIScreen.main.maximumFramesPerSecond
+        let slot = 1000.0 / Double(max(1, hz))
+        let drops = meter.gaps.filter { $0 > 1.5 * slot }.count
+        let r1 = { (v: Double) in (v * 100).rounded() / 100 }
+        return ["engine": "native", "stage": 1, "hz": hz, "n": g.count, "p50": r1(pct(0.5)), "p95": r1(pct(0.95)), "p99": r1(pct(0.99)),
+                "max": r1(g.last ?? 0), "drops": drops, "durMs": r1(durMs), "snapMs": r1(snapMs), "backMs": r1(backMs), "next": nextMode, "dir": turnDir]
+    }
+
+    /// 途中で閉じた・回転した・置き換え：重ねた紙をすぐ外す。
+    func cancel(reason: String) {
+        guard box != nil || pvc != nil || cover != nil else { return }
+        turnId += 1
+        meter.stop(); waiter.stop()
+        teardown()
+        owner?.emitCurl("curlDone", ["done": false, "dir": turnDir, "reason": reason])
+    }
+    private func teardown() {
+        if let p = pvc { p.willMove(toParent: nil); p.view.removeFromSuperview(); p.removeFromParent() }
+        box?.removeFromSuperview()
+        cover?.removeFromSuperview()
+        pvc = nil; box = nil; cover = nil; backImg = nil
+    }
 }

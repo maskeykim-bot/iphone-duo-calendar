@@ -13,6 +13,7 @@ import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAl
 import { rokuyoOf } from './rokuyo.js';
 import { createPainter } from './curl/painter.js';
 import { createCurl, curlColors } from './curl/index.js';
+import { createNativeCurl, getEngine as curlEngine, setEngine as setCurlEngine } from './curl/native-curl.js';
 import { holidayOf } from './holidays.js';
 import { splitEvents, eveningFirst, homeTasks, dueText, tomorrowSummary, axisBars } from './home.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS, FOCUS_MODES, FOCUS_LABELS, normFocusMode, normSpreadType, normTtSplit } from './pages.js';
@@ -2004,8 +2005,10 @@ root.addEventListener('pointerdown', (ev) => {
 
 // ---------- 描画（スクロール位置とフォーカスを保つ） ----------
 let lastKind = '';
+let renderRev = 0; // 描き直し番号（iOS のめくり B が、撮った絵を使い回してよいかを見る）
 function render() {
   if (noteComposing) { renderPending = true; return; } // IME 変換中は入力欄を作り直さない
+  renderRev++;
   ensurePasteMonth();
   const kind = layoutKind();
   const fam = (k) => (k === 'home' || k === 'browse' ? 'closed' : k);
@@ -3185,6 +3188,7 @@ function openMenu(from) {
   syncModeMenu();
   syncRokuyoMenu();
   syncTaskMenu();
+  syncCurlMenu();
   $('#m-tlz').hidden = !root.querySelector('.tl');
   const cats = state.categories.filter((c) => !c.hidden);
   $('#m-legend').hidden = !cats.length;
@@ -3218,6 +3222,24 @@ function syncMonthMenu() {
 function syncTaskMenu() {
   $('#m-tk').hidden = false;
   $('#m-tkmonth').setAttribute('aria-checked', String(remSet.monthTasks));
+}
+// めくりの方式（試作）：今のめくり（A）｜iOS のめくり（B）。iOS のアプリで DuoNative が新しいときだけ B を選べる
+function syncCurlMenu(msg) {
+  const nat = curlEngine() === 'native', ok = !!natCurl.caps() && !natCurl.failed();
+  $('#m-curl-web').setAttribute('aria-pressed', String(!nat));
+  $('#m-curl-native').setAttribute('aria-pressed', String(nat));
+  $('#m-curl-native').disabled = !NATIVE;
+  $('#m-curl-d').textContent = msg || (!NATIVE ? 'iOS のめくりは iPhone のアプリだけで使えます。'
+    : nat && natCurl.failed() ? 'iOS のめくりでうまく動かなかったので、アプリを開き直すまで今のめくりで動きます。'
+    : nat && !ok ? 'この端末では使えません。今のめくりで動きます。'
+    : nat ? '開いた横の「今日＋明日」で、横に動かして指を離すと iOS のめくりでめくれます（紙は指に付きません）。視差効果を減らすがオンのときは今のめくりです。'
+    : '今の紙のめくりです。iOS のめくりを選ぶと、触り比べられます（試作）。');
+}
+function pickCurlEngine(v) {
+  setCurlEngine(v); ttCurl?.reset('engine'); natCurl.release();
+  if (v !== 'native') { syncCurlMenu(); say('めくりを今のめくりにしました。'); return; }
+  syncCurlMenu();
+  natCurl.probe().then((c) => { syncCurlMenu(); say(c ? 'めくりを iOS のめくりにしました。' : 'この端末では iOS のめくりは使えません。'); });
 }
 function syncRokuyoMenu() { $('#m-holiday').setAttribute('aria-checked', String(state.holidayRed)); $('#m-rokuyo').setAttribute('aria-checked', String(state.rokuyo)); }
 // 月の表現（手帳｜予定名｜全部）。月表示のときだけ。1回選ぶと閉じる。
@@ -3254,6 +3276,7 @@ menuDlg.addEventListener('click', (ev) => {
   else if (m === 'desk') { closePanel(menuDlg); set({ desk: !state.desk }); }
   else if (m === 'week') { closePanel(menuDlg); set({ weekStart: state.weekStart === 1 ? 0 : 1 }); say(`週の始まりを${state.weekStart === 1 ? '月曜' : '日曜'}にしました。`); }
   else if (m === 'sample') { closePanel(menuDlg); loadSample(); }
+  else if (m === 'curl-web' || m === 'curl-native') pickCurlEngine(m === 'curl-web' ? 'web' : 'native');
   else if (m === 'mode') { const v = $('#m-variant'); v.hidden = !v.hidden; b.setAttribute('aria-expanded', String(!v.hidden)); if (!v.hidden) v.querySelector('button')?.focus({ preventScroll: true }); }
   else if (m === 'mtime') { set({ [timeKey()]: !state[timeKey()] }); syncMonthMenu(); say(`月表示の時刻を${state[timeKey()] ? '出します' : '出しません'}。`); }
   else if (m === 'holiday') { set({ holidayRed: !state.holidayRed }); syncRokuyoMenu(); say(`祝日を赤で${state.holidayRed ? '表示します' : '表示しません'}。`); }
@@ -5069,8 +5092,13 @@ const curlCanStart = (t) => {
   const ta = t.closest('textarea'); if (ta && ta === document.activeElement) return false;
   return t.closest('.tlev, .adpill, .adplus, .dlrow, .dnote, button, textarea') ? 'quiet' : true; // タップで開く物の上：角は持ち上げず、横に動いたらめくる
 };
+// iOS のめくり（B、1段目の試作）。設定 › 詳細「めくりの方式（試作）」で選ぶ。撮った絵は rev（描き直し）・時間軸のスクロール位置・分が同じなら使い回す
+const natCurl = createNativeCurl({
+  rev: () => renderRev,
+  view: () => `${[...root.querySelectorAll('.dpage .tl, .dpage .dev, .dpage .dnote')].map((e) => Math.round(e.scrollTop)).join(',')}|${nowMin()}`,
+});
 ttCurl = createCurl({
-  root, metrics: ttMetrics, pages: ttPainter(), swipe: swipeCtl, reduced,
+  root, metrics: ttMetrics, pages: ttPainter(), swipe: swipeCtl, reduced, native: natCurl,
   enabled: () => ttSpreadOn() && !TT.drag && !anyPanel(),
   canStart: curlCanStart,
   onTurn: (dir) => { swipePane = null; swipeMove(dir); }, // state.selected を ±2 日にして render()（今日＋明日の日送りと同じ）

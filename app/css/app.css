@@ -1367,3 +1367,10 @@ html[data-curling] #app{user-select:none;-webkit-user-select:none}
 /* 視差効果を減らす：今の見開きの写し（ページだけ）を上に置いて 0.15 秒で薄くする */
 .shell.spread.tt.curlcopy{background:none;pointer-events:none;z-index:3}
 .curlcopy .page{pointer-events:none}
+
+/* ===== iOS のめくり（B、1段目の試作）：指を動かしている間の陰の帯（design/31）。設定 › 詳細「めくりの方式（試作）」 ===== */
+.curlshade{position:fixed;z-index:3;pointer-events:none}
+.mcurl .eyebrow{margin:10px 20px 2px}
+.mcurl .swnote{margin-top:0}
+.menurows .tlz.curleng button[aria-pressed="true"]{background:var(--green);color:#fff}
+.menurows .tlz.curleng button:disabled{opacity:.45}
