@@ -26,7 +26,7 @@ import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel
 import { call, errCode, errReason, errText, haptic, listen, nativeAvailable } from './native.js';
 import { createDestPage, destRowsHtml } from './destination-ui.js';
 import { KB_METRICS_ENABLED, kbMetrics, kbText, screenText } from './kbmetrics.js';
-import { createPosture, postureText } from './posture.js';
+import { createPosture, postureText, grooveBands } from './posture.js';
 import { kbTopOf, hingeBand, computeKbLayout, caretBox, scrollDelta, STRIP_MIN } from './keyboard-layout.js';
 import { makeVisible, buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normDest, normSettings, pickAddCal, planLinkMigration, planNativeOps, resolveDest, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, visibleDestGroups, allDestHidden, withIdent, writable, ymdSlash } from './iphone.js';
 import {
@@ -4939,8 +4939,31 @@ const notifyPermissionChanged = () => requestNotifySync('permission');
 postureCtl = createPosture({
   call, listen, el: document.documentElement,
   eligible: () => !['home', 'browse'].includes(layoutKind()),
-  onChange: () => { updateKbMetrics(); applyKbLayout(); },
+  portrait: () => isPortrait(), // 溝 --groove-* は開いた縦のときだけ（D2）
+  onChange: () => { updateKbMetrics(); applyKbLayout(); updateFoldProbe(); },
 });
+// ?foldprobe=1：溝 [g0, g1] の一時表示（TP-25-1）。審査版（KB_METRICS_ENABLED=false）では出さない。
+function updateFoldProbe() {
+  let box = document.getElementById('foldprobe');
+  if (!KB_METRICS_ENABLED || new URLSearchParams(location.search).get('foldprobe') !== '1') { box?.remove(); return; }
+  const g = isPortrait() && postureCtl ? (postureCtl.groove || { g0: 467, g1: 484, source: 'fallback' }) : null;
+  if (!box) {
+    box = document.createElement('div'); box.id = 'foldprobe'; box.setAttribute('aria-hidden', 'true');
+    box.style.cssText = 'position:fixed;inset:0;z-index:99999;pointer-events:none;font:11px/1.4 ui-monospace,monospace';
+    document.body.appendChild(box);
+  }
+  const band = (a, b, c) => `<div style="position:absolute;left:0;right:0;top:${a}px;height:${Math.max(0, b - a)}px;background:${c}"></div>`;
+  const p = postureCtl?.effective ?? null, r = p?.regionRect;
+  const f = (n) => Math.round(n * 100) / 100;
+  let html = '';
+  if (g) { const b = grooveBands(g); html += band(b.cut[0], b.cut[1], 'rgba(0,120,255,.15)') + band(b.avoid[0], b.avoid[1], 'rgba(255,160,0,.2)') + band(g.g0, g.g1, 'rgba(255,0,0,.35)'); }
+  const txt = g ? `groove g0 ${f(g.g0)} g1 ${f(g.g1)} ${g.source} · avoid ${f(g.g0 - 8)}〜${f(g.g1 + 8)} · cut ${f(g.g0 - 9)}〜${f(g.g1 + 16)}` : 'groove null（開いた縦ではない）';
+  const vv = window.visualViewport;
+  html += `<div style="position:absolute;left:4px;top:4px;background:rgba(0,0,0,.7);color:#fff;padding:3px 6px;border-radius:4px">${txt}<br>available ${p?.available ?? '—'} folded ${p?.folded ?? '—'} axis ${p?.axis ?? '—'} status ${p?.status ?? '—'} source ${p?.source ?? '—'}<br>regionRect ${r ? `y${f(r.y)} h${f(r.height)}` : '—'} · ${window.innerWidth}×${window.innerHeight} scale ${f(vv?.scale ?? 1)}</div>`;
+  box.innerHTML = html;
+}
+window.addEventListener('resize', () => updateFoldProbe());
+updateFoldProbe();
 window.__posture = postureCtl; // 手動「折り」代替とテスト用
 async function initNative() {
   if (!NATIVE) return;

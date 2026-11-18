@@ -163,3 +163,52 @@ test.describe('Webで折り状態を受け取る (PR11)', () => {
     expect((await cls(page)).folded).toBe(false);
   });
 });
+
+// 第19版 D2: 溝 [g0, g1]（開いた縦のときだけ --groove-*）
+const GV = (page) => page.evaluate(() => { const s = document.documentElement.style; return ['--groove-y0', '--groove-y1', '--groove-avoid-y0', '--groove-avoid-y1', '--groove-cut-y0', '--groove-cut-y1', '--groove-source'].map((k) => s.getPropertyValue(k)); });
+const OPEN = { ...H, folded: false, regionRect: null, axis: null, angle: null, status: 'fullyOpen' };
+test.describe('溝 groove (D2)', () => {
+  test('getPosture の groove は偽装した値のまま届き、開いた縦で変数になる（467〜484 → 459〜492・458〜500）', async ({ page }) => {
+    await mockPosture(page, { ...OPEN, groove: { g0: 467, g1: 484, source: 'native' } }); await openApp(page, SIZES.openPortrait);
+    await expect.poll(() => GV(page)).toEqual(['467px', '484px', '459px', '492px', '458px', '500px', 'native']);
+  });
+  test('値が native の別の位置なら式どおり。高さ0は c±8.5', async ({ page }) => {
+    await mockPosture(page, { ...OPEN, groove: { g0: 480, g1: 480, source: 'native' } }); await openApp(page, SIZES.openPortrait);
+    await expect.poll(() => GV(page)).toEqual(['471.5px', '488.5px', '463.5px', '496.5px', '462.5px', '504.5px', 'native']);
+  });
+  test('groove なし（旧ネイティブ・未対応・null）の開いた縦はフォールバック 467〜484', async ({ page }) => {
+    for (const po of [UNSUP, { ...OPEN, groove: null }, OPEN]) {
+      await mockPosture(page, po); await openApp(page, SIZES.openPortrait);
+      await expect.poll(() => GV(page)).toEqual(['467px', '484px', '459px', '492px', '458px', '500px', 'fallback']);
+    }
+  });
+  test('閉じた画面・開いた横では --groove-* を付けない', async ({ page }) => {
+    await mockPosture(page, { ...OPEN, groove: { g0: 467, g1: 484, source: 'native' } });
+    for (const sz of [SIZES.closedPortrait, SIZES.openLandscape]) {
+      await openApp(page, sz);
+      await expect(page.locator('html[data-ready]')).toHaveCount(1);
+      expect(await GV(page)).toEqual(['', '', '', '', '', '', '']);
+    }
+  });
+  test('開いた縦から横へ変えると変数が外れる。既存の folded・regionRect は変わらない', async ({ page }) => {
+    await mockPosture(page, { ...H, groove: { g0: 467, g1: 484, source: 'native' } }); await openApp(page, SIZES.openPortrait);
+    await expect.poll(() => GV(page)).toEqual(['467px', '484px', '459px', '492px', '458px', '500px', 'native']);
+    await expect.poll(() => cls(page)).toMatchObject({ folded: true, y: '420px', ht: '12px' });
+    await page.setViewportSize(SIZES.openLandscape);
+    await expect.poll(() => GV(page)).toEqual(['', '', '', '', '', '', '']);
+  });
+  test('開閉の途中の値では動かない。落ち着くと動く（TP-25-1g）', async ({ page }) => {
+    await mockPosture(page, { ...OPEN, groove: { g0: 467, g1: 484, source: 'native' } }); await openApp(page, SIZES.openPortrait);
+    await expect.poll(async () => (await GV(page))[0]).toBe('467px');
+    await emit(page, { ...H, at: 10, groove: { g0: 300, g1: 317, source: 'native' } });
+    expect((await GV(page))[0]).toBe('467px');
+    await emit(page, { ...OPEN, at: 11, groove: { g0: 470, g1: 487, source: 'native' } });
+    await expect.poll(async () => (await GV(page))[0]).toBe('470px');
+  });
+  test('?foldprobe=1 で一時表示が出る。無ければ出ない', async ({ page }) => {
+    await mockPosture(page, { ...OPEN, groove: { g0: 467, g1: 484, source: 'native' } }); await openApp(page, SIZES.openPortrait);
+    await expect(page.locator('#foldprobe')).toHaveCount(0);
+    await page.goto('/?foldprobe=1'); await expect(page.locator('html[data-ready]')).toHaveCount(1);
+    await expect(page.locator('#foldprobe')).toContainText('g0 467 g1 484 native');
+  });
+});

@@ -1948,7 +1948,8 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
     private static func unsupportedPosture() -> [String: Any] {
         return [
             "available": false, "folded": false, "regionRect": NSNull(), "axis": NSNull(),
-            "angle": NSNull(), "status": NSNull(), "source": "unsupported", "at": nowMs()
+            "angle": NSNull(), "status": NSNull(), "source": "unsupported", "at": nowMs(),
+            "groove": NSNull() // 未対応は null。開いた縦なら Web が 467〜484（fallback）を使う
         ]
     }
 
@@ -1973,12 +1974,33 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
                 if abs(f.width - f.height) >= 0.5 { axis = f.width > f.height ? "horizontal" : "vertical" }
             }
         }
+        // 溝 [g0, g1]（D2）。開ききって inactive でも frame を取るため .includeInactive で読む。
+        let webSize = (bridge?.webView ?? probe).bounds.size
+        var groove: Any = NSNull()
+        if let inactive = probe.reservedRegions(kind: .division, options: .includeInactive).first {
+            let target: UIView = bridge?.webView ?? probe
+            let gf = target === probe ? inactive.frame : target.convert(inactive.frame, from: probe)
+            groove = DuoNativePlugin.groovePayload(webSize: webSize, frame: gf)
+        }
         return [
             "available": true, "folded": folded, "regionRect": rect, "axis": axis,
             "angle": hingeAngleDegrees.map { (v: Double) -> Any in (v * 10).rounded() / 10 } ?? NSNull(),
             "status": hingeStatus ?? NSNull(),
-            "source": "reservedRegions", "at": DuoNativePlugin.nowMs()
+            "source": "reservedRegions", "at": DuoNativePlugin.nowMs(),
+            "groove": groove
         ]
+    }
+
+    /// 溝 [g0, g1]（CSS px）。開いた縦（短辺 600 以上で縦長。Web の layoutKind と同じ境）のときだけ値、ほかは null。
+    /// 水平の溝として使えない矩形は fallback（467〜484）。高さ 17 未満（0 を含む）は中心 c から c±8.5。
+    private static func groovePayload(webSize: CGSize, frame f: CGRect) -> Any {
+        guard min(webSize.width, webSize.height) >= 600, webSize.height >= webSize.width else { return NSNull() }
+        guard f.origin.y.isFinite, f.height.isFinite, f.width.isFinite, f.height >= 0, f.width > f.height + 0.5 else {
+            return ["g0": 467.0, "g1": 484.0, "source": "fallback"]
+        }
+        var g0 = Double(f.origin.y), g1 = Double(f.origin.y + f.height)
+        if g1 - g0 < 17 { let c = (g0 + g1) / 2; g0 = c - 8.5; g1 = c + 8.5 }
+        return ["g0": g0, "g1": g1, "source": "native"]
     }
 
     /// 角度（ラジアン）を度へ。記録専用。レイアウトには使わない。
@@ -1999,6 +2021,12 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         if (ra == nil) != (rb == nil) { return false }
         if let ra = ra, let rb = rb {
             for k in ["x", "y", "width", "height"] where abs((ra[k] ?? 0) - (rb[k] ?? 0)) >= 0.5 { return false }
+        }
+        let ga = a["groove"] as? [String: Any], gb = b["groove"] as? [String: Any]
+        if (ga == nil) != (gb == nil) { return false }
+        if let ga = ga, let gb = gb {
+            if (ga["source"] as? String) != (gb["source"] as? String) { return false }
+            for k in ["g0", "g1"] where abs((ga[k] as? Double ?? 0) - (gb[k] as? Double ?? 0)) >= 0.5 { return false }
         }
         return true
     }
@@ -2176,6 +2204,7 @@ final class DuoPostureProbeView: UIView {
 
     override func updateConstraints() {
         _ = reservedRegions(kind: .division) // 追跡の対象にする
+        _ = reservedRegions(kind: .division, options: .includeInactive) // 溝用（開ききっても frame を追う）
         owner?.postureProbeRegionsChanged()
         super.updateConstraints()
     }
