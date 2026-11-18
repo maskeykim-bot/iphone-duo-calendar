@@ -185,11 +185,27 @@ test.describe('めくりの始まり（確認表 1章④）', () => {
       let last = null, after = null, st;
       for (let i = 0; i < 60; i++) { await adv(page, 16); st = await cv(page); if (!st.shown) break; if (st.land.Lnew === 1 && st.land.Rnew === 1 && !after) { after = await grab(); break; } if (st.land.showMul > 0) { last = { g: await grab(), mapW: st.mapW, f: st.f }; } }
       expect(last, '着地前のこま').not.toBeNull(); expect(after, '入れ替え後のこま').not.toBeNull();
-      expect(last.mapW, '紙の幅').toBeGreaterThan(0.99);
+      if (x0 > 400) expect(last.mapW, '前へ：着地で紙は左ページの幅（寄せ切る）').toBeGreaterThan(0.99); else expect(last.mapW, '戻り（18.5）：着地で紙は右ページの幅（寄せない）').toBeLessThan(0.01);
       for (let k = 0; k < rects.length; k++) { const a = last.g[k], c = after[k]; let mx = 0, n = 0; for (let i = 0; i < a.length; i += 4) { const d = Math.max(Math.abs(a[i] - c[i]), Math.abs(a[i + 1] - c[i + 1]), Math.abs(a[i + 2] - c[i + 2])); if (d > 48) n++; mx = Math.max(mx, d); } expect(n / (a.length / 4), `枠 ${k} の食い違い（最大 ${mx}）`).toBeLessThan(0.03); }
       await finishAll(page);
     });
   }
+
+  test('18.5 めくっている途中の紙に切れ目（灰色の帯）がない：背をまたぐ紙は端から端までつながっている（前へ・戻り、色分けで見る）', async ({ page }) => {
+    await land(page);
+    const poses = [['forward', [470, 300]], ['forward', [380, 300]], ['forward', [250, 300]], ['forward', [160, 300]], ['backward', [400, 300]], ['backward', [500, 300]], ['backward', [600, 300]]];
+    for (const [dir, f] of poses) {
+      const r = await page.evaluate(([dir, f]) => {
+        __duoCurl.pose(dir, 300, f, { k: { debug: 1 } });
+        const row = __duoCurl.probe({ x: 0, y: 450, w: 860, h: 1 }), d = row.data, w = row.width, sx = w / 860, cols = [];
+        for (let i = 0; i < w; i++) { const R = d[i * 4], G = d[i * 4 + 1], B = d[i * 4 + 2]; cols.push((R > 240 && G < 20 && B < 20) || (G > 240 && R < 20 && B < 20)); }
+        const a = cols.indexOf(true), b = cols.lastIndexOf(true); let gap = 0, at = -1; for (let i = a; i <= b; i++) if (!cols[i]) { gap++; if (at < 0) at = i / sx; }
+        return { a: a / sx, b: b / sx, gap: gap / sx, at };
+      }, [dir, f]);
+      expect(r.a, `${dir} ${f[0]} 紙がある`).toBeGreaterThanOrEqual(0);
+      expect(r.gap, `${dir} f=${f[0]}：紙 x${r.a.toFixed(1)}〜${r.b.toFixed(1)} の中の切れ目（x${r.at.toFixed?.(1)}）`).toBeLessThan(1.01);
+    }
+  });
 
   test('18.2 めくり中に次のページが見える：下は次の右（前へ）、裏は次の左。着地の前後で絵が変わらず、着地後は次の見開き', async ({ page }) => {
     await land(page); await manual(page);

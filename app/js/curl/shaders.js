@@ -2,17 +2,20 @@
 // 変えたのは溝の固定値だけ：FS_BASE の 458./484. と FS_PAPER の溝の濃さ（460/468/482/490）を uniform uGx（溝の左端・右端）から出す。
 // 第18.3版：左右のページの幅の違い（左 457.5・右 365.5）と溝 20pt。紙は右ページの幅の網目で巻き、背より左に来た所だけ横に寄せる（uMw＝寄せる量 0〜1）。
 //  x' = 背 − 溝×w − (背 − x)×(1 + w×(左幅/右幅 − 1))。w＝1 で x120〜485.5 → x8〜465.5（左ページそのもの）。前へは w をめくりの進み具合 0→1、戻りは常に 1。
-//  背をまたぐ三角形（溝の上で引き伸ばされる所）は描かない。裏・表の絵は w＝1 の写し方で、左ページ全体（日付・時刻の列まで）を実寸で貼る。
-export const VS = `attribute vec2 aX;uniform vec2 uP,uN,uView,uC;uniform float uR,uPersp,uSp,uMw,uMs,uMg;
+//  裏・表の絵は w＝1 の写し方で、左ページ全体（日付・時刻の列まで）を実寸で貼る。
+// 第18.5版：溝の分（20pt×w）を背で一度に寄せると、背をまたぐ紙に切れ目ができ、その下の影が灰色の帯に見えた（征希さんの「真ん中の線」）。
+//  寄せる量を背から R0×(1−w) の幅でなめらかに増やす（smoothstep。uMr＝R0）。紙はつながったまま。w＝1（前への着地）では幅≈0 で 18.3 と同じ。
+//  戻りは w を進み具合で 1→0 にし、まだ持ち上がっていない所（d≤0）は uMf＝1（左ページそのものの位置）。折れ目から 40pt でなめらかに移す。
+export const VS = `attribute vec2 aX;uniform vec2 uP,uN,uView,uC;uniform float uR,uPersp,uSp,uMw,uMs,uMg,uMr,uMf;
 varying vec2 vX,vQ;varying float vD,vS;
 void main(){float d=dot(aX-uP,uN);vec2 q=aX;float z=0.;float pr=3.14159265*uR;
  if(d>0.){if(d<pr&&uR>0.001){float th=d/uR;q=aX+(uR*sin(th)-d)*uN;z=uR*(1.-cos(th));}else{q=aX+(-(d-pr)-d)*uN;z=2.*uR+0.6;}}
- vX=aX;vD=d;vQ=q;if(q.x<uSp)q.x=uSp-uMg*uMw-(uSp-q.x)*(1.+uMw*(uMs-1.));vS=q.x;vec2 s=uPersp>0.?uC+(q-uC)*(uPersp/(uPersp-z)):q;
+ vX=aX;vD=d;vQ=q;if(q.x<uSp){float w=mix(uMf,uMw,smoothstep(0.,40.,d)),r=max(.5,uMr*(1.-w)),t=uSp-q.x;q.x=uSp-uMg*w*smoothstep(0.,r,t)-t*(1.+w*(uMs-1.));}vS=q.x;vec2 s=uPersp>0.?uC+(q-uC)*(uPersp/(uPersp-z)):q;
  gl_Position=vec4(s.x/uView.x*2.-1.,1.-s.y/uView.y*2.,-(z+(d>0.?0.3:0.))/400.,1.);}`;
 export const COMMON = `precision highp float;
-uniform vec2 uP,uN;uniform float uR,uLift,uDark;uniform vec4 uRect;uniform vec2 uGx;uniform float uSp,uMw,uMs,uMg;
+uniform vec2 uP,uN;uniform float uR,uLift,uDark;uniform vec4 uRect;uniform vec2 uGx;uniform float uSp,uMw,uMs,uMg,uMr,uMf;
 // 寄せた画面の x → 寄せる前（網目の座標）。影は寄せる前の紙で計算する
-float unmapX(float x){if(x>=uSp)return x;float b=uSp-uMg*uMw;return x>=b?uSp:uSp-(b-x)/(1.+uMw*(uMs-1.));}
+float unmapX(float x){if(x>=uSp)return x;float k=1.+uMw*(uMs-1.),r=max(.5,uMr*(1.-uMw)),y=uSp-x,lo=0.,hi=y/k;for(int i=0;i<14;i++){float t=.5*(lo+hi);if(uMg*uMw*smoothstep(0.,r,t)+t*k<y)lo=t;else hi=t;}return uSp-.5*(lo+hi);}
 // 網目の座標 → 左右のページの実際の x（w＝1 の写し方。絵を貼るとき）
 float realX(float x){return x<uSp?uSp-uMg-(uSp-x)*uMs:x;}
 uniform float kShOp0,kShOpK,kShBl0,kShBlK,kShOff0,kShOffK,kSgn,kShadowMul;
@@ -32,7 +35,8 @@ void main(){vec2 Q=vX;vec3 c=bg;
  if(Q.x>=rL.x&&Q.x<=rL.z&&Q.y>=rL.y&&Q.y<=rL.w){vec2 uv=(Q-rL.xy)/(rL.zw-rL.xy);vec3 o=texture2D(tLo,uv).rgb,n=texture2D(tLn,uv).rgb;c=mix(o,n,Q.x<uStripX?uStripMix:uLnew);}
  else if(Q.x>=rR.x&&Q.x<=rR.z&&Q.y>=rR.y&&Q.y<=rR.w){vec2 uv=(Q-rR.xy)/(rR.zw-rR.xy);c=mix(texture2D(tRo,uv).rgb,texture2D(tRn,uv).rgb,uRnew);}
  else if(Q.x>uGx.x&&Q.x<uGx.y)c=groove;
- c*=1.-dropShadow(vec2(unmapX(Q.x),Q.y));gl_FragColor=vec4(c,1.);}`;
+ float ds=dropShadow(vec2(unmapX(Q.x),Q.y));if(Q.x>uGx.x&&Q.x<uGx.y)ds*=1.-uMw; // 第18.5版：着地へ向かうほど溝に影を落とさない（溝は地の色のまま。18.2 と同じ見え方）
+ c*=1.-ds;gl_FragColor=vec4(c,1.);}`;
 export const FS_PAPER = COMMON + `uniform sampler2D tF,tN;uniform float kAmpR0,kAmpR1,kDkFm,kHiMinW,kHiDark,kHiMask,kShow,kBackLine,kNext,kHiF,kHiFd,kHiFw,kDkF0,kDkF1,kDkFa,kDkFb,kDkB,kHiB,kHiBd,kHiBw,kFlatB,kFlatBw,kRootA0,kRootAK,kRootIn,kRootOut0,kRootOutK,kGroove;
 uniform vec3 backPaper,lineCol,edgeCol,frontPaper;uniform float uDebug,uPaperA,uSpine;uniform vec4 uFrontRect,uBackRect;varying vec2 vX,vQ;varying float vD,vS;
 const float PI=3.14159265;float g(float x,float c,float w){float t=(x-c)/w;return exp(-t*t);}
@@ -43,7 +47,7 @@ float herm(float p0,float p1,float m0,float m1,float u){float u2=u*u,u3=u2*u;ret
 float dkF(float deg){float a0=kDkFa-20.,m=kDkFm;
  if(deg<=a0)return 0.;if(deg<kDkFa){float L=kDkFa-a0;return herm(0.,kDkF0,0.,m*L,(deg-a0)/L);}
  if(deg<kDkFb){float L=kDkFb-kDkFa;return herm(kDkF0,kDkF1,m*L,0.,(deg-kDkFa)/L);}return kDkF1;}
-void main(){if(uMw>0.&&vS>uSp-uMg*uMw+.05&&vS<uSp-.05)discard; // 背をまたいで溝の上に引き伸ばされた所
+void main(){if(uMw>0.&&uMr*(1.-uMw)<4.&&vS>uSp-uMg*uMw+.05&&vS<uSp-.05)discard; // 第18.5版：着地の間近だけ。背で溝の幅を一度に寄せる所（溝の上に引き伸ばされた紙）は描かない＝溝は地の色
  vec2 uv=(vX-uRect.xy)/(uRect.zw-uRect.xy);vec2 fuv=(vec2(realX(vX.x),vX.y)-uFrontRect.xy)/(uFrontRect.zw-uFrontRect.xy);vec3 F=(fuv.x>=0.&&fuv.x<=1.)?texture2D(tF,fuv).rgb:frontPaper;float d=vD;float pr=PI*uR;
  float dark=0.,hi=0.;bool back=false;
  float root=(kRootA0+kRootAK*uLift);

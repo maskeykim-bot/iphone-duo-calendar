@@ -13,7 +13,7 @@ import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAl
 import { rokuyoOf } from './rokuyo.js';
 import { createPainter } from './curl/painter.js';
 import { createCurl, curlColors } from './curl/index.js';
-import { createNativeCurl, getEngine as curlEngine, setEngine as setCurlEngine } from './curl/native-curl.js';
+import { createNativeCurl, getEngine as curlEngine, setEngine as setCurlEngine, B_OFF as CURL_B_OFF } from './curl/native-curl.js';
 import { holidayOf } from './holidays.js';
 import { splitEvents, eveningFirst, homeTasks, dueText, tomorrowSummary, axisBars } from './home.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS, FOCUS_MODES, FOCUS_LABELS, normFocusMode, normSpreadType, normTtSplit } from './pages.js';
@@ -3225,6 +3225,7 @@ function syncTaskMenu() {
 }
 // めくりの方式（試作）：今のめくり（A）｜iOS のめくり（B）。iOS のアプリで DuoNative が新しいときだけ B を選べる
 function syncCurlMenu(msg) {
+  $('#m-curl').hidden = CURL_B_OFF; if (CURL_B_OFF) return; // 第18.5版：画面から外した
   const nat = curlEngine() === 'native', ok = !!natCurl.caps() && !natCurl.failed();
   $('#m-curl-web').setAttribute('aria-pressed', String(!nat));
   $('#m-curl-native').setAttribute('aria-pressed', String(nat));

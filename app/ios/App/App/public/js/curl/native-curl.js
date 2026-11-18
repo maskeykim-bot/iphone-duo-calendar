@@ -12,7 +12,11 @@ export const SHADE = Object.freeze({ max: 24, per: 0.25, a: 0.08, armed: 0.12, a
 
 const nsKey = (k) => { try { const ns = new URLSearchParams(location.search).get('ns'); return ns ? `${k}.${ns}` : k; } catch { return k; } };
 const read = (k) => { try { return localStorage.getItem(nsKey(k)); } catch { return null; } };
-export const getEngine = () => (read(ENGINE_KEY) === 'native' ? 'native' : 'web');
+// 第18.5版：iOS のめくり（B）は止めた（征希さんの判断 11/19 1:11「とりあえずは今のめくりで行こう」）。true の間は、保存が 'native' でも必ず今のめくり（A）。
+// 戻すときはここを false にし、index.html の #m-curl の hidden を外す（コードは消していない）。
+export const B_OFF = true;
+export const savedEngine = () => (read(ENGINE_KEY) === 'native' ? 'native' : 'web');
+export const getEngine = () => (B_OFF ? 'web' : savedEngine());
 export function setEngine(v) { try { localStorage.setItem(nsKey(ENGINE_KEY), v === 'native' ? 'native' : 'web'); } catch { /* 保存できなくても続ける */ } }
 export const getNextMode = () => (read(NEXT_KEY) === 'snap' ? 'snap' : 'clear');
 
@@ -36,7 +40,7 @@ export function createNativeCurl({ rev = () => 0, view = () => '' } = {}) {
   const perfOn = (() => { try { return new URLSearchParams(location.search).get('curlperf') === '1'; } catch { return false; } })();
   const N = globalThis.__duoCurlNative = { calls: [], last: null, perf: [], caps: null, error: null };
   const log = (m, o) => { N.calls.push({ m, t: Math.round(performance.now()), o }); if (N.calls.length > 60) N.calls.shift(); };
-  const probe = () => (capsP ||= (nativeAvailable()
+  const probe = () => (capsP ||= (!B_OFF && nativeAvailable()
     ? call('curlCaps').then((c) => { caps = c && Number(c.version) >= NEED_VERSION ? c : null; N.caps = caps; if (caps && perfOn) call('curlPerf', { on: true }).catch(() => {}); return caps; }, () => { caps = null; return null; })
     : Promise.resolve(null)));
   if (getEngine() === 'native') probe();
@@ -44,7 +48,7 @@ export function createNativeCurl({ rev = () => 0, view = () => '' } = {}) {
   const keyOf = (m) => { const R = curlRects(m); return `${rev()}|${view()}|${rectKey(R.fwd)}|${rectKey(R.back)}`; };
   const ctl = {
     // B で動かすか（設定が iOS のめくり・DuoNative が新しい・この起動で失敗していない）。視差効果を減らすは呼ぶ側で A に回す
-    on: () => getEngine() === 'native' && !failed && !!caps,
+    on: () => !B_OFF && getEngine() === 'native' && !failed && !!caps,
     probe, caps: () => caps, failed: () => failed,
     fail(e) { failed = true; N.error = e?.code || e?.message || String(e ?? 'error'); lastKey = ''; },
     // 触れた瞬間（canStart が通った pointerdown）：進む用・戻る用の2ページを撮る。key が同じならネイティブ側でも使い回す

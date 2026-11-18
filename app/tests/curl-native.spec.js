@@ -62,7 +62,25 @@ async function drag(page, x0, x1, y = 300, { hold } = {}) {
 }
 const settle = (page) => expect.poll(async () => (await st(page)).busy, { timeout: 5000 }).toBe(false);
 
-test.describe('iOS のめくり（B、1段目）', () => {
+test.describe('第18.5版：iOS のめくりは止めてある', () => {
+  test('duo-curl-engine が native でも今のめくり（A）。DuoNative の curlCaps も呼ばない。設定の「めくりの方式（試作）」は出ない', async ({ page }) => {
+    await land(page, { engine: 'native' });
+    expect((await st(page)).mode).toBe('curl');
+    expect(await page.evaluate(() => localStorage.getItem('duo-curl-engine'))).toBe('native'); // 保存は消さない
+    await page.mouse.move(700, 300); await page.mouse.down();
+    for (let i = 1; i <= 8; i++) { await page.mouse.move(700 - 30 * i, 300); await page.waitForTimeout(16); }
+    await page.mouse.up(); await settle(page);
+    expect(await heads(page)).toEqual(['11月14日（土）', '11月15日（日）']);
+    const ms = (await calls(page)).map((c) => c.method);
+    for (const m of ['curlCaps', 'prepareCurl', 'turnPage', 'backReady', 'webReady']) expect(ms, m).not.toContain(m);
+    await page.locator('[data-act="menu"]:visible').first().click();
+    await page.locator('#menu [data-go="details"]').click();
+    await expect(page.locator('#m-curl')).toBeHidden();
+  });
+});
+
+// 下は B を戻したとき用（native-curl.js の B_OFF を false にしたら .skip を外す）
+test.describe.skip('iOS のめくり（B、1段目）', () => {
   test('前へ：触れた瞬間に左右2ページ全体を撮り、離したら turnPage（紙＝右 x485.5〜851・背 .min、覆い＝左 x8〜465.5）→ 覆いの下に仮の次の左（日は進めない）→ backReady → 下を2日先に → webReady。紙は指に付かない', async ({ page }) => {
     await land(page);
     expect((await st(page)).mode).toBe('native');

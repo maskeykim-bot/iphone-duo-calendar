@@ -67,13 +67,15 @@ export class CurlRenderer {
     const sh = shape(s, g, f) || { P: [s.edge + 9999 * s.sgn, 0], n: [s.sgn, 0], r: 0, lift: 0 };
     gl.viewport(0, 0, this.cv.width, this.cv.height); gl.clearColor(0.97, 0.96, 0.93, 1); gl.clearDepth(1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     const rect = [s.x0, d.py0, s.x1, d.py1];
-    // 第18.3版：背より左へ寄せる量。前へは紙の端（指）の進み具合 0→1（着地で左ページ x8〜465.5 とぴったり重なる）、戻りは常に 1（表は左ページそのもの）
-    const mw = this.mapW = !(k.fitLeft ?? 1) ? 0 : cur.dir === 'forward' ? Math.min(1, Math.max(0, (s.edge - f[0]) / (s.edge - (2 * s.spine - s.edge)))) : 1;
+    // 第18.3版：背より左へ寄せる量。前へは紙の端（指）の進み具合 0→1（着地で左ページ x8〜465.5 とぴったり重なる）
+    // 第18.5版：戻りも進み具合で 1→0（左ページ 457.5 から右ページ 365.5 へ。着地は右ページそのもの）。寄せる幅 mr は 1−w に比例（着地・始めで 0）
+    const prog = Math.min(1, Math.max(0, (s.edge - f[0]) / (s.edge - (2 * s.spine - s.edge))));
+    const mw = this.mapW = !(k.fitLeft ?? 1) ? 0 : cur.dir === 'forward' ? prog : 1 - prog, mr = k.fitRamp ?? 120, mf = cur.dir === 'forward' ? mw : (k.fitLeft ?? 1) ? 1 : 0;
     const setCommon = (p) => {
       this.uni(p, 'uP', ...sh.P); this.uni(p, 'uN', ...sh.n); this.uni(p, 'uR', sh.r); this.uni(p, 'uLift', sh.lift); this.uni(p, 'uRect', ...rect); this.uni(p, 'uView', this.W, this.H);
       this.uni(p, 'uGx', d.lx1, d.spine);
       for (const n of ['shOp0', 'shOpK', 'shBl0', 'shBlK', 'shOff0', 'shOffK']) this.uni(p, 'k' + n[0].toUpperCase() + n.slice(1), k[n]);
-      this.uni(p, 'uSp', d.spine); this.uni(p, 'uMw', mw); const fit = (k.fitLeft ?? 1) ? 1 : 0; this.uni(p, 'uMs', fit ? (d.lx1 - d.lx0) / (d.edge - d.spine) : 1); this.uni(p, 'uMg', fit ? d.spine - d.lx1 : 0);
+      this.uni(p, 'uSp', d.spine); this.uni(p, 'uMw', mw); this.uni(p, 'uMr', mr); this.uni(p, 'uMf', mf); const fit = (k.fitLeft ?? 1) ? 1 : 0; this.uni(p, 'uMs', fit ? (d.lx1 - d.lx0) / (d.edge - d.spine) : 1); this.uni(p, 'uMg', fit ? d.spine - d.lx1 : 0);
       this.uni(p, 'uDark', this.dark ? 1 : 0); this.uni(p, 'kSgn', s.sgn); this.uni(p, 'kShadowMul', (this.dark ? k.darkShadow : 1) * this.land.paperA);
     };
     // 下の見開き（左右のページ・溝）と落ちる影
