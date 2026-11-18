@@ -235,6 +235,7 @@ function vpTick() {
   updateDiagnostics();
   if (changed || sc) { directCtl?.cancel('rotate'); ttCurl?.reset('rotate'); flushEditing(); render(); }
   applyKbLayout();
+  if (dlg.open) grooveSchedule();
   const a = document.activeElement;
   if (kb && isTextEl(a)) {
     const d = a.closest('dialog');
@@ -2391,6 +2392,9 @@ const tui = createTimeUi({
   setTime: (which, h, m) => { if (!dt) return; dt = (which === 'start' ? setStartTime : setEndTime)(dt, h, m); afterTimeEdit(); },
   setDuration: (min) => { if (!dt) return; dt = setDuration(dt, min); afterTimeEdit(); },
 });
+// 日付と時刻の小さな面は同時に開かない。カプセルに触れた瞬間に閉じると下の行が動いて押し損ねるので、触れた後（click）に相手を閉じる。
+for (const b of [F.start, F.end]) b.addEventListener('click', () => tui.close());
+for (const b of [$('#f-stime'), $('#f-etime')]) b.addEventListener('click', () => dui.close());
 // 繰り返しの終了日: 予定の日付と同じカプセル＋小さな月。値は F.runtil.value（「2026/12/31」。旧下書きと同じ形）。
 const holidayMemo = (k) => state.holidayRed && !!holidayOf(k);
 const untilUi = createDateField(F.runtil, {
@@ -2470,6 +2474,7 @@ function showEditor(values, id, focus = true) {
   if (NATIVE) refreshNotifyPerm().then(() => { if (dlg.open) updateAlarmUi(); });
   edBase = editSnap();
   dlg.show();
+  grooveSchedule();
   syncInert();
   syncScrim();
   if (focus) F.title.focus({ preventScroll: true });
@@ -2678,6 +2683,41 @@ F.all.addEventListener('change', () => {
   saveDraft();
 });
 $('#close').addEventListener('click', () => fadeClose(dlg, closeEditor));
+// 予定名の Return は保存せず次の行へ（design/20 §3）。次の行はカレンダー（なければ開始）。
+F.title.addEventListener('keydown', (ev) => {
+  if (ev.key !== 'Enter' || ev.isComposing || ev.keyCode === 229) return;
+  ev.preventDefault();
+  const nx = [$('#f-dest'), F.start].find((b) => b && !b.disabled && b.offsetParent);
+  if (nx) nx.focus({ preventScroll: false });
+});
+// 開いた縦: 溝（--groove-avoid-y0〜y1）に止まる行は、その行から下の面（avoid-y1）へ送る（design/20 §3）。
+// 本文を先頭にしたときの位置で決める。呼ぶたびに前の送りを消して引き直す（何度呼んでも同じ）。
+function editorGroove() {
+  const body = dlg.querySelector('.fbody');
+  if (!body) return;
+  const rows = [...body.querySelectorAll('.erow')];
+  const had = rows.some((r) => r.dataset.gpush);
+  for (const r of rows) { if (r.dataset.gpush) { r.style.marginTop = ''; delete r.dataset.gpush; } }
+  const y0 = parseFloat(de.style.getPropertyValue('--groove-avoid-y0')), y1 = parseFloat(de.style.getPropertyValue('--groove-avoid-y1'));
+  if (!dlg.open || !Number.isFinite(y0) || !Number.isFinite(y1) || !isPortrait()) return;
+  const st = body.scrollTop;
+  let shift = 0;
+  for (const r of rows) {
+    if (!r.offsetParent) continue;
+    const b = r.getBoundingClientRect();
+    const top = b.top + st + shift, bottom = b.bottom + st + shift;
+    if (bottom > y0 && top < y1) {
+      const push = Math.ceil(y1 - top);
+      r.style.marginTop = `${push}px`; r.dataset.gpush = '1'; shift += push;
+    }
+  }
+}
+let grooveRaf = 0;
+const grooveSchedule = () => { cancelAnimationFrame(grooveRaf); grooveRaf = requestAnimationFrame(editorGroove); };
+window.__editorGrooveNow = editorGroove;
+new ResizeObserver(grooveSchedule).observe(dlg);
+dlg.addEventListener('click', grooveSchedule);
+dlg.addEventListener('toggle', grooveSchedule);
 
 // ---------- 予定のポップアップを閉じる（08 §5）: 幕タップ・下に引く・0.2秒のフェード ----------
 // 未保存の変更の有無（開閉だけの ropen、遅れて決まる既定の追加先、自動曜日は数えない）。
@@ -4940,7 +4980,7 @@ postureCtl = createPosture({
   call, listen, el: document.documentElement,
   eligible: () => !['home', 'browse'].includes(layoutKind()),
   portrait: () => isPortrait(), // 溝 --groove-* は開いた縦のときだけ（D2）
-  onChange: () => { updateKbMetrics(); applyKbLayout(); updateFoldProbe(); },
+  onChange: () => { updateKbMetrics(); applyKbLayout(); updateFoldProbe(); if (dlg.open) grooveSchedule(); },
 });
 // ?foldprobe=1：溝 [g0, g1] の一時表示（TP-25-1）。審査版（KB_METRICS_ENABLED=false）では出さない。
 function updateFoldProbe() {

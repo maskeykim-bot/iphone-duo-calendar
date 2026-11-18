@@ -12,7 +12,7 @@ test.describe('時刻カプセルと時分のマス', () => {
     await openNew(page);
     await expect(dlg(page).locator('#f-stime')).toHaveText('10:00');
     await expect(dlg(page).locator('#f-etime')).toHaveText('11:00');
-    await expect(dlg(page).locator('#f-dur .dchip')).toHaveText(['30分', '1時間', '1.5時間', '2時間', '3時間']);
+    await expect(dlg(page).locator('#f-dur .dchip')).toHaveText(['15分', '30分', '1時間', '1.5時間', '2時間', '3時間']);
     await expect(dlg(page).locator('#f-dur .dchip[aria-pressed=true]')).toHaveText('1時間');
     await expect(dlg(page).locator('#tpop')).toBeHidden();
     await dlg(page).locator('#f-stime').click();
@@ -129,7 +129,7 @@ test.describe('時刻カプセルと時分のマス', () => {
       await dlg(page).locator('#f-etime').click();
       const r = await page.evaluate(() => {
         const d = document.querySelector('#editor').getBoundingClientRect();
-        return [...document.querySelectorAll('#dtbox button, #dtbox input')].filter((e) => e.offsetParent).map((e) => { const b = e.getBoundingClientRect(); return b.left >= d.left - 0.5 && b.right <= d.right + 0.5; });
+        return [...document.querySelectorAll('#dtbox button, #dtbox input')].filter((e) => e.offsetParent && !e.classList.contains('dchip')).map((e) => { const b = e.getBoundingClientRect(); return b.left >= d.left - 0.5 && b.right <= d.right + 0.5; });
       });
       expect(r.length).toBeGreaterThan(30);
       expect(r.every(Boolean)).toBe(true);

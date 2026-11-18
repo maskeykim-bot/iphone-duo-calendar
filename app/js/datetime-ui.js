@@ -4,7 +4,7 @@ import { splitIso, durationMin, endDayOffset, parseTimeDigits, parseDateDigits, 
 import { DOW, addDays, addMonths, parseKey, todayKey, weekStart, weekdayHeads } from './util.js';
 
 const p2 = (n) => String(n).padStart(2, '0');
-export const DURATIONS = [30, 60, 90, 120, 180];
+export const DURATIONS = [15, 30, 60, 90, 120, 180];
 export const durLabel = (m) => (m < 60 ? `${m}分` : `${m / 60}時間`);
 // 終了の札（翌日／+N日）。0日以下は出さない。
 export const dayBadge = (n) => (n >= 2 ? `+${n}日` : n === 1 ? '翌日' : '');
@@ -107,7 +107,6 @@ export function createTimeUi(els, api) {
     els.end.textContent = st ? t(st.end) : '--:--';
     const b = st && !st.all ? dayBadge(endDayOffset(st)) : '';
     els.badge.textContent = b; els.badge.hidden = !b;
-    els.end.append(els.badge);
     els.start.setAttribute('aria-label', `開始の時刻、${t(st?.start)}、ボタン`);
     els.end.setAttribute('aria-label', `終了の時刻、${t(st?.end)}${b ? `、${b}` : ''}、ボタン`);
     const len = st && !st.all ? durationMin(st.start, st.end) : NaN;
@@ -199,7 +198,7 @@ export function createTimeUi(els, api) {
     api.setDuration(Number(b.dataset.min));
   });
   // 他の欄に触れたら閉じる（部品の中・カプセルは除く）。シートの引き下げ・親の月送りへ伝えない。
-  const outside = (ev) => { if (open && !ev.target.closest('#tpop,#f-stime,#f-etime')) close(); };
+  const outside = (ev) => { if (open && !ev.target.closest('#tpop,#f-stime,#f-etime,#f-start,#f-end')) close(); };
   els.box.addEventListener('focusin', outside);
   els.box.closest('form')?.addEventListener('pointerdown', outside, true);
   for (const type of ['pointerdown', 'pointermove', 'pointerup', 'touchstart', 'touchmove', 'touchend']) {
@@ -334,7 +333,7 @@ export function createDateUi(els, api) {
   els.grid.addEventListener('pointercancel', swipeEnd);
 
   // 他の欄に触れたら閉じる（部品の中・日付カプセルは除く）。
-  const outside = (ev) => { if (open && !ev.target.closest('#dpop,#f-start,#f-end')) close(); };
+  const outside = (ev) => { if (open && !ev.target.closest('#dpop,#f-start,#f-end,#f-stime,#f-etime')) close(); };
   els.box.addEventListener('focusin', outside);
   els.box.closest('form')?.addEventListener('pointerdown', outside, true);
   return { render, close, isOpen: () => open };

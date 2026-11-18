@@ -22,17 +22,17 @@
 
 <dialog id="editor" class="panel" aria-labelledby="edtitle">
   <form id="form" novalidate autocomplete="off">
-    <div class="formhead"><h2 id="edtitle">予定を追加</h2><span id="ed-tag" class="caltag" hidden></span><button type="button" id="close" aria-label="閉じる">✕</button></div>
+    <div class="formhead"><button type="button" id="close" class="hbtn hx" aria-label="閉じる">✕</button><h2 id="edtitle">予定を追加</h2><span id="ed-tag" class="caltag" hidden></span><button type="submit" id="save" class="hbtn hok" aria-label="保存">✓</button></div>
+    <p id="error" class="error" role="alert"></p>
     <div class="fbody">
       <p id="ext-gone" class="gonebar" hidden>この予定は見つかりません。カレンダーで確認してください。</p>
-      <label>予定名<input id="f-title" name="title" maxlength="80" placeholder="例：プロジェクト定例" required></label>
-      <div id="dest-l" class="destrow">
+      <input id="f-title" class="erow etitle" name="title" maxlength="80" placeholder="タイトル" aria-label="予定名" enterkeyhint="next" required>
+      <div id="dest-l" class="destrow erow">
         <button type="button" id="f-dest" class="destbtn" aria-haspopup="true" aria-expanded="false" aria-controls="dest-pop"><span class="dlbl">カレンダー</span><span class="dval"><i id="dest-dot" class="cdot big" aria-hidden="true"></i><span id="dest-name"></span><span aria-hidden="true">›</span></span></button>
       </div>
-      <label class="check"><input id="f-all" name="all" type="checkbox">終日</label>
       <div id="dtbox" class="dtbox">
-        <div class="dtrow" id="row-s"><span class="dtk">開始</span><button type="button" id="f-start" class="dcap" aria-haspopup="true" aria-expanded="false" value=""></button><button type="button" id="f-stime" class="tcap" aria-haspopup="true" aria-expanded="false"></button></div>
-        <div class="dtrow" id="row-e"><span class="dtk">終了</span><button type="button" id="f-end" class="dcap" aria-haspopup="true" aria-expanded="false" value=""></button><button type="button" id="f-etime" class="tcap" aria-haspopup="true" aria-expanded="false"></button><span id="f-eday" class="dbadge" hidden></span></div>
+        <div class="dtrow erow" id="row-s"><span class="dtk">開始</span><button type="button" id="f-start" class="dcap" aria-haspopup="true" aria-expanded="false" value=""></button><button type="button" id="f-stime" class="tcap" aria-haspopup="true" aria-expanded="false"></button></div>
+        <div class="dtrow erow" id="row-e"><span class="dtk">終了</span><button type="button" id="f-end" class="dcap" aria-haspopup="true" aria-expanded="false" value=""></button><span id="f-eday" class="dbadge" hidden></span><button type="button" id="f-etime" class="tcap" aria-haspopup="true" aria-expanded="false"></button></div>
         <div id="dpop" class="dpop" hidden>
           <div id="dp-chips" class="dpchips"></div>
           <div class="dpmh"><button type="button" id="dp-prev" class="dpnav" aria-label="前の月">‹</button><span id="dp-title" class="dpmt" aria-live="polite"></span><button type="button" id="dp-next" class="dpnav" aria-label="次の月">›</button></div>
@@ -42,11 +42,12 @@
           <p class="tlab">時</p><div id="tp-h" class="tgrid hgrid"></div>
           <p class="tlab">分 <span id="tp-note" class="tnote" hidden></span></p><div id="tp-m" class="tgrid mgrid"></div>
         </div>
-        <div class="dtrow dlen" id="row-d"><span class="dtk">長さ</span><div id="f-dur" class="durs" role="group" aria-label="長さ"></div></div>
+        <div class="dtrow dlen erow" id="row-d"><span class="dtk">長さ</span><div id="f-dur" class="durs" role="group" aria-label="長さ"></div></div>
       </div>
+      <label class="check erow"><span class="dtk">終日</span><input id="f-all" name="all" type="checkbox" role="switch"></label>
       <div id="alwrap" class="alwrap" hidden>
-        <label class="alrow" id="al0-row"><span class="alk">通知</span><span class="alv" id="al0-v"></span><select id="f-al0" aria-label="通知"></select></label>
-        <label class="alrow" id="al1-row" hidden><span class="alk">2つ目の通知</span><span class="alv" id="al1-v"></span><select id="f-al1" aria-label="2つ目の通知"></select></label>
+        <label class="alrow erow" id="al0-row"><span class="alk">通知</span><span class="alv" id="al0-v"></span><select id="f-al0" aria-label="通知"></select></label>
+        <label class="alrow erow" id="al1-row" hidden><span class="alk">2つ目の通知</span><span class="alv" id="al1-v"></span><select id="f-al1" aria-label="2つ目の通知"></select></label>
         <p id="al-note" class="alnote" hidden></p>
         <button type="button" id="al-off" class="alnote link" hidden>通知はオフです</button>
         <div id="al-perm" class="alperm" hidden><span class="alnote">iPhone の設定で通知がオフです</span><button type="button" id="al-settings" class="mini">設定を開く</button></div>
@@ -59,7 +60,7 @@
         <p class="alnote13">繰り返しの変更は iPhone のカレンダーで行ってください。</p>
       </div>
       <div class="repeat">
-        <button type="button" id="rtoggle" class="rtoggle" aria-expanded="false" aria-controls="rpanel"><span class="tri" aria-hidden="true">▸</span> 繰り返し · <span id="rsum">なし</span></button>
+        <button type="button" id="rtoggle" class="rtoggle erow" aria-expanded="false" aria-controls="rpanel"><span class="tri" aria-hidden="true">▸</span> 繰り返し · <span id="rsum">なし</span></button>
         <div id="rpanel" hidden>
           <label>頻度<select id="f-rfreq"><option value="none">なし</option><option value="daily">毎日</option><option value="weekly">毎週</option><option value="monthly">毎月</option><option value="yearly">毎年</option></select></label>
           <p id="rdesc" class="small"></p>
@@ -77,8 +78,8 @@
           <p id="rerror" class="error" role="alert"></p>
         </div>
       </div>
-      <label>場所<input id="f-place" name="place" maxlength="200" placeholder="場所を追加"></label>
-      <label>メモ<textarea id="f-notes" name="notes" maxlength="4000" rows="3" placeholder="メモを追加"></textarea></label>
+      <label class="erow eplace"><span class="dtk">場所</span><input id="f-place" name="place" maxlength="200" placeholder="場所を追加"></label>
+      <label class="erow enotes"><span class="dtk">メモ</span><textarea id="f-notes" name="notes" maxlength="4000" rows="3" placeholder="メモを追加"></textarea></label>
       <div id="xext" class="xadd" hidden>
         <p class="small">変更は iPhone のカレンダーに保存されます。</p>
         <button type="button" id="xext-open" class="ghost">カレンダーで開く</button>
@@ -87,11 +88,10 @@
         <p class="small">iPhoneにも追加済み。Duo で変えた内容は iPhone のカレンダーにも反映されます。</p>
         <button type="button" id="xlinked-open" class="ghost">カレンダーで開く</button>
       </div>
-    </div>
-    <div class="factions">
-      <p id="error" class="error" role="alert"></p>
-      <div class="actions"><button type="button" id="delete" class="danger">予定を削除</button><button class="primary" type="submit">保存</button></div>
-      <div id="copyrow" class="copyrow" hidden><button type="button" id="copy">コピー</button></div>
+      <div class="ebottom">
+        <button type="button" id="delete" class="danger erow">予定を削除</button>
+        <div id="copyrow" class="copyrow erow" hidden><button type="button" id="copy">コピー</button></div>
+      </div>
     </div>
   </form>
   <div id="dest-pop" class="destpage" role="group" aria-label="カレンダー" hidden></div>
