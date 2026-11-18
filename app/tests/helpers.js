@@ -58,8 +58,16 @@ export async function setTimeUi(page, which, hhmm) {
   const [h, m] = hhmm.split(':').map(Number);
   if (m % 5) throw new Error(`UIでは5分刻みだけ: ${hhmm}`);
   await cap.click();
-  await dlg.locator(`#tp-h [data-h="${h}"]`).click();
-  await dlg.locator(`#tp-m [data-m="${m}"]`).click();
+  // ダイヤルは輪。近い向きへ矢印キーで回し、値が合ったら同じカプセルをもう一度たたいて閉じる。
+  for (const [col, want, mod] of [['#tp-h', h, 24], ['#tp-m', m, 60]]) {
+    const read = async () => { const [ch, cm] = (await cap.textContent()).split(':').map(Number); return col === '#tp-h' ? ch : cm; };
+    let cur = await read();
+    if (cur === want) continue;
+    const up = (((want - cur) % mod) + mod) % mod <= mod / 2;
+    await dlg.locator(col).focus();
+    for (let i = 0; i < 40 && cur !== want; i++) { await page.keyboard.press(up ? 'ArrowUp' : 'ArrowDown'); cur = await read(); }
+  }
+  await cap.click();
   await expect(dlg.locator('#tpop')).toBeHidden();
 }
 // 日付は日付のカプセルと小さな月から（'2026/11/12'）。月送りで目的の月まで進めて日をたたく。

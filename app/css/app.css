@@ -1438,3 +1438,29 @@ body[data-layout=spread] dialog#editor{height:calc(100% - var(--pt) - var(--pb))
 body[data-layout=desk] dialog#editor{height:calc(100% - var(--dt) - var(--db))}
 html[data-kb] dialog#editor,html[data-kb] body[data-layout=spread] dialog#editor,html[data-kb] body[data-layout=desk] dialog#editor{height:auto}
 #editor input.etitle:focus,#editor input.etitle:focus-visible{outline:none;box-shadow:none;border-bottom-color:var(--green)}
+
+/* ===== 第19版 PR4: 時刻のダイヤル（design/24）。閉じた画面は行のすぐ下（幅180・1段32・5段）、開いた横は左のページ、開いた縦は下の面（幅220・1段44・7段）。 ===== */
+#tpop{display:flex;flex-direction:column;align-items:center;padding:8px 0 10px;border-top:0;max-height:none;overflow:visible}
+#tpop[hidden]{display:none}
+#tpop .dial{position:relative;flex:none;display:flex;box-sizing:border-box;width:180px;height:calc(var(--rows,5) * var(--rowh,32px));background:#fff;border-radius:12px;box-shadow:0 0 0 1px #E4E0D6;overflow:hidden;animation:dialgrow .2s ease-out}
+@keyframes dialgrow{from{height:0;opacity:.3}}
+@media (prefers-reduced-motion:reduce){#tpop .dial{animation:none}}
+#tpop .dband{position:absolute;left:6px;right:6px;top:calc(50% - var(--rowh,32px) / 2);height:var(--rowh,32px);border-radius:8px;background:#EFECE4}
+#tpop .dcol{position:relative;flex:1 1 0;min-width:0;height:100%;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
+#tpop .dcol:focus-visible{outline:2px solid #294E42;outline-offset:-3px;border-radius:10px}
+#tpop .ditem{position:absolute;left:0;right:0;top:0;height:var(--rowh,32px);display:flex;align-items:center;justify-content:center;font-size:11px;color:#C3C6BF;font-variant-numeric:tabular-nums;pointer-events:none;will-change:transform}
+#tpop .ditem.d1{font-size:13px;color:#8C918A}
+#tpop .ditem.d0{font-size:17px;font-weight:700;color:#293B35}
+#tpop .dunit{position:absolute;top:50%;transform:translateY(-50%);font-size:10px;color:#8C918A;pointer-events:none}
+#tpop .uh{right:calc(50% + 8px)}#tpop .um{right:8px}
+#tpop .tfhead,#tpop .tfchips{display:none}
+#tpop.face{position:fixed;z-index:40;box-sizing:border-box;margin:0;padding:16px 0 12px;background:var(--paper);border-radius:16px;box-shadow:0 0 0 1px var(--line)}
+#tpop.face .tfhead{display:block;margin:0;font:700 15px/1.3 -apple-system,'Hiragino Sans',system-ui,sans-serif;color:#293B35}
+#tpop.face .dial{width:220px;margin-top:14px}
+#tpop.face .ditem{font-size:12px}#tpop.face .ditem.d1{font-size:15px}#tpop.face .ditem.d0{font-size:20px}
+#tpop.face .dunit{font-size:11px}
+#tpop.face .tfchips{display:flex;justify-content:center;flex-wrap:wrap;gap:6px;margin-top:14px;padding:0 12px}
+#tpop .tfchip{position:relative;box-sizing:border-box;flex:none;width:62px;height:28px;min-height:0;min-width:0;padding:0;border:1px solid #DCD7CB;border-radius:14px;background:#fff;color:#294E42;font-size:13px}
+#tpop .tfchip::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
+dialog.panel.tface-open{overflow:visible}
+.dtbox.dtlarge #tpop{max-height:none;overflow:visible}

@@ -7,7 +7,7 @@ const openNew = async (page) => { await page.locator('[data-act="add"]:visible')
 const save = async (page) => { await page.locator('#form [type=submit]').click(); await expect(dlg(page)).toBeHidden(); };
 
 test.describe('時刻カプセルと時分のマス', () => {
-  test('構成: 時24個・分12個（5分刻み）・長さ5種。7〜21時が強調。開くのは一度に一つ', async ({ page }) => {
+  test('構成: ダイヤルは時・分の2列（輪）・長さ6種。開くのは一度に一つ。同じカプセル・別の欄で閉じる', async ({ page }) => {
     await openApp(page);
     await openNew(page);
     await expect(dlg(page).locator('#f-stime')).toHaveText('10:00');
@@ -16,9 +16,9 @@ test.describe('時刻カプセルと時分のマス', () => {
     await expect(dlg(page).locator('#f-dur .dchip[aria-pressed=true]')).toHaveText('1時間');
     await expect(dlg(page).locator('#tpop')).toBeHidden();
     await dlg(page).locator('#f-stime').click();
-    await expect(dlg(page).locator('#tp-h .tcell')).toHaveCount(24);
-    await expect(dlg(page).locator('#tp-m .tcell')).toHaveCount(12);
-    await expect(dlg(page).locator('#tp-h .usual')).toHaveCount(15);
+    await expect(dlg(page).locator('#tpop .dcol')).toHaveCount(2);
+    await expect(dlg(page).locator('#tp-h .ditem')).toHaveCount(7); // 見える5段＋上下の1段
+    await expect(dlg(page).locator('#tp-m .ditem.d0')).toHaveText('00');
     await expect(dlg(page).locator('#f-stime')).toHaveClass(/open/);
     // 別のカプセルへ切り替え。部品は終了の行の下へ
     await dlg(page).locator('#f-etime').click();
@@ -34,7 +34,7 @@ test.describe('時刻カプセルと時分のマス', () => {
     await expect(dlg(page).locator('#tpop')).toBeHidden();
   });
 
-  test('時→分で決まって閉じる。時だけなら分はそのまま。開閉だけでは未保存の変更にならない', async ({ page }) => {
+  test('時を回すと分はそのまま。回しても部品は開いたまま。開閉だけでは未保存の変更にならない', async ({ page }) => {
     await openApp(page);
     await openNew(page);
     await dlg(page).locator('#f-stime').click();
@@ -42,14 +42,17 @@ test.describe('時刻カプセルと時分のマス', () => {
     await dlg(page).locator('#f-title').fill('a');
     await dlg(page).locator('#f-title').fill('');
     await dlg(page).locator('#f-stime').click();
-    await dlg(page).locator('#tp-h [data-h="9"]').click();
+    await dlg(page).locator('#tp-h').focus();
+    await page.keyboard.press('ArrowDown');
     await expect(dlg(page).locator('#tpop')).toBeVisible();
     await expect(dlg(page).locator('#f-stime')).toHaveText('09:00');
     await expect(dlg(page).locator('#f-etime')).toHaveText('10:00');
-    await dlg(page).locator('#tp-m [data-m="30"]').click();
-    await expect(dlg(page).locator('#tpop')).toBeHidden();
+    await dlg(page).locator('#tp-m').focus();
+    for (let i = 0; i < 6; i++) await page.keyboard.press('ArrowUp');
     await expect(dlg(page).locator('#f-stime')).toHaveText('09:30');
     await expect(dlg(page).locator('#f-etime')).toHaveText('10:30');
+    await dlg(page).locator('#f-stime').click();
+    await expect(dlg(page).locator('#tpop')).toBeHidden();
   });
 
   test('開いて閉じただけなら閉じる確認が出ない（dirty にならない）', async ({ page }) => {
@@ -65,21 +68,40 @@ test.describe('時刻カプセルと時分のマス', () => {
     await expect(page.locator('#discard')).toBeHidden();
   });
 
-  test('07分: どの分も選ばず「いま 07分」。時だけ変えても 07分。保存で丸めない', async ({ page }) => {
+  test('07分: 回すまで丸めず真ん中に「07」。時だけ回しても 07分。回したときだけ5分に寄る。保存で丸めない', async ({ page }) => {
     await openApp(page);
     await seed(page, [ev('a', '会議', '2026-11-12T10:07', '2026-11-12T11:43')]);
     await page.locator('.next').click();
     await expect(page.locator('#f-stime')).toHaveText('10:07');
     await page.locator('#f-stime').click();
-    await expect(page.locator('#tp-note')).toHaveText('いま 07分');
-    await expect(page.locator('#tp-m [aria-pressed=true]')).toHaveCount(0);
-    await page.locator('#tp-h [data-h="9"]').click();
+    await expect(page.locator('#tp-m .ditem.d0')).toHaveText('07');
+    await expect(page.locator('#tp-m')).toHaveAttribute('aria-valuetext', '07');
+    await expect(page.locator('#tp-m .ditem.d1')).toHaveText(['05', '10']); // 輪の中の正しい位置（05・07・10）
+    await page.locator('#tp-h').focus();
+    await page.keyboard.press('ArrowDown');
     await expect(page.locator('#f-stime')).toHaveText('09:07');
     await expect(page.locator('#f-etime')).toHaveText('10:43');
-    await expect(page.locator('#tp-note')).toHaveText('いま 07分');
+    await expect(page.locator('#tp-m .ditem.d0')).toHaveText('07');
     await save(page);
     const [e] = await dbEvents(page);
     expect([e.start, e.end]).toEqual(['2026-11-12T09:07', '2026-11-12T10:43']);
+  });
+
+  test('07分を回すと上は10分・下は05分へ寄る', async ({ page }) => {
+    await openApp(page);
+    await seed(page, [ev('a', '会議', '2026-11-12T10:07', '2026-11-12T11:43')]);
+    await page.locator('.next').click();
+    await page.locator('#f-stime').click();
+    await page.locator('#tp-m').focus();
+    await page.keyboard.press('ArrowUp');
+    await expect(page.locator('#f-stime')).toHaveText('10:10');
+    await page.keyboard.press('ArrowDown');
+    await expect(page.locator('#f-stime')).toHaveText('10:05');
+    await page.locator('#f-stime').click();
+    await page.locator('#f-etime').click();
+    await page.locator('#tp-m').focus();
+    await page.keyboard.press('ArrowDown'); // 43 → 40
+    await expect(page.locator('#f-etime')).toHaveText('11:40');
   });
 
   test('23時台＋2時間は翌日の札と終了日の更新で保存できる。+2日は実日数', async ({ page }) => {
@@ -129,9 +151,9 @@ test.describe('時刻カプセルと時分のマス', () => {
       await dlg(page).locator('#f-etime').click();
       const r = await page.evaluate(() => {
         const d = document.querySelector('#editor').getBoundingClientRect();
-        return [...document.querySelectorAll('#dtbox button, #dtbox input')].filter((e) => e.offsetParent && !e.classList.contains('dchip')).map((e) => { const b = e.getBoundingClientRect(); return b.left >= d.left - 0.5 && b.right <= d.right + 0.5; });
+        return [...document.querySelectorAll('#dtbox button, #dtbox input, #dtbox .dial')].filter((e) => e.offsetParent && !e.classList.contains('dchip') && !e.closest('#tpop.face')).map((e) => { const b = e.getBoundingClientRect(); return b.left >= d.left - 0.5 && b.right <= d.right + 0.5; });
       });
-      expect(r.length).toBeGreaterThan(30);
+      expect(r.length).toBeGreaterThan(3);
       expect(r.every(Boolean)).toBe(true);
     });
   }
@@ -513,17 +535,18 @@ test.describe('数字の短縮入力', () => {
 });
 
 test.describe('読み上げ（adjustable）とフォーカス', () => {
-  test('時・分の見出しは slider。上下キーで1時間・5分。範囲の端で止まり、触覚が鳴る', async ({ page }) => {
+  test('各列は「開始、時」「開始、分」の slider。上下キーで1時間・5分、輪でつながる。触覚が鳴る', async ({ page }) => {
     await page.addInitScript(HAP);
     await openApp(page);
     await openNew(page);
     await dlg(page).locator('#f-stime').click();
-    const h = dlg(page).locator('#tpop [role=slider][aria-label="時"]'), m = dlg(page).locator('#tpop [role=slider][aria-label="分"]');
-    await expect(h).toHaveAttribute('aria-valuetext', '10時');
+    const h = dlg(page).locator('#tpop [role=slider][aria-label="開始、時"]'), m = dlg(page).locator('#tpop [role=slider][aria-label="開始、分"]');
+    await expect(h).toHaveAttribute('aria-valuetext', '10');
+    await expect(m).toHaveAttribute('aria-valuetext', '00');
     await h.focus();
     await page.keyboard.press('ArrowUp');
     await expect(dlg(page).locator('#f-stime')).toHaveText('11:00');
-    await expect(h).toHaveAttribute('aria-valuetext', '11時');
+    await expect(h).toHaveAttribute('aria-valuetext', '11');
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown');
     await expect(dlg(page).locator('#f-stime')).toHaveText('09:00');
     await expect(dlg(page).locator('#tpop')).toBeVisible();
@@ -532,34 +555,41 @@ test.describe('読み上げ（adjustable）とフォーカス', () => {
     await expect(dlg(page).locator('#f-stime')).toHaveText('09:10');
     await page.keyboard.press('ArrowDown');
     await expect(dlg(page).locator('#f-stime')).toHaveText('09:05');
-    for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowDown');
-    await expect(dlg(page).locator('#f-stime')).toHaveText('09:00');
-    expect(await page.evaluate(() => window.__hap.calls.filter((c) => c.method === 'selectionHaptic').length)).toBe(7); // 端で止まった押下（05→00 のあとの2回）は鳴らさない
+    for (let i = 0; i < 2; i++) await page.keyboard.press('ArrowDown');
+    await expect(dlg(page).locator('#f-stime')).toHaveText('09:55'); // 00 → 55（輪）
+    await h.focus();
+    for (let i = 0; i < 10; i++) await page.keyboard.press('ArrowDown');
+    await expect(dlg(page).locator('#f-stime')).toHaveText('23:55'); // 0 → 23（輪）
+    await page.keyboard.press('ArrowUp');
+    await expect(dlg(page).locator('#f-stime')).toHaveText('00:55');
+    expect(await page.evaluate(() => window.__hap.calls.filter((c) => c.method === 'selectionHaptic').length)).toBe(3 + 5 + 11); // 1段ごとに1回
   });
 
-  test('07分は上で10分・下で05分へ（5分刻みの位置へ寄せる）。マスの読み上げ名は「14時」「00分」', async ({ page }) => {
+  test('終了の列は「終了、時」。開閉でラベルが変わる', async ({ page }) => {
     await openApp(page);
     await openNew(page);
-    await fillDateTime(page, 'start', '2026/11/12 10:07').catch(() => {});
-    await expect(dlg(page).locator('#f-stime')).toBeVisible();
+    await dlg(page).locator('#f-etime').click();
+    await expect(dlg(page).locator('#tp-h')).toHaveAttribute('aria-label', '終了、時');
+    await expect(dlg(page).locator('#tp-title')).toBeHidden(); // 見出しは面（開いた横・縦）のときだけ
+  });
+
+  test('カプセルの読み上げ名と日付の読み上げ名', async ({ page }) => {
+    await openApp(page);
+    await openNew(page);
     await dlg(page).locator('#f-stime').click();
-    await expect(dlg(page).locator('#tp-h [data-h="14"]')).toHaveAttribute('aria-label', '14時');
-    await expect(dlg(page).locator('#tp-m [data-m="0"]')).toHaveAttribute('aria-label', '00分');
     await expect(dlg(page).locator('#f-stime')).toHaveAttribute('aria-label', /開始の時刻、.*、ボタン/);
     await expect(dlg(page).locator('#f-start')).toHaveAttribute('aria-label', /^開始の日付、11月12日木曜日、ボタン$/);
     await expect(dlg(page).locator('#f-end')).toHaveAttribute('aria-label', /^終了の日付、11月12日木曜日、ボタン$/);
   });
 
-  test('Escape: 部品だけ閉じてカプセルへフォーカスが戻る（シートは閉じない）。分を選ぶ・日を選んでもフォーカスが戻る', async ({ page }) => {
+  test('Escape: 部品だけ閉じてカプセルへフォーカスが戻る（シートは閉じない）。日を選んでもフォーカスが戻る', async ({ page }) => {
     await openApp(page);
     await openNew(page);
     await dlg(page).locator('#f-stime').click();
-    await dlg(page).locator('#tp-h [data-h="9"]').focus();
+    await dlg(page).locator('#tp-h').focus();
     await page.keyboard.press('Escape');
     await expect(dlg(page).locator('#tpop')).toBeHidden();
     await expect(dlg(page)).toBeVisible();
-    await dlg(page).locator('#f-stime').click();
-    await dlg(page).locator('#tp-m [data-m="30"]').click();
     await expect(dlg(page).locator('#f-stime')).toBeFocused();
     await dlg(page).locator('#f-end').click();
     await dlg(page).locator('#dp-grid [data-day="2026-11-20"]').click();
@@ -574,37 +604,23 @@ test.describe('読み上げ（adjustable）とフォーカス', () => {
 });
 
 test.describe('大文字', () => {
-  for (const [name, size] of [['閉じた縦', SIZES.closedPortrait], ...OPEN_SIZES.map((s, i) => [`開いた${i}`, s])]) {
-    test(`大文字: 時は4列×6行・幅52pt以上でシート内、部品内で縦スクロール可（${name}）`, async ({ page }) => {
-      await page.addInitScript(() => localStorage.setItem('duo.ui.v1', JSON.stringify({ monthTextSize: 'large' })));
-      await openApp(page, size);
-      await openNew(page);
-      await dlg(page).locator('#f-stime').click();
-      const r = await page.evaluate(() => {
-        const d = document.querySelector('#editor').getBoundingClientRect();
-        const cells = [...document.querySelectorAll('#tp-h .tcell')].map((e) => e.getBoundingClientRect());
-        const xs = new Set(cells.map((c) => Math.round(c.left))), ys = new Set(cells.map((c) => Math.round(c.top)));
-        const pop = document.querySelector('#tpop'), cs = getComputedStyle(pop);
-        return { cols: xs.size, minW: Math.min(...cells.map((c) => c.width)), minH: Math.min(...cells.map((c) => c.height)), inside: cells.every((c) => c.left >= d.left - 0.5 && c.right <= d.right + 0.5), oy: cs.overflowY, ph: pop.getBoundingClientRect().height, rowsN: ys.size };
-      });
-      expect(r.cols).toBe(4);
-      expect(r.rowsN).toBe(6);
-      expect(r.minW).toBeGreaterThanOrEqual(52);
-      expect(r.minH).toBeGreaterThanOrEqual(44);
-      expect(r.inside).toBe(true);
-      expect(r.oy).toBe('auto');
-      // 大文字でも 24 マスすべて押せる（スクロールして押す）
-      await dlg(page).locator('#tp-h [data-h="23"]').click();
-      await expect(dlg(page).locator('#f-stime')).toHaveText('23:00');
-    });
-  }
-
-  test('標準の文字では時は6列のまま', async ({ page }) => {
+  test('文字を大きくすると1段 44・見える段 3・高さ 132（閉じた画面）', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('duo.ui.v1', JSON.stringify({ monthTextSize: 'large' })));
     await openApp(page);
     await openNew(page);
     await dlg(page).locator('#f-stime').click();
-    const cols = await page.evaluate(() => new Set([...document.querySelectorAll('#tp-h .tcell')].map((e) => Math.round(e.getBoundingClientRect().left))).size);
-    expect(cols).toBe(6);
+    await page.waitForTimeout(300);
+    const r = await page.evaluate(() => ({ h: document.querySelector('#tpop .dial').getBoundingClientRect().height, n: document.querySelectorAll('#tp-h .ditem').length, rh: document.querySelector('#tp-h .ditem').getBoundingClientRect().height }));
+    expect(r.h).toBeCloseTo(132, 0); expect(r.rh).toBeCloseTo(44, 0); expect(r.n).toBe(5);
+  });
+
+  test('標準の文字では1段 32・5段・高さ 160・幅 180（x143〜323）', async ({ page }) => {
+    await openApp(page);
+    await openNew(page);
+    await dlg(page).locator('#f-stime').click();
+    await page.waitForTimeout(300);
+    const b = await dlg(page).locator('#tpop .dial').boundingBox();
+    expect(b.height).toBeCloseTo(160, 0); expect(b.width).toBeCloseTo(180, 0); expect(b.x).toBeCloseTo(143, 0);
   });
 
   test('大文字でも長押しの欄がシート内に収まる', async ({ page }) => {
@@ -616,3 +632,158 @@ test.describe('大文字', () => {
     expect(ok).toBe(true);
   });
 });
+
+// ---------- 第19版 PR4: 時刻のダイヤル（design/24） ----------
+const dragCol = async (page, sel, dy, { fast = false } = {}) => {
+  await page.waitForTimeout(300); // 開く 0.2 秒の伸びが終わってから
+  const b = await dlg(page).locator(sel).boundingBox();
+  const x = b.x + b.width / 2, y = b.y + b.height / 2;
+  await page.mouse.move(x, y); await page.mouse.down();
+  await page.mouse.move(x, y + dy, { steps: fast ? 3 : 12 });
+  if (!fast) await page.waitForTimeout(120); // 止めてから離す（弾かない）
+  await page.mouse.up();
+};
+
+test.describe('ダイヤルの操作', () => {
+  test('ドラッグで1段ずつ回る。下へ引くと前の値。離すと近い段に寄り、真ん中の値が決まる', async ({ page }) => {
+    await page.addInitScript(HAP);
+    await openApp(page);
+    await openNew(page);
+    await dlg(page).locator('#f-stime').click();
+    await dragCol(page, '#tp-h', 64); // 32×2
+    await expect(dlg(page).locator('#f-stime')).toHaveText('08:00');
+    await expect(dlg(page).locator('#f-etime')).toHaveText('09:00'); // 長さを保つ
+    await dragCol(page, '#tp-m', -32 * 3);
+    await expect(dlg(page).locator('#f-stime')).toHaveText('08:15');
+    await page.waitForTimeout(300);
+    const off = await page.evaluate(() => [...document.querySelectorAll('#tp-h .ditem.d0')].map((e) => e.style.transform));
+    expect(off.length).toBe(1);
+    expect(await page.evaluate(() => window.__hap.calls.filter((c) => c.method === 'selectionHaptic').length)).toBe(5);
+  });
+
+  test('たたいた段へ進む。輪でつながる（0時の1つ上の段は 23）', async ({ page }) => {
+    await openApp(page);
+    await openNew(page);
+    await setTimeUi(page, 'start', '00:00');
+    await dlg(page).locator('#f-stime').click();
+    await page.waitForTimeout(300);
+    const b = await dlg(page).locator('#tp-h').boundingBox();
+    await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2 - 32); // 1つ上の段
+    await expect(dlg(page).locator('#f-stime')).toHaveText('23:00');
+  });
+
+  test('視差効果を減らす: 速く弾いても惰性で回らない（引いた分だけ）', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openApp(page);
+    await openNew(page);
+    await dlg(page).locator('#f-stime').click();
+    await dragCol(page, '#tp-h', 64, { fast: true });
+    await page.waitForTimeout(700);
+    await expect(dlg(page).locator('#f-stime')).toHaveText('08:00');
+  });
+
+  test('速く弾くと惰性で数段回る（視差効果を減らすがオフのとき）', async ({ page }) => {
+    await openApp(page);
+    await openNew(page);
+    await dlg(page).locator('#f-stime').click();
+    await page.waitForTimeout(300);
+    const b = await dlg(page).locator('#tp-h').boundingBox();
+    const x = b.x + b.width / 2, y = b.y + 20;
+    await page.mouse.move(x, y); await page.mouse.down();
+    await page.mouse.move(x, y + 40, { steps: 2 }); await page.mouse.up();
+    await page.waitForTimeout(900);
+    const t = await dlg(page).locator('#f-stime').textContent();
+    expect(['09:00', '10:00']).not.toContain(t); // 40pt の引き（1段）より先まで惰性で進み、段に止まる
+  });
+
+  test('開いている間、キーボードの欄にフォーカスがない。文字の欄に触れると閉じる', async ({ page }) => {
+    await openApp(page);
+    await openNew(page);
+    await dlg(page).locator('#f-title').click();
+    await expect(dlg(page).locator('#f-title')).toBeFocused();
+    await dlg(page).locator('#f-stime').click();
+    await expect(dlg(page).locator('#tpop')).toBeVisible();
+    expect(await page.evaluate(() => { const a = document.activeElement; return !!a && ['INPUT', 'TEXTAREA'].includes(a.tagName); })).toBe(false);
+    await dlg(page).locator('#f-title').click();
+    await expect(dlg(page).locator('#tpop')).toBeHidden();
+  });
+
+  test('長押しで数字を打つときはダイヤルを閉じる', async ({ page }) => {
+    await openApp(page);
+    await openNew(page);
+    await dlg(page).locator('#f-stime').click();
+    await dlg(page).locator('#f-stime').focus();
+    await page.keyboard.type('1430');
+    await expect(dlg(page).locator('#tpop')).toBeHidden();
+    await page.keyboard.press('Enter');
+    await expect(dlg(page).locator('#f-stime')).toHaveText('14:30');
+  });
+
+  test('開始を回すと終了は長さを保つ。23:30＋60分で終了は翌日 00:30。開閉だけなら変わらない', async ({ page }) => {
+    await openApp(page);
+    await openNew(page);
+    await setTimeUi(page, 'start', '23:30');
+    await expect(dlg(page).locator('#f-etime')).toHaveText('00:30');
+    await expect(dlg(page).locator('#f-eday')).toHaveText('翌日');
+    await dlg(page).locator('#f-etime').click();
+    await dlg(page).locator('#f-etime').click();
+    await expect(dlg(page).locator('#f-etime')).toHaveText('00:30');
+  });
+
+  test('終日では時刻のダイヤルは開かない', async ({ page }) => {
+    await openApp(page);
+    await openNew(page);
+    await dlg(page).locator('#f-all').check();
+    await expect(dlg(page).locator('#tpop')).toBeHidden();
+    await expect(dlg(page).locator('#f-stime')).toBeHidden();
+  });
+});
+
+for (const [name, size] of [['開いた横', SIZES.openLandscape951], ['開いた縦', SIZES.openPortrait669]]) {
+  test.describe(`ダイヤルの面（${name}）`, () => {
+    test('面が出て、見出し・220×308・1段44・7段・よく使う時刻が並ぶ。閉じると元に戻る', async ({ page }) => {
+      await openApp(page, size);
+      await openNew(page);
+      await dlg(page).locator('#f-stime').click();
+      await page.waitForTimeout(300);
+      await expect(dlg(page).locator('#tpop')).toHaveClass(/face/);
+      await expect(dlg(page).locator('#tp-title')).toHaveText('開始の時刻');
+      const d = await dlg(page).locator('#tpop .dial').boundingBox();
+      expect(d.width).toBeCloseTo(220, 0); expect(d.height).toBeCloseTo(308, 0);
+      await expect(dlg(page).locator('#tp-chips .tfchip')).toHaveText(['9:00', '10:00', '13:00', '15:00', '19:00']);
+      const c = await dlg(page).locator('#tp-chips .tfchip').first().boundingBox();
+      expect(c.width).toBeCloseTo(62, 0); expect(c.height).toBeCloseTo(28, 0);
+      const pop = await dlg(page).locator('#tpop').boundingBox(), ed = await dlg(page).boundingBox();
+      if (name === '開いた横') expect(pop.x + pop.width).toBeLessThanOrEqual(ed.x + 1); // 左のページ全体。シートは右のまま
+      else { expect(pop.y).toBeCloseTo(492, 0); expect(pop.y + pop.height).toBeCloseTo(917, 0); } // 溝 467〜484 のあと
+      await dlg(page).locator('#f-etime').click();
+      await expect(dlg(page).locator('#tp-title')).toHaveText('終了の時刻');
+      await dlg(page).locator('#f-etime').click();
+      await expect(dlg(page).locator('#tpop')).toBeHidden();
+      await expect(dlg(page).locator('#editor, #f-etime').first()).toBeVisible();
+    });
+
+    test('よく使う時刻で値が入る（開始 15:00 → 終了は長さを保って 16:00）。面は開いたまま', async ({ page }) => {
+      await openApp(page, size);
+      await openNew(page);
+      await dlg(page).locator('#f-stime').click();
+      await dlg(page).locator('#tp-chips .tfchip', { hasText: '15:00' }).click();
+      await expect(dlg(page).locator('#f-stime')).toHaveText('15:00');
+      await expect(dlg(page).locator('#f-etime')).toHaveText('16:00');
+      await expect(dlg(page).locator('#tpop')).toBeVisible();
+    });
+
+    test('面でも回せる。1段 44。シートの✓で保存できる', async ({ page }) => {
+      await openApp(page, size);
+      await openNew(page);
+      await dlg(page).locator('#f-title').fill('面');
+      await dlg(page).locator('#f-stime').click();
+      await dragCol(page, '#tp-h', 44 * 2);
+      await expect(dlg(page).locator('#f-stime')).toHaveText('08:00');
+      await dlg(page).locator('#save').click();
+      await expect(dlg(page)).toBeHidden();
+      const [e] = await dbEvents(page);
+      expect(e.start).toBe('2026-11-12T08:00');
+    });
+  });
+}

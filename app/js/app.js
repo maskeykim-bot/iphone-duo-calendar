@@ -2385,7 +2385,7 @@ const dui = createDateUi({
 });
 const tui = createTimeUi({
   box: $('#dtbox'), start: $('#f-stime'), end: $('#f-etime'), badge: $('#f-eday'), dur: $('#f-dur'), pop: $('#tpop'),
-  rows: { start: $('#row-s'), end: $('#row-e') }, hours: $('#tp-h'), mins: $('#tp-m'), minNote: $('#tp-note'),
+  rows: { start: $('#row-s'), end: $('#row-e') }, hours: $('#tp-h'), mins: $('#tp-m'), title: $('#tp-title'), chips: $('#tp-chips'),
 }, {
   get: () => dt,
   buzz: () => { haptic('light').catch(() => {}); },

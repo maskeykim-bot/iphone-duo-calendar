@@ -1,6 +1,6 @@
 // 時刻のカプセル・長さのチップ・時分のマス（設計12 §1–2）。状態の計算は datetime.js、保存は app.js。
 // ここは表示と操作だけ。開くのは一度に一つ。開いて閉じただけでは何も変えない。
-import { splitIso, durationMin, endDayOffset, parseTimeDigits, parseDateDigits, digitsOnly } from './datetime.js';
+import { splitIso, durationMin, endDayOffset, parseTimeDigits, parseDateDigits, digitsOnly, dialRing } from './datetime.js';
 import { DOW, addDays, addMonths, parseKey, todayKey, weekStart, weekdayHeads } from './util.js';
 
 const p2 = (n) => String(n).padStart(2, '0');
@@ -38,6 +38,7 @@ export function attachDigitEntry(cap, opts) {
   function enter(first = '') {
     if (input) return; // touch と click の二重発火でも欄は一つ
     if (opts.blocked?.()) return;
+    opts.onEnter?.(); // 数字を打つときはダイヤルを閉じる
     const el = document.createElement('input');
     el.type = 'text'; el.inputMode = 'numeric'; el.pattern = '[0-9]*'; el.autocomplete = 'off'; el.enterKeyHint = 'done';
     el.className = `capin ${opts.cls}`;
@@ -93,12 +94,149 @@ export function attachDigitEntry(cap, opts) {
   return { enter, isEditing: () => !!input, cancel: () => end(false) };
 }
 
-// els: { start, end（時刻カプセル）, badge, dur（長さの行）, pop, rows: {start,end}, hours, mins, minNote }
+// ---------- 時刻のダイヤル（design/24） ----------
+export const COMMON_TIMES = [[9, 0], [10, 0], [13, 0], [15, 0], [19, 0]];
+const reducedMotion = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } };
+// 1本の列。輪（時 0〜23／分 00〜55）を縦に並べ、指で回す。離すと一番近い段へ 0.15 秒で寄る。速く回すと惰性。
+// o: { kind:'h'|'m', get() → 今の値, set(v), dims() → { rows, rowH }, buzz(), reduced?() }
+export function createDialColumn(el, o) {
+  const fmt = (v) => (o.kind === 'h' ? String(v) : p2(v));
+  let view = dialRing(o.kind, o.get()), off = 0, drag = null, raf = 0, wheelAcc = 0;
+  const reduced = () => (o.reduced ? o.reduced() : reducedMotion());
+  const sync = () => { const c = o.get(); if (Number.isInteger(c)) view = dialRing(o.kind, c); };
+  function draw() {
+    const { rows, rowH } = o.dims(), R = Math.floor(rows / 2) + 1, n = view.list.length;
+    el.style.setProperty('--rowh', `${rowH}px`);
+    let html = '';
+    for (let k = -R; k <= R; k++) {
+      const v = view.list[(((view.idx + k) % n) + n) % n], d = Math.round(Math.abs(k + off / rowH));
+      html += `<div class="ditem d${Math.min(d, 3)}" data-v="${v}" data-k="${k}" style="transform:translateY(${(k + rows / 2 - 0.5) * rowH + off}px)">${fmt(v)}</div>`;
+    }
+    el.innerHTML = html;
+    const c = view.list[view.idx];
+    el.setAttribute('aria-valuenow', String(c)); el.setAttribute('aria-valuetext', fmt(c));
+  }
+  // dir: +1 = 値が増える向き。輪の次の値へ（5分刻みでない値はここで寄る）。
+  function step(dir) {
+    const v = view.list[(((view.idx + dir) % view.list.length) + view.list.length) % view.list.length];
+    o.buzz?.(); o.set(v); sync();
+  }
+  function settle() {
+    cancelAnimationFrame(raf); raf = 0;
+    const from = off;
+    if (!from || reduced()) { off = 0; draw(); return; }
+    const t0 = performance.now();
+    const tick = (t) => {
+      const q = Math.min(1, (t - t0) / 150);
+      off = from * (1 - (1 - (1 - q) ** 3));
+      if (q >= 1) off = 0;
+      draw();
+      raf = q < 1 ? requestAnimationFrame(tick) : 0;
+    };
+    raf = requestAnimationFrame(tick);
+  }
+  function move(dy) {
+    const { rowH } = o.dims();
+    off += dy;
+    // 下へ引く（off>0）と前の値が真ん中へ来る＝値は減る
+    while (off > rowH / 2) { step(-1); off -= rowH; }
+    while (off < -rowH / 2) { step(+1); off += rowH; }
+    draw();
+  }
+  function inertia(v) {
+    let last = performance.now();
+    const tick = (t) => {
+      const dt = t - last; last = t;
+      move(v * dt); v *= Math.exp(-dt / 250);
+      if (Math.abs(v) < 0.03) { raf = 0; settle(); return; }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+  }
+  el.addEventListener('pointerdown', (ev) => {
+    if (!ev.isPrimary || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
+    cancelAnimationFrame(raf); raf = 0; sync();
+    drag = { id: ev.pointerId, y: ev.clientY, y0: ev.clientY, t: performance.now(), v: 0, moved: false };
+    try { el.setPointerCapture(ev.pointerId); } catch { /* 無視 */ }
+  });
+  el.addEventListener('pointermove', (ev) => {
+    if (!drag || ev.pointerId !== drag.id) return;
+    const now = performance.now(), dy = ev.clientY - drag.y;
+    if (!drag.moved && Math.abs(ev.clientY - drag.y0) < 6) return;
+    drag.moved = true;
+    const dt = Math.max(1, now - drag.t);
+    drag.v = 0.8 * (dy / dt) + 0.2 * drag.v; drag.y = ev.clientY; drag.t = now;
+    move(dy);
+  });
+  const up = (ev) => {
+    if (!drag || ev.pointerId !== drag.id) return;
+    const d = drag; drag = null;
+    if (ev.type === 'pointercancel') { settle(); return; }
+    if (!d.moved) { // たたいた段へ進む
+      const r = el.getBoundingClientRect(), { rows, rowH } = o.dims();
+      const k = Math.floor((ev.clientY - r.top) / rowH - rows / 2 + 0.5);
+      const dir = Math.sign(k);
+      for (let i = 0; i < Math.abs(k); i++) step(dir);
+      draw(); return;
+    }
+    const idle = performance.now() - d.t;
+    if (!reduced() && idle < 80 && Math.abs(d.v) > 0.4) inertia(Math.max(-2, Math.min(2, d.v))); else settle(); // 弾く速さは 2pt/ms まで
+  };
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
+  el.addEventListener('wheel', (ev) => {
+    ev.preventDefault();
+    wheelAcc += ev.deltaY;
+    const { rowH } = o.dims();
+    while (Math.abs(wheelAcc) >= rowH) { step(wheelAcc > 0 ? -1 : +1); wheelAcc -= Math.sign(wheelAcc) * rowH; } // 下へ回す＝前の値
+    draw();
+  }, { passive: false });
+  // adjustable: 上下で 1時間／5分（輪でつながる）
+  el.addEventListener('keydown', (ev) => {
+    const up2 = ev.key === 'ArrowUp' || ev.key === 'ArrowRight' || ev.key === 'PageUp', dn = ev.key === 'ArrowDown' || ev.key === 'ArrowLeft' || ev.key === 'PageDown';
+    if (!up2 && !dn) return;
+    ev.preventDefault(); ev.stopPropagation();
+    sync(); step(up2 ? +1 : -1); draw();
+  });
+  return { refresh() { if (!drag && !raf) { sync(); draw(); } }, draw: () => { sync(); draw(); } };
+}
+
+// els: { box, start, end（時刻カプセル）, badge, dur（長さの行）, pop, rows: {start,end}, hours, mins, title?, chips? }
 // api: { get() → 編集状態または null, setTime(which, h, m), setDuration(min), buzz() }
-// 時・分の見出しは adjustable（スライダー）: 上下キー／VoiceOver の上下スワイプで 1時間・5分ずつ動く。
 export function createTimeUi(els, api) {
   let open = null; // 'start' | 'end' | null
   const caps = { start: els.start, end: els.end };
+  const face = () => document.body.dataset.layout === 'spread' || document.body.dataset.posture === 'portrait';
+  const large = () => els.box.classList.contains('dtlarge');
+  const dims = () => (face() ? { rows: 7, rowH: 44 } : large() ? { rows: 3, rowH: 44 } : { rows: 5, rowH: 32 });
+  const WHO = { start: '開始', end: '終了' };
+  const cur = () => { const st = api.get(); return st && open ? splitIso(st[open]) : null; };
+  const cols = {
+    h: createDialColumn(els.hours, { kind: 'h', get: () => cur()?.h, set: (v) => api.setTime(open, v, null), dims, buzz: () => api.buzz?.() }),
+    m: createDialColumn(els.mins, { kind: 'm', get: () => cur()?.mi, set: (v) => api.setTime(open, null, v), dims, buzz: () => api.buzz?.() }),
+  };
+  for (const [k, el, lab] of [['h', els.hours, '時'], ['m', els.mins, '分']]) {
+    el.setAttribute('role', 'slider'); el.tabIndex = 0;
+    el.setAttribute('aria-valuemin', '0'); el.setAttribute('aria-valuemax', k === 'h' ? '23' : '55');
+    el.setAttribute('aria-orientation', 'vertical');
+    el.dataset.unit = lab;
+  }
+  // 開いた横（左のページ）と開いた縦（下の面）は面として出す。閉じた画面は行のすぐ下。
+  function place() {
+    const pop = els.pop, f = open && face();
+    pop.classList.toggle('face', !!f);
+    els.box.closest('dialog')?.classList.toggle('tface-open', !!f);
+    pop.style.cssText = '';
+    if (!f) return;
+    const de = document.documentElement, v = (n) => parseFloat(getComputedStyle(de).getPropertyValue(n));
+    const W = window.innerWidth, H = window.innerHeight;
+    let l, t, r, b;
+    if (document.body.dataset.layout === 'spread') { l = v('--left-start') || 8; r = v('--left-end') || W / 2; t = 24; b = H - 24; }
+    else { const e = els.box.closest('dialog').getBoundingClientRect(); l = e.left; r = e.right; t = v('--groove-avoid-y1') || Math.round(H * 0.517); b = H - Math.max(v('--rb') || 0, 34); }
+    Object.assign(pop.style, { left: `${l}px`, top: `${t}px`, width: `${r - l}px`, height: `${b - t}px` });
+    const q = pop.getBoundingClientRect(); // 変形のある親の中でも合わせる
+    if (Math.abs(q.left - l) > 0.5 || Math.abs(q.top - t) > 0.5) Object.assign(pop.style, { left: `${l - (q.left - l)}px`, top: `${t - (q.top - t)}px` });
+  }
 
   function render() {
     const st = api.get();
@@ -116,20 +254,24 @@ export function createTimeUi(els, api) {
       caps[k].setAttribute('aria-expanded', String(open === k));
     }
     if (open && st) {
-      const cur = splitIso(st[open]);
-      els.hours.querySelectorAll('[data-h]').forEach((c) => c.setAttribute('aria-pressed', String(Number(c.dataset.h) === cur.h)));
-      els.mins.querySelectorAll('[data-m]').forEach((c) => c.setAttribute('aria-pressed', String(Number(c.dataset.m) === cur.mi)));
-      sl.h.setAttribute('aria-valuenow', String(cur.h)); sl.h.setAttribute('aria-valuetext', `${cur.h}時`);
-      sl.m.setAttribute('aria-valuenow', String(Math.floor(cur.mi / 5) * 5)); sl.m.setAttribute('aria-valuetext', `${p2(cur.mi)}分`);
-      const note = oddMinute(cur.mi);
-      els.minNote.textContent = note; els.minNote.hidden = !note;
+      els.pop.dataset.rows = String(dims().rows); els.pop.style.setProperty('--rows', String(dims().rows));
+      els.pop.style.setProperty('--rowh', `${dims().rowH}px`);
+      if (els.title) els.title.textContent = `${WHO[open]}の時刻`;
+      els.hours.setAttribute('aria-label', `${WHO[open]}、時`); els.mins.setAttribute('aria-label', `${WHO[open]}、分`);
+      cols.h.refresh(); cols.m.refresh();
     }
   }
   function show(which) {
     open = which;
     els.pop.hidden = !which;
-    if (which) els.rows[which].after(els.pop);
+    if (which) {
+      els.rows[which].after(els.pop);
+      document.activeElement?.blur?.(); // キーボードとは同時に出さない
+      els.pop.dataset.rows = String(dims().rows); els.pop.style.setProperty('--rows', String(dims().rows));
+    }
+    place();
     render();
+    if (which) { cols.h.draw(); cols.m.draw(); }
   }
   function close(focusCap = false) {
     const was = open;
@@ -137,56 +279,22 @@ export function createTimeUi(els, api) {
     if (focusCap && was) caps[was].focus({ preventScroll: true });
   }
 
-  els.hours.innerHTML = HOURS.map((h) => `<button type="button" class="tcell ${hourUsual(h) ? 'usual' : 'rare'}" data-h="${h}" aria-label="${h}時" aria-pressed="false">${h}</button>`).join('');
-  els.mins.innerHTML = MINUTES.map((m) => `<button type="button" class="tcell mcell" data-m="${m}" aria-label="${p2(m)}分" aria-pressed="false">${p2(m)}</button>`).join('');
   els.dur.innerHTML = DURATIONS.map((m) => `<button type="button" class="dchip" data-min="${m}" aria-pressed="false">${durLabel(m)}</button>`).join('');
+  if (els.chips) els.chips.innerHTML = COMMON_TIMES.map(([h, m]) => `<button type="button" class="tfchip" data-h="${h}" data-m="${m}">${h}:${p2(m)}</button>`).join('');
+  els.chips?.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-h]');
+    if (!b || !open) return;
+    api.buzz?.();
+    api.setTime(open, Number(b.dataset.h), Number(b.dataset.m));
+    render();
+  });
 
   for (const k of ['start', 'end']) {
     caps[k].addEventListener('click', () => { if (api.get()?.all) return; show(open === k ? null : k); });
     attachDigitEntry(caps[k], {
-      blocked: () => !!api.get()?.all, cls: 'tcap-in', label: `${k === 'start' ? '開始' : '終了'}の時刻`,
+      blocked: () => !!api.get()?.all, onEnter: () => close(), cls: 'tcap-in', label: `${k === 'start' ? '開始' : '終了'}の時刻`,
       same: (d) => { const t = parseTimeDigits(d), st = api.get(); if (!t || !st) return false; const c = splitIso(st[k]); return t.h === c.h && t.m === c.mi; },
       commit: (d) => { const t = parseTimeDigits(d); if (!t || !api.get() || api.get().all) return false; close(); api.setTime(k, t.h, t.m); return true; },
-    });
-  }
-  els.hours.addEventListener('click', (ev) => {
-    const b = ev.target.closest('[data-h]');
-    if (!b || !open) return;
-    api.buzz();
-    api.setTime(open, Number(b.dataset.h), null); // 分はそのまま（07分も保つ）
-    render();
-  });
-  els.mins.addEventListener('click', (ev) => {
-    const b = ev.target.closest('[data-m]');
-    if (!b || !open) return;
-    api.buzz();
-    const w = open;
-    api.setTime(w, null, Number(b.dataset.m));
-    close(true);
-  });
-  // adjustable: 時・分の見出し（role=slider）。上下で 1時間／5分。5分刻みでない分は次の5分の位置へ。
-  const sl = { h: els.hours.previousElementSibling, m: els.mins.previousElementSibling };
-  for (const [k, el, lab] of [['h', sl.h, '時'], ['m', sl.m, '分']]) {
-    el.setAttribute('role', 'slider'); el.tabIndex = 0; el.setAttribute('aria-label', lab);
-    el.setAttribute('aria-valuemin', '0'); el.setAttribute('aria-valuemax', k === 'h' ? '23' : '55');
-    el.setAttribute('aria-orientation', 'vertical');
-    el.addEventListener('keydown', (ev) => {
-      const up = ev.key === 'ArrowUp' || ev.key === 'ArrowRight' || ev.key === 'PageUp', dn = ev.key === 'ArrowDown' || ev.key === 'ArrowLeft' || ev.key === 'PageDown';
-      if (ev.key === 'Escape' && open) { ev.preventDefault(); ev.stopPropagation(); close(true); return; }
-      if (!up && !dn || !open) return;
-      ev.preventDefault(); ev.stopPropagation();
-      const st = api.get(); if (!st) return;
-      const cur = splitIso(st[open]);
-      if (k === 'h') {
-        const h = Math.min(23, Math.max(0, cur.h + (up ? 1 : -1)));
-        if (h === cur.h) return;
-        api.buzz(); api.setTime(open, h, null);
-      } else {
-        const m = up ? Math.min(55, (Math.floor(cur.mi / 5) + 1) * 5) : Math.max(0, (Math.ceil(cur.mi / 5) - 1) * 5);
-        if (m === cur.mi) return;
-        api.buzz(); api.setTime(open, null, m);
-      }
-      render();
     });
   }
   els.pop.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && open) { ev.preventDefault(); ev.stopPropagation(); close(true); } });
@@ -201,6 +309,7 @@ export function createTimeUi(els, api) {
   const outside = (ev) => { if (open && !ev.target.closest('#tpop,#f-stime,#f-etime,#f-start,#f-end')) close(); };
   els.box.addEventListener('focusin', outside);
   els.box.closest('form')?.addEventListener('pointerdown', outside, true);
+  window.addEventListener('resize', () => { if (open) { place(); render(); cols.h.draw(); cols.m.draw(); } });
   for (const type of ['pointerdown', 'pointermove', 'pointerup', 'touchstart', 'touchmove', 'touchend']) {
     els.box.addEventListener(type, (ev) => ev.stopPropagation(), { passive: true });
   }

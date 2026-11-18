@@ -475,10 +475,12 @@ test.describe('ネイティブ（偽装）', () => {
     await page.locator('#f-stime').click();
     expect(await calls(page, 'selectionHaptic')).toHaveLength(0);
     await page.locator('#f-stime').click();
-    await page.locator('#tp-h [data-h="13"]').click();
-    await page.locator('#tp-m [data-m="45"]').click();
+    await page.locator('#tp-h').focus();
+    for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowUp'); // 10 → 13
+    await page.locator('#tp-m').focus();
+    for (let i = 0; i < 9; i++) await page.keyboard.press('ArrowUp'); // 00 → 45
     const h = await calls(page, 'selectionHaptic');
-    expect(h.map((c) => c.opts.kind)).toEqual(['light', 'light']);
+    expect(h.map((c) => c.opts.kind)).toEqual(Array(12).fill('light')); // 1段ごとに軽い触覚
     await expect(page.locator('#f-stime')).toHaveText('13:45');
     await expect(page.locator('#f-etime')).toHaveText('14:45');
   });

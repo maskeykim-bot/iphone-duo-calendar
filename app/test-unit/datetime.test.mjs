@@ -1,7 +1,7 @@
 // 第15版 PR15: 日時編集の状態と計算（丸めない・長さ維持・暦日差・終日往復・外部予定の rawEnd）
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { makeState, stateFromInput, setStartTime, setStartDate, setEndTime, setEndDate, pickEndDate, setDuration, setAll, unchanged, resultPair, isoFromInput, inputFromIso, endDayOffset } from '../js/datetime.js';
+import { makeState, stateFromInput, setStartTime, setStartDate, setEndTime, setEndDate, pickEndDate, setDuration, setAll, unchanged, resultPair, isoFromInput, inputFromIso, endDayOffset, dialRing, dialStep } from '../js/datetime.js';
 import { toDisplay, buildExtArgs } from '../js/iphone.js';
 
 const mk = (start, end, all = false) => makeState({ start, end, all });
@@ -140,4 +140,63 @@ test('日付の短縮入力: 存在しない日・桁違いは null（0230・133
   assert.equal(parseDateDigits('0229', 2027), null);
   assert.equal(parseDateDigits('20270230', 2026), null);
   assert.equal(digitsOnly('１２/３'), '123');
+});
+
+// ---------- 第19版 PR4 / D4: 時刻のダイヤル（design/24）。保存の形は今のまま 'YYYY-MM-DDTHH:mm'（壁の時計、タイムゾーンなし） ----------
+test('D4: 14:07 は回さず保存すると 14:07（丸めない。開いて閉じただけなら resultPair は null）', () => {
+  const st = mk('2026-11-12T14:07', '2026-11-12T15:07');
+  assert.equal(resultPair(st), null);
+  assert.equal(st.start, '2026-11-12T14:07');
+  // 時だけ回しても分は 07 のまま
+  const h = setStartTime(st, 15, null);
+  assert.deepEqual(resultPair(h), { start: '2026-11-12T15:07', end: '2026-11-12T16:07', all: false });
+});
+
+test('D4: 回すと5分刻みに寄る（07 → 上は10、下は05）。ダイヤルが呼ぶのは setStartTime / setEndTime だけ', () => {
+  const st = mk('2026-11-12T14:07', '2026-11-12T15:07');
+  const up = setStartTime(st, null, dialStep('m', 7, +1)), dn = setStartTime(st, null, dialStep('m', 7, -1));
+  assert.equal(up.start, '2026-11-12T14:10'); assert.equal(up.end, '2026-11-12T15:10');
+  assert.equal(dn.start, '2026-11-12T14:05'); assert.equal(dn.end, '2026-11-12T15:05');
+  assert.equal(dialStep('m', 5, +1), 10);
+  assert.equal(dialStep('m', 12, -1), 10); // 12 → 下は10（輪の中の直前）
+  assert.equal(dialStep('m', 12, +1), 15);
+});
+
+test('D4: 23:30 開始・60分で終了は翌日 00:30（日をまたぐ）。終了を前にすると日が進む', () => {
+  const st = setStartTime(mk('2026-11-12T10:00', '2026-11-12T11:00'), 23, 30);
+  assert.equal(st.start, '2026-11-12T23:30');
+  assert.equal(st.end, '2026-11-13T00:30');
+  assert.equal(endDayOffset(st), 1);
+  const e = setEndTime(mk('2026-11-12T14:00', '2026-11-12T15:00'), 9, 0);
+  assert.equal(e.end, '2026-11-13T09:00');
+});
+
+test('D4: 終日では時刻は変わらない（ダイヤルが呼んでも何も起きない）', () => {
+  const st = mk('2026-11-12T00:00', '2026-11-12T23:59', true);
+  assert.equal(setStartTime(st, 9, 30), st);
+  assert.equal(setEndTime(st, 9, 30), st);
+  assert.equal(resultPair(st), null);
+});
+
+test('D4: 夏時間の日でも壁の時計のまま（NY の春 2027-03-14・秋 2026-11-01 でも長さは壁の時計で保つ）', () => {
+  const st = setStartTime(mk('2027-03-14T01:00', '2027-03-14T02:00'), 1, 30);
+  assert.equal(st.start, '2027-03-14T01:30');
+  assert.equal(st.end, '2027-03-14T02:30'); // 長さ60分を壁の時計で保つ（東京・NY とも同じ）
+  const fall = setStartTime(mk('2026-11-01T00:30', '2026-11-01T02:30'), 1, 0);
+  assert.equal(fall.end, '2026-11-01T03:00'); // 長さ2時間を壁の時計で保つ（NY の秋の切り替え日でも）
+});
+
+test('ダイヤルの輪: 時は 23→0、分は 55→00 でつながる。5分刻みでない値は正しい位置に差し込む', () => {
+  assert.equal(dialStep('h', 23, +1), 0);
+  assert.equal(dialStep('h', 0, -1), 23);
+  assert.equal(dialStep('m', 55, +1), 0);
+  assert.equal(dialStep('m', 0, -1), 55);
+  const r = dialRing('m', 7);
+  assert.deepEqual(r.list.slice(0, 4), [0, 5, 7, 10]);
+  assert.equal(r.list[r.idx], 7);
+  assert.equal(r.list.length, 13);
+  assert.equal(dialRing('m', 57).list.at(-1), 57);
+  assert.equal(dialStep('m', 57, +1), 0); // 57 の上は 00（輪）
+  assert.equal(dialRing('m', 30).list.length, 12);
+  assert.deepEqual(dialRing('h', 14), { list: Array.from({ length: 24 }, (_, i) => i), idx: 14 });
 });
