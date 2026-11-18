@@ -11,6 +11,7 @@ import { backupName, buildBackup, countStats, localIso, legacyHashes, planAppend
 import { CAT_IDS, LIMITS as CAT_LIMITS, canHideCategory, defaultDeleteTarget, ensureOneVisible, supplementForReplace, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, RETARGET_TOAST, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory } from './categories.js';
 import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAlarms, encAlarm, fireAt, nextNotifyText, normNotify, pastForNotify, planNotifications, planNotifyPolicy, MAX_PENDING, WINDOW_DAYS } from './notify.js';
 import { rokuyoOf } from './rokuyo.js';
+import { createPainter } from './curl/painter.js';
 import { holidayOf } from './holidays.js';
 import { splitEvents, eveningFirst, homeTasks, dueText, tomorrowSummary, axisBars } from './home.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS, FOCUS_MODES, FOCUS_LABELS, normFocusMode, normSpreadType, normTtSplit } from './pages.js';
@@ -1790,6 +1791,13 @@ function dayPage(side, k, portrait = false) {
   const grip = portrait ? '' : `<div class="dgrip" role="separator" aria-orientation="horizontal" tabindex="0" aria-label="予定とノートの境目" aria-valuemin="64" aria-valuemax="${ttSplitMax()}" aria-valuenow="${ttSplitNow()}"><i aria-hidden="true"></i></div>`;
   return `<section class="page ${side === 'left' ? 'lp' : 'rp'} dpage" data-page="day" data-day="${k}" aria-label="${esc(dayLabel(k))}"><div class="dph"><h2 class="dd"><span class="hdt${isRed(k) ? ' hol' : ''}">${dayLabel(k)}</span>${holSpan(k)}</h2>${rkSpan(k, 'drk')}</div><div class="dev">${body}</div>${grip}${note}</section>`;
 }
+// めくりのページの絵（第18版 PR3）。アプリの操作からはまだ使わない（PR4 でめくりがここから呼ぶ）。テスト用に window.__duoPainter.get() で取れる。
+let ttPaint = null;
+const ttPainter = () => (ttPaint ||= createPainter({
+  shell: () => root.querySelector('.shell.spread.tt'), dayHtml: (side, k) => dayPage(side, k),
+  selected: () => state.selected, addDays, scrollTop: () => TT.top, afterMount: (host) => updateNow(host),
+}));
+window.__duoPainter = { get: ttPainter };
 const ttStyle = () => ` style="--tt-split:${ttSplitNow()}px"`;
 function spread() {
   if (ttOn()) return `<div class="shell spread tt${POS.band ? ' band' : ' fb'}"${ttStyle()}>${dayPage('left', state.selected)}${dayPage('right', addDays(state.selected, 1))}${ctl()}${pageSwitch('left')}${pageSwitch('right')}</div>`;
@@ -1797,8 +1805,8 @@ function spread() {
 }
 // 時間軸: 初回／選択日の変更で「今の1時間前」へ。現在時刻の線は毎分更新。
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
-function updateNow() {
-  root.querySelectorAll('.tlin').forEach((inner) => {
+function updateNow(scope = root) {
+  scope.querySelectorAll('.tlin').forEach((inner) => {
     const ks = inner.dataset.days.split(','), i = ks.indexOf(todayKey()), el = inner.querySelector('.nowl');
     if (i < 0) { el.hidden = true; return; }
     el.hidden = false;
