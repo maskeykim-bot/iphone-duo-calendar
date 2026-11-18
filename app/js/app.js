@@ -27,6 +27,7 @@ import { call, errCode, errReason, errText, haptic, listen, nativeAvailable } fr
 import { createDestPage, destRowsHtml } from './destination-ui.js';
 import { KB_METRICS_ENABLED, kbMetrics, kbText, screenText } from './kbmetrics.js';
 import { createPosture, postureText, grooveBands } from './posture.js';
+import { FOLD_HH, FOLD_RATE, foldGeometry, windowMinutes, rawMinutesAt, foldEdgeZone, labelY, partTitles, openingMinute, clampS } from './fold.js';
 import { kbTopOf, hingeBand, computeKbLayout, caretBox, scrollDelta, STRIP_MIN } from './keyboard-layout.js';
 import { makeVisible, buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normDest, normSettings, pickAddCal, planLinkMigration, planNativeOps, resolveDest, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, visibleDestGroups, allDestHidden, withIdent, writable, ymdSlash } from './iphone.js';
 import {
@@ -627,7 +628,7 @@ function periodTitle() {
   if (viewNow() === 'week') {
     const s = parseKey(weekStart(state.selected)), e = parseKey(addDays(weekStart(state.selected), 6));
     // 閉じた画面の週は同じ月なら「11月16日〜22日」（design/28 §1）。月をまたぐときは両方の月を書く
-    const short = POS.post === 'closed' && s.getMonth() === e.getMonth();
+    const short = (POS.post === 'closed' || foldOn()) && s.getMonth() === e.getMonth();
     return `${s.getMonth() + 1}月${s.getDate()}日〜${short ? '' : `${e.getMonth() + 1}月`}${e.getDate()}日`;
   }
   return dayLabel(state.selected);
@@ -865,6 +866,134 @@ function closedTimeBody() {
   const inner = timelineHtml(ks, Math.max(wk ? CLOSED_COL * ks.length : 0, safeW() - 16) - lw, 'closed');
   return `${empty}<div class="tlx${wk ? ' wk' : ''}"><div class="tlw" style="min-width:${lw + (wk ? ks.length * CLOSED_COL : 0)}px">${inner}</div></div>`;
 }
+// ---------- 開いた縦の日・週（第19版 PR7、design/29 案A「1枚の紙・2つの窓」。計算は js/fold.js） ----------
+// 時間軸を1枚の紙として、上の窓と下の窓（折り目の溝で切る）から見る。2つの窓は同じ scrollTop（紙の位置 s）で一緒に動く。
+const FD = { s: 0, key: '', g: null, ks: [], carry: false };
+const VIEWTOP = { min: null, toFold: false, toClosed: false }; // 閉じた画面⇔開いた縦で、いちばん上の時刻（分）を共通に覚える
+const cssPx = (n, d) => { const v = parseFloat(de.style.getPropertyValue(n)); return Number.isFinite(v) ? v : d; };
+const foldOn = () => layoutKind() === 'open' && isPortrait() && fmode() === 'calendar' && !listShown() && !PS.on && !ttOn() && (state.view === 'day' || state.view === 'week');
+function foldGeom(week, rows) {
+  const bot = L.h - safe().bottom;
+  return foldGeometry({ head: cssPx('--head-h', 82), week, rows, cut0: cssPx('--groove-cut-y0', 458), cut1: cssPx('--groove-cut-y1', 500), tabsTop: cssPx('--tabs-y', bot - 88), winBot: bot - 34 });
+}
+const foldAll = (k) => eventsOnDay(occIn(k, k), k).filter((e) => e.all);
+function foldBlock(b, k, i, week) {
+  const { e, s, en, col, n } = b, t = e.title, gap = week ? 3 : 8;
+  const lab = `${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${t}${e.recurring ? ' 繰り返し' : ''}${isX(e) ? '' : `、${tagText(e)}`}${e.nativeLink?.state === 'linked' ? '、iPhoneにも追加済み' : ''}${alLabel(e)}`;
+  return `<button type="button" class="tlev fev ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" data-s="${s}" data-en="${en}" data-fk="${k}:${i}" style="${catVar(e)}--m:${s};--d:${en - s};left:calc(var(--ins) + ${col} * (100% - 2 * var(--ins)) / ${n});width:calc((100% - 2 * var(--ins)) / ${n} - ${gap}px)" aria-label="${esc(lab)}"><span class="ftl">${xi(e)}${esc(t)}</span>${week ? '' : `<span class="ftm">${hhmm(s)}〜${hhmm(en)}${bell(e)}</span>`}</button>`;
+}
+function foldPaper(g, ks, week) {
+  let lines = '';
+  for (let h = 0; h <= 24; h++) {
+    lines += `<i class="fhl" style="--m:${h * 60}"></i>`;
+    if (h < 24) lines += `<i class="fhl half" style="--m:${h * 60 + 30}"></i>`;
+  }
+  const cols = ks.map((k) => `<div class="tlcol${k === todayKey() ? ' ftd' : ''}" data-day="${k}">${dayBlocks(k).map((b, i) => foldBlock(b, k, i, week)).join('')}</div>`).join('');
+  const ti = ks.indexOf(todayKey());
+  const now = ti < 0 ? '' : `<div class="fnow" hidden style="--m:${nowMin()};--i:${ti};--n:${ks.length}"><i class="fn1"></i><i class="fn2"></i></div>`;
+  return `${lines}<div class="tlcols flcols">${cols}</div>${now}`;
+}
+function foldHtml() {
+  const week = state.view === 'week', ks = week ? weekKeys() : [state.selected], today = todayKey();
+  const ads = ks.map(foldAll);
+  const rows = Math.min(3, Math.max(1, ...ads.map((l) => l.length)));
+  const g = foldGeom(week, rows); FD.g = g; FD.ks = ks;
+  const lw = week ? 36 : 48;
+  const chips = ads.map((list, i) => {
+    const k = ks[i], over = list.length > 3, shown = over ? list.slice(0, 2) : list;
+    const pills = shown.map((e) => `<button type="button" class="adpill ${catCls(e)}" data-event="${esc(e.id)}" style="${catVar(e)}" aria-label="${esc(`${xname(e)}${dayLabel(k)} 終日 ${e.title}${e.recurring ? ' 繰り返し' : ''}${alLabel(e)}`)}">${esc(e.title)}</button>`).join('');
+    const plus = over ? `<button type="button" class="adplus" data-jump="${k}" aria-label="${dayLabel(k)}の終日の予定をすべて見る（ほか${list.length - 2}件）">+${list.length - 2}</button>` : '';
+    return `<div class="adcol${k === today ? ' ftd' : ''}" data-day="${k}">${pills}${plus}</div>`;
+  }).join('');
+  const dates = week ? `<div class="fdates fani" style="top:${g.allTop - g.dates}px;height:${g.dates}px"><span class="fdl" style="width:${lw}px"></span>${ks.map((k) => { const d = parseKey(k); return `<button type="button" class="fdt${k === today ? ' today' : ''}${isRed(k) ? ' hol' : ''}${k === state.selected ? ' sel' : ''}" data-jump="${k}" aria-label="${dayLabel(k)}${holSpoken(k)}を日表示で開く"><span class="fdw">${DOW[d.getDay()]}</span><b class="fdd">${d.getDate()}</b>${rkSpan(k, 'wrk')}</button>`; }).join('')}</div>` : '';
+  const labs = Array.from({ length: 25 }, (_, h) => `<span class="fh" data-m="${h * 60}">${week ? h : `${h}:00`}</span>`).join('');
+  const win = (cls, top, h, ih, off) => `<div class="fwin ${cls} fani" style="top:${r2(top)}px;height:${r2(h)}px"><div class="fl ${cls}" data-fl="${cls}"><div class="flin" style="height:${r2(ih)}px"><div class="flpaper" style="top:${r2(-off)}px;height:${r2(g.paperH)}px">${foldPaper(g, ks, week)}</div></div></div><div class="fllab" aria-hidden="true">${labs}<span class="fnt" hidden></span></div></div>`;
+  const style = `--lw:${lw}px;--hh:${FOLD_HH}px;--ins:${week ? 1.5 : 4}px;--ftop:${r2(g.winTop)}px;--fcut0:${r2(g.cut0)}px;--fcut1:${r2(g.cut1)}px`;
+  return `<section class="calendar fold fold-${week ? 'week' : 'day'}" aria-label="カレンダー" style="${style}">${foldHead()}${dates}<div class="allday fall fani" style="top:${g.allTop}px;height:${g.allH}px"><span class="adl" style="width:${lw}px">終日</span><div class="adcols">${chips}</div></div><div class="fgv" aria-hidden="true"></div>${win('ft', g.winTop, g.topH, g.topH + g.smax, 0)}${win('fb', g.cut1, g.botH, g.paperH - g.topH, g.topH)}</section>`;
+}
+const foldHead = () => `<div class="chead fhead">${navBtn(-1)}<h2 id="ctitle">${periodTitle()}${state.view === 'day' ? rkSpan(state.selected, 'hrk') : ''}</h2>${navBtn(1)}<button type="button" class="ftoday" data-act="today" aria-label="今日の日付へ">今日</button></div>`;
+const foldDefaultMin = () => {
+  const ks = FD.ks, today = todayKey(), isNow = ks.includes(today);
+  let first = null;
+  for (const k of ks) for (const b of dayBlocks(k)) if (first == null || b.s < first) first = b.s;
+  return openingMinute({ today: isNow, nowMin: nowMin(), firstStart: first });
+};
+// 描画のあと: 紙の位置を戻して配置し直す。日・週が変わったとき（key）だけ開いたときの位置にする。姿勢が変わったときは見ていた時刻を引き継ぐ。
+function initFold() {
+  const ft = root.querySelector('.fl.ft'), fb = root.querySelector('.fl.fb');
+  if (!ft || !fb || !FD.g) { FD.key = ''; FD.carry = false; return; }
+  const key = `${state.view}|${state.view === 'week' ? weekStart(state.selected) : state.selected}`;
+  if (FD.carry && VIEWTOP.min != null) { FD.s = clampS(FD.g, (VIEWTOP.min * FOLD_HH) / 60); FD.key = key; }
+  else if (key !== FD.key) { FD.key = key; FD.s = clampS(FD.g, (foldDefaultMin() * FOLD_HH) / 60); }
+  FD.carry = false;
+  FD.s = clampS(FD.g, FD.s);
+  ft.scrollTop = FD.s; fb.scrollTop = FD.s;
+  foldLayout();
+}
+// 2つの窓の位置から、ラベル・今の時刻の線・またぐ予定・長押しの札を配置する（スクロールのたびに呼ぶ。軽い計算だけ）。
+function foldLayout() {
+  const fold = root.querySelector('.fold'), g = FD.g; if (!fold || !g) return;
+  const ft = fold.querySelector('.fl.ft'), fb = fold.querySelector('.fl.fb'); if (!ft || !fb) return;
+  const s = FD.s = clampS(g, ft.scrollTop), wm = windowMinutes(g, s), week = state.view === 'week';
+  const wins = [{ el: fold.querySelector('.fwin.ft'), t: wm.top, h: g.topH, bottom: false }, { el: fold.querySelector('.fwin.fb'), t: wm.bot, h: g.botH, bottom: true }];
+  const nowOn = FD.ks.includes(todayKey()), now = nowMin();
+  const nowIn = (w) => nowOn && (w.bottom ? now >= wm.tc && now <= w.t[1] : now >= w.t[0] && now < wm.tc);
+  for (const w of wins) {
+    for (const h of w.el.querySelectorAll('.fh')) {
+      const m = Number(h.dataset.m), y = labelY(m, w.t[0], w.t[1], w.h, w.bottom);
+      const hide = y == null || (nowOn && Math.abs(m - now) <= 18 && nowIn(w));
+      h.style.visibility = hide ? 'hidden' : '';
+      if (!hide) h.style.top = `${r2(y)}px`;
+    }
+    const nt = w.el.querySelector('.fnt'), ny = nowIn(w) ? labelY(now, w.t[0], w.t[1], w.h, w.bottom) : null;
+    nt.hidden = ny == null;
+    if (ny != null) { nt.style.top = `${r2(ny)}px`; nt.textContent = hhmm(now); }
+    const nl = w.el.querySelector('.fnow'); if (nl) nl.hidden = !nowIn(w);
+  }
+  // 予定: 上下の窓に同じ予定がある。またぐ予定は窓ごとに見える部分を測って題名・時刻・切り口を決める。
+  const pxs = (m) => (m * FOLD_HH) / 60, topP = s, botP = s + g.topH; // 各窓の上の端の紙 px
+  const byKey = new Map();
+  fold.querySelectorAll('.fev').forEach((el) => { const k = el.dataset.fk; (byKey.get(k) || byKey.set(k, []).get(k)).push(el); });
+  for (const [, [a, b]] of byKey) {
+    if (!a || !b) continue;
+    const s0 = Number(a.dataset.s), en = Number(a.dataset.en), p0 = pxs(s0), p1 = pxs(en);
+    const vis = (lo, hi) => Math.max(0, Math.min(p1, hi) - Math.max(p0, lo)); // 窓の紙 px の範囲 [lo, hi) で見える高さ
+    const hA = vis(topP, topP + g.topH), hB = vis(botP, botP + g.botH);
+    const both = hA > 0 && hB > 0 && s0 < wm.tc && en > wm.tc;
+    const day = !week;
+    const r = both ? partTitles(hA, hB, day) : { a: { title: true, time: day && hA >= 34, small: false }, b: { title: true, time: day && hB >= 34, small: false } };
+    const set1 = (el, h, part, lo, cut, upper) => {
+      el.style.visibility = h > 0 ? '' : 'hidden';
+      el.dataset.ti = part.title ? '1' : '0'; el.dataset.tm = part.time ? '1' : '0'; el.dataset.small = part.small ? '1' : '0';
+      el.style.setProperty('--ty', `${r2(Math.max(0, lo - p0))}px`);
+      if (cut) { el.dataset.cut = upper ? 'b' : 't'; el.style.setProperty('--cl', `${r2(upper ? lo + g.topH - p0 - 2.5 : lo - p0 + 1.5)}px`); } else { delete el.dataset.cut; }
+      if (upper) el.removeAttribute('aria-hidden'); else if (both || h <= 0) el.setAttribute('aria-hidden', 'true'); else el.removeAttribute('aria-hidden'); // VoiceOver は1つの予定として読む
+      el.tabIndex = el.getAttribute('aria-hidden') ? -1 : 0;
+    };
+    set1(a, hA, r.a, topP, both, true); set1(b, hB, r.b, botP, both, false);
+    if (hA <= 0) { a.setAttribute('aria-hidden', 'true'); a.tabIndex = -1; }
+  }
+  // 長押しで作る枠の札（緑 44×18）。始まりと終わりは、その時刻がある窓の時刻の列に出す。
+  for (const t of fold.querySelectorAll('.dtag[data-fm]')) {
+    const w = wins[Number(t.dataset.fw)], m = Number(t.dataset.fm), isEnd = t.classList.contains('dtag-e');
+    let y = labelY(m, w.t[0], w.t[1], w.h, w.bottom);
+    if (y != null && isEnd && DF.start != null) { const ys = labelY(DF.start, w.t[0], w.t[1], w.h, w.bottom); if (ys != null) y = Math.max(y, ys + 18); }
+    t.style.display = y == null ? 'none' : '';
+    if (y != null) t.style.top = `${r2(y - 9)}px`;
+  }
+}
+// 窓の位置（紙の s）を動かす。2つの窓が同じ値で動く。
+function foldScrollTo(s) {
+  const g = FD.g; if (!g) return 0;
+  const v = clampS(g, s);
+  for (const el of root.querySelectorAll('.fl')) if (Math.abs(el.scrollTop - v) > 0.01) el.scrollTop = v;
+  FD.s = v; foldLayout(); return v;
+}
+root.addEventListener('scroll', (ev) => {
+  const el = ev.target;
+  if (el?.classList?.contains('fl')) { const o = root.querySelector(`.fl.${el.dataset.fl === 'ft' ? 'fb' : 'ft'}`); if (o && Math.abs(o.scrollTop - el.scrollTop) > 0.01) o.scrollTop = el.scrollTop; FD.s = el.scrollTop; foldLayout(); VIEWTOP.min = (FD.s * 60) / FOLD_HH; return; }
+  if (el?.matches?.('.closed .tlx .tl')) VIEWTOP.min = Math.max(0, ((el.scrollTop - TL_PAD) * 60) / TLP.closed.hh);
+}, true);
 function calendarBody(kind) {
   if (kind === 'browse' && viewNow() !== 'month') return closedTimeBody();
   if (viewNow() === 'month') return state.monthExpand ? monthGridAll(kind) : `${weekdaysHtml()}<div class="scroll msc" data-scroll="cal">${monthGrid(kind)}</div>`;
@@ -1091,7 +1220,7 @@ function focusPage(m) {
 function open() {
   if (fmode() !== 'calendar') return `<div class="shell open portrait focus" data-focus="${fmode()}"><div class="pcol fcol">${focusPage(fmode())}</div>${ctl()}</div>`;
   if (ttOn()) return `<div class="shell open portrait tt"><div class="pcol ttp">${dayPage('left', state.selected, true)}${dayPage('right', addDays(state.selected, 1), true)}</div><div class="hline" aria-hidden="true"></div>${ctl()}${tabs()}</div>`;
-  return `<div class="shell open portrait${pullOn() ? ' pull' : ''}"><div class="pcol">${listShown() ? listView() : calendar('portrait')}</div><div class="hline" aria-hidden="true"></div>${panelOn() ? bottomPanel() : panelAvail() ? '<div class="pgrab" data-grab="1" aria-hidden="true"></div>' : ''}${ctl()}${tabs()}</div>`;
+  return `<div class="shell open portrait${pullOn() ? ' pull' : ''}${foldOn() ? ' fd' : ''}"><div class="pcol">${listShown() ? listView() : foldOn() ? foldHtml() : calendar('portrait')}</div><div class="hline" aria-hidden="true"></div>${panelOn() ? bottomPanel() : panelAvail() ? '<div class="pgrab" data-grab="1" aria-hidden="true"></div>' : ''}${ctl()}${tabs()}</div>`;
 }
 // ---------- 開いた縦の下パネル（上は月、下は 時間｜タスク｜メモ） ----------
 const PN = { expand: false, swallow: 0 }; // expand: メモ入力中にマスの上端まで広げる（口だけ。入力は後続の版）
@@ -1989,7 +2118,7 @@ function initTimeline() {
     if (tl.closest('.dpage, .mday')) return;
     const pane = paneOf(tl), T = TLP[pane];
     const key = `${layoutKind()}|${state.view}|${state.home}|${PG().left}|${PG().right}|${state.selected}|${state.timeMode[pane]}|${pane === 'bottom' ? state.pages.portraitBottom : ''}`;
-    if (key !== T.key) { T.key = key; tl.scrollTop = Math.max(0, nowMin() - 60) * T.hh / 60; }
+    if (key !== T.key) { T.key = key; tl.scrollTop = pane === 'closed' && VIEWTOP.toClosed && VIEWTOP.min != null ? TL_PAD + VIEWTOP.min * T.hh / 60 : Math.max(0, nowMin() - 60) * T.hh / 60; }
   });
   updateNow();
 }
@@ -2040,9 +2169,10 @@ window.addEventListener('pointercancel', tlEnd);
 // render() で DOM が作り直されても paintDraft() が同じ場所へ描き直す。
 const DF = { mode: null, day: '', pane: '', start: 0, end: 0, anchor: 0 };
 const lastCatOk = () => (state.categories.some((c) => c.id === lastCat) ? lastCat : defaultCatId());
-const colOf = (pane, day) => [...root.querySelectorAll(`.tl[data-pane="${pane}"] .tlcol`)].find((c) => c.dataset.day === day) || null;
-const hhOf = (pane) => (ttOn() ? 60 : TLP[pane]?.hh ?? 60);
-const minAtY = (y, col, pane) => minutesAt(y, col.getBoundingClientRect().top, TL_PAD, hhOf(pane));
+const colOf = (pane, day) => (pane === 'fold' ? [...root.querySelectorAll('.fl.ft .tlcol')] : [...root.querySelectorAll(`.tl[data-pane="${pane}"] .tlcol`)]).find((c) => c.dataset.day === day) || null;
+const hhOf = (pane) => (pane === 'fold' ? FOLD_HH : ttOn() ? 60 : TLP[pane]?.hh ?? 60);
+// 開いた縦（fold）は2つの窓。指の高さを紙の時刻へ（折り目の間は境の時刻で止まる）
+const minAtY = (y, col, pane) => (pane === 'fold' ? Math.min(1440, Math.max(0, snap15(rawMinutesAt(FD.g, FD.s, y)))) : minutesAt(y, col.getBoundingClientRect().top, TL_PAD, hhOf(pane)));
 function paintDraft() {
   root.querySelectorAll('.dbox, .dtag').forEach((n) => n.remove());
   if (!DF.mode) return;
@@ -2056,6 +2186,15 @@ function paintDraft() {
   if ((DF.end - DF.start) * hhOf(DF.pane) / 60 < 60) box.dataset.short = '';
   if (DF.mode === 'temp') {
     box.tabIndex = 0; box.setAttribute('role', 'group'); box.setAttribute('aria-label', `新しい予定の仮枠 ${spanText(DF)}`);
+  }
+  if (DF.pane === 'fold') { // 開いた縦: 2つの窓の紙に同じ枠を置き、札は時刻の列（窓ごと）へ。位置は foldLayout が決める
+    const cols = [...root.querySelectorAll('.fold .tlcol')].filter((c) => c.dataset.day === DF.day);
+    cols.forEach((c, i) => { const b2 = i ? box.cloneNode(true) : box; if (i) b2.setAttribute('aria-hidden', 'true'); c.append(b2); });
+    root.querySelectorAll('.fold .fllab').forEach((lab, i) => [['s', DF.start], ['e', DF.end]].forEach(([k, m]) => {
+      const t = document.createElement('span'); t.className = `dtag dtag-${k}`; t.textContent = hmText(m); t.dataset.fm = String(m); t.dataset.fw = String(i); lab.append(t);
+    }));
+    foldLayout();
+    return;
   }
   col.append(box);
   const inner = col.closest('.tlin'), hh = hhOf(DF.pane);
@@ -2100,14 +2239,14 @@ function tlTap(ev, col) {
   }
   if (DF.mode === 'temp') { if (ev.target.closest('.dbox')) openDraft(); else clearDraftBox(); return; }
   if (DF.mode) return;
-  const pane = paneOf(col.closest('.tl'));
+  const pane = col.closest('.fl') ? 'fold' : paneOf(col.closest('.tl'));
   Object.assign(DF, { mode: 'temp', day: col.dataset.day, pane }, tapRange(minAtY(ev.clientY, col, pane)));
   paintDraft();
 }
 // 仮枠の本体（取っ手の外側）を押したまま上下に引くと、同じ日の中で枠ごと動く（15分刻み）。8pt 以下の動きはたたき（click→openDraft）。
 const BOXMOVE_SLOP = 8, BOXMOVE_EDGE = 48;
 const BM = { on: false, id: 0, y0: 0, raw0: 0, r0: null, moved: false };
-const rawAt = (y, col, pane) => ((y - col.getBoundingClientRect().top - TL_PAD) / hhOf(pane)) * 60;
+const rawAt = (y, col, pane) => (pane === 'fold' ? rawMinutesAt(FD.g, FD.s, y) : ((y - col.getBoundingClientRect().top - TL_PAD) / hhOf(pane)) * 60);
 function boxMoveRecalc(y) {
   const col = colOf(DF.pane, DF.day); if (!col) return;
   const r = moveBox(BM.r0, BM.r0.start + rawAt(y, col, DF.pane) - BM.raw0);
@@ -2213,7 +2352,10 @@ function render() {
   { const md = root.querySelector('.mday'); if (md && prevKind && prevKind !== kind) md.scrollTop = MP.scroll; if (pullKind() !== 'browse') MP.shrunk = false; }
   restoreAll(anchor);
   measureMonthPane();
+  if (prevKind && fam(prevKind) !== fam(kind)) { FD.carry = true; VIEWTOP.toClosed = true; } // 閉じた画面⇔開いた縦: いちばん上の時刻を引き継ぐ
   initTimeline();
+  initFold();
+  VIEWTOP.toClosed = false;
   paintDraft();
   paintRange();
   applyPasteInert();
@@ -5096,9 +5238,13 @@ function openNotifyTarget({ day, eventId }) {
   MM.open = null;
   set({ selected: day, home: false, view: spreadKind ? 'month' : 'day', ...(needTime ? { pages: selectPage(state.pages, 'right', 'time') } : {}) });
   if (!target) { say(`${dayLabel(day)}を開きました。`); return; }
-  const sel = spreadKind ? '.page[data-page="time"] .tlev, .page[data-page="time"] .adpill' : '.daylist .event, .tlx .tlev, .tlx .adpill';
-  const el = [...root.querySelectorAll(sel)].find((b) => b.dataset.event === target.id && (!b.dataset.sday || b.dataset.sday === day));
-  if (el) {
+  const sel = spreadKind ? '.page[data-page="time"] .tlev, .page[data-page="time"] .adpill' : '.daylist .event, .tlx .tlev, .tlx .adpill, .fold .tlev, .fold .adpill';
+  const els = [...root.querySelectorAll(sel)].filter((b) => b.dataset.event === target.id && (!b.dataset.sday || b.dataset.sday === day));
+  const el = els[0];
+  if (el && el.closest('.fold')) { // 開いた縦の日・週: 紙をその予定の少し前まで動かす（上下の窓の同じ予定にしるしを付ける）
+    if (el.dataset.s) foldScrollTo(Math.max(0, (Number(el.dataset.s) * FOLD_HH) / 60 - FOLD_HH));
+    els.forEach((b) => { b.classList.add('nhl'); setTimeout(() => b.classList.remove('nhl'), 1600); });
+  } else if (el) {
     const tl = el.closest('.tl');
     if (tl) tl.scrollTop = Math.max(0, tl.scrollTop + el.getBoundingClientRect().top - tl.getBoundingClientRect().top - 40);
     else el.scrollIntoView({ block: 'nearest' });
@@ -5254,11 +5400,11 @@ document.addEventListener('keydown', (ev) => {
 }
 
 // ---------- スワイプ（左＝次、右＝前） ----------
-const SWIPE_ZONE = '.mgrid, .mday, .scroll, .agenda, .remaining, .home, .hero, .page, .list, .tlx';
+const SWIPE_ZONE = '.mgrid, .mday, .scroll, .agenda, .remaining, .home, .hero, .page, .list, .tlx, .fold';
 const SWIPE_EXCLUDE = '.mgrab, .mph, .top, .shead, .rhead, .allday, .tlheads, .dgrip, .mmenu, .chead, .foot, .add, .tabs, .pgsw, .tlmenu, .dbox, .ctl, .bandbg, .hline, .foldband, .gutter, input, select, textarea, label, dialog';
 let swiping = false;
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const paneContent = () => [...root.querySelectorAll('.mgrid, .mday > *, .dpage > *, .scroll > *, .agenda > *, .hero > *, .remaining > *, .margin > *, .tlx > .tlw')];
+const paneContent = () => [...root.querySelectorAll('.mgrid, .mday > *, .dpage > *, .scroll > *, .agenda > *, .hero > *, .remaining > *, .margin > *, .tlx > .tlw, .fold .fani')];
 const closedTv = () => layoutKind() === 'browse' && !state.strip && viewNow() !== 'month'; // 閉じた日・週（design/28 §1）
 
 // 見開きでは、なぞり始めたページ（左 'left' / 右 'right'）で動きを決める。月＝月送り、時間＝日送り（時間の週は7日）、タスク＝動かない。
@@ -5281,7 +5427,7 @@ async function swipeTo(dir) {
   if (reduced() && !closedTv()) { swipeMove(dir); return; }
   swiping = true;
   document.documentElement.dataset.swiping = '1';
-  const tvw = closedTv();
+  const tvw = closedTv() || foldOn();
   const dur = reduced() ? 75 : ttOn() || tvw ? 125 : 100; // 今日＋明日・閉じた日／週の横すべりは出入り合わせて 0.25 秒（今の型は 0.1＋0.1）。視差を減らすときは 0.15 秒のフェード
   const sh = reduced() ? 0 : 32;
   try {
@@ -5358,6 +5504,7 @@ function directOrigin(t) {
   const ad = t.closest('.allday');
   if (ad) { const c = t.closest('.adcol'); return c ? { kind: 'allday', day: c.dataset.day } : null; } // 「終日」の文字や段の外は対象外
   const col = t.closest('.tlcol');
+  if (col && col.closest('.fl')) return { kind: 'time', day: col.dataset.day, pane: 'fold' };
   if (col && col.closest('.tl')) return { kind: 'time', day: col.dataset.day, pane: paneOf(col.closest('.tl')) };
   return null;
 }
@@ -5379,6 +5526,14 @@ function timeRecalc() {
 const edgeLoop = createFrameLoop((dt) => {
   const o = EG.origin, bm = o?.kind === 'boxmove' && DF.mode === 'temp' && BM.moved;
   if (!o || !(bm || (o.kind === 'time' && DF.mode === 'drag'))) return;
+  if ((bm ? DF.pane : o.pane) === 'fold') { // 開いた縦: 外側の端だけ（上の窓の上 40・タブの上 40）。折り目の側ではしない。1秒に2時間分
+    const z = foldEdgeZone(FD.g, EG.y); if (!z) { EG.carry = 0; return; }
+    const d = z * FOLD_RATE * dt + EG.carry, w = Math.trunc(d); EG.carry = d - w;
+    if (!w) return;
+    const before = FD.s; foldScrollTo(before + w);
+    if (FD.s !== before) { if (bm) boxMoveRecalc(EG.y); else timeRecalc(); }
+    return;
+  }
   const tl = EG.tl?.isConnected ? EG.tl : (EG.tl = (bm ? colOf(DF.pane, DF.day) : colOf(o.pane, o.day))?.closest('.tl') ?? null);
   if (!tl) return;
   const rc = tl.getBoundingClientRect();

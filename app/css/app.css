@@ -1539,3 +1539,75 @@ dialog.panel.tface-open{overflow:visible}
 .closed.fb .mpull .mph{height:var(--head-h);align-items:flex-end;padding:0 48px 6px}
 .closed.fb .mpull .mph.pasting{height:auto;padding:0}
 .mpull .mph .allbtn{min-width:36px;font-size:12px}
+
+/* ===== 開いた縦の日・週（第19版 PR7、design/29 案A「1枚の紙・2つの窓」）===== */
+/* 時間軸は紙 1枚（0:00〜24:00 ＋下の余白）。上の窓（終日の下〜--fcut0）と下の窓（--fcut1〜）で見る。1時間 44。窓の位置は JS が溝の変数から決める。 */
+.fold{position:fixed;left:var(--content-x);width:var(--content-w);top:0;height:100%;pointer-events:none;--fline:#E4E0D6;--fnow:#B43C3C;--ftoday:#EFF3EF}
+.fold>*{pointer-events:auto}
+.portrait .fold .fhead{position:absolute;top:var(--head-h);left:0;right:0;height:44px;min-height:0;display:flex;align-items:center;padding:0 12px;gap:0}
+.portrait .fold .fhead>*{position:static;top:auto;margin:0}
+.portrait .fold .fhead h2{transform:none;left:auto;width:auto;max-width:none;padding:0 4px;font:700 19px/44px -apple-system,'Hiragino Sans',sans-serif;flex:0 1 auto;overflow:visible;text-align:left}
+.fold .fhead button{width:44px;height:44px;min-width:44px;font-size:22px}
+.fold .fhead .ftoday{margin-left:auto;width:auto;padding:0 4px;font-size:14px;font-weight:700;color:var(--green)}
+.fold .fdates{position:absolute;left:12px;right:12px;display:flex;border-bottom:1px solid var(--fline)}
+.fold .fdt{border:0;flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;background:transparent;border-radius:0;height:100%}
+.fold .fdt{gap:0}
+.fold .fdw{font-size:10px;line-height:10px;color:var(--muted)}
+.fold .fdt .wrk{display:block;font-size:9px;line-height:10px;font-weight:400}
+.fold .fdt.hol .fdw,.fold .fdt.hol .fdd{color:var(--holiday)}
+.fold .fdd{font-size:13px;font-weight:700;width:24px;height:24px;line-height:24px;border-radius:50%;text-align:center}
+.fold .fdt.today .fdd{background:var(--green);color:#fff}
+.fold .fall{position:absolute;left:12px;right:12px;margin:0;display:flex;align-items:flex-start;border-bottom:1px solid var(--fline);overflow:hidden}
+.fold .fall .adl{font-size:11px;line-height:22px;margin-top:5px;text-align:right;padding-right:6px}
+.fold-week .fall .adl{font-size:10px;line-height:18px;margin-top:3px}
+.fold .fall .adcols{align-self:stretch}
+.fold .fall .adcol{flex-direction:column;gap:2px;padding:5px 4px 5px 4px;overflow:hidden;box-sizing:border-box}
+.fold .fall .adpill,.fold .fall .adplus{height:22px;min-height:22px;line-height:22px;border-radius:11px;font-size:11px;padding:0 10px;text-align:left}
+.fold .fall .adplus{font-size:10px;padding:0 4px;background:transparent;color:var(--muted)}
+.fold-week .fall .adcol{gap:0;padding:3px 1.5px}
+.fold-week .fall .adpill,.fold-week .fall .adplus{height:18px;min-height:18px;line-height:18px;border-radius:9px;font-size:9px;padding:0 6px}
+.fold-week .fall .adplus{padding:0 3px}
+.fold-week .adcol.ftd{background:var(--ftoday)}
+.fold .fwin{position:absolute;left:12px;right:12px;overflow:hidden}
+.fold .fl{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:none;touch-action:pan-y}
+.fold .fl *{touch-action:pan-y}
+.fold .fl::-webkit-scrollbar{display:none}
+.fold .flin{position:relative;overflow:hidden}
+.fold .flpaper{position:absolute;left:0;right:0}
+.fold .fhl{position:absolute;left:var(--lw);right:0;top:calc(var(--m) * var(--hh) / 60);height:0;border-top:1px solid var(--fline)}
+.fold .fhl.half{border-top:1px dotted var(--fline);opacity:.7}
+.fold .flcols{left:var(--lw);right:0;top:0;bottom:0}
+.fold-week .tlcol.ftd{background:var(--ftoday)}
+.fold-week .tlcol+.tlcol{border-left:0;box-shadow:inset 1px 0 var(--fline)}
+.fold .fev{top:calc(var(--m) * var(--hh) / 60);height:calc(var(--d) * var(--hh) / 60);min-height:0;padding:0;border-radius:6px;background:var(--cat);color:#fff;box-shadow:none;overflow:hidden;display:block}
+.fold .fev:hover{background:var(--cat);filter:brightness(.95)}
+.fold .ftl{position:absolute;left:6px;right:4px;top:calc(var(--ty,0px) + 2px);font-size:12px;font-weight:700;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fold .ftm{position:absolute;left:6px;right:4px;top:calc(var(--ty,0px) + 18px);font-size:10px;line-height:12px;white-space:nowrap;overflow:hidden}
+.fold-week .ftl{font-size:9px;line-height:11px;left:3px;right:2px;top:calc(var(--ty,0px) + 1px)}
+.fold .fev[data-ti="0"] .ftl,.fold .fev[data-tm="0"] .ftm{display:none}
+.fold .fev[data-small="1"] .ftl{font-size:10px;line-height:12px}
+.fold .fev::after{content:'';position:absolute;left:0;right:0;top:var(--cl,0);height:1px;background:repeating-linear-gradient(90deg,#fff 0 4px,transparent 4px 8px);display:none}
+.fold .fev[data-cut]::after{display:block}
+.fold .fllab{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.fold .fh,.fold .fnt{position:absolute;left:0;width:calc(var(--lw) - 6px);transform:translateY(-50%);text-align:right;font-size:11px;line-height:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.fold-week .fh{font-size:10px}
+.fold .fnt{font-size:10px;font-weight:700;color:var(--fnow);visibility:visible}
+.fold .fllab .dtag{left:calc(var(--lw) - 50px);width:44px}
+.fold .fnow{position:absolute;left:var(--lw);right:0;top:calc(var(--m) * var(--hh) / 60);height:0;z-index:3;pointer-events:none}
+.fold-day .fn1{position:absolute;left:0;right:0;top:-.75px;height:1.5px;background:var(--fnow)}
+.fold-day .fn2{position:absolute;left:-3.5px;top:-3.5px;width:7px;height:7px;border-radius:50%;background:var(--fnow)}
+.fold-week .fn1{position:absolute;left:0;right:0;top:-.5px;height:1px;background:var(--fnow)}
+.fold-week .fn2{position:absolute;left:calc(var(--i) * 100% / var(--n));width:calc(100% / var(--n));top:-1px;height:2px;background:var(--fnow)}
+.fold .fgv{display:none}
+@media (prefers-color-scheme:dark){
+  .shell.fd .fold{--fline:#343A36;--fnow:#E06666;--ftoday:#222824;--muted:#A3A9A2;--ink:#E8E6E0;background:#1C1F1D;color:#E8E6E0}
+  .shell.fd .fold .fgv{display:block;position:absolute;left:0;right:0;top:var(--fcut0);height:calc(var(--fcut1) - var(--fcut0));background:#2A2E2B}
+  .shell.fd .fold .fhead,.shell.fd .fold .fdt,.shell.fd .fold .fhead button{color:#E8E6E0}
+  .shell.fd .fold .fhead .ftoday{color:#6FA08C}
+  .shell.fd .fold .fdt.today .fdd{background:#6FA08C;color:#1C1F1D}
+  .shell.fd .fold .dbox{background:#2B3640}
+  .shell.fd .tabs{background:#262A27;border-color:#343A36;box-shadow:none}
+  .shell.fd .tabs .pill{color:#E8E6E0}
+  .shell.fd .tabs [aria-pressed=true] .pill,.shell.fd .tabs [aria-pressed=true]{background:#6FA08C;color:#1C1F1D}
+  .shell.fd .tabs [aria-pressed=true] .pill{color:#1C1F1D}
+}

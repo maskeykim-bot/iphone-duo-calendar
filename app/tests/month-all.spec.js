@@ -358,9 +358,9 @@ test.describe('週の始まり（月曜が既定）', () => {
   test('週表示・月の範囲表示は月曜起点（既定）', async ({ page }) => {
     await openApp(page, SIZES.openPortrait);
     await tab(page, '週').click();
-    await expect(page.locator('#ctitle')).toHaveText('11月9日〜11月15日');
-    await expect(page.locator('.weekrow .wd').first()).toContainText('9（月）');
-    await expect(page.locator('.weekrow .wd').last()).toContainText('15（日）');
+    await expect(page.locator('#ctitle')).toHaveText('11月9日〜15日'); // 第19版 PR7: 開いた縦の週は 1枚の紙・2つの窓（日付の行は 月〜日）
+    await expect(page.locator('.fdates .fdt').first()).toContainText('月9');
+    await expect(page.locator('.fdates .fdt').last()).toContainText('日15');
   });
 });
 

@@ -18,11 +18,14 @@ const prev = (s) => ({ x0: Math.round(s.width * 0.3), y0: Math.round(s.height * 
 // 第19版 PR6: 開いた縦の月は上の面（y146〜443）で送る。y≒0.55H は溝の帯で、そこでは始まらない
 const nextM = (s) => ({ ...next(s), y0: Math.round(s.height * 0.35) });
 const prevM = (s) => ({ ...prev(s), y0: Math.round(s.height * 0.35) });
+// 第19版 PR7: 開いた縦の日・週は2つの窓。y≒0.55H は溝の帯なので、上の窓の中（y≒0.4H）から始める
+const nextF = (s) => ({ ...next(s), y0: Math.round(s.height * 0.4) });
+const prevF = (s) => ({ ...prev(s), y0: Math.round(s.height * 0.4) });
 const nextDay = (s) => ({ x0: Math.round(s.width * 0.6), y0: Math.round(s.height * 0.55), dx: -120 });
 const prevDay = (s) => ({ x0: Math.round(s.width * 0.55), y0: Math.round(s.height * 0.55), dx: 120 });
 
 // 閉じた画面の週の見出しは同じ月なら「11月16日〜22日」（第19版 PR5、design/28 §1）
-const shortWeek = (t, size) => (size.width < 600 ? t.replace(/〜\d+月/, '〜') : t);
+const shortWeek = (t, size) => (size.width < 600 || size.height > size.width ? t.replace(/〜\d+月/, '〜') : t); // 第19版 PR7: 開いた縦の週も同じ
 for (const [lname, size] of LAYOUTS) {
   for (const [view, now0, nextT0, prevT0] of VIEWS) {
     const [now, nextT, prevT] = [now0, nextT0, prevT0].map((t) => (view === '週' ? shortWeek(t, size) : t));
@@ -35,7 +38,8 @@ for (const [lname, size] of LAYOUTS) {
       expect(await period(page)).toBe(now);
       const spreadDay = size.width > size.height && view === '日'; // 見開きの日: 左は時間軸なので右の詳細一覧から
       const pm = view === '月' && size.width <= size.height && size.height > 700;
-      const [nx, pv] = spreadDay ? [nextDay, prevDay] : pm ? [nextM, prevM] : [next, prev];
+      const fd = size.width <= size.height && size.height > 700 && view !== '月';
+      const [nx, pv] = spreadDay ? [nextDay, prevDay] : pm ? [nextM, prevM] : fd ? [nextF, prevF] : [next, prev];
       await swipe(page, nx(size));
       await expect.poll(() => period(page)).toBe(nextT);
       await swipe(page, pv(size));
@@ -146,7 +150,7 @@ test.describe('click の扱い（実マウス操作）', () => {
     await openApp(page, SIZES.openPortrait);
     await loadSample(page);
     await tab(page, '日').click();
-    const card = await page.locator('.daylist .event').first().boundingBox();
+    const card = await page.locator('.fwin.ft .tlev:visible').first().boundingBox();
     const y = card.y + card.height / 2;
     await page.mouse.move(card.x + card.width * 0.8, y);
     await page.mouse.down();

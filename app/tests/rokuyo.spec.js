@@ -116,7 +116,7 @@ test('閉じた画面・開いた縦の日表示の見出しに六曜（切る�
 test('週の表示: 日付の下に 9px の六曜', async ({ page }) => {
   await openApp(page, SIZES.openPortrait669);
   await setUi(page, { view: 'week', home: false, selected: '2026-11-16' }); await page.reload(); await page.waitForSelector('html[data-ready]');
-  const w = page.locator('.weekrow .wrk').first();
+  const w = page.locator('.fdates .fdt .wrk').first();
   await expect(w).toHaveCount(1);
   expect(await w.evaluate((e) => { const s = getComputedStyle(e), p = e.parentElement.getBoundingClientRect(), r = e.getBoundingClientRect(); return [s.fontSize, s.color, r.top >= p.top, r.bottom <= p.bottom + 0.5]; })).toEqual(['9px', 'rgb(168, 171, 164)', true, true]);
 });

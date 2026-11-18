@@ -399,7 +399,7 @@ test.describe('通知のタップ', () => {
     await openApp(page, SIZES.openPortrait, '?nosw');
     await seed(page, [A]);
     await tap(page, { day: '2026-11-13', eventId: 'a1' });
-    await expect(page.locator('.daylist [data-event="a1"].nhl')).toHaveCount(1);
+    await expect(page.locator('.fold .fwin .tlev[data-event="a1"].nhl').first()).toBeAttached(); // 第19版 PR7: 開いた縦の日は2つの窓
   });
 
   test('見開き: 月のまま右の時間軸の対象を強調し、スクロールする', async ({ page }) => {

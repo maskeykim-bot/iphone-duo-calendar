@@ -96,12 +96,13 @@ test.describe('レイアウト（4サイズ）', () => {
     });
   }
 
-  test('626×890 開いた縦: 週は日別の縦リスト（7列ではない）', async ({ page }) => {
+  test('626×890 開いた縦: 週は 1枚の紙・2つの窓の7列（第19版 PR7。日別の縦リストではない）', async ({ page }) => {
     await openApp(page, SIZES.openPortrait);
     await tab(page, '週').click();
-    const xs = await page.locator('.weekrow').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().left)));
+    const xs = await page.locator('.fl.ft .tlcol').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().left)));
     expect(xs).toHaveLength(7);
-    expect(new Set(xs).size).toBe(1);
+    expect(new Set(xs).size).toBe(7);
+    await expect(page.locator('.weekrow')).toHaveCount(0);
   });
 
   for (const size of [SIZES.openLandscape, SIZES.openLandscape951]) {

@@ -201,50 +201,32 @@ test.describe('開いた縦: safe area・キーボード・下書き', () => {
   });
 });
 
+// 第19版 PR7（design/29 案A）: 開いた縦の週は「1枚の紙・2つの窓」。日別の縦リストは使わない（寸法・折り目は portrait-fold-timeline.spec.js）。
 test.describe('開いた縦 626×890: 週', () => {
-  test('1日1ブロックの縦リスト。長いタイトルは省略されず全文表示', async ({ page }) => {
+  test('7列の時間軸。長いタイトルは窓の中で折り返さず1行、日付の行は 月〜日、本文は窓の中だけでスクロール', async ({ page }) => {
     await openApp(page, SIZES.openPortrait);
     await loadSample(page);
-    const long = 'とても長いタイトルの予定を登録して省略されずに全文が折り返して表示されることを確認する';
-    await addEvent(page, { title: long, start: '2026/11/12 20:00', end: '2026/11/12 21:00' });
+    await addEvent(page, { title: 'とても長いタイトルの予定を登録して列の幅で切れることを確認する', start: '2026/11/12 20:00', end: '2026/11/12 21:00' });
     await tab(page, '週').click();
-    await expect(page.locator('.weekview.vlist')).toBeVisible();
-    const rows = page.locator('.weekrow');
-    await expect(rows).toHaveCount(7);
-    const rects = await rows.evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { x: r.x, w: r.width }; }));
-    expect(new Set(rects.map((r) => Math.round(r.x))).size).toBe(1);
-    expect(rects[0].w).toBeGreaterThanOrEqual(590);
-    // 左に日付、右に予定
-    const wd = await box(rows.nth(4).locator('.wd'));
-    const evb = await box(page.locator('.weekrow.selected .event').first());
-    expect(evb.x).toBeGreaterThan(wd.x + wd.width);
-    // 省略なし
-    const t = page.locator('.weekrow .event strong', { hasText: 'とても長い' });
-    await expect(t).toHaveText(long);
-    expect(await t.evaluate((el) => el.scrollWidth <= el.clientWidth && getComputedStyle(el).textOverflow !== 'ellipsis')).toBe(true);
-    expect((await box(t)).height).toBeGreaterThan(30); // 折り返して複数行
-    for (const s of await page.locator('.weekrow .event strong').all()) {
-      expect(await s.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
-    }
-    // 空の日は「予定なし」、アジェンダは置かない
+    await expect(page.locator('.fold-week')).toBeVisible();
+    await expect(page.locator('.fl.ft .tlcol')).toHaveCount(7);
+    await expect(page.locator('.fdates .fdt')).toHaveText([/^月9/, /^火10/, /^水11/, /^木12/, /^金13/, /^土14/, /^日15/]);
+    await expect(page.locator('.weekrow')).toHaveCount(0);
     await expect(page.locator('.agenda')).toHaveCount(0);
-    await expect(page.locator('.empty-row').first()).toHaveText('予定なし');
-    // 本文は独立スクロール（画面全体はスクロールしない）
-    expect(await page.locator('.calendar .scroll').evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+    // 窓は2つ。紙は窓の中でスクロールし、画面全体はスクロールしない
+    expect(await page.locator('.fl.ft').evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight)).toBe(true);
-    const add = await box(page.getByRole('button', { name: '予定を追加' }));
-    const sc = await box(page.locator('.calendar .scroll'));
-    expect(sc.y + sc.height).toBeLessThanOrEqual(add.y + 1); // 日・週も同じ上下操作枠の中でスクロール
+    const add = await box(page.getByRole('button', { name: '予定を追加' })), win = await box(page.locator('.fwin.fb'));
+    expect(win.y + win.height).toBeLessThanOrEqual(add.y + add.height + 1);
     expect(await findTextOverlaps(page)).toEqual([]);
   });
 
-  test('複数日予定は該当日それぞれに「終日」で載り、日付から日表示へ進める', async ({ page }) => {
+  test('複数日予定は該当日それぞれの終日の段に載り、日付から日表示へ進める', async ({ page }) => {
     await openApp(page, SIZES.openPortrait);
     await loadSample(page);
     await tab(page, '週').click();
     await page.getByRole('button', { name: '次の週' }).click(); // 11/16〜22（月曜始まり。出張・京都は 11/19〜23 なので19〜22の4日）
-    await expect(page.locator('.weekrow', { hasText: '出張・京都' })).toHaveCount(4);
-    await expect(page.locator('.weekrow', { hasText: '出張・京都' }).first().locator('.clock')).toHaveText('終日');
+    await expect(page.locator('.fall .adcol .adpill', { hasText: '出張・京都' })).toHaveCount(4);
     await page.getByRole('button', { name: '11月20日（金）を日表示で開く' }).click();
     await expect(page.locator('#ctitle')).toHaveText('11月20日（金）先負');
   });

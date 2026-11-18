@@ -271,7 +271,7 @@ test('PR5 閉じた画面で「週」を見ている途中で開くと、開い�
   await expect(page.locator('#ctitle')).toHaveText('11月16日〜22日');
   await page.setViewportSize(SIZES.openPortrait669);
   await expect(tab(page, '週')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#ctitle')).toHaveText('11月16日〜11月22日');
+  await expect(page.locator('#ctitle')).toHaveText('11月16日〜22日'); // 第19版 PR7: 開いた縦の週も同じ月なら短い見出し
   await page.setViewportSize(SIZES.closedPortrait);
   await expect(tab(page, '週')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#ctitle')).toHaveText('11月16日〜22日');
