@@ -63,6 +63,7 @@ test.describe('タスクの分類と完了履歴', () => {
     await expect(lp(page).locator('[data-key="rm:late"]')).toBeVisible();
   });
   test('開いた縦の下パネルでも同じ分類', async ({ page }) => {
+    await page.addInitScript(() => { if (!localStorage.getItem('duo.ui.v1')) localStorage.setItem('duo.ui.v1', JSON.stringify({ monthExpand: true })); }); // 第19版 PR6: 下パネルは「全部」の月だけ
     await openApp(page, SIZES.openPortrait);
     await seedTasks(page, SEED);
     const sw = page.locator('.pswitch');

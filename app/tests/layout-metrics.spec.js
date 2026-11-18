@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, seed, ev, tab, layout, setStyle, SIZES, chip, openMenu } from './helpers.js';
+import { openApp, seed, ev, tab, layout, setStyle, SIZES, chip, openMenu, monthFormInit } from './helpers.js';
 
 // 第10版 ①: 寸法の唯一の入力（innerWidth/innerHeight と safe-area）→ 判定・CSS変数・診断行。
 // 画面サイズ・折り目は決め打ちしない: どの値も viewport と safe からの計算で検証する。
@@ -176,8 +176,10 @@ const placedOn = (page, k) => page.evaluate((k) => {
 }, k);
 
 test.describe('月レーン: 終日・帯・時刻チップの混在', () => {
-  for (const [name, size, cap] of [['閉じた 466×678', SIZES.closedPortrait, 4], ['開いた縦 669×951', SIZES.openPortrait669, 5], ['開いた横 951×669', SIZES.openLandscape951, 4]]) {
+  // 第19版 PR6: 閉じた・開いた縦の月は「月を引く画面」（2週: 閉じ 4段・縦 6段）。入りきらない日は最後の段を「+n」にするので、置く件数は cap−1
+  for (const [name, size, cap, placed] of [['閉じた 466×678', SIZES.closedPortrait, 4, 3], ['開いた縦 669×951', SIZES.openPortrait669, 6, 5], ['開いた横 951×669', SIZES.openLandscape951, 4, 4]]) {
     test(`${name}: +N = 全件 - 置いた件数、同じ予定は同じ日に二重に置かない（通常 ${cap} 段）`, async ({ page }) => {
+      if (size.width < size.height) await monthFormInit(page, 'two');
       await openApp(page, size);
       await seed(page, MIX);
       await monthOf(page, size);
@@ -189,7 +191,7 @@ test.describe('月レーン: 終日・帯・時刻チップの混在', () => {
       }
       const d = await placedOn(page, '2026-11-12');
       expect(d.total).toBe(9);
-      expect(d.ids.length).toBe(cap);
+      expect(d.ids.length).toBe(placed);
       // 帯（終日・複数日）が先に置かれ、時刻チップは残った段
       expect(d.ids.slice(0, 3).sort()).toEqual(['bx', 'by', 'lone']);
     });
@@ -198,17 +200,13 @@ test.describe('月レーン: 終日・帯・時刻チップの混在', () => {
     await openApp(page, SIZES.openPortrait669);
     await seed(page, MIX);
     await monthOf(page, SIZES.openPortrait669);
-    await page.locator('.plus[data-jump="2026-11-12"]').click();
-    await expect(page.locator('.daylist .event')).toHaveCount(9);
+    await page.locator('.plus[data-jump="2026-11-12"]').click(); // 月を引く画面: 日の部分がその日になり、9件が全部見える
+    await expect(page.locator('.mdlist .mdev')).toHaveCount(9);
   });
   test('手帳: 点は閉じ4・開き横(6週)4まで、超過は +N', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await seed(page, MIX);
-    await tab(page, '月').click();
-    await setStyle(page, '手帳');
-    await expect(page.locator('[data-date="2026-11-12"] .dot')).toHaveCount(4);
-    await expect(page.locator('.plus[data-jump="2026-11-12"]')).toHaveText('+5');
-    await page.setViewportSize(SIZES.openLandscape951);
+    await page.setViewportSize(SIZES.openLandscape951); // 閉じた画面の月は PR6 から予定名の帯だけ（手帳の点は開いた横・卓上）
     await expect.poll(() => layout(page)).toBe('spread');
     await setStyle(page, '手帳');
     await expect(page.locator('[data-date="2026-11-12"] .dot')).toHaveCount(4);
@@ -221,10 +219,12 @@ test.describe('月の文字「大」・時刻の出し入れ', () => {
   const menuBtn = (page, name) => page.locator('#menu').getByRole('button', { name });
 
   test('「月の文字: 大」は 11px・各姿勢で1件減り、再読み込み後も保たれる', async ({ page }) => {
+    await monthFormInit(page, 'two');
     await openApp(page, SIZES.openPortrait669);
     await seed(page, six);
     await setStyle(page, '予定名');
-    await expect(chip(page, '2026-11-12')).toHaveCount(5);
+    // 第19版 PR6: 開いた縦の月は 2週の型（6段）。6件ちょうどは全部出る。「大」は 1段減って 4件＋「+2」
+    await expect(chip(page, '2026-11-12')).toHaveCount(6);
     await openMenu(page, 'display');
     await menuBtn(page, /^月の文字/).click();
     await expect(chip(page, '2026-11-12')).toHaveCount(4);
@@ -234,15 +234,14 @@ test.describe('月の文字「大」・時刻の出し入れ', () => {
     await page.reload();
     await page.waitForSelector('html[data-ready]');
     await expect(chip(page, '2026-11-12')).toHaveCount(4);
-    // 閉じた画面は 4→3
+    // 閉じた画面は 4段→3段（最後の段は +n）なので 3→2件
     await page.setViewportSize(SIZES.closedPortrait);
     await tab(page, '月').click();
-    await setStyle(page, '予定名');
-    await expect(chip(page, '2026-11-12')).toHaveCount(3);
-    // 標準へ戻す
+    await expect(chip(page, '2026-11-12')).toHaveCount(2);
+    // 標準へ戻す（4段: 3件＋「+3」）
     await openMenu(page, 'display');
     await menuBtn(page, /^月の文字/).click();
-    await expect(chip(page, '2026-11-12')).toHaveCount(4);
+    await expect(chip(page, '2026-11-12')).toHaveCount(3);
   });
 
   test('時刻は閉じ・開きとも既定オフで別。切替は保存され、題名の全文は aria に残る', async ({ page }) => {
@@ -304,6 +303,7 @@ test.describe('月の文字「大」・時刻の出し入れ', () => {
 
 test.describe('月の日付・配色・前後月', () => {
   test('前後の月の予定も描き、薄くするのは日付だけ。1日は六曜オンで「12/1」、オフで「12月1日」', async ({ page }) => {
+    await page.addInitScript(() => { if (!localStorage.getItem('duo.ui.v1')) localStorage.setItem('duo.ui.v1', JSON.stringify({ monthForm: 'month' })); }); // 月の型（前後の月が見える）
     await openApp(page, SIZES.openPortrait669);
     await seed(page, [
       ev('f1', '米 耐久財受注・速報', '2026-10-26T21:30', '2026-10-26T22:00'),
@@ -330,9 +330,8 @@ test.describe('月の日付・配色・前後月', () => {
     expect(await page.locator('[data-date="2026-11-15"] .num').evaluate((e) => getComputedStyle(e).color)).toBe('rgb(180, 60, 60)');
     // 選択日 = 今日（11/12）。選択は 2px 枠 #294E42
     expect(await page.locator('[data-date="2026-11-12"]').evaluate((e) => getComputedStyle(e).boxShadow)).toContain('rgb(41, 78, 66) 0px 0px 0px 2px inset');
-    await page.locator('[data-date="2026-11-18"]').click({ position: { x: 10, y: 10 } }); // 開いた縦は日表示へ進む
-    await expect(page.locator('#ctitle')).toHaveText('11月18日（水）先勝');
-    await page.getByRole('button', { name: '月', exact: true }).click();
+    await page.locator('[data-date="2026-11-18"]').click({ position: { x: 10, y: 10 } }); // 第19版 PR6: 開いた縦の月は日をたたくと下の日の部分が変わる（日表示へは進まない）
+    await expect(page.locator('.mdh h3')).toContainText('11月18日（水）');
     expect(await page.locator('[data-date="2026-11-18"]').evaluate((e) => getComputedStyle(e).boxShadow)).toContain('2px');
     expect(await page.locator('[data-date="2026-11-18"] .num').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
     expect(await page.locator('[data-date="2026-11-12"] .num').evaluate((e) => getComputedStyle(e).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');

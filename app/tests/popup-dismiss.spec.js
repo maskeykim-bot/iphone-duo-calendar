@@ -77,8 +77,9 @@ for (const [name, size] of POSTURES) {
     test('見出しを下に引いて閉じる。少しだけ引いたら戻る。横の動きでは閉じない', async ({ page }) => {
       await setup(page, size);
       await openFirst(page);
-      const box = await page.locator('#editor .formhead').boundingBox();
-      const x = box.x + 40, y = box.y + box.height / 2;
+      // 第19版: 見出しは ✕・題・✓。左端 44 は ✕ ボタン（つかめない）なので、題（#edtitle）の上からつかむ
+      const box = await page.locator('#editor #edtitle').boundingBox();
+      const x = box.x + Math.min(20, box.width / 2), y = box.y + box.height / 2;
       const before = await snapshot(page);
       // 少し（30pt）だけ: 戻る
       await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x, y + 30, { steps: 4 }); await page.mouse.up();
@@ -136,8 +137,9 @@ for (const [name, size] of POSTURES) {
       await setup(page, size);
       await openFirst(page);
       await page.locator('#f-place').fill('会議室');
-      const box = await page.locator('#editor .formhead').boundingBox();
-      const x = box.x + 40, y = box.y + box.height / 2;
+      // 第19版: 見出しは ✕・題・✓。左端 44 は ✕ ボタン（つかめない）なので、題（#edtitle）の上からつかむ
+      const box = await page.locator('#editor #edtitle').boundingBox();
+      const x = box.x + Math.min(20, box.width / 2), y = box.y + box.height / 2;
       await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x, y + 140, { steps: 8 }); await page.mouse.up();
       await expect(page.locator('#discard')).toBeVisible();
       await expect(page.locator('#editor')).toBeVisible();

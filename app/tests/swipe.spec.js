@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, loadSample, tab, period, swipe, settle, SIZES, showView } from './helpers.js';
+import { openApp, loadSample, tab, period, swipe, settle, SIZES, showView, monthFormInit } from './helpers.js';
 
 const LAYOUTS = [
   ['閉じた縦 466×678', SIZES.closedPortrait],
@@ -15,6 +15,9 @@ const VIEWS = [
 // 見開きの右ページの時間軸はスワイプの対象外（ピンチ・縦スクロール用）。月は左ページ、日は右の詳細一覧、週は左右どちらでも。
 const next = (s) => (s.width > s.height ? { x0: Math.round(s.width * 0.3), y0: Math.round(s.height * 0.5), dx: -120 } : { x0: Math.round(s.width * 0.7), y0: Math.round(s.height * 0.55), dx: -120 });
 const prev = (s) => ({ x0: Math.round(s.width * 0.3), y0: Math.round(s.height * 0.55), dx: 120 });
+// 第19版 PR6: 開いた縦の月は上の面（y146〜443）で送る。y≒0.55H は溝の帯で、そこでは始まらない
+const nextM = (s) => ({ ...next(s), y0: Math.round(s.height * 0.35) });
+const prevM = (s) => ({ ...prev(s), y0: Math.round(s.height * 0.35) });
 const nextDay = (s) => ({ x0: Math.round(s.width * 0.6), y0: Math.round(s.height * 0.55), dx: -120 });
 const prevDay = (s) => ({ x0: Math.round(s.width * 0.55), y0: Math.round(s.height * 0.55), dx: 120 });
 
@@ -25,12 +28,14 @@ for (const [lname, size] of LAYOUTS) {
     const [now, nextT, prevT] = [now0, nextT0, prevT0].map((t) => (view === '週' ? shortWeek(t, size) : t));
     if (size.width > size.height && view !== '月') continue; // 開いた横の日・週は時間ページの表示（第14版 PR5）。スワイプの送りは月
     test(`${lname} ${view}: 左スワイプ＝次、右スワイプ＝前`, async ({ page }) => {
+      if (view === '月' && size.width <= size.height) await monthFormInit(page); // 第19版 PR6: 月を引く画面は「月」の型なら1か月ずつ送る（1週・2週は1週ずつ）
       await openApp(page, size);
       await loadSample(page);
       await showView(page, view);
       expect(await period(page)).toBe(now);
       const spreadDay = size.width > size.height && view === '日'; // 見開きの日: 左は時間軸なので右の詳細一覧から
-      const [nx, pv] = spreadDay ? [nextDay, prevDay] : [next, prev];
+      const pm = view === '月' && size.width <= size.height && size.height > 700;
+      const [nx, pv] = spreadDay ? [nextDay, prevDay] : pm ? [nextM, prevM] : [next, prev];
       await swipe(page, nx(size));
       await expect.poll(() => period(page)).toBe(nextT);
       await swipe(page, pv(size));
@@ -43,9 +48,10 @@ for (const [lname, size] of LAYOUTS) {
 }
 
 test('スワイプ後は選択日・見出し・アジェンダが更新され、ライブ通知される（開いた縦・日）', async ({ page }) => {
+  await monthFormInit(page);
   await openApp(page, SIZES.openPortrait);
   await loadSample(page);
-  await swipe(page, next(SIZES.openPortrait)); // 月: 12/12（土）
+  await swipe(page, nextM(SIZES.openPortrait)); // 月: 12/12（土）
   await expect(page.locator('[data-date="2026-12-12"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.agenda')).toHaveCount(0); // 開いた縦に下部一覧はない
   await expect(page.getByRole('status')).toHaveText('2026年 12月。選択日は12月12日（土）。');
@@ -103,23 +109,25 @@ test.describe('判定', () => {
   });
   test('編集ダイアログ表示中のスワイプは無効', async ({ page }) => {
     const s = SIZES.openPortrait;
+    await monthFormInit(page);
     await openApp(page, s);
     await page.locator('[data-act="add"]:visible').first().click();
     await expect(page.locator('#editor')).toBeVisible();
-    await unchanged(page, s, { target: '.calendar .scroll', dx: -150 });
+    await unchanged(page, s, { target: '.mgrid', dx: -150 });
     await page.keyboard.press('Escape');
-    await swipe(page, next(s));
+    await swipe(page, nextM(s));
     await expect.poll(() => period(page)).toBe('2026年 12月');
   });
   test('prefers-reduced-motion: reduce では即時に切り替わる', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
+    await monthFormInit(page);
     await openApp(page, SIZES.openPortrait);
     await page.evaluate(() => {
       window.__sawSwiping = false;
       new MutationObserver(() => { if (document.documentElement.dataset.swiping) window.__sawSwiping = true; })
         .observe(document.documentElement, { attributes: true });
     });
-    await swipe(page, next(SIZES.openPortrait));
+    await swipe(page, nextM(SIZES.openPortrait));
     expect(await period(page)).toBe('2026年 12月');
     expect(await page.evaluate(() => window.__sawSwiping)).toBe(false);
   });
@@ -130,7 +138,8 @@ test.describe('click の扱い（実マウス操作）', () => {
     await openApp(page, SIZES.openPortrait);
     await loadSample(page);
     await page.locator('[data-date="2026-11-20"]').click({ position: { x: 12, y: 10 } });
-    await expect.poll(() => period(page)).toBe('11月20日（金）'); // 開いた縦は日表示へ進む
+    await expect(page.locator('[data-date="2026-11-20"]')).toHaveAttribute('aria-pressed', 'true'); // 第19版 PR6: 月を引く画面は日表示へ進まず、下の日の部分が変わる
+    await expect(page.locator('.mdh h3')).toContainText('11月20日（金）');
   });
 
   test('確定スワイプ後に予定の編集ダイアログが開かない', async ({ page }) => {
@@ -161,6 +170,6 @@ test.describe('click の扱い（実マウス操作）', () => {
     await expect(page.locator('[data-date="2026-11-12"]')).toHaveAttribute('aria-pressed', 'true');
     await page.waitForTimeout(450);
     await page.locator('[data-date="2026-11-20"]').click({ position: { x: 12, y: 10 } });
-    await expect.poll(() => period(page)).toBe('11月20日（金）');
+    await expect(page.locator('[data-date="2026-11-20"]')).toHaveAttribute('aria-pressed', 'true');
   });
 });

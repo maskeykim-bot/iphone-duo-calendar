@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, pagePick, seed, ev } from './helpers.js';
+import { openApp, SIZES, pagePick, seed, ev, setStyle } from './helpers.js';
 
 // 第16版 PR28: メモ→ノート。月のメモ線・帯の印は廃止。一覧・検索・元の日付への導線をノートで検査する。
 // 旧メモは旧形式の端末データとして入れ、起動後の複製（migrateNotesOnce）を通す。
@@ -80,6 +80,7 @@ test('下パネルで一覧が使える。開いたノートは最後のノー�
   await openApp(page, SIZES.openPortrait669);
   await putNote(page, { id: 'p1', body: '下ノート\n本文', createdAt: 1, updatedAt: 2, folderId: null });
   await reload(page);
+  await setStyle(page, '全部'); // 第19版 PR6: 下パネルは「全部」の月だけ
   await page.getByRole('button', { name: '下の段を表示' }).click();
   await page.waitForTimeout(320);
   await page.locator('.pswitch').getByRole('button', { name: 'ノート', exact: true }).click();

@@ -17,10 +17,10 @@ test.describe('開いた縦の集中モード', () => {
     await expect(page.locator('.calendar')).toHaveCount(1);
     await expect(page.getByRole('button', { name: '予定を検索' })).toBeVisible();
     await expect(page.getByRole('button', { name: '予定を追加' })).toBeVisible();
-    const sc = await page.locator('.calendar .scroll').boundingBox();
-    expect(Math.abs(sc.y - 106)).toBeLessThan(1.5);
-    const h = await page.locator('.chead h2').boundingBox(), f = await page.locator('.fmodes').boundingBox();
-    expect(h.x + h.width <= f.x || f.x + f.width <= h.x).toBe(true); // 月の見出しと重ならない
+    const sc = await page.locator('.mgrid').boundingBox(); // 第19版 PR6: 月を引く画面のマスは y146〜（見出し 44＋曜日 20 の下）
+    expect(Math.abs(sc.y - 146)).toBeLessThan(1.5);
+    const h = await page.locator('.mph h2').boundingBox(), f = await page.locator('.fmodes').boundingBox();
+    expect(h.x + h.width <= f.x || f.x + f.width <= h.x || h.y + h.height <= f.y || f.y + f.height <= h.y).toBe(true); // 月の見出しと重ならない
   });
 
   test('タスク／ノートは専用面だけ。カレンダー・タブ・今日は出さず、モードを保存して再起動でも開く', async ({ page }) => {
@@ -41,8 +41,8 @@ test.describe('開いた縦の集中モード', () => {
     expect(await saved(page)).toBe('note');
     await sw(page, 'calendar').click();
     await expect(page.locator('.calendar')).toHaveCount(1);
-    const sc = await page.locator('.calendar .scroll').boundingBox();
-    expect(Math.abs(sc.y - 106)).toBeLessThan(1.5);
+    const sc = await page.locator('.mgrid').boundingBox();
+    expect(Math.abs(sc.y - 146)).toBeLessThan(1.5); // 第19版 PR6
   });
 
   test('保存済みのモードで開く。不正値はカレンダー', async ({ page }) => {

@@ -78,16 +78,14 @@ test.describe('予定の追加・編集・削除', () => {
     await expect(page.locator('#f-start')).toHaveJSProperty('value', '2026/11/12');
     await fillEditor(page, { end: '2026/11/14' });
     await page.locator('#editor').getByRole('button', { name: '保存' }).click();
-    // 開いた縦は下に一覧がないので、日セルを押すとその日の日表示（予定一覧）へ進む
+    // 第19版 PR6: 開いた縦の月は日セルを押すと下の面（日の部分）がその日になる
     for (const d of ['12', '13', '14']) {
-      await tab(page, '月').click();
       await pickDay(page, `2026-11-${d}`);
-      await expect(page.locator('.daylist .event')).toContainText('社員旅行');
-      await expect(page.locator('.daylist .event .clock')).toHaveText('終日');
+      await expect(page.locator('.mdlist .mdev')).toContainText('社員旅行');
+      await expect(page.locator('.mdlist .mdev .mdt')).toHaveText('終日');
     }
-    await tab(page, '月').click();
     await pickDay(page, '2026-11-15');
-    await expect(page.locator('.daylist .event')).toHaveCount(0);
+    await expect(page.locator('.mdlist .mdev')).toHaveCount(0);
   });
 
   test('Esc でシートを閉じ、変更は反映されない', async ({ page }) => {
@@ -104,6 +102,7 @@ test.describe('予定の追加・編集・削除', () => {
     await openApp(page);
     await tab(page, '週').click();
     await page.getByRole('button', { name: '次の週' }).click();
+    await expect(page.locator('#ctitle')).toHaveText('11月16日〜22日'); // 閉じた週の横すべり（0.25秒）が終わってから先へ進む
     await tab(page, '日').click();
     await page.getByRole('button', { name: '今日に戻る' }).click();
     await expect(page.locator('.shell.browse')).toBeVisible(); // 一覧（ホーム）へは飛ばない

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, loadSample, SIZES, tab, seed, ev, period } from './helpers.js';
+import { openApp, loadSample, SIZES, tab, seed, ev, period, monthFormInit } from './helpers.js';
 
 // PR24: 共通制御（DOM 接続）。画面への本接続は次PR。ここでは initDirectInput を単体の場にぶら下げて確認する。
 const setup = (page) => page.evaluate(async () => {
@@ -62,7 +62,7 @@ for (const [name, size, setup2] of [
   ['閉じた縦の日', SIZES.closedPortrait, async (page) => { await tab(page, '日').click(); }],
 ]) {
   test.describe(`時間軸の直接入力 ${name}`, () => {
-    test.beforeEach(async ({ page }) => { await openApp(page, size); await setup2(page); await expect(page.locator('.tlcol').first()).toBeVisible(); });
+    test.beforeEach(async ({ page }) => { if (name === '閉じた縦' || name === '開いた縦') await monthFormInit(page); /* 第19版 PR6: 月を引く画面の「月」の型（11/25 まで見える） */ await openApp(page, size); await setup2(page); await expect(page.locator('.tlcol').first()).toBeVisible(); });
 
     test('長押しで30分の枠→下へ伸ばす→離すとシート。保存は1回だけ', async ({ page }) => {
       const p = await pointAt(page, 10 * 60 + 5); // 10:05 → 10:00
@@ -257,7 +257,7 @@ for (const [name, size, setup2] of [
   ['全表示', SIZES.closedPortrait, async (page) => { await tab(page, '月').click(); await page.locator('[data-act="allmonth"]').first().click(); }],
 ]) {
   test.describe(`月の期間入力 ${name}`, () => {
-    test.beforeEach(async ({ page }) => { await openApp(page, size); await setup2(page); await expect(page.locator('.day[data-date="2026-11-18"]').first()).toBeVisible(); });
+    test.beforeEach(async ({ page }) => { if (name === '閉じた縦' || name === '開いた縦') await monthFormInit(page); /* 第19版 PR6: 月を引く画面の「月」の型（11/25 まで見える） */ await openApp(page, size); await setup2(page); await expect(page.locator('.day[data-date="2026-11-18"]').first()).toBeVisible(); });
 
     test('長押し→週をまたいで滑らせる→札と枠→離すと終日の期間シート。DBは0のまま', async ({ page }) => {
       const a = await dayCenter(page, '2026-11-18'), b = await dayCenter(page, '2026-11-25');
@@ -438,7 +438,7 @@ test.describe('端スクロール: 時間軸', () => {
 });
 
 test.describe('端スクロール: 月（滞在で前後の月）', () => {
-  test.beforeEach(async ({ page }) => { await openApp(page, SIZES.closedPortrait); await tab(page, '月').click(); await expect(page.locator('.day[data-date="2026-11-18"]').first()).toBeVisible(); });
+  test.beforeEach(async ({ page }) => { await monthFormInit(page); await openApp(page, SIZES.closedPortrait); await tab(page, '月').click(); await expect(page.locator('.day[data-date="2026-11-18"]').first()).toBeVisible(); });
   const gridEdge = (page) => page.evaluate(() => { const ws = [...document.querySelectorAll('.week')].map((w) => w.getBoundingClientRect()); return { top: Math.min(...ws.map((r) => r.top)), bottom: Math.max(...ws.map((r) => r.bottom)) }; });
 
   test('下端に600ms滞在で次の月へ1回だけ。起点の日付は保持され、離れて入り直すと再び進む', async ({ page }) => {

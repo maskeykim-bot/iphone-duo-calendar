@@ -1476,3 +1476,66 @@ html[data-kb] dialog#editor,html[data-kb] body[data-layout=spread] dialog#editor
 #tpop .tfchip::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
 dialog.panel.tface-open{overflow:visible}
 .dtbox.dtlarge #tpop{max-height:none;overflow:visible}
+
+/* ===== 第19版 PR6（design/22）: 月を引く画面（閉じた画面と開いた縦の「月」タブ） ===== */
+.mpull{display:flex;flex-direction:column;min-width:0;min-height:0;flex:1}
+.mpull .mph{display:flex;align-items:center;flex:none;height:48px;padding:0 4px;gap:0}
+.closed.fb .mpull .mph{padding:0 48px}
+.mpull .mph h2{flex:1;min-width:0;margin:0;text-align:center;font:700 17px/1.2 -apple-system,'Hiragino Sans',sans-serif;white-space:nowrap}
+.mpull .mph button{flex:none;min-width:44px;height:44px;padding:0;font-size:22px}
+.mpull .mph .mptoday{min-width:52px;font-size:13px;font-weight:600;color:var(--green)}
+.mpull .mph.pasting{display:block;height:auto;padding:0}
+.mpull .weekdays{position:static;flex:none;height:20px;padding:0;align-items:center}
+.mpull .mgrid{flex:none;height:calc(var(--mp-row) * attr(data-nrows number,1));overflow:hidden;position:relative}
+.mpull[data-form=one] .mgrid{height:calc(var(--mp-row) * 1)}
+.mpull[data-form=two] .mgrid{height:calc(var(--mp-row) * 2)}
+.mpull[data-form=month] .mgrid{height:calc(var(--mp-row) * 6)}
+.mpull .week{height:var(--mp-row);flex:none;box-sizing:border-box;overflow:hidden}
+.mpull .week .day{height:var(--mp-row);justify-content:flex-start}
+.mpull .strip,.mpull .bar{height:var(--chip-h);min-height:var(--chip-h);line-height:var(--chip-h)}
+.mpull .bar:after{top:calc(var(--chip-h) - 3.5px)}
+.mpull .week .plus.pn{width:auto;height:var(--chip-h);min-width:0;min-height:0;padding:0 0 0 2px;justify-content:flex-start;align-items:center;font-size:8px;line-height:var(--chip-h);color:#8C918A;text-align:left}
+.mpull .mgrab{flex:none;position:relative;display:flex;align-items:center;justify-content:center;height:24px;min-height:24px;touch-action:none;cursor:ns-resize}
+.mpull .mgrab i{display:block;width:36px;height:4px;border-radius:2px;background:#B9B4A8}
+.mpull.dragging .mgrid{transition:none!important}
+.mpull .mgrid{transition:height .25s ease}
+.mpull .mday{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 8px calc(var(--end-pad-closed,56px) + 4px)}
+.mdh{display:flex;align-items:center;justify-content:space-between;height:44px;flex:none}
+.mdh h3{margin:0;font:700 15px/1.2 -apple-system,'Hiragino Sans',sans-serif;min-width:0}
+.mdsw{display:grid;grid-template-columns:1fr 1fr;width:132px;height:32px;flex:none;border-radius:16px;background:#EFECE4;padding:2px;box-sizing:border-box}
+.mdsw button{height:28px;min-height:28px;min-width:0;padding:0;border-radius:14px;background:transparent;font-size:12px;font-weight:600}
+.mdsw button[aria-pressed=true]{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.15)}
+.mdlist{display:flex;flex-direction:column}
+.mdev{display:flex;align-items:center;gap:8px;height:44px;min-height:44px;padding:0 4px;border-radius:0;background:transparent;text-align:left}
+.mdev .mdbar{flex:none;width:4px;height:16px;border-radius:2px;background:var(--cat)}
+.mdev .mdt{flex:none;width:44px;font-size:12px;color:#8C918A}
+.mdev strong{flex:1;min-width:0;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mdnone{display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px;color:#8C918A}
+.mdnone p{margin:0}
+.mdsec h4{margin:12px 0 4px;font-size:12px;color:#8C918A}
+.mdempty{font-size:13px;color:#8C918A}
+.mdnote{display:block;width:100%;text-align:left;min-height:44px}
+.mpull .mdbody .tl{overflow:visible;flex:none}
+.mpull .mdbody .tlin{margin-bottom:0}
+/* 開いた縦（22 §5）: 月は上の面（グリッド y146〜、つまみは溝の上の端 −6）、日は下の面（--groove-avoid-y1〜917）。下の面だけスクロール。 */
+.portrait.pull .pcol{height:auto;display:block}
+.portrait .mpull{padding:var(--head-h) 12px 0;box-sizing:border-box;display:block;flex:none}
+.portrait .mpull .mph{height:44px}
+.portrait .mpull .mph h2{font-size:19px}
+.portrait .mpull .mgrid{height:calc(var(--groove-avoid-y0,459px) - 16px - var(--head-h) - 64px)}
+.portrait .mpull .week{height:calc(100% / var(--rows,1))}
+.portrait .mpull[data-form=one] .week{height:100%}
+.portrait .mpull[data-form=two] .week{height:50%}
+.portrait .mpull[data-form=month] .week{height:calc(100% / 6)}
+.portrait .mpull .week .day{height:100%}
+.portrait .mpull .mgrab{position:absolute;left:0;right:0;top:calc(var(--groove-avoid-y0,459px) - 26px);height:calc(var(--groove-y0,467px) - var(--groove-avoid-y0,459px) + 26px);align-items:flex-end;padding-bottom:0}
+.portrait .mpull .mgrab i{margin-bottom:10px}
+.portrait .mpull .mday{position:fixed;left:var(--content-x);width:var(--content-w);box-sizing:border-box;top:var(--groove-avoid-y1,492px);bottom:34px;padding:0 12px 62px}
+.portrait .mdev{height:44px}.portrait .mdev .mdt{font-size:13px;width:52px}.portrait .mdev strong{font-size:15px}
+.portrait .mpull .mdh h3{font-size:17px}
+.mpull .mgrid{transition:none}
+.closed .mpull .mgrid{transition:height .25s ease}
+.mdsw button,.mdsw button:hover,.mdsw button[aria-pressed=true]{color:var(--ink)}
+.closed.fb .mpull .mph{height:var(--head-h);align-items:flex-end;padding:0 48px 6px}
+.closed.fb .mpull .mph.pasting{height:auto;padding:0}
+.mpull .mph .allbtn{min-width:36px;font-size:12px}

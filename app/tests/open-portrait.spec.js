@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, loadSample, addEvent, tab, layout, findTextOverlaps, pickDay, modeStates, setStyle, seed, ev, SIZES, openMenu } from './helpers.js';
+import { monthFormInit, openApp, loadSample, addEvent, tab, layout, findTextOverlaps, pickDay, modeStates, setStyle, seed, ev, SIZES, openMenu } from './helpers.js';
 
 const box = (loc) => loc.boundingBox();
 const inside = (a, o, tol = 1) => a.y >= o.y - tol && a.y + a.height <= o.y + o.height + tol && a.x >= o.x - tol && a.x + a.width <= o.x + o.width + tol;
@@ -12,6 +12,7 @@ for (const size of PORTRAITS) {
   const tag = `${size.width}×${size.height}`;
   test.describe(`開いた縦 ${tag}: 月`, () => {
     test('全幅の月。下部の予定一覧はなく、上の設定・検索と下の今日／タブ／＋が重ならない', async ({ page }) => {
+      await monthFormInit(page, 'two');
       await openApp(page, size);
       await loadSample(page);
       expect(await layout(page)).toBe('open');
@@ -21,12 +22,14 @@ for (const size of PORTRAITS) {
       await expect(page.locator('.foot, .top, .brand')).toHaveCount(0);
       const W = size.width, H = size.height, rx = W / 669, ry = H / 951;
       // 月グリッド（第12版）: 全幅・上端 head+24=106・下端 H-96p（p=H/951。第19版 PR5: タブ y=H-88p の上 8）。見出しは上 safe の帯の中（safe=0 は通常の82）
-      const sc = await box(page.locator('.calendar .scroll'));
-      expect(near(sc.x, 0) && near(sc.width, W)).toBe(true);
-      expect(near(sc.y, 106, 1)).toBe(true);
-      expect(near(sc.y + sc.height, H - 96 * ry, 1)).toBe(true);
+      // 第19版 PR6（design/22 §5）: 見出し y82〜126・曜日 126〜146（20）・月のマス y146〜443（297。溝 avoid の上端 459 −16）・つまみ y453〜457
+      const sc = await box(page.locator('.mgrid'));
+      expect(near(sc.x, 12) && near(sc.width, W - 24)).toBe(true);
+      expect(near(sc.y, 146, 1) && near(sc.height, 297, 1)).toBe(true);
       const wd = await box(page.locator('.weekdays'));
-      expect(near(wd.y, 82, 1) && near(wd.height, 24, 1)).toBe(true);
+      expect(near(wd.y, 126, 1) && near(wd.height, 20, 1)).toBe(true);
+      const grab = await box(page.locator('.mgrab i'));
+      expect(near(grab.y, 453, 1) && near(grab.height, 4, 0.5) && near(grab.width, 36, 0.5)).toBe(true);
       // 操作の位置と大きさ
       const set = await box(page.getByRole('button', { name: '設定' }));
       const search = await box(page.getByRole('button', { name: '予定を検索' }));
@@ -47,64 +50,64 @@ for (const size of PORTRAITS) {
       expect(add.y + add.height).toBeLessThanOrEqual(H);
       // 月グリッドは下段の上で終わる（隠れる週がない）
       expect(sc.y + sc.height).toBeLessThanOrEqual(Math.min(today.y, tabs.y, add.y) + 1);
-      // 見出しの題名は中心 270rx（右上の予約を避けるため画面中央ではない）・操作と別の枠
+      // 見出し（月の題名・前・次・今日）は上の帯の下、y82〜126 の面
       const title = await box(page.locator('#ctitle'));
-      expect(near(title.x + title.width / 2, 270 * rx, 1)).toBe(true);
+      expect(title.y).toBeGreaterThanOrEqual(82 - 1); expect(title.y + title.height).toBeLessThanOrEqual(126 + 1);
       expect(noOverlap(title, set) && noOverlap(title, search)).toBe(true);
-      for (const n of ['前の月', '次の月']) { const b = await box(page.getByRole('button', { name: n })); expect(b.width).toBeGreaterThanOrEqual(44); expect(b.height).toBeGreaterThanOrEqual(44); expect(noOverlap(b, set) && noOverlap(b, search)).toBe(true); }
+      for (const n of ['前の週', '次の週']) { const b = await box(page.getByRole('button', { name: n })); expect(b.width).toBeGreaterThanOrEqual(44); expect(b.height).toBeGreaterThanOrEqual(44); expect(noOverlap(b, set) && noOverlap(b, search)).toBe(true); }
       // 予定名つきのチップ・帯
-      const strip = page.locator('.calendar .strip', { hasText: 'プロジェクト' }).first();
+      const strip = page.locator('.mgrid .strip', { hasText: 'プロジェクト' }).first();
       await expect(strip).toBeVisible();
       expect(inside(await box(strip), sc)).toBe(true);
       expect(await strip.innerText()).toMatch(/^(\d{1,2}:\d\d )?プロジェクト/); // 時刻は既定で切（出すときは先頭0なし）
-      await expect(page.locator('.calendar .bar', { hasText: '秋のゴルフ合宿' }).first()).toBeVisible();
+      await expect(page.locator('.mgrid .bar', { hasText: '秋のゴルフ合宿' }).first()).toBeVisible();
       expect(await findTextOverlaps(page)).toEqual([]);
       expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight && document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     });
 
-    // 4週・5週・6週。月曜始まり/日曜始まり。いずれも週は G÷n で均等、必要高 101 を下回らず、最後の週が下段に隠れない
-    const CASES = [['2026年12月（月曜始まり5週）', 1, 5], ['2027年2月（4週）', 3, 4], ['2026年11月（6週）', 0, 6], ['2026年8月（6週）', -3, 6]];
-    for (const [name, fwd, weeks] of CASES) {
-      test(`${name}: 週が均等で、最後の週まで下段に隠れない`, async ({ page }) => {
+    // 第19版 PR6: 月の型は 6行×49.5（297 を均等に分ける）。4週・5週の月も後ろの週で 6行にそろえ、最後の行まで溝の上（avoid の上端）に収まる
+    const CASES = [['2026年12月（月曜始まり5週）', 1], ['2027年2月（4週）', 3], ['2026年11月（6週）', 0], ['2026年8月（6週）', -3]];
+    for (const [name, fwd] of CASES) {
+      test(`${name}: 月の型は6行を均等に、最後の行まで溝の上に収まる`, async ({ page }) => {
+        await monthFormInit(page);
         await openApp(page, size);
-        const ry = size.height / 951;
         const btn = page.getByRole('button', { name: fwd >= 0 ? '次の月' : '前の月' });
         for (let i = 0; i < Math.abs(fwd); i++) await btn.click();
-        await expect(page.locator('.week')).toHaveCount(weeks);
-        const hs = await page.locator('.week').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
-        const G = size.height - 96 * ry - 106;
-        for (const h of hs) { expect(h).toBeGreaterThanOrEqual(101 - 0.5); expect(near(h, Math.max(G / weeks, 101), 1)).toBe(true); }
-        const sc = page.locator('.calendar .scroll');
-        await sc.evaluate((el) => { el.scrollTop = el.scrollHeight; });
-        const scb = await box(sc), last = await box(page.locator('.week').last()), tabs = await box(page.locator('.tabs'));
-        expect(last.y + last.height).toBeLessThanOrEqual(scb.y + scb.height + 1);
-        expect(scb.y + scb.height).toBeLessThanOrEqual(tabs.y + 1);
+        await expect(page.locator('.mgrid .week')).toHaveCount(6);
+        const hs = await page.locator('.mgrid .week').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+        for (const h of hs) expect(near(h, 49.5, 0.6)).toBe(true);
+        const last = await box(page.locator('.mgrid .week').last()), grab = await box(page.locator('.mgrab i'));
+        expect(last.y + last.height).toBeLessThanOrEqual(grab.y + 1);
+        expect(last.y + last.height).toBeLessThanOrEqual(459);
         expect(await findTextOverlaps(page)).toEqual([]);
       });
     }
 
-    test('日曜始まり: 2027年2月は5週、列は日曜から。月送りで下段・週数以外は動かない', async ({ page }) => {
+    test('日曜始まり: 2027年2月は列が日曜から。月送りで下の面・タブは動かない', async ({ page }) => {
+      await monthFormInit(page);
       await openApp(page, size);
       await openMenu(page, 'general');
       await page.locator('#menu').getByRole('button', { name: /^週の始まり/ }).click();
       for (let i = 0; i < 3; i++) await page.getByRole('button', { name: '次の月' }).click();
       await expect(page.locator('#ctitle')).toHaveText('2027年 2月');
       await expect(page.locator('.weekdays span').first()).toHaveText('日');
-      await expect(page.locator('.week')).toHaveCount(5);
-      const tabs0 = await box(page.locator('.tabs'));
+      await expect(page.locator('.mgrid .week')).toHaveCount(6);
+      const tabs0 = await box(page.locator('.tabs')), day0 = await box(page.locator('.mday'));
       await page.getByRole('button', { name: '前の月' }).click();
       expect(await box(page.locator('.tabs'))).toEqual(tabs0);
+      expect(await box(page.locator('.mday'))).toEqual(day0);
     });
 
-    test('11/27 の5件が出て、下部一覧はなく、日セルを押すとその日の日表示へ進む', async ({ page }) => {
+    test('2週の型で 11/13 の5件が全部出て、日をたたくと下の日の部分が変わる（日表示へは進まない）', async ({ page }) => {
+      await monthFormInit(page, 'two');
       await openApp(page, size);
-      await seed(page, ['A', 'B', 'C', 'D', 'E'].map((t, i) => ev(`m${i}`, `予定${t}`, `2026-11-27T${String(9 + i).padStart(2, '0')}:00`, `2026-11-27T${String(9 + i).padStart(2, '0')}:30`)));
-      for (const t of ['A', 'B', 'C', 'D', 'E']) await expect(page.locator('.calendar .strip', { hasText: `予定${t}` })).toBeVisible();
-      await expect(page.locator('.plus[data-jump="2026-11-27"]')).toHaveCount(0);
-      await pickDay(page, '2026-11-27');
-      await expect(page.locator('#ctitle')).toHaveText('11月27日（金）仏滅');
-      await expect(page.locator('.daylist .event')).toHaveCount(5);
-      await expect(tab(page, '日')).toHaveAttribute('aria-pressed', 'true');
+      await seed(page, ['A', 'B', 'C', 'D', 'E'].map((t, i) => ev(`m${i}`, `予定${t}`, `2026-11-13T${String(9 + i).padStart(2, '0')}:00`, `2026-11-13T${String(9 + i).padStart(2, '0')}:30`)));
+      for (const t of ['A', 'B', 'C', 'D', 'E']) await expect(page.locator('.mgrid .strip', { hasText: `予定${t}` })).toBeVisible();
+      await expect(page.locator('.plus[data-jump="2026-11-13"]')).toHaveCount(0);
+      await pickDay(page, '2026-11-13');
+      await expect(page.locator('.mdh h3')).toContainText('11月13日（金）');
+      await expect(page.locator('.mdlist .mdev')).toHaveCount(5);
+      await expect(tab(page, '月')).toHaveAttribute('aria-pressed', 'true');
     });
 
     test('simple を保存したまま縦は予定名で表示し、閉じた画面へ戻すと手帳', async ({ page }) => {
@@ -120,26 +123,29 @@ for (const size of PORTRAITS) {
       expect(await modeStates(page)).toMatchObject({ 手帳: true });
     });
 
-    test('共通5レーン: 帯＋チップは5段まで、収まらない分は +N（帯も1件に数える）', async ({ page }) => {
+    test('2週の型は6段: 帯＋チップは6段まで、収まらない日は最後の段を「+n」にする（帯も1件に数える）', async ({ page }) => {
+      await monthFormInit(page, 'two');
       await openApp(page, size);
       await addEvent(page, { title: '出張A', all: true, start: '2026/11/16', end: '2026/11/18', cat: 'work' });
       await addEvent(page, { title: '合宿B', all: true, start: '2026/11/17', end: '2026/11/19', cat: 'family' });
       await addEvent(page, { title: '研修C', all: true, start: '2026/11/17', end: '2026/11/17', cat: 'private' });
-      const bars = page.locator('.bar');
+      const bars = page.locator('.mgrid .bar');
       await expect(bars).toHaveCount(3); // 単日の終日も同形の帯
       await expect(page.locator('.plus[data-jump="2026-11-17"]')).toHaveCount(0);
       for (const t of ['終日D', '終日E', '終日F']) await addEvent(page, { title: t, all: true, start: '2026/11/17', end: '2026/11/17', cat: 'work' });
-      // 11/17: 6件のうち5段まで置き、ほか1件は +1
+      await expect(bars).toHaveCount(6); // 11/17 はちょうど6件。全部出て +n は出ない
+      await expect(page.locator('.plus[data-jump="2026-11-17"]')).toHaveCount(0);
+      await addEvent(page, { title: '終日G', all: true, start: '2026/11/17', end: '2026/11/17', cat: 'work' });
+      // 7件: 5件＋「+2」（最後の1件の代わりに +n）
       await expect(bars).toHaveCount(5);
-      await expect(page.locator('[data-date="2026-11-17"] ~ .plus[data-jump="2026-11-17"]')).toHaveText('+1');
+      await expect(page.locator('[data-date="2026-11-17"] ~ .plus[data-jump="2026-11-17"]')).toHaveText('+2');
       const boxes = await bars.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()));
       for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
         const p = boxes[i], q = boxes[j];
         expect(p.x < q.right - 0.5 && q.x < p.right - 0.5 && p.y < q.bottom - 0.5 && q.y < p.bottom - 0.5).toBe(false);
       }
       expect(await findTextOverlaps(page)).toEqual([]);
-      // 帯のタップで編集へ（+N に覆われない位置の帯）
-      await page.locator('.bar', { hasText: '出張A' }).click({ position: { x: 4, y: 8 } });
+      await page.locator('.mgrid .bar', { hasText: '出張A' }).click({ position: { x: 4, y: 8 } });
       await expect(page.locator('#editor')).toBeVisible();
     });
 
@@ -169,11 +175,11 @@ test.describe('開いた縦: safe area・キーボード・下書き', () => {
       const set = await box(page.getByRole('button', { name: '設定' }));
       const add = await box(page.getByRole('button', { name: '予定を追加' }));
       const tabs = await box(page.locator('.tabs'));
-      const sc = await box(page.locator('.calendar .scroll'));
+      const sc = await box(page.locator('.mgrid'));
       expect(near(set.y, 24, 1)).toBe(true); // 帯の中（中心 y=head*46/82=46）
       expect(add.y + add.height).toBeLessThanOrEqual(size.height - 34 + 0.5);
       expect(tabs.y + tabs.height).toBeLessThanOrEqual(size.height - 34 + 0.5);
-      expect(near(sc.y, 106, 1)).toBe(true);
+      expect(near(sc.y, 146, 1)).toBe(true);
       expect(near(tabs.y, size.height - 34 - 88 * ry, 1)).toBe(true);
       expect(sc.y + sc.height).toBeLessThanOrEqual(tabs.y + 1);
       expect(await findTextOverlaps(page)).toEqual([]);

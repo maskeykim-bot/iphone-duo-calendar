@@ -176,7 +176,7 @@ test('開いた横: ホームは9〜19時の小さな時間軸。予定をたた
 test('開いた縦の下段: 次の予定・タスクの2列（今日のメモ列は廃止）', async ({ page }) => {
   await openH(page, SIZES.openPortrait669, TASKS);
   await seed(page, EVS);
-  await seedUi(page, { pages: { left: 'home', right: 'month', portraitBottom: 'home', portraitShown: true } });
+  await seedUi(page, { monthExpand: true, pages: { left: 'home', right: 'month', portraitBottom: 'home', portraitShown: true } }); // 第19版 PR6: 下パネルは「全部」の月だけ（月タブの予定名は月を引く画面で下の面が日）
   const cols = page.locator('.pnl .hcol');
   await expect(cols).toHaveCount(2);
   await expect(cols.nth(0)).toContainText('会議');

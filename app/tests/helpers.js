@@ -27,6 +27,13 @@ export async function openApp(page, size = SIZES.closedPortrait, query = '', opt
       if (!s.pages) localStorage.setItem(key, JSON.stringify({ ...s, pages }));
     }, { q: query, pages: LEGACY_PAGES });
   }
+  // 第19版 PR6: 月タブ（閉じた画面・開いた縦）は「月を引く画面」で、既定の型は 2週。第18版までの spec は月全体（6行）が見える前提なので、
+  // 型が保存されていなければ「月」で起動する。既定（2週）を調べる spec は monthFormInit(page, 'two') を先に呼ぶ。
+  await page.addInitScript((q) => {
+    const ns = new URLSearchParams(q).get('ns'), key = `duo.ui.v1${ns ? `.${ns}` : ''}`;
+    let s = {}; try { s = JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch { s = {}; }
+    if (!s.monthForm) localStorage.setItem(key, JSON.stringify({ ...s, monthForm: 'month' }));
+  }, query);
   await page.setViewportSize(size);
   await page.clock.setFixedTime(new Date('2026-11-12T09:41:00+09:00'));
   await page.goto(`/index.html${query}`);
@@ -375,4 +382,9 @@ export async function setTaskTime(page, h, m) {
   await page.locator(`#tk-body .tpfield [data-h="${h}"]`).click();
   if (m !== undefined) await page.locator(`#tk-body .tpfield [data-m="${m}"]`).click();
   else await page.locator('#tk-time').click();
+}
+
+// 第19版 PR6: 閉じた画面・開いた縦の月タブは「月を引く画面」。月送り・月の格子を前提にする検査は、月の型（'one'|'two'|'month'）を保存しておいてから起動する。
+export async function monthFormInit(page, form = 'month') {
+  await page.addInitScript((f) => { const k = 'duo.ui.v1'; let s = {}; try { s = JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch { s = {}; } if (!s.monthForm) localStorage.setItem(k, JSON.stringify({ ...s, monthForm: f })); }, form);
 }

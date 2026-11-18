@@ -35,7 +35,7 @@ test.describe('閉じた画面の帯', () => {
     }
     await expect(page.locator('.ctl [data-act="allmonth"]')).toHaveCount(0);
     // 全は月ヘッダーへ。押すと全部表示、状態を保つ
-    const all = page.locator('.chead [data-act="allmonth"]');
+    const all = page.locator('.mph [data-act="allmonth"]');
     await expect(all).toHaveCount(1);
     await all.click();
     await expect(page.locator('.scroll.all')).toBeVisible();
@@ -201,6 +201,7 @@ test.describe('開いた横の帯', () => {
 });
 
 test('開いた縦の上帯には追加せず、下パネルからタスク・メモへ行ける', async ({ page }) => {
+  await page.addInitScript(() => { if (!localStorage.getItem('duo.ui.v1')) localStorage.setItem('duo.ui.v1', JSON.stringify({ monthExpand: true })); }); // 第19版 PR6: 下パネルは「全部」の月だけ
   await mock(page);
   await band(page, SIZES.openPortrait, 0);
   await expect(page.locator('[data-strip]')).toHaveCount(0);

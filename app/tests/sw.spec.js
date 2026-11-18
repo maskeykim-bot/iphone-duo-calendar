@@ -22,7 +22,7 @@ test.describe('Service Worker', () => {
     await page.waitForSelector('html[data-ready]');
     await expect(page.locator('.strip[data-sday="2026-11-12"]')).toContainText('オフライン確認');
     const fs = await page.locator('.strip').first().evaluate((e) => getComputedStyle(e).fontSize);
-    expect(parseFloat(fs)).toBe(10); // 新スタイル
+    expect(parseFloat(fs)).toBe(9); // 新スタイル（第19版 PR6: 月の型の文字。開いた縦の月は design/22 で 9pt）
     await context.setOffline(false);
   });
 });

@@ -56,14 +56,15 @@ test.describe('閉じた 466×678 + 右 safe（帯あり）', () => {
       const rs = await noOverlaps(page, Object.keys(want).map((n) => btn(page, n)));
       expect(rs[0].y).toBeGreaterThanOrEqual(160 * q - 0.5); // 最初のhit上端は T+160q 以降
       // 曜日下端／grid top、週高、タブ
-      near((await bx(page.locator('.scroll.msc .week').first())).y, 92 * q);
-      near((await bx(page.locator('.weekdays'))).y + (await bx(page.locator('.weekdays'))).height, 92 * q);
+      // 第19版 PR6（design/22 §1）: 見出し 48＋曜日 20 → 月の部分は y68
+      near((await bx(page.locator('.mgrid .week').first())).y, 68);
+      near((await bx(page.locator('.weekdays'))).y + (await bx(page.locator('.weekdays'))).height, 68);
       const tabs = await bx(page.locator('.tabs'));
       near(tabs.x + tabs.width / 2, (W - R) / 2); near(tabs.y + tabs.height / 2, 622); near(tabs.width, Math.min(286, W - R - 16)); near(tabs.height, 46);
       // 見出しは前後矢印＋題名＋全（PR12: 全は月ヘッダーへ。帯にはない）
       await expect(page.locator('.ctl [data-act="allmonth"]')).toHaveCount(0);
-      await expect(page.locator('.chead [data-act="allmonth"]')).toHaveCount(1);
-      await expect(page.locator('.chead button')).toHaveCount(3);
+      await expect(page.locator('.mph [data-act="allmonth"]')).toHaveCount(1);
+      await expect(page.locator('.mph button')).toHaveCount(4); // 前・次・全・今日
       // 帯の何もない所は遮らない（本体の帯）
       expect(await page.evaluate((cx) => !document.elementFromPoint(cx, 350)?.closest('.ctl, .bandbg'), cx)).toBe(true);
       expect(await findTextOverlaps(page)).toEqual([]);
@@ -114,10 +115,10 @@ test.describe('閉じた 466×678 + 右 safe（帯あり）', () => {
     await expect(page.locator('.ctl.band')).toHaveCount(0);
     const pane = await bx(page.locator('.mpane'));
     near(pane.x + pane.width, 466 - 55);
-    await expect(page.locator('.chead [data-act="allmonth"]')).toHaveCount(1);
+    await expect(page.locator('.mph [data-act="allmonth"]')).toHaveCount(1);
     const tabs = await bx(page.locator('.tabs'));
     near(tabs.width, Math.min(286, 466 - 55 - 128));
-    const rs = await noOverlaps(page, [...bandBtns.map((n) => btn(page, n)), page.locator('.tabs'), page.locator('.chead h2')]);
+    const rs = await noOverlaps(page, [...bandBtns.map((n) => btn(page, n)), page.locator('.tabs'), page.locator('.mph h2')]);
     for (const r of rs) expect(r.x + r.width).toBeLessThanOrEqual(466 - 55 + 0.5);
   });
 
@@ -147,7 +148,7 @@ test.describe('閉じた 466×678 + 右 safe（帯あり）', () => {
     const set = await bx(btn(page, '設定')), today = await bx(btn(page, '今日に戻る')), add = await bx(btn(page, '予定を追加'));
     near(set.y, 47 + 172 * q - 4); near(today.y, H - 34 - 140 * q - 4); near(add.y, H - 34 - 80 * q - 4);
     expect(add.y + add.height).toBeLessThanOrEqual(H - 34 + 4.5);
-    near((await bx(page.locator('.scroll.msc .week').first())).y, 47 + 92 * q);
+    near((await bx(page.locator('.mgrid .week').first())).y, 47 + 68); // 第19版 PR6
     const tabs = await bx(page.locator('.tabs'));
     near(tabs.y + tabs.height / 2, H - 34 - 56 * q);
   });
@@ -250,12 +251,13 @@ test.describe('開いた縦 + 上 safe（見出しは帯の中）', () => {
       await withSafe(page, size, { t: T });
       const W = size.width, H = size.height, ux = W / 669, p = H / 951, head = Math.max(T, 82);
       near(await cssVar(page, 'head-h'), head);
+      // 第19版 PR6（design/22 §5）: 見出し（月の題名・前・次・今日）は y82〜126 の面、曜日 20、月のマス y146〜。設定・検索は上の帯のまま
       const wd = await bx(page.locator('.weekdays'));
-      near(wd.y, head); near(wd.height, 24);
-      const sc = await bx(page.locator('.calendar .scroll'));
-      near(sc.y, head + 24); near(sc.y + sc.height, H - 96 * p, 1);
+      near(wd.y, head + 44); near(wd.height, 20);
+      const sc = await bx(page.locator('.mgrid'));
+      near(sc.y, head + 64);
       const cy = head * 46 / 82;
-      const items = { 設定: [20 * ux, 44], 前の月: [120 * ux, 44], 次の月: [376 * ux, 44], 全部の予定を表示: [432 * ux, 44], 予定を検索: [484 * ux, 44] };
+      const items = { 設定: [20 * ux, 44], 予定を検索: [484 * ux, 44] };
       const rs = [];
       for (const [n, [x, w]] of Object.entries(items)) {
         const loc = page.getByRole('button', { name: n, exact: true });
@@ -265,8 +267,8 @@ test.describe('開いた縦 + 上 safe（見出しは帯の中）', () => {
         rs.push(r);
       }
       const title = await bx(page.locator('#ctitle'));
-      near(title.x + title.width / 2, 270 * ux, 1); near(title.y + title.height / 2, cy, 1);
-      const search = rs[4];
+      near(title.y + title.height / 2, head + 22, 1);
+      const search = rs[1];
       expect(search.x + search.width).toBeLessThanOrEqual(540 * ux + 0.5); // 右上の予約（時刻・電池）
       for (let i = 0; i < rs.length; i++) for (let j = i + 1; j < rs.length; j++) expect(overlap(rs[i], rs[j]), `${i}/${j}`).toBe(false);
       for (const r of rs) expect(overlap(r, title)).toBe(false);

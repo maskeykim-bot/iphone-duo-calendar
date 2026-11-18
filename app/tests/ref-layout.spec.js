@@ -42,7 +42,7 @@ for (const [name, size, kind] of POSTURES) {
     await expect(b).toHaveAttribute('aria-pressed', 'false');
     await expect(page.locator('.scroll.all')).toHaveCount(0);
     expect(await ui(page)).toMatchObject({ monthExpand: false, style: 'simple' }); // 直前の表現を保つ
-    if (kind !== 'portrait') expect(await page.locator('.week.simple').count()).toBeGreaterThan(0);
+    if (kind === 'spread') expect(await page.locator('.week.simple').count()).toBeGreaterThan(0); // 閉じた・縦の月は月を引く画面（予定名の帯）なので手帳の点は開いた横だけ（第19版 PR6）
     if (kind === 'spread') expect(await textInGutter(page)).toEqual([]);
   });
 }
@@ -85,16 +85,17 @@ for (const [name, size, kind] of POSTURES) {
     const shown = (k) => chip(page, day(k)).count();
     const plus = (k) => page.locator(`.plus[data-jump="${day(k)}"]`);
     if (kind === 'closed') {
-      expect(await shown(27)).toBe(4); await expect(plus(27)).toHaveText('+1');
-      expect(await shown(20)).toBe(4); await expect(plus(20)).toHaveText('+6');
+      // 第19版 PR6: 月を引く画面の「月」の型は 2段（最後の段は +n）なので 1件＋「+n」
+      expect(await shown(27)).toBe(1); await expect(plus(27)).toHaveText('+4');
+      expect(await shown(20)).toBe(1); await expect(plus(20)).toHaveText('+9');
     } else if (kind === 'spread') {
       // 第13版 PR7: 6週（2026年11月）の開いた横は 951×669 で4段、890×626 は1週79pxなので3段
       const cap = size.height === 669 ? 4 : 3;
       expect(await shown(27)).toBe(cap); await expect(plus(27)).toHaveText(`+${5 - cap}`);
       expect(await shown(20)).toBe(cap); await expect(plus(20)).toHaveText(`+${10 - cap}`);
     } else {
-      expect(await shown(27)).toBe(5); await expect(plus(27)).toHaveCount(0);
-      expect(await shown(20)).toBe(5); await expect(plus(20)).toHaveText('+5');
+      expect(await shown(27)).toBe(1); await expect(plus(27)).toHaveText('+4');
+      expect(await shown(20)).toBe(1); await expect(plus(20)).toHaveText('+9');
     }
     await plus(20).click(); // +N → その日の表示へ
     expect(await ui(page)).toMatchObject({ selected: day(20) });
@@ -128,14 +129,18 @@ for (const [name, size] of POSTURES.slice(3)) {
 
 test('週の数: 月曜始まり 2026/11=6週、2027/2=4週（日曜始まりは5週）', async ({ page }) => {
   await openApp(page, SIZES.openPortrait669);
-  const weeks = () => page.locator('.week').count();
+  // 第19版 PR6: 月を引く画面の「月」の型は常に6行。4週・5週の月は後ろの週で6行にそろえる（先頭の日で週の始まりを確かめる）
+  const weeks = () => page.locator('.mgrid .week').count();
+  const firstDay = () => page.locator('.mgrid .day').first().getAttribute('data-date');
   expect(await weeks()).toBe(6);
   await page.evaluate(() => { const u = JSON.parse(localStorage.getItem('duo.ui.v1') || '{}'); localStorage.setItem('duo.ui.v1', JSON.stringify({ ...u, selected: '2027-02-10', weekStart: 1 })); });
   await page.reload(); await page.waitForSelector('html[data-ready]');
-  expect(await weeks()).toBe(4);
+  expect(await weeks()).toBe(6);
+  expect(await firstDay()).toBe('2027-02-01');
   await page.evaluate(() => { const u = JSON.parse(localStorage.getItem('duo.ui.v1')); localStorage.setItem('duo.ui.v1', JSON.stringify({ ...u, weekStart: 0 })); });
   await page.reload(); await page.waitForSelector('html[data-ready]');
-  expect(await weeks()).toBe(5);
+  expect(await weeks()).toBe(6);
+  expect(await firstDay()).toBe('2027-01-31');
 });
 
 test('開閉・回転のあとも「全部」と選択日が保たれる', async ({ page }) => {

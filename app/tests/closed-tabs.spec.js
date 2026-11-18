@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { OPEN_SIZES, SIZES, loadSample, openApp, setStyle, tab, openMenu, layout } from './helpers.js';
+import { OPEN_SIZES, SIZES, loadSample, openApp, setStyle, tab, openMenu, layout, monthFormInit } from './helpers.js';
 
 // 第10版 ②: 閉じた画面（月領域＋操作列）・4タブ・操作列。画面サイズは固定せず、同じ検査を複数の大きさで通す。
 const CLOSED = [SIZES.closedPortrait, SIZES.closedLandscape];
@@ -31,12 +31,13 @@ for (const size of CLOSED) {
     });
 
     test('ホーム → 日 → 週 → 月 → ホーム。今日は選択日だけ戻し、表示とホームは保つ', async ({ page }) => {
+      await monthFormInit(page, 'two');
       await openApp(page, size);
       await tab(page, '月').click();
       await expect(page.locator('body')).toHaveAttribute('data-layout', 'browse');
       await expect(tab(page, '月')).toHaveAttribute('aria-pressed', 'true');
       await expect(tab(page, 'ホーム')).toHaveAttribute('aria-pressed', 'false');
-      await page.locator('[data-act="next"]').first().click();
+      for (let i = 0; i < 4; i++) await page.locator('[data-act="next"]').first().click(); // 第19版 PR6: 月タブは 2週の型で 1週ずつ進む（11/12 → 12/10）
       await expect(page.locator('#ctitle')).toHaveText('2026年 12月');
       await page.getByRole('button', { name: '今日に戻る' }).click();
       await expect(page.locator('#ctitle')).toHaveText('2026年 11月');
@@ -102,30 +103,29 @@ for (const size of CLOSED) {
       for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) expect(hits(rects[i], rects[j]), `重なり ${i}/${j}`).toBe(false);
     });
 
-    test('最終週はスクロールでタブの上へ出せる（恒久的にタブの裏に隠れない）', async ({ page }) => {
+    test('日の部分の末尾（タスク・ノート）はスクロールでタブの上へ出せる（第19版 PR6: 月を引く画面）', async ({ page }) => {
       await openApp(page, size);
       await tab(page, '月').click();
-      await setStyle(page, '予定名');
-      const sc = page.locator('.scroll.msc');
+      const sc = page.locator('.mday');
       await sc.evaluate((el) => { el.scrollTop = el.scrollHeight; });
-      const last = await box(page.locator('.scroll.msc .week').last());
+      const last = await box(page.locator('.mday .mdnote'));
       const tabTop = (await box(page.locator('.tabs'))).t;
-      expect(last.b).toBeLessThanOrEqual(tabTop + 1); // scrollTop は整数に丸まるため最大1px
-      // 曜日の行はスクロールの外
-      expect(await page.evaluate(() => !document.querySelector('.scroll.msc').contains(document.querySelector('.weekdays')))).toBe(true);
+      expect(last.b).toBeLessThanOrEqual(tabTop + 1);
     });
   });
 }
 
 test('閉じた縦 466×678（safe=0・帯なし）: 本文は全幅・q=H/678（曜日 76q・grid 92q）・タブ 286 幅 中心 y622', async ({ page }) => {
+  await monthFormInit(page, 'two');
   await openApp(page, SIZES.closedPortrait);
   await tab(page, '月').click();
   const q = 678 / 678;
-  const wk = await box(page.locator('.scroll.msc .week').first());
-  expect(Math.abs(wk.t - 92 * q)).toBeLessThan(0.3);
-  expect(Math.abs(wk.h - 500 * q / 6)).toBeLessThan(0.5);
+  // 第19版 PR6（design/22 §1）: 曜日の行 20、月の部分は 2週×80（初期の型）、つまみ 24
   const wd = await box(page.locator('.weekdays'));
-  expect(Math.abs(wd.t - 76 * q)).toBeLessThan(0.3);
+  expect(Math.abs(wd.h - 20)).toBeLessThan(0.3);
+  const wk = await box(page.locator('.mgrid .week').first());
+  expect(Math.abs(wk.t - (wd.t + wd.h))).toBeLessThan(0.3);
+  expect(Math.abs(wk.h - 80)).toBeLessThan(0.5);
   const t = await box(page.locator('.tabs'));
   expect(Math.abs(t.w - 286)).toBeLessThan(0.3);
   expect(Math.abs(t.t + t.h / 2 - 622)).toBeLessThan(0.3);
@@ -149,10 +149,10 @@ test('閉じた縦で、月の表現は設定の「月の表現」から選ぶ�
   await expect(page.locator('.scroll.all')).toBeVisible();
   await page.reload(); await page.waitForSelector('html[data-ready]');
   await expect(page.locator('.scroll.all')).toBeVisible();
-  await setStyle(page, '手帳');
-  await expect(page.locator('.week.simple').first()).toBeVisible();
+  await setStyle(page, '手帳'); // 手帳の設定は保存される。月タブ（月を引く画面）は予定名の帯で描くので、手帳の点は「全部」でないとき出ない（第19版 PR6）
+  await expect(page.locator('.mpull')).toBeVisible();
   await page.reload(); await page.waitForSelector('html[data-ready]');
-  await expect(page.locator('.week.simple').first()).toBeVisible();
+  await expect(page.locator('.mpull')).toBeVisible();
   await openMenu(page, 'display');
   await page.locator('#menu').getByRole('button', { name: '月の表現', exact: true }).click();
   await expect(page.locator('#m-variant').getByRole('button', { name: '手帳' })).toHaveAttribute('aria-pressed', 'true');

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { openApp, seed, ev, tab, layout, SIZES, textInGutter, findTextOverlaps, setStyle, modeStates, openMenu } from './helpers.js';
+import { openApp, seed, ev, tab, layout, SIZES, textInGutter, findTextOverlaps, setStyle, modeStates, openMenu, monthFormInit } from './helpers.js';
 
 const day = (n) => `2026-11-${String(n).padStart(2, '0')}`;
 // 1日に n 件（10:00 から30分刻み）。
@@ -284,12 +284,21 @@ test.describe('週の始まり（月曜が既定）', () => {
   for (const [name, y, m] of [['2026年11月（6週）', 0, 0], ['2027年2月（4週）', 3, 0]]) {
     for (const mode of ['手帳', '予定名', '全部']) {
       test(`月曜始まり ${name} ${mode}: グリッドの下が空かない`, async ({ page }) => {
+        await monthFormInit(page); // 第19版 PR6: 閉じた画面の月は「月を引く画面」。手帳・予定名は「月」の型（6行×50）で見る
         await openApp(page, SIZES.closedPortrait);
         await tab(page, '月').click();
         for (let i = 0; i < y; i++) await page.getByRole('button', { name: '次の月' }).click();
         void m;
         await setStyle(page, mode);
         await expect(page.locator('.weekdays span')).toHaveText(['月', '火', '水', '木', '金', '土', '日']);
+        if (mode !== '全部') {
+          const weeks = page.locator('.mgrid .week');
+          await expect(weeks).toHaveCount(6); // 4週の月も後ろの週で6行にそろえる
+          expect(await weeks.first().locator('.day').first().getAttribute('data-date')).toBe(y ? '2027-02-01' : '2026-10-26');
+          const top = (await weeks.first().boundingBox()).y, last = await weeks.last().boundingBox();
+          expect(Math.abs(last.y + last.height - (top + 300))).toBeLessThanOrEqual(1);
+          return;
+        }
         const weeks = page.locator('.week');
         await expect(weeks).toHaveCount(y ? 4 : 6);
         const first = await page.locator('.week').first().locator('.day').first().getAttribute('data-date');
@@ -304,27 +313,32 @@ test.describe('週の始まり（月曜が既定）', () => {
   }
 
   test('開いた縦（予定名・全部）でも月曜始まりの月は下が空かない', async ({ page }) => {
+    await monthFormInit(page); // 第19版 PR6: 予定名は月を引く画面（月の型は6行で297）、全部は従来の月
     await openApp(page, SIZES.openPortrait);
     for (let i = 0; i < 3; i++) await page.getByRole('button', { name: '次の月' }).click(); // 2027年2月
-    for (const mode of ['予定名', '全部']) {
-      await setStyle(page, mode);
-      await expect(page.locator('#ctitle')).toHaveText('2027年 2月');
-      await expect(page.locator('.week')).toHaveCount(4);
-      const sc = await page.locator('.calendar .scroll').boundingBox();
-      const last = await page.locator('.week').last().boundingBox();
-      // 末尾の週がスクロール領域の下端に届く（余るときは行が伸びて埋める。必要高が上回るときは内部スクロール）
-      expect(last.y + last.height).toBeGreaterThanOrEqual(sc.y + sc.height - 1);
-    }
+    await setStyle(page, '予定名');
+    await expect(page.locator('#ctitle')).toHaveText('2027年 2月');
+    await expect(page.locator('.mgrid .week')).toHaveCount(6);
+    const g = await page.locator('.mgrid').boundingBox(), l = await page.locator('.mgrid .week').last().boundingBox();
+    expect(l.y + l.height).toBeGreaterThanOrEqual(g.y + g.height - 1);
+    await setStyle(page, '全部');
+    await expect(page.locator('#ctitle')).toHaveText('2027年 2月');
+    await expect(page.locator('.week')).toHaveCount(4);
+    const sc = await page.locator('.calendar .scroll').boundingBox();
+    const last = await page.locator('.week').last().boundingBox();
+    // 末尾の週がスクロール領域の下端に届く（余るときは行が伸びて埋める。必要高が上回るときは内部スクロール）
+    expect(last.y + last.height).toBeGreaterThanOrEqual(sc.y + sc.height - 1);
   });
 
   test('設定で日曜始まりに切り替え: 見出し・月グリッド・週表示・保存', async ({ page }) => {
+    await monthFormInit(page);
     await openApp(page, SIZES.closedPortrait);
     await tab(page, '月').click();
     await openMenu(page, 'general');
     await expect(page.getByRole('button', { name: /^週の始まり: 月曜/ })).toBeVisible();
     await page.getByRole('button', { name: /^週の始まり/ }).click();
     await expect(page.locator('.weekdays span')).toHaveText(['日', '月', '火', '水', '木', '金', '土']);
-    await expect(page.locator('.week')).toHaveCount(5); // 2026年11月は日曜始まりで5週
+    await expect(page.locator('.mgrid .week')).toHaveCount(6); // 月の型は常に6行（日曜始まりの11月は5週＋翌週）
     expect(await page.locator('.week').first().locator('.day').first().getAttribute('data-date')).toBe('2026-11-01');
     await tab(page, '週').click();
     await expect(page.locator('#ctitle')).toHaveText('11月8日〜14日'); // 閉じた画面の週は同じ月なら後ろの月を省く（第19版 PR5）

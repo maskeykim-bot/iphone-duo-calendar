@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { PALETTE } from '../js/categories.js';
-import { openApp, tab, setStyle, seed, ev, SIZES, chip } from './helpers.js';
+import { openApp, tab, setStyle, seed, ev, SIZES, chip, monthFormInit } from './helpers.js';
 
 // 第10版 ①: 月のチップ・帯・+N の計算後スタイル（06 §1〜§3）。画面サイズ・折り目は固定しない。
 const POSTURES = [
@@ -10,6 +10,8 @@ const POSTURES = [
   ['開いた横 890×626', SIZES.openLandscape, 9.5],
   ['開いた横 951×669', SIZES.openLandscape951, 9.5],
 ];
+// 第19版 PR6: 閉じた画面・開いた縦の月は「月を引く画面」。チップの高さ 14 は月の型（段 2）でも同じ、文字は 9pt
+const isPull = (size) => size.width < size.height;
 const rgb = (hex) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
 
 // 12色のカテゴリを DB に入れ、11/2〜11/13 に1件ずつ（各色）時刻付きの予定を置く。
@@ -35,6 +37,7 @@ for (const [name, size, fs] of POSTURES) {
   for (const scheme of ['light', 'dark']) {
     test(`${name} ${scheme}: 時刻つきチップは 本色＋白・太字・14px・角丸3.5・切って省略しない（12色）`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });
+      if (isPull(size)) await monthFormInit(page);
       await openApp(page, size);
       await seedPalette(page);
       await toMonth(page, size);
@@ -42,7 +45,7 @@ for (const [name, size, fs] of POSTURES) {
         const strip = chip(page, `2026-11-${String(2 + i).padStart(2, '0')}`);
         await expect(strip).toHaveCount(1);
         const s = await cs(strip);
-        expect(s.fs).toBe(fs);
+        expect(s.fs).toBe(isPull(size) ? 9 : fs);
         expect(s.fw).toBeGreaterThanOrEqual(600);
         expect(Math.abs(s.h - 14)).toBeLessThanOrEqual(0.2);
         expect(s.radius).toBe('3.5px');
@@ -57,8 +60,8 @@ for (const [name, size, fs] of POSTURES) {
   }
 }
 
-test('レーンは日付行の下（19px）から16px刻み、チップ14px＋隙間2px', async ({ page }) => {
-  await openApp(page, SIZES.openPortrait669);
+test('レーンは日付行の下（19px）から16px刻み、チップ14px＋隙間2px（開いた横。閉じた・縦は月を引く画面で別の段）', async ({ page }) => {
+  await openApp(page, SIZES.openLandscape951);
   await seed(page, ['a', 'b', 'c'].map((n, i) => ev(n, `予定${n}`, `2026-11-12T${String(9 + i).padStart(2, "0")}:00`, `2026-11-12T${String(9 + i).padStart(2, "0")}:30`)));
   await setStyle(page, '予定名');
   const week = await page.locator('.week').filter({ has: page.locator('[data-date="2026-11-12"]') }).boundingBox();
@@ -71,7 +74,8 @@ test('レーンは日付行の下（19px）から16px刻み、チップ14px＋�
   expect(tops[2] - tops[1]).toBeCloseTo(16, 1);
 });
 
-for (const [name, size, fs] of POSTURES) {
+// 帯・+N の見た目は従来の月（開いた横）。閉じた・縦の月を引く画面の帯と +n は tests/month-pull.spec.js で確かめる。
+for (const [name, size, fs] of POSTURES.filter(([, sz]) => !isPull(sz))) {
   test(`${name}: 帯は塗らず線＋中央の題名（2px・top+12.5・列境界から内1px）、+N は 9px・押せる範囲 44×44`, async ({ page }) => {
     await openApp(page, size);
     await seed(page, [

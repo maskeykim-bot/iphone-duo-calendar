@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, loadSample, addEvent, tab, layout, findTextOverlaps, setStyle, toggleDesk, SIZES, showView } from './helpers.js';
+import { openApp, loadSample, addEvent, tab, layout, findTextOverlaps, setStyle, toggleDesk, SIZES, showView, monthFormInit } from './helpers.js';
 
 const box = (loc) => loc.boundingBox();
 const inside = (inner, outer, tol = 1) => inner.y >= outer.y - tol && inner.y + inner.height <= outer.y + outer.height + tol && inner.x >= outer.x - tol && inner.x + inner.width <= outer.x + outer.width + tol;
@@ -48,16 +48,16 @@ test.describe('レイアウト（4サイズ）', () => {
     await expect(page.locator('.agenda')).toHaveCount(0);
   });
 
-  test('閉じた月: 常設の凡例はなく、本文は内部スクロールで最終週がタブの上へ出る', async ({ page }) => {
+  test('閉じた月: 常設の凡例はなく、日の部分は内部スクロールで末尾（ノート）がタブの上へ出る（第19版 PR6）', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await loadSample(page);
     await tab(page, '月').click();
     await setStyle(page, '予定名');
     await expect(page.locator('.calendar .legend')).toHaveCount(0);
-    const sc = page.locator('.scroll');
+    const sc = page.locator('.mday');
     await sc.evaluate((el) => { el.scrollTop = el.scrollHeight; });
-    const lastWeek = await box(page.locator('.week').last());
-    expect(lastWeek.y + lastWeek.height).toBeLessThanOrEqual((await box(page.locator('.tabs'))).y + 1);
+    const last = await box(page.locator('.mdnote'));
+    expect(last.y + last.height).toBeLessThanOrEqual((await box(page.locator('.tabs'))).y + 1);
   });
 
   test('678×466 閉じた横: 1列でホームの操作が使える', async ({ page }) => {
@@ -78,19 +78,20 @@ test.describe('レイアウト（4サイズ）', () => {
 
   for (const size of [SIZES.openPortrait, SIZES.openPortrait669]) {
     test(`開いた縦 ${size.width}×${size.height}: 月は下段（今日・タブ・＋）に覆われず、6週月でも最後の週まで届く。下部アジェンダなし`, async ({ page }) => {
+      await monthFormInit(page); // 第19版 PR6: 月を引く画面の「月」の型（6行）で見る
       await openApp(page, size);
       await loadSample(page);
       expect(await layout(page)).toBe('open');
       await expect(page.locator('.agenda')).toHaveCount(0);
       const add = await box(page.getByRole('button', { name: '予定を追加' }));
-      const sc = await box(page.locator('.calendar .scroll'));
+      const sc = await box(page.locator('.mgrid'));
       expect(sc.y + sc.height).toBeLessThanOrEqual(add.y + 1);
       // 6週月でも週行は縮まず、全週がスクロールなしで見える（詳細は open-portrait.spec.js）
       await page.getByRole('button', { name: '前の月' }).click();
       await page.getByRole('button', { name: '前の月' }).click();
       await page.getByRole('button', { name: '前の月' }).click(); // 2026年8月（6週）
-      await expect(page.locator('.week')).toHaveCount(6);
-      const last = await box(page.locator('.week').last());
+      await expect(page.locator('.mgrid .week')).toHaveCount(6);
+      const last = await box(page.locator('.mgrid .week').last());
       expect(last.y + last.height).toBeLessThanOrEqual(add.y + 1);
     });
   }
@@ -283,13 +284,14 @@ test.describe('複数日の帯', () => {
         expect(b.bar.top).toBeGreaterThanOrEqual(b.week.top);
         expect(b.bar.bottom).toBeLessThanOrEqual(b.week.bottom);
         expect(b.bar.top).toBeGreaterThanOrEqual(b.num.bottom - 1);
-        expect(b.bar.top - b.num.bottom).toBeLessThanOrEqual(6 + 16); // 2本目のレーンは +16px
-        if (b.nextNum) expect(b.nextNum.top - b.bar.bottom).toBeGreaterThanOrEqual(8);
+        expect(b.bar.top - b.num.bottom).toBeLessThanOrEqual(6 + (size === 'openPortrait' ? 20 : 16)); // 2本目のレーンは +16px（開いた縦の月を引く画面は段の間隔 20）
+        if (b.nextNum) expect(b.nextNum.top - b.bar.bottom).toBeGreaterThanOrEqual(2); // 第19版 PR6: 月を引く画面の段（日付16＋チップ14・行約50）は帯の下〜次の日付が 2.5〜5（旧 8）
       }
     });
   }
 
   test('週をまたぐ帯は週ごとに分割し、矢印なしで各週に題名を中央に置く', async ({ page }) => {
+    await monthFormInit(page); // 第19版 PR6: 月の型（11/23 の週まで見える）
     await openApp(page, SIZES.openPortrait);
     await addEvent(page, { title: '長期出張', all: true, start: '2026/11/19', end: '2026/11/23' });
     await setStyle(page, '予定名');
