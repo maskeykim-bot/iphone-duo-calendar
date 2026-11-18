@@ -1548,7 +1548,7 @@ test.describe('貼付の取消（PR32）', () => {
       const od = IDBObjectStore.prototype.delete; IDBObjectStore.prototype.delete = function (...a) { IDBObjectStore.prototype.delete = od; throw new Error('boom'); };
     });
     await toast(page).getByRole('button', { name: '元に戻す' }).click();
-    await expect(page.locator('#status')).toContainText('保存できませんでした');
+    await expect(page.locator('#status')).toContainText('元に戻せませんでした');
     expect(await mine(page)).toHaveLength(2);
     expect(await calls(page, 'deleteEvent')).toHaveLength(0);
     await expect(toast(page).getByRole('button', { name: '元に戻す' })).toBeVisible();

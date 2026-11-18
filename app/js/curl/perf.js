@@ -5,7 +5,7 @@
 export const curlPerfOn = () => { try { return new URLSearchParams(location.search).get('curlperf') === '1'; } catch { return false; } };
 export const curlPerfAuto = () => { try { const n = parseInt(new URLSearchParams(location.search).get('auto'), 10); return n > 0 ? Math.min(n, 200) : 0; } catch { return 0; } };
 
-// 合否の線（ms）。60Hz は計画の値。120Hz は 60Hz の約半分（コマ 8.3ms）で置いた参考値。
+// 合否の線（ms）。60Hz は計画の値。120Hz は連携 第15弾 9.1 の値（p95 9.5・p99 16.7・落ち 2%）。
 export const LINES = {
   hz60: { p95: 18.0, p99: 33.4, dropRate: 0.01, longTasks: 0 },
   hz120: { p95: 9.5, p99: 16.7, dropRate: 0.02, longTasks: 0 },
@@ -63,7 +63,7 @@ export function createPerf(h) {
       textures: { byKind: texOut, prepareMs: stat(S.first.map((f) => f.prepMs).filter((v) => v != null)), count: S.tex.length },
       frames,
       longTasks: { supported: longOk, countInTurns: longIn.length, over50ms: over50, maxMs: r2(longIn.reduce((m, e) => Math.max(m, e.d), 0)) },
-      memory: { phases: S.phases, maxTotalBytes: S.maxBytes, maxTotalMB: r2(S.maxBytes / 1048576), estimate: ESTIMATE },
+      memory: { phases: S.phases, maxTotalBytes: S.maxBytes, maxTotalMB: r2(S.maxBytes / 1000000), mbUnit: 1000000, estimate: ESTIMATE },
       contextLost: S.lost,
       auto: S.auto,
       lines: LINES,

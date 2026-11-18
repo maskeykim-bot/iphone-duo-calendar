@@ -371,3 +371,42 @@ test.describe('バックアップ読み込みとカテゴリ（旧 cat → id �
     expect((await dbEvents(page))[0].categoryId).toBe('yoga');
   });
 });
+
+// 第19版 PR1（design/30 §1）: カテゴリの保存に失敗したら「カテゴリを保存できませんでした。」を先に出し、データは元のまま
+test.describe('カテゴリの保存失敗の文', () => {
+  const MSG = 'カテゴリを保存できませんでした。もう一度お試しください。';
+  const breakWrites = (page) => page.evaluate(() => { window.__op = IDBObjectStore.prototype.put; IDBObjectStore.prototype.put = function () { throw new Error('boom'); }; });
+  const heal = (page) => page.evaluate(() => { IDBObjectStore.prototype.put = window.__op; });
+  test('① 編集シートの保存 ② 表示の切り替え ③ 編集モードの削除・並べ替え。どれも元のまま残り、押し直せる', async ({ page }) => {
+    await openApp(page);
+    await openCats(page);
+    // ① 追加シート
+    await page.locator('[data-cadd]').click();
+    await page.locator('#cat-name').fill('ヨガ');
+    await breakWrites(page);
+    await page.locator('#cat-close').click();
+    await expect(page.locator('#cat-err')).toHaveText(MSG);
+    expect((await dbCats(page)).map((c) => c.name)).not.toContain('ヨガ');
+    await heal(page);
+    await page.locator('#cat-close').click();
+    await expect(page.locator('#cats')).toBeHidden();
+    expect((await dbCats(page)).map((c) => c.name)).toContain('ヨガ');
+    await page.locator('#m-cedit').click(); // 編集モードを抜ける
+    // ② 表示の切り替え
+    await breakWrites(page);
+    await page.locator('#m-cal-duo [data-cvis]', { hasText: '家族' }).click();
+    await expect(page.locator('#status')).toHaveText(MSG);
+    expect((await dbCats(page)).find((c) => c.name === '家族').hidden).toBe(false);
+    await heal(page);
+  });
+  test('③ 編集モードの並べ替え（calEditCommit）', async ({ page }) => {
+    await openApp(page);
+    await openCats(page);
+    await breakWrites(page);
+    const before = (await dbCats(page)).map((c) => c.id);
+    await rowOf(page, '外出').locator('[data-cup]').click();
+    await expect(page.locator('#status')).toHaveText(MSG);
+    expect((await dbCats(page)).map((c) => c.id)).toEqual(before);
+    await heal(page);
+  });
+});

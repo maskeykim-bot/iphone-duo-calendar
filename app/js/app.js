@@ -2922,7 +2922,7 @@ async function commit(plan, { ops = [] } = {}) {
 // 送信待ちを作る入力（新系列の id がまだ確定していない np への操作も、確定後に送る操作として積める）。
 const opsCtx = (extra = {}) => ({ waiting: new Set(OBX.items.filter((o) => o.newParentId).map((o) => o.newParentId)), ...extra });
 const planOps = (prev, plan, scope, occKey, form, extra) => (NATIVE ? planNativeOps(prev, plan, scope, occKey, form, opsCtx(extra)) : { ops: [], plan });
-const SAVE_FAIL = 'もう一度お試しください。';
+const SAVE_FAIL = '保存できませんでした。もう一度お試しください。';
 
 let saving = false;
 form.addEventListener('submit', async (ev) => {
@@ -3339,7 +3339,7 @@ async function catSave() {
   if (nameTaken(list, v.value.name, v.value.id)) { cs.err = 'ほかのカテゴリと同じ名前は使えません。'; renderCats(); CT.body.querySelector('#cat-name')?.focus({ preventScroll: true }); return; }
   if (!cs.id && list.length >= CAT_LIMITS.max) { cs.err = `カテゴリは最大${CAT_LIMITS.max}個までです。`; renderCats(); return; }
   cs.busy = true;
-  try { await commitCats({ catPuts: [v.value] }); } catch { cs.busy = false; cs.err = 'もう一度お試しください。'; renderCats(); return; }
+  try { await commitCats({ catPuts: [v.value] }); } catch { cs.busy = false; cs.err = 'カテゴリを保存できませんでした。もう一度お試しください。'; renderCats(); return; }
   cs.busy = false;
   calFocusId = v.value.id;
   closePanel(catsDlg);
@@ -3886,7 +3886,7 @@ async function calEditCommit(fn) {
   if (lk.catBusy) return false;
   lk.catBusy = true;
   let ok = true;
-  try { await commitCats(fn()); } catch { ok = false; say('もう一度お試しください。'); }
+  try { await commitCats(fn()); } catch { ok = false; say('カテゴリを保存できませんでした。もう一度お試しください。'); }
   lk.catBusy = false;
   return ok;
 }
@@ -3960,7 +3960,7 @@ async function calToggleCat(id, btn) {
     return;
   }
   lk.catBusy = true;
-  try { await commitCats({ catPuts: [{ ...c, hidden: !c.hidden, updatedAt: Date.now() }] }); } catch { say('もう一度お試しください。'); }
+  try { await commitCats({ catPuts: [{ ...c, hidden: !c.hidden, updatedAt: Date.now() }] }); } catch { say('カテゴリを保存できませんでした。もう一度お試しください。'); }
   lk.catBusy = false;
   renderCalScreen();
   $('#m-cal-duo').querySelector(`[data-cvis="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
@@ -4424,7 +4424,7 @@ async function undoPaste() {
   if (duo.length) {
     let r;
     try { r = await db.applyUndo({ items: duo, mk: (raw) => undoLinkedOp(raw, Date.now()), outbox: (cur, ops) => mergeOps(cur, ops, OBX.inflight) }); } catch {
-      say(SAVE_FAIL); undoRec = rec; armUndo(rec, left); return; // 何も消えていない。残り時間で再度押せる
+      say('元に戻せませんでした。もう一度お試しください。'); undoRec = rec; armUndo(rec, left); return; // 何も消えていない。残り時間で再度押せる
     }
     OBX.items = r.list;
     const gone = new Set(r.deleted);

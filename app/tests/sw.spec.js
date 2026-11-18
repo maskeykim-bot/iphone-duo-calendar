@@ -3,16 +3,18 @@ import { openApp, seed, ev, SIZES } from './helpers.js';
 import { readFileSync } from 'node:fs';
 
 // SW 専用: 普段は serviceWorkers:'block'。ここだけ許可してオンライン登録→オフライン再読込→新スタイル・予定が残る。
+const CACHE = /const CACHE = '([^']+)'/.exec(readFileSync('sw.js', 'utf8'))[1];
+const PREV = `duo-static-v${Number(CACHE.replace('duo-static-v', '')) - 1}`;
 test.describe('Service Worker', () => {
   test.use({ serviceWorkers: 'allow' });
-  test('キャッシュ名 v144 と新しい css/js が ASSETS に入り、オフライン再読込でも表示・予定が残る', async ({ page, context }) => {
+  test('キャッシュ名（sw.js の CACHE）と新しい css/js が ASSETS に入り、オフライン再読込でも表示・予定が残る', async ({ page, context }) => {
     const src = readFileSync('sw.js', 'utf8');
-    expect(src).toContain("duo-static-v156");
+    expect(src).toContain(CACHE);
     for (const f of ['./css/app.css', './js/app.js', './js/tasks.js', './js/categories.js', './js/occcache.js', './js/rokuyo.js', './js/rokuyo-table.js', './js/pages.js', './js/memos.js', './js/notes.js', './js/notes-ui.js', './js/direct-input.js', './js/paste.js', './js/datetime-ui.js', './js/holidays.js', './js/holidays-table.js', './js/curl/params.js', './js/curl/geom.js', './js/curl/shaders.js', './js/curl/mesh.js', './js/curl/renderer.js', './js/curl/index.js']) expect(src).toContain(`'${f}'`);
     await openApp(page, SIZES.openPortrait669);
     await seed(page, [ev('sw1', 'オフライン確認', '2026-11-12T10:00', '2026-11-12T11:00')]);
     await page.evaluate(() => navigator.serviceWorker.ready);
-    await page.waitForFunction(async () => { const c = await caches.open('duo-static-v156'); return (await caches.keys()).includes('duo-static-v155') && !!(await c.match('./css/app.css')) && !!(await c.match('./js/rokuyo.js')) && !!(await c.match('./js/rokuyo-table.js')) && !!(await c.match('./js/pages.js')) && !!(await c.match('./js/holidays-table.js')) && !!(await c.match('./js/posture.js')) && !!(await c.match('./js/notes-model.js')) && !!(await c.match('./js/note-lines.js')) && !!(await c.match('./js/keyboard-layout.js')) && !!(await c.match('./js/curl/renderer.js')) && !!(await c.match('./js/curl/painter.js')) && !!(await c.match('./js/curl/gesture.js')) && !!(await c.match('./js/curl/landing.js')) && !!(await c.match('./js/curl/perf.js')) && !!(await c.match('./js/curl/native-curl.js')); });
+    await page.waitForFunction(async ([CACHE, PREV]) => { const c = await caches.open(CACHE); return (await caches.keys()).includes(PREV) && !!(await c.match('./css/app.css')) && !!(await c.match('./js/rokuyo.js')) && !!(await c.match('./js/rokuyo-table.js')) && !!(await c.match('./js/pages.js')) && !!(await c.match('./js/holidays-table.js')) && !!(await c.match('./js/posture.js')) && !!(await c.match('./js/notes-model.js')) && !!(await c.match('./js/note-lines.js')) && !!(await c.match('./js/keyboard-layout.js')) && !!(await c.match('./js/curl/renderer.js')) && !!(await c.match('./js/curl/painter.js')) && !!(await c.match('./js/curl/gesture.js')) && !!(await c.match('./js/curl/landing.js')) && !!(await c.match('./js/curl/perf.js')) && !!(await c.match('./js/curl/native-curl.js')); }, [CACHE, PREV]);
     await page.reload(); // SW 制御下で一度読み直してから切る
     await page.waitForSelector('html[data-ready]');
     await context.setOffline(true);
