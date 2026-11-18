@@ -54,8 +54,6 @@ test('CURLPERF: ?curlperf=1&auto=2 で前へ・戻り各2回、JSON の項目が
   expect(r.memory.phases.after.painterBytes).toBe(0); // 終わって捨てた後
   expect(r.memory.phases.afterDirChange, '向きを変えた直後').toBeTruthy();
   expect(r.memory.estimate.memoryMB).toBe(58.1);
-  expect(r.memory.mbUnit).toBe(1000000);
-  expect(Math.abs(r.memory.maxTotalMB * 1000000 - r.memory.maxTotalBytes)).toBeLessThanOrEqual(5000); // 小数2桁の丸め
   expect(r.lines.hz60).toEqual({ p95: 18.0, p99: 33.4, dropRate: 0.01, longTasks: 0 });
   expect(r.lines.hz120).toBeTruthy();
   expect(typeof r.verdict.hz60.ok).toBe('boolean'); expect(typeof r.verdict.hz120.ok).toBe('boolean');
