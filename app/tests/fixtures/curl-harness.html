@@ -1,0 +1,83 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>curl 部品ハーネス</title>
+<style>html,body{margin:0;background:#fff}canvas{position:absolute;left:0;top:0}</style></head><body>
+<script type="module">
+// js/curl/ の部品だけを読み、寸法と姿勢を指定して描く（試験用。アプリは使わない）。
+import { createCurl, clampF, shape, deform, TUNE, DARK, K } from '/js/curl/index.js';
+let curl = null, R = null, cur = null;
+const pageCanvas = (w, h, dpr, { color, text, line }) => {
+  const c = document.createElement('canvas'); c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); const x = c.getContext('2d');
+  x.fillStyle = color; x.fillRect(0, 0, c.width, c.height);
+  if (text) { // 試しの文字入り紙：罫線と文字
+    x.save(); x.scale(dpr, dpr); x.fillStyle = line; for (let y = 29; y < h; y += 30) x.fillRect(0, y, w, 1);
+    x.fillStyle = '#2B2A27'; x.font = 'bold 24px sans-serif'; x.fillText('11月18日', 16, 40);
+    x.font = '600 14px sans-serif'; for (let i = 0; i < 12; i++) x.fillText('試しの予定 ' + (i + 1) + ' 打ち合わせ', 76, 80 + i * 30);
+    x.restore();
+  }
+  return c;
+};
+window.__h = {
+  K, TUNE, DARK,
+  // opts: { dims, dpr, dark, paper, back, text, k }。paper は紙の色（curl-v1 と比べるときは #F7F4ED）
+  init(opts) {
+    if (curl) curl.dispose(); document.querySelectorAll('canvas').forEach((c) => c.remove());
+    const cv = document.createElement('canvas'); document.body.appendChild(cv);
+    const dpr = opts.dpr || 1, d = opts.dims, lw = d.lx1 - d.lx0, rw = d.edge - d.spine;
+    const colors = { ...(opts.paper ? { paper: opts.paper, back: opts.back || opts.paper } : {}), ...(opts.colors || {}) };
+    curl = createCurl({ canvas: cv, dims: d, dpr, dark: !!opts.dark, colors, k: opts.k, preserve: !!opts.preserve }); R = curl.renderer;
+    const paper = R.colors.paper, line = R.colors.line, mk = (w, color) => R.createTexture(pageCanvas(w, d.py1 - d.py0, dpr, { color, text: opts.text, line }));
+    cur = { d, lw, rw, mk, paper, back: R.colors.back };
+    return { dims: d };
+  },
+  scene(dir) {
+    const { d, lw, rw, mk, paper, back } = cur, s = curl.set[dir];
+    R.setScene({ dir, Lo: mk(lw, paper), Ln: mk(lw, paper), Ro: mk(rw, paper), Rn: mk(rw, paper), front: mk(dir === 'forward' ? rw : lw, paper), next: mk(rw, back),
+      frontRect: dir === 'forward' ? [d.spine, d.py0, d.edge, d.py1] : [d.lx0, d.py0, d.lx1, d.py1] });
+    return s;
+  },
+  // 姿勢：つかむ高さ gy、指 f。描いたあと、必要なら読む範囲 read（pt）の RGBA を base64 で返す
+  async pose(dir, gy, f, { read, debug, rawRead } = {}) {
+    if (!R.cur || R.cur.dir !== dir) this.scene(dir);
+    R.K.debug = debug ? 1 : 0;
+    const s = curl.set[dir], g = [s.edge, gy], ff = clampF(s, g, f), sh = R.draw(g, ff);
+    let b64 = null, size = null;
+    if (read) {
+      let px;
+      if (rawRead) { const gl = R.gl, d = R.dpr; px = new Uint8Array(read.w * d * read.h * d * 4); gl.readPixels(Math.round(read.x * d), R.cv.height - Math.round((read.y + read.h) * d), read.w * d, read.h * d, gl.RGBA, gl.UNSIGNED_BYTE, px); size = [read.w * d, read.h * d]; }
+      else { const r = R.readPixels(read); px = r.data; size = [r.width, r.height]; }
+      b64 = await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result.split(',')[1]); fr.readAsDataURL(new Blob([px])); });
+    }
+    return { f: ff, g, shape: sh, b64, size };
+  },
+  // 場面を直接指定して描く（着地の値など）
+  setLand(v) { Object.assign(R.land, v); },
+  dark: () => R.dark, lost: () => R.lost, stats() { return { textures: R.textures.size }; },
+  loseContext() { this._ext = R.gl.getExtension('WEBGL_lose_context'); this._ext.loseContext(); }, restoreContext() { this._ext.restoreContext(); },
+  dispose() { const r = R, before = r.textures.size; curl.dispose(); curl = R = null; return { before, after: r.textures.size, lost: r.lost }; },
+  // CS-15：背の点が動かない・紙の辺の長さが変わらない・折れ線が背を越えない・傾き ≤ 35°（check.mjs の __checkGeometry と同じ判定）。extra＝格子を足す数
+  checkGeometry(dir, extraGrid = 0) {
+    const d = cur.d, s = curl.set[dir], out = { points: 0, fails: [], maxSpineMove: 0, maxEdgeErr: 0, maxTilt: 0, foldLeftOfSpine: 0, cornerFar: 0 };
+    const ys = [...Array(10)].map((_, i) => d.py0 + (d.py1 - d.py0) * (i + 0.5) / 10);
+    const xs = [...Array(10)].map((_, i) => s.x0 + (s.x1 - s.x0) * (i + 0.5) / 10);
+    const fingers = []; for (const y of ys) for (const x of xs) fingers.push([x, y]);
+    for (const y of ys) for (const x of [s.edge - s.sgn * 900, s.edge - s.sgn * 600]) fingers.push([x, y + 300], [x, y - 300]);
+    const gys = [d.py0 + 1, (d.py0 + d.py1) / 2, d.py1 - 1, d.py0 + 112, d.py0 + 532];
+    const jobs = []; for (const gy of gys) for (const fp of fingers) jobs.push([gy, fp]);
+    if (extraGrid) { // 格子をさらに細かく（21×20 = 420）
+      for (let j = 0; j < 20; j++) for (let i = 0; i < 21; i++) jobs.push([d.py0 + (d.py1 - d.py0) * (((j * 7 + i) % 20) + 0.5) / 20, [s.x0 + (s.x1 - s.x0) * i / 20, d.py0 + (d.py1 - d.py0) * (j + 0.5) / 20]]);
+    }
+    for (const [gy, fp] of jobs) {
+      const g = [s.edge, gy], f = clampF(s, g, fp), sh = shape(s, g, f); out.points++; if (!sh) continue;
+      for (let k = 0; k <= 50; k++) { const S = [s.spine, d.py0 + (d.py1 - d.py0) * k / 50]; const q = deform(sh, S); out.maxSpineMove = Math.max(out.maxSpineMove, Math.hypot(q[0] - S[0], q[1] - S[1], q[2])); }
+      const edges = [[[s.x0, d.py0], [s.x1, d.py0]], [[s.x1, d.py0], [s.x1, d.py1]], [[s.x1, d.py1], [s.x0, d.py1]], [[s.x0, d.py1], [s.x0, d.py0]], [[s.x0, d.py0], [s.x1, d.py1]]];
+      for (const [a, b] of edges) { let len = 0, prev = deform(sh, a); for (let k = 1; k <= 800; k++) { const X = [a[0] + (b[0] - a[0]) * k / 800, a[1] + (b[1] - a[1]) * k / 800]; const q = deform(sh, X); len += Math.hypot(q[0] - prev[0], q[1] - prev[1], q[2] - prev[2]); prev = q; } const L0 = Math.hypot(b[0] - a[0], b[1] - a[1]); out.maxEdgeErr = Math.max(out.maxEdgeErr, Math.abs(len - L0) / L0); }
+      for (const sy of [d.py0, d.py1]) if ((s.spine - sh.P[0]) * sh.n[0] + (sy - sh.P[1]) * sh.n[1] > 0.01) out.foldLeftOfSpine++;
+      const c = deform(sh, g); for (const sy of [d.py0, d.py1]) if (Math.hypot(c[0] - s.spine, c[1] - sy) > Math.hypot(g[0] - s.spine, g[1] - sy) + 0.01) out.cornerFar++;
+      if (Math.hypot(c[0] - s.spine, c[1] - g[1]) > (s.x1 - s.x0) + 0.01) out.cornerFar++;
+      out.maxTilt = Math.max(out.maxTilt, Math.abs(Math.atan2(sh.n[1], Math.abs(sh.n[0])) * 180 / Math.PI));
+    }
+    out.pass = out.maxSpineMove < 0.01 && out.maxEdgeErr < 0.002 && out.foldLeftOfSpine === 0 && out.cornerFar === 0 && out.maxTilt <= TUNE.maxTilt + 0.01;
+    return out;
+  },
+};
+window.__ready = true;
+</script></body></html>

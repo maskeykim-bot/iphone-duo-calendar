@@ -15,4 +15,10 @@ export default defineConfig({
     serviceWorkers: 'block',
     launchOptions: { executablePath: exe, args: ['--no-sandbox', '--disable-dev-shm-usage'] },
   },
+  projects: [
+    // 全 spec（今の設定そのまま）
+    { name: 'chromium' },
+    // めくりの spec だけ WebKit でも回す（第18版。iOS の WebKit に近い描画の確認）
+    { name: 'webkit', testMatch: /curl-.*\.spec\.js/, use: { browserName: 'webkit', launchOptions: {} } },
+  ],
 });

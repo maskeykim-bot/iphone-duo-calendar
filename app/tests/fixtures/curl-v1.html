@@ -1,0 +1,465 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>めくり WebGL 試作（連携）</title>
+<style>
+html,body{margin:0;background:#D9D4C8;font:13px -apple-system,'Hiragino Sans',sans-serif;overscroll-behavior:none}
+#wrap{position:relative;width:951px;height:669px;transform-origin:0 0}
+#stage{position:absolute;inset:0;background:#F0EDE5;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
+#stage .lp,#stage .rp{position:absolute;top:8px}#stage .lp{left:8px}#stage .rp{left:484px}
+#groove{position:absolute;left:458px;width:26px;top:0;bottom:0;background:#E9E5DB}
+#band{position:absolute;left:867px;right:0;top:0;bottom:0;background:#EAE6DC}
+#cv{position:absolute;left:0;top:0;display:none}
+#fade{position:absolute;inset:0;pointer-events:none;opacity:0}
+.dark #stage{background:#161917}.dark #groove{background:#141614}.dark #band{background:#1A1D1B}
+#hud{position:fixed;right:6px;top:6px;background:#fffc;border-radius:10px;padding:6px 8px;font-size:11px;max-width:300px;z-index:9}
+#tune{display:none;position:fixed;left:6px;bottom:6px;background:#fffe;border-radius:10px;padding:8px;font-size:11px;max-height:60vh;overflow:auto;z-index:9;width:290px}
+#tune label{display:flex;gap:6px;align-items:center}#tune input[type=range]{flex:1}
+</style></head><body>
+<div id="wrap"><div id="stage"><div id="groove"></div><div id="band"></div><div id="L"></div><div id="R"></div><canvas id="cv" lang="ja"></canvas><div id="fade"></div></div></div>
+<div id="hud"></div><div id="tune"></div>
+<script type="module">
+// ---- common.js ----
+// 試作用の共通部品：見開きの寸法、予定の多い日の中身（DOM と canvas の両方で同じ絵を描く）
+// 寸法は design/21（開いた横 951×669、背 x484、右ページ x484〜860、左ページ x8〜458、溝 x466〜484）。
+const G = { W: 951, H: 669, spine: 484, px0: 484, px1: 860, py0: 8, py1: 661, lx0: 8, lx1: 458, groove0: 466, groove1: 484, mid: 672 };
+G.pw = G.px1 - G.px0; G.ph = G.py1 - G.py0;
+const PAPER = '#F7F4ED', BACK = '#FBF9F4', RULE = '#EEEAE1', INK = '#2B2A27', SUB = '#8A867D';
+const COLORS = ['#2F5E8E', '#C0675A', '#5BA3CF', '#9C8FE0', '#5C9A6B', '#D19A3A', '#7A7F87'];
+const WD = '日月火水木金土';
+const TITLES = ['給与振込み', '定例ミーティング', '筋膜リリース', '歯医者', '経済指標 CPI', 'ゴルフ練習', '資料の締切', '1on1', '買い物', '打ち合わせ（北摂）', 'ジム', '夕食 友人と', '電話 折り返し', '移動'];
+function dayData(date) {
+  const seed = date.getDate() * 7 + date.getMonth() * 31;
+  const r = (i) => ((seed * 9301 + i * 49297) % 233280) / 233280;
+  const chips = Array.from({ length: 4 }, (_, i) => ({ t: TITLES[(seed + i) % TITLES.length], c: COLORS[(seed + i) % COLORS.length] }));
+  const evs = Array.from({ length: 10 }, (_, i) => ({ time: `${String(8 + i).padStart(2, '0')}:${r(i) > 0.5 ? '30' : '00'}`, t: TITLES[(seed + i * 3) % TITLES.length], c: COLORS[(seed + i * 2) % COLORS.length] }));
+  const tasks = Array.from({ length: 4 }, (_, i) => ({ t: TITLES[(seed + i * 5 + 1) % TITLES.length] + 'の準備', done: r(i + 20) > 0.6 }));
+  return { label: `${date.getMonth() + 1}月${date.getDate()}日`, wd: WD[date.getDay()], chips, evs, tasks };
+}
+const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+// 1ページ（幅 pw×高 ph）の DOM。back=true は紙の裏の色
+function pageEl(date, { back = false, w = G.pw } = {}) {
+  const d = dayData(date);
+  const el = document.createElement('div');
+  el.className = 'dpage' + (back ? ' back' : ''); el.style.width = w + 'px';
+  el.innerHTML = `<div class="dh"><b>${d.label}</b><span>${d.wd}</span></div>
+  <div class="chips">${d.chips.map((c) => `<span class="chip" style="background:${c.c}">${c.t}</span>`).join('')}</div>
+  <ul class="evs">${d.evs.map((e) => `<li><i style="background:${e.c}"></i><time>${e.time}</time><span>${e.t}</span></li>`).join('')}</ul>
+  <div class="sec">タスク</div><ul class="tasks">${d.tasks.map((t) => `<li class="${t.done ? 'done' : ''}"><i></i>${t.t}</li>`).join('')}</ul>
+  <div class="sec">NOTE ›</div><div class="lines"></div>`;
+  return el;
+}
+const PAGE_CSS = `
+.dpage{position:absolute;left:0;top:0;width:${G.pw}px;height:${G.ph}px;box-sizing:border-box;padding:14px 16px 0 16px;background:${PAPER} repeating-linear-gradient(180deg,transparent 0 29px,${RULE} 29px 30px);font:13px/18px -apple-system,'Hiragino Sans',sans-serif;color:${INK};overflow:hidden;-webkit-text-size-adjust:none}
+.dpage.back{background-color:${BACK}}
+.dark .dpage{background-color:#1C1F1D;background-image:repeating-linear-gradient(180deg,transparent 0 29px,#343A36 29px 30px);color:#E8E6E0}.dark .dh span,.dark .evs time,.dark .sec{color:#A3A9A2}
+.dh{display:flex;align-items:baseline;gap:8px;height:34px}.dh b{font-size:24px}.dh span{color:${SUB};font-size:14px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px}.chip{color:#fff;font-size:12px;padding:5px 10px;line-height:14px;border-radius:9px;white-space:nowrap;display:inline-block}
+.evs{list-style:none;margin:0;padding:0}.evs li{display:flex;align-items:center;gap:8px;height:30px}.evs i{width:4px;height:18px;border-radius:2px}
+.evs time{color:${SUB};font-size:12px;width:40px}.evs span{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sec{color:${SUB};font-size:11px;letter-spacing:.08em;margin:10px 0 2px}.tasks{list-style:none;margin:0;padding:0}.tasks li{height:28px;display:flex;align-items:center;gap:8px;font-size:13px}
+.tasks i{width:14px;height:14px;border:1.5px solid #9C978D;border-radius:50%}.tasks li.done{color:${SUB};text-decoration:line-through}.tasks li.done i{background:#9C978D}
+`;
+// 同じ絵を canvas 2D に描く（WebGL のテクスチャ用。「事前に canvas に描く」方式）
+function drawPage(ctx, date, { back = false, scale = 2, w = G.pw, dark = false } = {}) {
+  const d = dayData(date);
+  const INK = dark ? '#E8E6E0' : '#2B2A27', SUB = dark ? '#A3A9A2' : '#8A867D';
+  ctx.save(); ctx.scale(scale, scale);
+  ctx.fillStyle = dark ? '#1C1F1D' : back ? BACK : PAPER; ctx.fillRect(0, 0, w, G.ph);
+  if (globalThis.__PLAIN) { ctx.restore(); return; } // 明暗だけを見る撮影用（文字・罫線なし）
+  ctx.fillStyle = dark ? '#343A36' : RULE; for (let y = 29; y < G.ph; y += 30) ctx.fillRect(0, y, w, 1);
+  const F = (w, s) => `${w} ${s}px -apple-system, "Hiragino Sans", sans-serif`;
+  ctx.textBaseline = 'alphabetic'; ctx.fillStyle = INK; ctx.font = F('bold', 24); ctx.fillText(d.label, 16, 31);
+  const lw = ctx.measureText(d.label).width; ctx.fillStyle = SUB; ctx.font = F('', 14); ctx.fillText(d.wd, 16 + lw + 8, 31);
+  const W0 = w; let x = 16, y = 52; ctx.font = F('', 12);
+  for (const c of d.chips) { const w = ctx.measureText(c.t).width + 20; if (x + w > W0 - 16) { x = 16; y += 30; } ctx.fillStyle = c.c; rr(ctx, x, y, w, 24, 9); ctx.fillStyle = '#fff'; ctx.fillText(c.t, x + 10, y + 16); x += w + 6; }
+  y += 32;
+  for (const e of d.evs) { ctx.fillStyle = e.c; rr(ctx, 16, y + 6, 4, 18, 2); ctx.fillStyle = SUB; ctx.font = F('', 12); ctx.fillText(e.time, 28, y + 20); ctx.fillStyle = INK; ctx.font = F('600', 14); ctx.fillText(e.t, 76, y + 20); y += 30; }
+  ctx.fillStyle = SUB; ctx.font = F('', 11); ctx.fillText('タスク', 16, y + 23); y += 29;
+  for (const t of d.tasks) { ctx.strokeStyle = '#9C978D'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(24.5, y + 14.5, 7.75, 0, 7); ctx.stroke(); if (t.done) { ctx.fillStyle = '#9C978D'; ctx.fill(); } ctx.fillStyle = t.done ? SUB : INK; ctx.font = F('', 13); ctx.fillText(t.t, 39, y + 19.5); y += 28; }
+  ctx.fillStyle = SUB; ctx.font = F('', 11); ctx.fillText('NOTE ›', 16, y + 24);
+  ctx.restore();
+}
+function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); ctx.fill(); }
+// コマ時間の集計
+function stats(deltas) {
+  const a = deltas.filter((v) => v > 0).sort((x, y) => x - y); if (!a.length) return null;
+  const q = (p) => a[Math.min(a.length - 1, Math.floor(p * a.length))];
+  return { frames: a.length, median: +q(0.5).toFixed(2), p95: +q(0.95).toFixed(2), max: +a[a.length - 1].toFixed(2), over16_7: +(a.filter((v) => v > 16.7).length / a.length * 100).toFixed(1), over8_3: +(a.filter((v) => v > 8.4).length / a.length * 100).toFixed(1) };
+}
+
+// ---- curl-geom.js ----
+// めくりの形（design/21 §6.6〜6.9 の決まり）。WebGL 案・CSS 案で共通。
+// forward（次の日へ）：右ページ x484〜860 の紙を背 x484 を軸に左へ。backward（前の日へ）：左ページ x8〜466 を右へ。
+const DEG = Math.PI / 180;
+const SET = {
+  forward: { sgn: 1, x0: G.px0, x1: G.px1, spine: G.px0, edge: G.px1, mid: G.mid },
+  // 前へ：めくる紙は右ページと同じ 376 幅で、背 x484 から左へ x108 まで（左ページの左の 100pt は紙に入らない。design/21 §6.11-4）
+  backward: { sgn: -1, x0: 2 * G.px0 - G.px1, x1: G.px0, spine: G.px0, edge: 2 * G.px0 - G.px1, mid: (3 * G.px0 - G.px1) / 2 },
+};
+const TUNE = { maxTilt: 35, r0: 14, rk: 0.18, rMax: 58, flatten: 90 };
+const hyp = Math.hypot;
+// 指の位置 f を決まりの範囲に止める（design/21 §6.8・§6.10、qa CS-15）。
+// 1) 傾きは垂直から 35° まで（指の向きを 35° の範囲に回す）。
+// 2) 紙は背でつながっている：背の上端・下端から角までの距離は、背からつかんだ点までの元の距離を超えない。
+// 3) 筒の分だけ折れはじめの線は背に近づくので、その線が背の上端・下端を越えない（背の点は動かない）。
+// 範囲の外に指が出たら、つかんだ点から指へ向かう線の上で、届く一番遠い所に止める（指の方向だけ追う）。
+function okF(s, g, f) {
+  for (const sy of [G.py0, G.py1]) { if (Math.hypot(f[0] - s.spine, f[1] - sy) > Math.hypot(g[0] - s.spine, g[1] - sy) + 1e-6) return false; }
+  const sh = shape(s, g, f); if (!sh) return true;
+  for (const sy of [G.py0, G.py1]) if ((s.spine - sh.P[0]) * sh.n[0] + (sy - sh.P[1]) * sh.n[1] > 1e-6) return false;
+  return true;
+}
+function clampF(s, g, f) {
+  const inward = -s.sgn; let vx = f[0] - g[0], vy = f[1] - g[1];
+  if (vx * inward < 0.01) vx = 0.01 * inward;
+  const lim = Math.abs(vx) * Math.tan(TUNE.maxTilt * DEG);
+  if (Math.abs(vy) > lim) vy = Math.sign(vy) * lim;
+  const t = [g[0] + vx, g[1] + vy];
+  if (okF(s, g, t)) return t;
+  let lo = 0, hi = 1; for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; okF(s, g, [g[0] + vx * m, g[1] + vy * m]) ? lo = m : hi = m; }
+  return [g[0] + vx * lo, g[1] + vy * lo];
+}
+// 網目の頂点を巻いたあとの 3D 位置（シェーダと同じ式。自動チェック用）
+function deform(sh, X) {
+  const d = (X[0] - sh.P[0]) * sh.n[0] + (X[1] - sh.P[1]) * sh.n[1], pr = Math.PI * sh.r;
+  if (d <= 0) return [X[0], X[1], 0];
+  if (d < pr && sh.r > 1e-3) { const th = d / sh.r, k = sh.r * Math.sin(th) - d; return [X[0] + k * sh.n[0], X[1] + k * sh.n[1], sh.r * (1 - Math.cos(th))]; }
+  const k = -(d - pr) - d; return [X[0] + k * sh.n[0], X[1] + k * sh.n[1], 2 * sh.r];
+}
+function solveD(L, r) { if (r < 1e-3) return L / 2; const pr = Math.PI * r; if (L >= pr) return (L + pr) / 2; let lo = 0, hi = pr; for (let i = 0; i < 32; i++) { const m = (lo + hi) / 2; (m - r * Math.sin(m / r) < L) ? lo = m : hi = m; } return (lo + hi) / 2; }
+// g = つかんだ点（紙の端、指の高さ）、f = 指。返す：筒の始まり P、向き n（指→つかんだ点）、半径 r、lift（0〜1）
+function shape(s, g, f) {
+  const vx = g[0] - f[0], vy = g[1] - f[1], L = hyp(vx, vy);
+  if (L < 0.25) return null;
+  const n = [vx / L, vy / L];
+  const land = 2 * s.spine - s.edge; // 着地点の x
+  const toLand = Math.max(0, (f[0] - land) * s.sgn);
+  let r = Math.min(TUNE.r0 + TUNE.rk * L, TUNE.rMax) * Math.min(1, toLand / TUNE.flatten);
+  // 背の上端・下端が筒の中に入らないよう、入るときは半径を小さくする（背の近くでは紙がきつく巻く）
+  const crosses = (rr) => { const D = solveD(L, rr), P = [g[0] - n[0] * D, g[1] - n[1] * D]; return [G.py0, G.py1].some((sy) => (s.spine - P[0]) * n[0] + (sy - P[1]) * n[1] > 0); };
+  let rLimited = false;
+  if (r > 0 && crosses(r)) { rLimited = true; let lo = 0, hi = r; for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; crosses(m) ? hi = m : lo = m; } r = lo; }
+  const D = solveD(L, r);
+  const P = [g[0] - n[0] * D, g[1] - n[1] * D];
+  const lift = Math.min(1, L / (s.x1 - s.x0));
+  return { P, n, r, L, lift, D, rLimited };
+}
+
+// ---- curl-webgl-r3.js ----
+// WebGL 案：見開き全体を1枚の canvas に描く。紙は細かい網目を頂点シェーダで筒に巻き、明暗と影はフラグメントで計算する。
+// 隠しつまみ（設計が決める値。初期値は design/21 §6.7〜6.9）
+const K = {
+  show: 0.16,        // 裏の透かし（表の内容を左右反転して混ぜる割合）
+  backLine: 0.75,    // 裏の罫線の濃さ（表の罫線に対する割合。§6.9 で少し薄く）
+  nextOnBack: 0,     // 裏には次の日を混ぜない（14:14 決定）。着地専用の紙だけ別途描く
+  debug: 0,          // 1＝面の色分け（撮影の自動チェック用）
+  hiF: 0.38, hiFdeg: 24, hiFw: 11,   // 巻きの表の光る筋
+  ampR0: 8, ampR1: 28, // 半径 8pt 以下で巻きの明暗 0、28pt 以上で 100%（間はなめらかに）
+  dkFm: 0.0045,      // 暗い筋の 43° での傾き（1° あたり）。両側の曲線をこの傾きでつなぐ
+  hiMinW: 3,         // 光の筋の画面上の最小の幅（pt）。巻きが細いときも線にしない
+  hiDark: 0.25,      // ダークで光の筋を何倍にするか（design/21 §6.11-7、0.25倍で確定）
+  hiMask: 1,         // 光を紙色にだけ足す（1）。0 にすると前の作り（文字にも白が混ざり、背の近くで白く飛ぶ）
+  dkF0: 0.06, dkF1: 0.36, dkFa: 43, dkFb: 89, // 巻きの表の暗い筋（43°〜89° で 6%→36%、傾きを連続に）
+  dkB: 0.30, hiB: 0.45, hiBdeg: 160, hiBw: 6, // 巻きの裏：てっぺん側 30% 暗さ、160° に白 45%
+  flatB: 0.0, flatBw: 60,            // 平らな裏の暗さ（§6.10 で 0。境目の縦線をなくす）
+  shOp0: 0.42, shOpK: 0.22, shBl0: 7, shBlK: 34, shOff0: 3, shOffK: 10, // 落ちる影
+  rootA0: 0.12, rootAK: 0.0, rootIn: 10, rootOut0: 9, rootOutK: 1,     // 根元（§6.10：表は 10pt で 0→12%、巻きはじめ 12%→0 を 9＋1×lift pt で。§6.10 の 4＋6×lift だと始めの 4pt で 12% 戻り、CS-16 の段になる。第3報）
+  groove: 0.0,       // 溝の上で紙を暗くする量（§6.4 は 4%。縦の帯に見えるので既定は 0、つまみで戻せる）
+  persp: 0,          // 遠近（0 で無し。付けると浮いた紙がページの外へはみ出すので既定は無し）
+  grid: 2,           // 網目の細かさ（pt）
+  darkShadow: 0.5,   // ダークモードの影の強さ（25 §2 は影なし。めくりだけ残すかは設計判断）
+};
+const VS = `attribute vec2 aX;uniform vec2 uP,uN,uView,uC;uniform float uR,uPersp;
+varying vec2 vX,vQ;varying float vD;
+void main(){float d=dot(aX-uP,uN);vec2 q=aX;float z=0.;float pr=3.14159265*uR;
+ if(d>0.){if(d<pr&&uR>0.001){float th=d/uR;q=aX+(uR*sin(th)-d)*uN;z=uR*(1.-cos(th));}else{q=aX+(-(d-pr)-d)*uN;z=2.*uR+0.6;}}
+ vX=aX;vD=d;vQ=q;vec2 s=uPersp>0.?uC+(q-uC)*(uPersp/(uPersp-z)):q;
+ gl_Position=vec4(s.x/uView.x*2.-1.,1.-s.y/uView.y*2.,-(z+(d>0.?0.3:0.))/400.,1.);}`;
+const COMMON = `precision highp float;
+uniform vec2 uP,uN;uniform float uR,uLift,uDark;uniform vec4 uRect;
+uniform float kShOp0,kShOpK,kShBl0,kShBlK,kShOff0,kShOffK,kSgn,kShadowMul;
+float sdRect(vec2 X,vec4 r){vec2 c=(r.xy+r.zw)*.5,h=(r.zw-r.xy)*.5;vec2 q=abs(X-c)-h;return length(max(q,0.))+min(max(q.x,q.y),0.);}
+float soft(vec2 X,float b){return 1.-smoothstep(-b,b,sdRect(X,uRect));}
+// 持ち上がった紙（巻き＋平らな裏）を真上から見たときの、ぼかした覆い具合
+float cover(vec2 Q,float b){float dq=dot(Q-uP,uN);float pr=3.14159265*uR;float c=0.;
+ if(uR>0.001){float a=asin(clamp(dq/uR,0.,1.));float d1=uR*a,d2=pr-uR*a;
+  float e=smoothstep(uR+b,uR-b,dq)*smoothstep(-b,b,dq);
+  float h1=clamp((1.-cos(a))*1.2,0.,1.);
+  c=max(c,e*max(soft(Q+(d1-dq)*uN,b)*h1,soft(Q+(d2-dq)*uN,b)));}
+ float d3=pr-dq;c=max(c,smoothstep(b,-b,dq)*soft(Q+(d3-dq)*uN,b));return c;}
+float dropShadow(vec2 Q){float L=uLift;float bl=kShBl0+kShBlK*L,op=kShOp0-kShOpK*L,o=kShOff0+kShOffK*L;
+ vec2 off=vec2(0.3*o*kSgn,0.6*o);return op*cover(Q-off,bl)*kShadowMul;}`;
+const FS_BASE = COMMON + `uniform sampler2D tLo,tLn,tRo,tRn;uniform vec4 rL,rR;uniform vec3 bg,groove;uniform float uStripX,uStripMix,uLnew,uRnew,uPaperA;varying vec2 vX;
+void main(){vec2 Q=vX;vec3 c=bg;
+ if(Q.x>=rL.x&&Q.x<=rL.z&&Q.y>=rL.y&&Q.y<=rL.w){vec2 uv=(Q-rL.xy)/(rL.zw-rL.xy);vec3 o=texture2D(tLo,uv).rgb,n=texture2D(tLn,uv).rgb;c=mix(o,n,Q.x<uStripX?uStripMix:uLnew);}
+ else if(Q.x>=rR.x&&Q.x<=rR.z&&Q.y>=rR.y&&Q.y<=rR.w){vec2 uv=(Q-rR.xy)/(rR.zw-rR.xy);c=mix(texture2D(tRo,uv).rgb,texture2D(tRn,uv).rgb,uRnew);}
+ else if(Q.x>458.&&Q.x<484.)c=groove;
+ c*=1.-dropShadow(Q);gl_FragColor=vec4(c,1.);}`;
+const FS_PAPER = COMMON + `uniform sampler2D tF,tN;uniform float kAmpR0,kAmpR1,kDkFm,kHiMinW,kHiDark,kHiMask,kShow,kBackLine,kNext,kHiF,kHiFd,kHiFw,kDkF0,kDkF1,kDkFa,kDkFb,kDkB,kHiB,kHiBd,kHiBw,kFlatB,kFlatBw,kRootA0,kRootAK,kRootIn,kRootOut0,kRootOutK,kGroove;
+uniform vec3 backPaper,lineCol,edgeCol,frontPaper;uniform float uDebug,uPaperA;uniform vec4 uFrontRect;varying vec2 vX,vQ;varying float vD;
+const float PI=3.14159265;float g(float x,float c,float w){float t=(x-c)/w;return exp(-t*t);}
+// 巻きが細い（半径が小さい）うちは、巻きの明暗を弱める。細い筒に 4 つの筋が 6pt に詰まって段に見えるため（第3報）
+float ampR(){return smoothstep(kAmpR0,kAmpR1,uR);}
+float herm(float p0,float p1,float m0,float m1,float u){float u2=u*u,u3=u2*u;return (2.*u3-3.*u2+1.)*p0+(u3-2.*u2+u)*m0+(-2.*u3+3.*u2)*p1+(u3-u2)*m1;}
+// 巻きの表の暗い筋：23°→43° で 0→6%、43°→89° で 6%→36%。43° で傾きをつなぐ（前は 43° で傾きが 0 になり、細い段に見えた。第3報）
+float dkF(float deg){float a0=kDkFa-20.,m=kDkFm;
+ if(deg<=a0)return 0.;if(deg<kDkFa){float L=kDkFa-a0;return herm(0.,kDkF0,0.,m*L,(deg-a0)/L);}
+ if(deg<kDkFb){float L=kDkFb-kDkFa;return herm(kDkF0,kDkF1,m*L,0.,(deg-kDkFa)/L);}return kDkF1;}
+void main(){vec2 uv=(vX-uRect.xy)/(uRect.zw-uRect.xy);vec2 fuv=(vX-uFrontRect.xy)/(uFrontRect.zw-uFrontRect.xy);vec3 F=(fuv.x>=0.&&fuv.x<=1.)?texture2D(tF,fuv).rgb:frontPaper;float d=vD;float pr=PI*uR;
+ float dark=0.,hi=0.;bool back=false;
+ float root=(kRootA0+kRootAK*uLift);
+ if(d<=0.){ // 平らな表：根元の内側にごく短いグラデーション（上に紙がある所だけ＝一定幅の帯にしない）
+   float w=kRootIn;float t=1.-smoothstep(-w,0.,d);
+   dark=root*(1.-t); dark=1.-(1.-dark)*(1.-dropShadow(vQ)); /* 第3報：(1-t)² をやめ smoothstep 1 回に（立ち上がりの曲がりを小さく） */ // 根元 0→12%（巻きはじめ 12% へ段なしでつなぐ。上に紙があるかで弱めない）。第2報はこの行の注記で影が消えていた
+ } else if(d<pr&&uR>0.001){float th=d/uR;float deg=th*180./PI;
+   if(th<PI*.5){ // 巻きの表
+     float w=kRootOut0+kRootOutK*uLift;dark=root*(1.-smoothstep(0.,w,d));
+     dark=max(dark,dkF(deg)*ampR());
+     {float sc=uR*sin(kHiFd*PI/180.),sw=max(uR*abs(cos(kHiFd*PI/180.))*kHiFw*PI/180.,kHiMinW);hi=kHiF*g(uR*sin(th),sc,sw)*ampR();}dark=1.-(1.-dark)*(1.-dropShadow(vQ)*(1.-smoothstep(0.,kRootOut0+kRootOutK*uLift,d))); // 落ちる影も根元と同じ幅でなめらかに消す（第3報。前は cosθ で、根元と別の速さで消えて段になった）
+   } else { back=true;float s=(th-PI*.5)/(PI*.5); // 巻きの裏：てっぺん側が暗く、160°に細い光
+     dark=mix(kDkB*ampR(),kFlatB,smoothstep(0.,1.,s));// 光の筋は画面の上での幅で決める。半径が小さいと 160°±6° が 1pt ほどの線になり、段に見えるため（第3報）
+     float sc=uR*sin(kHiBd*PI/180.),sw=max(uR*abs(cos(kHiBd*PI/180.))*kHiBw*PI/180.,kHiMinW);hi=kHiB*g(uR*sin(th),sc,sw)*smoothstep(90.,110.,deg)*ampR();}
+ } else {back=true;dark=kFlatB*(1.-smoothstep(0.,kFlatBw,d-pr));}
+ vec3 c;
+ if(back){float ly=mod(vX.y-uRect.y,30.);float ln=clamp(1.-abs(ly-29.5),0.,1.)*kBackLine;
+   c=mix(backPaper,lineCol,ln);
+   if(kNext>0.){vec3 N=texture2D(tN,vec2(1.-uv.x,uv.y)).rgb;c=mix(c,N,kNext);}
+   c=mix(c,F,kShow*(1.-kNext)); // 表の内容が左右反対に透ける（同じ紙の点の表の色を混ぜる）
+   float e=smoothstep(-1.4,-0.2,sdRect(vX,uRect));c=mix(c,edgeCol,e*0.8);
+ } else c=F;
+ float gx=vQ.x;float gr=smoothstep(460.,468.,gx)*(1.-smoothstep(482.,490.,gx));dark=1.-(1.-dark)*(1.-kGroove*gr);
+ // 光は紙色にだけ足す。文字まで白と混ぜてコントラストを落とさない（CS-18）
+ vec3 pc=back?backPaper:frontPaper;float paperMask=mix(1.,1.-smoothstep(.05,.18,length(c-pc)),kHiMask); // 紙色に近い所だけ
+ float hiAmt=hi*(uDark>.5?kHiDark:1.);c=c*(1.-dark)+hiAmt*(1.-c)*paperMask;gl_FragColor=vec4(c,uPaperA);if(uDebug>.5)gl_FragColor=vec4(back?0.:1.,back?1.:0.,0.,1.);}`;
+function prog(gl, vs, fs) {
+  const p = gl.createProgram();
+  for (const [t, s] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) { const sh = gl.createShader(t); gl.shaderSource(sh, s); gl.compileShader(sh); if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh)); gl.attachShader(p, sh); }
+  gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p;
+}
+const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+class WebGLCurl {
+  constructor(canvas, { dpr = devicePixelRatio || 1, dark = false } = {}) {
+    this.texSrc = new Map();
+    this.cv = canvas; this.dpr = dpr; this.dark = dark; this.W = 868; this.H = G.H;
+    canvas.width = Math.round(this.W * dpr); canvas.height = Math.round(this.H * dpr); canvas.style.width = this.W + 'px'; canvas.style.height = this.H + 'px';
+    const gl = this.gl = canvas.getContext('webgl', { antialias: true, alpha: false, preserveDrawingBuffer: false });
+    if (!gl) throw new Error('WebGL なし');
+    this.pBase = prog(gl, `attribute vec2 aX;uniform vec2 uView;varying vec2 vX;void main(){vX=aX;gl_Position=vec4(aX.x/uView.x*2.-1.,1.-aX.y/uView.y*2.,0.9,1.);}`, FS_BASE);
+    this.pPaper = prog(gl, VS, FS_PAPER);
+    this.quad = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, this.quad); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, this.W, 0, 0, this.H, this.W, this.H]), gl.STATIC_DRAW);
+    this.meshes = {}; this.tex = new Map(); this.timing = {};
+  }
+  mesh(dir) {
+    if (this.meshes[dir]) return this.meshes[dir];
+    const s = SET[dir], gl = this.gl, st = K.grid; const nx = Math.ceil((s.x1 - s.x0) / st) + 1, ny = Math.ceil((G.py1 - G.py0) / st) + 1;
+    const v = new Float32Array(nx * ny * 2); let k = 0;
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) { v[k++] = Math.min(s.x1, s.x0 + i * st); v[k++] = Math.min(G.py1, G.py0 + j * st); }
+    const idx = new Uint32Array((nx - 1) * (ny - 1) * 6); k = 0;
+    for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) { const a = j * nx + i; idx[k++] = a; idx[k++] = a + 1; idx[k++] = a + nx; idx[k++] = a + 1; idx[k++] = a + nx + 1; idx[k++] = a + nx; }
+    gl.getExtension('OES_element_index_uint');
+    const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, v, gl.STATIC_DRAW);
+    const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+    return (this.meshes[dir] = { vb, ib, n: idx.length, verts: nx * ny });
+  }
+  // テクスチャ。既定は DOM と同じ絵（SVG の foreignObject で DOM の組みをそのまま画像にする）。使えないときは canvas 2D に描く
+  upload(c) {
+    const gl = this.gl, t1 = performance.now(), t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.finish(); return { t, ms: performance.now() - t1 };
+  }
+  key(date, w, back) { return `${+date}|${w}|${back ? 1 : 0}|${this.dark}`; }
+  texFor(date, w, back = false) { // 同期（canvas 2D）。DOM 版がまだ無いときの控え
+    const k = this.key(date, w, back); if (this.tex.has(k)) return this.tex.get(k);
+    const t0 = performance.now(), c = document.createElement('canvas'); c.lang = 'ja'; c.style.display = 'none'; document.body.appendChild(c); c.width = Math.round(w * this.dpr); c.height = Math.round(G.ph * this.dpr);
+    drawPage(c.getContext('2d'), date, { scale: this.dpr, w, dark: this.dark, back }); const t1 = performance.now(); const u = this.upload(c); c.remove();
+    (this.timing.tex ||= []).push({ src: 'canvas', draw: +(t1 - t0).toFixed(2), upload: +u.ms.toFixed(2), px: `${c.width}x${c.height}` }); this.tex.set(k, u.t); return u.t;
+  }
+
+  // 見開き day・day+1 から、次へ（2日進む）／前へ（2日戻る）で要るページ
+  need(day, dir) {
+    const LW = 450, RW = G.pw;
+    return dir === 'forward'
+      ? { Lo: [day, LW], Ln: [addDays(day, 2), LW], Ro: [addDays(day, 3), RW], Rn: [addDays(day, 3), RW], front: [addDays(day, 1), RW], back: [addDays(day, 2), RW, true] }
+      : { Lo: [day, LW], Ln: [addDays(day, -2), LW], Ro: [addDays(day, 1), RW], Rn: [addDays(day, -1), RW], front: [day, LW], back: [addDays(day, -1), RW, true] };
+  }
+  async prebuild(day) { this.domOK = false; this.prepare(day, 'forward'); this.prepare(day, 'backward'); }
+  prepare(day, dir) {
+    for (const t of this.retired || []) this.gl.deleteTexture(t); this.retired = [];
+    const n = this.need(day, dir), T = (k) => this.texFor(...n[k]);
+    this.cur = { dir, Lo: T('Lo'), Ln: T('Ln'), Ro: T('Ro'), Rn: T('Rn'), front: T('front'), next: T('back'),
+      frontRect: dir === 'forward' ? [G.px0, G.py0, G.px1, G.py1] : [G.lx0, G.py0, G.lx0 + 450, G.py1] };
+    // 着地の見せ方（design/21 §6.11）。差し替えやすいよう、ここの値だけで決める
+    this.land = { stripMix: 0, Lnew: dir === 'forward' ? 0 : 1, Rnew: 0, paperA: 1, showMul: 1 };
+    this.mesh(dir);
+  }
+  uni(p, name, ...v) { const l = this.gl.getUniformLocation(p, name); if (l == null) return; if (v.length === 1) this.gl.uniform1f(l, v[0]); else if (v.length === 2) this.gl.uniform2f(l, ...v); else if (v.length === 3) this.gl.uniform3f(l, ...v); else this.gl.uniform4f(l, ...v); }
+  draw(g, f) {
+    const gl = this.gl, s = SET[this.cur.dir], sh = shape(s, g, f) || { P: [s.edge + 9999 * s.sgn, 0], n: [s.sgn, 0], r: 0, lift: 0 };
+    gl.viewport(0, 0, this.cv.width, this.cv.height); gl.clearColor(0.97, 0.96, 0.93, 1); gl.clearDepth(1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    const rect = [s.x0, G.py0, s.x1, G.py1];
+    const setCommon = (p) => {
+      this.uni(p, 'uP', ...sh.P); this.uni(p, 'uN', ...sh.n); this.uni(p, 'uR', sh.r); this.uni(p, 'uLift', sh.lift); this.uni(p, 'uRect', ...rect); this.uni(p, 'uView', this.W, this.H);
+      for (const k of ['shOp0', 'shOpK', 'shBl0', 'shBlK', 'shOff0', 'shOffK']) this.uni(p, 'k' + k[0].toUpperCase() + k.slice(1), K[k]);
+      this.uni(p, 'uDark', this.dark ? 1 : 0); this.uni(p, 'kSgn', s.sgn); this.uni(p, 'kShadowMul', (this.dark ? K.darkShadow : 1) * (this.land ? this.land.paperA : 1));
+    };
+    // 下の見開き（左右のページ・溝）と落ちる影
+    let p = this.pBase; gl.useProgram(p); gl.disable(gl.DEPTH_TEST); setCommon(p);
+    this.uni(p, 'rL', G.lx0, G.py0, G.lx0 + 450, G.py1); this.uni(p, 'rR', G.px0, G.py0, G.px1, G.py1);
+    this.uni(p, 'bg', ...hex(this.dark ? '#161917' : '#F0EDE5')); this.uni(p, 'groove', ...hex(this.dark ? '#141614' : '#E9E5DB'));
+    const Ld = this.land; this.uni(p, 'uStripX', 2 * G.px0 - G.px1); this.uni(p, 'uStripMix', Ld.stripMix); this.uni(p, 'uLnew', Ld.Lnew); this.uni(p, 'uRnew', Ld.Rnew); this.uni(p, 'uPaperA', Ld.paperA);
+    ['Lo', 'Ln', 'Ro', 'Rn'].forEach((k, i) => { gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, this.cur[k]); gl.uniform1i(gl.getUniformLocation(p, 't' + k), i); });
+    let loc = gl.getAttribLocation(p, 'aX'); gl.bindBuffer(gl.ARRAY_BUFFER, this.quad); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    // めくる紙
+    p = this.pPaper; gl.useProgram(p); gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); setCommon(p);
+    if (this.land.paperA < 1) { gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); } else gl.disable(gl.BLEND);
+    this.uni(p, 'uC', this.W / 2, this.H / 2); this.uni(p, 'uPersp', K.persp);
+    const map = { ampR0: 'kAmpR0', ampR1: 'kAmpR1', dkFm: 'kDkFm', hiMinW: 'kHiMinW', hiDark: 'kHiDark', hiMask: 'kHiMask', show: 'kShow', backLine: 'kBackLine', hiF: 'kHiF', hiFdeg: 'kHiFd', hiFw: 'kHiFw', dkF0: 'kDkF0', dkF1: 'kDkF1', dkFa: 'kDkFa', dkFb: 'kDkFb', dkB: 'kDkB', hiB: 'kHiB', hiBdeg: 'kHiBd', hiBw: 'kHiBw', flatB: 'kFlatB', flatBw: 'kFlatBw', rootA0: 'kRootA0', rootAK: 'kRootAK', rootIn: 'kRootIn', rootOut0: 'kRootOut0', rootOutK: 'kRootOutK', groove: 'kGroove' };
+    for (const [k, u] of Object.entries(map)) this.uni(p, u, K[k]);
+    this.uni(p, 'kShow', K.show * (this.land.showMul ?? 1)); // §6.11-10：着地前に透かしを消す
+    this.uni(p, 'kNext', this.land.landingFace ? 1 : 0); this.uni(p, 'uDebug', K.debug || 0); this.uni(p, 'uPaperA', this.land.paperA); this.uni(p, 'uFrontRect', ...this.cur.frontRect); this.uni(p, 'frontPaper', ...hex(this.dark ? '#1C1F1D' : '#F7F4ED'));
+    this.uni(p, 'backPaper', ...hex(this.dark ? '#1C1F1D' : '#F7F4ED')); this.uni(p, 'lineCol', ...hex(this.dark ? '#343A36' : '#EEEAE1')); this.uni(p, 'edgeCol', ...hex(this.dark ? '#3A403B' : '#CFCAC0'));
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.cur.front); gl.uniform1i(gl.getUniformLocation(p, 'tF'), 0);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.cur.next); gl.uniform1i(gl.getUniformLocation(p, 'tN'), 1);
+    const m = this.mesh(this.cur.dir); loc = gl.getAttribLocation(p, 'aX'); gl.bindBuffer(gl.ARRAY_BUFFER, m.vb); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, m.ib); gl.drawElements(gl.TRIANGLES, m.n, gl.UNSIGNED_INT, 0);
+    return sh;
+  }
+  dispose() { for (const t of this.tex.values()) this.gl.deleteTexture(t); this.tex.clear(); }
+}
+
+// ---- curl-webgl-r3.html ----
+
+const qs = new URLSearchParams(location.search);
+const dark = qs.get('dark') === '1' || (qs.get('dark') == null && matchMedia('(prefers-color-scheme: dark)').matches);
+let reduce = qs.has('reduce') ? qs.get('reduce') !== '0' : matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (dark) document.documentElement.classList.add('dark');
+if (qs.get('plain') === '1') globalThis.__PLAIN = true;
+document.head.insertAdjacentHTML('beforeend', `<style>${PAGE_CSS}</style>`);
+const wrap = document.getElementById('wrap'), stage = document.getElementById('stage'), cv = document.getElementById('cv');
+const fit = () => { const sc = Math.min(1, innerWidth / 951, innerHeight / 669); wrap.style.transform = `scale(${sc})`; return sc; }; let SC = fit(); addEventListener('resize', () => SC = fit());
+let day = new Date(2026, 10, 18);
+function renderDOM() { const L = document.getElementById('L'), R = document.getElementById('R'); L.replaceChildren(pageEl(day, { w: 450 })); L.firstChild.classList.add('lp'); R.replaceChildren(pageEl(addDays(day, 1))); R.firstChild.classList.add('rp'); }
+renderDOM();
+const gl = new WebGLCurl(cv, { dpr: +(qs.get('dpr') || devicePixelRatio || 1), dark });
+let lastPrep = 0, prepP = null;
+const prebuild = () => { const t0 = performance.now(); prepP = gl.prebuild(day).then(() => { lastPrep = performance.now() - t0; }); return prepP; };
+prebuild();
+// ---- 状態 ----
+let st = null; // {dir,g,f,finger0,started,t0}
+let anim = null, vx = 0, lastX = 0, lastT = 0;
+const loc = (e) => { const r = stage.getBoundingClientRect(); return [(e.clientX - r.left) / SC, (e.clientY - r.top) / SC]; };
+function begin(dir, p) {
+  const s = SET[dir]; const gy = Math.min(G.py1, Math.max(G.py0, p[1]));
+  // 前へのときは、左ページの左端を押しても、つかむのは紙の端（x108）
+  st = { dir, s, g: [s.edge, gy], start: p, f: [s.edge, gy], started: false };
+}
+function startCurl() { st.started = true; gl.prepare(day, st.dir); cv.style.display = 'block'; render(); }
+function setFinger(p) {
+  const s = st.s; let f = [st.g[0] + (p[0] - st.start[0]), st.g[1] + (p[1] - st.start[1])];
+  st.f = clampF(s, st.g, f); if (!reduce) render();
+}
+function render() { if (!st || !st.started) return; st.shape = gl.draw(st.g, st.f); }
+stage.addEventListener('pointerdown', (e) => {
+  if (anim || st) return; const p = loc(e);
+  const dir = p[0] >= G.px0 && p[0] <= G.px1 ? 'forward' : p[0] >= G.lx0 && p[0] <= 458 ? 'backward' : null; if (!dir) return;
+  begin(dir, p); lastX = p[0]; lastT = performance.now(); vx = 0; stage.setPointerCapture?.(e.pointerId);
+  const nearEdge = dir === 'forward' ? p[0] > G.px1 - 24 : p[0] < G.lx0 + 24;
+  if (nearEdge && !reduce) { // 右の辺 24pt 以内：0.10 秒で角を少し持ち上げる（design/21 §6.1）
+    startCurl(); const s = st.s, g = st.g, t0 = performance.now();
+    const up = (t) => { if (!st || st.moved) return; const u = Math.min(1, (t - t0) / 100); st.f = clampF(s, g, [g[0] - s.sgn * 12 * u, g[1]]); render(); if (u < 1) requestAnimationFrame(up); }; requestAnimationFrame(up);
+  }
+});
+stage.addEventListener('pointermove', (e) => {
+  if (!st) return; const p = loc(e);
+  if (!st.started) { if (Math.abs(p[0] - st.start[0]) < 12) return; if (!reduce) startCurl(); else st.started = true; st.start = [p[0] - 0, p[1]]; }
+  st.moved = true; const now = performance.now(), dt = (now - lastT) / 1000; if (dt > 0) vx = vx * 0.6 + 0.4 * (p[0] - lastX) / dt; lastX = p[0]; lastT = now;
+  setFinger(p);
+});
+const easeOut3 = (u) => 1 - Math.pow(1 - u, 3);
+// 着地（design/21 §6.11）。差し替えやすいよう、ここに集める
+const T_PAGE = 300, T_BACK = 220, T_FADE = 150;
+const easeStd = (u) => { // cubic-bezier(.2,.8,.2,1) を数値で解く
+  let lo = 0, hi = 1; for (let i = 0; i < 20; i++) { const m = (lo + hi) / 2, x = 3 * (1 - m) * (1 - m) * m * 0.2 + 3 * (1 - m) * m * m * 0.2 + m * m * m; x < u ? lo = m : hi = m; } const m = (lo + hi) / 2; return 3 * (1 - m) * (1 - m) * m * 0.8 + 3 * (1 - m) * m * m + m * m * m; };
+function tween(ms, ease, fn) { return new Promise((res) => { const t0 = performance.now(); const f = (t) => { const u = Math.min(1, (t - t0) / ms); fn(ease(u), u); if (u < 1) anim = requestAnimationFrame(f); else res(); }; anim = requestAnimationFrame(f); }); }
+async function finish(done) {
+  const s = st.s, dir = st.dir, L = gl.land;
+  const after = () => { if (done) { day = addDays(day, dir === 'forward' ? 2 : -2); renderDOM(); } cv.style.display = 'none'; st = null; anim = null; window.__lastLanding = performance.now(); setTimeout(prebuild, 0); };
+  if (reduce) { // 視差効果を減らす：めくらずに 0.15 秒で入れ替えるだけ（今の見開きの写しを上に置いて薄くする）
+    if (!done) { after(); return; }
+    const old = document.createElement('div'); old.style.cssText = 'position:absolute;inset:0;pointer-events:none';
+    for (const id of ['L', 'R']) { const c = document.getElementById(id).cloneNode(true); c.removeAttribute('id'); const cs = getComputedStyle(document.getElementById(id)); for (const prop of ['position','left','right','top','width','height','overflow']) c.style[prop] = cs[prop]; old.appendChild(c); }
+    stage.appendChild(old); after(); if (gl.land) gl.land.paperA = 1;
+    await tween(T_FADE, easeStd, (e) => { old.style.opacity = 1 - e; if (gl.land) gl.land.paperA = 1 - e; }); old.remove(); anim = null; return; // 第4報：anim を戻さないと、次のめくりが始まらなかった
+  }
+  const from = st.f.slice(), to = done ? [2 * s.spine - s.edge, st.g[1]] : st.g.slice();
+  const strip = done && dir === 'backward' ? tween(T_FADE, easeStd, (e) => { L.stripMix = e; }) : null; // 前へ：手を離した瞬間に左端を前の日へ 0.15 秒
+  await tween(done ? T_PAGE : T_BACK, easeOut3, (e, u) => {
+    if (done) L.showMul = 1 - Math.min(1, Math.max(0, (u - 0.6) / 0.4)); // §6.11-10：0.30 秒の後ろ 40%（0.12 秒）で透かし 16%→0
+    st.f = clampF(s, st.g, [from[0] + (to[0] - from[0]) * e, from[1] + (to[1] - from[1]) * e]);
+    if (done && dir === 'forward') L.stripMix = e; // 次へ：めくり終わりの 0.30 秒で左端 100pt を次の日へ
+    if (e >= 1 && done) st.f = to; render(); });
+  if (strip) await strip;
+  if (done) { // 背に重なって止まったら、下を新しい中身にして、紙を 0.15 秒で薄くする（位置も大きさも動かさない）
+    if (dir === 'forward') L.Lnew = 1; else L.Rnew = 1; render(); window.__landedFrame?.();
+    await tween(T_FADE, easeStd, (e) => { L.paperA = 1 - e; render(); });
+  }
+  after();
+}
+function release() {
+  if (!st) return; if (!st.started) { st = null; return; }
+  const s = st.s; const fx = st.f[0];
+  const done = s.sgn > 0 ? (vx < -500 || (fx < s.mid && vx <= 500)) : (vx > 500 || (fx > s.mid && vx >= -500));
+  finish(done);
+}
+stage.addEventListener('pointerup', release); stage.addEventListener('pointercancel', () => { if (st) finish(false); });
+// ---- 隠しつまみ（?tune=1、または右上を3回たたく）----
+const tune = document.getElementById('tune');
+const RANGES = { show: [0, .4, .01], backLine: [0, 1, .05], hiF: [0, .6, .01], hiFdeg: [0, 90, 1], hiFw: [2, 30, 1], dkF0: [0, .3, .01], dkF1: [0, .6, .01], dkB: [0, .6, .01], hiB: [0, .8, .01], hiBdeg: [100, 180, 1], hiBw: [1, 20, 1], shOp0: [0, .8, .01], shOpK: [0, .5, .01], shBl0: [0, 30, 1], shBlK: [0, 60, 1], shOff0: [0, 20, 1], shOffK: [0, 30, 1], rootA0: [0, .4, .01], rootIn: [0, 30, 1], rootOut0: [0, 20, 1], groove: [0, .2, .01], persp: [0, 4000, 50], darkShadow: [0, 1, .05] };
+tune.innerHTML = '<b>隠しつまみ</b> <button id="cp">値をコピー</button>' + Object.entries(RANGES).map(([k, [a, b, s]]) => `<label>${k}<input type=range min=${a} max=${b} step=${s} value=${K[k]} data-k=${k}><span>${K[k]}</span></label>`).join('') + Object.entries({ maxTilt: [0, 60, 1], r0: [2, 40, 1], rk: [0, .5, .01], rMax: [10, 120, 1] }).map(([k, [a, b, s]]) => `<label>${k}<input type=range min=${a} max=${b} step=${s} value=${TUNE[k]} data-t=${k}><span>${TUNE[k]}</span></label>`).join('');
+tune.oninput = (e) => { const i = e.target; if (i.dataset.k) K[i.dataset.k] = +i.value; if (i.dataset.t) TUNE[i.dataset.t] = +i.value; i.nextSibling.textContent = i.value; if (st) render(); };
+document.getElementById('cp').onclick = () => { const t = JSON.stringify({ K, TUNE }); navigator.clipboard?.writeText(t).catch(() => {}); prompt('値', t); };
+if (qs.get('tune') === '1') tune.style.display = 'block';
+let taps = []; document.getElementById('hud').onclick = () => { taps.push(Date.now()); taps = taps.filter((t) => Date.now() - t < 800); if (taps.length >= 3) tune.style.display = tune.style.display === 'block' ? 'none' : 'block'; };
+const hud = document.getElementById('hud'); setInterval(() => { hud.textContent = `WebGL めくり ${dark ? 'ダーク' : ''}${reduce ? '・視差効果を減らす' : ''}｜事前テクスチャ ${lastPrep.toFixed(1)}ms｜${day.getMonth() + 1}/${day.getDate()}・${addDays(day, 1).getDate()}`; }, 500);
+// ---- 自動操作と自動チェック（計測・撮影用）----
+window.__curl = {
+  K, TUNE, gl, get state() { return st; }, setReduce(v) { reduce = v; },
+  down(x, y) { stage.dispatchEvent(new PointerEvent('pointerdown', { clientX: x * SC + stage.getBoundingClientRect().left, clientY: y * SC + stage.getBoundingClientRect().top, pointerId: 1, bubbles: true })); },
+  move(x, y) { stage.dispatchEvent(new PointerEvent('pointermove', { clientX: x * SC + stage.getBoundingClientRect().left, clientY: y * SC + stage.getBoundingClientRect().top, pointerId: 1, bubbles: true })); },
+  up() { stage.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, bubbles: true })); },
+  // 形だけを置く（撮影用）：つかむ高さ gy、指 f
+  pose(dir, gy, f) { if (anim) cancelAnimationFrame(anim), anim = null; begin(dir, [SET[dir].edge, gy]); startCurl(); st.f = clampF(st.s, st.g, f); render(); return { f: st.f, shape: st.shape }; },
+  clear() { st = null; cv.style.display = 'none'; },
+  ready: () => prepP, render: () => render(), commit(n) { day = addDays(day, n); renderDOM(); st = null; cv.style.display = 'none'; return prebuild(); },
+  landing(dir, gy, stage) { // CS-17 用：着地した瞬間の絵（stage='landed'）と、そのあとの DOM
+    begin(dir, [SET[dir].edge, gy]); startCurl(); st.f = [2 * st.s.spine - st.s.edge, gy]; if (dir === 'forward') gl.land.stripMix = 1; else gl.land.stripMix = 1; render(); },
+  day: () => day,
+};
+// CS-15 / PC-1：格子 10×10 の指の位置で、背の点が動かないか・紙の辺の長さが変わらないか・角と背の距離
+window.__checkGeometry = function (dir = 'forward') {
+  const s = SET[dir], out = { points: 0, fails: [], maxSpineMove: 0, maxEdgeErr: 0, maxTilt: 0, foldLeftOfSpine: 0, cornerFar: 0 };
+  const ys = [...Array(10)].map((_, i) => G.py0 + (G.py1 - G.py0) * (i + 0.5) / 10);
+  const xs = [...Array(10)].map((_, i) => s.x0 + (s.x1 - s.x0) * (i + 0.5) / 10);
+  const fingers = []; for (const y of ys) for (const x of xs) fingers.push([x, y]);
+  for (const y of ys) for (const x of [s.edge - s.sgn * 900, s.edge - s.sgn * 600]) fingers.push([x, y + 300], [x, y - 300]); // ページの外へ大きく引いた指も足す
+  for (const gy of [G.py0 + 1, (G.py0 + G.py1) / 2, G.py1 - 1, 120, 540]) for (const fp of fingers) {
+    const g = [s.edge, gy], f = clampF(s, g, fp), sh = shape(s, g, f); out.points++; if (!sh) continue;
+    // 背の点（上から下まで 50 点）が動かない
+    for (let k = 0; k <= 50; k++) { const S = [s.spine, G.py0 + (G.py1 - G.py0) * k / 50]; const q = deform(sh, S); out.maxSpineMove = Math.max(out.maxSpineMove, Math.hypot(q[0] - S[0], q[1] - S[1], q[2])); }
+    // 紙の4辺を細かく分けて 3D の長さを足す（伸び縮みしない）
+    const edges = [[[s.x0, G.py0], [s.x1, G.py0]], [[s.x1, G.py0], [s.x1, G.py1]], [[s.x1, G.py1], [s.x0, G.py1]], [[s.x0, G.py1], [s.x0, G.py0]], [[s.x0, G.py0], [s.x1, G.py1]]];
+    for (const [a, b] of edges) { let len = 0, prev = deform(sh, a); for (let k = 1; k <= 800; k++) { const X = [a[0] + (b[0] - a[0]) * k / 800, a[1] + (b[1] - a[1]) * k / 800]; const q = deform(sh, X); len += Math.hypot(q[0] - prev[0], q[1] - prev[1], q[2] - prev[2]); prev = q; } const L0 = Math.hypot(b[0] - a[0], b[1] - a[1]); out.maxEdgeErr = Math.max(out.maxEdgeErr, Math.abs(len - L0) / L0); }
+    // 折れはじめの線が背の上端・下端を越えない（背より外に出ない）
+    for (const sy of [G.py0, G.py1]) if ((s.spine - sh.P[0]) * sh.n[0] + (sy - sh.P[1]) * sh.n[1] > 0.01) out.foldLeftOfSpine++;
+    // つかんだ点（指の下）と背の上端・下端の距離 ≦ 元の距離（同じ高さの背からはページ幅 376 以下）
+    const c = deform(sh, g); for (const sy of [G.py0, G.py1]) if (Math.hypot(c[0] - s.spine, c[1] - sy) > Math.hypot(g[0] - s.spine, g[1] - sy) + 0.01) out.cornerFar++;
+    if (Math.hypot(c[0] - s.spine, c[1] - g[1]) > (s.x1 - s.x0) + 0.01) out.cornerFar++;
+    // つかんだ点が指の下（範囲内のとき）
+    out.maxTilt = Math.max(out.maxTilt, Math.abs(Math.atan2(sh.n[1], Math.abs(sh.n[0])) * 180 / Math.PI));
+  }
+  out.pass = out.maxSpineMove < 0.01 && out.maxEdgeErr < 0.002 && out.foldLeftOfSpine === 0 && out.cornerFar === 0 && out.maxTilt <= TUNE.maxTilt + 0.01;
+  return out;
+};
+</script></body></html>
