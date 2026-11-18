@@ -160,7 +160,7 @@ function paintOps(ctx, cmd, { dpr, colors }) {
 export function createPainter(opts) {
   const dprs = { front: opts.dpr?.front ?? FRONT_DPR, back: opts.dpr?.back ?? BACK_DPR };
   const colors = { ...LIGHT, ...(opts.colors || {}) };
-  const st = { made: 0, freed: 0, bytes: 0, maxBytes: 0, live: [] };
+  const st = { made: 0, freed: 0, bytes: 0, maxBytes: 0, live: [], last: null };
   let renderer = opts.renderer || null;
 
   const livePages = () => { const sh = opts.shell(); return sh ? { L: sh.querySelector('.dpage.lp'), R: sh.querySelector('.dpage.rp'), sh } : null; };
@@ -220,22 +220,24 @@ export function createPainter(opts) {
   function prepare(dir) {
     if (!renderer) throw new Error('renderer がありません');
     free();
-    const D = dims(), n = need(dir), names = ['Lo', 'Ln', 'Ro', 'Rn', 'back'];
+    const tp = performance.now(), D = dims(), n = need(dir), names = ['Lo', 'Ln', 'Ro', 'Rn', 'back'], lastTex = [];
     const cmds = measure(names.map((k) => ({ key: k, day: n[k].day, kind: n[k].kind })));
     const T = {};
     for (const k of names) {
-      const c = paint(cmds.get(k), n[k].dpr), h = renderer.createTexture(c);
+      const tk = performance.now(), c = paint(cmds.get(k), n[k].dpr), paintMs = performance.now() - tk, h = renderer.createTexture(c);
+      lastTex.push({ name: k, paintMs, uploadMs: h.ms }); // 計測用（?curlperf=1 が読む）
       h.bytes = c.width * c.height * 4; h.name = k; st.live.push(h); st.made++; st.bytes += h.bytes; T[k] = h;
       c.width = c.height = 0; // 2D の側のメモリは GPU へ送ったらすぐ返す
     }
     st.maxBytes = Math.max(st.maxBytes, st.bytes);
+    st.last = { totalMs: performance.now() - tp, tex: lastTex };
     return { dir, Lo: T.Lo, Ln: T.Ln, Ro: T.Ro, Rn: T.Rn, front: T[n.front], next: T.back,
       frontRect: dir === 'forward' ? [D.spine, D.py0, D.edge, D.py1] : [D.lx0, D.py0, D.lx1, D.py1] };
   }
   return {
     dims, need, canvas, prepare, release: free,
     setRenderer(r) { if (r !== renderer) { free(); renderer = r; } },
-    stats: () => ({ made: st.made, freed: st.freed, live: st.live.length, bytes: st.bytes, maxBytes: st.maxBytes, dpr: { ...dprs } }),
+    stats: () => ({ made: st.made, freed: st.freed, live: st.live.length, bytes: st.bytes, maxBytes: st.maxBytes, last: st.last, dpr: { ...dprs } }),
     dispose() { free(); renderer = null; },
   };
 }

@@ -8,6 +8,7 @@ import { CurlRenderer } from './renderer.js';
 import { createGesture, judgeDone } from './gesture.js';
 import { clock, createAnim, lift, runTurn, runSwap } from './landing.js';
 import { DARK, LIGHT } from './params.js';
+import { curlPerfOn, curlPerfAuto, createPerf } from './perf.js';
 
 export const curlDark = () => !!DARK.enabled && typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches;
 export const curlColors = () => (curlDark() ? DARK : LIGHT);
@@ -29,6 +30,8 @@ export function createCurl(opts = {}) {
   const { root, metrics, pages, onTurn, swipe, canStart = () => true, enabled = () => true, reduced = () => false } = opts;
   let renderer = null, cv = null, key = '', st = null, failed = false, blocking = false, resetting = false, disposed = false, copy = null;
   let anim = createAnim(), webgl = null; const lostAt = [];
+  // ?curlperf=1 のときだけ計測（js/curl/perf.js）。無いときは null で、下の perf?. は何もしない
+  const perf = curlPerfOn() ? createPerf({ root, metrics, busy: () => !!st || blocking, stats: () => pages.stats(), canvasBytes: () => (cv ? cv.width * cv.height * 4 : 0), env: () => ({ reduced: reduced(), dark: curlDark(), mode: mode() }) }) : null;
   const dprNow = () => opts.dpr || Math.min(3, window.devicePixelRatio || 1);
   const usable = () => !failed && (webgl ??= webglAvailable());
   // 'curl'（紙をめくる）| 'reduce'（視差効果を減らす：入れ替え）| 'slide'（WebGL なし・失敗：今の横すべり）
@@ -41,7 +44,7 @@ export function createCurl(opts = {}) {
     if (copy) { copy.remove(); copy = null; }
     try { pages.release(); pages.setRenderer(null); } catch { /* 捨てるだけ */ }
     try { renderer?.dispose(); } catch { /* 失われていても続ける */ }
-    cv?.remove(); renderer = null; cv = null; key = ''; st = null; blocking = false; mark(false);
+    cv?.remove(); renderer = null; cv = null; key = ''; st = null; blocking = false; mark(false); perf?.end();
   }
   function fail(e) { hook.lastError = e?.message || String(e ?? "");  failed = true; teardown(); }
   function ensure() {
@@ -62,6 +65,7 @@ export function createCurl(opts = {}) {
     if (lostAt.length >= 2) failed = true; // 1分に2回：この起動中は横すべりに切り替える
     anim.cancel(); anim = createAnim(); hide(); st = null; blocking = false; mark(false);
     try { pages.release(); } catch { /* 失われた絵 */ }
+    perf?.lost(); perf?.end();
   }
   function begin(dir, p, m) {
     const s = makeSet(m)[dir], gy = Math.min(m.py1, Math.max(m.py0, p[1]));
@@ -73,10 +77,10 @@ export function createCurl(opts = {}) {
     if (renderer.lost) return false;
     if (!['Lo', 'Ln', 'Ro', 'Rn', 'front', 'next'].every((k) => scene[k]?.t) || renderer.gl.getError()) { fail(); return false; } // テクスチャの作成に失敗 → 横すべりへ
     renderer.setScene(scene); st.prepMs = performance.now() - t0; st.shown = true;
-    cv.style.opacity = ''; cv.style.display = 'block'; draw(); return true;
+    cv.style.opacity = ''; cv.style.display = 'block'; draw(); perf?.first(renderer.gl, pages.stats().last, st.g[1]); return true;
   }
   const ctx = () => ({ st, R: renderer, draw, fade: (a) => { cv.style.opacity = String(a); }, landed: () => hook.onLanded?.() });
-  function cleanup() { hide(); try { pages.release(); } catch { /* 捨てるだけ */ } st = null; blocking = false; mark(false); }
+  function cleanup() { hide(); try { pages.release(); } catch { /* 捨てるだけ */ } st = null; blocking = false; mark(false); perf?.end(); }
 
   async function finishTurn(done) {
     const cur = st; if (!cur || cur.released) return;
@@ -108,6 +112,7 @@ export function createCurl(opts = {}) {
     enabled: () => !disposed && !st && !copy && mode() !== 'slide' && enabled(),
     canStart: (t, ev) => canStart(t, ev),
     onDown(g) {
+      perf?.down(g.dir);
       let m = null; try { m = mode() === 'reduce' ? metrics() : ensure(); } catch (e) { fail(e); return; }
       if (!m) return;
       begin(g.dir, g.down, m);
@@ -167,10 +172,11 @@ export function createCurl(opts = {}) {
     onLanded: null,
   };
 
+  if (perf && curlPerfAuto()) perf.auto(curlPerfAuto());
   return {
     mode, usable, sync, reset, busy: () => !!st || blocking,
     cancel: (reason = 'cancel') => gest.cancel(reason), // 長押しで予定のドラッグになった／ほかの操作が始まった
-    dispose() { disposed = true; reset('dispose'); gest.dispose(); window.removeEventListener('pointerdown', blockTap, true); window.removeEventListener('click', blockTap, true); document.removeEventListener('visibilitychange', onVis); if (globalThis.__duoCurl === hook) delete globalThis.__duoCurl; },
+    dispose() { disposed = true; reset('dispose'); perf?.dispose(); gest.dispose(); window.removeEventListener('pointerdown', blockTap, true); window.removeEventListener('click', blockTap, true); document.removeEventListener('visibilitychange', onVis); if (globalThis.__duoCurl === hook) delete globalThis.__duoCurl; },
   };
 }
 export * from './params.js';
