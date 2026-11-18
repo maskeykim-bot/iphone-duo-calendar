@@ -27,6 +27,8 @@ const near = (a, b, tol = 0.5, msg = '') => expect(Math.abs(a - b), `${msg} ${a}
 const box = (loc) => loc.evaluate((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, r: r.right, b: r.bottom }; });
 const heads = (page) => page.locator('.dpage .dd').allTextContents();
 const TT = { selected: '2026-11-12', spreadType: 'tt' };
+// めくりが終わる（着地の 0.15 秒まで）のを待つ。めくっている間は次のめくりを始めない（第18版 PR4）
+const settle = (page) => page.waitForFunction(() => !globalThis.__duoCurl?.state().busy);
 
 test.describe('今日＋明日（開いた横）', () => {
   test('型の切替・保存・復元（再読み込み）、pages に戻すと元の左右へ', async ({ page }) => {
@@ -135,18 +137,19 @@ test.describe('今日＋明日（開いた横）', () => {
 
   test('±2日（12・13 → 14・15）。月末・年末をまたぐ', async ({ page }) => {
     await land(page, TT);
-    await swipe(page, { x0: 700, y0: 250, dx: -160 });
+    await swipe(page, { x0: 840, y0: 250, dx: -330 });
     expect(await heads(page)).toEqual(['11月14日（土）', '11月15日（日）']);
-    await swipe(page, { x0: 300, y0: 250, dx: 160 });
+    await settle(page);
+    await swipe(page, { x0: 40, y0: 250, dx: 340 });
     expect(await heads(page)).toEqual(['11月12日（木）', '11月13日（金）']);
     await page.evaluate((k) => localStorage.setItem(k, JSON.stringify({ ...JSON.parse(localStorage.getItem(k)), selected: '2026-11-29' })), UI);
     await page.reload(); await page.waitForSelector('html[data-ready]'); await setSafe(page, { r: 84 }); await page.waitForTimeout(80);
     expect(await heads(page)).toEqual(['11月29日（日）', '11月30日（月）']);
-    await swipe(page, { x0: 700, y0: 250, dx: -160 });
+    await swipe(page, { x0: 840, y0: 250, dx: -330 });
     expect(await heads(page)).toEqual(['12月1日（火）', '12月2日（水）']);
     await page.evaluate((k) => localStorage.setItem(k, JSON.stringify({ ...JSON.parse(localStorage.getItem(k)), selected: '2026-12-30' })), UI);
     await page.reload(); await page.waitForSelector('html[data-ready]'); await setSafe(page, { r: 84 }); await page.waitForTimeout(80);
-    await swipe(page, { x0: 700, y0: 250, dx: -160 });
+    await swipe(page, { x0: 840, y0: 250, dx: -330 });
     const h = await heads(page);
     expect(h.map((x) => x.replace(/^2027年/, ''))).toEqual(['1月1日（金）元日', '1月2日（土）']);
   });
@@ -155,10 +158,13 @@ test.describe('今日＋明日（開いた横）', () => {
     await land(page, { selected: '2026-11-18' });
     await ttBtn(page).click();
     expect(await heads(page)).toEqual(['11月18日（水）', '11月19日（木）']);
-    await swipe(page, { x0: 700, y0: 250, dx: -160 });
+    await swipe(page, { x0: 840, y0: 250, dx: -330 });
     await ttBtn(page).click();
     expect(await page.evaluate((k) => JSON.parse(localStorage.getItem(k)).selected, UI)).toBe('2026-11-20');
     await ttBtn(page).click();
+    // 紙をめくる絵（WebGL）が使えないときの逃げ：端に限らず今の横スワイプで ±2日、0.25 秒の横すべり（第18版 PR4）
+    await page.addInitScript(() => { const g = HTMLCanvasElement.prototype.getContext; HTMLCanvasElement.prototype.getContext = function (t, ...a) { return /webgl/.test(t) ? null : g.call(this, t, ...a); }; });
+    await page.reload(); await page.waitForSelector('html[data-ready]'); await setSafe(page, { r: 84 }); await page.waitForTimeout(80);
     const t0 = Date.now();
     await swipe(page, { x0: 700, y0: 250, dx: -160 });
     const dt = Date.now() - t0;
@@ -171,7 +177,7 @@ test.describe('今日＋明日（開いた横）', () => {
     await expect.poll(() => page.locator('.dpage.rp .tl').evaluate((e) => e.scrollTop)).toBe(333);
     await page.locator('.dpage.rp .tl').evaluate((e) => { e.scrollTop = 200; });
     await expect.poll(() => page.locator('.dpage.lp .tl').evaluate((e) => e.scrollTop)).toBe(200);
-    await swipe(page, { x0: 700, y0: 250, dx: -160 });
+    await swipe(page, { x0: 840, y0: 250, dx: -330 });
     expect(await page.locator('.dpage.lp .tl').evaluate((e) => e.scrollTop)).toBe(200);
     expect(await page.locator('.dpage.rp .tl').evaluate((e) => e.scrollTop)).toBe(200);
   });

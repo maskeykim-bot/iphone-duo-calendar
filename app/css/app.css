@@ -1360,3 +1360,10 @@ html.kbl[data-kbe=dn] .nupb{max-width:none;width:100%;border-radius:8px;backgrou
 .ttp .dev{flex:1;height:auto}
 .ttp .dnote{flex:none;height:90px;margin-bottom:6px}
 .cb.ctt.on .bi{background:var(--green);color:#fff;box-shadow:none}
+
+/* ===== 第18版 PR4: ページめくり。canvas は root の外の兄弟（見開き全体を1枚で覆う）。止まっている間は display:none。操作は通す ===== */
+.curlcv{position:fixed;left:0;top:0;z-index:3;pointer-events:none;touch-action:none}
+html[data-curling] #app{user-select:none;-webkit-user-select:none}
+/* 視差効果を減らす：今の見開きの写し（ページだけ）を上に置いて 0.15 秒で薄くする */
+.shell.spread.tt.curlcopy{background:none;pointer-events:none;z-index:3}
+.curlcopy .page{pointer-events:none}

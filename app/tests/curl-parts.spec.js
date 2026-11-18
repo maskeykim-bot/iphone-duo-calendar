@@ -63,7 +63,7 @@ test.describe('js/curl/ の部品（第18版 PR2）', () => {
     const light = await import('../js/curl/params.js'); expect(light.LIGHT.paper).toBe('#FFFDFA'); expect(light.LIGHT.back).toBe('#FFFDFA'); expect(light.LIGHT.line).toBe('#EEEAE1');
     const idx = readFileSync('js/curl/index.js', 'utf8'); expect(idx).not.toMatch(/import\s*\(/);
     for (const f of ['js/swipe.js', 'js/direct-input.js']) expect(readFileSync(f, 'utf8')).not.toMatch(/curl\//); // アプリの操作からは import しない
-    expect([...readFileSync('js/app.js', 'utf8').matchAll(/from '\.\/curl\/([^']+)'/g)].map((m) => m[1])).toEqual(['painter.js']); // PR3: app.js が読むのは painter だけ（めくりは PR4）
+    expect([...readFileSync('js/app.js', 'utf8').matchAll(/from '\.\/curl\/([^']+)'/g)].map((m) => m[1])).toEqual(['painter.js', 'index.js']); // PR4: app.js が読むのは painter と index（めくり）
   });
 
   for (const [dn, dir, poses] of [

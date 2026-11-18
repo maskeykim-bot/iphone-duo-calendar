@@ -134,8 +134,8 @@ test.describe('painter の絵と DOM（200%）', () => {
     // 14 日の左・15 日の右を先に絵にする（見えているのは 12・13 日）。画面外のものは DOM に残らない
     const urls = await page.evaluate(() => { const p = window.__duoPainter.get(); return { L: p.canvas('2026-11-14', 'L', 2).toDataURL('image/png'), R: p.canvas('2026-11-15', 'R', 2).toDataURL('image/png') }; });
     expect(await page.locator('body *').evaluateAll((a) => a.filter((e) => e.getAttribute('aria-hidden') === 'true' && e.classList.contains('shell')).length)).toBe(0);
-    await swipe(page, { x0: 700, y0: 250, dx: -160 });
-    await page.waitForTimeout(500);
+    await swipe(page, { x0: 840, y0: 250, dx: -330 });
+    await page.waitForFunction(() => !__duoCurl.state().busy);
     expect(await page.locator('.dpage .dd').allTextContents()).toEqual(['11月14日（土）', '11月15日（日）']);
     for (const [kind, sel] of [['L', '.dpage.lp'], ['R', '.dpage.rp']]) {
       const regs = await regionsOf(page, sel);

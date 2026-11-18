@@ -12,6 +12,7 @@ import { CAT_IDS, LIMITS as CAT_LIMITS, canHideCategory, defaultDeleteTarget, en
 import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAlarms, encAlarm, fireAt, nextNotifyText, normNotify, pastForNotify, planNotifications, planNotifyPolicy, MAX_PENDING, WINDOW_DAYS } from './notify.js';
 import { rokuyoOf } from './rokuyo.js';
 import { createPainter } from './curl/painter.js';
+import { createCurl, curlColors } from './curl/index.js';
 import { holidayOf } from './holidays.js';
 import { splitEvents, eveningFirst, homeTasks, dueText, tomorrowSummary, axisBars } from './home.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS, FOCUS_MODES, FOCUS_LABELS, normFocusMode, normSpreadType, normTtSplit } from './pages.js';
@@ -231,7 +232,7 @@ function vpTick() {
   const { kb } = updateVars();
   const sc = safeChanged();
   updateDiagnostics();
-  if (changed || sc) { directCtl?.cancel('rotate'); flushEditing(); render(); }
+  if (changed || sc) { directCtl?.cancel('rotate'); ttCurl?.reset('rotate'); flushEditing(); render(); }
   applyKbLayout();
   const a = document.activeElement;
   if (kb && isTextEl(a)) {
@@ -1169,7 +1170,7 @@ function ttSetSplit(v, commit) {
 }
 root.addEventListener('pointerdown', (ev) => {
   const g = ev.target.closest?.('.dgrip');
-  if (!g || TT.drag || !ev.isPrimary || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
+  if (!g || TT.drag || ttCurl?.busy() || !ev.isPrimary || (ev.pointerType === 'mouse' && ev.button !== 0)) return; // めくっている間はつまみを動かさない
   ev.preventDefault();
   const id = ev.pointerId, y0 = ev.clientY, v0 = ttSplitNow();
   TT.drag = { id };
@@ -1791,11 +1792,11 @@ function dayPage(side, k, portrait = false) {
   const grip = portrait ? '' : `<div class="dgrip" role="separator" aria-orientation="horizontal" tabindex="0" aria-label="予定とノートの境目" aria-valuemin="64" aria-valuemax="${ttSplitMax()}" aria-valuenow="${ttSplitNow()}"><i aria-hidden="true"></i></div>`;
   return `<section class="page ${side === 'left' ? 'lp' : 'rp'} dpage" data-page="day" data-day="${k}" aria-label="${esc(dayLabel(k))}"><div class="dph"><h2 class="dd"><span class="hdt${isRed(k) ? ' hol' : ''}">${dayLabel(k)}</span>${holSpan(k)}</h2>${rkSpan(k, 'drk')}</div><div class="dev">${body}</div>${grip}${note}</section>`;
 }
-// めくりのページの絵（第18版 PR3）。アプリの操作からはまだ使わない（PR4 でめくりがここから呼ぶ）。テスト用に window.__duoPainter.get() で取れる。
-let ttPaint = null;
+// めくりのページの絵（第18版 PR3）。めくり（js/curl/index.js、PR4）がここから呼ぶ。テスト用に window.__duoPainter.get() で取れる。
+let ttPaint = null, ttCurl = null; // ttCurl: めくりの制御（第18版 PR4。swipe の定義の下で作る）
 const ttPainter = () => (ttPaint ||= createPainter({
   shell: () => root.querySelector('.shell.spread.tt'), dayHtml: (side, k) => dayPage(side, k),
-  selected: () => state.selected, addDays, scrollTop: () => TT.top, afterMount: (host) => updateNow(host),
+  selected: () => state.selected, addDays, scrollTop: () => TT.top, afterMount: (host) => updateNow(host), colors: curlColors(),
 }));
 window.__duoPainter = { get: ttPainter };
 const ttStyle = () => ` style="--tt-split:${ttSplitNow()}px"`;
@@ -2049,6 +2050,7 @@ function render() {
   }
   syncExt();
   applyKbLayout();
+  ttCurl?.sync(); // 寸法が変わった・今日＋明日でなくなった：めくりを止めて絵と canvas を捨てる（めくり中の再描画では何もしない）
 }
 
 // ---------- 操作 ----------
@@ -5035,6 +5037,7 @@ const swipeCtl = initSwipe({
   root,
   canStart: (t) => {
     if (anyPanel() || swiping || !(t instanceof Element) || !t.closest(SWIPE_ZONE) || t.closest(SWIPE_EXCLUDE)) return false;
+    if (ttSpreadOn() && ttCurl?.mode() !== 'slide') return false; // 今日＋明日の見開き：端 24 のめくり（または入れ替え）に任せる。端の外の横スワイプでは日を送らない
     const pg = pageOf(t);
     swipePane = null;
     if (!pg) { // 見開き以外の時間軸は従来どおり対象外。閉じた日・週（.tlx）は横にあふれていなければ日・週送りを許す
@@ -5048,6 +5051,22 @@ const swipeCtl = initSwipe({
     return true;
   },
   onSwipe: swipeTo,
+});
+// ---------- 今日＋明日のページめくり（第18版 PR4。js/curl/）----------
+// 紙をめくるのは 開いた横・型が tt・WebGL が使える・視差効果を減らすがオフ のときだけ。WebGL なし・失敗は今の横すべり（swipeTo。0.25 秒）、視差効果を減らすは入れ替え。
+const ttSpreadOn = () => ttOn() && layoutKind() === 'spread';
+function ttMetrics() { // めくりの寸法（アプリ座標）。見えている左右の1日ページの矩形（updateLayoutMetrics の --left-start/--left-end/--right-start/--right-end・--content-y・--tt-h）から
+  if (!ttSpreadOn()) return null;
+  const l = root.querySelector('.dpage.lp'), r = root.querySelector('.dpage.rp'); if (!l || !r) return null;
+  const a = l.getBoundingClientRect(), b = r.getBoundingClientRect();
+  return a.width > 0 && b.width > 0 ? { lx0: a.left, lx1: a.right, spine: b.left, edge: b.right, py0: a.top, py1: a.bottom } : null;
+}
+const CURL_EXCLUDE = `${SWIPE_EXCLUDE}, .tlev, .adpill, .adplus, .dlrow`; // 予定の枠・終日のピル・つまみ・操作の上からは始めない
+ttCurl = createCurl({
+  root, metrics: ttMetrics, pages: ttPainter(), swipe: swipeCtl, reduced,
+  enabled: () => ttSpreadOn() && !TT.drag && !anyPanel(),
+  canStart: (t) => !!t.closest('.dpage') && !t.closest(CURL_EXCLUDE),
+  onTurn: (dir) => { swipePane = null; swipeMove(dir); }, // state.selected を ±2 日にして render()（今日＋明日の日送りと同じ）
 });
 
 // ---------- 直接入力の起点（PR24 の共通制御へ PR25 で時間軸を接続。月・チップは PR26 以降） ----------
@@ -5114,7 +5133,7 @@ function monthEdgeUpdate() {
 }
 function stopEdge() { edgeLoop.stop(); monthDwell.stop(); EG.tl = null; EG.carry = 0; EG.origin = null; }
 directCtl = initDirectInput({
-  root, swipe: swipeCtl,
+  root, swipe: { cancel() { swipeCtl.cancel(); ttCurl?.cancel('hold'); } }, // 長押しで予定のドラッグになったら、スワイプもめくりも止める
   classify: (t) => directOrigin(t),
   onStart: ({ origin: o, x, y }) => {
     EG.x = x; EG.y = y; EG.origin = o; EG.carry = 0; EG.tl = null;
