@@ -1,5 +1,6 @@
 import { defineConfig } from '@playwright/test';
 
+const PORT = Number(process.env.PW_PORT || 4173);
 const exe = process.env.CHROME_PATH || '/usr/bin/google-chrome';
 export default defineConfig({
   testDir: './tests',
@@ -7,9 +8,9 @@ export default defineConfig({
   retries: 0,
   workers: 2,
   reporter: [['list']],
-  webServer: { command: 'node server.mjs 4173', url: 'http://127.0.0.1:4173/', reuseExistingServer: true },
+  webServer: { command: `node server.mjs ${PORT}`, url: `http://127.0.0.1:${PORT}/`, reuseExistingServer: true },
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL: `http://127.0.0.1:${PORT}`,
     locale: 'ja-JP',
     timezoneId: 'Asia/Tokyo',
     serviceWorkers: 'block',
