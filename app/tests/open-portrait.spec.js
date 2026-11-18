@@ -20,11 +20,11 @@ for (const size of PORTRAITS) {
       await expect(page.locator('.agenda')).toHaveCount(0);
       await expect(page.locator('.foot, .top, .brand')).toHaveCount(0);
       const W = size.width, H = size.height, rx = W / 669, ry = H / 951;
-      // 月グリッド（第12版）: 全幅・上端 head+24=106・下端 H-71p（p=H/951）。見出しは上 safe の帯の中（safe=0 は通常の82）
+      // 月グリッド（第12版）: 全幅・上端 head+24=106・下端 H-96p（p=H/951。第19版 PR5: タブ y=H-88p の上 8）。見出しは上 safe の帯の中（safe=0 は通常の82）
       const sc = await box(page.locator('.calendar .scroll'));
       expect(near(sc.x, 0) && near(sc.width, W)).toBe(true);
       expect(near(sc.y, 106, 1)).toBe(true);
-      expect(near(sc.y + sc.height, H - 71 * ry, 1)).toBe(true);
+      expect(near(sc.y + sc.height, H - 96 * ry, 1)).toBe(true);
       const wd = await box(page.locator('.weekdays'));
       expect(near(wd.y, 82, 1) && near(wd.height, 24, 1)).toBe(true);
       // 操作の位置と大きさ
@@ -36,10 +36,10 @@ for (const size of PORTRAITS) {
       expect(near(set.x, 20 * rx) && near(set.y, 24) && near(set.width, 44) && near(set.height, 44)).toBe(true);
       expect(near(search.x, 484 * rx) && near(search.y, 24) && near(search.width, 44)).toBe(true);
       expect(search.x + search.width).toBeLessThanOrEqual(540 * rx + 0.5); // 右上の予約（時刻・電池）に入らない
-      expect(near(today.x, 20) && near(today.y, H - 70 * ry, 1) && near(today.width, 48)).toBe(true);
-      expect(near(add.x, W - 20 - 48) && near(add.y, H - 70 * ry, 1) && near(add.width, 48)).toBe(true);
+      expect(near(today.x, 20) && near(today.y, H - 88 * ry, 1) && near(today.width, 48)).toBe(true);
+      expect(near(add.x, W - 20 - 48) && near(add.y, H - 88 * ry, 1) && near(add.width, 48)).toBe(true);
       expect(near(tabs.x + tabs.width / 2, W / 2) && tabs.width >= 176 && near(tabs.height, 46)).toBe(true);
-      expect(near(tabs.y, H - 70 * ry, 1)).toBe(true);
+      expect(near(tabs.y, H - 88 * ry, 1)).toBe(true);
       const fmodes = await box(page.locator('.fmodes'));
       const reserved = { x: 540 * rx, y: 0, width: W - 540 * rx, height: 82 };
       expect(noOverlap(fmodes, reserved)).toBe(true); // 右上の予約（時刻・電池）に入らない
@@ -72,7 +72,7 @@ for (const size of PORTRAITS) {
         for (let i = 0; i < Math.abs(fwd); i++) await btn.click();
         await expect(page.locator('.week')).toHaveCount(weeks);
         const hs = await page.locator('.week').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
-        const G = size.height - 71 * ry - 106;
+        const G = size.height - 96 * ry - 106;
         for (const h of hs) { expect(h).toBeGreaterThanOrEqual(101 - 0.5); expect(near(h, Math.max(G / weeks, 101), 1)).toBe(true); }
         const sc = page.locator('.calendar .scroll');
         await sc.evaluate((el) => { el.scrollTop = el.scrollHeight; });
@@ -174,7 +174,7 @@ test.describe('開いた縦: safe area・キーボード・下書き', () => {
       expect(add.y + add.height).toBeLessThanOrEqual(size.height - 34 + 0.5);
       expect(tabs.y + tabs.height).toBeLessThanOrEqual(size.height - 34 + 0.5);
       expect(near(sc.y, 106, 1)).toBe(true);
-      expect(near(tabs.y, size.height - 34 - 70 * ry, 1)).toBe(true);
+      expect(near(tabs.y, size.height - 34 - 88 * ry, 1)).toBe(true);
       expect(sc.y + sc.height).toBeLessThanOrEqual(tabs.y + 1);
       expect(await findTextOverlaps(page)).toEqual([]);
     });

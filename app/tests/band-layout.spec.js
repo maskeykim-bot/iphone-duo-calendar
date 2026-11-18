@@ -253,7 +253,7 @@ test.describe('開いた縦 + 上 safe（見出しは帯の中）', () => {
       const wd = await bx(page.locator('.weekdays'));
       near(wd.y, head); near(wd.height, 24);
       const sc = await bx(page.locator('.calendar .scroll'));
-      near(sc.y, head + 24); near(sc.y + sc.height, H - 71 * p, 1);
+      near(sc.y, head + 24); near(sc.y + sc.height, H - 96 * p, 1);
       const cy = head * 46 / 82;
       const items = { 設定: [20 * ux, 44], 前の月: [120 * ux, 44], 次の月: [376 * ux, 44], 全部の予定を表示: [432 * ux, 44], 予定を検索: [484 * ux, 44] };
       const rs = [];
@@ -274,10 +274,10 @@ test.describe('開いた縦 + 上 safe（見出しは帯の中）', () => {
       const rsv = { x: 540 * ux, y: 0, width: W - 540 * ux, height: head };
       expect(overlap(fm, rsv)).toBe(false); // 集中切替も右上の予約に入らない
       for (const r of rs.concat([title])) expect(overlap(fm, r)).toBe(false);
-      // 下段: 今日 x20・＋ 右20・タブ 270 中央、いずれも top H-70p
+      // 下段: 今日 x20・＋ 右20・タブ 286 中央、いずれも top H-88p（第19版 PR5）
       const today = await bx(btn(page, '今日に戻る')), add = await bx(btn(page, '予定を追加')), tabs = await bx(page.locator('.tabs'));
-      near(today.x, 20); near(add.x + add.width, W - 20); near(tabs.width, 270); near(tabs.x + tabs.width / 2, W / 2);
-      for (const r of [today, add, tabs]) near(r.y, H - 70 * p, 1);
+      near(today.x, 20); near(add.x + add.width, W - 20); near(tabs.width, 286); near(tabs.x + tabs.width / 2, W / 2);
+      for (const r of [today, add, tabs]) near(r.y, H - 88 * p, 1);
       await expect(page.locator('.pctl, .rail')).toHaveCount(0);
       expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight && document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       expect(await findTextOverlaps(page)).toEqual([]);

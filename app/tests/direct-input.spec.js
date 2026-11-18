@@ -122,7 +122,8 @@ for (const [name, size, setup2] of [
       // 終わりの取っ手を下へ（+30分）
       const hh = await hhOfCol(page, '.tlcol');
       const h = await page.locator('.hdl-e').boundingBox();
-      await page.mouse.move(h.x + 6, h.y + 6); await page.mouse.down(); await page.mouse.move(h.x + 6, h.y + 6 + hh / 2, { steps: 4 }); await page.mouse.up();
+      const o = hh < 60 ? 6 : 0; // 閉じた日は 1時間 44（第19版 PR5）。1時間の枠は 60 未満の「短い枠」で、取っ手の押せる範囲は枠の外側（direct-input.js hitDraftPart）
+      await page.mouse.move(h.x + 6, h.y + 6 + o); await page.mouse.down(); await page.mouse.move(h.x + 6, h.y + 6 + o + hh / 2, { steps: 4 }); await page.mouse.up();
       await expect(page.locator('.dbox .ds')).toHaveText('14:15〜15:45（1時間30分）');
       await expect(page.locator('#editor')).toBeHidden();
       await page.waitForTimeout(450);
@@ -187,7 +188,8 @@ for (const [name, size, setup2] of [
       await page.waitForTimeout(500);
       // 丸の中心から引くと長さ
       const hs2 = await page.locator('.hdl-s').boundingBox();
-      await page.mouse.move(hs2.x + 7, hs2.y + 7); await page.mouse.down(); await page.mouse.move(hs2.x + 7, hs2.y + 7 + hh / 2, { steps: 5 }); await page.mouse.up();
+      const o2 = hh < 60 ? -6 : 0; // 短い枠（1時間 44）は取っ手の押せる範囲が枠の外側
+      await page.mouse.move(hs2.x + 7, hs2.y + 7 + o2); await page.mouse.down(); await page.mouse.move(hs2.x + 7, hs2.y + 7 + o2 + hh / 2, { steps: 5 }); await page.mouse.up();
       await expect(page.locator('.dbox .ds')).toHaveText('15:15〜15:45（30分）');
       await page.waitForTimeout(500);
       // ✕で取り消し（シートは開かない）

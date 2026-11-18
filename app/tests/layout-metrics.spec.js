@@ -41,13 +41,13 @@ test.describe('姿勢の判定（600 は閉じた判定のブレークポイン�
 test.describe('寸法変数（safe=0 では 06 の基準位置に一致する）', () => {
   const near = (a, b, tol = 0.02) => expect(Math.abs(a - b)).toBeLessThanOrEqual(tol);
   // 第12版 PR4（safe=0）: 閉じた = 本文 [0,W]・q=H/678・見出し下端 76q・grid top 92q・タブ幅 min(286,C-128)（帯なし）、
-  // 開いた縦 = head 82・grid top 106・タブ 270・下段 top H-70p（p=H/951）、開いた横 = q=H/669・左月 [8,f-10]・タブ top 611q。
+  // 開いた縦 = head 82・grid top 106・タブ 286・下段 top H-88p（第19版 PR5）（p=H/951）、開いた横 = q=H/669・左月 [8,f-10]・タブ top 611q。
   const q6 = (h) => h / 678, p9 = (h) => h / 951;
   const CASES = [
     // [size, 月の列幅, grid-top, tabs-x, tabs-y, fold-x, left-end, tabs-w]
     [SIZES.closedPortrait, 466 / 7, 92 * q6(678), 90, 678 - 56 * q6(678) - 23, null, 466, 286],
-    [SIZES.openPortrait, 626 / 7, 106, 178, 890 - 70 * p9(890), null, 626, 270],
-    [SIZES.openPortrait669, 669 / 7, 106, 199.5, 951 - 70 * p9(951), null, 669, 270],
+    [SIZES.openPortrait, 626 / 7, 106, 170, 890 - 88 * p9(890), null, 626, 286], // 第19版 PR5: タブ 286・y は下から 88p
+    [SIZES.openPortrait669, 669 / 7, 106, 191.5, 951 - 88 * p9(951), null, 669, 286], // x191〜477・y863
     [SIZES.openLandscape, 61, 96 * (626 / 669), 101.5, 611 * (626 / 669), 445, 435, 240], // 第14版 PR5: 左ページの切替は幅240
     [SIZES.openLandscape951, 65.36, 96, 116.75, 611, 475.5, 465.5, 240],
   ];
@@ -73,7 +73,7 @@ test.describe('寸法変数（safe=0 では 06 の基準位置に一致する）
     expect(await cssVar(page, 'content-h')).toBe(809);
     near(await cssVar(page, 'head-h'), 82);
     near(await cssVar(page, 'grid-top'), 106, 0.02);
-    near(await cssVar(page, 'tabs-y'), 890 - 34 - 70 * ((890 - 34) / 951), 0.02);
+    near(await cssVar(page, 'tabs-y'), 890 - 34 - 88 * ((890 - 34) / 951), 0.02);
     expect(await cssVar(page, 'tabs-y') + 46).toBeLessThanOrEqual(890 - 34);
     await setSafe(page, { t: 100 });
     await expect.poll(() => cssVar(page, 'head-h')).toBe(100);

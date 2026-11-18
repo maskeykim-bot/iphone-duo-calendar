@@ -528,7 +528,7 @@ input,select,textarea,.date-text{font-size:16px}
 .spanbtn span{display:flex;align-items:center;justify-content:center;min-width:60px;width:60px;height:32px;padding:0;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);font-size:14px}
 /* 終日段（28px）: 月の線帯とは別 CSS。カテゴリの淡色地＋本色の太字 */
 .allday{display:flex;align-items:center;flex:none;height:28px;margin-bottom:max(4px,calc(32px * var(--ry,1) - 28px));min-width:0}
-.adl{flex:none;width:50px;font-size:11px;color:var(--muted)}
+.adl{flex:none;width:var(--lw,50px);font-size:11px;color:var(--muted)}
 .adcols{display:flex;flex:1;min-width:0}
 .adcol{display:flex;flex:1;gap:6px;min-width:0;overflow:hidden}
 .adpill,.adplus{height:28px;min-height:28px;padding:0 12px;border-radius:14px;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
@@ -536,7 +536,7 @@ input,select,textarea,.date-text{font-size:16px}
 .adpill:hover{background:var(--tint);filter:brightness(.95)}
 .adplus{flex:none;padding:0 8px;color:var(--muted);background:transparent}
 .tlheads{display:flex;flex:none;height:44px}
-.tlh0{flex:none;width:50px}
+.tlh0{flex:none;width:var(--lw,50px)}
 .tlhd{flex:1;min-width:0;height:44px;padding:0;font-size:13px;font-weight:700;border-radius:8px}
 .tlhd.today{color:var(--green)}
 .tlhd[aria-pressed=true]{background:var(--green);color:#fff}
@@ -544,10 +544,10 @@ input,select,textarea,.date-text{font-size:16px}
 .tl{flex:1;min-height:0;overflow-y:auto;overflow-x:clip;overscroll-behavior:contain;position:relative;touch-action:pan-y}
 .tl *{touch-action:pan-y}
 .tlin{position:relative;height:calc(24 * var(--hh) + 2 * 12px)}
-.hl{position:absolute;left:50px;right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:0;border-top:1px solid #dcd9cf}
+.hl{position:absolute;left:var(--lw,50px);right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:0;border-top:1px solid #dcd9cf}
 .hl.half{border-top:1px dotted #dcd9cf}
-.hlab{position:absolute;left:0;width:44px;top:calc(12px + var(--m) * var(--hh) / 60 - 9px);height:18px;font-size:12px;line-height:18px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
-.tlcols{position:absolute;left:50px;right:0;top:0;bottom:0;display:flex}
+.hlab{position:absolute;left:0;width:calc(var(--lw,50px) - 6px);top:calc(12px + var(--m) * var(--hh) / 60 - 9px);height:18px;font-size:12px;line-height:18px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.tlcols{position:absolute;left:var(--lw,50px);right:0;top:0;bottom:0;display:flex}
 .tlcol{position:relative;flex:1;min-width:0}
 .tlcol+.tlcol{border-left:1px solid #e8e5dc}
 .tlev{position:absolute;z-index:2;top:calc(12px + var(--m) * var(--hh) / 60);height:max(20px,calc(var(--d) * var(--hh) / 60 - 1px));min-height:20px;padding:1px 4px 1px 8px;border-radius:4px;background:var(--tint);color:var(--ink);box-shadow:inset 4px 0 0 var(--cat);
@@ -555,7 +555,7 @@ input,select,textarea,.date-text{font-size:16px}
 .tlev:hover{background:var(--tint);filter:brightness(.95)}
 .tlev .tt{margin-right:5px;font-weight:700;color:var(--cat)}
 .nowl{position:absolute;z-index:3;left:0;right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:0;pointer-events:none}
-.nowl:before{content:'';position:absolute;left:calc(50px + var(--i) * (100% - 50px) / var(--n));width:calc((100% - 50px) / var(--n));top:-.75px;height:1.5px;background:#D64541}
+.nowl:before{content:'';position:absolute;left:calc(var(--lw,50px) + var(--i) * (100% - var(--lw,50px)) / var(--n));width:calc((100% - var(--lw,50px)) / var(--n));top:-.75px;height:1.5px;background:#D64541}
 .nowt{position:absolute;left:0;top:-11px;width:46px;height:22px;border-radius:11px;background:#D64541;color:#fff;font-size:11px;font-weight:700;line-height:22px;text-align:center;font-variant-numeric:tabular-nums}
 body[data-layout=spread] .toastbar{left:var(--left-start);right:auto;width:calc(var(--left-end) - var(--left-start));margin:0}
 .menurows .tlz{display:flex;gap:4px;margin:2px 0 6px}.menurows .tlz button{flex:1;min-width:0;font-size:13px;padding:4px 6px}
@@ -844,7 +844,19 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .tlx .tl,.tlx .tl *{touch-action:pan-x pan-y}
 .tlx .allday,.tlx .tlheads{flex:none}
 .tlempty{flex:none;text-align:center}
-.closed .tlx{padding:0 4px}
+.closed .tlx{padding:0 8px}
+/* 第19版 PR5（design/28 §1）: 閉じた週＝見出し 48・日付の行 42・終日 24・時間軸 y114〜、日＝見出し 48・終日 32（時間軸 y80〜）。1時間 44 */
+.closed.tv .chead{height:48px;padding-bottom:0;align-items:center}
+.closed.tv-week .tlx{--lw:30px}
+.closed.tv-week .tlheads{height:42px;align-items:center}
+.closed.tv-week .tlhd{margin:-1px 0;border:0;flex:1 1 0;box-sizing:border-box}/* 行は 42、押せる範囲は 44（上下 1 はみ出す） */
+.closed.tv-week .tlcol{flex:1 1 0;box-sizing:border-box}
+.closed.tv-week .tlcol+.tlcol{border-left:0;box-shadow:inset 1px 0 #e8e5dc}
+.closed.tv-week .allday{height:24px;margin-bottom:0}
+.closed.tv-week .adl{font-size:10px}
+.closed.tv-day .allday{height:32px;margin-bottom:0}
+.closed.tv .hlab{font-size:11px}
+.closed.tv-week .nowt{width:30px;height:18px;top:-9px;border-radius:9px;font-size:9px;line-height:18px;letter-spacing:-.02em}
 .dbox{position:absolute;z-index:4;left:0;right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:calc(var(--d) * var(--hh) / 60);box-sizing:border-box;border:2px solid var(--cat);border-radius:6px;background:var(--tint);color:var(--cat);padding:1px 6px;overflow:visible;pointer-events:auto;touch-action:none}
 .dbox .dt{display:block;font-size:13px;line-height:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dbox .ds{display:block;font-size:11px;line-height:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

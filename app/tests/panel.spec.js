@@ -18,11 +18,11 @@ for (const size of PORTRAITS) {
   const tag = `${size.width}×${size.height}`;
   const p = size.height / 951, W = size.width, H = size.height, ux = W / 669;
   test.describe(`下パネル ${tag}`, () => {
-    test('既定は閉。表示ボタン（48丸・今日の右・間12）で出る。閉状態は従来の月（106〜H-71p）', async ({ page }) => {
+    test('既定は閉。表示ボタン（48丸・今日の右・間12）で出る。閉状態は従来の月（106〜H-96p）', async ({ page }) => {
       await openApp(page, size);
       await expect(page.locator('.pnl')).toHaveCount(0);
       const sc = await box(page.locator('.calendar .scroll'));
-      expect(near(sc.y, 106) && near(sc.y + sc.height, H - 71 * p)).toBe(true);
+      expect(near(sc.y, 106) && near(sc.y + sc.height, H - 96 * p)).toBe(true);
       const btn = page.getByRole('button', { name: '下の段を表示' });
       const b = await box(btn), today = await box(page.getByRole('button', { name: '今日に戻る' })), tabs = await box(page.locator('.tabs')), add = await box(page.getByRole('button', { name: '予定を追加' }));
       expect(near(b.width, 48) && near(b.height, 48) && near(b.x, today.x + today.width + 12)).toBe(true);
@@ -37,9 +37,9 @@ for (const size of PORTRAITS) {
       const G = (H - 71 * p - 106) * 414 / 774;
       expect(near(sc.y + sc.height, 106 + G)).toBe(true);
       expect(near(pn.y, 106 + G)).toBe(true);
-      const row = Math.min(H - 70 * p, H - 48);
+      const row = Math.min(H - 88 * p, H - 48);
       expect(near(pn.y + pn.height, row - 8 * p)).toBe(true);
-      if (size.height === 951) expect(near(pn.y, 520) && near(pn.y + pn.height, 873)).toBe(true);
+      if (size.height === 951) expect(near(pn.y, 520) && near(pn.y + pn.height, 855)).toBe(true); // 第19版 PR5: パネルの下端はタブ（y863）の上 8 = 855
       const grip = await box(page.locator('.pgrip i')), close = await box(page.locator('.pclose')), sw = await box(page.locator('.pswitch'));
       expect(near(grip.width, 36) && near(grip.height, 5) && near(grip.x + 18, W / 2) && near(grip.y, pn.y + 6)).toBe(true);
       expect(near(close.width, 44) && near(close.height, 44) && near(close.x + 44, W - 20 * ux) && near(close.y, pn.y + 12)).toBe(true);

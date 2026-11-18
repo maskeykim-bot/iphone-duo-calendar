@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { OPEN_SIZES, SIZES, loadSample, openApp, setStyle, tab, openMenu } from './helpers.js';
+import { OPEN_SIZES, SIZES, loadSample, openApp, setStyle, tab, openMenu, layout } from './helpers.js';
 
 // 第10版 ②: 閉じた画面（月領域＋操作列）・4タブ・操作列。画面サイズは固定せず、同じ検査を複数の大きさで通す。
 const CLOSED = [SIZES.closedPortrait, SIZES.closedLandscape];
@@ -214,3 +214,129 @@ for (const size of OPEN_SIZES) {
     await expect(page.locator('.calendar .week').first()).toBeVisible();
   });
 }
+
+// ---------- 第19版 PR5（design/28）: タブをそろえる・閉じた画面の週・日タブ ----------
+const near = (a, b, t = 0.5) => Math.abs(a - b) <= t;
+const setSafeRight = (page, r) => page.evaluate((v) => document.documentElement.style.setProperty('--sar', `${v}px`), r);
+
+test('PR5 閉じた画面 466×678: タブ x48〜334・y599〜645（1つ 71.5）。並び・名前・aria-pressed', async ({ page }) => {
+  await openApp(page, SIZES.closedPortrait);
+  await setSafeRight(page, 84); // 実機の右の帯（本文 x0〜382 の中央に置く。safe=0 の帯なしは x90〜376）
+  await expect.poll(async () => near((await box(page.locator('.tabs'))).l, 48)).toBe(true);
+  const t = await box(page.locator('.tabs'));
+  expect(near(t.l, 48) && near(t.r, 334) && near(t.t, 599) && near(t.b, 645)).toBe(true);
+  const bs = tabsGroup(page).getByRole('button');
+  await expect(bs).toHaveText(['ホーム', '日', '週', '月']);
+  for (let i = 0; i < 4; i++) { const r = await box(bs.nth(i)); expect(near(r.w, 71.5) && near(r.h, 46)).toBe(true); }
+});
+
+test('PR5 開いた縦 669×951: タブ x191〜477・y863〜909、＋は右下の丸 48（x601〜649・y863〜911）。切替は残る', async ({ page }) => {
+  await openApp(page, SIZES.openPortrait669);
+  const t = await box(page.locator('.tabs'));
+  expect(near(t.l, 191.5, 1) && near(t.r, 477.5, 1) && near(t.t, 863) && near(t.b, 909), JSON.stringify(t)).toBe(true);
+  const bs = tabsGroup(page).getByRole('button');
+  await expect(bs).toHaveText(['ホーム', '日', '週', '月']);
+  for (const [i, n] of ['ホーム', '日', '週', '月'].entries()) { await expect(tab(page, n)).toHaveAttribute('aria-description', `4個中${i + 1}番目`); const r = await box(bs.nth(i)); expect(near(r.w, 71.5, 0.6) && near(r.h, 46)).toBe(true); }
+  const add = await box(page.getByRole('button', { name: '予定を追加' }));
+  expect(near(add.l, 601) && near(add.r, 649) && near(add.t, 863) && near(add.b, 911)).toBe(true);
+  await expect(page.getByRole('group', { name: '集中モード' })).toBeVisible(); // 切替（カレンダー｜タスク｜ノート）を残す（TP-23 の答えまで）
+});
+
+test('PR5 選んだタブは閉じた画面と開いた縦で共通。5回開閉しても同じタブ・同じ日付', async ({ page }) => {
+  await openApp(page, SIZES.closedPortrait);
+  const sel = () => page.evaluate(() => { const u = JSON.parse(localStorage.getItem('duo.ui.v1') || '{}'); return `${u.selected}|${u.view}`; });
+  for (const name of ['週', '日', '月', 'ホーム']) {
+    await tab(page, name).click();
+    if (name === '週') { await page.locator('[data-act="next"]').first().click(); await expect.poll(sel).toContain('2026-11-19'); }
+    const pressed = async () => (await Promise.all(['ホーム', '日', '週', '月'].map((n) => tab(page, n).getAttribute('aria-pressed')))).join();
+    const want = await pressed();
+    const s0 = await sel();
+    for (let i = 0; i < 5; i++) {
+      await page.setViewportSize(SIZES.openPortrait669);
+      await expect.poll(() => layout(page)).toBe('open');
+      expect(await pressed(), `${name} 開 ${i}`).toBe(want);
+      expect(await sel(), `${name} 開 ${i} 日付`).toBe(s0);
+      await page.setViewportSize(SIZES.closedPortrait);
+      await expect.poll(() => layout(page)).toMatch(/home|browse/);
+      expect(await pressed(), `${name} 閉 ${i}`).toBe(want);
+      expect(await sel(), `${name} 閉 ${i} 日付`).toBe(s0);
+    }
+  }
+});
+
+test('PR5 閉じた画面で「週」を見ている途中で開くと、開いた縦も「週」。日付も保つ', async ({ page }) => {
+  await openApp(page, SIZES.closedPortrait);
+  await tab(page, '週').click();
+  await page.locator('[data-act="next"]').first().click();
+  await expect(page.locator('#ctitle')).toHaveText('11月16日〜22日');
+  await page.setViewportSize(SIZES.openPortrait669);
+  await expect(tab(page, '週')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#ctitle')).toHaveText('11月16日〜11月22日');
+  await page.setViewportSize(SIZES.closedPortrait);
+  await expect(tab(page, '週')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#ctitle')).toHaveText('11月16日〜22日');
+});
+
+test('PR5 ホームを見ている途中で開くと開いた縦もホーム（月ではない）。月なら月のまま閉じてもホームにならない', async ({ page }) => {
+  await openApp(page, SIZES.closedPortrait);
+  await expect(tab(page, 'ホーム')).toHaveAttribute('aria-pressed', 'true');
+  await page.setViewportSize(SIZES.openPortrait669);
+  await expect(tab(page, 'ホーム')).toHaveAttribute('aria-pressed', 'true');
+  await tab(page, '月').click();
+  await page.setViewportSize(SIZES.closedPortrait);
+  await expect(tab(page, '月')).toHaveAttribute('aria-pressed', 'true');
+  await expect(tab(page, 'ホーム')).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('PR5 閉じた画面の週: 見出し 48・日付の行 42・終日 24・時間軸 y114〜、1列 48・1時間 44（帯 84 の本文 366 幅）', async ({ page }) => {
+  await openApp(page, SIZES.closedPortrait);
+  await setSafeRight(page, 84);
+  await loadSample(page);
+  await tab(page, '週').click();
+  await expect(page.locator('.tlhd')).toHaveCount(7);
+  const ch = await box(page.locator('.chead')), hd = await box(page.locator('.tlheads')), ad = await box(page.locator('.allday')), tl = await box(page.locator('.tl'));
+  expect(near(ch.h, 48) && near(hd.t, 48) && near(hd.h, 42) && near(ad.t, 90) && near(ad.h, 24) && near(tl.t, 114), JSON.stringify({ ch, hd, ad, tl })).toBe(true);
+  const cols = await page.locator('.tlcol').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width));
+  expect(cols).toHaveLength(7);
+  for (const w of cols) expect(near(w, 48), `列 ${w}`).toBe(true);
+  expect(await page.locator('.tl').evaluate((e) => parseFloat(getComputedStyle(e).getPropertyValue('--hh')))).toBe(44);
+  const hl = await page.locator('.hl:not(.half)').evaluateAll((els) => els.slice(0, 3).map((e) => e.getBoundingClientRect().top));
+  expect(near(hl[1] - hl[0], 44) && near(hl[2] - hl[1], 44)).toBe(true);
+  const tb = await box(page.locator('.tabs'));
+  expect(tb.t).toBeGreaterThanOrEqual(599 - 0.5);
+  await expect(page.locator('.tlx')).not.toHaveJSProperty('scrollWidth', 0);
+  expect(await page.locator('.tlx').evaluate((e) => e.scrollWidth <= e.clientWidth + 0.5)).toBe(true); // 横にはみ出さない（7日が1画面）
+  // タスク・ノートは出さない（TP-24）
+  await expect(page.locator('.mpane .hcard, .mpane .rmrow, .mpane [data-page="task"], .mpane [data-page="memo"]')).toHaveCount(0);
+});
+
+test('PR5 閉じた画面の日: 時間軸 y80〜、1時間 44。タスク・ノートは出さない', async ({ page }) => {
+  await openApp(page, SIZES.closedPortrait);
+  await setSafeRight(page, 84);
+  await loadSample(page);
+  await tab(page, '日').click();
+  const tl = await box(page.locator('.tl'));
+  expect(near(tl.t, 80), JSON.stringify(tl)).toBe(true);
+  expect(await page.locator('.tl').evaluate((e) => parseFloat(getComputedStyle(e).getPropertyValue('--hh')))).toBe(44);
+  await expect(page.locator('.mpane .hcard, .mpane .rmrow, .mpane [data-page="task"], .mpane [data-page="memo"]')).toHaveCount(0);
+});
+
+test('PR5 閉じた週・日で日付を変えると 0.25 秒で横に滑る（視差を減らすときは 0.15 秒のフェード）', async ({ page }) => {
+  await openApp(page, SIZES.closedPortrait);
+  await loadSample(page);
+  await tab(page, '週').click();
+  const run = async () => {
+    await page.evaluate(() => { window.__anims = []; const o = Element.prototype.animate; Element.prototype.animate = function (k, opt) { window.__anims.push({ k, d: opt.duration }); return o.call(this, k, opt); }; });
+    await page.locator('[data-act="next"]').first().click();
+    await expect.poll(() => page.evaluate(() => window.__anims.length)).toBeGreaterThanOrEqual(2);
+    return page.evaluate(() => window.__anims);
+  };
+  const a = await run();
+  expect(a[0].d + a[1].d).toBe(250);
+  expect(a.some((x) => x.k[1].transform !== 'translateX(0px)' && /translateX\((-?\d+)px\)/.test(x.k[1].transform) && x.k[1].transform !== 'translateX(0px)')).toBe(true);
+  await page.waitForFunction(() => !document.documentElement.dataset.swiping);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const b = await run();
+  expect(b[0].d + b[1].d).toBe(150);
+  expect(b.every((x) => x.k.every((f) => f.transform.includes('translateX(0px)') || f.transform === 'translateX(0)' || /translateX\(-?0px\)/.test(f.transform)))).toBe(true);
+});

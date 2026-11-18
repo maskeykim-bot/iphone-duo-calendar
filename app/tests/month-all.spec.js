@@ -327,7 +327,7 @@ test.describe('週の始まり（月曜が既定）', () => {
     await expect(page.locator('.week')).toHaveCount(5); // 2026年11月は日曜始まりで5週
     expect(await page.locator('.week').first().locator('.day').first().getAttribute('data-date')).toBe('2026-11-01');
     await tab(page, '週').click();
-    await expect(page.locator('#ctitle')).toHaveText('11月8日〜11月14日');
+    await expect(page.locator('#ctitle')).toHaveText('11月8日〜14日'); // 閉じた画面の週は同じ月なら後ろの月を省く（第19版 PR5）
     // 保存: 再読み込み後も日曜始まり
     await page.reload();
     await page.waitForSelector('html[data-ready]');

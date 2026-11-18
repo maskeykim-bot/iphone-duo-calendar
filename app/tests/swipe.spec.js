@@ -18,8 +18,11 @@ const prev = (s) => ({ x0: Math.round(s.width * 0.3), y0: Math.round(s.height * 
 const nextDay = (s) => ({ x0: Math.round(s.width * 0.6), y0: Math.round(s.height * 0.55), dx: -120 });
 const prevDay = (s) => ({ x0: Math.round(s.width * 0.55), y0: Math.round(s.height * 0.55), dx: 120 });
 
+// 閉じた画面の週の見出しは同じ月なら「11月16日〜22日」（第19版 PR5、design/28 §1）
+const shortWeek = (t, size) => (size.width < 600 ? t.replace(/〜\d+月/, '〜') : t);
 for (const [lname, size] of LAYOUTS) {
-  for (const [view, now, nextT, prevT] of VIEWS) {
+  for (const [view, now0, nextT0, prevT0] of VIEWS) {
+    const [now, nextT, prevT] = [now0, nextT0, prevT0].map((t) => (view === '週' ? shortWeek(t, size) : t));
     if (size.width > size.height && view !== '月') continue; // 開いた横の日・週は時間ページの表示（第14版 PR5）。スワイプの送りは月
     test(`${lname} ${view}: 左スワイプ＝次、右スワイプ＝前`, async ({ page }) => {
       await openApp(page, size);

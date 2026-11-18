@@ -318,10 +318,12 @@ function updateLayoutMetrics() {
   } else if (post === 'portrait') {
     // 開いた縦: 見出しは上 safe の帯の中（T に足さない）。head = max(T, 82)。縦位置は safe を除いた画面全体（上は帯込み）。
     const head = Math.max(T, 82), p = (H - B) / 951, ux = U / 669;
-    left = x0; right = W - R; c = U / 7; headH = head; gridTop = head + 24; G = (H - B - 71 * p) - gridTop;
-    const rowTop = Math.min(H - B - 70 * p, H - B - 48);
+    // 第19版 PR5（design/28）: タブ x191〜477・y863〜909（高さ 46）、＋ は右下の丸 48（y863〜911）。下の 34 はよける。
+    left = x0; right = W - R; c = U / 7; headH = head; gridTop = head + 24;
+    const rowTop = Math.min(H - B - 88 * p, H - B - 48);
+    G = rowTop - 8 * p - gridTop; // 月はタブの上 8 まで
     ctrlY = rowTop; tabsY = rowTop; tabsCx = Ls + U / 2;
-    tabsW = Math.min(270, Math.max(0, U - 2 * (20 + 48 + 8)));
+    tabsW = Math.min(286, Math.max(0, U - 2 * (20 + 48 + 8)));
     hc = Math.min(head - 22, Math.max(22, head * 46 / 82));
     pos.hbar = true; pos.ux = ux;
     pos.set = box(Ls + 20 * ux, hc - 22, HIT_HDR, HIT_HDR); pos.search = box(Ls + 484 * ux, hc - 22, HIT_HDR, HIT_HDR);
@@ -345,7 +347,7 @@ function updateLayoutMetrics() {
     if (panelAvail()) pos.pnl = box(Ls + 80, rowTop, 48, 48); // 今日の丸の右、間12
     if (panelOn()) {
       // 下パネル: マスは通常の高さ比 414/774、パネルは マスの下端〜（操作段の上端−8p）。基準 y520〜873。
-      G = G * 414 / 774;
+      G = ((H - B - 71 * p) - gridTop) * 414 / 774; // 下パネルの月は今の高さ比のまま（PR6 で月タブごと作り直す）
       const pb = rowTop - 8 * p;
       v['pnl-top'] = gridTop + G; v['pnl-h'] = Math.max(0, pb - gridTop - G); v['pnl-up-h'] = Math.max(0, pb - gridTop);
       portraitWeekH = G / n;
@@ -622,7 +624,9 @@ function periodTitle() {
   if (viewNow() === 'month') return `${d.getFullYear()}年 ${d.getMonth() + 1}月`;
   if (viewNow() === 'week') {
     const s = parseKey(weekStart(state.selected)), e = parseKey(addDays(weekStart(state.selected), 6));
-    return `${s.getMonth() + 1}月${s.getDate()}日〜${e.getMonth() + 1}月${e.getDate()}日`;
+    // 閉じた画面の週は同じ月なら「11月16日〜22日」（design/28 §1）。月をまたぐときは両方の月を書く
+    const short = POS.post === 'closed' && s.getMonth() === e.getMonth();
+    return `${s.getMonth() + 1}月${s.getDate()}日〜${short ? '' : `${e.getMonth() + 1}月`}${e.getDate()}日`;
   }
   return dayLabel(state.selected);
 }
@@ -846,12 +850,13 @@ function weekRow(k, short, vlist = false) {
 const weekNotes = '<div class="weeknotes"><div class="eyebrow">今週の余白</div>日付から一日の詳細へ。予定を選ぶと全文を確認できます。</div>';
 
 // 閉じた日・週: 空き時刻を選べる時間軸（日1列／週7列。狭幅は横スクロールで列幅 CLOSED_COL を確保）。
-const CLOSED_COL = 52;
+const CLOSED_COL = 48; // 第19版 PR5（design/28 §1）: 7日を1画面に入れる 1列 48。時刻の列 30、1時間 44
 function closedTimeBody() {
   const ks = viewNow() === 'week' ? weekKeys() : [state.selected];
   const empty = state.loaded && state.events.length === 0 ? `<div class="tlempty">${sampleBtn()}</div>` : '';
-  const inner = timelineHtml(ks, Math.max(CLOSED_COL * ks.length, safeW() - 8) - 50, 'closed');
-  return `${empty}<div class="tlx"><div class="tlw" style="min-width:${50 + ks.length * CLOSED_COL}px">${inner}</div></div>`;
+  const wk = ks.length > 1, lw = wk ? 30 : 50;
+  const inner = timelineHtml(ks, Math.max(wk ? CLOSED_COL * ks.length : 0, safeW() - 16) - lw, 'closed');
+  return `${empty}<div class="tlx${wk ? ' wk' : ''}"><div class="tlw" style="min-width:${lw + (wk ? ks.length * CLOSED_COL : 0)}px">${inner}</div></div>`;
 }
 function calendarBody(kind) {
   if (kind === 'browse' && viewNow() !== 'month') return closedTimeBody();
@@ -916,7 +921,8 @@ const listView = (mode = 'cards') => `<div class="home listview hm-${mode}" aria
 // 閉じた画面（一覧 = home / 日・週・月 = browse）: 本文は safe の内側いっぱい。操作は帯（右 safe）または見出し・下段。
 function closed(kind) {
   const body = state.strip ? stripPage(state.strip) : kind === 'home' ? listView() : calendar('browse');
-  return `<div class="shell closed ${kind}${POS.band ? ' band' : ' fb'}${state.strip ? ' strp' : ''}"><div class="mpane">${body}</div>${ctl()}${tabs()}</div>`;
+  const tv = kind === 'browse' && !state.strip && viewNow() !== 'month' ? ` tv tv-${viewNow()}` : ''; // 閉じた日・週の時間軸（design/28 §1）
+  return `<div class="shell closed ${kind}${tv}${POS.band ? ' band' : ' fb'}${state.strip ? ' strp' : ''}"><div class="mpane">${body}</div>${ctl()}${tabs()}</div>`;
 }
 // 閉じた画面で右の帯のタスク／メモを開いたときの全面ページ。下のタブはどれも選ばれず、帯の同じ丸かタブで戻る。
 function stripPage(id) {
@@ -1017,7 +1023,7 @@ function desk() {
 // 折り目（ビューポート中心 ±10px）には何も置かない。左右ページは中心±10 で clip し、背景は中心で直接接続する。
 // 時間軸の状態はペイン（左 / 右）ごと: 1時間の高さ(px)・1日/3日・初期スクロールの判定キー。quiet はピンチ・ドラッグ直後の空きタップ抑止（共通）。
 const mkTl = () => ({ hh: 60, key: '' });
-const TLP = { left: mkTl(), right: mkTl(), bottom: mkTl(), closed: mkTl() };
+const TLP = { left: mkTl(), right: mkTl(), bottom: mkTl(), closed: { hh: 44, key: '' } };
 const TLQ = { quiet: 0 };
 const paneOf = (el) => (['left', 'bottom', 'closed'].includes(el?.dataset?.pane) ? el.dataset.pane : 'right');
 const firstTl = () => root.querySelector('.tl');
@@ -1079,7 +1085,7 @@ function timelineHtml(ks, avail, pane = 'right', fixedHh = 0) {
     if (h < 24) lines += `<span class="hlab" style="--m:${h * 60}">${h}:00</span><i class="hl half" style="--m:${h * 60 + 30}"></i>`;
   }
   const cols = ks.map((k) => `<div class="tlcol" data-day="${k}">${dayBlocks(k).map((b) => tlBlock(b, k)).join('')}</div>`).join('');
-  return `${allDayRow(ks, avail)}${heads}<div class="tl" data-scroll="tl" data-pane="${pane}" style="--hh:${fixedHh || TLP[pane].hh}px"><div class="tlin" data-pane="${pane}" data-days="${ks.join(',')}">${lines}<div class="tlcols">${cols}</div><div class="nowl" hidden><span class="nowt"></span></div></div></div>`;
+  return `${pane === 'closed' ? `${heads}${allDayRow(ks, avail)}` : `${allDayRow(ks, avail)}${heads}`}<div class="tl" data-scroll="tl" data-pane="${pane}" style="--hh:${fixedHh || TLP[pane].hh}px"><div class="tlin" data-pane="${pane}" data-days="${ks.join(',')}">${lines}<div class="tlcols">${cols}</div><div class="nowl" hidden><span class="nowt"></span></div></div></div>`;
 }
 // 右ページの日見出し（11月14日（土））＋ 1日／3日の切替（見た目 60×32・押せる範囲の高さ 44）。帯がないときは 今日・検索・＋ も見出しへ。
 const rctl = () => (POS.band ? '' : `<div class="rctl"><button type="button" class="rbtn s44 rtoday" data-act="today" aria-label="今日に戻る"><span aria-hidden="true">${todayLabel()}</span></button><button type="button" class="rbtn s44 rsearch" data-act="search" aria-label="予定を検索">${ICON_SEARCH}</button><button type="button" class="rbtn s44 radd" data-act="add" aria-label="予定を追加"><span aria-hidden="true">＋</span></button></div>`);
@@ -2007,12 +2013,21 @@ root.addEventListener('pointerdown', (ev) => {
 // ---------- 描画（スクロール位置とフォーカスを保つ） ----------
 let lastKind = '';
 let renderRev = 0; // 描き直し番号（iOS のめくり B が、撮った絵を使い回してよいかを見る）
+// 第19版 PR5（design/28）: 選んでいるタブは閉じた画面と開いた縦で共通に覚える。state.home は「null＝まだ選んでいない」を
+// 閉じた画面ではホーム、開いた縦では月と読むので、姿勢が変わる瞬間に今見ているタブへ確定させる（開いた横は変えない）。
+function syncTabAcrossPosture(kind, fam) {
+  if (!lastKind || fam(lastKind) === fam(kind) || state.home !== null) return;
+  const wasPortrait = document.body.dataset.posture === 'portrait';
+  if (lastKind === 'home' && kind === 'open' && L.h >= L.w) { state.home = true; saveUi(); }
+  else if (lastKind === 'open' && wasPortrait && fam(kind) === 'closed') { state.home = false; saveUi(); }
+}
 function render() {
   if (noteComposing) { renderPending = true; return; } // IME 変換中は入力欄を作り直さない
   renderRev++;
   ensurePasteMonth();
-  const kind = layoutKind();
   const fam = (k) => (k === 'home' || k === 'browse' ? 'closed' : k);
+  syncTabAcrossPosture(layoutKind(), fam);
+  const kind = layoutKind();
   if (state.strip && (!['closed', 'spread'].includes(fam(kind)) || (lastKind && fam(lastKind) !== fam(kind)))) state.strip = null; // 開閉・回転で姿勢が変わったら元の表示へ
   updateLayoutMetrics();
   updateDiagnostics();
@@ -2199,8 +2214,8 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'strip') { if (STRIP.swallow && performance.now() < STRIP.swallow) { STRIP.swallow = 0; return; } STRIP.swallow = 0; toggleStrip(d.strip); }
   else if (d.act === 'allmonth') set({ monthExpand: !state.monthExpand });
   else if (d.act === 'today') set({ selected: todayKey() }); // 今日へ戻るのは選択日だけ。表示（一覧・日・週・月）は保つ
-  else if (d.act === 'prev') move(-1, d.pane);
-  else if (d.act === 'next') move(1, d.pane);
+  else if (d.act === 'prev') { if (!d.pane && !swiping && closedTv()) swipeTo(-1); else move(-1, d.pane); }
+  else if (d.act === 'next') { if (!d.pane && !swiping && closedTv()) swipeTo(1); else move(1, d.pane); }
   else if (d.act === 'noteback') noteBack();
   else if (d.act === 'notenew') noteNew();
   else if (d.nf) noteFolderAct(b);
@@ -5085,7 +5100,8 @@ const SWIPE_ZONE = '.scroll, .agenda, .remaining, .home, .hero, .page, .list, .t
 const SWIPE_EXCLUDE = '.top, .shead, .rhead, .allday, .tlheads, .dgrip, .mmenu, .chead, .foot, .add, .tabs, .pgsw, .tlmenu, .dbox, .ctl, .bandbg, .hline, .foldband, .gutter, input, select, textarea, label, dialog';
 let swiping = false;
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const paneContent = () => [...root.querySelectorAll('.dpage > *, .scroll > *, .agenda > *, .hero > *, .remaining > *, .margin > *')];
+const paneContent = () => [...root.querySelectorAll('.dpage > *, .scroll > *, .agenda > *, .hero > *, .remaining > *, .margin > *, .tlx > .tlw')];
+const closedTv = () => layoutKind() === 'browse' && !state.strip && viewNow() !== 'month'; // 閉じた日・週（design/28 §1）
 
 // 見開きでは、なぞり始めたページ（左 'left' / 右 'right'）で動きを決める。月＝月送り、時間＝日送り（時間の週は7日）、タスク＝動かない。
 let swipePane = null;
@@ -5104,18 +5120,20 @@ function swipeMove(dir) {
 }
 async function swipeTo(dir) {
   if (swiping) return;
-  if (reduced()) { swipeMove(dir); return; }
+  if (reduced() && !closedTv()) { swipeMove(dir); return; }
   swiping = true;
   document.documentElement.dataset.swiping = '1';
-  const dur = ttOn() ? 125 : 100; // 今日＋明日の横すべりは出入り合わせて 0.25 秒（今の型は 0.1＋0.1 のまま）
+  const tvw = closedTv();
+  const dur = reduced() ? 75 : ttOn() || tvw ? 125 : 100; // 今日＋明日・閉じた日／週の横すべりは出入り合わせて 0.25 秒（今の型は 0.1＋0.1）。視差を減らすときは 0.15 秒のフェード
+  const sh = reduced() ? 0 : 32;
   try {
     const out = paneContent().map((el) => el.animate(
-      [{ transform: 'translateX(0)', opacity: 1 }, { transform: `translateX(${-dir * 32}px)`, opacity: 0 }],
+      [{ transform: 'translateX(0)', opacity: 1 }, { transform: `translateX(${-dir * sh}px)`, opacity: 0 }],
       { duration: dur, easing: 'ease-in', fill: 'forwards' }));
     await Promise.all(out.map((a) => a.finished));
     swipeMove(dir);
     const back = paneContent().map((el) => el.animate(
-      [{ transform: `translateX(${dir * 32}px)`, opacity: 0 }, { transform: 'translateX(0)', opacity: 1 }],
+      [{ transform: `translateX(${dir * sh}px)`, opacity: 0 }, { transform: 'translateX(0)', opacity: 1 }],
       { duration: dur, easing: 'ease-out' }));
     await Promise.all(back.map((a) => a.finished));
   } catch { /* アニメーションが中断されても状態は保つ */ } finally { swiping = false; delete document.documentElement.dataset.swiping; }
