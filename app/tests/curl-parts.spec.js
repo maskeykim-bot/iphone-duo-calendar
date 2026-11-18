@@ -73,7 +73,7 @@ test.describe('js/curl/ の部品（第18版 PR2）', () => {
     test(`curl-v1 との一致 ${dn}：同じ寸法・姿勢・紙（plain #F7F4ED）で画素の差 2 段まで`, async ({ page, browser, browserName }) => {
       const p2 = await page.context().newPage(); // curl-v1
       await openV1(p2); await openHarness(page);
-      await init(page, { dims: V1, dpr: 2, paper: '#F7F4ED', text: false, k: { nextOnBack: 0 } }); // 曲がり方・陰影の一致を見る（18.2 の裏の絵は別の試験）
+      await init(page, { dims: V1, dpr: 2, paper: '#F7F4ED', text: false, k: { nextOnBack: 0, fitLeft: 0 } }); // 18.3 の紙の広げは切る。曲がり方・陰影の一致を見る（18.2 の裏の絵は別の試験）
       let worst = 0;
       for (const [name, f, gy] of poses) {
         const a = await p2.evaluate(async ([dir, gy, f]) => {

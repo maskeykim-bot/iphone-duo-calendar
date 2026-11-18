@@ -173,7 +173,7 @@ export function createCurl(opts = {}) {
     metrics: () => metrics(),
     state: () => ({ mode: mode(), shown: !!st?.shown && cv?.style.display === 'block', dir: st?.dir, done: st?.done, released: st?.released, started: st?.started, f: st?.f, g: st?.g, vx: st?.vx,
       busy: !!st || blocking, failed, err: hook.lastError ?? null, lost: !!renderer?.lost, canvas: !!cv, opacity: cv?.style.opacity ?? '', textures: renderer?.textures.size ?? 0, land: renderer?.land ? { ...renderer.land } : null,
-      stats: pages.stats(), dims: renderer?.dims ?? null, prepMs: st?.prepMs ?? null, lostCount: lostAt.length, reduced: reduced(), copy: !!copy, dpr: renderer?.dpr ?? null }),
+      mapW: renderer?.mapW ?? null, stats: pages.stats(), dims: renderer?.dims ?? null, prepMs: st?.prepMs ?? null, lostCount: lostAt.length, reduced: reduced(), copy: !!copy, dpr: renderer?.dpr ?? null }),
     // 姿勢を置く（時間を使わない）。plain: 文字のない紙で作る。戻り値：{ f, shape }
     pose(dir, gy, f, o = {}) {
       const m = ensure(); begin(dir, [dir === 'forward' ? m.edge - 4 : m.lx0 + 30, gy], m); st.started = true; st.pose = true;

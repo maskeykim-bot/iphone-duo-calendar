@@ -1,13 +1,20 @@
 // シェーダー（curl-webgl-r3.js の VS・COMMON・FS_BASE・FS_PAPER。式は変えない）。
 // 変えたのは溝の固定値だけ：FS_BASE の 458./484. と FS_PAPER の溝の濃さ（460/468/482/490）を uniform uGx（溝の左端・右端）から出す。
-export const VS = `attribute vec2 aX;uniform vec2 uP,uN,uView,uC;uniform float uR,uPersp;
-varying vec2 vX,vQ;varying float vD;
+// 第18.3版：左右のページの幅の違い（左 457.5・右 365.5）と溝 20pt。紙は右ページの幅の網目で巻き、背より左に来た所だけ横に寄せる（uMw＝寄せる量 0〜1）。
+//  x' = 背 − 溝×w − (背 − x)×(1 + w×(左幅/右幅 − 1))。w＝1 で x120〜485.5 → x8〜465.5（左ページそのもの）。前へは w をめくりの進み具合 0→1、戻りは常に 1。
+//  背をまたぐ三角形（溝の上で引き伸ばされる所）は描かない。裏・表の絵は w＝1 の写し方で、左ページ全体（日付・時刻の列まで）を実寸で貼る。
+export const VS = `attribute vec2 aX;uniform vec2 uP,uN,uView,uC;uniform float uR,uPersp,uSp,uMw,uMs,uMg;
+varying vec2 vX,vQ;varying float vD,vS;
 void main(){float d=dot(aX-uP,uN);vec2 q=aX;float z=0.;float pr=3.14159265*uR;
  if(d>0.){if(d<pr&&uR>0.001){float th=d/uR;q=aX+(uR*sin(th)-d)*uN;z=uR*(1.-cos(th));}else{q=aX+(-(d-pr)-d)*uN;z=2.*uR+0.6;}}
- vX=aX;vD=d;vQ=q;vec2 s=uPersp>0.?uC+(q-uC)*(uPersp/(uPersp-z)):q;
+ vX=aX;vD=d;vQ=q;if(q.x<uSp)q.x=uSp-uMg*uMw-(uSp-q.x)*(1.+uMw*(uMs-1.));vS=q.x;vec2 s=uPersp>0.?uC+(q-uC)*(uPersp/(uPersp-z)):q;
  gl_Position=vec4(s.x/uView.x*2.-1.,1.-s.y/uView.y*2.,-(z+(d>0.?0.3:0.))/400.,1.);}`;
 export const COMMON = `precision highp float;
-uniform vec2 uP,uN;uniform float uR,uLift,uDark;uniform vec4 uRect;uniform vec2 uGx;
+uniform vec2 uP,uN;uniform float uR,uLift,uDark;uniform vec4 uRect;uniform vec2 uGx;uniform float uSp,uMw,uMs,uMg;
+// 寄せた画面の x → 寄せる前（網目の座標）。影は寄せる前の紙で計算する
+float unmapX(float x){if(x>=uSp)return x;float b=uSp-uMg*uMw;return x>=b?uSp:uSp-(b-x)/(1.+uMw*(uMs-1.));}
+// 網目の座標 → 左右のページの実際の x（w＝1 の写し方。絵を貼るとき）
+float realX(float x){return x<uSp?uSp-uMg-(uSp-x)*uMs:x;}
 uniform float kShOp0,kShOpK,kShBl0,kShBlK,kShOff0,kShOffK,kSgn,kShadowMul;
 float sdRect(vec2 X,vec4 r){vec2 c=(r.xy+r.zw)*.5,h=(r.zw-r.xy)*.5;vec2 q=abs(X-c)-h;return length(max(q,0.))+min(max(q.x,q.y),0.);}
 float soft(vec2 X,float b){return 1.-smoothstep(-b,b,sdRect(X,uRect));}
@@ -25,9 +32,9 @@ void main(){vec2 Q=vX;vec3 c=bg;
  if(Q.x>=rL.x&&Q.x<=rL.z&&Q.y>=rL.y&&Q.y<=rL.w){vec2 uv=(Q-rL.xy)/(rL.zw-rL.xy);vec3 o=texture2D(tLo,uv).rgb,n=texture2D(tLn,uv).rgb;c=mix(o,n,Q.x<uStripX?uStripMix:uLnew);}
  else if(Q.x>=rR.x&&Q.x<=rR.z&&Q.y>=rR.y&&Q.y<=rR.w){vec2 uv=(Q-rR.xy)/(rR.zw-rR.xy);c=mix(texture2D(tRo,uv).rgb,texture2D(tRn,uv).rgb,uRnew);}
  else if(Q.x>uGx.x&&Q.x<uGx.y)c=groove;
- c*=1.-dropShadow(Q);gl_FragColor=vec4(c,1.);}`;
+ c*=1.-dropShadow(vec2(unmapX(Q.x),Q.y));gl_FragColor=vec4(c,1.);}`;
 export const FS_PAPER = COMMON + `uniform sampler2D tF,tN;uniform float kAmpR0,kAmpR1,kDkFm,kHiMinW,kHiDark,kHiMask,kShow,kBackLine,kNext,kHiF,kHiFd,kHiFw,kDkF0,kDkF1,kDkFa,kDkFb,kDkB,kHiB,kHiBd,kHiBw,kFlatB,kFlatBw,kRootA0,kRootAK,kRootIn,kRootOut0,kRootOutK,kGroove;
-uniform vec3 backPaper,lineCol,edgeCol,frontPaper;uniform float uDebug,uPaperA,uSpine;uniform vec4 uFrontRect,uBackRect;varying vec2 vX,vQ;varying float vD;
+uniform vec3 backPaper,lineCol,edgeCol,frontPaper;uniform float uDebug,uPaperA,uSpine;uniform vec4 uFrontRect,uBackRect;varying vec2 vX,vQ;varying float vD,vS;
 const float PI=3.14159265;float g(float x,float c,float w){float t=(x-c)/w;return exp(-t*t);}
 // 巻きが細い（半径が小さい）うちは、巻きの明暗を弱める。細い筒に 4 つの筋が 6pt に詰まって段に見えるため（第3報）
 float ampR(){return smoothstep(kAmpR0,kAmpR1,uR);}
@@ -36,7 +43,8 @@ float herm(float p0,float p1,float m0,float m1,float u){float u2=u*u,u3=u2*u;ret
 float dkF(float deg){float a0=kDkFa-20.,m=kDkFm;
  if(deg<=a0)return 0.;if(deg<kDkFa){float L=kDkFa-a0;return herm(0.,kDkF0,0.,m*L,(deg-a0)/L);}
  if(deg<kDkFb){float L=kDkFb-kDkFa;return herm(kDkF0,kDkF1,m*L,0.,(deg-kDkFa)/L);}return kDkF1;}
-void main(){vec2 uv=(vX-uRect.xy)/(uRect.zw-uRect.xy);vec2 fuv=(vX-uFrontRect.xy)/(uFrontRect.zw-uFrontRect.xy);vec3 F=(fuv.x>=0.&&fuv.x<=1.)?texture2D(tF,fuv).rgb:frontPaper;float d=vD;float pr=PI*uR;
+void main(){if(uMw>0.&&vS>uSp-uMg*uMw+.05&&vS<uSp-.05)discard; // 背をまたいで溝の上に引き伸ばされた所
+ vec2 uv=(vX-uRect.xy)/(uRect.zw-uRect.xy);vec2 fuv=(vec2(realX(vX.x),vX.y)-uFrontRect.xy)/(uFrontRect.zw-uFrontRect.xy);vec3 F=(fuv.x>=0.&&fuv.x<=1.)?texture2D(tF,fuv).rgb:frontPaper;float d=vD;float pr=PI*uR;
  float dark=0.,hi=0.;bool back=false;
  float root=(kRootA0+kRootAK*uLift);
  if(d<=0.){ // 平らな表：根元の内側にごく短いグラデーション（上に紙がある所だけ＝一定幅の帯にしない）
@@ -54,7 +62,7 @@ void main(){vec2 uv=(vX-uRect.xy)/(uRect.zw-uRect.xy);vec2 fuv=(vX-uFrontRect.xy
  vec3 c;
  if(back){float ly=mod(vX.y-uRect.y,30.);float ln=clamp(1.-abs(ly-29.5),0.,1.)*kBackLine;
    c=mix(backPaper,lineCol,ln);
-   if(kNext>0.){vec2 bq=vec2(2.*uSpine-vX.x,vX.y),bu=(bq-uBackRect.xy)/(uBackRect.zw-uBackRect.xy);vec3 N=(bu.x>=0.&&bu.x<=1.)?texture2D(tN,bu).rgb:backPaper;c=mix(c,N,kNext);} // 第18.2版：裏＝着地した所に置かれる次のページ（背で折り返した位置の絵）
+   if(kNext>0.){vec2 bq=vec2(realX(2.*uSpine-vX.x),vX.y),bu=(bq-uBackRect.xy)/(uBackRect.zw-uBackRect.xy);vec3 N=(bu.x>=0.&&bu.x<=1.)?texture2D(tN,bu).rgb:backPaper;c=mix(c,N,kNext);} // 第18.2版：裏＝着地した所に置かれる次のページ（背で折り返した位置の絵）
    c=mix(c,F,kShow*(1.-kNext)); // 表の内容が左右反対に透ける（同じ紙の点の表の色を混ぜる）
    float e=smoothstep(-1.4,-0.2,sdRect(vX,uRect));c=mix(c,edgeCol,e*0.8);
  } else c=F;

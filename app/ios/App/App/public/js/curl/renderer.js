@@ -67,17 +67,21 @@ export class CurlRenderer {
     const sh = shape(s, g, f) || { P: [s.edge + 9999 * s.sgn, 0], n: [s.sgn, 0], r: 0, lift: 0 };
     gl.viewport(0, 0, this.cv.width, this.cv.height); gl.clearColor(0.97, 0.96, 0.93, 1); gl.clearDepth(1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     const rect = [s.x0, d.py0, s.x1, d.py1];
+    // 第18.3版：背より左へ寄せる量。前へは紙の端（指）の進み具合 0→1（着地で左ページ x8〜465.5 とぴったり重なる）、戻りは常に 1（表は左ページそのもの）
+    const mw = this.mapW = !(k.fitLeft ?? 1) ? 0 : cur.dir === 'forward' ? Math.min(1, Math.max(0, (s.edge - f[0]) / (s.edge - (2 * s.spine - s.edge)))) : 1;
     const setCommon = (p) => {
       this.uni(p, 'uP', ...sh.P); this.uni(p, 'uN', ...sh.n); this.uni(p, 'uR', sh.r); this.uni(p, 'uLift', sh.lift); this.uni(p, 'uRect', ...rect); this.uni(p, 'uView', this.W, this.H);
       this.uni(p, 'uGx', d.lx1, d.spine);
       for (const n of ['shOp0', 'shOpK', 'shBl0', 'shBlK', 'shOff0', 'shOffK']) this.uni(p, 'k' + n[0].toUpperCase() + n.slice(1), k[n]);
+      this.uni(p, 'uSp', d.spine); this.uni(p, 'uMw', mw); const fit = (k.fitLeft ?? 1) ? 1 : 0; this.uni(p, 'uMs', fit ? (d.lx1 - d.lx0) / (d.edge - d.spine) : 1); this.uni(p, 'uMg', fit ? d.spine - d.lx1 : 0);
       this.uni(p, 'uDark', this.dark ? 1 : 0); this.uni(p, 'kSgn', s.sgn); this.uni(p, 'kShadowMul', (this.dark ? k.darkShadow : 1) * this.land.paperA);
     };
     // 下の見開き（左右のページ・溝）と落ちる影
     let p = this.pBase; gl.useProgram(p); gl.disable(gl.DEPTH_TEST); setCommon(p);
     this.uni(p, 'rL', d.lx0, d.py0, d.lx1, d.py1); this.uni(p, 'rR', d.spine, d.py0, d.edge, d.py1);
     this.uni(p, 'bg', ...hex(c.bg)); this.uni(p, 'groove', ...hex(c.groove));
-    const L = this.land; this.uni(p, 'uStripX', 2 * d.spine - d.edge); this.uni(p, 'uStripMix', L.stripMix); this.uni(p, 'uLnew', L.Lnew); this.uni(p, 'uRnew', L.Rnew); this.uni(p, 'uPaperA', L.paperA);
+    // 第18.3版：左の帯だけの入れ替えはやめた（紙が左ページ全体を覆う）。uStripX を画面の外へ
+    const L = this.land; this.uni(p, 'uStripX', -1e4); this.uni(p, 'uStripMix', L.stripMix); this.uni(p, 'uLnew', L.Lnew); this.uni(p, 'uRnew', L.Rnew); this.uni(p, 'uPaperA', L.paperA);
     ['Lo', 'Ln', 'Ro', 'Rn'].forEach((n, i) => { gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, cur[n].t); gl.uniform1i(gl.getUniformLocation(p, 't' + n), i); });
     let loc = gl.getAttribLocation(p, 'aX'); gl.bindBuffer(gl.ARRAY_BUFFER, this.quad); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     // めくる紙

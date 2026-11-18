@@ -154,29 +154,42 @@ test.describe('めくりの始まり（確認表 1章④）', () => {
     expect(await heads(page)).toEqual(['11月12日（木）', '11月13日（金）']);
   });
 
-  test('時間：めくり切り 0.30 秒・戻り 0.22 秒・着地 0.15 秒。左端の入れ替えは単調（前へ 0.30 秒・戻り 0.15 秒）', async ({ page }) => {
+  test('時間：めくり切り 0.30 秒・戻り 0.22 秒・着地 0.15 秒。18.3：左の帯の入れ替えはしない（stripMix は 0 のまま）', async ({ page }) => {
     await land(page); await manual(page);
     const sample = async (ms, step = 16) => { const out = []; for (let t = 0; t < ms; t += step) { await adv(page, step); out.push(await cv(page)); } return out; };
     // 前へ（めくり切る）
     await down(page, 840, 300); await slowTo(page, 820, 560); await moves(page, [[559, 300, 600]]); await page.mouse.up();
     const f = await sample(320, 16);
-    const mix = f.map((s) => s.land?.stripMix ?? 0); for (let i = 1; i < mix.length; i++) expect(mix[i], `前へ stripMix ${i}`).toBeGreaterThanOrEqual(mix[i - 1] - 1e-9);
+    const mix = f.map((s) => s.land?.stripMix ?? 0); for (const m of mix) expect(m, '前へ stripMix').toBe(0);
     const iLand = f.findIndex((s) => s.land?.Lnew === 1);
     expect(iLand * 16 + 16, `Lnew=1 になるのは 0.30 秒`).toBeGreaterThanOrEqual(288); expect(iLand * 16 + 16).toBeLessThanOrEqual(320);
-    expect(mix[iLand]).toBeGreaterThan(0.99); expect(f[iLand].land.showMul).toBe(0); expect(f[Math.max(0, iLand - 3)].land.showMul, '透かしは 0.30 秒の後ろ 40% で消える').toBeGreaterThan(0);
-    expect(f[2].land.stripMix).toBeLessThan(0.5);
+    expect(f[iLand].mapW, '着地で紙は左ページの幅').toBe(1); expect(f[iLand].land.showMul).toBe(0); expect(f[Math.max(0, iLand - 3)].land.showMul, '透かしは 0.30 秒の後ろ 40% で消える').toBeGreaterThan(0);
     await adv(page, 100); const mid = await cv(page); expect(Number(mid.opacity)).toBeGreaterThan(0); expect(Number(mid.opacity)).toBeLessThan(1);
     await adv(page, 100); expect((await cv(page)).busy).toBe(false);
     // 戻る（めくり切らない）0.22 秒
     await down(page, 840, 300); await slowTo(page, 820, 700); await page.mouse.up();
     await adv(page, 192); expect((await cv(page)).shown, '0.19 秒ではまだ動いている').toBe(true);
     await adv(page, 64); expect((await cv(page)).busy, '0.26 秒で終わる').toBe(false);
-    // 戻り（backward）：手を離した瞬間に左端を 0.15 秒で前の日へ
+    // 戻り（backward）：左の帯の入れ替えはしない
     await down(page, 40, 300); await slowTo(page, 60, 60 + 200); await page.mouse.up();
-    const b = await sample(160, 16); const bm = b.map((s) => s.land?.stripMix ?? 0); for (let i = 1; i < bm.length; i++) expect(bm[i]).toBeGreaterThanOrEqual(bm[i - 1] - 1e-9);
-    expect(bm[bm.length - 1], '0.16 秒で 1').toBeGreaterThan(0.99); expect(bm[3], '0.064 秒ではまだ').toBeLessThan(1);
+    const b = await sample(160, 16); const bm = b.map((s) => s.land?.stripMix ?? 0); for (const m of bm) expect(m, '戻り stripMix').toBe(0);
     await finishAll(page);
   });
+
+  for (const [dn, x0, path] of [['前へ・端からゆっくり', 840, [[820, 300, 16], [600, 300, 400], [400, 300, 300]]], ['前へ・中ほどから払う', 660, [[640, 300, 16], [520, 300, 48]]], ['戻り・端からゆっくり', 20, [[40, 300, 16], [400, 300, 500], [700, 300, 300]]], ['戻り・払う', 30, [[60, 300, 16], [240, 300, 48]]]]) {
+    test(`18.3 着地（${dn}）：紙は傾き 0 で左右のページにぴったり重なり、DOM へ戻した後と同じ絵（CB-1〜5）`, async ({ page }) => {
+      await land(page); await manual(page);
+      const rects = [[10, 4, 60, 30], [10, 80, 120, 120], [300, 80, 120, 120], [440, 4, 24, 400], [500, 4, 60, 30], [640, 80, 120, 120]].map(([x, y, w, h]) => ({ x, y, w, h }));
+      const grab = () => page.evaluate((rects) => rects.map((r) => { const q = __duoCurl.probe(r), d = q.data, out = []; for (let i = 0; i < d.length; i += 16) out.push(d[i], d[i + 1], d[i + 2], 255); return out; }), rects);
+      await down(page, x0, 300); await moves(page, path); await page.mouse.up();
+      let last = null, after = null, st;
+      for (let i = 0; i < 60; i++) { await adv(page, 16); st = await cv(page); if (!st.shown) break; if (st.land.Lnew === 1 && st.land.Rnew === 1 && !after) { after = await grab(); break; } if (st.land.showMul > 0) { last = { g: await grab(), mapW: st.mapW, f: st.f }; } }
+      expect(last, '着地前のこま').not.toBeNull(); expect(after, '入れ替え後のこま').not.toBeNull();
+      expect(last.mapW, '紙の幅').toBeGreaterThan(0.99);
+      for (let k = 0; k < rects.length; k++) { const a = last.g[k], c = after[k]; let mx = 0, n = 0; for (let i = 0; i < a.length; i += 4) { const d = Math.max(Math.abs(a[i] - c[i]), Math.abs(a[i + 1] - c[i + 1]), Math.abs(a[i + 2] - c[i + 2])); if (d > 48) n++; mx = Math.max(mx, d); } expect(n / (a.length / 4), `枠 ${k} の食い違い（最大 ${mx}）`).toBeLessThan(0.03); }
+      await finishAll(page);
+    });
+  }
 
   test('18.2 めくり中に次のページが見える：下は次の右（前へ）、裏は次の左。着地の前後で絵が変わらず、着地後は次の見開き', async ({ page }) => {
     await land(page); await manual(page);
