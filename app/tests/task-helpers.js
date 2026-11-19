@@ -23,7 +23,7 @@ export async function spy(page, { reminders = true } = {}) {
     };
   }, reminders);
 }
-export const legacyCalls = (page) => page.evaluate((s) => window.__m.calls.filter((c) => new RegExp(s).test(c[0])).map((c) => c[0]), LEGACY.source);
+export const reminderCalls = (page) => page.evaluate((s) => window.__m.calls.filter((c) => new RegExp(s).test(c[0])).map((c) => c[0]), LEGACY.source);
 
 const withDb = (page, fn, arg) => page.evaluate(async ([src, a]) => {
   const dbs = await indexedDB.databases();

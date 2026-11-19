@@ -1,7 +1,7 @@
 // 第16版 PR17: 月のタスク件数（✓N）の設定と、廃止した同期・リスト・追加先・許可の設定が無いこと。タスクは Duo 内保存。
 import { test, expect } from '@playwright/test';
 import { openApp, openMenu, SIZES, OPEN_SIZES } from './helpers.js';
-import { spy, legacyCalls, seedTasks, T } from './task-helpers.js';
+import { spy, reminderCalls, seedTasks, T } from './task-helpers.js';
 
 const D0 = '2026-11-12', D1 = '2026-11-13';
 const SEED = [
@@ -40,7 +40,7 @@ test.describe('月にタスクを表示', () => {
     expect(await page.locator('body').innerHTML()).not.toContain('秘密のA1');
     expect(await page.evaluate(() => JSON.stringify(Object.entries(localStorage)))).not.toContain('秘密の');
     await expect(page.locator('.day[data-date="2026-11-12"] >> nth=0')).toHaveAttribute('aria-label', /未完了のタスク3件/);
-    expect(await legacyCalls(page)).toEqual([]);
+    expect(await reminderCalls(page)).toEqual([]);
   });
   test('旧 monthTasks:true は新設定へ一度だけ継承。以後は新設定が正で、旧設定は変わらない', async ({ page }) => {
     const old = { enabled: false, lists: ['L1'], addTo: 'L1', monthTasks: true };
@@ -113,7 +113,7 @@ test.describe('廃止した設定（同期・リスト・追加先・許可）',
     await openMenu(page, 'calendar');
     await expect(page.locator('#m-cal-rem')).toHaveCount(0);
     await expect(page.locator('#m-remsync, #m-remreq, [data-tkshow], [data-tkadd], #m-remhist')).toHaveCount(0);
-    expect(await legacyCalls(page)).toEqual([]);
+    expect(await reminderCalls(page)).toEqual([]);
   });
   test('旧設定（lists・addTo・enabled:false）は消さず、読まない: タスクは隠れず追加もできる', async ({ page }) => {
     const old = { enabled: false, lists: [], addTo: 'L9', monthTasks: false };
@@ -128,6 +128,6 @@ test.describe('廃止した設定（同期・リスト・追加先・許可）',
     await expect(lp.locator('.rmt', { hasText: '新しい' })).toHaveCount(1);
     expect(await storedOld(page)).toMatchObject(old); // 旧設定はそのまま
     expect(await stored(page)).toEqual({ monthTasks: false }); // 新設定は monthTasks だけ
-    expect(await legacyCalls(page)).toEqual([]);
+    expect(await reminderCalls(page)).toEqual([]);
   });
 });

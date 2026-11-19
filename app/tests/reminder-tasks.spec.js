@@ -1,7 +1,7 @@
 // 第16版 PR17: タスクの分類と完了履歴の表示（Duo 内保存から読む）。
 import { test, expect } from '@playwright/test';
 import { SIZES, openApp } from './helpers.js';
-import { spy, legacyCalls, openTasks, seedTasks, T } from './task-helpers.js';
+import { spy, reminderCalls, openTasks, seedTasks, T } from './task-helpers.js';
 
 const OPEN = SIZES.openLandscape;
 const day = (off) => { const d = new Date(2026, 10, 12 + off); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
@@ -26,7 +26,7 @@ test.describe('タスクの分類と完了履歴', () => {
     expect(await lp(page).locator('[data-key="rm:today"]').evaluate((e) => e.getBoundingClientRect().height)).toBeGreaterThanOrEqual(56);
     await expect(lp(page).locator('[data-key="rm:d1"]')).toHaveCount(0);
     await expect(page.locator('body')).not.toContainText('旧リマインダー');
-    expect(await legacyCalls(page)).toEqual([]);
+    expect(await reminderCalls(page)).toEqual([]);
   });
   test('完了を開く: 30日以内だけ。古い完了は表示窓の外', async ({ page }) => {
     await openTasks(page, OPEN, { seed: SEED });
@@ -52,7 +52,7 @@ test.describe('タスクの分類と完了履歴', () => {
     await openTasks(page, OPEN, { seed: SEED });
     await page.evaluate(() => { for (let i = 0; i < 5; i++) window.__m.cbs.calendarChanged?.({}); });
     await page.waitForTimeout(600);
-    expect(await legacyCalls(page)).toEqual([]);
+    expect(await reminderCalls(page)).toEqual([]);
     await expect(lp(page).locator('[data-key="rm:legacy1"]')).toHaveCount(0);
   });
   test('0件は案内。保存したタスクは再起動後も同じ', async ({ page }) => {

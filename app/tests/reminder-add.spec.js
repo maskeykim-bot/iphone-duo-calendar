@@ -1,7 +1,7 @@
 // 第16版 PR17: タスクを続けて追加する（Duo 内保存。native 呼出0）。DP-5・TK-2・TM-1/4/6/7。
 import { test, expect } from '@playwright/test';
 import { SIZES } from './helpers.js';
-import { spy, legacyCalls, openTasks, dbTasks, failPuts, holdTasks, releaseTasks, T } from './task-helpers.js';
+import { spy, reminderCalls, openTasks, dbTasks, failPuts, holdTasks, releaseTasks, T } from './task-helpers.js';
 
 const OPEN = SIZES.openLandscape;
 const lp = (page) => page.locator('.page.lp');
@@ -23,7 +23,7 @@ test.describe('タスクの続けて追加', () => {
     await page.reload(); await page.waitForSelector('html[data-ready]');
     await page.locator('.pgl [data-pick="task"]').first().click();
     for (const t of d) await expect(lp(page).locator(`[data-key="rm:${t.id}"]`)).toHaveCount(1);
-    expect(await legacyCalls(page)).toEqual([]);
+    expect(await reminderCalls(page)).toEqual([]);
     await expect(page.locator('body')).not.toContainText('旧リマインダー');
   });
 

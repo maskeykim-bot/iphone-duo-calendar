@@ -1,7 +1,7 @@
 // 第16版 PR17: タスクの削除と4秒の取消（Duo 内保存。native 呼出0）。
 import { test, expect } from '@playwright/test';
 import { SIZES } from './helpers.js';
-import { spy, legacyCalls, openTasks, dbTasks, failPuts, T } from './task-helpers.js';
+import { spy, reminderCalls, openTasks, dbTasks, failPuts, T } from './task-helpers.js';
 
 const lp = (page) => page.locator('.page.lp');
 const row = (page, id) => lp(page).locator(`[data-key="rm:${id}"]`);
@@ -28,7 +28,7 @@ test.describe('タスクの削除', () => {
     await expect.poll(() => ids(page), { timeout: 3000 }).toEqual(['b']);
     await page.waitForTimeout(600);
     await expect(row(page, 'a')).toHaveCount(0);
-    expect(await legacyCalls(page)).toEqual([]);
+    expect(await reminderCalls(page)).toEqual([]);
   });
 
   test('取り消すと保存を変えず元へ戻り、再読込後も残る', async ({ page }) => {

@@ -17,6 +17,9 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         CAPPluginMethod(name: "checkPermission", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "requestPermission", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "openSettings", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "reminderPermission", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "requestReminderPermission", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "listReminderLists", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "listCalendars", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "listEvents", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getEvent", returnType: CAPPluginReturnPromise),
@@ -197,6 +200,83 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             store.requestFullAccessToEvents { _, _ in finish() }
         } else {
             store.requestAccess(to: .event) { _, _ in finish() }
+        }
+    }
+
+    // MARK: - リマインダーの権限と一覧（第19版 D5。書き込み・取得は D7 で足す。同期オフでは JS から呼ばれない）
+
+    /// リマインダーの読み書きに必要なフルアクセスがなければ reject して false を返す。
+    private func ensureReminderAccess(_ call: CAPPluginCall) -> Bool {
+        switch statusString(for: .reminder) {
+        case "granted":
+            return true
+        case "restricted":
+            call.reject("restricted", "RESTRICTED")
+            return false
+        default:
+            call.reject("reminder access is not granted", "PERMISSION_DENIED")
+            return false
+        }
+    }
+
+    @objc func reminderPermission(_ call: CAPPluginCall) {
+        call.resolve(["status": statusString(for: .reminder)])
+    }
+
+    @objc func requestReminderPermission(_ call: CAPPluginCall) {
+        let current = statusString(for: .reminder)
+        // notDetermined のときだけ OS に要求する。denied / restricted は再要求しない。
+        guard current == "notDetermined" else {
+            call.resolve(["status": current])
+            return
+        }
+        let finish: () -> Void = { [weak self] in
+            guard let self = self else { return }
+            let status = self.statusString(for: .reminder)
+            guard status == "granted" else {
+                call.resolve(["status": status])
+                return
+            }
+            // 許可の直後は古い状態のキャッシュが残るので、EventKit の直列 queue で reset してから返す。
+            self.queue.async {
+                self.store.reset()
+                call.resolve(["status": self.statusString(for: .reminder)])
+            }
+        }
+        if #available(iOS 17.0, *) {
+            store.requestFullAccessToReminders { _, _ in finish() }
+        } else {
+            store.requestAccess(to: .reminder) { _, _ in finish() }
+        }
+    }
+
+    @objc func listReminderLists(_ call: CAPPluginCall) {
+        guard ensureReminderAccess(call) else { return }
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            var items: [(sourceId: String, title: String, id: String, dict: [String: Any])] = []
+            let defaultId = self.store.defaultCalendarForNewReminders()?.calendarIdentifier
+            for c in self.store.calendars(for: .reminder) {
+                let src = c.source
+                let sourceId = src?.sourceIdentifier ?? ""
+                let dict: [String: Any] = [
+                    "id": c.calendarIdentifier,
+                    "title": c.title,
+                    "color": self.hexColor(c.cgColor),
+                    "sourceId": sourceId,
+                    "source": src?.title ?? "",
+                    "sourceType": src != nil ? self.sourceTypeString(src!.sourceType) : "unknown",
+                    "allowsModify": c.allowsContentModifications,
+                    "isDefault": defaultId != nil && c.calendarIdentifier == defaultId
+                ]
+                items.append((sourceId, c.title, c.calendarIdentifier, dict))
+            }
+            items.sort { a, b in
+                if a.sourceId != b.sourceId { return a.sourceId < b.sourceId }
+                if a.title != b.title { return a.title < b.title }
+                return a.id < b.id
+            }
+            call.resolve(["lists": items.map { $0.dict }])
         }
     }
 

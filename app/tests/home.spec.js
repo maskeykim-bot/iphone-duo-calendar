@@ -1,9 +1,9 @@
 // 第16版 PR14: ホームに今日のカード（design/14 案A）。2026-11-12 09:41 JST 固定。
 import { test, expect } from '@playwright/test';
 import { openApp, SIZES, seed, ev, tab } from './helpers.js';
-import { spy, seedTasks, dbTasks, legacyCalls } from './task-helpers.js';
+import { spy, seedTasks, dbTasks, reminderCalls } from './task-helpers.js';
 
-// native は偽装（旧リマインダー集合つき・呼出は legacyCalls で0を検査）。タスクは Duo 内保存へ seed する。
+// native は偽装（旧リマインダー集合つき・呼出は reminderCalls で0を検査）。タスクは Duo 内保存へ seed する。
 const toTask = (o, n) => ({ id: o.itemId, title: o.title, due: o.due ?? null, done: !!o.done, doneAt: null, createdAt: n + 1, updatedAt: n + 1, order: n + 1, note: '', notify: false });
 async function openH(page, size, items = []) {
   await spy(page);
@@ -119,7 +119,7 @@ test('タスクの完了: ✓と打消線は即、1.5秒後に1回だけ保存�
   await expect.poll(async () => (await dbTasks(page)).find((t) => t.id === 'c').done).toBe(false);
   expect((await dbTasks(page)).find((t) => t.id === 'c').doneAt).toBeNull();
   await expect(page.locator('.htasks h3')).toContainText('4件');
-  expect(await legacyCalls(page)).toEqual([]);
+  expect(await reminderCalls(page)).toEqual([]);
 });
 
 test('タスクの完了: 1.5秒内の押し直しは保存0回で未完了のまま', async ({ page }) => {

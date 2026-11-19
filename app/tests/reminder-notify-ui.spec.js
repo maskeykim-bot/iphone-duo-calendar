@@ -1,7 +1,7 @@
 // 第16版 PR17: タスクの追加・編集の通知の選択（Duo 内保存。notify は task.notify の boolean）。
 import { test, expect } from '@playwright/test';
 import { SIZES, clearTaskDue, pickTaskDue, setTaskTime } from './helpers.js';
-import { spy, legacyCalls, openTasks, dbTasks, failPuts, T } from './task-helpers.js';
+import { spy, reminderCalls, openTasks, dbTasks, failPuts, T } from './task-helpers.js';
 
 const lp = (page) => page.locator('.page.lp');
 async function ready(page, seed) { await spy(page); await openTasks(page, SIZES.openLandscape, { seed }); }
@@ -65,7 +65,7 @@ test.describe('タスクの通知の選択', () => {
     await expect(page.locator('#taskdlg')).toBeVisible();
     await expect(page.locator('#tk-notify')).not.toBeChecked();
     expect((await one(page)).notify).toBe(true);
-    expect(await legacyCalls(page)).toEqual([]);
+    expect(await reminderCalls(page)).toEqual([]);
   });
 
   test('追加: 既定は通知なし、オンにしたときだけ true、期限なしでは false', async ({ page }) => {

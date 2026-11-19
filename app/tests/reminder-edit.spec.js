@@ -1,7 +1,7 @@
 // 第16版 PR17: タスクの編集と完了の操作（Duo 内保存。native 呼出0）。操作仕様の仕上げは PR18/19。
 import { test, expect } from '@playwright/test';
 import { openApp, SIZES, legacyPanelInit, clearTaskDue, pickTaskDue, setTaskTime } from './helpers.js';
-import { spy, legacyCalls, openTasks, dbTasks, failPuts, T } from './task-helpers.js';
+import { spy, reminderCalls, openTasks, dbTasks, failPuts, T } from './task-helpers.js';
 
 const lp = (page) => page.locator('.page.lp');
 async function ready(page, seed, sz = SIZES.openLandscape) { await spy(page); await openTasks(page, sz, { seed }); }
@@ -19,7 +19,7 @@ test.describe('タスクの編集と完了', () => {
     await expect(lp(page).locator('[data-act="remdone"]')).toContainText('完了（1）');
     expect((await one(page)).done).toBe(true);
     expect((await one(page)).doneAt).toMatch(/^2026-11-12T\d\d:\d\d$/);
-    expect(await legacyCalls(page)).toEqual([]);
+    expect(await reminderCalls(page)).toEqual([]);
   });
 
   test('素早い完了戻しは最後の状態（未完了）で保存され、移動しない', async ({ page }) => {

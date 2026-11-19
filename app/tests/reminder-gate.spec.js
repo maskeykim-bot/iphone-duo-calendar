@@ -1,7 +1,7 @@
 // 第16版 PR17: タスクは許可なしで使える（リマインダー許可・list gate は無い）。TM-7「許可要求0」。
 import { test, expect } from '@playwright/test';
 import { openApp, openMenu, SIZES, legacyPanelInit } from './helpers.js';
-import { spy, legacyCalls, openTasks, T } from './task-helpers.js';
+import { spy, reminderCalls, openTasks, T } from './task-helpers.js';
 
 const OPEN = SIZES.openLandscape;
 const lp = (page) => page.locator('.page.lp');
@@ -14,7 +14,7 @@ test.describe('許可なしでタスクを使える', () => {
     await expect(lp(page).locator('[data-wait="task"] input.remin')).toBeVisible();
     await expect(page.locator('body')).not.toContainText('アクセスを許可');
     await expect(page.locator('body')).not.toContainText('旧リマインダー'); // 旧集合は読まない
-    expect(await legacyCalls(page)).toEqual([]);
+    expect(await reminderCalls(page)).toEqual([]);
   });
   test('Web（native なし）でも同じ。「iPhone のアプリで使えます」は出ない', async ({ page }) => {
     await openTasks(page, OPEN);
@@ -27,7 +27,7 @@ test.describe('許可なしでタスクを使える', () => {
     await openTasks(page, OPEN);
     await page.evaluate(() => { document.dispatchEvent(new Event('visibilitychange')); window.__m.cbs.calendarChanged?.({}); window.__m.cbs.timeChanged?.({}); });
     await page.waitForTimeout(700);
-    expect(await legacyCalls(page)).toEqual([]);
+    expect(await reminderCalls(page)).toEqual([]);
     await expect(lp(page).locator('.remgate')).toHaveCount(0);
   });
   test('設定›カレンダーにリマインダーの許可・同期・リスト段は出ない', async ({ page }) => {
@@ -37,7 +37,7 @@ test.describe('許可なしでタスクを使える', () => {
     await expect(page.locator('#m-dest')).toHaveCount(1); // 設定›カレンダーが開いている
     await expect(page.locator('#m-cal-rem')).toHaveCount(0);
     await expect(page.locator('#m-remreq, #m-remsync')).toHaveCount(0);
-    expect(await legacyCalls(page)).toEqual([]);
+    expect(await reminderCalls(page)).toEqual([]);
   });
 });
 test.describe('縦の下パネル', () => {
