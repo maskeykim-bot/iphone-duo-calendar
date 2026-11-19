@@ -55,7 +55,7 @@ async function foldHits(page) {
       if (!painted) continue;
       let r = clip(el, { left: q.left, right: q.right, top: q.top, bottom: q.bottom });
       // 影は矩形の外へ広がる分も数える
-      if (cs.boxShadow !== 'none' && !cs.boxShadow.includes('inset')) { const m = cs.boxShadow.match(/(-?[\d.]+)px/g) || []; const sp = Math.max(0, ...m.map((v) => Math.abs(parseFloat(v)))); const nums = (cs.boxShadow.match(/-?[\d.]+px/g) || []).map(parseFloat); const lx = nums.length >= 4 ? Math.max(0, nums[2] + nums[3] - nums[0]) : sp; /* 品質 中-5: 予定シートの影は右へ 16 ずらして縮めてある（16 12 32 -16）。左のにじみ＝ぼかし＋広がり−横ずれ */ r = { left: r.left - lx, right: r.right + sp, top: r.top, bottom: r.bottom }; }
+      if (cs.boxShadow !== 'none' && !cs.boxShadow.includes('inset')) { const m = cs.boxShadow.match(/(-?[\d.]+)px/g) || []; const sp = Math.max(0, ...m.map((v) => Math.abs(parseFloat(v)))); /* 品質 中-5 / S7 G1: 右ページの予定シート（#editor/#xdetail/#taskdlg）は clip-path:inset(-48px -48px -48px 0) で折り目側（左辺）の影を切る。実際に塗られる範囲に合わせ、切った側は広げない */ const clipL = getComputedStyle(el).clipPath !== 'none' && /inset\(.*\s0(px)?\)/.test(getComputedStyle(el).clipPath); r = { left: clipL ? r.left : r.left - sp, right: r.right + sp, top: r.top, bottom: r.bottom }; }
       if (cross(r)) hits.push(`box:${el.className || el.tagName}`);
     }
     return hits;

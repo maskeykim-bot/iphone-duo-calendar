@@ -1450,6 +1450,8 @@ html[data-kb] body[data-layout=desk] dialog#editor{top:calc(var(--rt) + 12px)}
 /* 高さは今までどおり最大（行が減っても、小さな面を開いたとき下の行や上端が跳ねない） */
 dialog#editor{height:calc(100% - var(--rt) - var(--rb) - 2 * var(--m))}
 body[data-layout=spread] dialog#editor{height:calc(100% - var(--pt) - var(--pb))}
+/* S7 G1: 影の値は開いた縦と同じ（設計 00:25）。右ページのシートは折り目側（左辺）だけ影を切る＝折り目の保護域（中心±10）へにじませない */
+body[data-layout=spread] dialog#editor,body[data-layout=spread] dialog#xdetail,body[data-layout=spread] dialog#taskdlg{clip-path:inset(-48px -48px -48px 0)}
 body[data-layout=desk] dialog#editor{height:calc(100% - var(--dt) - var(--db))}
 html[data-kb] dialog#editor,html[data-kb] body[data-layout=spread] dialog#editor,html[data-kb] body[data-layout=desk] dialog#editor{height:auto}
 #editor input.etitle:focus,#editor input.etitle:focus-visible{outline:none;box-shadow:none;border-bottom-color:var(--green)}
