@@ -1,0 +1,138 @@
+import { test, expect } from '@playwright/test';
+import { openApp, seed, ev, tab, SIZES, monthFormInit } from './helpers.js';
+import { seedTasks, T } from './task-helpers.js';
+
+// 第19.1版 S1: 閉じた画面の月（design/33 §5）・日付の行（H-05/H-06/M-19）・開いた横の既定＝予定名（H-04）・閉じた週（H-07/M-08）・L-01・L-05。
+// 閉じた画面の寸法は実機の右の帯 84（--sar:84px）で確かめる。
+const box = (loc) => loc.boundingBox();
+const near = (a, b, t = 0.6) => Math.abs(a - b) <= t;
+const band = async (page) => { await page.evaluate(() => { document.documentElement.style.setProperty('--sar', '84px'); window.dispatchEvent(new Event('resize')); }); await page.waitForTimeout(150); };
+const six = Array.from({ length: 6 }, (_, i) => ev(`z${i}`, `名前${i}`, `2026-11-12T${String(9 + i).padStart(2, '0')}:00`, `2026-11-12T${String(9 + i).padStart(2, '0')}:30`));
+
+test.describe('閉じた画面 466×678（帯 84）', () => {
+  test('日付の行 18: 今日の丸 16・日付 x+3〜19・六曜 x+21〜37・+N 8pt W6 右 2（+N の日も六曜は消さない）', async ({ page }) => {
+    await monthFormInit(page, 'month');
+    await openApp(page, SIZES.closedPortrait);
+    await seed(page, six);
+    await tab(page, '月').click();
+    await band(page);
+    const g = await page.locator('[data-date="2026-11-12"]').evaluate((c) => {
+      const r = c.getBoundingClientRect(), n = c.querySelector('.num'), nb = n.getBoundingClientRect(), k = c.querySelector('.rk').getBoundingClientRect();
+      const p = c.parentElement.querySelector('.plus[data-jump="2026-11-12"]'), rg = document.createRange(); rg.selectNodeContents(p); const pt = rg.getBoundingClientRect();
+      const ns = getComputedStyle(n), ks = getComputedStyle(c.querySelector('.rk')), ps = getComputedStyle(p);
+      return { cellW: r.width, nl: nb.left - r.left, nw: nb.width, nh: nb.height, kl: k.left - r.left, kr: k.right - r.left, pr: r.right - pt.right, pl: pt.left - r.left, nfs: parseFloat(ns.fontSize), kfs: parseFloat(ks.fontSize), kfw: Number(ks.fontWeight), kc: ks.color, pfs: parseFloat(ps.fontSize), pfw: Number(ps.fontWeight), pc: ps.color, today: c.classList.contains('today') };
+    });
+    expect(near(g.cellW, 52.3, 0.3)).toBe(true);
+    expect(near(g.nl, 3, 0.6) && g.nfs === 11).toBe(true);
+    expect(g.kl).toBeGreaterThanOrEqual(g.nl + g.nw - 0.5); expect(near(g.kl, 21, 1.2)).toBe(true);
+    expect(g.kfs).toBe(8); expect(g.kfw).toBeGreaterThanOrEqual(600); expect(g.kc).toBe('rgb(104, 113, 106)');
+    expect(g.pfs).toBe(8); expect(g.pfw).toBeGreaterThanOrEqual(600); expect(g.pc).toBe('rgb(104, 113, 106)');
+    expect(near(g.pr, 2, 0.8)).toBe(true);
+    expect(g.pl - g.kr).toBeGreaterThanOrEqual(3); // すき間 3.9 で重ならない
+    // 今日（11/12）の丸は直径 16
+    const t = await page.locator('[data-date="2026-11-12"] .num').boundingBox();
+    expect(near(t.width, 16, 0.6) && near(t.height, 16, 0.6)).toBe(true);
+  });
+
+  test('タブの上 24（y575〜599）に地色のぼかし。ホーム・日・週・月すべて。押せるものを邪魔しない', async ({ page }) => {
+    await openApp(page, SIZES.closedPortrait);
+    await band(page);
+    for (const name of ['ホーム', '日', '週', '月']) {
+      await tab(page, name).click();
+      await page.waitForTimeout(150);
+      const f = await page.locator('.tabfade').evaluate((e) => { const r = e.getBoundingClientRect(); return { y: r.top, h: r.height, x: r.left, w: r.width, pe: getComputedStyle(e).pointerEvents }; });
+      expect(near(f.y, 575) && near(f.h, 24), name).toBe(true);
+      expect(f.pe).toBe('none');
+      expect(near(f.x, 0) && near(f.w, 382), name).toBe(true); // 右の帯は避ける
+    }
+  });
+
+  test('閉じたホーム: 一番下まで送ると最後のカード（明日）・「＋ タスクを追加」がタブの上 8 まで出る', async ({ page }) => {
+    await openApp(page, SIZES.closedPortrait);
+    await seed(page, six);
+    await seedTasks(page, [T('h1', { title: '今日のタスク1', due: { date: '2026-11-12' } }), T('h2', { title: '今日のタスク2', due: { date: '2026-11-12' } }), T('h3', { title: '今日のタスク3', due: { date: '2026-11-12' } })]);
+    await band(page);
+    await page.locator('.home.listview').evaluate((e) => { const s = [e, ...e.querySelectorAll('*')].find((x) => x.scrollHeight > x.clientHeight + 2 && getComputedStyle(x).overflowY !== 'visible'); (s || e).scrollTop = 99999; });
+    await page.waitForTimeout(200);
+    const tabTop = (await box(page.locator('.tabs'))).y;
+    const last = await box(page.locator('.htmr'));
+    expect(near(last.y + last.height, tabTop - 8, 1)).toBe(true);
+    const add = await box(page.locator('.hadd'));
+    expect(add.y + add.height).toBeLessThanOrEqual(tabTop - 8 + 1);
+  });
+
+  test('見えない「期間を選ぶ」は押せない（pointer-events:none）。キーボードでは今までどおり開く', async ({ page }) => {
+    await monthFormInit(page, 'month');
+    await openApp(page, SIZES.closedPortrait);
+    await tab(page, '月').click();
+    await expect(page.locator('.mrpick').first()).toHaveCSS('pointer-events', 'none');
+  });
+
+  test('月のチップ: 切れた予定名だけ最後の右 4 を地の色へぼかす。短い名前はそのまま', async ({ page }) => {
+    await monthFormInit(page, 'month');
+    await openApp(page, SIZES.closedPortrait);
+    await seed(page, [ev('long', '長い名前の予定がマスの幅で切れる', '2026-11-12T10:00', '2026-11-12T11:00'), ev('short', '朝', '2026-11-13T10:00', '2026-11-13T11:00')]);
+    await tab(page, '月').click();
+    await band(page);
+    const long = page.locator('.mgrid .strip[data-sday="2026-11-12"]'), short = page.locator('.mgrid .strip[data-sday="2026-11-13"]');
+    await expect(long).toHaveClass(/cut/);
+    await expect(short).not.toHaveClass(/cut/);
+    const a = await long.evaluate((e) => { const s = getComputedStyle(e, '::after'); return { w: parseFloat(s.width), bg: s.backgroundImage }; });
+    expect(a.w).toBe(4); expect(a.bg).toContain('linear-gradient');
+  });
+
+  test('閉じた週: 曜日 10pt と日付 13pt の2段（今日は日付に緑の丸 22）。枠は時刻なしで題名 9pt W6。複数日の終日は週で1本の帯', async ({ page }) => {
+    await openApp(page, SIZES.closedPortrait);
+    await seed(page, [
+      ev('trip', '出張（3日間）', '2026-11-11', '2026-11-13', { all: true }),
+      ev('m1', '十時の打ち合わせ', '2026-11-12T10:00', '2026-11-12T12:00'),
+    ]);
+    await tab(page, '週').click();
+    await band(page);
+    const heads = await page.locator('.tlheads .tlhd').evaluateAll((es) => es.map((e) => { const w = e.querySelector('.dw'), d = e.querySelector('.dd'), r = e.getBoundingClientRect(), cr = e.parentElement.getBoundingClientRect(); const dr = d.getBoundingClientRect(), wr = w.getBoundingClientRect(); return { dwFs: parseFloat(getComputedStyle(w).fontSize), ddFs: parseFloat(getComputedStyle(d).fontSize), left: r.left, right: r.right, dw: dr.width, dh: dr.height, today: e.classList.contains('today'), bg: getComputedStyle(d).backgroundColor, wTop: wr.top, dTop: dr.top, textW: Math.max(w.scrollWidth, d.scrollWidth), colW: r.width }; }));
+    expect(heads).toHaveLength(7);
+    for (const h of heads) { expect(h.dwFs).toBe(10); expect(h.ddFs).toBe(13); expect(h.dTop).toBeGreaterThan(h.wTop); expect(h.textW).toBeLessThanOrEqual(h.colW); }
+    const today = heads.find((h) => h.today);
+    expect(near(today.dw, 22, 0.6) && near(today.dh, 22, 0.6)).toBe(true);
+    expect(today.bg).toBe('rgb(41, 78, 66)');
+    // 枠: 時刻（.tt）なし・9pt・W6
+    const ev1 = page.locator('.tlev', { hasText: '十時の打ち合わせ' });
+    await expect(ev1.locator('.tt')).toHaveCount(0);
+    const st = await ev1.evaluate((e) => { const s = getComputedStyle(e); return { fs: parseFloat(s.fontSize), fw: Number(s.fontWeight), lc: getComputedStyle(e.querySelector('.tn')).webkitLineClamp }; });
+    expect(st.fs).toBe(9); expect(st.fw).toBeGreaterThanOrEqual(600); expect(st.lc).toBe('2');
+    await expect(ev1).toHaveAttribute('aria-label', /10:00 – 12:00 十時の打ち合わせ/); // 時刻は読み上げに残る
+    // 複数日の終日は1本（日ごとの札にしない）。11/11〜11/13 の3列ぶんの幅
+    const trips = page.locator('.adband', { hasText: '出張' });
+    await expect(trips).toHaveCount(1);
+    const tb = await box(trips), cols = await page.locator('.tlheads .tlhd').evaluateAll((es) => es.map((e) => e.getBoundingClientRect().width));
+    expect(near(tb.width, cols[0] * 3 - 2, 1.5)).toBe(true);
+  });
+});
+
+test.describe('開いた横 951×669', () => {
+  test('新しい端末の月は予定名（点ではない）。マス 63.8×83.5 に日付の行 18＋チップ 4段、+N は日付の行、六曜と重ならない', async ({ page }) => {
+    await openApp(page, SIZES.openLandscape951);
+    await seed(page, [...six, ev('x7', '名前6', '2026-11-12T15:00', '2026-11-12T15:30')]);
+    await expect(page.locator('.week.named').first()).toBeVisible();
+    await expect(page.locator('.week .dot')).toHaveCount(0);
+    const cell = await box(page.locator('[data-date="2026-11-12"]'));
+    expect(near(cell.width, 63.8, 1.5) && near(cell.height, 83.5, 1.5)).toBe(true);
+    const chips = page.locator('.week .strip[data-sday="2026-11-12"]');
+    await expect(chips).toHaveCount(4);
+    const info = await chips.first().evaluate((e) => { const s = getComputedStyle(e), w = e.closest('.week').getBoundingClientRect(); return { fs: parseFloat(s.fontSize), fw: Number(s.fontWeight), r: s.borderTopLeftRadius, top: e.getBoundingClientRect().top - w.top }; });
+    expect(info.fs).toBe(9); expect(info.fw).toBeGreaterThanOrEqual(600); expect(info.r).toBe('3px');
+    expect(info.top).toBeGreaterThanOrEqual(18); expect(info.top).toBeLessThanOrEqual(20);
+    const d = await page.locator('[data-date="2026-11-12"]').evaluate((c) => { const r = c.getBoundingClientRect(), n = c.querySelector('.num').getBoundingClientRect(), k = c.querySelector('.rk').getBoundingClientRect(), p = c.parentElement.querySelector('.plus[data-jump="2026-11-12"]'), rg = document.createRange(); rg.selectNodeContents(p); const pt = rg.getBoundingClientRect(); const ps = getComputedStyle(p); return { nl: n.left - r.left, nw: n.width, kl: k.left - r.left, kr: k.right - r.left, pl: pt.left - r.left, pr: r.right - pt.right, pfs: parseFloat(ps.fontSize), pfw: Number(ps.fontWeight), pc: ps.color, ptop: pt.top - r.top, pb: pt.bottom - r.top, txt: p.textContent }; });
+    expect(near(d.nl, 4, 0.8)).toBe(true); expect(near(d.kl, 26, 1.2)).toBe(true); expect(d.kl).toBeGreaterThanOrEqual(d.nl + d.nw - 0.5);
+    expect(d.txt).toBe('+3'); expect(d.pfs).toBe(9); expect(d.pfw).toBeGreaterThanOrEqual(600); expect(d.pc).toBe('rgb(104, 113, 106)'); expect(near(d.pr, 3, 0.8)).toBe(true);
+    expect(d.pl).toBeGreaterThanOrEqual(d.kr); expect(d.pb).toBeLessThanOrEqual(18.5); // 日付の行 18 に収まる
+  });
+
+  test('保存済みの設定は尊重する（手帳で保存していた端末は手帳のまま）', async ({ page }) => {
+    await page.addInitScript(() => { const k = 'duo.ui.v1'; localStorage.setItem(k, JSON.stringify({ ...JSON.parse(localStorage.getItem(k) || '{}'), style: 'simple' })); });
+    await openApp(page, SIZES.openLandscape951);
+    await seed(page, six);
+    await expect(page.locator('.week.simple').first()).toBeVisible();
+    await expect(page.locator('.week .dot').first()).toBeVisible();
+  });
+});
