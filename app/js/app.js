@@ -969,9 +969,10 @@ function foldLayout() {
   const nowOn = FD.ks.includes(todayKey()), now = nowMin();
   const nowIn = (w) => nowOn && (w.bottom ? now >= wm.tc && now <= w.t[1] : now >= w.t[0] && now < wm.tc);
   for (const w of wins) {
+    const ny0 = nowIn(w) ? labelY(now, w.t[0], w.t[1], w.h, w.bottom) : null;
     for (const h of w.el.querySelectorAll('.fh')) {
       const m = Number(h.dataset.m), y = labelY(m, w.t[0], w.t[1], w.h, w.bottom);
-      const hide = y == null || (nowOn && Math.abs(m - now) <= 18 && nowIn(w));
+      const hide = y == null || (ny0 != null && Math.abs(y - ny0) < 7 + 12); // 札（高さ14）から上下 12 以内は出さない（H-08）
       h.style.visibility = hide ? 'hidden' : '';
       if (!hide) h.style.top = `${r2(y)}px`;
     }
@@ -2448,6 +2449,19 @@ function updateNow(scope = root) {
     el.style.setProperty('--n', String(ks.length));
     el.querySelector('.nowt').textContent = hhmm(nowMin());
   });
+  hideNearNow(scope);
+}
+// 今の時刻の札から上下 12 以内の時刻ラベルは出さない（H-08）。札の半分の高さ＋12。
+function hideNearNow(scope = root) {
+  scope.querySelectorAll('.tlin').forEach((inner) => {
+    const nl = inner.querySelector('.nowl'), tl = inner.closest('.tl');
+    const labs = inner.querySelectorAll('.hlab');
+    if (!nl || !tl) return;
+    if (nl.hidden) { labs.forEach((h) => { h.style.visibility = ''; }); return; }
+    const hh = parseFloat(tl.style.getPropertyValue('--hh')) || parseFloat(getComputedStyle(tl).getPropertyValue('--hh')) || 44;
+    const nm = Number(nl.style.getPropertyValue('--m')), half = (inner.querySelector('.nowt')?.offsetHeight || 22) / 2;
+    labs.forEach((h) => { h.style.visibility = Math.abs(Number(h.style.getPropertyValue('--m')) - nm) * hh / 60 < half + 12 ? 'hidden' : ''; });
+  });
 }
 function initTimeline() {
   const tls = root.querySelectorAll('.tl');
@@ -2475,6 +2489,7 @@ function setHh(next, cy, tlEl) {
   const centerMin = (tl.scrollTop + c - TL_PAD) / T.hh * 60;
   T.hh = hh;
   tl.style.setProperty('--hh', `${hh}px`);
+  hideNearNow(tl.parentNode);
   tl.scrollTop = TL_PAD + centerMin * hh / 60 - c;
 }
 // ピンチ（時間軸の内側だけ）。2本目の指が付いたら倍率、ドラッグ・ピンチの後は空きタップで予定を追加しない。
