@@ -653,7 +653,7 @@ const monthMode = (kind) => (state.monthExpand ? 'all' : kind === 'portrait' ? '
 const variantBtns = (kind) => [['simple', '手帳'], ['named', '予定名'], ['all', '全部']].filter(([v]) => !(kind === 'portrait' && v === 'simple')).map(([v, l]) => `<button type="button" data-mode="${v}" aria-pressed="${monthMode(kind) === v}">${l}</button>`).join('');
 // 期間の見出し（前の期間｜見出し｜次の期間）
 // 月見出し付近の「全部」ボタン: 1タップで 全部 ⇔ 通常（直前の手帳／予定名）。押せる範囲は 44pt 角（見た目は小さい）。
-const allBtn = (cls = 'allbtn', st = '') => `<button type="button" class="${cls}" data-act="allmonth" aria-pressed="${state.monthExpand}" aria-label="${state.monthExpand ? '通常の予定表示に戻す' : '全部の予定を表示'}"${st}><span aria-hidden="true">全</span></button>`;
+const allBtn = (cls = 'allbtn', st = '') => `<button type="button" class="${cls}" data-act="allmonth" aria-pressed="${state.monthExpand}" aria-label="${state.monthExpand ? '通常の予定表示に戻す' : '全部の予定を表示'}"${st}><span aria-hidden="true">全部</span></button>`;
 // 見出し: 閉じた画面（帯あり）は 前・題名・次 のみ（全は帯）。帯なし／開いた縦は 全 も見出しに置く。
 const chead = () => {
   if (PS.on && monthAll()) return `<div class="chead pasting">${pasteBand()}</div>`;
@@ -2861,13 +2861,19 @@ function flashPage(side) {
   if (!el) return;
   el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 200);
 }
+// V-27: 右の帯でタスク・ノートを開く／戻すとき、入れ替わった中身を 0.15 秒のフェードで出す（25 §1 小）
+function fadeStripContent(kind) {
+  const el = root.querySelector(kind === 'spread' ? '.page.rp' : '.mpane'); if (!el) return;
+  el.classList.remove('s7fade'); void el.offsetWidth; el.classList.add('s7fade');
+  el.addEventListener('animationend', () => el.classList.remove('s7fade'), { once: true });
+}
 function toggleStrip(id) {
   const kind = layoutKind();
   if (PS.on || (kind !== 'spread' && kind !== 'home' && kind !== 'browse')) return;
   TLM.open = null; MM.open = null;
   const name = PAGE_NAMES[id];
   if (state.strip === id) { // もう一度: 元へ戻す
-    set({ strip: null });
+    set({ strip: null }); fadeStripContent(kind);
     say(kind === 'spread' ? `${name}を閉じました。右ページは${PAGE_LABELS[state.pages.right]}です。` : `${name}を閉じました。`);
     return;
   }
@@ -2875,7 +2881,7 @@ function toggleStrip(id) {
     const p = state.pages;
     if (p.left === id || (p.right === id && !state.strip)) { const side = p.left === id ? 'left' : 'right'; flashPage(side); say(`${side === 'left' ? '左' : '右'}ページがすでに${name}です。`); return; }
   }
-  set({ strip: id, ...(kind === 'spread' ? { lastSide: 'right' } : {}) });
+  set({ strip: id, ...(kind === 'spread' ? { lastSide: 'right' } : {}) }); fadeStripContent(kind);
   say(kind === 'spread' ? `右ページを${name}にしました。` : `${name}を開きました。`);
 }
 // 帯の丸を長押し（0.8秒）すると名前の吹き出しを出す。押し終えたあとの click は無視する。
@@ -4139,7 +4145,7 @@ function placeMenu() {
   const left = S.left + 8;
   let right = (POS.post === 'closed' && POS.bg ? POS.bg.x : L.w - S.right) - 8;
   if (kind === 'spread') right = Math.min(right, L.w / 2 - 10);
-  const topMin = Math.max(vy, S.top) + (kind === 'open' ? 90 : 12);
+  const topMin = Math.max(vy, S.top) + (kind === 'open' ? 90 : 24); // V-25: 閉じた・開いた横の上の端は予定の編集と同じ y24
   const top = kind === 'desk' ? Math.max(L.h / 2 + 20, topMin) : topMin;
   const bottom = Math.max(vb, S.bottom) + 12;
   Object.assign(menuDlg.style, { left: `${left}px`, top: `${top}px`, right: 'auto', bottom: `${bottom}px`, width: `${Math.max(200, right - left)}px`, maxWidth: 'none', height: 'auto', maxHeight: 'none' });
@@ -4364,12 +4370,12 @@ function renderSearch(initial = false, quiet = false) {
   srItems = res.items;
   const yr = Number(srToday.slice(0, 4));
   if (!res.ts.length) { SR.body.innerHTML = '<p class="smsg">探したい予定の言葉を入力してください。予定名・メモ・場所から探せます。</p>'; if (!initial) say2('検索語を消しました。'); return; }
-  if (!res.total && !mres.total && !tres.total) { const nn = srOnly ? FOCUS_NOUN[srOnly] : '予定'; SR.body.innerHTML = `<p class="smsg">該当する${nn}はありません。検索語を確認してください。</p>${srOnly ? '' : '<p class="srnone">この3年に見つかりませんでした</p>'}`; say2(`該当する${nn}はありません。`); return; }
+  if (!res.total && !mres.total && !tres.total) { const nn = srOnly ? FOCUS_NOUN[srOnly] : '予定'; SR.body.innerHTML = srOnly ? `<p class="smsg">該当する${nn}はありません。検索語を確認してください。</p>` : `<p class="smsg">見つかりませんでした。検索語を確認してください。</p><p class="srnone">この3年に見つかりませんでした</p>`; say2(`該当する${nn}はありません。`); return; }
   const groups = groupByDay(res.items).map((g) => {
     const label = Number(g.key.slice(0, 4)) === yr ? dayLabel(g.key) : `${g.key.slice(0, 4)}年${dayLabel(g.key)}`;
     return `<section class="hgroup"><h3>${label}</h3>${g.items.map((e) => hitHtml(e, res.ts)).join('')}</section>`;
   }).join('');
-  const evHtml = res.total ? `<p class="small hcount">${res.total}件の予定</p>${res.capped ? `<p class="small">${LIMIT}件を表示しています。検索語を追加して絞り込んでください</p>` : ''}${groups}` : `<p class="smsg">該当する予定はありません。検索語を確認してください。</p>${srOnly ? '' : '<p class="srnone">この3年に見つかりませんでした</p>'}`;
+  const evHtml = res.total ? `<p class="small hcount">${res.total}件の予定</p>${res.capped ? `<p class="small">${LIMIT}件を表示しています。検索語を追加して絞り込んでください</p>` : ''}${groups}` : (srOnly ? '' : '<p class="srnone">予定：この3年に見つかりませんでした</p>'); // STEER 23:00: ノート・タスクが当たったときは予定の欄に1行だけ
   const mHtml = mres.total ? `<section class="ssec" data-sec="memo" aria-label="ノート"><h2 class="srhead">ノート</h2><p class="small hcount">${mres.total}件のノート（全期間・最大${LIMIT}件）</p>${mres.capped ? `<p class="small">${LIMIT}件を表示しています。検索語を追加して絞り込んでください</p>` : ''}${mres.items.map((m) => memoHitHtml(m, mres.ts)).join('')}</section>` : '';
   const tHtml = tres.total ? `<section class="ssec" data-sec="task" aria-label="タスク"><h2 class="srhead">タスク</h2><p class="small hcount">${tres.total}件のタスク（全期間・最大${LIMIT}件）</p>${tres.capped ? `<p class="small">${LIMIT}件を表示しています。検索語を追加して絞り込んでください</p>` : ''}${tres.items.map((t) => taskHitHtml(t, tres.ts)).join('')}</section>` : '';
   SR.body.innerHTML = `${srOnly ? '' : `<section class="ssec" data-sec="events">${evHtml}</section>`}${mHtml}${tHtml}`;
@@ -6260,7 +6266,9 @@ root.addEventListener('pointerdown', (ev) => {
   v.className = 'chip-press'; v.setAttribute('aria-hidden', 'true');
   v.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;border-radius:${getComputedStyle(c).borderRadius}`;
   document.body.append(v);
-  const off = () => { document.removeEventListener('pointerup', off, true); document.removeEventListener('pointercancel', off, true); setTimeout(() => v.remove(), 100); };
+  // V-23: チップの上で押したときはマスの地を変えない（マスの :active の色を、押す前の色に据える）
+  d.style.setProperty('--day-rest', getComputedStyle(d).backgroundColor); d.classList.add('chipdown');
+  const off = () => { document.removeEventListener('pointerup', off, true); document.removeEventListener('pointercancel', off, true); setTimeout(() => { v.remove(); d.classList.remove('chipdown'); d.style.removeProperty('--day-rest'); }, 100); };
   document.addEventListener('pointerup', off, true); document.addEventListener('pointercancel', off, true);
 });
 function directOrigin(t, ev) {

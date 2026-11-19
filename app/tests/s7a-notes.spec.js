@@ -112,8 +112,10 @@ test.describe('S7a 検索（記号あり・なしの両方で当たる。抜き�
       const body = await page.locator('#sr-body').innerText();
       expect(body).not.toContain('検索範囲を確認');
       if (kind !== 'port') { // 開いた縦のノート画面からの検索は「ノートだけ」の範囲で、予定の欄は出ない（FOCUS）
-        expect(body).toContain('該当する予定はありません。検索語を確認してください。');
-        expect(body).toContain('この3年に見つかりませんでした');
+        // STEER 23:00: 当たりがあるときは予定の欄に1行だけ。「検索語を確認して」は出さない
+        expect(body).toContain('予定：この3年に見つかりませんでした');
+        expect(body).not.toContain('検索語を確認');
+        expect(body).not.toContain('該当する予定はありません');
       }
       expect((await rawNote(page, 'a')).body).toBe(BODY_A); // 検索で保存の文字は変わらない
     });

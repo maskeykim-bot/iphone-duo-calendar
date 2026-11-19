@@ -65,7 +65,8 @@ test('全体検索: 別「ノート」段・正規化AND・XSS安全・ノート
   await page.locator('#sr-q').fill('らんち メモ');
   const mem = page.locator('#sr-body [data-sec="memo"]');
   await expect(mem).toContainText('1件のノート（全期間・最大200件）');
-  await expect(page.locator('#sr-body [data-sec="events"]')).toContainText('該当する予定はありません');
+  await expect(page.locator('#sr-body [data-sec="events"]')).toContainText('予定：この3年に見つかりませんでした'); // STEER 23:00（当たりがあるときは1行だけ）
+  expect(await page.locator('#sr-body').innerText()).not.toContain('検索語を確認');
   expect(await page.locator('#sr-body b').count()).toBe(0);
   await expect(mem.locator('mark').first()).toBeVisible();
   await page.locator('#sr-q').fill('ランチ');

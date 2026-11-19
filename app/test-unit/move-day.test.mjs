@@ -85,6 +85,23 @@ test('時間軸からの落とし: 2026-11-01（NY 夏時間の終わり）の�
   const r = moveTimes({ start: '2026-10-31T01:00', end: '2026-10-31T03:00' }, '2026-11-01', '2026-10-31');
   assert.deepEqual([r.start, r.end, r.note], ['2026-11-01T01:00', '2026-11-01T03:00', null]);
 });
+// 品質レビュー 低-2: NY の夏時間の始まり 2026-03-08（2:00〜2:59 が無い日）をまたいでも、時刻の文字は保ち日付だけ変わる（時刻がずれない）。
+test('時間軸からの落とし: 2026-03-08（NY 夏時間の始まり）の前後でも時刻の文字列はそのまま（2:30 のような存在しない時刻も保つ）', () => {
+  for (const [a, b] of [['2026-03-07', '2026-03-08'], ['2026-03-08', '2026-03-07'], ['2026-03-08', '2026-03-09'], ['2026-03-06', '2026-03-10']]) {
+    for (const t of ['00:30', '01:59', '03:00', '09:00', '23:30']) {
+      const r = moveTimes({ start: `${a}T${t}`, end: `${a}T23:59` }, b, a);
+      assert.equal(r.start, `${b}T${t}`, `${a}→${b} ${t}`);
+      assert.equal(r.end, `${b}T23:59`, `${a}→${b} end`);
+      assert.equal(r.note, null);
+    }
+  }
+  const r = moveTimes({ start: '2026-03-07T01:00', end: '2026-03-07T04:00' }, '2026-03-08', '2026-03-07');
+  assert.deepEqual([r.start, r.end, r.note], ['2026-03-08T01:00', '2026-03-08T04:00', null]);
+  // 存在しない 2:30 に落とすときだけは、NY では 3:30 に直して知らせる（決まりの動き）。Tokyo は夏時間が無いのでそのまま。
+  const g = moveTimes({ start: '2026-03-07T02:30', end: '2026-03-07T03:30' }, '2026-03-08', '2026-03-07');
+  if (new Date(2026, 2, 8, 2, 30).getHours() === 2) assert.deepEqual([g.start, g.note], ['2026-03-08T02:30', null]);
+  else assert.deepEqual([g.start, g.note === null], ['2026-03-08T03:30', false]);
+});
 test('時間軸からの落とし: 繰り返しの1回を 2026-11-01 の前後へ移すと、その回だけの例外（時刻は同じ）', () => {
   const p = { id: 'r1', title: '定例', categoryId: 'c', all: false, start: '2026-10-29T09:00', end: '2026-10-29T10:00', place: '', notes: '', recurrence: { freq: 'daily', interval: 1 }, exdates: [], overrides: {} };
   const occKey = '2026-10-31T09:00';
