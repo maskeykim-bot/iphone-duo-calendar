@@ -13,6 +13,8 @@ const settle = (page) => page.waitForTimeout(340);
 // 11/12 に時刻つき 5 件（時刻が早い順に並ぶ）
 const FIVE = ['A', 'B', 'C', 'D', 'E'].map((t, i) => ev(`p${i}`, `予定${t}`, `2026-11-12T${String(9 + i).padStart(2, '0')}:00`, `2026-11-12T${String(9 + i).padStart(2, '0')}:30`));
 const grab = (page) => page.locator('.mgrab');
+// 実機の閉じた画面（右の帯 84）。寸法を資料の値（見出し x8〜374 など）で確かめる試験で使う
+const band = async (page) => { await page.evaluate(() => { document.documentElement.style.setProperty('--sar', '84px'); window.dispatchEvent(new Event('resize')); }); await page.waitForTimeout(150); };
 const pull = async (page, dy) => {
   const b = await box(page.locator('.mgrab i'));
   const x = b.x + b.width / 2, y = b.y + b.height / 2;
@@ -46,6 +48,7 @@ test.describe('閉じた画面 466×678', () => {
     await openApp(page, SIZES.closedPortrait);
     await seed(page, FIVE);
     await tab(page, '月').click();
+    await band(page);
     const chips = () => page.locator('.mgrid .strip[data-sday="2026-11-12"]').count();
     const plus = () => page.locator('.mgrid .plus[data-jump="2026-11-12"]');
     // 2週: 4段が全部名前（4件＋「+1」）。+N は日付の行（上 18）の右、8pt W6 #68716A、右 2、押せる 44×44
@@ -144,6 +147,7 @@ test.describe('閉じた画面 466×678', () => {
     await openApp(page, SIZES.closedPortrait);
     await seed(page, Array.from({ length: 14 }, (_, i) => ev(`m${i}`, `長い日${i}`, `2026-11-12T${String(8 + i).padStart(2, '0')}:00`, `2026-11-12T${String(8 + i).padStart(2, '0')}:30`)));
     await tab(page, '月').click();
+    await band(page);
     const sc = page.locator('.mpull');
     const date = page.locator('.mph .mpdate');
     for (const f of ['two', 'one', 'month']) {
@@ -181,6 +185,7 @@ test.describe('閉じた画面 466×678', () => {
     await page.addInitScript(() => localStorage.setItem('duo.ui.v1', JSON.stringify({ ...JSON.parse(localStorage.getItem('duo.ui.v1') || '{}'), monthForm: 'month', monthDay: 'list' })));
     await page.reload(); await page.waitForSelector('html[data-ready]');
     await tab(page, '月').click();
+    await band(page);
     const g = await box(page.locator('.mgrid')), gr = await box(page.locator('.mgrab')), dh = await box(page.locator('.mdh')), ev1 = await box(page.locator('.mdev').first());
     expect(near(g.y, 68) && near(g.height, 384)).toBe(true);
     expect(near(gr.y, 452) && near(gr.height, 24)).toBe(true); // つまみ y452〜476
@@ -212,11 +217,12 @@ test.describe('閉じた画面 466×678', () => {
     await openApp(page, SIZES.closedPortrait);
     await seed(page, [ev('x1', '十八日の会議', '2026-11-18T10:00', '2026-11-18T11:00'), ...FIVE.slice(0, 1)]);
     await tab(page, '月').click();
+    await band(page);
     const sc = page.locator('.mpull');
-    await sc.evaluate((e) => { e.scrollTop = 200; });
+    await sc.evaluate((e) => { e.scrollTop = 70; }); // 月の2行目が見出しの下に見えている
     await page.waitForTimeout(150);
     const y0 = await sc.evaluate((e) => e.scrollTop);
-    await page.locator('[data-date="2026-11-18"]').click({ position: { x: 12, y: 10 }, force: true });
+    await page.locator('[data-date="2026-11-18"]').click({ position: { x: 12, y: 70 } });
     await expect(page.locator('.mdh h3')).toContainText('11月18日（水）');
     expect(await sc.evaluate((e) => e.scrollTop)).toBe(y0);
   });
