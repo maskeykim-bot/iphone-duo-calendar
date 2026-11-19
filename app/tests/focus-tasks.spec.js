@@ -30,7 +30,7 @@ test.describe('集中タスク', () => {
     expect(await titles(page)).toEqual(['過去の件', '直前', '今日の終日', '今日の直後']);
     await view(page, 'plan').click();
     expect(await titles(page)).toEqual(['明日0時', '来月']);
-    await expect(page.locator('.ftlist .rmh')).toHaveText(['11月13日(金)', '12月5日(土)']);
+    await expect(page.locator('.ftlist .rmh')).toHaveText(['11月13日（金）', '12月5日（土）']); // S7 V-24: 全角のかっこ
     await view(page, 'all').click();
     expect(await titles(page)).toEqual(['過去の件', '直前', '今日の終日', '今日の直後', '明日0時', '来月', '期限なしX']);
     await view(page, 'done').click();

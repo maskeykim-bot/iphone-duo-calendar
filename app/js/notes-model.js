@@ -28,10 +28,18 @@ export function headingKind(line, date) {
   return null;
 }
 
-const MARK = /^\s*(#{1,3}\s+|- \[[ xX]\]\s+|[-・•]\s+)/;
+// 行頭の記号（見出し「# 」〜「###### 」、チェック「- [ ] 」「- [x] 」、箇条書き「- 」「・」「•」）。保存の文字には残し、画面には出さない（S7 R-27・V-21）。
+const MARK = /^\s*(#{1,6}\s+|- \[[ xX]\]\s*|[-・•]\s+)/;
+const noCr = (line) => String(line ?? '').replace(/\r$/, '');
+// 1行の「記号の部分」（字下げ込み）。記号がなければ ''。line === markOf(line) + 残り。
+export const markOf = (line) => { const m = MARK.exec(String(line ?? '')); return m ? m[0] : ''; };
+// 画面に出す1行: 先頭の記号を外した文字（前後の空白も落とす）。ノートの文字を画面に出す所は必ずこれを通す。
+export const displayLine = (line) => { const l = noCr(line); return l.slice(markOf(l).length).trim(); };
+// 本文まるごと: 各行の記号を外す（検索の抜き出し用。行の数は変えない）。
+export const displayText = (body) => String(body ?? '').split('\n').map(displayLine).join('\n');
 // 題名は本文の1行目だけから作る（空行のあとの行は採らない）。表示は100字（絵文字を割らない）。空なら「新規ノート」。
 export function titleOf(body) {
-  const first = String(body ?? '').split('\n', 1)[0].replace(/\r$/, '').replace(MARK, '').trim();
+  const first = displayLine(String(body ?? '').split('\n', 1)[0]);
   if (!first) return EMPTY_TITLE;
   const cps = Array.from(first);
   return cps.length > TITLE_MAX ? cps.slice(0, TITLE_MAX).join('') : first;

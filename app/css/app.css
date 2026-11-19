@@ -2106,3 +2106,31 @@ body :is(.dchip)[aria-pressed=true]:active:not(:disabled){filter:brightness(.92)
 #editor .dchip[aria-pressed=true]:active:not(:disabled){background-color:var(--green)!important}
 /* +N は日付の数字の上に重なる 44×44 の押せる範囲。押した地が数字を隠さないよう、地ではなく文字を薄くする（文字のリンクと同じ） */
 .week .plus:active:not(:disabled){background-color:transparent!important;opacity:.5;transition-duration:.10s}
+
+/* ===== 第19.1版 S7a（レビュー後の直し）===== */
+/* V-18: ノートの題名欄は高さ 44（上下 7）。文字の位置と本文の位置は変えない（上下に -7 の外側の余白。上の帯は前に出して、重なった所は帯のボタンが先に受ける） */
+.ned .ned-top{z-index:1}
+.ned .ned-title{padding:7px 8px;min-height:44px;margin-top:-7px;margin-bottom:-7px}
+.nsheet .ned .ned-title{margin:-7px var(--ns-bmr,8px) -7px var(--ns-bml,8px)}
+/* V-20: フォルダの行は高さ 28・角丸 14・13pt の札を3つ（フォルダ・日付・ピン留め、間 8）。押せる範囲は札の上下 8 ずつ（44）。行の高さは前のまま（以下の位置は動かさない） */
+.nmeta{align-items:center;min-height:44px;box-sizing:content-box;flex-wrap:wrap;row-gap:0}
+.nmeta .nfpill,.nmeta .ndate,.nmeta .nmpin{position:relative;flex:none;height:28px;min-height:28px;min-width:0;padding:0 10px;font-size:13px;line-height:28px;font-weight:400;border:0;border-radius:14px;background:transparent;box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap;display:inline-flex;align-items:center;gap:3px;color:inherit}
+.nmeta .nfpill{flex:0 1 auto;max-width:60%}
+.nmeta .nfpill span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.nmeta .nfpill i{font-style:normal;font-size:11px;color:#68716A}
+.nmeta .nfpill::before,.nmeta .ndate::before,.nmeta .nmpin::before{content:"";position:absolute;left:-2px;right:-2px;top:-8px;bottom:-8px}
+.nmeta .ndate.on,.nmeta .nmpin.on{box-shadow:inset 0 0 0 2px #294E42;color:#294E42}
+.nmeta .nfpill:active:not(:disabled),.nmeta .ndate:active:not(:disabled),.nmeta .nmpin:active:not(:disabled){background-color:#EFECE4!important;transition-duration:.10s}
+/* V-19: 開いた横・右ページのノートは、見出し・一覧・フォルダの行・題と本文の文字を x500（ページの端から 16）にそろえる */
+.spread .rp[data-page=memo] .rhead{padding-left:14.5px}
+.spread .rp[data-page=memo] .ntools{padding-left:2.5px}
+.spread .rp[data-page=memo] .memopage{padding-left:14.5px}
+.spread .rp[data-page=memo] .ned-title{margin-left:-8px;width:calc(100% + 8px)}
+.spread .rp[data-page=memo] .ned-bodywrap{margin-left:-8px}
+/* 中-2（品質）: ノートの完了 ✓ は押すと緑の丸を黒 12%（brightness .88）にする。緑のボタンと同じ。0.10 秒で入り 0.15 秒で戻る */
+.ned .ned-done::before{transition:filter .15s ease-out}
+.ned .ned-done:active:not(:disabled)::before{filter:brightness(.88);transition-duration:.10s}
+/* V-15・中-3: 月の日のタスクの行（閉じた 月・2週・1週）。押せる範囲は x8〜52 の 44×44（左へ出さない）、四角 20×20 は x12〜32、題名は x44 */
+.mdtask .rmckb{width:44px;height:44px;margin:0 -12px 0 0;padding:0 0 0 4px;justify-content:flex-start;position:relative;z-index:1}
+.mdtask .rmck{width:20px;height:20px;border-radius:8px}
+.mdtask.done .rmck::after{font-size:14px;line-height:16px}

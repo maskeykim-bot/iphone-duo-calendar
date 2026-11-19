@@ -121,7 +121,8 @@ test('ピン留め: メニュー・左スワイプ・本文見出しのボタン
   await expect(page.locator('.ned-title').first()).toHaveValue('A');
   await page.locator('[data-nmeta] [data-nf="pin"]').first().click();
   await expect(page.locator('[data-nmeta] .nmpin.on').first()).toBeVisible();
-  await page.locator('[data-nfsel]').first().selectOption('f1');
+  // S7a V-20: フォルダは札（押すと小さなメニュー）。iOS の選ぶ欄はやめた
+  await page.locator('[data-nmeta] .nfpill').first().click(); await page.locator('.nmenu [data-nf="curmvto"][data-to="f1"]').click();
   await expect.poll(async () => (await getNote(page, 'a')).folderId).toBe('f1');
   expect((await getNote(page, 'a')).pinned).toBe(true); expect((await getNote(page, 'a')).body).toBe('A\n一');
   await page.locator('[data-act="noteback"]').click();

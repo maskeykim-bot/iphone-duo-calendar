@@ -27,11 +27,11 @@ test('未来の選択日: 選択日前で今日以降は期限切れにせず be
   assert.deepEqual(ids(g.selected), ['b']);
   assert.deepEqual(ids(g.upcoming), ['c']);
 });
-test('選んだ日が先: 今日の期限は「11/16（今日）」の見出し（黒）、赤の期限切れは今日より前だけ', () => {
+test('選んだ日が先: 今日の期限は「今日 · 11月16日（月）」の見出し（S7 V-24）（黒）、赤の期限切れは今日より前だけ', () => {
   const html = tasksHtml({ lists: [], reminders: [R({ itemId: 'e', title: 'きょう', due: { date: '2026-11-16' } }), R({ itemId: 'd', title: 'きのう', due: { date: '2026-11-15' } })] }, { selected: '2026-11-20', now: NOW });
-  assert.match(html, /data-sec="before:2026-11-16"><h3 class="rmh">11\/16（今日）/);
+  assert.match(html, /data-sec="before:2026-11-16"><h3 class="rmh">今日 · 11月16日（月）<\/h3>/);
   assert.match(html, /<h3 class="rmh late">期限切れ<\/h3>/);
-  assert.doesNotMatch(html, /rmh late">11\/16/);
+  assert.doesNotMatch(html, /rmh late">(今日 · )?11月16日/);
 });
 test('期限なし: 作成の古い順、欠落は後ろで題名・id 順', () => {
   const g = G([R({ itemId: 'z', title: 'b', createdAt: null }), R({ itemId: 'y', title: 'a', createdAt: null }), R({ itemId: 'x', title: 'c', createdAt: 300 }), R({ itemId: 'w', title: 'd', createdAt: 100 }), R({ itemId: 'v', title: 'a', createdAt: null })]);
