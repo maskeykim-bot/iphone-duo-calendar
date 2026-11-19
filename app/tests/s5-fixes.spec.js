@@ -189,7 +189,7 @@ test.describe('時間軸（H-08・H-20・M-05・M-09）', () => {
     expect(await e.evaluate((x) => getComputedStyle(x).borderRadius)).toBe('8px');
     expect(await e.evaluate((x) => getComputedStyle(x).color)).toBe('rgb(255, 255, 255)');
     expect(await e.locator('.tn').evaluate((x) => [getComputedStyle(x).fontSize, getComputedStyle(x).fontWeight])).toEqual(['13px', '600']); // 設計 V-22: 12→13（段にない大きさ）
-    expect(await e.locator('.tt').evaluate((x) => getComputedStyle(x).fontSize)).toBe('10px');
+    expect(await e.locator('.tt').evaluate((x) => getComputedStyle(x).fontSize)).toBe('11px'); // 設計 2026-11-20 1:20: 注 10/400→11/400（S7e）
     const bg = await e.evaluate((x) => getComputedStyle(x).backgroundColor);
     const lum = bg.match(/\d+/g).slice(0, 3).map(Number).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
     const L = 0.2126 * lum[0] + 0.7152 * lum[1] + 0.0722 * lum[2];

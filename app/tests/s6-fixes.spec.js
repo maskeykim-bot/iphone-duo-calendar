@@ -66,7 +66,9 @@ for (const [name, size] of POSTS) {
       await page.getByRole('button', { name: 'バックアップ' }).click();
       await expect(page.locator('#backup')).toBeVisible();
       expect(await anims(page)).toContain('sheetin:250');
-      expect(await page.locator('#backup').evaluate((e) => getComputedStyle(e).animationTimingFunction)).toBe('cubic-bezier(0.16, 1, 0.3, 1), cubic-bezier(0.16, 1, 0.3, 1)'); // 設計 V-14: シート＋後ろの暗い膜（dimin）が同じ曲線
+      // 設計 V-14（対象は閉じた・開いた縦）: シート＋後ろの暗い膜（dimin）が同じ曲線。開いた横は折り目の保護域があるので膜をかけず、シートの動き 1 つだけ（S7e で確かめた。S7c はここを全姿勢 2 つにしていて横で落ちた）
+      const one = 'cubic-bezier(0.16, 1, 0.3, 1)';
+      expect(await page.locator('#backup').evaluate((e) => getComputedStyle(e).animationTimingFunction)).toBe(await page.evaluate(() => document.body.dataset.layout) === 'spread' ? one : `${one}, ${one}`);
       await page.waitForTimeout(300);
       await page.locator('#bk-close').click();
       await expect(page.locator('#backup')).toHaveClass(/sheet-out/);
