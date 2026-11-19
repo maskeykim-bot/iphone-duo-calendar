@@ -4092,6 +4092,10 @@ function menuBack() {
   const prev = menuScreen;
   showMenuScreen('root', true, menuDlg.querySelector(`[data-go="${prev}"]`));
 }
+function syncWeekMenu() {
+  $('#m-week').setAttribute('aria-label', `週の始まり: ${state.weekStart === 1 ? '月曜（日曜にする）' : '日曜（月曜にする）'}`);
+  $('#m-week-v').textContent = state.weekStart === 1 ? '月曜' : '日曜';
+}
 function openMenu(from) {
   calEdit = false; calDel = null; calUndo = null; clearTimeout(calUndoTimer);
   if (menuDlg._slide) cancelSlide(menuDlg); // 閉じる動きの最中にもう一度押したら、閉じずに開き直す
@@ -4102,8 +4106,7 @@ function openMenu(from) {
   $('#m-gset').hidden = !NATIVE; $('#m-gmsg').hidden = true;
   $('#m-desk').setAttribute('aria-label', state.desk ? '卓上表示をやめる' : '卓上表示');
   $('#m-desk-v').textContent = state.desk ? 'オン' : 'オフ';
-  $('#m-week').setAttribute('aria-label', `週の始まり: ${state.weekStart === 1 ? '月曜（日曜にする）' : '日曜（月曜にする）'}`);
-  $('#m-week-v').textContent = state.weekStart === 1 ? '月曜' : '日曜';
+  syncWeekMenu();
   $('#m-sample').hidden = !(state.loaded && state.events.length === 0);
   syncMonthMenu();
   syncModeMenu();
@@ -4203,7 +4206,7 @@ menuDlg.addEventListener('click', (ev) => {
   else if (m === 'notify') { closePanel(menuDlg, false); openNotify(from); }
   else if (m === 'backup') { closePanel(menuDlg, false); openBackup(from); }
   else if (m === 'desk') { closePanel(menuDlg, true, true); set({ desk: !state.desk }); }
-  else if (m === 'week') { closePanel(menuDlg, true, true); set({ weekStart: state.weekStart === 1 ? 0 : 1 }); say(`週の始まりを${state.weekStart === 1 ? '月曜' : '日曜'}にしました。`); }
+  else if (m === 'week') { closePanel(menuDlg, true, true); set({ weekStart: state.weekStart === 1 ? 0 : 1 }); syncWeekMenu(); say(`週の始まりを${state.weekStart === 1 ? '月曜' : '日曜'}にしました。`); }
   else if (m === 'sample') { closePanel(menuDlg, true, true); loadSample(); }
   else if (m === 'curl-web' || m === 'curl-native') pickCurlEngine(m === 'curl-web' ? 'web' : 'native');
   else if (m === 'mode') { const v = $('#m-variant'); v.hidden = !v.hidden; b.setAttribute('aria-expanded', String(!v.hidden)); if (!v.hidden) v.querySelector('button')?.focus({ preventScroll: true }); }

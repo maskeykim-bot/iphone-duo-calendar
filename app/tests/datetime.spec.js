@@ -45,11 +45,11 @@ test.describe('時刻カプセルと時分のマス', () => {
     await dlg(page).locator('#tp-h').focus();
     await page.keyboard.press('ArrowDown');
     await expect(dlg(page).locator('#tpop')).toBeVisible();
-    await expect(dlg(page).locator('#f-stime')).toHaveText('09:00');
+    await expect(dlg(page).locator('#f-stime')).toHaveText('9:00');
     await expect(dlg(page).locator('#f-etime')).toHaveText('10:00');
     await dlg(page).locator('#tp-m').focus();
     for (let i = 0; i < 6; i++) await page.keyboard.press('ArrowUp');
-    await expect(dlg(page).locator('#f-stime')).toHaveText('09:30');
+    await expect(dlg(page).locator('#f-stime')).toHaveText('9:30');
     await expect(dlg(page).locator('#f-etime')).toHaveText('10:30');
     await dlg(page).locator('#f-stime').click();
     await expect(dlg(page).locator('#tpop')).toBeHidden();
@@ -79,7 +79,7 @@ test.describe('時刻カプセルと時分のマス', () => {
     await expect(page.locator('#tp-m .ditem.d1')).toHaveText(['05', '10']); // 輪の中の正しい位置（05・07・10）
     await page.locator('#tp-h').focus();
     await page.keyboard.press('ArrowDown');
-    await expect(page.locator('#f-stime')).toHaveText('09:07');
+    await expect(page.locator('#f-stime')).toHaveText('9:07');
     await expect(page.locator('#f-etime')).toHaveText('10:43');
     await expect(page.locator('#tp-m .ditem.d0')).toHaveText('07');
     await save(page);
@@ -112,7 +112,7 @@ test.describe('時刻カプセルと時分のマス', () => {
     await expect(dlg(page).locator('#f-eday')).toHaveText('翌日'); // 23:00〜翌0:00
     await dlg(page).locator('#f-dur [data-min="120"]').click();
     await expect(dlg(page).locator('#f-end')).toHaveJSProperty('value', '2026/11/13');
-    await expect(dlg(page).locator('#f-etime')).toContainText('01:00');
+    await expect(dlg(page).locator('#f-etime')).toContainText('1:00');
     await expect(dlg(page).locator('#f-eday')).toHaveText('翌日');
     await expect(dlg(page).locator('#f-dur .dchip[aria-pressed=true]')).toHaveText('2時間');
     await save(page);
@@ -236,7 +236,7 @@ test.describe('時刻カプセルと時分のマス', () => {
     await page.locator('.next').click();
     await setDateUi(page, 'start', '2026/11/20');
     await expect(dlg(page).locator('#f-end')).toHaveJSProperty('value', '2026/11/22');
-    await expect(dlg(page).locator('#f-stime')).toHaveText('09:15');
+    await expect(dlg(page).locator('#f-stime')).toHaveText('9:15');
     await expect(dlg(page).locator('#f-etime')).toContainText('17:40');
     await setDateUi(page, 'end', '2026/11/21');
     await expect(dlg(page).locator('#f-start')).toHaveJSProperty('value', '2026/11/20');
@@ -368,7 +368,7 @@ test.describe('数字の短縮入力', () => {
     await expect(inp).toHaveAttribute('inputmode', 'numeric');
     await typeEnter(page, '930');
     await expect(dlg(page).locator('input.capin')).toHaveCount(0);
-    await expect(dlg(page).locator('#f-stime')).toHaveText('09:30');
+    await expect(dlg(page).locator('#f-stime')).toHaveText('9:30');
     await expect(dlg(page).locator('#f-etime')).toHaveText('10:30');
     await expect(dlg(page).locator('#f-stime')).toBeFocused();
     await expect(dlg(page).locator('#tpop')).toBeHidden();
@@ -382,7 +382,7 @@ test.describe('数字の短縮入力', () => {
     await longPress(page, '#f-etime'); await typeEnter(page, '21');
     await expect(dlg(page).locator('#f-etime')).toHaveText('21:00');
     await longPress(page, '#f-stime'); await typeEnter(page, '9');
-    await expect(dlg(page).locator('#f-stime')).toHaveText('09:00');
+    await expect(dlg(page).locator('#f-stime')).toHaveText('9:00');
     await expect(dlg(page).locator('#f-etime')).toHaveText('15:30'); // 長さ6時間30分を保つ
   });
 
@@ -521,7 +521,7 @@ test.describe('数字の短縮入力', () => {
     await page.keyboard.type('845');
     await expect(dlg(page).locator('input.tcap-in')).toHaveValue('845');
     await page.keyboard.press('Enter');
-    await expect(dlg(page).locator('#f-stime')).toHaveText('08:45');
+    await expect(dlg(page).locator('#f-stime')).toHaveText('8:45');
     await expect(dlg(page).locator('#f-stime')).toBeFocused();
   });
 
@@ -548,20 +548,20 @@ test.describe('読み上げ（adjustable）とフォーカス', () => {
     await expect(dlg(page).locator('#f-stime')).toHaveText('11:00');
     await expect(h).toHaveAttribute('aria-valuetext', '11');
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown');
-    await expect(dlg(page).locator('#f-stime')).toHaveText('09:00');
+    await expect(dlg(page).locator('#f-stime')).toHaveText('9:00');
     await expect(dlg(page).locator('#tpop')).toBeVisible();
     await m.focus();
     await page.keyboard.press('ArrowUp'); await page.keyboard.press('ArrowUp');
-    await expect(dlg(page).locator('#f-stime')).toHaveText('09:10');
+    await expect(dlg(page).locator('#f-stime')).toHaveText('9:10');
     await page.keyboard.press('ArrowDown');
-    await expect(dlg(page).locator('#f-stime')).toHaveText('09:05');
+    await expect(dlg(page).locator('#f-stime')).toHaveText('9:05');
     for (let i = 0; i < 2; i++) await page.keyboard.press('ArrowDown');
-    await expect(dlg(page).locator('#f-stime')).toHaveText('09:55'); // 00 → 55（輪）
+    await expect(dlg(page).locator('#f-stime')).toHaveText('9:55'); // 00 → 55（輪）
     await h.focus();
     for (let i = 0; i < 10; i++) await page.keyboard.press('ArrowDown');
     await expect(dlg(page).locator('#f-stime')).toHaveText('23:55'); // 0 → 23（輪）
     await page.keyboard.press('ArrowUp');
-    await expect(dlg(page).locator('#f-stime')).toHaveText('00:55');
+    await expect(dlg(page).locator('#f-stime')).toHaveText('0:55');
     expect(await page.evaluate(() => window.__hap.calls.filter((c) => c.method === 'selectionHaptic').length)).toBe(3 + 5 + 11); // 1段ごとに1回
   });
 
@@ -651,10 +651,10 @@ test.describe('ダイヤルの操作', () => {
     await openNew(page);
     await dlg(page).locator('#f-stime').click();
     await dragCol(page, '#tp-h', 64); // 32×2
-    await expect(dlg(page).locator('#f-stime')).toHaveText('08:00');
-    await expect(dlg(page).locator('#f-etime')).toHaveText('09:00'); // 長さを保つ
+    await expect(dlg(page).locator('#f-stime')).toHaveText('8:00');
+    await expect(dlg(page).locator('#f-etime')).toHaveText('9:00'); // 長さを保つ
     await dragCol(page, '#tp-m', -32 * 3);
-    await expect(dlg(page).locator('#f-stime')).toHaveText('08:15');
+    await expect(dlg(page).locator('#f-stime')).toHaveText('8:15');
     await page.waitForTimeout(300);
     const off = await page.evaluate(() => [...document.querySelectorAll('#tp-h .ditem.d0')].map((e) => e.style.transform));
     expect(off.length).toBe(1);
@@ -679,7 +679,7 @@ test.describe('ダイヤルの操作', () => {
     await dlg(page).locator('#f-stime').click();
     await dragCol(page, '#tp-h', 64, { fast: true });
     await page.waitForTimeout(700);
-    await expect(dlg(page).locator('#f-stime')).toHaveText('08:00');
+    await expect(dlg(page).locator('#f-stime')).toHaveText('8:00');
   });
 
   test('速く弾くと惰性で数段回る（視差効果を減らすがオフのとき）', async ({ page }) => {
@@ -693,7 +693,7 @@ test.describe('ダイヤルの操作', () => {
     await page.mouse.move(x, y + 40, { steps: 2 }); await page.mouse.up();
     await page.waitForTimeout(900);
     const t = await dlg(page).locator('#f-stime').textContent();
-    expect(['09:00', '10:00']).not.toContain(t); // 40pt の引き（1段）より先まで惰性で進み、段に止まる
+    expect(['9:00', '10:00']).not.toContain(t); // 40pt の引き（1段）より先まで惰性で進み、段に止まる
   });
 
   test('開いている間、キーボードの欄にフォーカスがない。文字の欄に触れると閉じる', async ({ page }) => {
@@ -723,11 +723,11 @@ test.describe('ダイヤルの操作', () => {
     await openApp(page);
     await openNew(page);
     await setTimeUi(page, 'start', '23:30');
-    await expect(dlg(page).locator('#f-etime')).toHaveText('00:30');
+    await expect(dlg(page).locator('#f-etime')).toHaveText('0:30');
     await expect(dlg(page).locator('#f-eday')).toHaveText('翌日');
     await dlg(page).locator('#f-etime').click();
     await dlg(page).locator('#f-etime').click();
-    await expect(dlg(page).locator('#f-etime')).toHaveText('00:30');
+    await expect(dlg(page).locator('#f-etime')).toHaveText('0:30');
   });
 
   test('終日では時刻のダイヤルは開かない', async ({ page }) => {
@@ -779,7 +779,7 @@ for (const [name, size] of [['開いた横', SIZES.openLandscape951], ['開い�
       await dlg(page).locator('#f-title').fill('面');
       await dlg(page).locator('#f-stime').click();
       await dragCol(page, '#tp-h', 44 * 2);
-      await expect(dlg(page).locator('#f-stime')).toHaveText('08:00');
+      await expect(dlg(page).locator('#f-stime')).toHaveText('8:00');
       await dlg(page).locator('#save').click();
       await expect(dlg(page)).toBeHidden();
       const [e] = await dbEvents(page);
