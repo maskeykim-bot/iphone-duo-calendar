@@ -2207,9 +2207,9 @@ body:not([data-layout=spread]):not([data-layout=desk]) :is(dialog#cats,dialog#no
 .pv-week .pvh .hgo::after{display:none}
 
 /* V-26: 「全」→「全部」（高さ 28・角丸 14・13pt W6）。選んだら緑の地に白（今のとおり）。押せる範囲は 44 のまま */
-.allbtn{width:auto;min-width:44px}
-.allbtn span{width:auto;min-width:28px;padding:0 10px;border-radius:14px;font-size:13px;font-weight:600;line-height:25px;white-space:nowrap}
-.mpull .mph .allbtn{min-width:44px}
+.allbtn{width:44px;min-width:44px;overflow:visible}
+.allbtn span{width:max-content;min-width:28px;padding:0 8px;flex:none;border-radius:14px;font-size:13px;font-weight:600;line-height:25px;white-space:nowrap}
+.mpull .mph .allbtn{min-width:44px;width:44px}
 
 /* 品質 低-2: 閉じた週の終日の札が「…」なしで切れていた。決まりの切り方（長い題名は …）にそろえる */
 .closed.tv-week .adband .bt{white-space:nowrap;text-overflow:ellipsis;-webkit-mask-image:none;mask-image:none}

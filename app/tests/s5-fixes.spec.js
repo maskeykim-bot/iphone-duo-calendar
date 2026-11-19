@@ -188,7 +188,7 @@ test.describe('時間軸（H-08・H-20・M-05・M-09）', () => {
     await expect(e).toBeVisible();
     expect(await e.evaluate((x) => getComputedStyle(x).borderRadius)).toBe('8px');
     expect(await e.evaluate((x) => getComputedStyle(x).color)).toBe('rgb(255, 255, 255)');
-    expect(await e.locator('.tn').evaluate((x) => [getComputedStyle(x).fontSize, getComputedStyle(x).fontWeight])).toEqual(['12px', '600']);
+    expect(await e.locator('.tn').evaluate((x) => [getComputedStyle(x).fontSize, getComputedStyle(x).fontWeight])).toEqual(['13px', '600']); // 設計 V-22: 12→13（段にない大きさ）
     expect(await e.locator('.tt').evaluate((x) => getComputedStyle(x).fontSize)).toBe('10px');
     const bg = await e.evaluate((x) => getComputedStyle(x).backgroundColor);
     const lum = bg.match(/\d+/g).slice(0, 3).map(Number).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });

@@ -66,7 +66,7 @@ for (const [name, size] of POSTS) {
       await page.getByRole('button', { name: 'バックアップ' }).click();
       await expect(page.locator('#backup')).toBeVisible();
       expect(await anims(page)).toContain('sheetin:250');
-      expect(await page.locator('#backup').evaluate((e) => getComputedStyle(e).animationTimingFunction)).toBe('cubic-bezier(0.16, 1, 0.3, 1)');
+      expect(await page.locator('#backup').evaluate((e) => getComputedStyle(e).animationTimingFunction)).toBe('cubic-bezier(0.16, 1, 0.3, 1), cubic-bezier(0.16, 1, 0.3, 1)'); // 設計 V-14: シート＋後ろの暗い膜（dimin）が同じ曲線
       await page.waitForTimeout(300);
       await page.locator('#bk-close').click();
       await expect(page.locator('#backup')).toHaveClass(/sheet-out/);
@@ -87,7 +87,7 @@ test.describe('小さな確認シート', () => {
     await expect(page.locator('#editor')).toBeVisible();
     await page.locator('#delete').click();
     await expect(page.locator('#confirm')).toBeVisible();
-    expect(await page.locator('#confirm').evaluate((e) => [getComputedStyle(e).animationName, getComputedStyle(e).animationDuration])).toEqual(['sheetin', '0.25s']);
+    expect(await page.locator('#confirm').evaluate((e) => [getComputedStyle(e).animationName, getComputedStyle(e).animationDuration])).toEqual(['sheetin, dimin', '0.25s, 0.25s']); // 設計 V-14: 膜も同じ 0.25 秒
     await page.waitForTimeout(300);
     await page.keyboard.press('Escape');
     await expect(page.locator('#confirm')).toHaveClass(/sheet-out/);
