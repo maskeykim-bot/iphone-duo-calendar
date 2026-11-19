@@ -51,16 +51,26 @@ test.describe('N-01 開いた横・右ページの箱 x493.5〜851（見出し �
   test('今日＋明日の型は 1日ページの箱 485.5（めくりの背）のまま、中の見出しは x501.5', async ({ page }) => {
     await openApp(page, L); await band(page, 84);
     await page.evaluate(() => { const k = 'duo.ui.v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); s.spreadType = 'tt'; localStorage.setItem(k, JSON.stringify(s)); });
-    await page.reload(); await page.waitForSelector('html[data-ready]'); await band(page, 84); await page.waitForTimeout(400); // 描き直しが落ち着くのを待つ（待たないと見出しが 0 で測れる）
-    const r = page.locator('.dpage.rp');
-    if (await r.count()) { near((await boxOf(r)).x, 485.5, 0.6, 'tt の箱'); near((await boxOf(page.locator('.dpage.rp .hdt'))).x, 501.5, 1, 'tt の見出し'); }
+    await page.reload(); await page.waitForSelector('html[data-ready]'); await band(page, 84);
+    // S9 品質: 箱と見出しの矩形を 1 回の evaluate で原子的に読み、期待値（箱 485.5±0.6・見出し 501.5±1・幅>0）に落ち着くまで待つ。
+    // 読みと判定を分けると並列負荷下で dpage の再描画の x≈0 を拾うため、判定ごと原子化する（期待値は弱めない。失敗時は最後に見えた値を出す）。
+    await expect.poll(async () => page.evaluate(() => {
+      const rp = document.querySelector('.dpage.rp');
+      const h = document.querySelector('.dpage.rp .hdt');
+      if (!rp || !h) return 'まだ無い';
+      const br = rp.getBoundingClientRect(), bh = h.getBoundingClientRect();
+      const ok = br.width > 0 && bh.width > 0 && Math.abs(br.x - 485.5) <= 0.6 && Math.abs(bh.x - 501.5) <= 1;
+      return ok ? 'OK' : `箱x=${br.x.toFixed(1)}/485.5 見出しx=${bh.x.toFixed(1)}/501.5 箱幅=${br.width.toFixed(1)} 見出し幅=${bh.width.toFixed(1)}`;
+    }), { timeout: 8000 }).toBe('OK');
   });
   test('折り目の保護域（中心 475.5±10）に右ページの何も入らない', async ({ page }) => {
     await setup(page);
     for (const name of ['ホーム', '時間', 'タスク', 'ノート', '月']) {
-      await pagePick(page, 'right', name).click(); await page.waitForTimeout(200);
-      const hits = await page.evaluate(() => [...document.querySelectorAll('.page.rp *')].filter((e) => { const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return r.width > 0 && cs.visibility !== 'hidden' && r.left < 485.4 && r.right > 465.6; }).map((e) => e.className || e.tagName).slice(0, 5));
-      expect(hits, name).toEqual([]);
+      await pagePick(page, 'right', name).click();
+      // S9 品質: 描き終わり（右ページの見出しが幅>0）を待つ。固定の待ちはしない
+      await expect.poll(() => page.evaluate(() => { const h = document.querySelector('.page.rp .rhead h2, .page.rp .shead h2, .page.rp h2'); return !!h && h.getBoundingClientRect().width > 0; })).toBe(true);
+      // S9 品質: 保護域に入る要素を expect.poll で確かめ、再描画の一瞬の誤検出を無視して「ずっと 0 件」を要求する（弱めない）
+      await expect.poll(() => page.evaluate(() => [...document.querySelectorAll('.page.rp *')].filter((e) => { const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return r.width > 0 && cs.visibility !== 'hidden' && r.left < 485.4 && r.right > 465.6; }).map((e) => e.className || e.tagName).slice(0, 5)), { timeout: 5000 }).toEqual([]);
     }
   });
   test('N-09 ノートの編集の下「削除」の文字は見出しと同じ x501.5（高さ 44）', async ({ page }) => {

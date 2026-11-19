@@ -56,7 +56,7 @@ test.describe('閉じた画面 466×678', () => {
     const pl = await plus().evaluate((e) => { const s = getComputedStyle(e), r = e.getBoundingClientRect(), d = e.parentElement.querySelector('[data-date="2026-11-12"]').getBoundingClientRect(), g = document.createRange(); g.selectNodeContents(e); const t = g.getBoundingClientRect(); return { fs: parseFloat(s.fontSize), fw: Number(s.fontWeight), color: s.color, w: r.width, h: r.height, top: r.top - d.top, right: d.right - t.right, tb: t.bottom - d.top }; });
     expect(pl.fs).toBe(8); expect(pl.fw).toBeGreaterThanOrEqual(600); expect(pl.color).toBe('rgb(104, 113, 106)');
     expect(near(pl.w, 44, 0.6) && near(pl.h, 44, 0.6) && near(pl.top, 0, 0.6)).toBe(true);
-    expect(near(pl.right, 2, 0.6) || near(pl.right, 4, 0.6)).toBe(true); /* S8 N-05: 選んだ今日のマスは右 4 */ expect(pl.tb).toBeLessThanOrEqual(18.5);
+    expect(near(pl.right, 4, 1)).toBe(true); /* S8 N-05: 選んだ今日のマスは右 4 */ /* S9 品質: 設計 fc56bc9・STEER 05:59 で右あき4(±1)に固定 */ expect(pl.tb).toBeLessThanOrEqual(18.5);
     // 4件の段は 18 から 15 おき（日付の行の下）
     const tops = await page.locator('.mgrid .strip[data-sday="2026-11-12"]').evaluateAll((es) => es.map((e) => e.getBoundingClientRect().top - e.closest('.week').getBoundingClientRect().top));
     expect(near(tops[0], 18, 1.2) && near(tops[3] - tops[0], 45, 0.6)).toBe(true);
