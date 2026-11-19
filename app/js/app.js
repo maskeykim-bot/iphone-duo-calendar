@@ -5836,8 +5836,6 @@ const natCurl = createNativeCurl({
 });
 ttCurl = createCurl({
   root, metrics: ttMetrics, pages: ttPainter(), swipe: swipeCtl, reduced, native: natCurl,
-  enabled: () => ttSpreadOn() && !TT.drag && !anyPanel(),
-  root, metrics: ttMetrics, pages: ttPainter(), swipe: swipeCtl, reduced,
   enabled: () => ttSpreadOn() && !TT.drag && !anyPanel() && !NB.sheet,
   canStart: curlCanStart,
   onTurn: (dir) => { swipePane = null; swipeMove(dir); }, // state.selected を ±2 日にして render()（今日＋明日の日送りと同じ）
