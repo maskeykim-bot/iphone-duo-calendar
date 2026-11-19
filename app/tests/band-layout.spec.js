@@ -256,25 +256,24 @@ test.describe('開いた縦 + 上 safe（見出しは帯の中）', () => {
       near(wd.y, head + 44); near(wd.height, 20);
       const sc = await bx(page.locator('.mgrid'));
       near(sc.y, head + 64);
-      const cy = head * 46 / 82;
-      const items = { 設定: [20 * ux, 44], 予定を検索: [484 * ux, 44] };
+      // 第19.1版 S2（design/32 §5-5）: 設定 x20〜64・検索 右から20（x605〜649）、どちらも y19〜63（44×44）
+      const items = { 設定: [20, 44], 予定を検索: [W - 20 - 44, 44] };
       const rs = [];
       for (const [n, [x, w]] of Object.entries(items)) {
         const loc = page.getByRole('button', { name: n, exact: true });
         const r = await bx(loc);
-        near(r.x, x); near(r.width, w); near(r.height, 44); near(r.y + 22, cy);
+        near(r.x, x); near(r.width, w); near(r.height, 44); near(r.y, 19);
         expect(await reaches(page, loc), n).toBe(true);
         rs.push(r);
       }
       const title = await bx(page.locator('#ctitle'));
       near(title.y + title.height / 2, head + 22, 1);
       const search = rs[1];
-      expect(search.x + search.width).toBeLessThanOrEqual(540 * ux + 0.5); // 右上の予約（時刻・電池）
+      expect(search.x + search.width).toBeCloseTo(W - 20, 0);
       for (let i = 0; i < rs.length; i++) for (let j = i + 1; j < rs.length; j++) expect(overlap(rs[i], rs[j]), `${i}/${j}`).toBe(false);
       for (const r of rs) expect(overlap(r, title)).toBe(false);
       const fm = await bx(page.locator('.fmodes'));
-      const rsv = { x: 540 * ux, y: 0, width: W - 540 * ux, height: head };
-      expect(overlap(fm, rsv)).toBe(false); // 集中切替も右上の予約に入らない
+      near(fm.x, (W - 220) / 2); near(fm.y, 23); near(fm.width, 220); near(fm.height, 36); // 切替は上の帯の真ん中（17 §1）
       for (const r of rs.concat([title])) expect(overlap(fm, r)).toBe(false);
       // 下段: 今日 x20・＋ 右20・タブ 286 中央、いずれも top H-88p（第19版 PR5）
       const today = await bx(btn(page, '今日に戻る')), add = await bx(btn(page, '予定を追加')), tabs = await bx(page.locator('.tabs'));
@@ -297,8 +296,8 @@ test.describe('開いた縦 + 上 safe（見出しは帯の中）', () => {
     await withSafe(page, SIZES.openPortrait669, { t: 82, r: 20, l: 30 });
     const U = 669 - 50, ux = U / 669;
     const set = await bx(btn(page, '設定')), search = await bx(btn(page, '予定を検索'));
-    near(set.x, 30 + 20 * ux); near(search.x, 30 + 484 * ux);
-    expect(search.x + search.width).toBeLessThanOrEqual(30 + 540 * ux + 0.5);
+    near(set.x, 30 + 20); near(search.x, 669 - 20 - 20 - 44); // 設定は左 safe から20、検索は右 safe から20（S2）
+    expect(search.x + search.width).toBeLessThanOrEqual(669 - 20 - 20 + 0.5);
   });
 });
 

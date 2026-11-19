@@ -36,16 +36,17 @@ for (const size of PORTRAITS) {
       const today = await box(page.getByRole('button', { name: '今日に戻る' }));
       const add = await box(page.getByRole('button', { name: '予定を追加' }));
       const tabs = await box(page.locator('.tabs'));
-      expect(near(set.x, 20 * rx) && near(set.y, 24) && near(set.width, 44) && near(set.height, 44)).toBe(true);
-      expect(near(search.x, 484 * rx) && near(search.y, 24) && near(search.width, 44)).toBe(true);
-      expect(search.x + search.width).toBeLessThanOrEqual(540 * rx + 0.5); // 右上の予約（時刻・電池）に入らない
+      // 第19.1版 S2（design/32 §5-5）: 設定 x20〜64・検索 右から20（x605〜649）、どちらも y19〜63（44×44）
+      expect(near(set.x, 20) && near(set.y, 19) && near(set.width, 44) && near(set.height, 44)).toBe(true);
+      expect(near(search.x, W - 20 - 44) && near(search.y, 19) && near(search.width, 44) && near(search.height, 44)).toBe(true);
       expect(near(today.x, 20) && near(today.y, H - 88 * ry, 1) && near(today.width, 48)).toBe(true);
       expect(near(add.x, W - 20 - 48) && near(add.y, H - 88 * ry, 1) && near(add.width, 48)).toBe(true);
       expect(near(tabs.x + tabs.width / 2, W / 2) && tabs.width >= 176 && near(tabs.height, 46)).toBe(true);
       expect(near(tabs.y, H - 88 * ry, 1)).toBe(true);
+      // 「カレンダー｜タスク｜ノート」は上の帯の真ん中 x224〜444・y23〜59（220×36）。下の段には出ない（17 §1）
       const fmodes = await box(page.locator('.fmodes'));
-      const reserved = { x: 540 * rx, y: 0, width: W - 540 * rx, height: 82 };
-      expect(noOverlap(fmodes, reserved)).toBe(true); // 右上の予約（時刻・電池）に入らない
+      expect(near(fmodes.x, (W - 220) / 2, 1) && near(fmodes.y, 23) && near(fmodes.width, 220) && near(fmodes.height, 36)).toBe(true);
+      expect(fmodes.y + fmodes.height).toBeLessThanOrEqual(82);
       for (const [a, b] of [[today, tabs], [tabs, add], [today, add], [set, search], [tabs, fmodes], [add, fmodes], [today, fmodes]]) expect(noOverlap(a, b)).toBe(true);
       expect(add.y + add.height).toBeLessThanOrEqual(H);
       // 月グリッドは下段の上で終わる（隠れる週がない）
@@ -157,9 +158,11 @@ for (const size of PORTRAITS) {
       await expect(sc).toBeVisible();
       await sc.evaluate((el) => { el.scrollTop = el.scrollHeight; });
       await expect.poll(async () => page.locator('.week.all[data-drawn]').count()).toBeGreaterThan(0);
-      const scb = await box(sc), last = await box(page.locator('.week.all').last()), tabs = await box(page.locator('.tabs'));
-      expect(last.y + last.height).toBeLessThanOrEqual(scb.y + scb.height + 1);
-      expect(scb.y + scb.height).toBeLessThanOrEqual(tabs.y + 1);
+      // 第19.1版 S2（#21）: 1枚の紙を上の窓（y146〜458）と下の窓（y500〜）で見る。末尾まで送ると最終週の下端が下の窓の下端にそろい、窓はタブの上で終わる
+      await expect.poll(async () => page.locator('.allb .week.all[data-drawn]').count()).toBeGreaterThan(0);
+      const win = await box(page.locator('.alwin.alb')), last = await box(page.locator('.allb .week.all').last()), tabs = await box(page.locator('.tabs'));
+      expect(near(last.y + last.height, win.y + win.height, 1)).toBe(true);
+      expect(win.y + win.height).toBeLessThanOrEqual(tabs.y + 1);
     });
   });
 }
@@ -176,7 +179,7 @@ test.describe('開いた縦: safe area・キーボード・下書き', () => {
       const add = await box(page.getByRole('button', { name: '予定を追加' }));
       const tabs = await box(page.locator('.tabs'));
       const sc = await box(page.locator('.mgrid'));
-      expect(near(set.y, 24, 1)).toBe(true); // 帯の中（中心 y=head*46/82=46）
+      expect(near(set.y, 19, 1)).toBe(true); // 帯の中 y19〜63
       expect(add.y + add.height).toBeLessThanOrEqual(size.height - 34 + 0.5);
       expect(tabs.y + tabs.height).toBeLessThanOrEqual(size.height - 34 + 0.5);
       expect(near(sc.y, 146, 1)).toBe(true);

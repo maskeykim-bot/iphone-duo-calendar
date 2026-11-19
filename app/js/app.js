@@ -3472,17 +3472,18 @@ function menuGroove() {
   for (const r of all) if (r.dataset.gpush) { r.style.marginTop = ''; delete r.dataset.gpush; }
   const y0 = parseFloat(de.style.getPropertyValue('--groove-avoid-y0')), y1 = parseFloat(de.style.getPropertyValue('--groove-avoid-y1'));
   if (!menuDlg.open || !Number.isFinite(y0) || !Number.isFinite(y1) || !isPortrait()) return;
-  const st = sc.scrollTop;
+  const st = sc.scrollTop, vis = all.filter((r) => r.offsetParent), base = vis.map((r) => { const b = r.getBoundingClientRect(); return [b.top + st, b.bottom + st]; });
   let shift = 0;
-  for (const r of all) {
-    if (!r.offsetParent) continue;
-    const b = r.getBoundingClientRect();
-    const top = b.top + st + shift, bottom = b.bottom + st + shift;
+  vis.forEach((r, i) => {
+    const top = base[i][0] + shift, bottom = base[i][1] + shift;
     if (bottom > y0 && top < y1) {
-      const push = Math.ceil(y1 - top);
-      r.style.marginTop = `${push}px`; r.dataset.gpush = '1'; shift += push;
+      let m = Math.ceil(y1 - top);
+      r.style.marginTop = `${m}px`; r.dataset.gpush = '1';
+      const real = r.getBoundingClientRect().top + st; // 前の行の下の余白と重なる（マージンの相殺）ぶん足りないことがあるので、実測で合わせる
+      if (real < y1 - 0.25) { m += Math.ceil(y1 - real); r.style.marginTop = `${m}px`; }
+      shift = r.getBoundingClientRect().top + st - base[i][0];
     }
-  }
+  });
 }
 let grooveRaf = 0;
 const grooveSchedule = () => { cancelAnimationFrame(grooveRaf); grooveRaf = requestAnimationFrame(() => { editorGroove(); menuGroove(); }); };
@@ -3490,7 +3491,9 @@ window.__editorGrooveNow = editorGroove;
 window.__menuGrooveNow = menuGroove;
 menuDlg.addEventListener('toggle', grooveSchedule);
 menuDlg.addEventListener('click', grooveSchedule);
+new MutationObserver(grooveSchedule).observe(menuDlg, { childList: true, subtree: true, characterData: true }); // 診断の文などが後から変わっても行の位置を引き直す（属性の変化＝自分の margin は見ない）
 new ResizeObserver(grooveSchedule).observe(menuDlg);
+for (const el of menuDlg.querySelectorAll('.menurows')) new ResizeObserver(grooveSchedule).observe(el); // 行の折り返しなどで高さが変わったときも引き直す（送りは先頭位置から決めるので、何度でも同じ結果）
 new ResizeObserver(grooveSchedule).observe(dlg);
 dlg.addEventListener('click', grooveSchedule);
 dlg.addEventListener('toggle', grooveSchedule);

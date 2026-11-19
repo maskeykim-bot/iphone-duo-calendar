@@ -1267,7 +1267,7 @@ dialog#menu #m-destpop{border-radius:inherit}
 
 /* 開いた縦の集中モード（第16版 PR32）。切替は上の帯、タスク／ノートは全面の専用面。 */
 .fmodes{pointer-events:auto;position:fixed;z-index:6;display:flex;box-sizing:border-box;padding:0;border-radius:10px;background:#e6e9e4;box-shadow:inset 0 0 0 1px var(--line)}
-.fmodes button{flex:1 1 0;min-width:0;padding:0;border-radius:10px;background:transparent;color:var(--ink);font-size:14px;font-weight:700;line-height:1;white-space:nowrap;touch-action:manipulation;position:relative}
+.fmodes button{flex:1 1 0;min-width:0;height:100%;min-height:0;padding:0;border-radius:10px;background:transparent;color:var(--ink);font-size:14px;font-weight:700;line-height:1;white-space:nowrap;touch-action:manipulation;position:relative}
 .fmodes button::before{content:"";position:absolute;left:0;right:0;top:-4px;bottom:-4px}
 .fmodes button[aria-pressed=true]{background:#fff;color:var(--green);box-shadow:0 1px 2px rgba(0,0,0,.12)}
 .fdate{position:fixed;z-index:5;display:flex;align-items:center;font-size:15px;font-weight:800;color:var(--ink);white-space:nowrap;pointer-events:none;max-width:calc(100px * var(--ux,1));overflow:hidden}
@@ -1523,8 +1523,8 @@ dialog.panel.tface-open{overflow:visible}
 .portrait .mpull[data-form=two] .week{height:50%}
 .portrait .mpull[data-form=month] .week{height:calc(100% / 6)}
 .portrait .mpull .week .day{height:100%}
-.portrait .mpull .mgrab{position:absolute;left:0;right:0;top:calc(var(--groove-avoid-y0,459px) - 26px);height:26px;min-height:0;align-items:center;padding-bottom:0}
-.portrait .mpull .mgrab i{margin-bottom:0}
+.portrait .mpull .mgrab{position:absolute;left:0;right:0;top:calc(var(--groove-avoid-y0,459px) - 26px);height:26px;min-height:0;align-items:flex-end;padding-bottom:0}
+.portrait .mpull .mgrab i{margin-bottom:2px}
 .portrait .mpull .mday{position:fixed;left:var(--content-x);width:var(--content-w);box-sizing:border-box;top:var(--groove-avoid-y1,492px);bottom:34px;padding:0 12px 62px}
 .portrait .mdev{height:44px}.portrait .mdev .mdt{font-size:13px;width:52px}.portrait .mdev strong{font-size:15px}
 .portrait .mpull .mdh h3{font-size:17px}
@@ -1891,3 +1891,5 @@ dialog#rsheet[data-kind=explain] .rsmain{margin-bottom:26px}
 .portrait .alwin .scroll.allb::-webkit-scrollbar{width:3px}
 .portrait .alwin .allbp{display:block}
 .portrait .alwin .week.all{height:max(var(--ah),var(--need,0px))}
+/* 設定シートの行を帯から送るとスクロールバーが出て折り返しが変わらないよう、開いた縦では溝の幅を先に確保する（H-22） */
+body[data-posture=portrait] .mscreens{scrollbar-gutter:stable}

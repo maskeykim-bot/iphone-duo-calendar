@@ -132,11 +132,15 @@ test.describe('開いた縦の集中モード', () => {
       expect(f, 'fmodes visible').toBeTruthy();
       expect(overlaps(f, rsv), 'fmodes vs reserved').toBe(false);
       expect(f.x + f.width).toBeLessThanOrEqual(rsv.x + rsv.w + 0.5);
-      // 上の帯の操作も予約に入らない（検索は従来どおり予約の手前）
-      for (const n of ['設定', '予定を検索']) {
-        const b = await boxOf(page.getByRole('button', { name: n, exact: true }));
-        expect(overlaps(b, rsv), n).toBe(false);
-      }
+      // 第19.1版 S2（design/32 §5-5）: 設定 x20〜64・検索は右から20、どちらも y19〜63（44×44）。検索は右上の予約に入る位置（案A の指定）
+      const W = size.width - L - R;
+      const setb = await boxOf(page.getByRole('button', { name: '設定', exact: true }));
+      expect(overlaps(setb, rsv), '設定').toBe(false);
+      expect(Math.abs(setb.x - (L + 20)) < 1 && Math.abs(setb.y - 19) < 1 && setb.width === 44 && setb.height === 44, '設定の位置').toBe(true);
+      const sb = await boxOf(page.getByRole('button', { name: '予定を検索', exact: true }));
+      expect(Math.abs(sb.x - (L + W - 20 - 44)) < 1 && Math.abs(sb.y - 19) < 1 && sb.width === 44 && sb.height === 44, '検索の位置').toBe(true);
+      // 切替は上の帯の真ん中 220×36（y23〜59）
+      expect(Math.abs(f.x - (L + (W - 220) / 2)) < 1 && Math.abs(f.y - 23) < 1 && Math.abs(f.width - 220) < 1 && Math.abs(f.height - 36) < 1, '切替の位置').toBe(true);
     });
 
     test(`タスク／ノートの切替・検索・＋は右上の予約に入らない（${name}）`, async ({ page }) => {

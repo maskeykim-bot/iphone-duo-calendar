@@ -323,9 +323,11 @@ test.describe('週の始まり（月曜が既定）', () => {
     expect(l.y + l.height).toBeGreaterThanOrEqual(g.y + g.height - 1);
     await setStyle(page, '全部');
     await expect(page.locator('#ctitle')).toHaveText('2027年 2月');
-    await expect(page.locator('.week')).toHaveCount(4);
-    const sc = await page.locator('.calendar .scroll').boundingBox();
-    const last = await page.locator('.week').last().boundingBox();
+    await expect(page.locator('.scroll.all .week')).toHaveCount(4);
+    // 第19.1版 S2: 開いた縦の「全部」は紙を上の窓・下の窓で見る。末尾の週は下の窓（.alwin.alb）の中
+    const win = await page.locator('.alwin.alb').count();
+    const sc = await page.locator(win ? '.alwin.alb' : '.calendar .scroll').boundingBox();
+    const last = await page.locator(win ? '.allb .week' : '.week').last().boundingBox();
     // 末尾の週がスクロール領域の下端に届く（余るときは行が伸びて埋める。必要高が上回るときは内部スクロール）
     expect(last.y + last.height).toBeGreaterThanOrEqual(sc.y + sc.height - 1);
   });
@@ -415,7 +417,11 @@ async function measureAll(page) {
     }));
   }
   await sc.evaluate((e) => { e.scrollTop = e.scrollHeight; });
-  out.last = await sc.evaluate((e) => { const r = e.getBoundingClientRect(), w = e.lastElementChild.getBoundingClientRect(); return { gap: r.bottom - w.bottom, over: e.scrollHeight - e.clientHeight }; });
+  out.last = await sc.evaluate((e) => {
+    const b = document.querySelector('.alwin.alb'); // 開いた縦（第19.1版 S2）: 末週は下の窓にある。紙が窓の合計より長い分だけスクロールできる
+    if (b) { const r = b.getBoundingClientRect(), w = document.querySelector('.allb').lastElementChild.lastElementChild.getBoundingClientRect(); return { gap: r.bottom - w.bottom, over: e.scrollHeight - e.clientHeight - b.clientHeight }; }
+    const r = e.getBoundingClientRect(), w = e.lastElementChild.getBoundingClientRect(); return { gap: r.bottom - w.bottom, over: e.scrollHeight - e.clientHeight };
+  });
   return out;
 }
 const AE_SEED = [
@@ -440,7 +446,7 @@ test.describe('AE-1/2/5 「全」の段数と描画（通常5・大4・5/6週・
       const cap = c.large ? 4 : 5;
       const sc = page.locator('.scroll.all').first();
       await expect(sc).toBeVisible();
-      expect(await page.locator('.week.all').count()).toBe(c.ws ? 6 : 5);
+      expect(await page.locator('.scroll.all .week.all').count()).toBe(c.ws ? 6 : 5);
       // 12日: 帯2本＋短冊。レーンは cap まで、残りは +N（予定9件）
       await sc.evaluate((e) => { e.scrollTop = 0; });
       const day12 = await page.locator('.week.all').evaluateAll((ws, k) => {
