@@ -54,7 +54,7 @@ for (const [name, size, safe] of CASES) {
     await expect(page.locator('.spread [data-date="2026-11-30"].selected')).toHaveCount(1);
     // 同日6件 → 段数ぶん＋ +N（件数の合計が合う）
     const placed = await page.locator('.spread .week').last().locator('.strip').evaluateAll((els) => els.filter((e) => e.dataset.sday === '2026-11-30').length);
-    const plus = Number((await page.locator('.spread .plus[data-jump="2026-11-30"]').textContent()).replace('+', ''));
+    const plus = Number((await page.locator('.spread .plus[data-plus="2026-11-30"]').textContent()).replace('+', ''));
     expect(placed + plus + 1 /* 帯 */).toBe(7);
     // 描画した予定は週の行の外へはみ出さない
     const over = await page.evaluate(() => [...document.querySelectorAll('.spread .week')].some((w) => { const r = w.getBoundingClientRect(); return [...w.querySelectorAll('.strip,.bar')].some((c) => c.getBoundingClientRect().bottom > r.bottom + 0.5); }));
@@ -75,7 +75,7 @@ test('951×669: 6週は4段（+1）、5週・4週は5段、月切替でも線が
     for (const h of g.rows) near(h, 507 / n, 0.6);
     expect(g.scrollable).toBeLessThanOrEqual(1);
     await expect(page.locator(`.spread .strip[data-sday="${day}"]`)).toHaveCount(cap);
-    await expect(page.locator(`.spread .plus[data-jump="${day}"]`)).toHaveText(`+${6 - cap}`);
+    await expect(page.locator(`.spread .plus[data-plus="${day}"]`)).toHaveText(`+${6 - cap}`);
   };
   await expectN(6, 4, '2026-11-20');
   await page.getByRole('button', { name: '次の月' }).click();

@@ -2156,5 +2156,9 @@ body :is(.dchip)[aria-pressed=true]:active:not(:disabled){filter:brightness(.92)
 .shell.spread .tabfade{display:block;position:fixed;z-index:5;top:calc(var(--tabs-y) - 24px);height:24px;pointer-events:none}
 .shell.spread .tabfade.tfl{left:var(--left-start);width:calc(var(--left-end) - var(--left-start));background:linear-gradient(to bottom,rgba(240,237,229,0),#F0EDE5)}
 .shell.spread .tabfade.tfr{left:var(--right-start);width:calc(var(--right-end) - var(--right-start));background:linear-gradient(to bottom,rgba(255,253,250,0),#FFFDFA)}
-/* V-07: 暗い色（prefers-color-scheme:dark の 7 か所と .shell.fd の暗い色）を外し、全部明るい色にそろえた。ダークは別の版で全画面まとめて入れる（25 §6）。キーボード・ピッカー・共有シート・ステータスバーも明るいまま（iOS は Info.plist の UIUserInterfaceStyle=Light） */
+/* V-07: 暗い色（ダーク用の media query の 7 か所と .shell.fd の暗い色）を外し、全部明るい色にそろえた。ダークは別の版で全画面まとめて入れる（25 §6）。キーボード・ピッカー・共有シート・ステータスバーも明るいまま（iOS は Info.plist の UIUserInterfaceStyle=Light） */
 :root{color-scheme:light}
+/* V-10 の見直しで見つけた隙: 開いた縦のノートの型の見出し行（「ノート」「＋ 新規」）だけ左右の余白が 0 で、一覧（x16）より外にはみ出していた。一覧と同じ 16 */
+.shell.focus .ntools{padding-left:16px;padding-right:16px}
+/* 品質 中-5: 開いた横の予定シートにも他のシートと同じ影（0 12px 32px 16%）。ただし左へにじむ影は折り目（中心±10）に入るので、シートの左の縁で切る（折り目の保護域に何も入れない・timeline.spec） */
+body[data-layout=spread] dialog#editor,body[data-layout=spread] dialog#xdetail,body[data-layout=spread] dialog#taskdlg{clip-path:inset(-60px -60px -60px 0)}

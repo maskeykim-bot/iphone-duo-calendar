@@ -139,8 +139,8 @@ test.describe('開いた縦の集中モード', () => {
       expect(Math.abs(setb.x - (L + 20)) < 1 && Math.abs(setb.y - 19) < 1 && setb.width === 44 && setb.height === 44, '設定の位置').toBe(true);
       const sb = await boxOf(page.getByRole('button', { name: '予定を検索', exact: true }));
       expect(Math.abs(sb.x - (L + W - 20 - 44)) < 1 && Math.abs(sb.y - 19) < 1 && sb.width === 44 && sb.height === 44, '検索の位置').toBe(true);
-      // 切替は上の帯の真ん中 220×36（y23〜59）
-      expect(Math.abs(f.x - (L + (W - 220) / 2)) < 1 && Math.abs(f.y - 23) < 1 && Math.abs(f.width - 220) < 1 && Math.abs(f.height - 36) < 1, '切替の位置').toBe(true);
+      // 切替は上の帯の真ん中 252×36（y23〜59）。V-01: 220→252（1つ 84）
+      expect(Math.abs(f.x - (L + (W - 252) / 2)) < 1 && Math.abs(f.y - 23) < 1 && Math.abs(f.width - 252) < 1 && Math.abs(f.height - 36) < 1, '切替の位置').toBe(true);
     });
 
     test(`タスク／ノートの切替・検索・＋は右上の予約に入らない（${name}）`, async ({ page }) => {
@@ -155,19 +155,18 @@ test.describe('開いた縦の集中モード', () => {
       const f = await boxOf(page.locator('.fmodes'));
       const search = await boxOf(page.locator('.ctl').getByRole('button', { name: 'タスクを検索' }));
       const add = await boxOf(page.locator('.ctl').getByRole('button', { name: 'タスクを追加' }));
-      for (const [n, b] of [['fmodes', f], ['検索', search], ['＋', add]]) {
-        expect(b, n).toBeTruthy();
-        expect(overlaps(b, rsv), n).toBe(false);
-        expect(b.x + b.width).toBeLessThanOrEqual(rsv.x + 0.5); // 上の帯の操作は予約の左で終わる
-      }
+      // V-10: 切替だけが予約の左で終わる。検索はどの型でも右から20（x605〜649・y19〜63）、＋はどの型でも右下（カレンダーの型と同じ）
+      expect(f, 'fmodes').toBeTruthy(); expect(overlaps(f, rsv), 'fmodes').toBe(false); expect(f.x + f.width).toBeLessThanOrEqual(rsv.x + 0.5);
+      const W = size.width - L - R;
+      expect(Math.abs(search.x - (L + W - 20 - 44)) < 1 && Math.abs(search.y - 19) < 1 && search.width === 44 && search.height === 44, '検索の位置').toBe(true);
+      expect(Math.abs(add.x - (L + W - 20 - 48)) < 1 && add.width === 48 && add.y > size.height / 2, '＋は右下').toBe(true);
       await sw(page, 'note').click();
       const fn = await boxOf(page.locator('.fmodes'));
       const ns = await boxOf(page.locator('.ctl').getByRole('button', { name: 'ノートを検索' }));
       const na = await boxOf(page.locator('.ctl').getByRole('button', { name: 'ノートを追加' }));
-      for (const [n, b] of [['fmodes', fn], ['検索', ns], ['＋', na]]) {
-        expect(overlaps(b, rsv), n).toBe(false);
-        expect(b.x + b.width).toBeLessThanOrEqual(rsv.x + 0.5);
-      }
+      expect(overlaps(fn, rsv), 'fmodes').toBe(false); expect(fn.x + fn.width).toBeLessThanOrEqual(rsv.x + 0.5);
+      expect(Math.abs(ns.x - search.x) < 1 && Math.abs(ns.y - search.y) < 1, 'ノートの検索もカレンダーの型と同じ位置').toBe(true);
+      expect(Math.abs(na.x - add.x) < 1 && Math.abs(na.y - add.y) < 1, 'ノートの＋もタスクの型と同じ位置').toBe(true);
     });
   }
 });

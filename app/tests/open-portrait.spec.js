@@ -43,9 +43,9 @@ for (const size of PORTRAITS) {
       expect(near(add.x, W - 20 - 48) && near(add.y, H - 88 * ry, 1) && near(add.width, 48)).toBe(true);
       expect(near(tabs.x + tabs.width / 2, W / 2) && tabs.width >= 176 && near(tabs.height, 46)).toBe(true);
       expect(near(tabs.y, H - 88 * ry, 1)).toBe(true);
-      // 「カレンダー｜タスク｜ノート」は上の帯の真ん中 x224〜444・y23〜59（220×36）。下の段には出ない（17 §1）
+      // 「カレンダー｜タスク｜ノート」は上の帯の真ん中 x224〜444・y23〜59（252×36。V-01 で 220→252）。下の段には出ない（17 §1）
       const fmodes = await box(page.locator('.fmodes'));
-      expect(near(fmodes.x, (W - 220) / 2, 1) && near(fmodes.y, 23) && near(fmodes.width, 220) && near(fmodes.height, 36)).toBe(true);
+      expect(near(fmodes.x, (W - 252) / 2, 1) && near(fmodes.y, 23) && near(fmodes.width, 252) && near(fmodes.height, 36)).toBe(true);
       expect(fmodes.y + fmodes.height).toBeLessThanOrEqual(82);
       for (const [a, b] of [[today, tabs], [tabs, add], [today, add], [set, search], [tabs, fmodes], [add, fmodes], [today, fmodes]]) expect(noOverlap(a, b)).toBe(true);
       expect(add.y + add.height).toBeLessThanOrEqual(H);
@@ -104,7 +104,7 @@ for (const size of PORTRAITS) {
       await openApp(page, size);
       await seed(page, ['A', 'B', 'C', 'D', 'E'].map((t, i) => ev(`m${i}`, `予定${t}`, `2026-11-13T${String(9 + i).padStart(2, '0')}:00`, `2026-11-13T${String(9 + i).padStart(2, '0')}:30`)));
       for (const t of ['A', 'B', 'C', 'D', 'E']) await expect(page.locator('.mgrid .strip', { hasText: `予定${t}` })).toBeVisible();
-      await expect(page.locator('.plus[data-jump="2026-11-13"]')).toHaveCount(0);
+      await expect(page.locator('.plus[data-plus="2026-11-13"]')).toHaveCount(0);
       await pickDay(page, '2026-11-13');
       await expect(page.locator('.mdh h3')).toContainText('11月13日（金）');
       await expect(page.locator('.mdlist .mdev')).toHaveCount(5);
@@ -132,14 +132,14 @@ for (const size of PORTRAITS) {
       await addEvent(page, { title: '研修C', all: true, start: '2026/11/17', end: '2026/11/17', cat: 'private' });
       const bars = page.locator('.mgrid .bar');
       await expect(bars).toHaveCount(3); // 単日の終日も同形の帯
-      await expect(page.locator('.plus[data-jump="2026-11-17"]')).toHaveCount(0);
+      await expect(page.locator('.plus[data-plus="2026-11-17"]')).toHaveCount(0);
       for (const t of ['終日D', '終日E', '終日F']) await addEvent(page, { title: t, all: true, start: '2026/11/17', end: '2026/11/17', cat: 'work' });
       await expect(bars).toHaveCount(6); // 11/17 はちょうど6件。全部出て +n は出ない
-      await expect(page.locator('.plus[data-jump="2026-11-17"]')).toHaveCount(0);
+      await expect(page.locator('.plus[data-plus="2026-11-17"]')).toHaveCount(0);
       await addEvent(page, { title: '終日G', all: true, start: '2026/11/17', end: '2026/11/17', cat: 'work' });
       // 7件: 6件＋「+1」（+N は日付の行。段は全部名前）
       await expect(bars).toHaveCount(6);
-      await expect(page.locator('[data-date="2026-11-17"] ~ .plus[data-jump="2026-11-17"]')).toHaveText('+1');
+      await expect(page.locator('[data-date="2026-11-17"] ~ .plus[data-plus="2026-11-17"]')).toHaveText('+1');
       const boxes = await bars.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()));
       for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
         const p = boxes[i], q = boxes[j];

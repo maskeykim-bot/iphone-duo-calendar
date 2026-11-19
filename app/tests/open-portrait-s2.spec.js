@@ -70,7 +70,7 @@ test.describe('開いた縦のホーム（案A）', () => {
     for (const m of mine) near(m[1], 14);
     near(mine[1][0] - mine[0][0], 16); near(mine[2][0] - mine[1][0], 16);
     for (const m of mine) expect(m[4]).toBeLessThanOrEqual(fb.y + fb.height + 0.5);
-    const plus = page.locator('.pvwk .plus[data-jump="2026-11-13"]');
+    const plus = page.locator('.pvwk .plus[data-plus="2026-11-13"]');
     await expect(plus).toHaveText('+2');
     const pb = await box(plus);
     expect(pb.width).toBeGreaterThanOrEqual(43.5); expect(pb.height).toBeGreaterThanOrEqual(43.5); // 押せる 44
@@ -105,23 +105,23 @@ test.describe('開いた縦のホーム（案A）', () => {
     await expect(tab(page, '日')).toHaveAttribute('aria-pressed', 'true');
   });
 
-  test('設定 x20〜64・検索 x605〜649（y19〜63・44×44）。切替は上の帯の真ん中 x224〜444・y23〜59、下の段にはない', async ({ page }) => {
+  test('設定 x20〜64・検索 x605〜649（y19〜63・44×44）。切替は上の帯の真ん中 x208.5〜460.5・y23〜59（V-01: 252×36）、下の段にはない', async ({ page }) => {
     const s = await box(page.getByRole('button', { name: '設定', exact: true })), q = await box(page.getByRole('button', { name: '予定を検索', exact: true }));
     near(s.x, 20); near(s.y, 19); near(s.width, 44); near(s.height, 44);
     near(q.x, 605); near(q.y, 19); near(q.width, 44); near(q.height, 44);
     const f = await box(page.locator('.fmodes'));
-    near(f.x, 224.5); near(f.y, 23); near(f.width, 220); near(f.height, 36);
+    near(f.x, 208.5); near(f.y, 23); near(f.width, 252); near(f.height, 36);
     expect(f.y + f.height).toBeLessThanOrEqual(82);
     const bs = await page.locator('.fmodes button').all();
     expect(bs.length).toBe(3);
     for (const b of bs) {
-      const r = await b.boundingBox(); near(r.width, 220 / 3, 0.5); near(r.height, 36);
+      const r = await b.boundingBox(); near(r.width, 84, 0.5); near(r.height, 36);
       const hit = await b.evaluate((e) => { const c = getComputedStyle(e, '::before'); return [parseFloat(c.top), parseFloat(c.bottom)]; });
       near(hit[0], -4, 0.1); near(hit[1], -4, 0.1); // 押せる高さ 44（y19〜63）
     }
     expect(await page.locator('.fmodes').evaluate((e) => getComputedStyle(e).borderRadius)).toBe('10px');
     // design/review H-11・17 §1: 選んだ側は白地に緑 14pt W6。15pt W700 だと「カレンダー」(75) が札 73.3 からはみ出した（S6 で 14pt W6 に戻した）
-    expect(await page.locator('.fmodes button[aria-pressed=true]').evaluate((e) => [getComputedStyle(e).fontSize, getComputedStyle(e).fontWeight, getComputedStyle(e).backgroundColor])).toEqual(['14px', '600', 'rgb(255, 255, 255)']);
+    expect(await page.locator('.fmodes button[aria-pressed=true]').evaluate((e) => [getComputedStyle(e).fontSize, getComputedStyle(e).fontWeight, getComputedStyle(e.querySelector('.fmp')).backgroundColor]) /* V-01: 白い地は内側 2 の札（.fmp 80×32） */).toEqual(['14px', '600', 'rgb(255, 255, 255)']);
     for (const b of await page.locator('.fmodes button').all()) { // 文字が札からはみ出さない
       const w = await b.evaluate((e) => { const r = document.createRange(); r.selectNodeContents(e); return [r.getBoundingClientRect().width, e.getBoundingClientRect().width]; });
       expect(w[0]).toBeLessThanOrEqual(w[1] - 2);
@@ -185,7 +185,7 @@ test.describe('開いた縦の月「全部」（1枚の紙・2つの窓）', () 
 });
 
 test.describe('設定シート（H-22）', () => {
-  test('開いた縦: 帯 y459〜492 にかかる行は y492 から下の面へ送る', async ({ page }) => {
+  test('開いた縦: 帯 y459〜492 にかかる行は y500（溝 y467〜484 の下 16。V-08）から下の面へ送る', async ({ page }) => {
     await openApp(page, P);
     await page.getByRole('button', { name: '設定', exact: true }).click();
     await expect(page.locator('#menu')).toBeVisible();
@@ -194,7 +194,7 @@ test.describe('設定シート（H-22）', () => {
     const rows = await page.locator('#menu .menurows:not([hidden]) > *').evaluateAll((els) => els.filter((e) => e.offsetParent).map((e) => { const r = e.getBoundingClientRect(); return [e.textContent.trim().slice(0, 8), r.top, r.bottom, e.dataset.gpush || '']; }));
     for (const [n, t, b] of rows) expect(t >= a1 - 0.5 || b <= a0 + 0.5, `${n} ${t}〜${b}`).toBe(true);
     expect(rows.some((r) => r[3] === '1')).toBe(true);
-    const pushed = rows.find((r) => r[3] === '1'); near(pushed[1], a1, 1);
+    const pushed = rows.find((r) => r[3] === '1'); near(pushed[1], 500, 1); // V-08: 「詳細」は y500〜548（20 §3 と同じ）
     // 下層の画面でも同じ
     await page.locator('#menu [data-go="details"]').click();
     await page.waitForTimeout(300);

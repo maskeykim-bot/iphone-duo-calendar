@@ -55,7 +55,7 @@ async function foldHits(page) {
       if (!painted) continue;
       let r = clip(el, { left: q.left, right: q.right, top: q.top, bottom: q.bottom });
       // 影は矩形の外へ広がる分も数える
-      if (cs.boxShadow !== 'none' && !cs.boxShadow.includes('inset')) { const m = cs.boxShadow.match(/(-?[\d.]+)px/g) || []; const sp = Math.max(0, ...m.map((v) => Math.abs(parseFloat(v)))); r = { left: r.left - sp, right: r.right + sp, top: r.top, bottom: r.bottom }; }
+      if (cs.boxShadow !== 'none' && !cs.boxShadow.includes('inset')) { const m = cs.boxShadow.match(/(-?[\d.]+)px/g) || []; const sp = Math.max(0, ...m.map((v) => Math.abs(parseFloat(v)))); r = { left: r.left - (cs.clipPath !== 'none' ? 0 : sp) /* 品質 中-5: 予定シートの影は左の縁で切る（clip-path）ので、折り目側には出ない */, right: r.right + sp, top: r.top, bottom: r.bottom }; }
       if (cross(r)) hits.push(`box:${el.className || el.tagName}`);
     }
     return hits;

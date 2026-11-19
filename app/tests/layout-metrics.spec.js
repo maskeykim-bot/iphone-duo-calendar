@@ -171,7 +171,7 @@ const placedOn = (page, k) => page.evaluate((k) => {
     if (el.matches('.strip') ? el.dataset.sday === k : r.left < mid && r.right > mid) ids.push(el.dataset.event);
   }
   const total = Number(document.querySelector(`[data-date="${k}"]`).getAttribute('aria-label').match(/予定(\d+)件/)[1]);
-  const plus = week.querySelector(`.plus[data-jump="${k}"]`);
+  const plus = week.querySelector(`.plus[data-plus="${k}"]`);
   return { ids, total, plus: plus ? Number(plus.textContent.replace('+', '')) : 0 };
 }, k);
 
@@ -202,7 +202,7 @@ test.describe('月レーン: 終日・帯・時刻チップの混在', () => {
     await openApp(page, SIZES.openPortrait669);
     await seed(page, MIX);
     await monthOf(page, SIZES.openPortrait669);
-    await page.locator('.plus[data-jump="2026-11-12"]').click(); // 月を引く画面: 日の部分がその日になり、9件が全部見える
+    await page.locator('[data-date="2026-11-12"]').click({ position: { x: 8, y: 9 } }); // V-03: +N は押す的でない。マスをたたく。月を引く画面: 日の部分がその日になり、9件が全部見える
     await expect(page.locator('.mdlist .mdev')).toHaveCount(9);
   });
   test('手帳: 点は閉じ4・開き横(6週)4まで、超過は +N', async ({ page }) => {
@@ -212,7 +212,7 @@ test.describe('月レーン: 終日・帯・時刻チップの混在', () => {
     await expect.poll(() => layout(page)).toBe('spread');
     await setStyle(page, '手帳');
     await expect(page.locator('[data-date="2026-11-12"] .dot')).toHaveCount(4);
-    await expect(page.locator('.plus[data-jump="2026-11-12"]')).toHaveText('+5');
+    await expect(page.locator('.plus[data-plus="2026-11-12"]')).toHaveText('+5');
   });
 });
 
@@ -230,7 +230,7 @@ test.describe('月の文字「大」・時刻の出し入れ', () => {
     await openMenu(page, 'display');
     await menuBtn(page, /^月の文字/).click();
     await expect(chip(page, '2026-11-12')).toHaveCount(5);
-    await expect(page.locator('.plus[data-jump="2026-11-12"]')).toHaveText('+1');
+    await expect(page.locator('.plus[data-plus="2026-11-12"]')).toHaveText('+1');
     expect(await chip(page, '2026-11-12').first().evaluate((e) => getComputedStyle(e).fontSize)).toBe('11px');
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')).monthTextSize)).toBe('large');
     await page.reload();

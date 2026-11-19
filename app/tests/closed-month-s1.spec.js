@@ -18,7 +18,7 @@ test.describe('閉じた画面 466×678（帯 84）', () => {
     await band(page);
     const g = await page.locator('[data-date="2026-11-12"]').evaluate((c) => {
       const r = c.getBoundingClientRect(), n = c.querySelector('.num'), nb = n.getBoundingClientRect(), k = c.querySelector('.rk').getBoundingClientRect();
-      const p = c.parentElement.querySelector('.plus[data-jump="2026-11-12"]'), rg = document.createRange(); rg.selectNodeContents(p); const pt = rg.getBoundingClientRect();
+      const p = c.parentElement.querySelector('.plus[data-plus="2026-11-12"]'), rg = document.createRange(); rg.selectNodeContents(p); const pt = rg.getBoundingClientRect();
       const ns = getComputedStyle(n), ks = getComputedStyle(c.querySelector('.rk')), ps = getComputedStyle(p);
       return { cellW: r.width, nl: nb.left - r.left, nw: nb.width, nh: nb.height, kl: k.left - r.left, kr: k.right - r.left, pr: r.right - pt.right, pl: pt.left - r.left, nfs: parseFloat(ns.fontSize), kfs: parseFloat(ks.fontSize), kfw: Number(ks.fontWeight), kc: ks.color, pfs: parseFloat(ps.fontSize), pfw: Number(ps.fontWeight), pc: ps.color, today: c.classList.contains('today') };
     });
@@ -81,7 +81,7 @@ test.describe('閉じた画面 466×678（帯 84）', () => {
     expect(a.w).toBe(4); expect(a.bg).toContain('linear-gradient');
   });
 
-  test('閉じた週: 曜日 10pt と日付 13pt の2段（今日は日付に緑の丸 22）。枠は時刻なしで題名 9pt W6。複数日の終日は週で1本の帯', async ({ page }) => {
+  test('閉じた週: 曜日 10pt と日付 13pt の2段（今日は日付に緑の丸 22）。枠は時刻なしで題名 10pt W6・行 12（V-05。行数は枠の高さ＝(高さ−4)÷12）。複数日の終日は週で1本の帯', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await seed(page, [
       ev('trip', '出張（3日間）', '2026-11-11', '2026-11-13', { all: true }),
@@ -95,11 +95,11 @@ test.describe('閉じた画面 466×678（帯 84）', () => {
     const today = heads.find((h) => h.today);
     expect(near(today.dw, 22, 0.6) && near(today.dh, 22, 0.6)).toBe(true);
     expect(today.bg).toBe('rgb(41, 78, 66)');
-    // 枠: 時刻（.tt）なし・9pt・W6
+    // 枠: 時刻（.tt）なし・10pt・W6（V-05: 9→10。行数は高さで決める）
     const ev1 = page.locator('.tlev', { hasText: '十時の打ち合わせ' });
     await expect(ev1.locator('.tt')).toHaveCount(0);
-    const st = await ev1.evaluate((e) => { const s = getComputedStyle(e); return { fs: parseFloat(s.fontSize), fw: Number(s.fontWeight), lc: getComputedStyle(e.querySelector('.tn')).webkitLineClamp }; });
-    expect(st.fs).toBe(9); expect(st.fw).toBeGreaterThanOrEqual(600); expect(st.lc).toBe('2');
+    const st = await ev1.evaluate((e) => { const s = getComputedStyle(e.querySelector('.tn')); return { fs: parseFloat(s.fontSize), fw: Number(s.fontWeight), lc: getComputedStyle(e.querySelector('.tn')).webkitLineClamp }; });
+    const h1 = (await ev1.boundingBox()).height; expect(st.fs).toBe(10); expect(st.fw).toBeGreaterThanOrEqual(600); expect(st.lc).toBe(String(Math.floor((h1 - 4) / 12)));
     await expect(ev1).toHaveAttribute('aria-label', /10:00 – 12:00 十時の打ち合わせ/); // 時刻は読み上げに残る
     // 複数日の終日は1本（日ごとの札にしない）。11/11〜11/13 の3列ぶんの幅
     const trips = page.locator('.adband', { hasText: '出張' });
@@ -122,9 +122,9 @@ test.describe('開いた横 951×669', () => {
     const info = await chips.first().evaluate((e) => { const s = getComputedStyle(e), w = e.closest('.week').getBoundingClientRect(); return { fs: parseFloat(s.fontSize), fw: Number(s.fontWeight), r: s.borderTopLeftRadius, top: e.getBoundingClientRect().top - w.top }; });
     expect(info.fs).toBe(9); expect(info.fw).toBeGreaterThanOrEqual(600); expect(info.r).toBe('3px');
     expect(info.top).toBeGreaterThanOrEqual(18); expect(info.top).toBeLessThanOrEqual(20);
-    const d = await page.locator('[data-date="2026-11-12"]').evaluate((c) => { const r = c.getBoundingClientRect(), n = c.querySelector('.num').getBoundingClientRect(), k = c.querySelector('.rk').getBoundingClientRect(), p = c.parentElement.querySelector('.plus[data-jump="2026-11-12"]'), rg = document.createRange(); rg.selectNodeContents(p); const pt = rg.getBoundingClientRect(); const ps = getComputedStyle(p); return { nl: n.left - r.left, nw: n.width, kl: k.left - r.left, kr: k.right - r.left, pl: pt.left - r.left, pr: r.right - pt.right, pfs: parseFloat(ps.fontSize), pfw: Number(ps.fontWeight), pc: ps.color, ptop: pt.top - r.top, pb: pt.bottom - r.top, txt: p.textContent }; });
-    expect(near(d.nl, 4, 0.8)).toBe(true); expect(near(d.kl, 26, 1.2)).toBe(true); expect(d.kl).toBeGreaterThanOrEqual(d.nl + d.nw - 0.5);
-    expect(d.txt).toBe('+3'); expect(d.pfs).toBe(9); expect(d.pfw).toBeGreaterThanOrEqual(600); expect(d.pc).toBe('rgb(104, 113, 106)'); expect(near(d.pr, 3, 0.8)).toBe(true);
+    const d = await page.locator('[data-date="2026-11-12"]').evaluate((c) => { const r = c.getBoundingClientRect(), n = c.querySelector('.num').getBoundingClientRect(), k = c.querySelector('.rk').getBoundingClientRect(), p = c.parentElement.querySelector('.plus[data-plus="2026-11-12"]'), rg = document.createRange(); rg.selectNodeContents(p); const pt = rg.getBoundingClientRect(); const ps = getComputedStyle(p); return { nl: n.left - r.left, nw: n.width, kl: k.left - r.left, kr: k.right - r.left, pl: pt.left - r.left, pr: r.right - pt.right, pfs: parseFloat(ps.fontSize), pfw: Number(ps.fontWeight), pc: ps.color, ptop: pt.top - r.top, pb: pt.bottom - r.top, txt: p.textContent }; });
+    expect(near(d.nl, 3, 0.8)).toBe(true); expect(near(d.kl, 21, 1.2)).toBe(true); /* V-04: 開いた横の六曜 x+21〜37 */ expect(d.kl).toBeGreaterThanOrEqual(d.nl + d.nw - 0.5);
+    expect(d.txt).toBe('+3'); expect(d.pfs).toBe(8); expect(d.pfw).toBeGreaterThanOrEqual(600); expect(d.pc).toBe('rgb(104, 113, 106)'); expect(near(d.pr, 2, 0.8)).toBe(true); /* V-04: +N 8pt 右 2 */
     expect(d.pl).toBeGreaterThanOrEqual(d.kr); expect(d.pb).toBeLessThanOrEqual(18.5); // 日付の行 18 に収まる
   });
 

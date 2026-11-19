@@ -29,10 +29,10 @@ for (const [name, size] of POSTURES) {
     const out = page.locator('.day.out .rk').first();
     expect(await css(out)).toEqual(['rgb(140, 145, 138)', '8px']);
     expect(await rk(page, '2026-11-16').evaluate((e) => Number(getComputedStyle(e).fontWeight))).toBeGreaterThanOrEqual(600);
-    // 第19.1版 H-06: 日付の行 18 に 日付（左）→ 六曜（右、閉じた画面 x+21 / 開いた画面 x+26）と並べ、重ならない
+    // 第19.1版 H-06: 日付の行 18 に 日付（左）→ 六曜（右、閉じた画面 x+21 / 開いた縦 x+26・開いた横 x+21＝V-04 で閉じた画面と同じ寸法）と並べ、重ならない
     for (const d of ['2026-11-01', '2026-11-16', '2026-11-30']) {
       const g = await cell(d).evaluate((c) => { const r = c.getBoundingClientRect(), k = c.querySelector(".rk").getBoundingClientRect(); const tn = c.querySelector('.num'), rg = document.createRange(); rg.selectNodeContents(tn); const n = rg.getBoundingClientRect(); return { left: k.left - r.left, kl: k.left, nr: n.right, ok: k.right <= r.right + 0.5, top: k.top - r.top, h: k.height }; });
-      if (d !== '2026-11-01') expect(Math.abs(g.left - (['closed', 'closedL'].includes(name) ? 21 : 26))).toBeLessThanOrEqual(1.5); // 左の線 1 を含む
+      if (d !== '2026-11-01') expect(Math.abs(g.left - (['closed', 'closedL'].includes(name) || name.startsWith('openL') ? 21 : 26))).toBeLessThanOrEqual(1.5); // 左の線 1 を含む
       expect(g.kl).toBeGreaterThanOrEqual(g.nr - 0.5);
       expect(g.ok).toBe(true);
       expect(g.top).toBeLessThanOrEqual(1.5); // 日付の行（上 18）の中
@@ -49,7 +49,7 @@ test('「+N」・チップと六曜が重ならない（開いた縦・開いた
     await setStyle(page, '予定名');
     const g = await page.locator('[data-date="2026-11-16"]').evaluate((c) => {
       const k = c.querySelector('.rk').getBoundingClientRect(), n = c.querySelector('.num').getBoundingClientRect();
-      const pe = c.parentElement.querySelector('.plus[data-jump="2026-11-16"]'), pr = document.createRange(); pr.selectNodeContents(pe);
+      const pe = c.parentElement.querySelector('.plus[data-plus="2026-11-16"]'), pr = document.createRange(); pr.selectNodeContents(pe);
       const p = pr.getBoundingClientRect(); // +N の文字の範囲（押せる範囲 44×44 ではなく）
       const strips = [...c.parentElement.querySelectorAll('.strip')].map((e) => e.getBoundingClientRect()).filter((r) => r.left < c.getBoundingClientRect().right && r.right > c.getBoundingClientRect().left);
       return { kl: k.left, kr: k.right, nr: n.right, pl: p.left, minStripTop: Math.min(...strips.map((r) => r.top)), kb: k.bottom };

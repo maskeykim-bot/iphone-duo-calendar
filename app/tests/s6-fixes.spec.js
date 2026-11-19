@@ -36,7 +36,7 @@ test.describe('ノートの元に戻す/やり直し: disabled でなく aria-di
 });
 
 test.describe('押した色の取り違えがない', () => {
-  test('選んでいる日のマスを押しても、地は濃い緑でなく #EFECE4。+N は地でなく文字が薄くなる', async ({ page }) => {
+  test('選んでいる日のマスを押しても、地は濃い緑でなく #EFECE4。+N の上を押してもマスが押される（V-03: +N は押す的でない）', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await seed(page, [1, 2, 3, 4].map((i) => ev(`p${i}`, `予定${i}`, '2026-11-12T1' + i + ':00', '2026-11-12T1' + i + ':30')));
     await page.reload(); await page.waitForSelector('html[data-ready]');
@@ -50,8 +50,9 @@ test.describe('押した色の取り違えがない', () => {
     await expect.poll(() => day.evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(239, 236, 228)');
     await page.mouse.up();
     await page.mouse.move(pb.x + pb.width - 6, pb.y + 8); await page.mouse.down();
-    await expect.poll(() => plus.evaluate((e) => getComputedStyle(e).opacity)).toBe('0.5');
-    expect(await plus.evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
+    // V-03: +N は pointer-events:none。+N の所を押すと押されるのはマス（地 #EFECE4）で、+N 自体は変わらない
+    await expect.poll(() => day.evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(239, 236, 228)');
+    expect(await plus.evaluate((e) => [getComputedStyle(e).opacity, getComputedStyle(e).backgroundColor])).toEqual(['1', 'rgba(0, 0, 0, 0)']);
     await page.mouse.up();
   });
 });

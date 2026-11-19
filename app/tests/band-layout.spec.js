@@ -273,7 +273,7 @@ test.describe('開いた縦 + 上 safe（見出しは帯の中）', () => {
       for (let i = 0; i < rs.length; i++) for (let j = i + 1; j < rs.length; j++) expect(overlap(rs[i], rs[j]), `${i}/${j}`).toBe(false);
       for (const r of rs) expect(overlap(r, title)).toBe(false);
       const fm = await bx(page.locator('.fmodes'));
-      near(fm.x, (W - 220) / 2); near(fm.y, 23); near(fm.width, 220); near(fm.height, 36); // 切替は上の帯の真ん中（17 §1）
+      near(fm.x, (W - 252) / 2); near(fm.y, 23); near(fm.width, 252); /* V-01: 220→252 */ near(fm.height, 36); // 切替は上の帯の真ん中（17 §1）
       for (const r of rs.concat([title])) expect(overlap(fm, r)).toBe(false);
       // 下段: 今日 x20・＋ 右20・タブ 286 中央、いずれも top H-88p（第19版 PR5）
       const today = await bx(btn(page, '今日に戻る')), add = await bx(btn(page, '予定を追加')), tabs = await bx(page.locator('.tabs'));

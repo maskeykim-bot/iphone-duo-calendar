@@ -47,25 +47,24 @@ test.describe('月「全部」表示', () => {
     const strips = page.locator('.week.all .strip');
     await expect(strips.filter({ hasText: /^m12-/ })).toHaveCount(5);
     await expect(strips.filter({ hasText: 'm12-6' })).toHaveCount(0);
-    const plus = page.locator('.plus[data-jump="2026-11-12"]');
+    const plus = page.locator('.plus[data-plus="2026-11-12"]');
     await expect(plus).toHaveText('+1');
-    // 日付の行（上端18px）の右端に 9px の数字。押せる範囲は日セル右上の 44×44（兄弟 button）
+    // 日付の行（上端18px）の右端に数字。V-03: +N 自体は押す的にしない（span・pointer-events:none）。マスをたたけばその日（日セルが 44 を満たす）
     const dayBox = await page.locator('[data-date="2026-11-12"]').boundingBox();
     const pb = await plus.boundingBox();
     expect(Math.abs(pb.y - dayBox.y)).toBeLessThanOrEqual(1);
-    expect(pb.width).toBeGreaterThanOrEqual(44);
-    expect(pb.height).toBeGreaterThanOrEqual(44);
+    expect(await plus.evaluate((e) => [e.tagName, getComputedStyle(e).pointerEvents])).toEqual(['SPAN', 'none']);
     expect(Math.abs(dayBox.x + dayBox.width - (pb.x + pb.width))).toBeLessThanOrEqual(1);
     expect(await plus.evaluate((e) => parseFloat(getComputedStyle(e).fontSize))).toBe(8); // 閉じた画面（マス 52.3）は 8pt W6（design/33 §5）
     const glyph = await plus.evaluate((e) => { const r = document.createRange(); r.selectNodeContents(e); const b = r.getBoundingClientRect(); return { top: b.top, bottom: b.bottom }; });
     expect(glyph.bottom - dayBox.y).toBeLessThanOrEqual(19);
-    await plus.click();
+    await page.locator('[data-date="2026-11-12"]').click({ position: { x: dayBox.width - 8, y: 9 } }); // V-03: +N の上をたたく＝マスをたたく
     await expect(page.locator('#ctitle')).toHaveText('11月12日（木）先勝');
     await expect(page.getByRole('button', { name: '日', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.tlev')).toHaveCount(6);
     // 5件ちょうどの日には +N は出ない
     await tab(page, '月').click();
-    await expect(page.locator('.plus[data-jump="2026-11-26"]')).toHaveCount(0);
+    await expect(page.locator('.plus[data-plus="2026-11-26"]')).toHaveCount(0);
   });
 
   test('行の高さは週ごとの最大件数で決まる（5件の週は 18+5×16+2=100pt）', async ({ page }) => {
@@ -381,7 +380,7 @@ test.describe('開いた横の「全」は1日5件', () => {
       const sc = page.locator('.scroll.all');
       await expect(sc).toBeVisible();
       await expect(page.locator('.week.all .strip').filter({ hasText: /^m12-/ })).toHaveCount(5);
-      await expect(page.locator('.plus[data-jump="2026-11-12"]')).toHaveText('+2');
+      await expect(page.locator('.plus[data-plus="2026-11-12"]')).toHaveText('+2');
       const m = await sc.evaluate((e) => { e.scrollTop = e.scrollHeight; const r = e.getBoundingClientRect(); return { sh: e.scrollHeight, ch: e.clientHeight, bottom: r.bottom }; });
       expect(m.sh).toBeGreaterThan(m.ch);
       const last = await page.locator('.week.all').last().boundingBox();
@@ -454,7 +453,7 @@ test.describe('AE-1/2/5 「全」の段数と描画（通常5・大4・5/6週・
         const w = ws.find((x) => x.querySelector(`[data-date="${k}"]`)); if (!w) return null;
         const wr = w.getBoundingClientRect(), d = w.querySelector(`[data-date="${k}"]`).getBoundingClientRect(), cx = d.left + d.width / 2;
         const hit = [...w.querySelectorAll('.bar,.strip')].filter((e) => { const r = e.getBoundingClientRect(); return r.left < cx && r.right > cx; });
-        const plus = w.querySelector(`.plus[data-jump="${k}"]`);
+        const plus = w.querySelector(`.plus[data-plus="${k}"]`);
         return { shown: hit.length, plus: plus ? Number(plus.textContent.replace('+', '')) : 0, lanes: new Set(hit.map((e) => Math.round(e.getBoundingClientRect().top - wr.top))).size };
       }, day(12));
       expect(day12.shown).toBe(cap);

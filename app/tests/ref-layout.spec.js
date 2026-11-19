@@ -83,7 +83,7 @@ for (const [name, size, kind] of POSTURES) {
     if (kind === 'spread') expect(await page.locator('.pgsw button').allTextContents()).toEqual(['ホーム', '月', '時間', 'タスク', 'ノート', 'ホーム', '月', '時間', 'タスク', 'ノート']); // 第14版 PR5: 左右ページの切替
     else expect(await page.locator('.tabs button').allTextContents()).toEqual(['ホーム', '日', '週', '月']);
     const shown = (k) => chip(page, day(k)).count();
-    const plus = (k) => page.locator(`.plus[data-jump="${day(k)}"]`);
+    const plus = (k) => page.locator(`.plus[data-plus="${day(k)}"]`);
     if (kind === 'closed') {
       // 第19.1版 H-05: 月を引く画面の「月」の型は名前 2段（+N は日付の行）なので 2件＋「+n」
       expect(await shown(27)).toBe(2); await expect(plus(27)).toHaveText('+3');
@@ -97,7 +97,7 @@ for (const [name, size, kind] of POSTURES) {
       expect(await shown(27)).toBe(2); await expect(plus(27)).toHaveText('+3');
       expect(await shown(20)).toBe(2); await expect(plus(20)).toHaveText('+8');
     }
-    await plus(20).click(); // +N → その日の表示へ
+    await page.locator(`[data-date="${day(20)}"]`).click({ position: { x: 8, y: 9 } }); // V-03: +N は押す的でない。マスをたたく → その日の表示へ
     expect(await ui(page)).toMatchObject({ selected: day(20) });
     if (kind === 'spread') expect(await textInGutter(page)).toEqual([]);
   });

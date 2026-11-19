@@ -76,7 +76,7 @@ test('レーンは日付行 18 の下から16px刻み、チップ14px＋隙間2p
 
 // 帯・+N の見た目は従来の月（開いた横）。閉じた・縦の月を引く画面の帯と +n は tests/month-pull.spec.js で確かめる。
 for (const [name, size, fs] of POSTURES.filter(([, sz]) => !isPull(sz))) {
-  test(`${name}: 帯は塗らず線＋中央の題名（2px・top+12.5・列境界から内1px）、+N は 9px・押せる範囲 44×44`, async ({ page }) => {
+  test(`${name}: 帯は塗らず線＋中央の題名（2px・top+12.5・列境界から内1px）、+N は 8px（V-04）・押す的でない（V-03）`, async ({ page }) => {
     await openApp(page, size);
     await seed(page, [
       ev('pay', '給与振込み', '2026-11-13T00:00', '2026-11-14T23:59', { all: true }),
@@ -116,19 +116,18 @@ for (const [name, size, fs] of POSTURES.filter(([, sz]) => !isPull(sz))) {
     await expect(one).toHaveCount(1);
     expect((await cs(one)).bg).toBe('rgba(0, 0, 0, 0)');
     // +N
-    const plus = page.locator('.week .plus[data-jump="2026-11-12"]');
+    const plus = page.locator('.week .plus[data-plus="2026-11-12"]');
     await expect(plus).toHaveCount(1);
     const p = await plus.evaluate((el) => { const s = getComputedStyle(el), r = el.getBoundingClientRect(), d = document.querySelector('[data-date="2026-11-12"]').getBoundingClientRect(); return { fs: parseFloat(s.fontSize), w: r.width, h: r.height, right: d.right - r.right, top: r.top - d.top, tag: el.tagName, nested: !!el.closest('button:not(.plus)') }; });
-    expect(p.fs).toBe(9);
-    expect(p.w).toBeGreaterThanOrEqual(44);
-    expect(p.h).toBeGreaterThanOrEqual(44);
+    expect(p.fs).toBe(8); // V-04: 開いた横も閉じた画面（33 §5）と同じ 8pt W6
+    expect(p.tag).toBe('SPAN'); // V-03: +N は押す的にしない（44×44 の当たりも無くす）
     expect(Math.abs(p.right)).toBeLessThanOrEqual(1);
     expect(Math.abs(p.top)).toBeLessThanOrEqual(1);
     expect(p.nested).toBe(false);
-    // 中心と四隅から1px内側で +N に届く（日セルや別の操作に隠されない）
+    // V-03: +N の上の点は、その日のマスが受ける（+N も、チップも、別の予定を覆わない）
     const box = await plus.boundingBox();
-    for (const [x, y] of [[0.5, 0.5], [box.width - 1, 1], [1, box.height - 1], [box.width - 1, box.height - 1], [box.width / 2, box.height / 2]]) {
-      const hit = await page.evaluate(([px, py]) => document.elementFromPoint(px, py)?.closest('button')?.dataset.jump, [box.x + x, box.y + y]);
+    for (const [x, y] of [[box.width - 4, 3], [box.width / 2, box.height / 2]]) {
+      const hit = await page.evaluate(([px, py]) => document.elementFromPoint(px, py)?.closest('button')?.dataset.date, [box.x + x, box.y + y]);
       expect(hit).toBe('2026-11-12');
     }
   });

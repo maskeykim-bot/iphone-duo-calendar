@@ -22,13 +22,13 @@ for (const [nm, sz] of sizes) {
   });
 }
 
-test('日の見出しに祝日名。ダークは --holiday が明るい色', async ({ page }) => {
+test('日の見出しに祝日名。V-07: ダークでも --holiday は明るい地の色 #B43C3C のまま（暗い色の規則を外した）', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' });
   await openApp(page, SIZES.openLandscape951);
   await setUi(page, { view: 'month', selected: '2026-11-23' });
   await page.reload(); await page.waitForSelector('html[data-ready]');
   await expect(page.locator('.rdate .hnm').first()).toHaveText('勤労感謝の日');
-  expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--holiday').trim())).toBe('#E58A82');
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--holiday').trim())).toBe('#B43C3C');
 });
 
 test('設定 › 一般に「祝日を赤で表示」（既定オン）、詳細に出典', async ({ page }) => {

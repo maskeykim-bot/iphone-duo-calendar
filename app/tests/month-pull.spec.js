@@ -50,7 +50,7 @@ test.describe('閉じた画面 466×678', () => {
     await tab(page, '月').click();
     await band(page);
     const chips = () => page.locator('.mgrid .strip[data-sday="2026-11-12"]').count();
-    const plus = () => page.locator('.mgrid .plus[data-jump="2026-11-12"]');
+    const plus = () => page.locator('.mgrid .plus[data-plus="2026-11-12"]');
     // 2週: 4段が全部名前（4件＋「+1」）。+N は日付の行（上 18）の右、8pt W6 #68716A、右 2、押せる 44×44
     expect(await chips()).toBe(4); await expect(plus()).toHaveText('+1');
     const pl = await plus().evaluate((e) => { const s = getComputedStyle(e), r = e.getBoundingClientRect(), d = e.parentElement.querySelector('[data-date="2026-11-12"]').getBoundingClientRect(), g = document.createRange(); g.selectNodeContents(e); const t = g.getBoundingClientRect(); return { fs: parseFloat(s.fontSize), fw: Number(s.fontWeight), color: s.color, w: r.width, h: r.height, top: r.top - d.top, right: d.right - t.right, tb: t.bottom - d.top }; });
@@ -83,7 +83,7 @@ test.describe('閉じた画面 466×678', () => {
     await seed(page, FIVE.slice(0, 4));
     await tab(page, '月').click();
     expect(await page.locator('.mgrid .strip[data-sday="2026-11-12"]').count()).toBe(4);
-    await expect(page.locator('.mgrid .plus[data-jump="2026-11-12"]')).toHaveCount(0);
+    await expect(page.locator('.mgrid .plus[data-plus="2026-11-12"]')).toHaveCount(0);
   });
 
   test('つまみを引くと月の高さが指に付いてくる。離すと一番近い型へ 0.25 秒で寄り、保存される。たたきは何もしない', async ({ page }) => {
@@ -281,7 +281,7 @@ test.describe('開いた縦 669×951', () => {
     await openApp(page, SIZES.openPortrait669);
     await seed(page, Array.from({ length: 15 }, (_, i) => ev(`q${i}`, `件${i}`, `2026-11-12T${String(6 + i).padStart(2, '0')}:00`, `2026-11-12T${String(6 + i).padStart(2, '0')}:30`)));
     const chips = () => page.locator('.mgrid .strip[data-sday="2026-11-12"]').count();
-    const plus = () => page.locator('.mgrid .plus[data-jump="2026-11-12"]');
+    const plus = () => page.locator('.mgrid .plus[data-plus="2026-11-12"]');
     expect(await chips()).toBe(6); await expect(plus()).toHaveText('+9'); // 2週は6段
     expect(near((await box(page.locator('.mgrid .strip').first())).height, 18, 0.5)).toBe(true);
     await grab(page).focus(); await page.keyboard.press('ArrowUp'); await settle(page);

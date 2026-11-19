@@ -249,7 +249,7 @@ test.describe('複数日の帯', () => {
     await expect(page.locator('.plus')).toHaveCount(0);
     await addEvent(page, { title: '終日E', all: true, start: '2026/11/17', end: '2026/11/17', cat: 'work' });
     await expect(bars).toHaveCount(4); // 11/17 の5件のうち4件だけ置く
-    await expect(page.locator('.plus[data-jump="2026-11-17"]')).toHaveText('+1');
+    await expect(page.locator('.plus[data-plus="2026-11-17"]')).toHaveText('+1');
     await expect(page.locator('.plus')).toHaveCount(1);
     const boxes = await bars.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()));
     for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
