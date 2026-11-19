@@ -41,7 +41,7 @@ for (const [name, size, kind] of POSTURES) {
     await b.click();
     await expect(b).toHaveAttribute('aria-pressed', 'false');
     await expect(page.locator('.scroll.all')).toHaveCount(0);
-    expect(await ui(page)).toMatchObject({ monthExpand: false, style: 'simple' }); // 直前の表現を保つ
+    expect(await ui(page)).toMatchObject({ monthExpand: false, style: kind === 'portrait' ? 'named' : 'simple' }); // 直前の表現を保つ（手帳を選んだ端末は手帳。月を引く画面は予定名。第19.1版 H-04: 新しい端末の既定は予定名）
     if (kind === 'spread') expect(await page.locator('.week.simple').count()).toBeGreaterThan(0); // 閉じた・縦の月は月を引く画面（予定名の帯）なので手帳の点は開いた横だけ（第19版 PR6）
     if (kind === 'spread') expect(await textInGutter(page)).toEqual([]);
   });
@@ -85,17 +85,17 @@ for (const [name, size, kind] of POSTURES) {
     const shown = (k) => chip(page, day(k)).count();
     const plus = (k) => page.locator(`.plus[data-jump="${day(k)}"]`);
     if (kind === 'closed') {
-      // 第19版 PR6: 月を引く画面の「月」の型は 2段（最後の段は +n）なので 1件＋「+n」
-      expect(await shown(27)).toBe(1); await expect(plus(27)).toHaveText('+4');
-      expect(await shown(20)).toBe(1); await expect(plus(20)).toHaveText('+9');
+      // 第19.1版 H-05: 月を引く画面の「月」の型は名前 2段（+N は日付の行）なので 2件＋「+n」
+      expect(await shown(27)).toBe(2); await expect(plus(27)).toHaveText('+3');
+      expect(await shown(20)).toBe(2); await expect(plus(20)).toHaveText('+8');
     } else if (kind === 'spread') {
       // 第13版 PR7: 6週（2026年11月）の開いた横は 951×669 で4段、890×626 は1週79pxなので3段
       const cap = size.height === 669 ? 4 : 3;
       expect(await shown(27)).toBe(cap); await expect(plus(27)).toHaveText(`+${5 - cap}`);
       expect(await shown(20)).toBe(cap); await expect(plus(20)).toHaveText(`+${10 - cap}`);
     } else {
-      expect(await shown(27)).toBe(1); await expect(plus(27)).toHaveText('+4');
-      expect(await shown(20)).toBe(1); await expect(plus(20)).toHaveText('+9');
+      expect(await shown(27)).toBe(2); await expect(plus(27)).toHaveText('+3');
+      expect(await shown(20)).toBe(2); await expect(plus(20)).toHaveText('+8');
     }
     await plus(20).click(); // +N → その日の表示へ
     expect(await ui(page)).toMatchObject({ selected: day(20) });

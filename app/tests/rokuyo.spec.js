@@ -32,7 +32,7 @@ for (const [name, size] of POSTURES) {
     // 第19.1版 H-06: 日付の行 18 に 日付（左）→ 六曜（右、閉じた画面 x+21 / 開いた画面 x+26）と並べ、重ならない
     for (const d of ['2026-11-01', '2026-11-16', '2026-11-30']) {
       const g = await cell(d).evaluate((c) => { const r = c.getBoundingClientRect(), k = c.querySelector(".rk").getBoundingClientRect(); const tn = c.querySelector('.num'), rg = document.createRange(); rg.selectNodeContents(tn); const n = rg.getBoundingClientRect(); return { left: k.left - r.left, kl: k.left, nr: n.right, ok: k.right <= r.right + 0.5, top: k.top - r.top, h: k.height }; });
-      if (d !== '2026-11-01') expect(g.left).toBeCloseTo(['closed', 'closedL'].includes(name) ? 21 : 26, 0);
+      if (d !== '2026-11-01') expect(Math.abs(g.left - (['closed', 'closedL'].includes(name) ? 21 : 26))).toBeLessThanOrEqual(1.5); // 左の線 1 を含む
       expect(g.kl).toBeGreaterThanOrEqual(g.nr - 0.5);
       expect(g.ok).toBe(true);
       expect(g.top).toBeLessThanOrEqual(1.5); // 日付の行（上 18）の中

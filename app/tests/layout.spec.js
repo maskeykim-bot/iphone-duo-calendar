@@ -54,10 +54,10 @@ test.describe('レイアウト（4サイズ）', () => {
     await tab(page, '月').click();
     await setStyle(page, '予定名');
     await expect(page.locator('.calendar .legend')).toHaveCount(0);
-    const sc = page.locator('.mday');
+    const sc = page.locator('.mpull'); // 第19.1版: 閉じた画面は1本のスクロール
     await sc.evaluate((el) => { el.scrollTop = el.scrollHeight; });
     const last = await box(page.locator('.mdnote'));
-    expect(last.y + last.height).toBeLessThanOrEqual((await box(page.locator('.tabs'))).y + 1);
+    expect(last.y + last.height).toBeLessThanOrEqual((await box(page.locator('.tabs'))).y - 8 + 1);
   });
 
   test('678×466 閉じた横: 1列でホームの操作が使える', async ({ page }) => {

@@ -123,7 +123,7 @@ for (const size of PORTRAITS) {
       expect(await modeStates(page)).toMatchObject({ 手帳: true });
     });
 
-    test('2週の型は6段: 帯＋チップは6段まで、収まらない日は最後の段を「+n」にする（帯も1件に数える）', async ({ page }) => {
+    test('2週の型は6段: 帯＋チップは6段まで、収まらない日は +N（日付の行）にする（帯も1件に数える）', async ({ page }) => {
       await monthFormInit(page, 'two');
       await openApp(page, size);
       await addEvent(page, { title: '出張A', all: true, start: '2026/11/16', end: '2026/11/18', cat: 'work' });
@@ -136,9 +136,9 @@ for (const size of PORTRAITS) {
       await expect(bars).toHaveCount(6); // 11/17 はちょうど6件。全部出て +n は出ない
       await expect(page.locator('.plus[data-jump="2026-11-17"]')).toHaveCount(0);
       await addEvent(page, { title: '終日G', all: true, start: '2026/11/17', end: '2026/11/17', cat: 'work' });
-      // 7件: 5件＋「+2」（最後の1件の代わりに +n）
-      await expect(bars).toHaveCount(5);
-      await expect(page.locator('[data-date="2026-11-17"] ~ .plus[data-jump="2026-11-17"]')).toHaveText('+2');
+      // 7件: 6件＋「+1」（+N は日付の行。段は全部名前）
+      await expect(bars).toHaveCount(6);
+      await expect(page.locator('[data-date="2026-11-17"] ~ .plus[data-jump="2026-11-17"]')).toHaveText('+1');
       const boxes = await bars.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()));
       for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
         const p = boxes[i], q = boxes[j];

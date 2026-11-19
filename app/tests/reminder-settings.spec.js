@@ -61,21 +61,21 @@ test.describe('月にタスクを表示', () => {
     await expect(page.locator('.tkn')).toHaveCount(0);
   });
   for (const size of OPEN_SIZES) {
-    test(`位置: 数字の中心から右14pt・8pt、+N と重ならない ${size.width}x${size.height}`, async ({ page }) => {
+    test(`位置: 日付の行で六曜の右・8pt、+N と重ならない ${size.width}x${size.height}`, async ({ page }) => {
       await boot(page, size, { store: ON });
       const t = page.locator(`.day[data-date="${D0}"] .tkn`).first();
       await expect(t).toBeVisible();
       const g = await page.evaluate((k) => {
         const out = [];
         for (const day of document.querySelectorAll(`.day[data-date="${k}"]`)) {
-          const n = day.querySelector('.num'), t = day.querySelector('.tkn'); if (!t) continue;
+          const n = day.querySelector('.rk') || day.querySelector('.num'), t = day.querySelector('.tkn'); if (!t) continue;
           const nb = n.getBoundingClientRect(), tb = t.getBoundingClientRect();
-          out.push({ dx: tb.left - (nb.left + nb.width / 2), fs: getComputedStyle(t).fontSize, right: tb.right, dayRight: day.getBoundingClientRect().right });
+          out.push({ dx: tb.left - nb.right, fs: getComputedStyle(t).fontSize, right: tb.right, dayRight: day.getBoundingClientRect().right });
         }
         return out;
       }, D0);
       expect(g.length).toBeGreaterThan(0);
-      for (const x of g) { expect(Math.abs(x.dx - 14)).toBeLessThan(1.5); expect(x.fs).toBe('8px'); expect(x.right).toBeLessThanOrEqual(x.dayRight); }
+      for (const x of g) { expect(x.dx).toBeGreaterThanOrEqual(0); expect(x.dx).toBeLessThan(5); expect(x.fs).toBe('8px'); expect(x.right).toBeLessThanOrEqual(x.dayRight); }
       // +N の見た目（文字）と ✓N の矩形が交わらない
       const hit = await page.evaluate(() => {
         const bad = [];

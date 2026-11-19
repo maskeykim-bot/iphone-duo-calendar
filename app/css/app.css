@@ -1828,3 +1828,5 @@ dialog#rsheet[data-kind=explain] .rsmain{margin-bottom:26px}
 .closed.tv-week .tlev{min-height:24px;padding:1px 2px 1px 6px;box-shadow:inset 3px 0 0 var(--cat);font-size:9px;font-weight:600;line-height:11px;overflow:hidden;border-radius:3px}
 .closed.tv-week .tlev .tn{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;white-space:normal;overflow-wrap:anywhere}
 .closed .mpull .weekdays{background:transparent}
+/* 月のタスクの件数 ✓N は日付の行で六曜の右（六曜の後ろに続けて並べる） */
+.week.named .day .tkn,.week.all .day .tkn{position:static;order:3;flex:none;margin-left:3px;height:18px;line-height:18px}
