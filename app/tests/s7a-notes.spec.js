@@ -203,16 +203,18 @@ test.describe('S7a 閉じた月のタスクのチェック欄（V-15・中-3）'
   }
 });
 
-test('S7a ✓（完了）を押すと緑の丸が黒 12% になる（品質 中-2）', async ({ page }) => {
+test('S7a ✓（完了）を押すと緑の丸が opacity 0.7・scale 0.94 になる（品質 中-2）', async ({ page }) => {
   await setup(page, 'closed', SIZES.closedPortrait, 84); await openNote(page, 'a');
   const done = page.locator('.ned-done').first();
-  const f0 = await done.evaluate((e) => getComputedStyle(e, '::before').filter);
-  expect(f0).toBe('none');
+  const st = (e) => { const c = getComputedStyle(e, '::before'); return c.opacity + '|' + c.transform; };
+  const f0 = await done.evaluate(st);
+  expect(f0).toBe('1|none');
   const b = await done.boundingBox();
   await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down(); await page.waitForTimeout(200);
-  const f1 = await done.evaluate((e) => getComputedStyle(e, '::before').filter);
+  const f1 = await done.evaluate(st);
   await page.mouse.up();
-  expect(f1).toMatch(/brightness\(0\.88\)/);
+  // 設計 00:25 の決め: 押している間 opacity 0.7・scale 0.94（0.10s）
+  expect(f1).toMatch(/^0\.7\|matrix\(0\.94, 0, 0, 0\.94/);
 });
 
 test.describe('S7a タスクの日付の見出し（V-24）', () => {

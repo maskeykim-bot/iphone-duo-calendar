@@ -40,12 +40,12 @@ test.describe('S7c 検索の文（STEER 23:00）', () => {
   }
 });
 
-test('V-11／品質 中-2 予定の編集の日付・時刻カプセルは押すと #E2DED3', async ({ page }) => {
+test('V-11／品質 中-2 予定の編集の日付・時刻カプセルは押すと #E2DDD2', async ({ page }) => {
   await openApp(page, C); await band(page, 84);
   await page.locator('[data-act="add"]:visible').first().click(); await page.locator('#editor').waitFor();
   for (const sel of ['#editor .tcap:visible', '#editor .dcap:visible']) {
     const el = page.locator(sel).first(); const before = await bg(el);
-    await press(page, el); expect(await bg(el), sel).toBe('rgb(226, 222, 211)'); await page.mouse.up();
+    await press(page, el); expect(await bg(el), sel).toBe('rgb(226, 221, 210)'); await page.mouse.up();
     expect(before).toBe('rgb(239, 236, 228)');
   }
 });
@@ -120,6 +120,6 @@ test('V-27 右の帯でタスクを開くと中身が 0.15 秒フェード', asy
 
 test('V-22 段にない太さ・大きさが残らない（700・800・10.83・18）', async ({ page }) => {
   await openApp(page, C); await band(page, 84);
-  const bad = await page.evaluate(() => { const o = []; for (const e of document.querySelectorAll('body *')) { const cs = getComputedStyle(e), r = e.getBoundingClientRect(); if (r.width < 1 || !(e.textContent || '').trim()) continue; if (e.closest('.mdh') ) continue; if (['700', '800'].includes(cs.fontWeight) || cs.fontSize === '10.8333px' || cs.fontSize === '18px') o.push(e.className + ':' + cs.fontSize + '/' + cs.fontWeight); } return o; });
+  const bad = await page.evaluate(() => { const o = []; for (const e of document.querySelectorAll('body *')) { const cs = getComputedStyle(e), r = e.getBoundingClientRect(); if (r.width < 1 || !(e.textContent || '').trim()) continue; if (['700', '800'].includes(cs.fontWeight) || cs.fontSize === '10.8333px' || cs.fontSize === '18px') o.push(e.className + ':' + cs.fontSize + '/' + cs.fontWeight); } return o; });
   expect(bad).toEqual([]);
 });

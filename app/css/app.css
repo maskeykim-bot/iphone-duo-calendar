@@ -1504,7 +1504,7 @@ dialog.panel.tface-open{overflow:visible}
 .mpull .mgrid{transition:height .25s ease}
 .mpull .mday{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 8px calc(var(--end-pad-closed,56px) + 4px)}
 .mdh{display:flex;align-items:center;justify-content:space-between;height:44px;flex:none}
-.mdh h3{/* 設計の回答待ち（品質 中-4）: 見出しの太さ・大きさは触らない */margin:0;font:700 15px/1.2 -apple-system,'Hiragino Sans',sans-serif;min-width:0}
+.mdh h3{/* 品質 中-4（設計 00:25 の決め）: 閉じた月 15pt W600 */margin:0;font:600 15px/1.2 -apple-system,'Hiragino Sans',sans-serif;min-width:0}
 .mdsw{display:grid;grid-template-columns:1fr 1fr;width:132px;height:32px;flex:none;border-radius:16px;background:#EFECE4;padding:2px;box-sizing:border-box}
 .mdsw button{height:28px;min-height:28px;min-width:0;padding:0;border-radius:14px;background:transparent;font-size:13px;font-weight:600}
 .mdsw button[aria-pressed=true]{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.15)}
@@ -1535,7 +1535,7 @@ dialog.panel.tface-open{overflow:visible}
 .portrait .mpull .mgrab i{margin-bottom:2px}
 .portrait .mpull .mday{position:fixed;left:var(--content-x);width:var(--content-w);box-sizing:border-box;top:var(--groove-avoid-y1,492px);bottom:34px;padding:0 12px 62px}
 .portrait .mdev{height:44px}.portrait .mdev .mdt{font-size:13px;width:52px}.portrait .mdev strong{font-size:15px}
-.portrait .mpull .mdh h3{font-size:17px}
+.portrait .mpull .mdh h3{font-size:17px;font-weight:600}
 .mpull .mgrid{transition:none}
 .closed .mpull .mgrid{transition:height .25s ease}
 .mdsw button,.mdsw button[aria-pressed=true]{color:var(--ink)}@media (hover:hover){.mdsw button:hover{color:var(--ink)}}
@@ -1549,7 +1549,7 @@ dialog.panel.tface-open{overflow:visible}
 .fold>*{pointer-events:auto}
 .portrait .fold .fhead{position:absolute;top:var(--head-h);left:0;right:0;height:44px;min-height:0;display:flex;align-items:center;padding:0 12px;gap:0}
 .portrait .fold .fhead>*{position:static;top:auto;margin:0}
-.portrait .fold .fhead h2{transform:none;left:auto;width:auto;max-width:none;padding:0 4px;font:700 19px/44px -apple-system,'Hiragino Sans',sans-serif;flex:0 1 auto;overflow:visible;text-align:left}
+.portrait .fold .fhead h2{transform:none;left:auto;width:auto;max-width:none;padding:0 4px;font:600 17px/44px -apple-system,'Hiragino Sans',sans-serif;flex:0 1 auto;overflow:visible;text-align:left}
 .fold .fhead button{width:44px;height:44px;min-width:44px;font-size:20px}
 .fold .fhead .ftoday{margin-left:auto;width:auto;padding:0 4px;font-size:15px;font-weight:600;color:var(--green)}
 .fold .fdates{position:absolute;left:12px;right:12px;display:flex;border-bottom:1px solid var(--fline)}
@@ -1976,7 +1976,7 @@ html:not([data-dev]) #touch-check-open,html:not([data-dev]) #layout-diagnostics,
 .menurows .mpm{flex:none;display:flex;width:88px;height:32px;border-radius:8px;background:#EFECE4;overflow:hidden}
 .mscreens .menurows .mrowd .mpm button{flex:1;position:relative;width:44px;min-width:44px;height:32px;min-height:32px;padding:0;border-radius:0;font-size:20px;line-height:32px;text-align:center;color:#293B35;background:transparent}
 .mscreens .menurows .mrowd .mpm button::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
-.mscreens .menurows .mrowd .mpm button:active{background:#E2DED3!important}
+.mscreens .menurows .mrowd .mpm button:active{background:#E2DDD2!important}
 .menurows .mrowd .mpm button+button{border-left:1px solid #DCD7CB}
 .mhead[data-s=sub]{padding:0 12px 0 4px}
 .mhead[data-s=sub] #m-back{order:0;width:auto;min-width:44px;height:44px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--green);font-size:15px;line-height:44px;white-space:nowrap}
@@ -2105,9 +2105,9 @@ body :is(.dchip)[aria-pressed=true]:active:not(:disabled){filter:brightness(.92)
 .spread .rp[data-page=memo] .memopage{padding-left:14.5px}
 .spread .rp[data-page=memo] .ned-title{margin-left:-8px;width:calc(100% + 8px)}
 .spread .rp[data-page=memo] .ned-bodywrap{margin-left:-8px}
-/* 中-2（品質）: ノートの完了 ✓ は押すと緑の丸を黒 12%（brightness .88）にする。緑のボタンと同じ。0.10 秒で入り 0.15 秒で戻る */
-.ned .ned-done::before{transition:filter .15s ease-out}
-.ned .ned-done:active:not(:disabled)::before{filter:brightness(.88);transition-duration:.10s}
+/* 中-2（品質）・設計 00:25: ノートの完了 ✓ の緑の丸は押している間 opacity .7・scale .94、0.10 秒で入り 0.15 秒で戻る */
+.ned .ned-done::before{transition:opacity .15s ease-out,transform .15s ease-out}
+.ned .ned-done:active:not(:disabled)::before{opacity:.7;transform:scale(.94);transition-duration:.10s}
 /* V-15・中-3: 月の日のタスクの行（閉じた 月・2週・1週）。押せる範囲は x8〜52 の 44×44（左へ出さない）、四角 20×20 は x12〜32、題名は x44 */
 .mdtask .rmckb{width:44px;height:44px;margin:0 -12px 0 0;padding:0 0 0 4px;justify-content:flex-start;position:relative;z-index:1}
 .mdtask .rmck{width:20px;height:20px;border-radius:8px}
@@ -2167,9 +2167,9 @@ body[data-layout=spread] dialog#editor,body[data-layout=spread] dialog#xdetail,b
 /* V-22: 段にない太さ・大きさ。h/b/strong の既定の太字は W6、small は 11（10.83 をやめる）。見出し（.mdh h3・.fold h2・h2.rdate）は設計の回答待ちなので触らない */
 h1,h2,h3,h4,h5,b,strong{font-weight:600}
 small{font-size:11px}
-/* V-11・品質 中-2: 灰のカプセル（予定の編集の日付・時刻、地 #EFECE4）は押すと #E2DED3（0.10秒、離して 0.15秒） */
-#editor .dcap:active:not(:disabled),#editor .tcap:active:not(:disabled),.dcap:not(.open):active:not(:disabled),.tcap:not(.open):active:not(:disabled){background-color:#E2DED3!important;filter:none;transition-duration:.10s}
-#editor .dcap.open:active:not(:disabled),#editor .tcap.open:active:not(:disabled){background-color:#E2DED3!important;filter:none;color:#293B35}
+/* V-11・品質 中-2: 灰のカプセル（予定の編集の日付・時刻、地 #EFECE4）は押すと #E2DDD2（0.10秒、離して 0.15秒） */
+#editor .dcap:active:not(:disabled),#editor .tcap:active:not(:disabled),.dcap:not(.open):active:not(:disabled),.tcap:not(.open):active:not(:disabled){background-color:#E2DDD2!important;filter:none;transition-duration:.10s}
+#editor .dcap.open:active:not(:disabled),#editor .tcap.open:active:not(:disabled){background-color:#E2DDD2!important;filter:none;color:#293B35}
 /* V-12: 「今日」の文字リンクも他のリンクと同じ（不透明度 .5、地は出さない） */
 :is(.mptoday,.ftoday):active:where(:not(:disabled)){background-color:transparent!important;opacity:.5;transition-duration:.10s}
 

@@ -212,3 +212,23 @@ test.describe('つかめない画面', () => {
     expect((await byId(page, 'd1')).start).toBe('2026-11-12T10:00');
   });
 });
+
+// 連携 R-49／品質 低-2（STEER 00:26）: ニューヨークの夏時間の切り替わりをまたいで日だけ移しても、時刻は 10:00 のまま。
+test.describe('ニューヨークの夏時間（R-49）', () => {
+  test.use({ timezoneId: 'America/New_York' });
+  for (const [from, to, now] of [['2026-03-07', '2026-03-08', '2026-03-06T12:00:00-05:00'], ['2026-10-31', '2026-11-01', '2026-10-30T12:00:00-04:00']]) {
+    test(`${from} 10:00 の予定を ${to} へ移しても 10:00 のまま`, async ({ page }) => {
+      await openApp(page, SIZES.openLandscape951);
+      await page.clock.setFixedTime(new Date(now));
+      await page.reload(); await page.waitForSelector('html[data-ready]');
+      await page.evaluate(() => { const o = JSON.parse(localStorage.getItem('duo.ui.v1') || '{}'); localStorage.setItem('duo.ui.v1', JSON.stringify({ ...o, style: 'named' })); });
+      await seed(page, [ev('ny1', '夏時間', `${from}T10:00`, `${from}T11:00`)]);
+      const src = await center(tlev(page, '夏時間')), dst = await center(dayBtn(page, to));
+      await grab(page, src, dst, { release: false });
+      await expect(page.locator('.gchip')).toHaveCount(1);
+      await page.mouse.up();
+      await expect.poll(async () => (await byId(page, 'ny1')).start).toBe(`${to}T10:00`);
+      expect((await byId(page, 'ny1')).end).toBe(`${to}T11:00`);
+    });
+  }
+});
