@@ -43,6 +43,8 @@ export async function openApp(page, size = SIZES.closedPortrait, query = '', opt
   // 第19.1版 S4: シートは下から 0.25 秒で出る（H-02）。既存の spec は出きった位置の寸法を測るので、出る動きは止めておく。
   // 動きそのものを調べる spec は { motion: true } を渡す（tests/press-sheet-type-s4.spec.js）。閉じ終わるまでの 0.25 秒は動きを止めても同じ（JS の待ち）。
   if (!opts.motion) await page.addInitScript(() => { document.addEventListener('DOMContentLoaded', () => { const st = document.createElement('style'); st.id = 'test-no-sheet-motion'; st.textContent = 'dialog,dialog[open],dialog.sheet-out,#scrim{animation:none!important}'; document.head.append(st); }); });
+  // 第19.1版 S5 H-16: 開発用の表示（画面寸法・キーボード計測・タッチ確認）は既定で隠す。既存の spec は出る前提なので helpers が dev を立てる。隠れることを調べる spec は { nodev: true }。
+  if (!opts.nodev) await page.addInitScript(() => { try { localStorage.setItem('duo.dev', '1'); } catch { /* */ } });
   await page.setViewportSize(size);
   await page.clock.setFixedTime(new Date('2026-11-12T09:41:00+09:00'));
   await page.goto(`/index.html${query}`);

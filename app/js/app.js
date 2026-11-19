@@ -28,7 +28,11 @@ import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel
 import { call, hideKeyboardAccessoryBar, errCode, errReason, errText, haptic, listen, nativeAvailable, remNative, requestReminderPermission } from './native.js';
 import { createReminderSync, normSyncSettings, previewFirst, applyFirst, prevListCandidates, SYNC_WINDOW_DAYS } from './reminder-sync.js';
 import { createDestPage, destRowsHtml } from './destination-ui.js';
-import { KB_METRICS_ENABLED, kbMetrics, kbText, screenText } from './kbmetrics.js';
+import { KB_METRICS_ENABLED as KB_METRICS_BUILD, kbMetrics, kbText, screenText } from './kbmetrics.js';
+// 開発用の表示（画面寸法・キーボード計測・タッチ確認）は審査版・征希さんの版では出さない。確かめるときだけ ?dev=1 で出す（第19.1版 S5 H-16）。
+const DEV = new URLSearchParams(location.search).has('dev') || (() => { try { return localStorage.getItem('duo.dev') === '1'; } catch { return false; } })();
+if (DEV) document.documentElement.dataset.dev = '';
+const KB_METRICS_ENABLED = KB_METRICS_BUILD || DEV;
 import { createPosture, postureText, grooveBands } from './posture.js';
 import { FOLD_HH, FOLD_RATE, foldGeometry, windowMinutes, rawMinutesAt, foldEdgeZone, labelY, partTitles, openingMinute, clampS } from './fold.js';
 import { kbTopOf, hingeBand, computeKbLayout, caretBox, scrollDelta, STRIP_MIN } from './keyboard-layout.js';
@@ -4316,14 +4320,14 @@ function renderSearch(initial = false, quiet = false) {
   const tres = srOnly === 'note' ? none([]) : searchTasks(srTasks, SR.q.value);
   const res = srOnly ? { ...none(terms(SR.q.value)), range: { from: srToday, to: srToday } } : searchEvents(state.events, SR.q.value, srToday, srSnap ? searchExt(srSnap.events, SR.q.value, srToday) : [], duoVisible());
   SR.clear.hidden = !SR.q.value;
-  SR.range.hidden = !!srOnly;
+  SR.range.hidden = true; // 「検索範囲：…最大200件」は出さない（H-17/M-13）。0件のときだけ本文に「この3年に見つかりませんでした」
   SR.range.textContent = `検索範囲：${ymd(res.range.from)}–${ymd(res.range.to)}・最大${LIMIT}件`;
   SR.xrange.hidden = !srSnap;
   if (srSnap) SR.xrange.textContent = srSnap.range ? `iPhoneの検索範囲：${ymdSlash(srSnap.range.from)}–${ymdSlash(lastDay(srSnap.range.to))}（読み込み済み）` : 'iPhoneの予定はまだ読み込まれていません。';
   srItems = res.items;
   const yr = Number(srToday.slice(0, 4));
   if (!res.ts.length) { SR.body.innerHTML = '<p class="smsg">探したい予定の言葉を入力してください。予定名・メモ・場所から探せます。</p>'; if (!initial) say2('検索語を消しました。'); return; }
-  if (!res.total && !mres.total && !tres.total) { const nn = srOnly ? FOCUS_NOUN[srOnly] : '予定'; SR.body.innerHTML = `<p class="smsg">該当する${nn}はありません。検索語${srOnly ? '' : 'や検索範囲'}を確認してください。</p>`; say2(`該当する${nn}はありません。`); return; }
+  if (!res.total && !mres.total && !tres.total) { const nn = srOnly ? FOCUS_NOUN[srOnly] : '予定'; SR.body.innerHTML = `<p class="smsg">該当する${nn}はありません。検索語を確認してください。</p>${srOnly ? '' : '<p class="srnone">この3年に見つかりませんでした</p>'}`; say2(`該当する${nn}はありません。`); return; }
   const groups = groupByDay(res.items).map((g) => {
     const label = Number(g.key.slice(0, 4)) === yr ? dayLabel(g.key) : `${g.key.slice(0, 4)}年${dayLabel(g.key)}`;
     return `<section class="hgroup"><h3>${label}</h3>${g.items.map((e) => hitHtml(e, res.ts)).join('')}</section>`;
