@@ -141,21 +141,24 @@ test.describe('S7a 題名欄 44・フォルダの行・右ページのそろい�
     });
   }
   test('開いた横: 見出し・一覧・フォルダの行・題と本文の文字が x500（V-19）。札は 28・角丸 14・13pt・間 8（V-20）', async ({ page }) => {
-    await setup(page, 'land', SIZES.openLandscape951, 84); await openNote(page, 'a');
+    await setup(page, 'land', SIZES.openLandscape951, 84);
+    const listX = await page.evaluate(() => { const r = document.createRange(); r.selectNodeContents(document.querySelector('.ntools .ntitle')); return [r.getClientRects()[0].x, document.querySelector('.mlq').getBoundingClientRect().x]; });
+    near(listX[0], 500); near(listX[1], 500); // 一覧の画面: 「ノート」の文字と検索の欄も x500
+    await openNote(page, 'a');
     const m = await page.evaluate(() => {
       const X = (e) => Math.round(e.getBoundingClientRect().x * 10) / 10;
       const textX = (e) => { const r = document.createRange(); r.selectNodeContents(e); return Math.round(r.getClientRects()[0].x * 10) / 10; };
-      const pills = [...document.querySelectorAll('.nmeta > button')].map((b) => { const r = b.getBoundingClientRect(), cs = getComputedStyle(b); return { x: r.x, w: r.width, h: r.height, rad: cs.borderTopLeftRadius, fs: cs.fontSize, cls: b.className }; });
+      const pills = [...document.querySelectorAll('.nmeta > button')].map((b) => { const p = b.querySelector('.nfp'), r = p.getBoundingClientRect(), cs = getComputedStyle(p), br = b.getBoundingClientRect(); return { x: r.x, w: r.width, h: r.height, bh: br.height, rad: cs.borderTopLeftRadius, fs: cs.fontSize, cls: b.className }; }); // 見える札（.nfp）が 28、ボタンは押せる範囲 44
       const nl = document.querySelector('.ned-body .nl');
       return { head: textX(document.querySelector('h2.rdate')), list: textX(document.querySelector('.ntools .mback')), folder: X(document.querySelector('.nmeta')), pill0: pills[0].x, title: X(document.querySelector('.ned-title')) + parseFloat(getComputedStyle(document.querySelector('.ned-title')).paddingLeft), // textarea の文字の頭 = 箱 + 左の余白
       body: textX(nl), pills };
     });
     for (const k of ['head', 'list', 'folder', 'pill0', 'title', 'body']) near(m[k], 500);
     expect(m.pills.map((p) => p.cls.split(' ')[0])).toEqual(['nfpill', 'ndate', 'nmpin']);
-    for (const p of m.pills) { near(p.h, 28, 0.5); expect(p.rad).toBe('14px'); expect(p.fs).toBe('13px'); }
+    for (const p of m.pills) { near(p.h, 28, 0.5); near(p.bh, 44, 0.5); expect(p.rad).toBe('14px'); expect(p.fs).toBe('13px'); }
     near(m.pills[1].x - (m.pills[0].x + m.pills[0].w), 8, 0.5); near(m.pills[2].x - (m.pills[1].x + m.pills[1].w), 8, 0.5);
     // 押せる範囲は 44（札の上下 8）
-    const hit = await page.locator('.nmeta .ndate').evaluate((b) => { const r = b.getBoundingClientRect(); const cx = r.x + r.width / 2; return [document.elementFromPoint(cx, r.y - 7)?.closest('button')?.className, document.elementFromPoint(cx, r.y + r.height + 7)?.closest('button')?.className]; });
+    const hit = await page.locator('.nmeta .ndate').evaluate((b) => { const r = b.querySelector('.nfp').getBoundingClientRect(); const cx = r.x + r.width / 2; return [document.elementFromPoint(cx, r.y - 7)?.closest('button')?.className, document.elementFromPoint(cx, r.y + r.height + 7)?.closest('button')?.className]; });
     expect(hit[0]).toContain('ndate'); expect(hit[1]).toContain('ndate');
   });
   test('フォルダの札: 押すと小さなメニュー。選ぶとフォルダが変わり、札の文字も変わる（選ぶ欄は出さない）', async ({ page }) => {

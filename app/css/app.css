@@ -2112,18 +2112,20 @@ body :is(.dchip)[aria-pressed=true]:active:not(:disabled){filter:brightness(.92)
 .ned .ned-top{z-index:1}
 .ned .ned-title{padding:7px 8px;min-height:44px;margin-top:-7px;margin-bottom:-7px}
 .nsheet .ned .ned-title{margin:-7px var(--ns-bmr,8px) -7px var(--ns-bml,8px)}
-/* V-20: フォルダの行は高さ 28・角丸 14・13pt の札を3つ（フォルダ・日付・ピン留め、間 8）。押せる範囲は札の上下 8 ずつ（44）。行の高さは前のまま（以下の位置は動かさない） */
+/* V-20: フォルダの行は高さ 28・角丸 14・13pt の札を3つ（フォルダ・日付・ピン留め、間 8）。ボタンは高さ 44（押せる範囲）で、見える札（.nfp）が 28。行の高さは前のまま（以下の位置は動かさない） */
 .nmeta{align-items:center;min-height:44px;box-sizing:content-box;flex-wrap:wrap;row-gap:0}
-.nmeta .nfpill,.nmeta .ndate,.nmeta .nmpin{position:relative;flex:none;height:28px;min-height:28px;min-width:0;padding:0 10px;font-size:13px;line-height:28px;font-weight:400;border:0;border-radius:14px;background:transparent;box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap;display:inline-flex;align-items:center;gap:3px;color:inherit}
-.nmeta .nfpill{flex:0 1 auto;max-width:60%}
-.nmeta .nfpill span{min-width:0;overflow:hidden;text-overflow:ellipsis}
-.nmeta .nfpill i{font-style:normal;font-size:11px;color:#68716A}
-.nmeta .nfpill::before,.nmeta .ndate::before,.nmeta .nmpin::before{content:"";position:absolute;left:-2px;right:-2px;top:-8px;bottom:-8px}
-.nmeta .ndate.on,.nmeta .nmpin.on{box-shadow:inset 0 0 0 2px #294E42;color:#294E42}
-.nmeta .nfpill:active:not(:disabled),.nmeta .ndate:active:not(:disabled),.nmeta .nmpin:active:not(:disabled){background-color:#EFECE4!important;transition-duration:.10s}
+.nmeta .nfpill,.nmeta .ndate,.nmeta .nmpin{flex:none;height:44px;min-height:44px;min-width:44px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;color:inherit;display:inline-flex;align-items:center;font-size:13px;font-weight:400}
+.nmeta .nfpill{flex:0 1 auto;max-width:60%;min-width:0}
+.nmeta .nfp{display:inline-flex;align-items:center;gap:3px;box-sizing:border-box;height:28px;max-width:100%;padding:0 10px;border-radius:14px;box-shadow:inset 0 0 0 1px var(--line);font-size:13px;line-height:28px;white-space:nowrap;transition:background-color .15s ease-out}
+.nmeta .nfp>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.nmeta .nfp i{font-style:normal;font-size:11px;color:#68716A}
+.nmeta .ndate.on .nfp,.nmeta .nmpin.on .nfp{box-shadow:inset 0 0 0 2px #294E42;color:#294E42}
+.nmeta :is(.nfpill,.ndate,.nmpin):active:not(:disabled){background-color:transparent!important}
+.nmeta :is(.nfpill,.ndate,.nmpin):active:not(:disabled) .nfp{background-color:#EFECE4;transition-duration:.10s}
 /* V-19: 開いた横・右ページのノートは、見出し・一覧・フォルダの行・題と本文の文字を x500（ページの端から 16）にそろえる */
 .spread .rp[data-page=memo] .rhead{padding-left:14.5px}
 .spread .rp[data-page=memo] .ntools{padding-left:2.5px}
+.spread .rp[data-page=memo] .ntools .ntitle{padding-left:12px}
 .spread .rp[data-page=memo] .memopage{padding-left:14.5px}
 .spread .rp[data-page=memo] .ned-title{margin-left:-8px;width:calc(100% + 8px)}
 .spread .rp[data-page=memo] .ned-bodywrap{margin-left:-8px}

@@ -1866,7 +1866,7 @@ async function paintNoteMeta() {
   for (const h of root.querySelectorAll('[data-nmeta]')) {
     const fname = cur ? (f || []).find((x) => x.id === cur)?.name || 'なし' : 'なし';
     // V-20（S7）: 高さ 28・角丸 14・13pt の札を3つ（フォルダ・日付・ピン留め、間 8）。フォルダは押すと小さなメニュー（iOS の選ぶ欄は使わない）。
-    h.innerHTML = `<button type="button" class="nfpill" data-nf="curmv" aria-haspopup="dialog" aria-label="フォルダ: ${esc(fname)}"><span>フォルダ：${esc(fname)}</span><i aria-hidden="true">▾</i></button><button type="button" class="ndate${date ? ' on' : ''}" data-act="ndate" aria-haspopup="dialog" aria-expanded="${!!NB.dp}" aria-label="日付${date ? `: ${esc(dayLabel(date))}` : 'を付ける'}">${date ? `${esc(dayLabel(date))} ›` : '日付 ›'}</button><button type="button" class="nmpin${m?.pinned ? ' on' : ''}" data-nf="pin" aria-pressed="${!!m?.pinned}">${m?.pinned ? '📌 ピン留め' : 'ピン留め'}</button>${noteDatePopHtml(date)}`;
+    h.innerHTML = `<button type="button" class="nfpill" data-nf="curmv" aria-haspopup="dialog" aria-label="フォルダ: ${esc(fname)}"><span class="nfp"><span>フォルダ：${esc(fname)}</span><i aria-hidden="true">▾</i></span></button><button type="button" class="ndate${date ? ' on' : ''}" data-act="ndate" aria-haspopup="dialog" aria-expanded="${!!NB.dp}" aria-label="日付${date ? `: ${esc(dayLabel(date))}` : 'を付ける'}"><span class="nfp">${date ? `${esc(dayLabel(date))} ›` : '日付 ›'}</span></button><button type="button" class="nmpin${m?.pinned ? ' on' : ''}" data-nf="pin" aria-pressed="${!!m?.pinned}"><span class="nfp">${m?.pinned ? '📌 ピン留め' : 'ピン留め'}</span></button>${noteDatePopHtml(date)}`;
   }
 }
 // ノートの日付: 小さな月で日を選ぶ。月の下に「日付を外す」。選んだ日に別のノートがあれば、開くか付け替えるかを確認する。
