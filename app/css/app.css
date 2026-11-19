@@ -608,13 +608,10 @@ button.alnote.link{min-height:44px;padding:0;text-align:left;background:none;bor
 #scrim:not([hidden]){animation:scrimin .25s cubic-bezier(.16,1,.3,1)}
 #scrim[hidden]{display:none}
 #scrim.fade{opacity:0}
-@media (prefers-color-scheme:dark){ #scrim{background:#0000004d} }
 /* 見開き: 折り目（中心±10）には幕もかけない（操作は何も置かないので通り抜けても反応しない） */
 body[data-layout=spread] #scrim{background:linear-gradient(90deg,#0000001f calc(var(--fold-x) - var(--fold-keepout)),#0000 calc(var(--fold-x) - var(--fold-keepout)),#0000 calc(var(--fold-x) + var(--fold-keepout)),#0000001f calc(var(--fold-x) + var(--fold-keepout)))}
-@media (prefers-color-scheme:dark){ body[data-layout=spread] #scrim{background:linear-gradient(90deg,#0000004d calc(var(--fold-x) - var(--fold-keepout)),#0000 calc(var(--fold-x) - var(--fold-keepout)),#0000 calc(var(--fold-x) + var(--fold-keepout)),#0000004d calc(var(--fold-x) + var(--fold-keepout)))} }
 /* ポップアップ自身は幕を使うので、従来の全面の影は外す（落ち影だけ残す） */
 dialog#editor,dialog#xdetail,dialog#taskdlg{box-shadow:0 12px 32px #00000029}
-body[data-layout=spread] dialog#editor,body[data-layout=spread] dialog#xdetail,body[data-layout=spread] dialog#taskdlg{box-shadow:none}
 dialog#editor.fading,dialog#xdetail.fading,dialog#taskdlg.fading{pointer-events:none}
 dialog#editor.snap,dialog#xdetail.snap,dialog#taskdlg.snap{transition:transform .2s ease}
 .formhead,.phead{touch-action:none;-webkit-user-select:none;user-select:none}
@@ -976,7 +973,7 @@ body[data-layout=spread] dialog#menu,body[data-layout=desk] dialog#menu{height:a
 .sname{flex:1;min-width:0;margin-left:6px}
 .shint{font-size:13px;color:#68716A;white-space:nowrap}
 .sch{color:#A8ABA4;font-size:20px;width:16px;text-align:right}
-.ssep{margin:6px 0;border:0;border-top:1px solid #ECE9E1}
+.ssep{margin:5.5px 0;border:0;border-top:1px solid #ECE9E1}
 .sfoot{margin:14px 20px;font-size:11px;color:#A8ABA4}
 .mscreens .swnote{padding:0 20px}
 .mscreens .mlegend{margin:6px 20px 2px}
@@ -1105,7 +1102,6 @@ dialog#menu #m-destpop{border-radius:inherit}
 .rmdp .tpop{margin-top:6px}
 
 /* 第16版 PR9: 祝日。数字は --holiday、名前は日見出し・週の行に。狭幅は六曜を省く */
-@media (prefers-color-scheme:dark){:root{--holiday:#E58A82}}
 .hdt.hol,.wdt.hol,.mmc.hol .n{color:var(--holiday)}
 .hnm{margin-left:8px;font:400 13px/1 -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif;color:var(--holiday);white-space:nowrap}
 .wrk.whn{color:var(--holiday)}
@@ -1279,10 +1275,12 @@ dialog#menu #m-destpop{border-radius:inherit}
 
 /* 開いた縦の集中モード（第16版 PR32）。切替は上の帯、タスク／ノートは全面の専用面。 */
 .fmodes{pointer-events:auto;position:fixed;z-index:6;display:flex;box-sizing:border-box;padding:0;border-radius:10px;background:#e6e9e4;box-shadow:inset 0 0 0 1px var(--line)}
-.fmodes button{flex:1 1 0;min-width:0;height:100%;min-height:0;padding:0;border-radius:10px;background:transparent;color:var(--ink);font-size:14px;font-weight:600;line-height:1;white-space:nowrap;touch-action:manipulation;position:relative}
+/* V-01: 252×36、1つ 84。選んだ札は内側 2 の 80×32・角丸 8（.fmp）。押せる高さは ::before で 44 */
+.fmodes button{flex:1 1 0;min-width:0;height:100%;min-height:0;padding:0;border-radius:10px;background:transparent;color:var(--ink);font-size:14px;font-weight:600;line-height:1;white-space:nowrap;touch-action:manipulation;position:relative;display:flex;align-items:center;justify-content:center}
 .fmodes button::before{content:"";position:absolute;left:0;right:0;top:-4px;bottom:-4px}
-.fmodes button[aria-pressed=true]{background:#fff;color:var(--green);box-shadow:0 1px 2px rgba(0,0,0,.12)}
-.fdate{position:fixed;z-index:5;display:flex;align-items:center;font-size:15px;font-weight:800;color:var(--ink);white-space:nowrap;pointer-events:none;max-width:calc(100px * var(--ux,1));overflow:hidden}
+.fmodes .fmp{display:flex;align-items:center;justify-content:center;width:80px;height:32px;border-radius:8px;transition:background-color .15s ease-out}
+.fmodes button[aria-pressed=true] .fmp{background:#fff;color:var(--green);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.fdate{position:fixed;z-index:5;display:flex;align-items:center;font-size:15px;font-weight:600;color:var(--ink);white-space:nowrap;pointer-events:none}
 .shell.focus .fcol{height:100%;padding-top:var(--head-h);box-sizing:border-box;display:flex;flex-direction:column;min-height:0}
 .shell.focus .fpage{flex:1;min-height:0;display:flex;flex-direction:column}
 .shell.focus .fpage .padb,.shell.focus .fpage .taskl{padding-bottom:calc(var(--safe-b,0px) + 24px)}
@@ -1339,7 +1337,6 @@ html.kbl[data-kbl=note][data-kbnu="0"] .nup{display:none}
 .nupb{flex:none;max-width:70%;min-height:44px;padding:0 14px;border-radius:999px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);font-size:15px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
 html.kbl[data-kbe=dn] .nupb{max-width:none;width:100%;border-radius:8px;background:transparent;box-shadow:none;border-bottom:1px solid var(--line)}
 .nupe{font-size:13px;color:var(--muted)}
-@media (prefers-color-scheme:dark){ html.kbl .ftchips{background:#2b2f2d} html.kbl[data-kbe=up] .nup{background:#262a28} }
 .ndchip{flex:none;position:relative;height:22px;min-height:22px;margin:0 0 0 6px;padding:0 8px;border-radius:999px;font-size:13px;line-height:22px;background:transparent;box-shadow:inset 0 0 0 1px var(--line);color:#68716A;white-space:nowrap}
 .ndchip::before{content:"";position:absolute;left:-4px;right:-4px;top:-11px;bottom:-11px}
 .ndchip.has{color:#294E42;box-shadow:inset 0 0 0 1px #8A7E5C}
@@ -1585,11 +1582,11 @@ dialog.panel.tface-open{overflow:visible}
 .fold .flcols{left:var(--lw);right:0;top:0;bottom:0}
 .fold-week .tlcol.ftd{background:var(--ftoday)}
 .fold-week .tlcol+.tlcol{border-left:0;box-shadow:inset 1px 0 var(--fline)}
-.fold .fev{top:calc(var(--m) * var(--hh) / 60);height:calc(var(--d) * var(--hh) / 60);min-height:0;padding:0;border-radius:8px;background:var(--cat);color:#fff;box-shadow:none;overflow:hidden;display:block}
+.fold .fev{top:calc(var(--m) * var(--hh) / 60);height:calc(var(--d) * var(--hh) / 60);min-height:22px;container-type:size;padding:0;border-radius:8px;background:var(--cat);color:#fff;box-shadow:none;overflow:hidden;display:block}
 @media (hover:hover){.fold .fev:hover{background:var(--cat);filter:brightness(.95)}}
-.fold .ftl{position:absolute;left:6px;right:4px;top:calc(var(--ty,0px) + 2px);font-size:13px;font-weight:700;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.fold .ftm{position:absolute;left:6px;right:4px;top:calc(var(--ty,0px) + 18px);font-size:10px;line-height:12px;white-space:nowrap;overflow:hidden}
-.fold-week .ftl{font-size:9px;line-height:11px;left:3px;right:2px;top:calc(var(--ty,0px) + 1px)}
+.fold .ftl{position:absolute;left:6px;right:4px;top:calc(var(--ty,0px) + 3px);font-size:13px;font-weight:600;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fold .ftm{position:absolute;left:6px;right:4px;top:calc(var(--ty,0px) + 19px);font-size:10px;line-height:12px;white-space:nowrap;overflow:hidden}
+.fold-week .ftl{font-size:10px;line-height:12px;left:3px;right:2px;top:calc(var(--ty,0px) + 2px)}
 .fold .fev[data-ti="0"] .ftl,.fold .fev[data-tm="0"] .ftm{display:none}
 .fold .fev[data-small="1"] .ftl{font-size:10px;line-height:12px}
 .fold .fev::after{content:'';position:absolute;left:0;right:0;top:var(--cl,0);height:1px;background:repeating-linear-gradient(90deg,#fff 0 4px,transparent 4px 8px);display:none}
@@ -1605,18 +1602,6 @@ dialog.panel.tface-open{overflow:visible}
 .fold-week .fn1{position:absolute;left:0;right:0;top:-.5px;height:1px;background:var(--fnow)}
 .fold-week .fn2{position:absolute;left:calc(var(--i) * 100% / var(--n));width:calc(100% / var(--n));top:-1px;height:2px;background:var(--fnow)}
 .fold .fgv{display:none}
-@media (prefers-color-scheme:dark){
-  .shell.fd .fold{--fline:#343A36;--fnow:#E06666;--ftoday:#222824;--muted:#A3A9A2;--ink:#E8E6E0;background:#1C1F1D;color:#E8E6E0}
-  .shell.fd .fold .fgv{display:block;position:absolute;left:0;right:0;top:var(--fcut0);height:calc(var(--fcut1) - var(--fcut0));background:#2A2E2B}
-  .shell.fd .fold .fhead,.shell.fd .fold .fdt,.shell.fd .fold .fhead button{color:#E8E6E0}
-  .shell.fd .fold .fhead .ftoday{color:#6FA08C}
-  .shell.fd .fold .fdt.today .fdd{background:#6FA08C;color:#1C1F1D}
-  .shell.fd .fold .dbox{background:#2B3640}
-  .shell.fd .tabs{background:#262A27;border-color:#343A36;box-shadow:none}
-  .shell.fd .tabs .pill{color:#E8E6E0}
-  .shell.fd .tabs [aria-pressed=true] .pill,.shell.fd .tabs [aria-pressed=true]{background:#6FA08C;color:#1C1F1D}
-  .shell.fd .tabs [aria-pressed=true] .pill{color:#1C1F1D}
-}
 
 /* 第19版 PR8: 予定を長押しでつかんで別の日へ落とす（design/21 §1.3）。元の場所は点線の空き枠、落とす先の日は緑の枠2＋薄い緑の地 */
 .grabbed{background:transparent!important;box-shadow:none!important;outline:1.5px dashed var(--cat,#294E42);outline-offset:-1.5px;color:transparent!important;filter:none!important}
@@ -1624,7 +1609,6 @@ dialog.panel.tface-open{overflow:visible}
 .gchip{position:fixed;left:0;top:0;z-index:99998;max-width:220px;padding:6px 10px;border-radius:8px;background:var(--cat,#294E42);color:#fff;font-size:13px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;box-shadow:0 8px 20px #0003}
 .week .day.mdrop{background:#E5EEE9}
 .week .day.mdrop::after{content:"";position:absolute;inset:0;border:2px solid #294E42;border-radius:8px;pointer-events:none;z-index:3}
-@media (prefers-color-scheme:dark){ .week .day.mdrop{background:#2B3640} .week .day.mdrop::after{border-color:#6FA08C} }
 html[data-grab] .tl,html[data-grab] .tlx{touch-action:none}
 
 /* 第19版 PR9: ノート第1段（design/27）。上の帯・書式のシート・下へ伸びる紙・ノートのシート */
@@ -1666,16 +1650,6 @@ html[data-grab] .tl,html[data-grab] .tlx{touch-action:none}
 .nsheet .ned-status,.nsheet .ned-bar,.nsheet .ned-trash{display:none}
 @keyframes nsheetin{from{transform:translateY(100%)}to{transform:none}}
 @media (prefers-reduced-motion:reduce){.nsheet{animation:nsheetfade .15s}.nsheet.closing{transform:none;opacity:0;transition:opacity .15s}@keyframes nsheetfade{from{opacity:0}to{opacity:1}}}
-@media (prefers-color-scheme:dark){
- .nsheet,.ned-fsheet{background:#262A27;box-shadow:none;color:#E8E6E0}
- .ned-bodywrap{background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 29px,#343A36 29px,#343A36 30px)}
- .ned-grp,.ned-fsseg,.ned-fsclose i{background:#30352F}
- .ned .ned-ib{color:#E8E6E0}.ned .ned-ib:disabled,.ned .ned-ib[aria-disabled=true]{color:#5A615B}
- .ned .ned-done::before{background:#6FA08C}.ned .ned-done{color:#1C1F1D}
- .ned .ned-fsb[aria-pressed=true]{background:#262A27}
- .ned-ink{color:#E8E6E0}
- .ned .ned-chk{color:#6FA08C}.ned-body .nl[data-k=check][data-c="1"]{color:#8A918B}
-}
 /* 第19版 PR9: 書式の帯は上へ移ったので、キーボードの真上に取っていた補助列の分も本文の窓に使う（下の面で書くとき） */
 html.kbl[data-kbl=note][data-kbe=dn] .nhost{height:calc(var(--kl-ed-h) + var(--kl-as-h) + 4px)}
 .ned .ned-title{min-height:30px}
@@ -2101,11 +2075,13 @@ body:has(.nmenu) :is(.pgsw,.tabs){visibility:hidden}
 
 /* S6: 選んでいる（aria-pressed=true）のに見た目が緑の塗りでない部品を押すと、緑の塗りの規則（button[aria-pressed=true]:active）が勝って地が濃い緑になり、文字が読めなくなっていた（選んだ日のマスを押す、など）。それぞれ自分の押した色にする */
 .week .day:active:not(:disabled),.day:active:not(:disabled){background-color:#EFECE4!important}
-.fmodes button[aria-pressed=true]:active:not(:disabled),.tvseg button[aria-pressed=true]:active:not(:disabled){background-color:#F6F4EE!important;filter:none}
+.tvseg button[aria-pressed=true]:active:not(:disabled){background-color:#F6F4EE!important;filter:none}
+/* V-01: 切替は札（.fmp）の地だけを変える。ボタン全体は透明のまま */
+.fmodes button:active:not(:disabled){background-color:transparent!important}
+.fmodes button:active:not(:disabled) .fmp{background-color:#EFECE4;transition-duration:.10s}
+.fmodes button[aria-pressed=true]:active:not(:disabled) .fmp{background-color:#F6F4EE}
 body :is(.dchip)[aria-pressed=true]:active:not(:disabled){filter:brightness(.92)}
 #editor .dchip[aria-pressed=true]:active:not(:disabled){background-color:var(--green)!important}
-/* +N は日付の数字の上に重なる 44×44 の押せる範囲。押した地が数字を隠さないよう、地ではなく文字を薄くする（文字のリンクと同じ） */
-.week .plus:active:not(:disabled){background-color:transparent!important;opacity:.5;transition-duration:.10s}
 
 /* ===== 第19.1版 S7a（レビュー後の直し）===== */
 /* V-18: ノートの題名欄は高さ 44（上下 7）。文字の位置と本文の位置は変えない（上下に -7 の外側の余白。上の帯は前に出して、重なった所は帯のボタンが先に受ける） */
@@ -2136,3 +2112,49 @@ body :is(.dchip)[aria-pressed=true]:active:not(:disabled){filter:brightness(.92)
 .mdtask .rmckb{width:44px;height:44px;margin:0 -12px 0 0;padding:0 0 0 4px;justify-content:flex-start;position:relative;z-index:1}
 .mdtask .rmck{width:20px;height:20px;border-radius:8px}
 .mdtask.done .rmck::after{font-size:14px;line-height:16px}
+
+/* ===== 第19.1版 S7b（レビュー後の直し・設計の高 V-01〜V-10）===== */
+/* V-02: 右の帯のタスク／メモの絵は currentColor。ふだんは緑の線、選んだ丸（緑の地）では白 */
+.cb.cstrip .bi{color:#294E42}
+.cb.cstrip.on .bi{color:#fff}
+/* V-03: +N は押す的にしない（見た目はそのまま）。マスをたたけばその日。押した見た目と読み上げはマス（.day）の側 */
+.week .plus{pointer-events:none}
+/* V-04: 開いた横の月の日付の行は、閉じた画面（design/33 §5）と同じ寸法。今日の丸 16、日付 11pt を x+3、六曜 8pt を x+21〜37、+N 8pt W6 を右 2（六曜と +N が重ならない） */
+.spread .week.named .day,.spread .week.all .day{padding-left:2px}
+.spread .week.named .day .num,.spread .week.all .day .num{min-width:16px;height:16px;line-height:16px;margin-top:1px;border-radius:8px}
+.spread .week.named .day .rk,.spread .week.all .day .rk{margin-left:2px}
+.spread .week .plus{font-size:8px;padding-right:2px}
+/* V-06: 開いた縦の時間軸の予定は見た目の最小 22（15分の予定 11→22）。題名 13/16 W6 1行・上 3。重なりの計算も 22（30分）で行う（dayBlocks の minMin） */
+/* V-05: 週の題名は 10pt・行 12・上 2。行数は枠の高さで決める＝(高さ−4)÷12 の切り捨て（24→1行＋…、43→3行、65→5行）。切れた2行目を出さない */
+.closed.tv-week .tlev:not(.fev){padding:2px 3px}
+.closed.tv-week .tlev:not(.fev) .tn{font-size:10px;line-height:12px;-webkit-line-clamp:1}
+.fold-week .ftl{white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:1;overflow:hidden;overflow-wrap:anywhere}
+@container (min-height:24px){.closed.tv-week .tlev:not(.fev) .tn{-webkit-line-clamp:2}}
+@container (min-height:28px){.fold-week .ftl{-webkit-line-clamp:2}}
+@container (min-height:36px){.closed.tv-week .tlev:not(.fev) .tn{-webkit-line-clamp:3}}
+@container (min-height:40px){.fold-week .ftl{-webkit-line-clamp:3}}
+@container (min-height:48px){.closed.tv-week .tlev:not(.fev) .tn{-webkit-line-clamp:4}}
+@container (min-height:52px){.fold-week .ftl{-webkit-line-clamp:4}}
+@container (min-height:60px){.closed.tv-week .tlev:not(.fev) .tn{-webkit-line-clamp:5}}
+@container (min-height:64px){.fold-week .ftl{-webkit-line-clamp:5}}
+@container (min-height:72px){.closed.tv-week .tlev:not(.fev) .tn{-webkit-line-clamp:6}}
+@container (min-height:76px){.fold-week .ftl{-webkit-line-clamp:6}}
+@container (min-height:84px){.closed.tv-week .tlev:not(.fev) .tn{-webkit-line-clamp:7}}
+@container (min-height:88px){.fold-week .ftl{-webkit-line-clamp:7}}
+@container (min-height:96px){.closed.tv-week .tlev:not(.fev) .tn{-webkit-line-clamp:8}}
+@container (min-height:100px){.fold-week .ftl{-webkit-line-clamp:8}}
+@container (min-height:108px){.closed.tv-week .tlev:not(.fev) .tn{-webkit-line-clamp:9}}
+@container (min-height:112px){.fold-week .ftl{-webkit-line-clamp:9}}
+@container (min-height:120px){.closed.tv-week .tlev:not(.fev) .tn{-webkit-line-clamp:10}}
+@container (min-height:124px){.fold-week .ftl{-webkit-line-clamp:10}}
+@container (min-height:132px){.closed.tv-week .tlev:not(.fev) .tn{-webkit-line-clamp:11}}
+@container (min-height:136px){.fold-week .ftl{-webkit-line-clamp:11}}
+@container (min-height:144px){.closed.tv-week .tlev:not(.fev) .tn{-webkit-line-clamp:12}}
+@container (min-height:148px){.fold-week .ftl{-webkit-line-clamp:12}}
+/* V-09: 開いた縦・開いた横の下のバーの上に、閉じた画面と同じ 24 のぼかし（上 0%→下 100%）。縦は y839〜863（x0〜669）、横は各ページ y587〜611（左ページ #F0EDE5・右ページ #FFFDFA）。最後の行はバーの上 8 まで送れる */
+.shell.open.portrait .tabfade{display:block;position:fixed;z-index:5;left:var(--sal,0px);right:var(--sar,0px);top:calc(var(--tabs-y) - 24px);height:24px;pointer-events:none;background:linear-gradient(to bottom,rgba(247,244,237,0),#F7F4ED)}
+.shell.spread .tabfade{display:block;position:fixed;z-index:5;top:calc(var(--tabs-y) - 24px);height:24px;pointer-events:none}
+.shell.spread .tabfade.tfl{left:var(--left-start);width:calc(var(--left-end) - var(--left-start));background:linear-gradient(to bottom,rgba(240,237,229,0),#F0EDE5)}
+.shell.spread .tabfade.tfr{left:var(--right-start);width:calc(var(--right-end) - var(--right-start));background:linear-gradient(to bottom,rgba(255,253,250,0),#FFFDFA)}
+/* V-07: 暗い色（prefers-color-scheme:dark の 7 か所と .shell.fd の暗い色）を外し、全部明るい色にそろえた。ダークは別の版で全画面まとめて入れる（25 §6）。キーボード・ピッカー・共有シート・ステータスバーも明るいまま（iOS は Info.plist の UIUserInterfaceStyle=Light） */
+:root{color-scheme:light}
