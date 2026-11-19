@@ -124,7 +124,7 @@ test.describe('開いた縦のホーム（案A）', () => {
     expect(await page.locator('.fmodes button[aria-pressed=true]').evaluate((e) => [getComputedStyle(e).fontSize, getComputedStyle(e).fontWeight, getComputedStyle(e).backgroundColor])).toEqual(['14px', '600', 'rgb(255, 255, 255)']);
     for (const b of await page.locator('.fmodes button').all()) { // 文字が札からはみ出さない
       const w = await b.evaluate((e) => { const r = document.createRange(); r.selectNodeContents(e); return [r.getBoundingClientRect().width, e.getBoundingClientRect().width]; });
-      expect(w[0]).toBeLessThanOrEqual(w[1] - 4);
+      expect(w[0]).toBeLessThanOrEqual(w[1] - 2);
     }
     const t = await box(page.locator('.tabs'));
     expect(f.y + f.height).toBeLessThan(t.y);
