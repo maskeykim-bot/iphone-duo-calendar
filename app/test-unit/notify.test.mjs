@@ -315,6 +315,17 @@ test('タスク通知: 対象外（notify偽・完了・期限なし・過去・
   assert.equal(plan([], NOW, S, { tasks: [TK('edge', { date: '2026-11-14', time: '09:00' })] }).length, 0); // 今ちょうどは過去
 });
 
+test('D10 つながっている件は候補に入らない。未リンク・連携を外した件は入る（RS-23/24）', () => {
+  const d = { date: '2026-11-15', time: '13:30' };
+  const ids = (tasks) => plan([], NOW, S, { tasks }).map((i) => i.id).sort();
+  assert.deepEqual(ids([TK('l1', d, { remItemId: 'x' }), TK('l2', d, { remExternalId: 'y' }), TK('tomb', d, { syncState: 'tombstone' })]), []);
+  assert.deepEqual(ids([TK('u', d), TK('off', d, { syncState: 'local' }), TK('gone', d, { syncState: 'listMissing' })]), ['duo.task.gone', 'duo.task.off', 'duo.task.u']);
+  // 許可を取り消してもつながりは外れるだけ。外れた件は notify が真なら Duo が鳴らすが、つながったままの件は鳴らさない
+  assert.deepEqual(ids([TK('p', d, { remItemId: 'x', syncState: 'paused' })]), []);
+  // 窓の外のリンク済みは更新用の通知も作らない
+  assert.deepEqual(ids([TK('far', { date: '2027-03-01' }, { remItemId: 'x' })]), []);
+});
+
 test('タスク通知: 予定IDと衝突しない（予定の id が task.x でも別）', () => {
   const r = plan([al({ id: 'task.a', s: '2026-11-15T10:00', e: '2026-11-15T11:00', alarms: [{ before: 30 }] })], NOW, S, { tasks: [TK('a', { date: '2026-11-15', time: '10:00' })] });
   assert.equal(new Set(r.map((i) => i.id)).size, 2);
