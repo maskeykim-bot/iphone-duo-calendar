@@ -1,7 +1,7 @@
 // 時刻のカプセル・長さのチップ・時分のマス（設計12 §1–2）。状態の計算は datetime.js、保存は app.js。
 // ここは表示と操作だけ。開くのは一度に一つ。開いて閉じただけでは何も変えない。
 import { splitIso, durationMin, endDayOffset, parseTimeDigits, parseDateDigits, digitsOnly, dialRing } from './datetime.js';
-import { DOW, addDays, addMonths, parseKey, todayKey, weekStart, weekdayHeads } from './util.js';
+import { t0, DOW, addDays, addMonths, parseKey, todayKey, weekStart, weekdayHeads } from './util.js';
 
 const p2 = (n) => String(n).padStart(2, '0');
 export const DURATIONS = [15, 30, 60, 90, 120, 180];
@@ -240,7 +240,7 @@ export function createTimeUi(els, api) {
 
   function render() {
     const st = api.get();
-    const t = (iso) => (iso ? iso.slice(11, 16) : '--:--');
+    const t = (iso) => (iso ? t0(iso.slice(11, 16)) : '--:--');
     els.start.textContent = st ? t(st.start) : '--:--';
     els.end.textContent = st ? t(st.end) : '--:--';
     const b = st && !st.all ? dayBadge(endDayOffset(st)) : '';
@@ -530,7 +530,7 @@ export function createTimeField(cap, opts) {
   hg.innerHTML = hourCellsHtml(null); mg.innerHTML = minCellsHtml(null);
   function render() {
     const v = opts.get(), cur = splitHm(v);
-    cap.textContent = v || '--:--';
+    cap.textContent = v ? t0(v) : '--:--';
     cap.setAttribute('aria-label', `${opts.label}、${v || '未設定'}、ボタン`);
     cap.classList.toggle('open', open); cap.setAttribute('aria-expanded', String(open));
     if (!open) return;

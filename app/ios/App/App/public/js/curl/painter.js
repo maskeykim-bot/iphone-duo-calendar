@@ -46,6 +46,7 @@ function collect(page, colors) {
     for (let n = tw.nextNode(); n; n = tw.nextNode()) {
       const s = n.data; if (!s.trim()) continue;
       const el = n.parentElement, cs = getComputedStyle(el);
+      if (el.style.visibility === 'hidden') continue; // 隠した時刻ラベル（今の札の近く・窓の下 12）は絵にも出さない（S5）
       const clip = clipOf(n.parentElement, true);
       let ell = null; // 省略の右端
       for (let e = el; e && e !== page.parentElement; e = e.parentElement) { const c2 = getComputedStyle(e); if (c2.textOverflow === 'ellipsis' && isScrollClip(c2)) { const r = rectOf(e); ell = r.r - num(c2.borderRightWidth) - num(c2.paddingRight); break; } if (e === page) break; }

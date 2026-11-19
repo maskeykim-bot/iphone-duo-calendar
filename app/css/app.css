@@ -1487,7 +1487,7 @@ dialog.panel.tface-open{overflow:visible}
 .mpull{display:flex;flex-direction:column;min-width:0;min-height:0;flex:1}
 .mpull .mph{display:flex;align-items:center;flex:none;height:48px;padding:0 4px;gap:0}
 .closed.fb .mpull .mph{padding:0 48px}
-.mpull .mph h2{flex:1;min-width:0;margin:0;text-align:center;font:700 17px/1.2 -apple-system,'Hiragino Sans',sans-serif;white-space:nowrap}
+.mpull .mph h2{flex:1;min-width:0;margin:0;text-align:center;font:600 17px/22px -apple-system,'Hiragino Sans',sans-serif;white-space:nowrap}
 .mpull .mph button{flex:none;min-width:44px;height:44px;padding:0;font-size:20px}
 .mpull .mph .mptoday{min-width:52px;font-size:13px;font-weight:600;color:var(--green)}
 .mpull .mph.pasting{display:block;height:auto;padding:0}
@@ -1527,7 +1527,7 @@ dialog.panel.tface-open{overflow:visible}
 .portrait.pull .pcol{height:auto;display:block}
 .portrait .mpull{padding:var(--head-h) 12px 0;box-sizing:border-box;display:block;flex:none}
 .portrait .mpull .mph{height:44px}
-.portrait .mpull .mph h2{font-size:19px}
+.portrait .mpull .mph h2{font:600 20px/26px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif}
 .portrait .mpull .mgrid{height:calc(var(--groove-avoid-y0,459px) - 16px - var(--head-h) - 64px)}
 .portrait .mpull .week{height:calc(100% / var(--rows,1))}
 .portrait .mpull[data-form=one] .week{height:100%}
@@ -1941,7 +1941,7 @@ body[data-posture=portrait] .mscreens{scrollbar-gutter:stable}
 .cb:active:where(:not(:disabled)) .bi{background-color:#EFECE4!important;transition-duration:.10s}
 .cb .bi{transition:background-color .15s ease-out,filter .15s ease-out}
 .cb.cadd:active .bi,.cb.cpnl.on:active .bi,.cb.ctt.on:active .bi{background-color:var(--green)!important;filter:brightness(.88)}
-.cb.on:not(.cpnl):not(.ctt):active .bi{background-color:#DDE7E2!important;filter:brightness(.92)}
+.cb.on:not(.cpnl):not(.ctt):not(.cstrip):active .bi{background-color:#DDE7E2!important;filter:brightness(.92)}
 .rbtn.radd:active{background-color:var(--green)!important;filter:brightness(.88)}
 /* 浮動タブの札（選んだ札は緑の上で 12% 黒、ほかは札の上に #EFECE4） */
 .tabs .pill,.pgsw .pill,.pswitch .pill,.spanbtn span,.allbtn span{transition:background-color .15s ease-out,filter .15s ease-out}
@@ -2084,3 +2084,14 @@ span.rmchip>button{position:relative;z-index:1}
 .menurows .swrow[aria-pressed=true] .rkswitch::after{transform:translateX(20px)}
 /* ノートの下のシート（新しいフォルダ・移動など）が開いている間は、下のタブを出さない（タブがシートのボタンを覆っていた。タブが 320 幅になって届いた） */
 body:has(.nmenu) :is(.pgsw,.tabs){visibility:hidden}
+/* M-16: 帯のタスク・ノートを開いている間の丸も、地を緑・アイコン白（大きさは変えない） */
+.cb.cstrip.on .bi{background:var(--green);color:#fff;box-shadow:none}
+@media (hover:hover){.cb.cstrip.on:hover .bi{background:var(--green)}}
+.cb.cstrip.on:active .bi{background-color:var(--green)!important;filter:brightness(.88)}
+#editor .formhead{padding:0 8px}
+/* M-20: 日付を選ぶ部品の選んだ日も丸だけ（button[aria-pressed=true] の四角い緑の地を出さない） */
+.dcell[aria-pressed=true],.dcell.sel{background:none;color:#293B35}
+.dcell.sel .n{background:#294E42;color:#fff}
+.dcell:active:where(:not(:disabled)){background-color:transparent!important;filter:none}
+.dcell:active .n{background-color:#EFECE4}
+.dcell.sel:active .n{background-color:#294E42;filter:brightness(.88)}

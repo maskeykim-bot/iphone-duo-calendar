@@ -49,7 +49,7 @@ test('閉じたホーム: 次の予定・今日の予定3件＋ほか・タス�
   await expect(page.locator('.htask .hdue').first()).toHaveText('11/5');
   await expect(page.locator('.hmemo')).toHaveCount(0); // 今日のメモカードは外した
   await expect(page.locator('.htmr')).toContainText('明日 11/13（金）');
-  await expect(page.locator('.htmr')).toContainText('09:00');
+  await expect(page.locator('.htmr')).toContainText('9:00');
   await expect(page.locator('.htmr')).toContainText('ほか1件');
   // 並び: 次の予定 → 今日の予定 → タスク → 明日
   const idx = await page.evaluate(() => ['.hevents', '.htasks', '.htmr'].map((s) => document.querySelector(s).getBoundingClientRect().top));

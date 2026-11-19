@@ -60,6 +60,16 @@ export function tint(hex, base = PAPER, ratio = 0.15) {
   return `#${out.join('')}`;
 }
 
+// 時間軸の予定の枠の地（本色）。白文字が 4.5 に届かない色だけ 10% ずつ暗くする（M-09）。
+const lin = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+const lum = (r, g, b) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+export function solid(hex) {
+  if (!HEX.test(hex)) hex = UNCATEGORIZED.color;
+  let c = [0, 1, 2].map((i) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16));
+  for (let n = 0; n < 6 && 1.05 / (lum(...c) + 0.05) < 4.5; n++) c = c.map((v) => Math.round(v * 0.9));
+  return `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
 // 1件のカテゴリを検証・正規化する。{ ok:true, value } | { ok:false, error }。未知の項目は保持する。
 export function validateCategory(c, now = Date.now()) {
   if (!c || typeof c !== 'object' || Array.isArray(c)) return { ok: false, error: 'カテゴリの形式が不正です' };

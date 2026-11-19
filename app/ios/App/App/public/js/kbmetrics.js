@@ -1,6 +1,6 @@
 // キーボード計測（設定 › 詳細だけに表示する一時計測。保存・送信しない。レイアウトや高さは変更しない）。
 // 審査版では KB_METRICS_ENABLED を false にすると表示も購読も無効になる。
-export const KB_METRICS_ENABLED = true;
+export const KB_METRICS_ENABLED = false;
 
 const r = (n) => Math.round(n * 100) / 100;
 const fin = (n) => (Number.isFinite(n) ? n : null);

@@ -45,9 +45,11 @@ export function eventsOnDay(events, k) {
     .filter((e) => dayOf(e.start) <= k && dayOf(e.end) >= k)
     .sort((a, b) => Number(!!b.all) - Number(!!a.all) || a.start.localeCompare(b.start) || Number(a.origin === 'iphone') - Number(b.origin === 'iphone') || a.title.localeCompare(b.title, 'ja') || String(a.id).localeCompare(String(b.id)));
 }
+// 時刻の表示は先頭の0なし（9:00・8:30。L-04）。保存・入力の値は今までどおり 09:00。
+export const t0 = (s) => String(s).replace(/(^|\D)0(\d:\d\d)/g, '$1$2');
 export function timeLabel(e) {
   if (e.all) return '終日';
-  return `${e.start.slice(11)} – ${e.end.slice(11)}`;
+  return t0(`${e.start.slice(11)} – ${e.end.slice(11)}`);
 }
 
 // 入力欄は地域依存の datetime-local を避け、固定書式のテキストで扱う。

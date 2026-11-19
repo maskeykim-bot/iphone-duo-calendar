@@ -1,6 +1,6 @@
 // 第19.1版 S5: 残りの第19版の直し（H-08/09/10/16〜20、M-03〜05/09/11/12/15〜17/20/21、L-02〜04/06/07）。寸法は getBoundingClientRect で ±1。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, seed, ev, openMenu } from './helpers.js';
+import { openApp, SIZES, seed, ev, openMenu, setTimeUi } from './helpers.js';
 
 const box = (loc) => loc.evaluate((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
 const near = (a, b, d = 1) => expect(Math.abs(a - b)).toBeLessThanOrEqual(d);
@@ -19,13 +19,16 @@ test.describe('予定の編集（H-09・H-10・L-06・L-03）', () => {
     expect(await page.locator('#f-start').evaluate((e) => getComputedStyle(e).fontWeight)).toBe('400');
   });
   test('長さのチップは「長さ」の右に 3つずつ2行（各 84.7×28、間 8）。閉じた画面で切れない', async ({ page }) => {
-    await openApp(page, SIZES.closedPortrait); await openEditor(page);
+    await openApp(page, SIZES.closedPortrait);
+    await page.evaluate(() => { document.documentElement.style.setProperty('--sar', '84px'); }); await page.waitForTimeout(100); // 右の帯 84（閉じた画面の実機）
+    await openEditor(page);
     const chips = page.locator('#editor .dchip');
     expect(await chips.count()).toBe(6);
     const bs = [];
     for (let i = 0; i < 6; i++) bs.push(await box(chips.nth(i)));
     for (const b of bs) { near(b.w, 84.7); near(b.h, 28); }
-    near(bs[0].x, 83); near(bs[1].x - (bs[0].x + bs[0].w), 8); near(bs[2].x + bs[2].w, 353);
+    const row = await box(page.locator('#editor .dtrow.dlen')); // 「長さ」の名札 50 の右。右端は行の右端
+    near(bs[0].x, row.x + 4 + 50); near(bs[1].x - (bs[0].x + bs[0].w), 8); near(bs[2].x + bs[2].w, row.x + row.w);
     near(bs[3].y - (bs[0].y + bs[0].h), 8); near(bs[3].x, bs[0].x);
     const form = await box(page.locator('#editor .fbody'));
     for (const b of bs) expect(b.x + b.w).toBeLessThanOrEqual(form.x + form.w + 0.5);
@@ -59,9 +62,12 @@ test.describe('予定の編集（H-09・H-10・L-06・L-03）', () => {
     await openApp(page, SIZES.closedPortrait);
     await seed(page, [ev('a', '朝会', '2026-11-12T09:00', '2026-11-12T09:30')]);
     await page.reload(); await page.waitForSelector('html[data-ready]');
-    await expect(page.locator('.tlev .tt, .hrow .ht, .mdev, .tlev').first()).not.toContainText(/(^|\D)0\d:\d\d/);
-    await page.locator('[data-event="a"]').first().click();
+    expect(await page.locator('#app').innerText()).not.toMatch(/(^|\D)0\d:\d\d/);
+    await openEditor(page);
+    await setTimeUi(page, 'start', '09:00');
     await expect(page.locator('#f-stime')).toHaveText('9:00');
+    await setTimeUi(page, 'end', '09:30');
+    await expect(page.locator('#f-etime')).toHaveText('9:30');
   });
 });
 
@@ -82,8 +88,8 @@ test.describe('開発用の文を出さない（H-16・H-17・M-13）', () => {
     await page.locator('[data-act="search"]:visible, .cb.csearch').first().click();
     await expect(page.locator('#search')).toBeVisible();
     await expect(page.locator('#sr-range')).toBeHidden();
-    await expect(page.locator('#search')).not.toContainText('検索範囲');
-    await expect(page.locator('#search')).not.toContainText('最大200件');
+    const shown = await page.locator('#search').innerText(); // 見えている文字（隠した要素の textContent は数えない）
+    expect(shown).not.toContain('検索範囲'); expect(shown).not.toContain('最大200件');
     await page.locator('#sr-q').fill('zzzzzzzz');
     const n = page.locator('.srnone');
     await expect(n).toHaveText('この3年に見つかりませんでした');
@@ -223,7 +229,8 @@ test.describe('帯・月・ほか（M-03/04/11/12/15/16/17/20、L-07）', () => 
     expect(await pill.evaluate((e) => [getComputedStyle(e).fontSize, getComputedStyle(e).fontWeight])).toEqual(['13px', '600']);
     const txt = await pill.evaluate((e) => { const r = document.createRange(); r.selectNodeContents(e); const t = r.getBoundingClientRect(); const p = e.getBoundingClientRect(); return [t.left - p.left, p.right - t.right]; });
     near(txt[0], 12, 1.5); near(txt[1], 12, 1.5);
-    expect((await g.locator('button').first().evaluate((e) => parseFloat(getComputedStyle(e, '::after').top))) + 40 + 2).toBeGreaterThanOrEqual(42);
+    const ps = await g.locator('button').first().evaluate((e) => { const c = getComputedStyle(e, '::after'); return parseFloat(c.top) + parseFloat(c.bottom); });
+    expect(40 - ps).toBeGreaterThanOrEqual(44); // 押せる範囲は疑似要素で 44
   });
   test('月のマスの中のチップ・帯は押す的にしない（マス全体が1つの押す的）。押すとその日を選ぶ', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
@@ -256,15 +263,14 @@ test.describe('帯・月・ほか（M-03/04/11/12/15/16/17/20、L-07）', () => 
     await expect(c).toBeVisible();
     expect(await c.evaluate((e) => getComputedStyle(e).color)).toBe('rgb(41, 78, 66)');
   });
-  test('開いた横: 今日＋明日の間の見開きの丸は緑の地・白いアイコンで、四角い地を出さない', async ({ page }) => {
-    await openApp(page, SIZES.openLandscape951, '?ns=s5tt2');
-    await page.evaluate(() => { localStorage.setItem('duo.ui.v1.s5tt2', JSON.stringify({ spreadType: 'tt' })); });
-    await page.reload(); await page.waitForSelector('html[data-ready]');
-    const b = page.locator('.cb.ctt');
+  test('閉じた画面の帯: 開いている間の丸は 地を緑・アイコン白で、四角い地を出さない', async ({ page }) => {
+    await openApp(page, SIZES.closedPortrait);
+    await page.evaluate(() => { document.documentElement.style.setProperty('--sar', '84px'); });
+    const b = page.locator('.cb.cstrip').first();
+    await b.click();
     await expect(b).toHaveAttribute('aria-pressed', 'true');
     expect(await b.evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
-    expect(await b.locator('.bi').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(41, 78, 66)');
-    const bi = await box(b.locator('.bi')); near(bi.w, 56, 1.5);
+    expect(await b.locator('.bi').evaluate((e) => [getComputedStyle(e).backgroundColor, getComputedStyle(e).color])).toEqual(['rgb(41, 78, 66)', 'rgb(255, 255, 255)']);
   });
   test('サンプルを入れるは時間軸の上に出さない（空の日）', async ({ page }) => {
     await openApp(page, SIZES.openLandscape951);

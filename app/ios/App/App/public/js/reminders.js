@@ -26,10 +26,10 @@ const byCreated = (a, b) => (hasMs(a.createdAt) && hasMs(b.createdAt) ? a.create
 const byDone = (a, b) => cmp(b.doneAt || '', a.doneAt || '') || cmp(a.title || '', b.title || '') || cmp(a.itemId, b.itemId);
 
 // 分類: 期限切れ → 選択日 → この先 → 期限なし → 完了。
-// 期限切れ＝実際の現在日時より前、または選択日より前の日付（どの欄にも入らない既往期限を拾う。過去の選択日と重複しない）。
+// 期限切れ＝実際の現在日時より前（赤）。選択日より前で今日以降は before（日付の見出し・黒）。
 export function groupReminders(items, { now = new Date(), selected, histDays = HIST_DAYS } = {}) {
   const nowS = stampOf(now), since = completedSinceStamp(now, histDays);
-  const g = { overdue: [], selected: [], upcoming: [], nodue: [], done: [] };
+  const g = { overdue: [], before: [], selected: [], upcoming: [], nodue: [], done: [] };
   const seen = new Set();
   for (const r of Array.isArray(items) ? items : []) {
     if (!r || typeof r.itemId !== 'string' || seen.has(r.itemId)) continue;
@@ -37,17 +37,19 @@ export function groupReminders(items, { now = new Date(), selected, histDays = H
     if (r.done) { if (!r.doneAt || r.doneAt >= since) g.done.push(r); continue; }
     if (!r.due || !r.due.date) { g.nodue.push(r); continue; }
     const past = r.due.time ? dueKey(r) < nowS : r.due.date < nowS.slice(0, 10);
-    if (past || r.due.date < selected) g.overdue.push(r);
+    if (past) g.overdue.push(r);
+    else if (r.due.date < selected) g.before.push(r); // 選んだ日より前で今日以降（赤の期限切れにしない。M-17）
     else if (r.due.date === selected) g.selected.push(r);
     else g.upcoming.push(r);
   }
-  g.overdue.sort(byDue); g.selected.sort(byDue); g.upcoming.sort(byDue); g.nodue.sort(byCreated); g.done.sort(byDone);
+  g.overdue.sort(byDue); g.before.sort(byDue); g.selected.sort(byDue); g.upcoming.sort(byDue); g.nodue.sort(byCreated); g.done.sort(byDone);
   return g;
 }
 
 const escH = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const DOWJ = ['日', '月', '火', '水', '木', '金', '土'];
 const mdLabel = (k) => { const [, m, d] = k.split('-').map(Number); return `${m}/${d}`; };
+const nowS0 = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const mdFull = (k) => { const [y, m, d] = k.split('-').map(Number); return `${m}月${d}日(${DOWJ[new Date(y, m - 1, d).getDay()]})`; };
 const safeColor = (c) => (/^#[0-9a-fA-F]{6}$/.test(c || '') ? c : '#68716A');
 
@@ -97,10 +99,12 @@ export function tasksHtml(data, { selected, now = new Date(), doneOpen = false, 
   const g = groupReminders(data.reminders, { now, selected, histDays });
   const row = (r, late) => taskRowHtml(pending?.has(r.itemId) ? { ...r, done: pending.get(r.itemId) } : r, colors.get(r.listId), late, rl);
   const sec = (key, title, arr, late) => (arr.length ? `<section class="rmsec" data-sec="${key}"><h3 class="rmh${late ? ' late' : ''}">${escH(title)}</h3><div role="list">${arr.map((r) => row(r, late)).join('')}</div></section>` : '');
-  let h = sec('overdue', '期限切れ', g.overdue, true) + sec('selected', mdFull(selected), g.selected, false) + sec('upcoming', 'この先', g.upcoming, false) + sec('nodue', '期限なし', g.nodue, false);
+  const todayD = nowS0(now), dh = (k) => { const [, m, d] = k.split('-').map(Number); return k === todayD ? `${m}/${d}（今日）` : `${m}/${d}`; };
+  const beforeH = [...new Set(g.before.map((r) => r.due.date))].map((k) => sec(`before:${k}`, dh(k), g.before.filter((r) => r.due.date === k), false)).join('');
+  let h = sec('overdue', '期限切れ', g.overdue, true) + beforeH + sec('selected', mdFull(selected), g.selected, false) + sec('upcoming', 'この先', g.upcoming, false) + sec('nodue', '期限なし', g.nodue, false);
   const doneHead = `<button type="button" class="rmdonebtn" data-act="remdone" aria-expanded="${doneOpen}">完了（${g.done.length}） <span aria-hidden="true">${doneOpen ? '⌄' : '›'}</span></button>`;
   h += `<section class="rmsec" data-sec="done">${doneHead}${doneOpen ? `<div role="list">${g.done.map((r) => row(r, false)).join('')}</div><button type="button" class="rmmore" data-act="remmore"${busyMore ? ' disabled' : ''}>もっと前を表示</button>` : ''}</section>`;
-  if (!g.overdue.length && !g.selected.length && !g.upcoming.length && !g.nodue.length) h = `<p class="remtx pad rmempty">未完了のタスクはありません。</p>${h}`;
+  if (!g.overdue.length && !g.before.length && !g.selected.length && !g.upcoming.length && !g.nodue.length) h = `<p class="remtx pad rmempty">未完了のタスクはありません。</p>${h}`;
   const addH = add ? addRowHtml(add.draft, { selected, noList: add.noList === true, capsule: capsuleHtml(rl) }) : '';
   return `<div class="pagewait padb taskl" data-wait="task">${stalledHtml(rl)}${listChipsHtml(rl)}${addH}${h}</div>`;
 }

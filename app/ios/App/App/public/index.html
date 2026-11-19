@@ -22,7 +22,7 @@
 
 <dialog id="editor" class="panel" aria-labelledby="edtitle">
   <form id="form" novalidate autocomplete="off">
-    <div class="formhead"><button type="button" id="close" class="hbtn hx" aria-label="閉じる">✕</button><h2 id="edtitle">予定を追加</h2><span id="ed-tag" class="caltag" hidden></span><button type="submit" id="save" class="hbtn hok" aria-label="保存">✓</button></div>
+    <div class="formhead"><button type="button" id="close" class="hbtn hx" aria-label="閉じる"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l12 12M17 5L5 17"/></svg></button><h2 id="edtitle">予定を追加</h2><span id="ed-tag" class="caltag" hidden></span><button type="submit" id="save" class="hbtn hok" aria-label="保存"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 11.5l4.5 4.5L17.5 6.5"/></svg></button></div>
     <p id="error" class="error" role="alert"></p>
     <div class="fbody">
       <p id="ext-gone" class="gonebar" hidden>この予定は見つかりません。カレンダーで確認してください。</p>
@@ -61,7 +61,7 @@
         <p class="alnote13">繰り返しの変更は iPhone のカレンダーで行ってください。</p>
       </div>
       <div class="repeat">
-        <button type="button" id="rtoggle" class="rtoggle erow" aria-expanded="false" aria-controls="rpanel"><span class="tri" aria-hidden="true">▸</span> 繰り返し · <span id="rsum">なし</span></button>
+        <button type="button" id="rtoggle" class="rtoggle erow" aria-expanded="false" aria-controls="rpanel"><span class="rn">繰り返し</span><span id="rsum" class="rv">なし</span><span class="sch" aria-hidden="true">›</span></button>
         <div id="rpanel" hidden>
           <label>頻度<select id="f-rfreq"><option value="none">なし</option><option value="daily">毎日</option><option value="weekly">毎週</option><option value="monthly">毎月</option><option value="yearly">毎年</option></select></label>
           <p id="rdesc" class="small"></p>
@@ -120,34 +120,33 @@
   <button type="button" id="sc-cancel" class="row cancel">キャンセル</button>
 </dialog>
 <dialog id="menu" class="sheet" aria-labelledby="m-title">
-  <div class="mhead"><h2 id="m-title">設定</h2><button type="button" id="m-back" class="mclose" aria-label="設定を閉じる">×</button></div>
+  <div class="mhead"><h2 id="m-title">設定</h2><button type="button" id="m-back" class="mclose" aria-label="設定を閉じる">×</button><button type="button" id="m-close" class="mclose" aria-label="設定を閉じる" hidden><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l12 12M17 5L5 17"/></svg></button></div>
   <div class="mscreens">
     <div class="menurows" data-screen="root">
-      <button type="button" class="srow" data-go="general"><span class="sic"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg></span><span class="sname">一般</span><span class="shint">週の始まり・六曜</span><span class="sch" aria-hidden="true">›</span></button>
-      <button type="button" class="srow" data-go="display"><span class="sic"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 10h18" stroke="currentColor" stroke-width="2"/></svg></span><span class="sname">表示形式</span><span class="shint">月の表現・文字・時間軸</span><span class="sch" aria-hidden="true">›</span></button>
-      <button type="button" class="srow" id="m-notify" data-m="notify" hidden><span class="sic"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 17h14M7 17V11a5 5 0 0 1 10 0v6" fill="currentColor" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="20.5" r="1.5" fill="currentColor"/></svg></span><span class="sname">通知</span><span class="sch" aria-hidden="true">›</span></button>
-      <button type="button" class="srow" data-go="calendar"><span class="sic"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 9h18" stroke="currentColor" stroke-width="2"/></svg></span><span class="sname">カレンダー</span><span class="sch" aria-hidden="true">›</span></button>
-      <button type="button" class="srow" data-go="reminders" id="m-reminders" hidden><span class="sic"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 12.5l3 3 5-6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span><span class="sname">タスク</span><span class="ssub" id="m-rssub"></span><span class="sch" aria-hidden="true">›</span></button>
+      <button type="button" class="srow" data-go="general"><span class="sic"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h9M16 6h3M3 11h3M10 11h9M3 16h11M18 16h1"/><circle cx="14" cy="6" r="2"/><circle cx="8" cy="11" r="2"/><circle cx="16" cy="16" r="2"/></svg></span><span class="sname">一般</span><span class="shint">週の始まり・六曜</span><span class="sch" aria-hidden="true">›</span></button>
+      <button type="button" class="srow" data-go="display"><span class="sic"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="16" height="12" rx="2"/><path d="M8 19h6M11 16v3"/></svg></span><span class="sname">表示形式</span><span class="shint">月の表現・文字・時間軸</span><span class="sch" aria-hidden="true">›</span></button>
+      <button type="button" class="srow" id="m-notify" data-m="notify" hidden><span class="sic"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 16h12M6.5 16V10a4.5 4.5 0 0 1 9 0v6"/><path d="M9.5 19h3"/></svg></span><span class="sname">通知</span><span class="sch" aria-hidden="true">›</span></button>
+      <button type="button" class="srow" data-go="calendar"><span class="sic"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="16" height="14" rx="2"/><path d="M3 9h16M7.5 3v3M14.5 3v3"/></svg></span><span class="sname">カレンダー</span><span class="sch" aria-hidden="true">›</span></button>
+      <button type="button" class="srow" data-go="reminders" id="m-reminders" hidden><span class="sic"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="15" height="15" rx="3"/><path d="M7.5 11.5l2.5 2.5 4.5-5"/></svg></span><span class="sname">タスク</span><span class="ssub" id="m-rssub"></span><span class="sch" aria-hidden="true">›</span></button>
       <hr class="ssep">
-      <button type="button" class="srow" data-go="google"><span class="sic"><b class="gl" aria-hidden="true">G</b></span><span class="sname">Google カレンダー</span><span class="sch" aria-hidden="true">›</span></button>
-      <button type="button" class="srow" data-m="backup"><span class="sic"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="3" y="7" width="18" height="10" rx="3" fill="currentColor"/></svg></span><span class="sname">バックアップ</span><span class="sch" aria-hidden="true">›</span></button>
-      <button type="button" class="srow" data-go="details"><span class="sic"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2"/></svg></span><span class="sname">詳細</span><span class="sch" aria-hidden="true">›</span></button>
-      <p class="sfoot">ウィジェット・ヘルプは、その機能ができたら足す</p>
+      <button type="button" class="srow" data-go="google"><span class="sic"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="M3 11h16M11 3c-3 2.5-3 13.5 0 16M11 3c3 2.5 3 13.5 0 16"/></svg></span><span class="sname">Google カレンダー</span><span class="sch" aria-hidden="true">›</span></button>
+      <button type="button" class="srow" data-m="backup"><span class="sic"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8l1.5-4h11L18 8M4 8h14v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V8zM9 12h4"/></svg></span><span class="sname">バックアップ</span><span class="sch" aria-hidden="true">›</span></button>
+      <button type="button" class="srow" data-go="details"><span class="sic"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="M11 10v5M11 7v.5"/></svg></span><span class="sname">詳細</span><span class="sch" aria-hidden="true">›</span></button>
     </div>
     <div class="menurows" data-screen="general" hidden>
-      <button type="button" data-m="week" id="m-week">週の始まり</button>
+      <button type="button" data-m="week" id="m-week" class="setrow"><span class="mn">週の始まり</span><span class="mv" id="m-week-v"></span><span class="sch" aria-hidden="true">›</span></button>
       <button type="button" data-m="holiday" id="m-holiday" class="swrow" role="switch" aria-checked="true" aria-describedby="m-holiday-d"><span>祝日を赤で表示</span><i class="rkswitch" aria-hidden="true"></i></button>
       <p id="m-holiday-d" class="swnote">祝日の日付を赤にします。日曜は常に赤です。名前は内蔵の祝日表から出し、連携がなくても使えます。</p>
       <button type="button" data-m="rokuyo" id="m-rokuyo" class="swrow" role="switch" aria-checked="true" aria-describedby="m-rokuyo-d"><span>六曜を表示</span><i class="rkswitch" aria-hidden="true"></i></button>
       <p id="m-rokuyo-d" class="swnote">月のマスと日の見出しに、大安・仏滅などを出します。</p>
-      <button type="button" data-m="desk" id="m-desk">卓上表示</button>
+      <button type="button" data-m="desk" id="m-desk" class="setrow"><span class="mn">卓上表示</span><span class="mv" id="m-desk-v"></span><span class="sch" aria-hidden="true">›</span></button>
     </div>
     <div class="menurows" data-screen="display" hidden>
-      <button type="button" data-m="mode" id="m-mode" aria-expanded="false" aria-controls="m-variant">月の表現</button>
+      <button type="button" data-m="mode" id="m-mode" class="setrow" aria-label="月の表現" aria-expanded="false" aria-controls="m-variant"><span class="mn">月の表現</span><span class="mv" id="m-mode-v"></span><span class="sch" aria-hidden="true">›</span></button>
       <div class="variant" id="m-variant" role="group" aria-label="月の表現" hidden></div>
-      <button type="button" data-m="msize" id="m-msize" aria-pressed="false">月の文字</button>
-      <button type="button" data-m="mtime" id="m-mtime" aria-pressed="false">月表示に時刻を出す</button>
-      <div id="m-tlz" class="tlz" role="group" aria-label="時間軸の大きさ" hidden><button type="button" data-m="tlout">時間軸を縮小</button><button type="button" data-m="tlin">時間軸を拡大</button></div>
+      <button type="button" data-m="msize" id="m-msize" class="setrow" aria-pressed="false"><span class="mn">月の文字</span><span class="mv" id="m-msize-v"></span><span class="sch" aria-hidden="true">›</span></button>
+      <button type="button" data-m="mtime" id="m-mtime" class="setrow swrow" aria-pressed="false"><span class="mn">月表示に時刻を出す</span><i class="rkswitch" aria-hidden="true"></i></button>
+      <div id="m-tlz" class="tlz mrowd" role="group" aria-label="時間軸の大きさ" hidden><span class="mn">時間軸の大きさ</span><span class="mpm"><button type="button" data-m="tlout" aria-label="時間軸を縮小">−</button><button type="button" data-m="tlin" aria-label="時間軸を拡大">＋</button></span></div>
     </div>
     <div class="menurows" data-screen="calendar" hidden>
       <div id="m-cal">
@@ -205,7 +204,7 @@
   <div id="m-destpop" class="destpage" role="group" aria-label="新しい予定の追加先" hidden></div>
 </dialog>
 <dialog id="search" class="panel full" aria-labelledby="sr-title">
-  <div class="phead"><h2 id="sr-title">予定を検索</h2><button type="button" id="sr-close">閉じる</button></div>
+  <div class="phead"><h2 id="sr-title">予定を検索</h2><button type="button" id="sr-close" class="mclose" aria-label="閉じる"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l12 12M17 5L5 17"/></svg></button></div>
   <div class="sbar">
     <div class="sfield"><label for="sr-q" class="vh">検索語</label><input id="sr-q" type="text" enterkeyhint="search" placeholder="予定名・メモ・場所" autocomplete="off"><button type="button" id="sr-clear" aria-label="検索語をクリア" hidden>×</button></div>
     <p id="sr-range" class="small"></p>
@@ -227,7 +226,7 @@
   <input id="bk-file" type="file" accept="application/json,.json" hidden>
 </dialog>
 <dialog id="xdetail" class="panel" aria-labelledby="xd-title">
-  <div class="phead"><h2 id="xd-title">iPhoneの予定</h2><button type="button" id="xd-close" class="xclose" aria-label="閉じる">✕</button></div>
+  <div class="phead"><h2 id="xd-title">iPhoneの予定</h2><button type="button" id="xd-close" class="xclose" aria-label="閉じる"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l12 12M17 5L5 17"/></svg></button></div>
   <div id="xd-body" class="pbody"></div>
   <div class="pfoot">
     <p id="xd-err" class="error" role="alert"></p>
@@ -238,7 +237,7 @@
   </div>
 </dialog>
 <dialog id="taskdlg" class="panel" aria-labelledby="tk-h">
-  <div class="phead"><h2 id="tk-h">タスク</h2><button type="button" id="tk-close" class="xclose" aria-label="閉じる">✕</button></div>
+  <div class="phead"><h2 id="tk-h">タスク</h2><button type="button" id="tk-close" class="xclose" aria-label="閉じる"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l12 12M17 5L5 17"/></svg></button></div>
   <div id="tk-body" class="pbody"></div>
   <div class="pfoot">
     <p id="tk-err" class="error" role="alert"></p>

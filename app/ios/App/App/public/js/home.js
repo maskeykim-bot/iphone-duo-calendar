@@ -41,8 +41,19 @@ export function axisBars(list, now, day) {
     const s = e.start.slice(0, 10) < day ? 0 : hm(e.start), en = e.end.slice(0, 10) > day ? 1440 : hm(e.end);
     const a = Math.max(from, s), z = Math.min(to, Math.max(en, s + 15));
     if (z <= a) continue;
-    bars.push({ id: e.id, top: ((a - from) * HOUR_PX) / 60, height: Math.max(6, ((z - a) * HOUR_PX) / 60), past: e.end <= now, start: e.start });
+    bars.push({ id: e.id, top: ((a - from) * HOUR_PX) / 60, height: Math.max(14, ((z - a) * HOUR_PX) / 60), past: e.end <= now, start: e.start });
   }
+  // 重なる枠は横に2列（各 半分−2）。見える枠（最小 14）が重なるものを同じ組にして、列を割り振る（H-20）。
+  const ord = [...bars].sort((x, y) => x.top - y.top);
+  let gi = 0, gEnd = -1, group = [];
+  const close = () => { const n = Math.min(2, Math.max(1, ...group.map((b) => b.col + 1))); group.forEach((b) => { b.n = n; }); group = []; };
+  for (const b of ord) {
+    if (b.top >= gEnd) { close(); gEnd = -1; gi = 0; }
+    const taken = new Set(group.filter((o) => o.top + o.height > b.top).map((o) => o.col));
+    b.col = [0, 1].find((c) => !taken.has(c)) ?? (gi++ % 2);
+    group.push(b); gEnd = Math.max(gEnd, b.top + b.height);
+  }
+  close();
   const nm = hm(now);
   const nowTop = now.slice(0, 10) === day && nm >= from && nm <= to ? ((nm - from) * HOUR_PX) / 60 : null;
   return { bars, nowTop, height: ((to - from) * HOUR_PX) / 60 };
