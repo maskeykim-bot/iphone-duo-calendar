@@ -2068,7 +2068,6 @@ button.cb.ctt.on[aria-pressed=true] .bi{color:#fff}
 .hgo::after{content:"";position:absolute;left:-6px;right:-6px;top:-6px;bottom:-6px}
 .pvh .hgo::after{top:-4px;bottom:-4px}
 .mpull .mgrab::after,.mgrab::after{content:"";position:absolute;left:0;right:0;top:-10px;bottom:-10px}
-.mrpick{margin:-1px}
 .rmchipx::before{inset:-10px -10px}
 span.rmchip{position:relative}
 span.rmchip::before{content:"";position:absolute;left:0;right:0;top:-10px;bottom:-10px}
