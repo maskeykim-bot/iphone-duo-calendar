@@ -2251,3 +2251,7 @@ body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#tas
 .hadd.first .hadd-t{flex:1;min-width:0;margin-left:-4px}
 .closed .htasks .htask{min-height:44px}
 .closed .htasks .htask .rmckb{height:44px;min-height:44px}
+/* N-01: ノートの「一覧」ボタンの文字も見出しと同じ x（ボタンの内側余白 12 のぶん箱を左へ 4） */
+.spread .page[data-page=memo] .ntools .mback{margin-left:-4px}
+/* N-01 の結果（右ページの箱が 8 狭い）で終日の札が「…」で切れないよう、終日の行の「ノート」札の余白を 8 詰める（左 8→4、内側 8→6）。計測の文字切れを S7 最終（8）から増やさない */
+.spread .rp:not(.dpage) .allday .ndchip{margin-left:4px;padding:0 6px}

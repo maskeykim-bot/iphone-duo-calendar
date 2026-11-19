@@ -29,7 +29,7 @@ export function headingKind(line, date) {
 }
 
 // 行頭の記号（見出し「# 」〜「###### 」、チェック「- [ ] 」「- [x] 」、箇条書き「- 」「・」「•」）。保存の文字には残し、画面には出さない（S7 R-27・V-21）。
-const MARK = /^\s*(#{1,6}\s+|- \[[ xX]\]\s*|[-・•]\s+)/;
+const MARK = /^\s*((?:#{1,6}\s+)+|- \[[ xX]\]\s*|[-・•]\s+)/; // 見出しの記号が連続していても（すでに「# # x」で保存されたノート）全部外す（連携 04:06）
 const noCr = (line) => String(line ?? '').replace(/\r$/, '');
 // 1行の「記号の部分」（字下げ込み）。記号がなければ ''。line === markOf(line) + 残り。
 export const markOf = (line) => { const m = MARK.exec(String(line ?? '')); return m ? m[0] : ''; };

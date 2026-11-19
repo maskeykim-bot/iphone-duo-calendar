@@ -28,7 +28,7 @@ test.describe('閉じた画面 466×678（帯 84）', () => {
     expect(g.kfs).toBe(8); expect(g.kfw).toBeGreaterThanOrEqual(600); expect(g.kc).toBe('rgb(104, 113, 106)');
     expect(g.pfs).toBe(8); expect(g.pfw).toBeGreaterThanOrEqual(600); expect(g.pc).toBe('rgb(104, 113, 106)');
     expect(near(g.pr, 4, 0.8)).toBe(true); // S8 N-05（設計 2026-11-20）: 選んでいる今日のマスの +N は右 4（枠の内側 2＋すき間 2）。ほかのマスは 2
-    expect(g.pl - g.kr).toBeGreaterThanOrEqual(3); // すき間 3.9 で重ならない
+    expect(g.pl - g.kr).toBeGreaterThanOrEqual(1.5); // 選んだ今日のマスは +N が右 4 になり（S8 N-05）、六曜とのすき間は 3.9→1.9。重ならない
     // 今日（11/12）の丸は直径 16
     const t = await page.locator('[data-date="2026-11-12"] .num').boundingBox();
     expect(near(t.width, 16, 0.6) && near(t.height, 16, 0.6)).toBe(true);

@@ -311,9 +311,10 @@ export function focusTasksHtml(data, { view = 'today', sel = null, olderOpen = f
   const sec = (key, title, arr, late) => (arr.length ? `<section class="rmsec" data-sec="${key}"><h3 class="rmh${late ? ' late' : ''}">${escH(title)}</h3><div role="list">${arr.map((r) => row(r, late)).join('')}</div></section>` : '');
   const empty = (t) => `<p class="remtx pad rmempty">${t}</p>`;
   let body = '';
-  if (view === 'today') body = sec('overdue', '期限切れ', v.overdue, true) + sec('today', '今日', v.todayItems, false) || empty('今日のタスクはありません。');
+  const todayHead = (() => { const k = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`; return mdFull(k, k); })(); // N-08（設計 2026-11-20）: 「今日 · 11月19日（木）」（V-24 の書き方）
+  if (view === 'today') body = sec('overdue', '期限切れ', v.overdue, true) + sec('today', todayHead, v.todayItems, false) || empty('今日のタスクはありません。');
   else if (view === 'plan') body = v.plan.map((g) => sec(`day:${g.date}`, mdFull(g.date, `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`), g.items, false)).join('') || empty('明日以降のタスクはありません。');
-  else if (view === 'all') body = sec('overdue', '期限切れ', v.overdue, true) + sec('today', '今日', v.todayItems, false) + sec('upcoming', 'この先', v.plan.flatMap((g) => g.items), false) + sec('nodue', '期限なし', v.nodue, false) || empty('未完了のタスクはありません。');
+  else if (view === 'all') body = sec('overdue', '期限切れ', v.overdue, true) + sec('today', todayHead, v.todayItems, false) + sec('upcoming', 'この先', v.plan.flatMap((g) => g.items), false) + sec('nodue', '期限なし', v.nodue, false) || empty('未完了のタスクはありません。');
   else {
     body = sec('done', `完了（${v.recent.length}）`, v.recent, false) || empty('最近30日の完了はありません。');
     if (v.older.length) body += olderOpen ? sec('older', `もっと前（${v.older.length}）`, v.older, false) : `<button type="button" class="rmmore" data-act="ftolder">もっと前を表示（${v.older.length}）</button>`;

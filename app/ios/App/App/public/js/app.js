@@ -534,6 +534,8 @@ const catSty = (e) => ` style="${catVar(e)}"`;
 const tagText = (e) => (isX(e) ? subLabel(e) : calOfLink(e)?.name ?? catOf(e).name);
 const xi = (e) => (isX(e) ? '<span class="xi" aria-hidden="true">▦</span>' : '');
 const xname = (e) => (isX(e) ? `iPhone、${e.calName}、` : '');
+// 読み上げ用の時刻（S8 品質の低）: 時刻つきの予定は「9:00 朝会」。終日・日をまたいで続く日は付けない
+const spokenAt = (e, k) => (!e.all && typeof e.start === 'string' && e.start.length >= 16 && e.start.slice(0, 10) === k ? `${+e.start.slice(11, 13)}:${e.start.slice(14, 16)} ` : '');
 
 // ---------- テンプレート ----------
 // 浮動タブ: ホーム／日／週／月（今日はボタンへ移った）。native button + aria-pressed。ホームのみ data-act=list（保存値 state.home は従来のまま）。
@@ -750,10 +752,10 @@ function weekInner(w, { mode, cur, sel, today, cap, time, tk = null, lt = LANE_T
     const tn = tk?.get(k) || 0; // 月にタスクの件数（開いた画面だけ。タスク名は出さない）
     const dots = mode === 'simple' ? `<span class="dots">${es.slice(0, cap).map((e) => `<i class="dot ${catCls(e)}"${catSty(e)}></i>`).join('')}</span>` : '';
     const ps = PS.on ? PS.days.includes(k) : false, pSrc = PS.on && k === PS.srcDay;
-    html += `<button type="button" class="day${cur !== null && d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}${dow === 6 ? ' sat' : dow === 0 ? ' sun' : ''}${state.holidayRed && holName(k) ? ' hol' : ''}${ps ? ' psel' : ''}${pSrc ? ' psrc' : ''}" data-date="${k}" aria-label="${dayLabel(k)}${holSpoken(k)}${r ? `、${r.name}` : ''}、予定${es.length}件${xCount(es)}${es.length ? `：${es.map((x) => xname(x) + x.title).join('、')}` : ''}${NB.marks.has(k) ? '、ノートあり' : ''}${tn ? `、未完了のタスク${tn}件` : ''}${PS.on ? `${pSrc ? '、コピー元' : ''}、${ps ? '選択中。この日を外す' : 'この日を選ぶ'}` : ''}" aria-pressed="${PS.on ? ps : k === sel}">${pSrc ? '<span class="pcsrc" aria-hidden="true">コピー元</span>' : ''}${ps ? '<i class="pck" aria-hidden="true">✓</i>' : ''}${r ? `<span class="rk" aria-hidden="true">${r.name}</span>` : ''}<span class="num${state.rokuyo && d.getDate() === 1 ? ' sd' : ''}">${label}</span>${tn ? `<span class="tkn" aria-hidden="true">✓${tn}</span>` : ''}${NB.marks.has(k) ? '<i class="mline" aria-hidden="true"></i>' : ''}${dots}</button>`;
+    html += `<button type="button" class="day${cur !== null && d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}${dow === 6 ? ' sat' : dow === 0 ? ' sun' : ''}${state.holidayRed && holName(k) ? ' hol' : ''}${ps ? ' psel' : ''}${pSrc ? ' psrc' : ''}" data-date="${k}" aria-label="${dayLabel(k)}${holSpoken(k)}${r ? `、${r.name}` : ''}、予定${es.length}件${xCount(es)}${es.length ? `：${es.map((x) => xname(x) + spokenAt(x, k) + x.title).join('、')}` : ''}${NB.marks.has(k) ? '、ノートあり' : ''}${tn ? `、未完了のタスク${tn}件` : ''}${PS.on ? `${pSrc ? '、コピー元' : ''}、${ps ? '選択中。この日を外す' : 'この日を選ぶ'}` : ''}" aria-pressed="${PS.on ? ps : k === sel}">${pSrc ? '<span class="pcsrc" aria-hidden="true">コピー元</span>' : ''}${ps ? '<i class="pck" aria-hidden="true">✓</i>' : ''}${r ? `<span class="rk" aria-hidden="true">${r.name}</span>` : ''}<span class="num${state.rokuyo && d.getDate() === 1 ? ' sd' : ''}">${label}</span>${tn ? `<span class="tkn" aria-hidden="true">✓${tn}</span>` : ''}${NB.marks.has(k) ? '<i class="mline" aria-hidden="true"></i>' : ''}${dots}</button>`;
     const extra = mode === 'simple' ? es.length - cap : hidden[col];
     if (extra > 0 && plusLane >= 0) html += `<span class="plus pn" data-plus="${k}" style="${colPos(col, col)};top:${lt + plusLane * ls}px" aria-hidden="true">+${extra + dropped[col]}</span>`;
-    else if (extra > 0) html += `<span class="plus" data-plus="${k}" style="right:calc(${6 - col} * 100% / 7)" aria-hidden="true">+${extra}</span>`;
+    else if (extra > 0) html += `<span class="plus${k === sel ? ' onsel' : ''}" data-plus="${k}" style="right:calc(${6 - col} * 100% / 7)" aria-hidden="true">+${extra}</span>`;
   });
   if (mode === 'simple') return html;
   html += pasteGhostHtml(w, cap, lt, ls);
@@ -1207,7 +1209,10 @@ function homeTasksCard() {
     const done = doneCtl.pending().get(r.itemId) === true, du = dueText(r.due, today), od = r.due.date < today;
     return `<div class="htask${done ? ' done' : ''}"><button type="button" class="rmckb" data-act="remck" data-id="${esc(r.itemId)}" role="checkbox" aria-checked="${done}" aria-label="${done ? '未完了に戻す' : '完了にする'}：${esc(r.title || '')}"${r.readOnly ? ' disabled' : ''}><span class="rmck" aria-hidden="true"></span></button><span class="htt">${esc(r.title || '')}</span>${du ? `<small class="hdue${od ? ' od' : ''}">${esc(du)}</small>` : ''}</div>`;
   }).join('');
-  return `<section class="hcard htasks" aria-label="タスク"><div class="hh3"><h3>タスク ${T.total}件</h3>${homeGo('task', 'すべて')}</div>${rows || '<p class="small hempty">今日のタスクはありません</p>'}<button type="button" class="hadd" data-act="homego" data-to="taskadd">＋ タスクを追加</button></section>`;
+  // 閉じたホーム: 「＋ タスクを追加」はカードの見出しのすぐ下（1行目、設計 2026-11-20 4:05 ★1-10。最初の画面でタブの下に隠れない）。ほかの姿勢は従来どおり下
+  const first = Math.min(L.w, L.h) < 600; // 閉じた画面
+  const add = `<button type="button" class="hadd${first ? ' first' : ''}" data-act="homego" data-to="taskadd" aria-label="＋ タスクを追加"><span class="hadd-p" aria-hidden="true">＋</span><span class="hadd-t">タスクを追加</span></button>`;
+  return `<section class="hcard htasks" aria-label="タスク"><div class="hh3"><h3>タスク ${T.total}件</h3>${homeGo('task', 'すべて')}</div>${first ? add : ''}${rows || (first ? '' : '<p class="small hempty">今日のタスクはありません</p>')}${first ? '' : add}</section>`; // 閉じたホームで 0 件なら追加の行だけ（カードの下端 y522）
 }
 function listHtml(mode = 'cards') {
   const now = nowStamp(), k = todayKey(), d = parseKey(k), tm = addDays(k, 1);
