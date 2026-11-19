@@ -2013,7 +2013,7 @@ html:not([data-dev]) #touch-check-open,html:not([data-dev]) #layout-diagnostics,
 .mscreens .menurows>button.mrow .mn,.mscreens .menurows>button.swrow>span:first-child{color:#293B35;font-size:15px;font-weight:400}
 .mscreens .menurows>button.swrow{font-size:15px;color:#293B35}
 /* M-03: 開いた横の下のタブ 1つ 64×40（5つで 320・角丸 20）、文字 13 W6、選んだ札は文字の左右 12 */
-.pgsw{width:320px;height:40px;border-radius:20px;margin-top:3px;grid-template-columns:repeat(5,64px);left:calc(var(--tabs-x) + var(--tabs-w) / 2 - 160px)}
+.pgsw{width:320px;height:40px;border-radius:20px;grid-template-columns:repeat(5,64px);left:calc(var(--tabs-x) + var(--tabs-w) / 2 - 160px)}
 .pgsw.pgr{left:calc(var(--sw-r-x) + var(--tabs-w) / 2 - 160px)}
 .pgsw button{height:40px;min-height:40px;width:64px;border-radius:20px}
 .pgsw .pill{width:auto;min-width:0;max-width:64px;height:40px;padding:0 12px;border-radius:20px;font-size:13px;font-weight:600;white-space:nowrap}
@@ -2068,7 +2068,7 @@ button.cb.ctt.on[aria-pressed=true] .bi{color:#fff}
 .hgo::after{content:"";position:absolute;left:-6px;right:-6px;top:-6px;bottom:-6px}
 .pvh .hgo::after{top:-4px;bottom:-4px}
 .mpull .mgrab::after,.mgrab::after{content:"";position:absolute;left:0;right:0;top:-10px;bottom:-10px}
-.mrpick{left:0;top:0;width:44px;height:44px;margin:0}
+.mrpick{margin:-1px}
 .rmchipx::before{inset:-10px -10px}
 span.rmchip{position:relative}
 span.rmchip::before{content:"";position:absolute;left:0;right:0;top:-10px;bottom:-10px}

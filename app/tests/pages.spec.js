@@ -66,18 +66,18 @@ const IDS = { ホーム: 'home', 月: 'month', 時間: 'time', タスク: 'task'
 const kinds = (page) => page.locator('.page').evaluateAll((l) => l.map((e) => e.dataset.page));
 const box = async (loc) => (await loc.boundingBox());
 
-test('切替は左右に1つずつ。幅240・高46・各60・選択54×36、折り目から10以上離れる', async ({ page }) => {
+test('切替は左右に1つずつ。幅320・高40・各64（S5 M-03）、折り目から10以上離れる', async ({ page }) => {
   for (const size of [SIZES.openLandscape951, SIZES.openLandscape]) {
     await openApp(page, size);
     const l = await box(page.locator('.pgsw.pgl')), r = await box(page.locator('.pgsw.pgr')), W = size.width, f = W / 2;
-    for (const b of [l, r]) { expect(b.width).toBeCloseTo(240, 0); expect(b.height).toBeCloseTo(46, 0); }
+    for (const b of [l, r]) { expect(b.width).toBeCloseTo(320, 0); expect(b.height).toBeCloseTo(40, 0); }
     expect(l.x + l.width).toBeLessThanOrEqual(f - 10 + 0.5);
     expect(r.x).toBeGreaterThanOrEqual(f + 10 - 0.5);
     expect(l.y).toBeCloseTo(r.y, 0);
     const bs = await page.locator('.pgsw.pgl button').evaluateAll((l2) => l2.map((e) => e.getBoundingClientRect().width));
-    expect(bs).toHaveLength(5); bs.forEach((w) => expect(w).toBeCloseTo(48, 0)); // 5項目（ホーム・月・時間・タスク・メモ）
+    expect(bs).toHaveLength(5); bs.forEach((w) => expect(w).toBeCloseTo(64, 0)); // 5項目（ホーム・月・時間・タスク・メモ）
     const pill = await box(page.locator('.pgsw.pgl button[aria-pressed="true"] .pill'));
-    expect(pill.width).toBeCloseTo(46, 0); expect(pill.height).toBeCloseTo(36, 0);
+    expect(pill.width).toBeLessThanOrEqual(64.5); expect(pill.height).toBeCloseTo(40, 0);
     // 左ページの中央（利用幅 [Ls+8, f-10] の中央）
     expect(l.x + l.width / 2).toBeCloseTo((8 + f - 10) / 2, 0);
     await expect(page.locator('.tabs')).toHaveCount(0);
@@ -197,7 +197,7 @@ test('safe R84／非対称 safe でも、右の切替は右ページの利用幅
     await page.waitForTimeout(80);
     const W = size.width, f = W / 2, R = safe.r || 0, Ls = safe.l || 0;
     const l = await box(page.locator('.pgsw.pgl')), r = await box(page.locator('.pgsw.pgr'));
-    expect(r.width).toBeCloseTo(240, 0);
+    expect(r.width).toBeCloseTo(320, 0);
     expect(r.x + r.width / 2).toBeCloseTo((f + 10 + W - R - 16) / 2, 0);
     expect(l.x + l.width / 2).toBeCloseTo((Ls + 8 + f - 10) / 2, 0);
     expect(l.x + l.width).toBeLessThanOrEqual(f - 10 + 0.5);
