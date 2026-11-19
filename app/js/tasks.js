@@ -92,7 +92,7 @@ export function classifyTasks(list) {
 export const LOCAL_LIST = { id: 'duo', title: 'タスク', color: '#68716A', allowsModify: true, isDefault: true, source: 'Duo' };
 const pad2 = (n) => String(n).padStart(2, '0');
 export const stampNow = (d = new Date()) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-export const rowOf = (t) => ({ itemId: t.id, listId: LOCAL_LIST.id, title: t.title, notes: t.note, due: t.due, done: t.done, doneAt: t.doneAt, alarms: t.notify ? [{}] : [], alarmsExtra: 0, priority: 0, recurring: false, createdAt: t.createdAt, modifiedAt: t.updatedAt, readOnly: false });
+export const rowOf = (t) => ({ itemId: t.id, listId: isLinked(t) && t.remListId ? t.remListId : LOCAL_LIST.id, title: t.title, notes: t.note, due: t.due, done: t.done, doneAt: t.doneAt, alarms: t.notify ? [{}] : [], alarmsExtra: 0, priority: 0, recurring: false, createdAt: t.createdAt, modifiedAt: t.updatedAt, readOnly: false, ...(t.syncState ? { syncState: t.syncState } : {}), ...(isLinked(t) ? { linked: true } : {}) });
 const fail = (code, e) => Object.assign(new Error(e?.message || code), { code });
 // 保存の失敗は理由を分けて表示できるよう code にする（容量超過は STORAGE_FULL、それ以外は STORE_FAILED）。
 const storeErr = (e) => (e && (e.code === 'INVALID_ARGUMENT' || e.code === 'NOT_FOUND') ? e : fail(/quota/i.test(`${e?.name} ${e?.message}`) ? 'STORAGE_FULL' : /^(タスク|題名)/.test(e?.message || '') ? 'INVALID_ARGUMENT' : 'STORE_FAILED', e));
@@ -136,9 +136,9 @@ export function createTaskStore(db, { syncOn = () => false, onWrite = () => {} }
     async list() { try { return liveTasks(await db.listTasks()); } catch (e) { throw storeErr(e); } },
     async listAll() { try { return await db.listTasks(); } catch (e) { throw storeErr(e); } },
     // id は呼び出し側が決める（同じ要求の再試行は同じ id → db.addTask が重複させない）。
-    async add({ id, title, due = null, notify = false, note = '' }) {
+    async add({ id, title, due = null, notify = false, note = '', listId = '' }) {
       try {
-        const t = await db.addTask({ id, title, due, notify, note, ...(syncOn() ? { syncState: 'pending' } : {}) });
+        const t = await db.addTask({ id, title, due, notify, note, ...(syncOn() ? { syncState: 'pending', ...(listId ? { remListId: listId } : {}) } : {}) });
         wrote('add', t.id);
         return t;
       } catch (e) { throw storeErr(e); }
@@ -206,14 +206,14 @@ export function createLocalAddController(store) {
   const rid = () => `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
   return {
     get busy() { return busy; },
-    async submit({ title, due = null, time = '', notify }) {
+    async submit({ title, due = null, time = '', notify, listId = '' }) {
       if (busy) return { ok: false, busy: true };
       const t = String(title ?? '').trim();
       if (!t) return { ok: false, empty: true };
       const dueV = due ? (time ? { date: due, time } : { date: due }) : null;
       const nv = !!dueV && notify === true;
-      const fp = JSON.stringify([t, dueV, nv]);
-      if (!pend || pend.fp !== fp) pend = { id: rid(), fp, args: { title: t, due: dueV, notify: nv } };
+      const fp = JSON.stringify([t, dueV, nv, listId]);
+      if (!pend || pend.fp !== fp) pend = { id: rid(), fp, args: { title: t, due: dueV, notify: nv, ...(listId ? { listId } : {}) } };
       const req = pend;
       busy = true;
       try {

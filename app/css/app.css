@@ -1670,3 +1670,91 @@ html[data-grab] .tl,html[data-grab] .tlx{touch-action:none}
 html.kbl[data-kbl=note][data-kbe=dn] .nhost{height:calc(var(--kl-ed-h) + var(--kl-as-h) + 4px)}
 .ned .ned-title{min-height:30px}
 .ned .ned-body{min-height:90px}
+
+/* ---------- 第19版 PR10: タスクの画面（リストの部品・設定 › タスク・説明シート・確認の一覧） ---------- */
+.ldot{display:inline-block;flex:none;width:8px;height:8px;border-radius:50%;background:#68716A}
+.lchips{display:flex;gap:8px;align-items:center;height:44px;margin:0 0 4px;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;touch-action:pan-x}
+.lchips::-webkit-scrollbar{display:none}
+.lchip{flex:none;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:14px;border:0;background:#F0EDE5;color:#293B35;font-size:13px;position:relative;white-space:nowrap}
+.lchip::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
+.lchip i{width:8px;height:8px;border-radius:50%;flex:none}
+.lchip.on{background:var(--green);color:#fff}
+.stalled{display:block;width:100%;height:28px;margin:0 0 6px;padding:0 12px;border:0;border-radius:14px;background:#F0EDE5;color:#68716A;font-size:12px;text-align:left;position:relative}
+.stalled::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
+.dcap2{flex:none;margin-left:auto;display:inline-flex;align-items:center;gap:4px;height:28px;max-width:104px;padding:0 8px;border-radius:14px;border:1.5px solid var(--lc,#68716A);background:#fff;color:#293B35;font-size:13px;font-weight:700;position:relative}
+.dcap2::before{content:"";position:absolute;left:-4px;right:-4px;top:-8px;bottom:-8px}
+.dcap2 i{width:8px;height:8px;border-radius:50%;background:var(--lc,#68716A);flex:none}
+.dcap2 span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dcap2 b{flex:none;font-weight:400;color:#68716A}
+.rmlist{flex:none;align-self:flex-end;margin-bottom:6px;display:inline-flex;align-items:center;gap:4px;max-width:38%;font-size:12px;color:#68716A;white-space:nowrap}
+.rmlist i{width:8px;height:8px;border-radius:50%;flex:none}
+.rmlist{overflow:hidden;text-overflow:ellipsis}
+.rmwait{font-size:11px;color:#68716A;margin-right:2px}
+.rmgone{font-size:11px;color:#68716A}
+.rmrow.gone .rmt{color:#68716A}
+.rmrow.fresh{animation:rmfresh 1s ease-out}
+@keyframes rmfresh{0%,90%{background:#E5EEE9}100%{background:transparent}}
+.rmrow.fresh,.rmrow.two{transition:none}
+@media (prefers-reduced-motion:reduce){.rmrow.fresh{animation:none}}
+/* 設定 › タスク */
+.menurows .rsrow{min-height:48px;height:48px}
+.menurows .rsgo b{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-weight:400;font-size:15px;color:#68716A}
+.menurows .rsgo em{font-style:normal;color:#A8ABA4;font-size:20px}
+.menurows .rsgo{gap:8px}
+.menurows .rsgo span{flex:1}
+.ssub{font-size:12px;color:#68716A;margin-right:2px}
+.rsdeny{margin:4px 12px 8px;padding:10px 12px;border-radius:10px;background:#FBF0DC;color:#6E4A12;font-size:13px;line-height:1.5}
+.rsdeny p{margin:0 0 6px}
+.rsdeny button{display:block;width:112px!important;min-height:24px!important;height:24px;padding:0;border:0;border-radius:12px;background:#E9C98A;color:#4A3208;font-size:12px;text-align:center!important;position:relative}
+.rsdeny button::before{content:"";position:absolute;left:0;right:0;top:-10px;bottom:-10px}
+.rsh{margin:12px 20px 4px;font-size:12px;font-weight:400;color:#68716A}
+.rslist{display:flex!important;align-items:center;gap:10px;height:40px;min-height:40px!important;padding:0 20px!important;border:0;background:none;font-size:16px;text-align:left}
+.rslist .ldot{width:14px;height:14px}
+.rslist .rsn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rslist small{font-size:11px;color:#68716A}
+.rslist b{width:18px;text-align:right;color:var(--green);font-weight:700;margin-right:0}
+.rslist.fixed b{color:#A8ABA4}
+.rsnote{margin:0;padding:4px 20px 8px;font-size:11px;line-height:1.5;color:#68716A}
+/* シート */
+dialog#rsheet{z-index:13;padding:0;border:0;border-radius:24px 24px 22px 22px;background:#fff;box-shadow:0 -6px 30px #132c3340;max-width:none;max-height:none;height:auto;overflow:hidden}
+dialog#rsheet[open]{display:flex;flex-direction:column}
+.rshead{flex:none;display:flex;align-items:center;justify-content:space-between;padding:16px 8px 8px 24px}
+.rshead h2{font:700 18px/1.3 system-ui,-apple-system,'Hiragino Sans',sans-serif}
+.rsx{width:44px;height:44px;border:0;background:none;font-size:18px;color:#68716A}
+.rsbody{flex:1;min-height:0;overflow:auto;padding:0 24px}
+.rsbody p{margin:0 0 8px;font-size:13px;line-height:1.6;color:#68716A}
+.rsmain{flex:none;display:block;margin:12px 24px;height:50px;border:0;border-radius:12px;background:var(--green);color:#fff;font-size:16px;font-weight:700}
+.rsmain:disabled{opacity:.6}
+.rsacts{flex:none;display:flex;gap:12px;padding:12px 24px 20px}
+.rsacts button{flex:1;height:44px;border-radius:12px;border:1px solid var(--line);background:#fff;font-size:15px}
+.rsacts .danger{background:var(--danger);color:#fff;border-color:var(--danger)}
+.rsscroll{flex:1;min-height:0;overflow:auto;padding:0 24px}
+.rsscroll h3{margin:12px 0 4px;font-size:13px;color:#68716A;font-weight:700}
+.rsrow40{display:flex;align-items:center;gap:8px;min-height:40px}
+.rsrow40 .rst{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px}
+.rsrow40 small{flex:none;font-size:12px;color:#68716A}
+.rsmore{margin:0;font-size:12px;color:#68716A}
+.rsmaybe{padding-bottom:6px}
+.rsseg{display:flex;gap:2px;padding:2px;height:32px;border-radius:16px;background:#e6e9e4}
+.rsseg button{flex:1;min-width:0;height:28px;border:0;border-radius:14px;background:transparent;font-size:12px;position:relative}
+.rsseg button::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
+.rsseg button[aria-pressed=true]{background:#fff;color:var(--green);font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.rslater{flex:none;display:block;margin:0 24px 16px;min-height:44px;border:0;background:none;color:#68716A;font-size:13px}
+.rsdone{flex:none;margin:8px 24px 0;font-size:13px;color:var(--green)}
+.rspage{flex:1;min-height:0;overflow:auto;padding:0 8px 16px}
+.rsrowp{display:flex;align-items:center;gap:12px;width:100%;height:44px;padding:0 16px;border:0;background:none;font-size:16px;text-align:left}
+.rsrowp .ldot{width:12px;height:12px}
+.rsrowp span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rsrowp b{width:18px;color:var(--green)}
+.tklist{margin-top:8px}
+.tklistb{display:flex;align-items:center;gap:8px;width:100%;height:44px;padding:0 4px;border:0;background:none;font-size:15px;text-align:left}
+.tklistb .dtk{flex:1}
+.tklv{display:inline-flex;align-items:center;gap:6px;color:#68716A}
+.tklistb b{color:#A8ABA4;font-weight:400}
+.stalled{min-height:28px;height:28px;padding-top:0;padding-bottom:0}
+.lchip,.rsseg button{min-height:0}
+.dcap2{min-height:28px;height:28px;padding-top:0;padding-bottom:0}
+.undobar.rstoast{height:44px;min-height:44px;border-radius:12px;box-sizing:border-box}
+.undobar.rstoast{background:#1f2724}
+.menurows .fixrow{padding:0 12px}
+dialog#rsheet[data-kind=explain] .rsmain{margin-bottom:26px}

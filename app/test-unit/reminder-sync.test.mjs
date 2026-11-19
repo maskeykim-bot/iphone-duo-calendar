@@ -354,3 +354,27 @@ test('native が無い（UNAVAILABLE）・取得失敗でも例外にならず�
   assert.equal((await t.sync.sync()).skipped, 'error');
   assert.equal((await byId(t.db, 'a')).syncState, 'pending');
 });
+
+// ---- 第19版 PR10: 初めてオンにするときの確認の一覧 ----
+import { previewFirst, applyFirst } from '../js/reminder-sync.js';
+const task = (id, title, due = null, extra = {}) => ({ id, title, due, done: false, doneAt: null, createdAt: 1, updatedAt: 1, order: 1, note: '', notify: false, ...extra });
+const rem = (itemId, title, due = null, extra = {}) => ({ itemId, externalId: `X${itemId}`, listId: 'L1', title, due, done: false, modifiedAt: 5, ...extra });
+test('previewFirst: 題名と期限が 1 対 1 で同じものだけ「同じかも」。題名だけ・2 件以上は出さない。つながり済み・墓標は入れない', () => {
+  const tasks = [task('a', '牛乳', { date: '2026-11-20' }), task('b', 'パン', { date: '2026-11-20' }), task('c', 'ごみ'), task('d', '重複', { date: '2026-11-20' }), task('e', '重複', { date: '2026-11-20' }),
+    task('f', 'つながり済み', null, { remItemId: 'R9', syncState: 'linked' }), task('g', '墓標', null, { syncState: 'tombstone' }), task('h', '同名だけ', { date: '2026-11-21' })];
+  const rems = [rem('R1', '牛乳', { date: '2026-11-20' }), rem('R2', 'パン', { date: '2026-11-21' }), rem('R3', '重複', { date: '2026-11-20' }), rem('R4', '同名だけ', null)];
+  const pv = previewFirst(tasks, rems);
+  assert.deepEqual(pv.maybe.map((m) => [m.task.id, m.rem.itemId, m.choice]), [['a', 'R1', 'link']]);
+  assert.deepEqual(pv.toAdd.map((t) => t.id).sort(), ['b', 'c', 'd', 'e', 'h']);
+});
+test('applyFirst: 結びつける＝リンクだけ（書き込みなし）、両方残す＝pending、入れない＝状態なし、入れる件＝pending', async () => {
+  const db = await fresh();
+  for (const t of [task('a', '牛乳', { date: '2026-11-20' }), task('b', 'パン', { date: '2026-11-20' }), task('c', 'ごみ', null, { syncState: 'pending' }), task('d', '新規')]) await db.putTask({ ...t, order: 1 });
+  const base = {};
+  await applyFirst({ db, base, toAdd: [await db.getTask('d')], maybe: [{ task: await db.getTask('a'), rem: rem('R1', '牛乳', { date: '2026-11-20' }), choice: 'link' }, { task: await db.getTask('b'), rem: rem('R2', 'パン', { date: '2026-11-20' }), choice: 'keep' }, { task: await db.getTask('c'), rem: rem('R3', 'ごみ'), choice: 'skip' }] });
+  const a = await db.getTask('a'), b = await db.getTask('b'), c = await db.getTask('c'), d = await db.getTask('d');
+  assert.equal(a.remItemId, 'R1'); assert.equal(a.syncState, 'linked'); assert.equal(base.a.title, '牛乳');
+  assert.equal(b.syncState, 'pending'); assert.equal(b.remItemId, undefined);
+  assert.equal('syncState' in c, false);
+  assert.equal(d.syncState, 'pending');
+});

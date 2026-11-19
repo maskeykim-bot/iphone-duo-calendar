@@ -49,7 +49,7 @@ test.describe('月にタスクを表示', () => {
     await expect(cnt(page, D0)).toHaveText('✓3');
     await openMenu(page, 'reminders');
     await expect(page.locator('#m-tkmonth')).toHaveAttribute('aria-checked', 'true');
-    await expect(page.locator('#m-tkwin')).toHaveText('30日');
+    await expect(page.locator('#m-tkwin')).toHaveText('30日分を表示');
     await page.locator('#m-tkmonth').click();
     await page.reload(); await page.waitForSelector('html[data-ready]');
     expect(await stored(page)).toEqual({ monthTasks: false }); // 旧が true のままでも再継承しない

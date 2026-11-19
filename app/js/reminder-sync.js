@@ -13,7 +13,7 @@ export const CONFLICT_NOTICE = 'iPhone のリマインダーと同時に変わ�
 export const DUO_LIST_TITLE = 'Duo';
 export const SYNC_FIELDS = ['title', 'note', 'due', 'done', 'notify'];
 
-export const SYNC_DEFAULT = { enabled: false, everEnabled: false, lists: [], duoListId: '', duoSourceId: '', duoListTitle: DUO_LIST_TITLE, listMissing: false, listAsked: false };
+export const SYNC_DEFAULT = { enabled: false, everEnabled: false, lists: [], duoListId: '', duoSourceId: '', duoListTitle: DUO_LIST_TITLE, listMissing: false, listAsked: false, addTo: '', syncedAt: 0 };
 const str = (v) => (typeof v === 'string' ? v : '');
 export function normSyncSettings(raw) {
   const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
@@ -23,6 +23,7 @@ export function normSyncSettings(raw) {
     lists: Array.isArray(o.lists) ? [...new Set(o.lists.filter((x) => typeof x === 'string' && x))] : [],
     duoListId: str(o.duoListId), duoSourceId: str(o.duoSourceId), duoListTitle: str(o.duoListTitle) || DUO_LIST_TITLE,
     listMissing: o.listMissing === true, listAsked: o.listAsked === true,
+    addTo: str(o.addTo), syncedAt: Number.isFinite(o.syncedAt) && o.syncedAt > 0 ? o.syncedAt : 0,
   };
 }
 
@@ -55,6 +56,38 @@ export function mergeFields({ duo, rem, base, pending, duoAt, remAt, canGive }) 
   // 期限なしは通知なし
   if ('due' in take && take.due === null) { take.notify = false; delete give.notify; }
   return { take, give, conflicts };
+}
+
+// ---- 初めてオンにするときの確認の一覧（第19版 PR10。画面の部品。書き込みは applyFirst だけ） ----
+// tasks: DB の全件。rems: 「Duo」リストの今あるリマインダー（無ければ空）。
+//  toAdd: つながりのない Duo のタスク（リマインダーへ入れる）／maybe: 題名と期限が 1 対 1 で同じもの（題名だけ・2 件以上当たるものは出さない）。
+const dueKeyOf = (d) => (d && d.date ? `${d.date}T${d.time || ''}` : '');
+export function previewFirst(tasks, rems) {
+  const live = (tasks || []).filter((t) => !isTombstone(t) && !isLinked(t));
+  const rl = (rems || []).filter(Boolean);
+  const key = (title, due) => `${String(title ?? '').trim()}\u0000${dueKeyOf(normDue(due))}`;
+  const rc = new Map(), tc = new Map();
+  for (const r of rl) rc.set(key(r.title, r.due), [...(rc.get(key(r.title, r.due)) || []), r]);
+  for (const t of live) tc.set(key(t.title, t.due), [...(tc.get(key(t.title, t.due)) || []), t]);
+  const maybe = [], maybeIds = new Set();
+  for (const t of live) {
+    const k = key(t.title, t.due), a = tc.get(k), b = rc.get(k);
+    if (t.due && a.length === 1 && b && b.length === 1) { maybe.push({ task: t, rem: b[0], choice: 'link' }); maybeIds.add(t.id); }
+  }
+  return { toAdd: live.filter((t) => !maybeIds.has(t.id)), maybe };
+}
+// 確認のあとの反映。link: つなぐ（書き込みなし）／keep: 両方残す（Duo のタスクはリマインダーへ書く）／skip: 入れない（この件は書き出さない）。
+// toAdd と keep は pending に、skip は状態なしに（'local' は「リマインダーで消された」の印なので使わない）。つなぐ件は基準の値を残す。リマインダーへの書き込みは、このあとの同期が行う。
+export async function applyFirst({ db, toAdd, maybe, base }) {
+  for (const t of toAdd) await db.putTask({ ...(await db.getTask(t.id) || t), syncState: 'pending' });
+  for (const m of maybe) {
+    const cur = (await db.getTask(m.task.id)) || m.task;
+    if (m.choice === 'link') {
+      await db.putTask({ ...cur, remItemId: m.rem.itemId, ...(m.rem.externalId ? { remExternalId: m.rem.externalId } : {}), remListId: m.rem.listId, ...(Number.isFinite(m.rem.modifiedAt) ? { remModifiedAt: m.rem.modifiedAt } : {}), syncState: 'linked' });
+      if (base) base[cur.id] = duoView(cur);
+    } else if (m.choice === 'keep') await db.putTask({ ...cur, syncState: 'pending' });
+    else { const { syncState, ...rest } = cur; await db.putTask(rest); } // 入れない: 状態なし（pending にならないので書き出されない）
+  }
 }
 
 // ---- 計画（副作用なし） ----
@@ -123,7 +156,7 @@ export function createReminderSync(deps) {
   const now = deps.now || (() => new Date());
   const timer = deps.setTimer || setTimeout;
   let running = null, again = false, kickTimer = 0;
-  let baseMap = null;
+  let baseMap = null, sawConflict = false;
   const getBase = () => (baseMap ||= (() => { try { const b = baseStore?.get(); return b && typeof b === 'object' ? b : {}; } catch { return {}; } })());
   const saveBase = () => { try { baseStore?.set(getBase()); } catch { /* 無視 */ } };
   const patchSettings = (p) => { const next = { ...getSettings(), ...p }; setSettings(next); return next; };
@@ -186,10 +219,12 @@ export function createReminderSync(deps) {
     const merged = { ...duoView(t), ...take, ...give };
     if ('due' in take && !take.due) merged.notify = false;
     await commit(t, { take: { ...take, ...(take.done ? { doneAt: rem.doneAt || undefined } : {}) }, link, state, baseView: merged });
-    if (conflicts.length) onNotice(CONFLICT_NOTICE);
+    if (conflicts.length) { onNotice(CONFLICT_NOTICE); sawConflict = true; }
+    return Object.keys(take).length;
   }
 
   async function pass(reason) {
+    sawConflict = false;
     const st = getSettings();
     if (!st.enabled) return { skipped: 'off' };
     let perm;
@@ -200,7 +235,7 @@ export function createReminderSync(deps) {
     try { ls = await native.lists(); } catch { return { skipped: 'error' }; }
     if (ls.unavailable) return { skipped: 'unavailable' };
     const lists = ls.lists || [];
-    const out = { wrote: 0, created: 0, imported: 0, unlinked: 0, errors: 0, reason };
+    const out = { wrote: 0, created: 0, imported: 0, unlinked: 0, errors: 0, taken: 0, reason };
     // ---- 書き出し先の「Duo」リスト ----
     let s = getSettings();
     const ids = new Set(lists.map((l) => l.id));
@@ -242,11 +277,11 @@ export function createReminderSync(deps) {
       await db.putTask(rest); out.wrote++;
     }
     // ---- つながりのある件の差分 ----
-    for (const sy of plan.syncs) { try { await syncOne(sy); out.wrote++; } catch { out.errors++; } }
+    for (const sy of plan.syncs) { try { const n = await syncOne(sy); out.wrote++; if (n) out.taken++; } catch { out.errors++; } }
     // ---- リマインダー側で消された件: Duo は消さず「連携なし」へ（決定 4）。書き出し直さない ----
     for (const t of plan.unlinks) { const cur = await db.getTask(t.id); if (cur && !isTombstone(cur)) { await db.putTask(unlinkTask(cur, 'local')); delete getBase()[t.id]; out.unlinked++; } }
     // ---- Duo だけにある件の書き出し ----
-    for (const t of plan.creates) { try { await createOne(t, s.duoListId); out.created++; } catch (e) { out.errors++; } }
+    for (const t of plan.creates) { try { await createOne(t, t.remListId && ids.has(t.remListId) && t.remListId !== 'pending' ? t.remListId : s.duoListId); out.created++; } catch (e) { out.errors++; } }
     // ---- リマインダーだけにある件の取り込み ----
     if (plan.imports.length) {
       const all = await db.listTasks();
@@ -259,7 +294,9 @@ export function createReminderSync(deps) {
     }
     for (const t of plan.ambiguous) { onEvent({ type: 'ambiguous', id: t.id }); out.errors++; }
     saveBase();
+    if (!out.errors) patchSettings({ syncedAt: now().getTime() });
     if (out.wrote || out.created || out.imported || out.unlinked) onChange();
+    if ((out.taken || out.imported) && !sawConflict) onEvent({ type: 'incoming', taken: out.taken, imported: out.imported });
     return out;
   }
 
@@ -322,5 +359,5 @@ export function createReminderSync(deps) {
     } catch (e) { return { ok: false, code: errCodeOf(e) || 'UNAVAILABLE' }; }
   }
 
-  return { sync, kick, recreateList, declineRecreate, moveToList, get running() { return !!running; } };
+  return { sync, kick, recreateList, declineRecreate, moveToList, base: getBase, get running() { return !!running; } };
 }

@@ -24,8 +24,8 @@ import { titleOf, noteDateOf, dateOccupants, dailyHeading, ensureDailyFolder } f
 import { DELETE_UNDO_MS, tasksHtml, focusTasksHtml, HIST_DAYS, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDeleteController, TASK_DELETED } from './reminders.js';
 import { liveTasks as liveTasksOf, LOCAL_LIST, TASK_STORE_TEXT, createTaskStore, createLocalCall, createLocalAddController, rowOf, createTaskDoneController, DONE_UNDO_MS, TASK_VIEWS, TASK_VIEW_LABELS, normTaskView, dueCounts, todayTasks, inheritTaskSettings, normTaskSettings } from './tasks.js';
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
-import { call, errCode, errReason, errText, haptic, listen, nativeAvailable, remNative } from './native.js';
-import { createReminderSync, normSyncSettings } from './reminder-sync.js';
+import { call, errCode, errReason, errText, haptic, listen, nativeAvailable, remNative, requestReminderPermission } from './native.js';
+import { createReminderSync, normSyncSettings, previewFirst, applyFirst, SYNC_WINDOW_DAYS } from './reminder-sync.js';
 import { createDestPage, destRowsHtml } from './destination-ui.js';
 import { KB_METRICS_ENABLED, kbMetrics, kbText, screenText } from './kbmetrics.js';
 import { createPosture, postureText, grooveBands } from './posture.js';
@@ -1927,7 +1927,7 @@ async function remSubmit() {
   a.busy = true; a.err = ''; i.readOnly = true; i.setAttribute('aria-busy', 'true');
   root.querySelectorAll('[data-act="remsubmit"]').forEach((b) => { b.disabled = true; });
   root.querySelectorAll('.rmwhy.err').forEach((e) => e.remove());
-  const r = await addCtl.submit({ title: a.title, due, time, notify: a.notify }); // Duo 内に保存（native は呼ばない）
+  const r = await addCtl.submit({ title: a.title, due, time, notify: a.notify, listId: syncOn() ? addDestId() : '' }); // Duo 内に保存（native は呼ばない）
   if (RM.add !== a) return;
   a.busy = false;
   const cur = remInput() || i; // 再描画されても同じノード（保たれている）
@@ -1975,6 +1975,7 @@ function monthTaskCounts(kind) {
 const SYNC_KEY = `duo-rem-sync${suffix}`;
 const SYNC_BASE_KEY = `duo-rem-base${suffix}`; // 端末内の「前回合意した値」（欄ごとの衝突判定用。バックアップには入れない）
 let remSync = null;
+const RS = { perm: '', lists: [], chip: 'all', sheet: null, denied: false, flash: false }; // 第19版 PR10: タスクの画面の状態（許可・リスト・選んだチップ・開いているシート）
 let syncSet = normSyncSettings(parseLS(SYNC_KEY));
 const setSyncSettings = (next) => { syncSet = normSyncSettings(next); try { localStorage.setItem(SYNC_KEY, JSON.stringify(syncSet)); } catch { /* 無視 */ } };
 const taskStore = createTaskStore(db, { syncOn: () => NATIVE && syncSet.enabled, onWrite: () => remSync?.kick('write', 0) });
@@ -2036,10 +2037,10 @@ function toggleDone(id) {
 // 集中タスク（開いた縦）。見方・選択・もっと前の開閉は画面だけの状態（見方は保存）。
 const FT = { sel: null, older: false, timer: 0, chain: Promise.resolve() };
 function focusTaskBody() {
-  return focusTasksHtml(RM.data ? { ...RM.data, reminders: RM.data.reminders.filter((x) => !delCtl.has(x.itemId)) } : RM.data, { view: state.taskView, sel: FT.sel, olderOpen: FT.older, selected: state.selected, pending: doneCtl.pending(), add: RM.data ? { draft: RM.add } : null, loading: !RM.err, error: RM.err });
+  return focusTasksHtml(viewData(), { view: state.taskView, sel: FT.sel, olderOpen: FT.older, selected: state.selected, pending: doneCtl.pending(), add: RM.data ? { draft: RM.add } : null, loading: !RM.err, error: RM.err, rl: listUi() });
 }
 function taskBody(where) {
-  return tasksHtml(RM.data ? { ...RM.data, reminders: RM.data.reminders.filter((x) => !delCtl.has(x.itemId)) } : RM.data, { selected: state.selected, doneOpen: RM.doneOpen, histDays: RM.histDays, loading: !RM.err, error: RM.err, busyMore: RM.more, pending: doneCtl.pending(), add: RM.data ? { draft: RM.add } : null });
+  return tasksHtml(viewData(), { selected: state.selected, doneOpen: RM.doneOpen, histDays: RM.histDays, loading: !RM.err, error: RM.err, busyMore: RM.more, pending: doneCtl.pending(), add: RM.data ? { draft: RM.add } : null, rl: listUi() });
 }
 // Duo 内の保存から読む。読込の間に追加・完了・削除があれば、その結果は捨てて読み直す（追加済みの行を消さない）。
 let loadSeq = 0;
@@ -2050,6 +2051,7 @@ async function loadTasks() {
     if (g !== loadSeq) return;
     if (m0 !== RM.mut) { scheduleTasks(); return; }
     RM.err = false; RM.more = false;
+    if (RS.flash && RM.data) { const old = new Set(RM.data.reminders.map((x) => x.itemId)); for (const x of rows) if (!old.has(x.itemId)) x.fresh = true; RS.flash = false; setTimeout(() => { if (RM.data) { RM.data = { ...RM.data, reminders: RM.data.reminders.map(({ fresh, ...x }) => x) }; RM.sig = ''; render(); } }, 1000); }
     const r = { lists: [LOCAL_LIST], reminders: rows };
     const sig = JSON.stringify(r);
     if (sig === RM.sig && RM.data) return;
@@ -2067,9 +2069,177 @@ remSync = createReminderSync({
   setSettings: setSyncSettings,
   base: { get: () => parseLS(SYNC_BASE_KEY), set: (b) => { try { localStorage.setItem(SYNC_BASE_KEY, JSON.stringify(b)); } catch { /* 無視 */ } } },
   onChange: () => { RM.mut++; RM.sig = ''; scheduleTasks(); },
-  onNotice: (m) => { notice(m); say(m); },
+  onNotice: (m) => { notice(m, null, 3000); document.querySelector('#native-toast')?.classList.add('rstoast'); say(m); },
+  onEvent: (e) => { if (e.type === 'incoming') { RS.flash = true; notice('iPhone のリマインダーの変更を入れました', null, 3000); document.querySelector('#native-toast')?.classList.add('rstoast'); say('iPhone のリマインダーの変更を入れました。'); } },
 });
 window.__remSync = remSync;
+// ---------- 第19版 PR10: タスクの画面（設定 › タスク・リストの部品・説明シート・確認の一覧・止まっている1行） ----------
+// データの口は reminder-sync.js（D7）。ここは見え方と入口。同期オフ・Web・許可なしでは今までと同じ見た目で、リストの部品は出さない。
+const syncOn = () => NATIVE && syncSet.enabled;
+const DUO_COLOR = '#68716A';
+const listColor = (l) => (/^#[0-9a-fA-F]{6}$/.test(l?.color || '') ? l.color : DUO_COLOR);
+// 取り込み先として扱うリスト（Duo ＋ 選んだもの）。Duo は id 'duo'（書き出し先の本当の id とそろえて見せる）。
+function rsLists() {
+  const duo = RS.lists.find((l) => l.id === syncSet.duoListId) || RS.lists.find((l) => l.title === syncSet.duoListTitle && l.allowsModify !== false);
+  const out = [{ id: 'duo', duo: true, realId: duo?.id || syncSet.duoListId || '', title: 'Duo', color: listColor(duo), allowsModify: true }];
+  for (const id of syncSet.lists) { const l = RS.lists.find((x) => x.id === id); if (l && l.id !== duo?.id) out.push({ id: l.id, title: l.title, color: listColor(l), allowsModify: l.allowsModify !== false, shared: !!(l.shared || l.isShared) }); }
+  return out;
+}
+function listUi() {
+  const stalled = NATIVE && syncSet.everEnabled && (RS.perm === 'denied' || RS.perm === 'restricted');
+  const active = syncOn() && RS.perm === 'granted';
+  if (!active && !stalled) return null;
+  const lists = active ? rsLists() : [];
+  const sel = lists.some((l) => l.id === RS.chip) ? RS.chip : 'all';
+  const dest = active ? lists.find((l) => l.id === addDestKey()) || lists[0] : null;
+  return { active, stalled, lists, sel, multi: active && lists.length >= 2, dest, gone: NATIVE && syncSet.everEnabled };
+}
+// 追加先の候補（書けるもの）と、今の保存先（カプセルで選んだ → チップ → 設定 → Duo）
+const addDestKey = () => {
+  const ok = rsLists().filter((l) => l.allowsModify);
+  const pick = [RM.add.listId, RS.chip !== 'all' ? RS.chip : '', syncSet.addTo === syncSet.duoListId ? 'duo' : syncSet.addTo];
+  for (const k of pick) if (k && ok.some((l) => l.id === k)) return k;
+  return 'duo';
+};
+const addDestId = () => { const l = rsLists().find((x) => x.id === addDestKey()); return !l || l.duo ? '' : l.id; };
+// 表示用のデータ（削除待ちを除き、Duo リストを 'duo' にそろえ、チップで絞る）
+function viewData() {
+  if (!RM.data) return RM.data;
+  const ids = delCtl.ids();
+  let rows = ids.size ? RM.data.reminders.filter((x) => !ids.has(x.itemId)) : RM.data.reminders;
+  const ui = listUi();
+  if (!ui || !ui.active) return { ...RM.data, reminders: rows };
+  if (syncSet.duoListId) rows = rows.map((r) => (r.listId === syncSet.duoListId ? { ...r, listId: 'duo' } : r));
+  if (ui.sel !== 'all') rows = rows.filter((r) => r.listId === ui.sel);
+  return { lists: ui.lists.map((l) => ({ id: l.id, color: l.color })), reminders: rows };
+}
+// 許可とリストの今の様子を読む。同期を使ったことがない（または設定を開いていない）ときは native を呼ばない。
+async function refreshRs(force = false) {
+  if (!NATIVE || (!syncSet.everEnabled && !force)) return;
+  const before = JSON.stringify([RS.perm, RS.lists]);
+  try { RS.perm = (await remNative.permission())?.status || 'denied'; } catch { RS.perm = 'unavailable'; }
+  if (RS.perm === 'granted' && syncSet.enabled) { try { const r = await remNative.lists(); if (!r.unavailable) RS.lists = r.lists || []; } catch { /* 前のまま */ } }
+  if (JSON.stringify([RS.perm, RS.lists]) !== before) { syncRsUi(); render(); }
+}
+const hhmm2 = (ms) => { const d = new Date(ms); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+// 設定 › タスク の同期の段
+function syncRsUi() {
+  const box = $('#m-rs');
+  $('#m-rssub').textContent = NATIVE && RS.perm !== 'unavailable' ? (syncSet.enabled ? '同期オン' : '同期オフ') : '';
+  const show = NATIVE && RS.perm !== 'unavailable';
+  box.hidden = !show;
+  if (!show) return;
+  const on = syncSet.enabled && RS.perm !== 'denied' && RS.perm !== 'restricted';
+  $('#m-rssw').setAttribute('aria-checked', String(on));
+  const at = $('#m-rsat'); at.hidden = !(on && syncSet.syncedAt); at.textContent = syncSet.syncedAt ? `同期済み ${hhmm2(syncSet.syncedAt)}` : '';
+  $('#m-rsdeny').hidden = on || !(RS.denied || (syncSet.everEnabled && (RS.perm === 'denied' || RS.perm === 'restricted')));
+  const rson = $('#m-rson'); rson.hidden = !on;
+  if (!on) return;
+  const ls = rsLists(), dest = ls.find((l) => l.id === addDestKeySettings()) || ls[0];
+  $('#m-rsdestv').innerHTML = `<i class="ldot" style="background:${esc(dest.color)}"></i>${esc(dest.title)}`;
+  const duoReal = ls[0].realId;
+  $('#m-rslists').innerHTML = RS.lists.map((l) => {
+    const isDuo = l.id === duoReal || (!duoReal && l.title === syncSet.duoListTitle && ls[0].color === listColor(l));
+    const chk = isDuo || syncSet.lists.includes(l.id);
+    return `<button type="button" class="rslist${isDuo ? ' fixed' : ''}" role="checkbox" aria-checked="${chk}" data-rslist="${esc(l.id)}"${isDuo ? ' aria-disabled="true"' : ''}><i class="ldot" style="background:${esc(listColor(l))}"></i><span class="rsn">${esc(isDuo ? 'Duo' : l.title)}</span>${l.shared || l.isShared ? '<small>共有</small>' : ''}<b aria-hidden="true">${chk ? '✓' : ''}</b></button>`;
+  }).join('');
+}
+const addDestKeySettings = () => { const ok = rsLists().filter((l) => l.allowsModify); return ok.some((l) => l.id === syncSet.addTo) ? syncSet.addTo : ok.some((l) => l.realId && l.realId === syncSet.addTo) ? 'duo' : 'duo'; };
+
+// ---- シート（説明・確認の一覧・保存先の一覧・やめる確認）。1 つの dialog を中身で替える ----
+const rsDlg = $('#rsheet');
+function rsClose(restoreSwitch = true) {
+  RS.sheet = null;
+  if (rsDlg.open) rsDlg.close();
+  syncInert();
+  if (restoreSwitch && menuDlg.open) $('#m-rssw')?.focus({ preventScroll: true });
+}
+function rsPlace(kind) {
+  const vh = window.innerHeight;
+  // 設定が開いていればその枠、編集シートが開いていればその枠、どちらもなければ画面の幅いっぱい（開いた横は左ページ内）
+  const open = menuDlg.open ? menuDlg : taskDlg.open ? taskDlg : null;
+  let m = open ? open.getBoundingClientRect() : null;
+  if (!m) { const S = safe(); const left = S.left + 8; let right = window.innerWidth - S.right - 8; if (layoutKind() === 'spread') right = Math.min(right, window.innerWidth / 2 - 10); m = { left, top: Math.max(S.top, 12) + (layoutKind() === 'open' ? 90 : 12), width: Math.max(200, right - left), bottom: vh - Math.max(S.bottom, 12) }; }
+  const top = kind === 'explain' || kind === 'off' ? Math.max(m.top, Math.min(300, vh - 360)) : m.top;
+  Object.assign(rsDlg.style, { left: `${m.left}px`, width: `${m.width}px`, top: `${top}px`, bottom: kind === 'explain' || kind === 'off' ? `${Math.max(12, vh - m.bottom)}px` : `${Math.max(12, vh - m.bottom)}px`, right: 'auto', margin: '0' });
+  rsDlg.dataset.kind = kind;
+}
+const dueMini = (d) => (d?.date ? `${Number(d.date.slice(5, 7))}/${Number(d.date.slice(8, 10))}${d.time ? ` ${d.time}` : ''}` : '');
+function rsHtml() {
+  const S = RS.sheet; if (!S) return '';
+  const head = (t, x = true) => `<div class="rshead"><h2 id="rs-h">${esc(t)}</h2>${x ? '<button type="button" class="rsx" data-rs="close" aria-label="閉じる">✕</button>' : ''}</div>`;
+  if (S.kind === 'explain') return `${head('iPhone のリマインダーと同期')}<div class="rsbody"><p>Duo のタスクを、リマインダーの「Duo」リストにも入れます。リマインダーで変えた分も Duo に入ります。</p><p>許可しなくても、タスクはこれまでどおり使えます。</p><p>内容は iPhone の外に送りません。</p></div><button type="button" class="primary rsmain" data-rs="continue"${S.busy ? ' disabled' : ''}>続ける</button>`;
+  if (S.kind === 'off') return `${head('同期をやめますか？', false)}<div class="rsbody"><p>同期をやめても、Duo とリマインダーのタスクはどちらも消えません。</p></div><div class="rsacts"><button type="button" data-rs="close">キャンセル</button><button type="button" class="danger" data-rs="off">やめる</button></div>`;
+  if (S.kind === 'dest') {
+    const cur = S.cur;
+    return `${head('保存先のリスト')}<div class="rspage" role="listbox" aria-label="保存先のリスト">${S.lists.map((l) => `<button type="button" class="rsrowp" role="option" aria-selected="${l.id === cur}" data-rs="pick" data-list="${esc(l.id)}"><i class="ldot" style="background:${esc(l.color)}"></i><span>${esc(l.title)}</span><b aria-hidden="true">${l.id === cur ? '✓' : ''}</b></button>`).join('')}</div>`;
+  }
+  if (S.kind === 'confirm') {
+    const pv = S.pv, add = pv.toAdd, shown = add.slice(0, 4);
+    const row = (t) => `<div class="rsrow40"><span class="rst">${esc(t.title)}</span><small>${esc(dueMini(t.due))}</small></div>`;
+    const maybe = pv.maybe.map((m, i) => `<div class="rsmaybe"><div class="rsrow40"><span class="rst">${esc(m.task.title)}</span><small>${esc(dueMini(m.task.due))}</small></div><div class="rsseg" role="group" aria-label="${esc(m.task.title)}の扱い">${[['link', '結びつける'], ['keep', '両方残す'], ['skip', '入れない']].map(([k, t]) => `<button type="button" data-rs="choice" data-i="${i}" data-c="${k}" aria-pressed="${m.choice === k}">${t}</button>`).join('')}</div></div>`).join('');
+    const done = S.result;
+    return `${head('iPhone のリマインダーと同期', !S.busy)}<div class="rsscroll"><h3>入れるタスク ${add.length}</h3>${shown.map(row).join('')}${add.length > 4 ? `<p class="rsmore">ほか ${add.length - 4}件</p>` : ''}${pv.maybe.length ? `<h3>同じものかもしれない ${pv.maybe.length}</h3>${maybe}` : ''}</div>`
+      + (done ? `<p class="rsdone" role="status">リマインダーに ${done.created}件入れました${done.errors ? `（入れられなかった ${done.errors}件）` : ''}</p><button type="button" class="primary rsmain" data-rs="close">閉じる</button>`
+        : `<button type="button" class="primary rsmain" data-rs="apply"${S.busy ? ' disabled' : ''}>入れる</button><button type="button" class="rslater" data-rs="later"${S.busy ? ' disabled' : ''}>あとで（設定 › タスク からやり直せる）</button>`);
+  }
+  return '';
+}
+function rsOpen(sheet, focusSel) {
+  RS.sheet = sheet;
+  rsPlace(sheet.kind);
+  rsDlg.innerHTML = rsHtml();
+  if (!rsDlg.open) { rsDlg.show(); syncInert(); }
+  (rsDlg.querySelector(focusSel || '.rsmain, .rsrowp, button') || rsDlg).focus({ preventScroll: true });
+}
+const rsRepaint = (keepFocus) => { const a = document.activeElement?.dataset?.rs, i = document.activeElement?.dataset?.i, c = document.activeElement?.dataset?.c; rsDlg.innerHTML = rsHtml(); if (keepFocus && a) rsDlg.querySelector(`[data-rs="${a}"]${i ? `[data-i="${i}"][data-c="${c}"]` : ''}`)?.focus({ preventScroll: true }); };
+rsDlg.addEventListener('cancel', (ev) => { ev.preventDefault(); if (!RS.sheet?.busy) rsClose(); });
+rsDlg.addEventListener('click', async (ev) => {
+  const b = ev.target.closest('[data-rs]'); if (!b || !RS.sheet) return;
+  const S = RS.sheet, k = b.dataset.rs;
+  if (k === 'close') { if (!S.busy) rsClose(); return; }
+  if (k === 'later') { rsClose(); return; }
+  if (k === 'off') { setSyncSettings({ ...syncSet, enabled: false }); rsClose(false); syncRsUi(); render(); scheduleTasks(); say('同期をやめました。'); $('#m-rssw')?.focus({ preventScroll: true }); return; }
+  if (k === 'choice') { S.pv.maybe[Number(b.dataset.i)].choice = b.dataset.c; rsRepaint(true); return; }
+  if (k === 'pick') {
+    const id = b.dataset.list; S.cur = id; rsRepaint(true);
+    setTimeout(() => { if (RS.sheet !== S) return; rsClose(false); S.onPick(id); }, 150);
+    return;
+  }
+  if (k === 'continue') {
+    if (S.busy) return; S.busy = true; rsRepaint(true);
+    let st;
+    try { st = (await requestReminderPermission()).status; } catch { st = 'denied'; }
+    if (RS.sheet !== S) return;
+    RS.perm = st;
+    if (st !== 'granted') { RS.denied = true; rsClose(false); syncRsUi(); render(); $('#m-rssw')?.focus({ preventScroll: true }); return; }
+    RS.denied = false;
+    try {
+      const ls = await remNative.lists(); RS.lists = ls.lists || [];
+      const duo = RS.lists.find((l) => l.title === syncSet.duoListTitle && l.allowsModify !== false);
+      const rems = duo ? ((await remNative.listReminders({ listIds: [duo.id], completedSince: '1970-01-01T00:00' }))?.reminders || []) : [];
+      S.pv = previewFirst(await db.listTasks(), rems);
+    } catch { S.pv = previewFirst(await db.listTasks(), []); }
+    S.kind = 'confirm'; S.busy = false; rsPlace('confirm'); rsDlg.innerHTML = rsHtml(); rsDlg.querySelector('.rsmain')?.focus({ preventScroll: true });
+    return;
+  }
+  if (k === 'apply') {
+    if (S.busy) return; S.busy = true; rsRepaint(true);
+    // ここまで書き込みは 0。オンにして、選んだ分を pending にし、同期を 1 回走らせる。
+    setSyncSettings({ ...syncSet, enabled: true, everEnabled: true });
+    let res = null;
+    try { await applyFirst({ db, toAdd: S.pv.toAdd, maybe: S.pv.maybe, base: remSync.base() }); res = await remSync.sync('first'); } catch { res = null; }
+    S.busy = false; S.result = { created: res?.created || 0, errors: res?.errors || 0 };
+    RM.mut++; RM.sig = ''; scheduleTasks(); syncRsUi(); render();
+    rsRepaint(false); rsDlg.querySelector('.rsmain')?.focus({ preventScroll: true });
+    say(`リマインダーに ${S.result.created}件入れました。`);
+  }
+});
+// 保存先の一覧を開く（target: 設定の追加先／追加欄のカプセル／タスクの移動）
+function openDestPage(cur, onPick, only) {
+  const lists = rsLists().filter((l) => l.allowsModify && (!only || only(l)));
+  rsOpen({ kind: 'dest', lists, cur, onPick });
+}
 function scheduleTasks() { clearTimeout(RM.timer); RM.timer = setTimeout(loadTasks, 300); requestNotifySync('task'); } // タスクの追加・完了・削除・編集・復元はすべてここを通る
 function renderPage(side, id) {
   const cls = side === 'left' ? 'lp' : 'rp';
@@ -2591,6 +2761,10 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'remtimeon') { const a = RM.add; if (a.due === null) return; a.time = a.time ? '' : '09:00'; render(); root.querySelector('[data-act="remtimeon"]')?.focus({ preventScroll: true }); }
   else if (d.act === 'remth') { const a = RM.add; haptic('light').catch(() => {}); a.time = withHm(a.time, Number(d.h), null); render(); root.querySelector(`[data-act="remth"][data-h="${d.h}"]`)?.focus({ preventScroll: true }); }
   else if (d.act === 'remtm') { const a = RM.add; haptic('light').catch(() => {}); a.time = withHm(a.time, null, Number(d.m)); a.pop = null; a.focus = true; render(); }
+  else if (d.act === 'lchip') { RS.chip = d.list; render(); root.querySelector(`[data-act="lchip"][data-list="${d.list}"]`)?.focus({ preventScroll: true }); }
+  else if (d.act === 'remdest') { openDestPage(addDestKey(), (id) => { RM.add.listId = id; RM.add.focus = true; render(); }); }
+  else if (d.act === 'stalled') { openMenu(); showMenuScreen('reminders', true); }
+  else if (d.act === 'remwait') { notice('次に開いたときに、もう一度リマインダーへ送ります。', null, 3000); }
   else if (d.act === 'remdone') { RM.doneOpen = !RM.doneOpen; render(); root.querySelector('[data-act="remdone"]')?.focus({ preventScroll: true }); }
   else if (d.act === 'remmore') { RM.histDays += HIST_DAYS; RM.more = true; render(); root.querySelector('[data-act="remmore"]')?.focus({ preventScroll: true }); loadTasks(); }
   else if (d.date) {
@@ -2675,7 +2849,7 @@ async function loadSample() {
 const dlg = $('#editor'), confirmDlg = $('#confirm'), scopeDlg = $('#scope'), menuDlg = $('#menu'), searchDlg = $('#search'), backupDlg = $('#backup'), form = $('#form');
 const discardDlg = $('#discard'), scrim = $('#scrim');
 const xdDlg = $('#xdetail'), xrDlg = $('#xretry'), catsDlg = $('#cats'), notifyDlg = $('#notify'), taskDlg = $('#taskdlg');
-const panels = [dlg, confirmDlg, scopeDlg, discardDlg, menuDlg, searchDlg, backupDlg, xdDlg, xrDlg, catsDlg, notifyDlg, taskDlg];
+const panels = [dlg, confirmDlg, scopeDlg, discardDlg, menuDlg, searchDlg, backupDlg, xdDlg, xrDlg, catsDlg, notifyDlg, taskDlg, $('#rsheet')];
 const anyPanel = () => panels.some((d) => d.open);
 const syncInert = () => { root.inert = anyPanel(); };
 const origins = new Map();
@@ -2700,6 +2874,21 @@ catsDlg.addEventListener('close', () => {
 });
 menuDlg.addEventListener('close', () => { document.body.classList.remove('settings-open'); });
 menuDlg.addEventListener('cancel', (ev) => { ev.preventDefault(); menuBack(); });
+// 設定のクリック
+menuDlg.addEventListener('click', (ev) => {
+  if (ev.target.closest('#m-rssw, #m-rsopen, #m-rsdest, [data-rslist]')) ev._rs = true; // 下の設定の click に「閉じる」と扱わせない
+  if (ev.target.closest('#m-rssw')) { if (syncSet.enabled && RS.perm !== 'denied' && RS.perm !== 'restricted') rsOpen({ kind: 'off' }); else rsOpen({ kind: 'explain' }); return; }
+  if (ev.target.closest('#m-rsopen')) { openSettings(); return; }
+  if (ev.target.closest('#m-rsdest')) { openDestPage(addDestKeySettings(), (id) => { const l = rsLists().find((x) => x.id === id); setSyncSettings({ ...syncSet, addTo: l?.duo ? '' : id }); syncRsUi(); render(); }); return; }
+  const lb = ev.target.closest('[data-rslist]');
+  if (lb) {
+    if (lb.classList.contains('fixed')) return;
+    const id = lb.dataset.rslist, on = syncSet.lists.includes(id);
+    setSyncSettings({ ...syncSet, lists: on ? syncSet.lists.filter((x) => x !== id) : [...syncSet.lists, id], addTo: on && syncSet.addTo === id ? '' : syncSet.addTo });
+    if (on && RS.chip === id) RS.chip = 'all';
+    syncRsUi(); RM.sig = ''; render(); remSync.kick('lists', 0);
+  }
+});
 for (const d of [dlg, menuDlg, searchDlg, backupDlg, xdDlg, catsDlg, notifyDlg, taskDlg]) {
   d.addEventListener('close', () => {
     syncInert();
@@ -3321,6 +3510,7 @@ function openTask(id, from) {
   if (!r || anyPanel()) return;
   if (fmode() === 'task') { FT.sel = id; render(); return; } // 集中タスクは下面の詳細で編集する（シートは開かない）
   TK = { ed: openTaskEditor(r, RM.data.lists), busy: false, gone: false, notify: undefined }; tkKey = r.itemId;
+  TK.ed.listRow = editListRow(r);
   $('#tk-body').innerHTML = taskEditorHtml(TK.ed);
   tkFields();
   tkUi();
@@ -3328,6 +3518,27 @@ function openTask(id, from) {
   const t = $('#tk-title'); (t.disabled ? $('#tk-close') : t).focus({ preventScroll: true });
 }
 let tkKey = '';
+// 編集シートの「リスト ›」。同期オンでつながっている件だけ（書けないリストは候補に出さない）
+function editListRow(r) {
+  const ui = listUi();
+  if (!ui?.active || !r.linked || r.recurring) return null;
+  const key = r.listId === syncSet.duoListId ? 'duo' : r.listId;
+  const l = ui.lists.find((x) => x.id === key);
+  return l ? { id: l.id, title: l.title, color: l.color } : { id: key, title: 'リスト', color: DUO_COLOR };
+}
+taskDlg.addEventListener('click', (ev) => {
+  if (!ev.target.closest('#tk-list') || !TK) return;
+  const id = TK.ed.itemId, cur = TK.ed.listRow?.id;
+  openDestPage(cur, async (to) => {
+    if (to === cur) return;
+    const l = rsLists().find((x) => x.id === to);
+    const r = await remSync.moveToList(id, l?.duo ? (l.realId || syncSet.duoListId) : to);
+    if (!r.ok) { say('リストを移せませんでした。'); notice('リストを移せませんでした。', null, 3000); return; }
+    RM.mut++; RM.sig = ''; await loadTasks();
+    const row = RM.data?.reminders.find((x) => x.itemId === id);
+    if (TK && row) { TK.ed.listRow = editListRow(row); const b = $('#tk-list'); if (b) { b.querySelector('.tklv').innerHTML = `<i class="ldot" style="background:${esc(TK.ed.listRow.color)}"></i>${esc(TK.ed.listRow.title)}`; } }
+  });
+});
 tkDrop = () => { if (taskDlg.open) closeTask(); };
 function closeTask() { tkKey = TK?.ed.itemId || tkKey; TK = null; closePanel(taskDlg); }
 taskDlg.addEventListener('close', () => {
@@ -3643,6 +3854,7 @@ function openMenu(from) {
   syncRokuyoMenu();
   syncTaskMenu();
   syncCurlMenu();
+  refreshRs(); // 同期を使ったことがなければ native は呼ばない（許可の状態も読まない）
   $('#m-tlz').hidden = !root.querySelector('.tl');
   const cats = state.categories.filter((c) => !c.hidden);
   $('#m-legend').hidden = !cats.length;
@@ -3675,6 +3887,7 @@ function syncMonthMenu() {
 // タスクの設定（Web でも出す）。月の件数のスイッチと、固定の完了表示期間だけ。リスト・同期・許可の設定はない。
 function syncTaskMenu() {
   $('#m-tk').hidden = false;
+  syncRsUi();
   $('#m-tkmonth').setAttribute('aria-checked', String(remSet.monthTasks));
 }
 // めくりの方式（試作）：今のめくり（A）｜iOS のめくり（B）。iOS のアプリで DuoNative が新しいときだけ B を選べる
@@ -3706,6 +3919,7 @@ function syncModeMenu() {
   $('#m-variant').innerHTML = on ? variantBtns(isPortrait() ? 'portrait' : layoutKind()) : '';
 }
 menuDlg.addEventListener('click', (ev) => {
+  if (ev._rs) return;
   const mb0 = ev.target.closest('[data-m="tkmonth"]');
   if (mb0) { setRemSettings({ ...remSet, monthTasks: !remSet.monthTasks }); syncTaskMenu(); render(); say(`月にタスクを${remSet.monthTasks ? '表示します' : '表示しません'}。`); return; }
   if (calClick(ev)) return;
@@ -3742,7 +3956,7 @@ menuDlg.addEventListener('click', (ev) => {
 });
 menuDlg.addEventListener('change', (ev) => { if (ev.target.id === 'cat-target') calTarget = ev.target.value; });
 document.addEventListener('click', (ev) => {
-  if (menuDlg.open && !ev.composedPath().includes(menuDlg) && !ev.target.closest('[data-act="menu"]')) closePanel(menuDlg); // 中身を描き直してもメニュー内のクリックとして扱う
+  if (menuDlg.open && !ev.composedPath().includes(menuDlg) && !ev.composedPath().includes(rsDlg) && !ev.target.closest('[data-act="menu"], [data-act="stalled"]')) closePanel(menuDlg); // 中身を描き直してもメニュー内のクリックとして扱う
 });
 
 // ---------- カテゴリの名前・色の編集（設定 › カレンダー の編集モードから開く1枚。一覧・並べ替え・削除は設定側） ----------
@@ -4232,7 +4446,7 @@ async function resumeExt() {
   if (X.cache && X.cache.tz !== new Date().getTimezoneOffset()) { X.cache = null; bumpRevision(); } // タイムゾーン変更: キャッシュ破棄
   await loadExt(true);
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (NATIVE) postureCtl?.refresh(); resumeExt(); requestNotifySync('resume'); remSync?.kick('resume', 0); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (NATIVE) postureCtl?.refresh(); resumeExt(); requestNotifySync('resume'); remSync?.kick('resume', 0); refreshRs(); } });
 
 // ---------- 設定 › カレンダー（Duo／iPhone のアカウント別／リマインダー。✓で表示を切り替える） ----------
 // ✓を変えても iPhone 側の予定・カレンダーは書き換えない（Duo の画面に出すかどうかだけ）。
@@ -5429,6 +5643,7 @@ async function initNative() {
   // 連携オフ・カレンダー権限なしでも通知は動くので、購読は権限確認より前に行う。
   listen('calendarChanged', () => { remSync?.kick('changed'); clearTimeout(extTimer); extTimer = setTimeout(() => { if (extActive()) loadExt(true); }, 300); });
   remSync?.kick('start', 0); // 同期がオンのときだけ動く（オフでは何も呼ばない）
+  refreshRs(); // 一度でも同期をオンにした人だけ、許可とリストを読む（止まっている 1 行の判定）
   listen('notificationTapped', onNotifyTap);
   listen('notificationPresented', () => requestNotifySync('fired')); // 前面で鳴ったら次の予約を補充（既存の debounce・直列・世代処理）
   listen('timeChanged', () => { X.cache = null; bumpRevision(); requestNotifySync('time'); if (extActive()) loadExt(true); else render(); });
@@ -5459,6 +5674,7 @@ document.addEventListener('keydown', (ev) => {
   if (MM.open && !anyPanel()) { closeMini(); return; }
   if (TLM.open && !anyPanel()) { const sd = TLM.open; TLM.open = null; render(); root.querySelector(`[data-act="tlmenu"][data-pane="${sd}"]`)?.focus({ preventScroll: true }); return; }
   if (dlg.open && destPage.isOpen() && !scopeDlg.open && !confirmDlg.open && !discardDlg.open) { closeDestPop(); return; }
+  if (rsDlg.open) { if (!RS.sheet?.busy) rsClose(); return; }
   if (scopeDlg.open) cancelScope();
   else if (xrDlg.open) closePanel(xrDlg);
   else if (confirmDlg.open) cancelConfirm();
