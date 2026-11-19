@@ -2219,7 +2219,7 @@ body:not([data-layout=spread]):not([data-layout=desk]) :is(dialog#cats,dialog#no
 
 /* ===== 第19.1版 S7e ===== */
 /* V-19（設計 25 §5・00:25）: 開いた横の左ページの見出し（2026年11月）も、右ページと同じくページの端から 16（x8→16）。月の格子は x8 のまま */
-.spread .lp .shead h2{padding-left:8px;box-sizing:border-box}
+.spread .page .shead h2{padding-left:8px;box-sizing:border-box}
 
 /* ===== 第19.1版 S8 ===== */
 /* N-01（設計 2026-11-20）: 開いた横の右ページの箱を x493.5〜851（折り目の側に 8）。見出しは箱の端から 8（左 x16・右 x501.5）、カード・行は 4（x12・x497.5）、月の格子は箱の端（x8・x493.5）。

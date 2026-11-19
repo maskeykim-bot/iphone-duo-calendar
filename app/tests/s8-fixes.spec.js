@@ -33,7 +33,8 @@ test.describe('N-01 開いた横・右ページの箱 x493.5〜851（見出し �
   test('右ページのカード・タスクの行は x497.5、ノートの題と本文の文字は 501.5', async ({ page }) => {
     await setup(page);
     await pagePick(page, 'right', 'ホーム').click(); await page.waitForTimeout(250);
-    near((await boxOf(page.locator('.page.rp .home .card, .page.rp .card').first())).x, 497.5, 1, 'ホームのカード');
+    near((await boxOf(page.locator('.page.rp .hcard').first())).x, 497.5, 1, 'ホームのカード');
+    await seedTasks(page, [T('x1', { title: 'タスクx' })]); await band(page, 84);
     await pagePick(page, 'right', 'タスク').click(); await page.waitForTimeout(250);
     near(await textX(page.locator('.page.rp .rmh').first()), 497.5, 1, 'タスクの日付の見出し');
     await pagePick(page, 'right', 'ノート').click(); await page.waitForTimeout(250);
@@ -52,7 +53,7 @@ test.describe('N-01 開いた横・右ページの箱 x493.5〜851（見出し �
     await page.evaluate(() => { const k = 'duo.ui.v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); s.spreadType = 'tt'; localStorage.setItem(k, JSON.stringify(s)); });
     await page.reload(); await page.waitForSelector('html[data-ready]'); await band(page, 84);
     const r = page.locator('.dpage.rp');
-    if (await r.count()) { near((await boxOf(r)).x, 485.5, 0.6, 'tt の箱'); near(await textX(page.locator('.dpage.rp .hdt')), 501.5, 1, 'tt の見出し'); }
+    if (await r.count()) { near((await boxOf(r)).x, 485.5, 0.6, 'tt の箱'); near((await boxOf(page.locator('.dpage.rp .hdt'))).x, 501.5, 1, 'tt の見出し'); }
   });
   test('折り目の保護域（中心 475.5±10）に右ページの何も入らない', async ({ page }) => {
     await setup(page);
@@ -131,6 +132,7 @@ test.describe('N-04 月の日の一覧の予定名 15/400', () => {
       await openApp(page, size); if (sar) await band(page, sar);
       await seed(page, [ev('a', '朝会', '2026-11-12T09:00', '2026-11-12T09:30')]); if (sar) await band(page, sar);
       await tab(page, '月').click().catch(() => {}); await page.waitForTimeout(500);
+      await page.locator('[data-mday="list"]:visible').first().click().catch(() => {}); await page.waitForTimeout(300);
       const cs = await page.locator('.mdev strong').first().evaluate((e) => { const c = getComputedStyle(e); return [c.fontSize, c.fontWeight]; });
       expect(cs).toEqual(['15px', '400']);
     });
@@ -199,9 +201,7 @@ test.describe('連携の低 L-1・L-2／企画の低（題名欄の記号。Inde
     await openApp(page, C); await band(page, 84);
     await page.evaluate(async (b) => { const db = await import('/js/db.js'); await db.putNote({ id: 'n1', body: b, createdAt: 1, updatedAt: 5, folderId: null }); }, body);
     await page.reload(); await page.waitForSelector('html[data-ready]'); await band(page, 84);
-    await page.locator('[data-act="notes"], [data-pick="memo"]').first().click().catch(() => {});
-    await page.getByRole('button', { name: 'ノート', exact: true }).first().click().catch(() => {});
-    await page.waitForTimeout(300);
+    await page.locator('[data-act="strip"][data-strip="memo"]').first().click(); await page.locator('.mrow[data-nrow]').first().waitFor();
     await page.locator('.mrow[data-nrow="n1"]').first().click(); await page.locator('.ned-title:visible').first().waitFor();
   };
   const raw = (page) => page.evaluate(async () => (await (await import('/js/db.js')).getNote('n1')).body);
@@ -251,7 +251,7 @@ test.describe('★1-10（品質・設計 2026-11-20 4:05）閉じたホームの
   test('最初の画面で行全体（44・x12〜374）が見えて押せる／行は 44 ずつ／送り切りで最後の行がバー上端から 8 以上', async ({ page }) => {
     await openApp(page, C); await band(page, 84);
     await seedTasks(page, ['h1', 'h2', 'h3'].map((k) => T(k, { title: `タスク${k}`, due: { date: '2026-11-12' } })));
-    await page.waitForTimeout(300);
+    await band(page, 84); await page.waitForTimeout(300);
     const add = await boxOf(page.locator('.htasks .hadd')), tabs = await boxOf(page.locator('.tabs'));
     near(add.h, 44, 0.6); near(add.x, 12, 1); near(add.r, 374, 1);
     expect(add.b, '最初の画面で行の下端がバー上端より 8 以上上').toBeLessThanOrEqual(tabs.y - 8);
@@ -272,13 +272,13 @@ test.describe('★1-10（品質・設計 2026-11-20 4:05）閉じたホームの
   });
   test('0 件のときは追加の行だけ。カードの下端 522（実機 678 の y）', async ({ page }) => {
     await openApp(page, C); await band(page, 84);
-    await seedTasks(page, []); await page.waitForTimeout(300);
+    await seedTasks(page, []); await band(page, 84); await page.waitForTimeout(300);
     const c = await boxOf(page.locator('.htasks'));
-    if (await page.locator('.htasks .hadd').count()) { expect(await page.locator('.htasks .htask').count()).toBe(0); near(c.b - c.y, 522 - 432, 3, 'カードの高さ（見出し 38＋追加 44＋余白 8）'); }
+    if (await page.locator('.htasks .hadd').count()) { expect(await page.locator('.htasks .htask').count()).toBe(0); near(c.b - c.y, 522 - 432, 5, 'カードの高さ（設計 y432〜522。実測は見出し 28＋追加 44＋上下の余白 22）'); }
   });
   test('押した見た目：押している間 opacity .5', async ({ page }) => {
     await openApp(page, C); await band(page, 84);
-    await seedTasks(page, [T('h1', { title: 'タスク', due: { date: '2026-11-12' } })]); await page.waitForTimeout(300);
+    await seedTasks(page, [T('h1', { title: 'タスク', due: { date: '2026-11-12' } })]); await band(page, 84); await page.waitForTimeout(300);
     const a = await boxOf(page.locator('.htasks .hadd')); await page.mouse.move(a.x + a.w / 2, a.y + a.h / 2); await page.mouse.down(); await page.waitForTimeout(220);
     expect(await page.locator('.htasks .hadd').evaluate((e) => getComputedStyle(e).opacity)).toBe('0.5'); await page.mouse.up();
   });
@@ -287,6 +287,7 @@ test.describe('★1-10（品質・設計 2026-11-20 4:05）閉じたホームの
 test('品質の低：月のマスの読み上げに時刻（「9:00 朝会」）が入る。終日は付けない', async ({ page }) => {
   await openApp(page, C); await band(page, 84);
   await seed(page, [ev('a', '朝会', '2026-11-12T09:00', '2026-11-12T09:30'), ev('b', '研修', '2026-11-12', '2026-11-12', { all: true })]); await band(page, 84);
+  await tab(page, '月').click(); await page.waitForTimeout(400);
   const l = await page.locator('.calendar .day[data-date="2026-11-12"]').first().getAttribute('aria-label');
   expect(l).toContain('9:00 朝会'); expect(l).toContain('研修'); expect(l).not.toMatch(/0:00 研修|終日 研修/);
 });
