@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, pagePick, legacyPanelInit } from './helpers.js';
+import { openApp, SIZES, pagePick, legacyPanelInit, bodyIs } from './helpers.js';
 
 // 第16版 PR28: 旧「日ごとのメモ」はノートへ切り替え済み。編集・自動保存・下書き回復・旧下書きの取り込みを通常の画面から検査する。
 const getNote = (page, id) => page.evaluate(async (id) => (await import('/js/db.js')).getNote(id), id);
@@ -31,7 +31,7 @@ test('見開き: 空の一覧→＋新規→題名と本文を書くと保存ボ
   await page.reload(); await page.waitForSelector('html[data-ready]');
   await pagePick(page, 'right', 'ノート').click();
   await expect(title(page)).toHaveValue('買い物'); // 最後に開いたノートが戻る
-  await expect(body(page)).toHaveValue('<b>牛乳</b>\n卵');
+  await bodyIs(body(page), '<b>牛乳</b>\n卵');
   expect(await page.locator('.notepage b').count()).toBe(0); // HTML として解釈しない
   expect(await page.evaluate(async () => (await (await import('/js/db.js')).listMemos()).length)).toBe(0); // 旧 memos へは書かない
 });
@@ -51,7 +51,7 @@ test('一覧へ戻る前に即保存され、別のノートを開いても各�
   await expect(page.locator('.mrow')).toHaveCount(2);
   expect((await getNote(page, 'a')).body).toBe('A\n一を直した');
   await page.locator('.mrow[data-nrow="b"]').click();
-  await expect(body(page)).toHaveValue('二');
+  await bodyIs(body(page), '二');
 });
 
 test('hidden で待たず即保存。空にしても本文はノートに残る（勝手に消さない）', async ({ page }) => {
@@ -106,7 +106,7 @@ test('IME 変換中は再描画で入力欄が壊れず、確定後に保存さ�
   await body(page).evaluate((e) => { e.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true })); e.value = 'にほ'; e.dispatchEvent(new InputEvent('input', { bubbles: true, isComposing: true })); });
   await page.setViewportSize({ width: 951, height: 668 });
   await page.waitForTimeout(150);
-  await expect(body(page)).toHaveValue('にほ');
+  await bodyIs(body(page), 'にほ');
   await expect(body(page)).toBeFocused();
   await body(page).evaluate((e) => { e.value = '日本'; e.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })); });
   await expect.poll(async () => (await allNotes(page))[0]?.body, { timeout: 3000 }).toBe('\n日本');
@@ -129,7 +129,7 @@ test('＋で新しいノートに入り、縦の下パネルでも同じ最後�
   await page.reload(); await page.waitForSelector('html[data-ready]');
   await pagePick(page, 'left', 'ノート').click();
   await page.locator('.mrow[data-nrow="k"]').click();
-  await expect(body(page)).toHaveValue('本文');
+  await bodyIs(body(page), '本文');
   await pagePick(page, 'left', '月').click();
   await pagePick(page, 'right', 'ノート').click();
   await expect(title(page)).toHaveValue('共通');
@@ -145,8 +145,8 @@ test('＋で新しいノートに入り、縦の下パネルでも同じ最後�
   await expect(page.locator('.pnl .ned-title')).toBeVisible();
 });
 
-// FIXME(第19版 FIX1): 全部の月で出る開いた縦の下パネルで、ノート本文（y765〜861）の中心を書式バー（.ned-fmt）が覆いクリックできない。v19-open-issues.md 参照。
-test.fixme('縦: ノートにフォーカスするとパネルがy106まで拡大、キーボード終了（blur）で戻る', async ({ page }) => {
+// 第19.1版 S3: FIX1（全部の月の下パネルで書式バーが本文を覆う件）を直したので通常のテストに戻した。
+test('縦: ノートにフォーカスするとパネルがy146（grid-top）まで拡大、キーボード終了（blur）で戻る', async ({ page }) => {
   await legacyPanelInit(page);
   await openApp(page, SIZES.openPortrait669);
   await putNote(page, { id: 'k', body: '縦\n本文', createdAt: 1, updatedAt: 2, folderId: null });
@@ -155,8 +155,11 @@ test.fixme('縦: ノートにフォーカスするとパネルがy106まで拡�
   await page.locator('.pswitch').getByRole('button', { name: 'ノート', exact: true }).click();
   await page.locator('.pnl .mrow[data-nrow="k"]').click();
   const top0 = (await page.locator('.pnl').boundingBox()).y;
+  // FIX1: 書式バー（.ned-fmt）が本文を覆わない。本文の中心をたたくと本文に当たる。
+  const hit = await page.evaluate(() => { const b = document.querySelector('.pnl .ned-body').getBoundingClientRect(), f = document.querySelector('.pnl .ned-fmt').getBoundingClientRect(); const e = document.elementFromPoint(b.x + b.width / 2, b.y + Math.min(b.height / 2, 20)); return { onBody: !!e?.closest('.ned-body'), overlap: f.bottom > b.top && f.top < b.bottom && f.right > b.left && f.left < b.right }; });
+  expect(hit.onBody).toBe(true); expect(hit.overlap).toBe(false);
   await page.locator('.pnl .ned-body').click();
-  await expect.poll(async () => Math.round((await page.locator('.pnl').boundingBox()).y)).toBe(106);
+  await expect.poll(async () => Math.round((await page.locator('.pnl').boundingBox()).y)).toBe(146);
   await page.locator('.pnl .ned-body').fill('縦ノート');
   await page.evaluate(() => document.activeElement.blur());
   await expect.poll(async () => Math.round((await page.locator('.pnl').boundingBox()).y)).toBe(Math.round(top0));

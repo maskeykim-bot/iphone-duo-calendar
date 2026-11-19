@@ -1,6 +1,6 @@
 // 第19版 PR9: ノート第1段（design/27）。シートの位置・上の帯・戻す/やり直す・完了・下へ伸びる紙・古い手書きの表示。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES } from './helpers.js';
+import { openApp, SIZES, bodyIs } from './helpers.js';
 
 const UI = 'duo.ui.v1';
 const near = (a, b, tol = 0.5, msg = '') => expect(Math.abs(a - b), `${msg} ${a} ≈ ${b}`).toBeLessThanOrEqual(tol);
@@ -104,35 +104,35 @@ test.describe('戻す・やり直す・完了・紙', () => {
     await putNote(page, base('n1', '11月12日（木）\n一行目', '2026-11-12'));
     await page.reload(); await page.waitForSelector('html[data-ready]');
     await page.locator('.dpage.lp .dnote').click();
-    await expect(ned(page)).toHaveValue('一行目');
+    await bodyIs(ned(page), '一行目');
   }
   test('文字・書式が戻る/やり直せる。保存される本文は行頭の印の形', async ({ page }) => {
     await openSheet(page);
     await ned(page).click(); await page.keyboard.press('Control+End');
     await page.keyboard.type('追加');
     await page.getByRole('button', { name: 'チェックリストにする' }).click();
-    await expect(ned(page)).toHaveValue('- [ ] 一行目追加');
+    await bodyIs(ned(page), '- [ ] 一行目追加');
     await expect.poll(async () => (await getNote(page, 'n1')).body).toBe('11月12日（木）\n- [ ] 一行目追加');
     const undo = page.getByRole('button', { name: '元に戻す' }), redo = page.getByRole('button', { name: 'やり直す' });
     await expect(redo).toBeDisabled();
-    await undo.click(); await expect(ned(page)).toHaveValue('一行目追加');
+    await undo.click(); await bodyIs(ned(page), '一行目追加');
     await expect(redo).toBeEnabled();
-    await undo.click(); await expect(ned(page)).toHaveValue('一行目');
-    await redo.click(); await expect(ned(page)).toHaveValue('一行目追加');
-    await redo.click(); await expect(ned(page)).toHaveValue('- [ ] 一行目追加');
+    await undo.click(); await bodyIs(ned(page), '一行目');
+    await redo.click(); await bodyIs(ned(page), '一行目追加');
+    await redo.click(); await bodyIs(ned(page), '- [ ] 一行目追加');
   });
   test('字のシート: 見出し・小見出し・本文・箇条書き・チェック', async ({ page }) => {
     await openSheet(page);
     await ned(page).click(); await ned(page).evaluate((e) => e.setSelectionRange(0, 0));
     await page.getByRole('button', { name: '文字の書式' }).click();
     await page.getByRole('button', { name: '小見出し', exact: true }).click();
-    await expect(ned(page)).toHaveValue('## 一行目');
+    await bodyIs(ned(page), '## 一行目');
     await page.getByRole('button', { name: '見出し', exact: true }).click();
-    await expect(ned(page)).toHaveValue('# 一行目');
+    await bodyIs(ned(page), '# 一行目');
     await page.getByRole('button', { name: '本文', exact: true }).click();
-    await expect(ned(page)).toHaveValue('一行目');
+    await bodyIs(ned(page), '一行目');
     await page.getByRole('button', { name: '箇条書き', exact: true }).click();
-    await expect(ned(page)).toHaveValue('- 一行目');
+    await bodyIs(ned(page), '- 一行目');
     await page.getByRole('button', { name: '書式を閉じる' }).click();
   });
   test('戻す履歴は50回まで。完了で捨てる', async ({ page }) => {
@@ -158,7 +158,7 @@ test.describe('戻す・やり直す・完了・紙', () => {
     await wrap.evaluate((e) => { e.scrollTop = e.scrollHeight; });
     const tail = await box(page.locator('.nsheet .ned-tail')); near(tail.h, 90);
     await page.locator('.nsheet .ned-tail').click();
-    await expect(ned(page)).toHaveValue(long + '\n');
+    await bodyIs(ned(page), long + '\n');
     expect(await ned(page).evaluate((e) => e.selectionStart)).toBe(long.length + 1);
   });
 });
@@ -171,7 +171,7 @@ test.describe('古い手書き（表示だけ）', () => {
     await putNote(page, base('n1', '11月12日（木）\n本文', '2026-11-12', { ink }));
     await page.reload(); await page.waitForSelector('html[data-ready]');
     await page.locator('.dpage.lp .dnote').click();
-    await expect(ned(page)).toHaveValue('本文');
+    await bodyIs(ned(page), '本文');
   }
   test('点の列: 本文の下に線。倍率 s=min(1, 幅/refW)、左寄せ。編集して保存しても ink は1バイトも変わらない', async ({ page }) => {
     await openWith(page, PTS);

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, pagePick, seed, ev, setStyle } from './helpers.js';
+import { openApp, SIZES, pagePick, seed, ev, setStyle, bodyIs } from './helpers.js';
 
 // 第16版 PR28: メモ→ノート。月のメモ線・帯の印は廃止。一覧・検索・元の日付への導線をノートで検査する。
 // 旧メモは旧形式の端末データとして入れ、起動後の複製（migrateNotesOnce）を通す。
@@ -42,7 +42,7 @@ test('一覧: 新しい順・1行56・検索欄。タップで開く。旧メモ
   await expect(page.locator('.week .day.selected')).toHaveAttribute('data-date', '2026-11-01');
   await rows.first().click();
   await expect(title(page)).toHaveValue('2026年11月1日（日）'); // 年付き見出しが付く
-  await expect(body(page)).toHaveValue('A古い\n2行目');
+  await bodyIs(body(page), 'A古い\n2行目');
 });
 
 test("一覧は多数でも仮想表示で作れ、末尾まで届く（DOMは一括で作らない）", async ({ page }) => {

@@ -6,5 +6,7 @@
 		"contentInset": "never",
 		"backgroundColor": "#FFFDFA"
 	},
-	"packageClassList": []
+	"packageClassList": [
+		"KeyboardPlugin"
+	]
 }

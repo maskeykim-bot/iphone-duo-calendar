@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES } from './helpers.js';
+import { openApp, SIZES, bodyIs } from './helpers.js';
 
 // 第16版 PR27: ノートの常設エディタ部品（通常の画面にはまだ接続しない）。部品を直接マウントして検査する。
 // mode: 'real' | 'dbfail' | 'quota'
@@ -47,7 +47,7 @@ test.describe('ノートの編集部品', () => {
     await mount(page);
     await page.evaluate((id) => window.__ned.open(id), id);
     await expect(page.locator('.ned-title')).toHaveValue('買い物');
-    await expect(page.locator('.ned-body')).toHaveValue('牛乳\n卵');
+    await bodyIs(page.locator('.ned-body'), '牛乳\n卵');
   });
 
   test('保存前に終了しても、再開で最後の文字が戻る（古い下書きでDBを上書きしない）', async ({ page }) => {
@@ -77,7 +77,7 @@ test.describe('ノートの編集部品', () => {
     expect(await drafts(page)).toEqual([]);
     await expect(page.locator('.ned-title')).toHaveValue('B');
     await page.evaluate(() => window.__ned.open('a'));
-    await expect(page.locator('.ned-body')).toHaveValue('一行目の次');
+    await bodyIs(page.locator('.ned-body'), '一行目の次');
   });
 
   test('変換中に強制 pagehide / 非表示になっても入力済みの文字を書く', async ({ page }) => {
@@ -95,7 +95,7 @@ test.describe('ノートの編集部品', () => {
     await page.evaluate(async () => { await window.__ned.create(); await window.__ned.open('k'); });
     expect(await page.evaluate(async () => (await window.__db.listNotes()).map((n) => n.id))).toEqual(['k']);
     expect(await drafts(page)).toEqual([]);
-    await expect(page.locator('.ned-body')).toHaveValue('本文');
+    await bodyIs(page.locator('.ned-body'), '本文');
     await page.evaluate(() => window.__ned.leave());
     expect((await getNote(page, 'k')).body).toBe('残す\n本文');
   });

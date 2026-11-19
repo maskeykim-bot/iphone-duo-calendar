@@ -80,6 +80,18 @@ export function computeKbLayout({ H, kbTop, hinge, top = 0, hasAdd = true, restM
 
 // textarea の挿入位置（selectionEnd）の行の上端・下端（textarea の内容座標）。同じ書体の見えない複製で測る。
 export function caretBox(ta, doc = document) {
+  if (ta.isContentEditable) { // ノート本文（行ごとの div）: 挿入位置の行の矩形を、本文の上端からの距離で返す
+    const g = (doc.defaultView || window).getSelection();
+    const base = ta.getBoundingClientRect();
+    let r = null;
+    if (g && g.rangeCount && ta.contains(g.focusNode)) {
+      const rg = g.getRangeAt(0).cloneRange(); rg.collapse(false);
+      const rs = rg.getClientRects(); r = rs[rs.length - 1] || null;
+      if (!r || !r.height) { let n = g.focusNode; while (n && n.parentNode !== ta) n = n.parentNode; r = n?.getBoundingClientRect?.() || null; }
+    }
+    if (!r) { const k = ta.lastElementChild?.getBoundingClientRect(); r = k || base; }
+    return { top: r.top - base.top, bottom: r.bottom - base.top };
+  }
   const cs = getComputedStyle(ta);
   const m = doc.createElement('div');
   m.setAttribute('aria-hidden', 'true');

@@ -16,6 +16,26 @@ export function parseLine(line) {
   return { kind: 'plain', text: line };
 }
 
+// 画面用の見え方（保存の文字は変えない）。pre = 行頭の記号の文字そのもの（"- [ ] "・"# "・字下げ込み）、text = 画面に出す文字。
+// 必ず line === pre + text。記号は画面に出さず、種類（kind）で描く。kind: plain | h1 | h2 | bullet | check。
+export function viewOf(line) {
+  const p = parseLine(line);
+  const text = p.text;
+  return { kind: p.kind === 'heading' ? (p.level > 1 ? 'h2' : 'h1') : p.kind, checked: !!p.checked, pre: line.slice(0, line.length - text.length), text };
+}
+
+// 見るだけの表示（1日ページのノート欄・ホームのノート）用: 先頭から max 行。skipEmpty なら空の行を飛ばす。記号は出さない。
+export function richLines(text, max = Infinity, skipEmpty = false) {
+  const out = [];
+  for (const raw of splitLines(String(text ?? '')).texts) {
+    const v = viewOf(raw);
+    if (skipEmpty && !v.text.trim()) continue;
+    out.push(v);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
 // 行ごとに分ける。texts[i] の後ろの改行が eols[i]（最後の行は ''）。
 export function splitLines(text) {
   const texts = [], eols = [], starts = [];

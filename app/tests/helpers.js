@@ -2,6 +2,10 @@ import { expect } from '@playwright/test';
 import { CAT_IDS } from '../js/categories.js';
 
 // テストでは旧キー（work/private）や既定カテゴリのキー（family/out/other）で指定できる。
+
+// 第19.1版 S3: ノート本文は行ごとの div（contenteditable）。保存の文字は el.value で読む（記号つき）。
+export const bodyIs = (loc, v) => (v instanceof RegExp ? expect.poll(() => loc.evaluate((e) => e.value)).toMatch(v) : expect.poll(() => loc.evaluate((e) => e.value)).toBe(v));
+
 export const catId = (k) => CAT_IDS[k] ?? k;
 
 export const SIZES = {

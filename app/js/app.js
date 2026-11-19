@@ -16,15 +16,16 @@ import { createPainter } from './curl/painter.js';
 import { createCurl, curlColors } from './curl/index.js';
 import { createNativeCurl, getEngine as curlEngine, setEngine as setCurlEngine, B_OFF as CURL_B_OFF } from './curl/native-curl.js';
 import { holidayOf } from './holidays.js';
-import { splitEvents, eveningFirst, homeTasks, dueText, tomorrowSummary, axisBars, firstLines } from './home.js';
+import { splitEvents, eveningFirst, homeTasks, dueText, tomorrowSummary, axisBars } from './home.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS, FOCUS_MODES, FOCUS_LABELS, normFocusMode, normSpreadType, normTtSplit } from './pages.js';
 import { noteStore, setNoteHook, recoverNoteDrafts, importLegacyMemoDrafts, folderOps, groupNotes, filterByFolder, FOLDER_NAME_MAX } from './notes.js';
 import { mountNoteEditor } from './notes-ui.js';
+import { richLines } from './note-lines.js';
 import { titleOf, noteDateOf, dateOccupants, dailyHeading, ensureDailyFolder } from './notes-model.js';
 import { DELETE_UNDO_MS, tasksHtml, focusTasksHtml, HIST_DAYS, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDeleteController, TASK_DELETED } from './reminders.js';
 import { liveTasks as liveTasksOf, LOCAL_LIST, TASK_STORE_TEXT, createTaskStore, createLocalCall, createLocalAddController, rowOf, createTaskDoneController, DONE_UNDO_MS, TASK_VIEWS, TASK_VIEW_LABELS, normTaskView, dueCounts, todayTasks, inheritTaskSettings, normTaskSettings } from './tasks.js';
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
-import { call, errCode, errReason, errText, haptic, listen, nativeAvailable, remNative, requestReminderPermission } from './native.js';
+import { call, hideKeyboardAccessoryBar, errCode, errReason, errText, haptic, listen, nativeAvailable, remNative, requestReminderPermission } from './native.js';
 import { createReminderSync, normSyncSettings, previewFirst, applyFirst, prevListCandidates, SYNC_WINDOW_DAYS } from './reminder-sync.js';
 import { createDestPage, destRowsHtml } from './destination-ui.js';
 import { KB_METRICS_ENABLED, kbMetrics, kbText, screenText } from './kbmetrics.js';
@@ -141,7 +142,7 @@ const de = document.documentElement;
 const L = { w: window.innerWidth, h: window.innerHeight };
 const maxH = new Map([[L.w, L.h]]);
 let kbHold = false, kbTimer = 0;
-const isTextEl = (a) => !!a && !!a.matches?.('textarea, select, input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=button]):not([type=submit])');
+const isTextEl = (a) => !!a && !!a.matches?.('textarea, .ned-body, select, input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=button]):not([type=submit])');
 const keyboardLikely = () => kbHold || isTextEl(document.activeElement);
 function measureL() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -1258,9 +1259,9 @@ function pvWeekHtml(k) {
   return `<section class="pv-week" aria-label="今週"><div class="pvh"><h3>${title}</h3><button type="button" class="hgo" data-pv="month" aria-label="月を開く">月 ›</button></div><div class="pvwk" style="--chip-h:14px;--chip-fs:9px;--date-h:18px"><div class="week named">${inner}</div></div></section>`;
 }
 function pvNoteHtml(k) {
-  const body = NB.first.get(k) || '', lines = firstLines(body, 6);
+  const body = NB.first.get(k) || '', lines = richLines(body, 6, true);
   const n = NB.marks.get(k) || 0;
-  return `<section class="pv-notes" aria-label="今日のノート"><div class="pvh"><h3>ノート</h3><button type="button" class="hgo" data-pv="note" aria-label="ノートを開く">すべて ›</button></div><button type="button" class="pvnote" data-act="daynote" data-day="${k}" aria-label="${esc(dayLabel(k))}のノート${n ? `${n}件を開く` : 'を書く'}">${lines.length ? lines.map((l) => `<span>${esc(l)}</span>`).join('') : '<span class="pvph">今日のノートを書く</span>'}</button></section>`;
+  return `<section class="pv-notes" aria-label="今日のノート"><div class="pvh"><h3>ノート</h3><button type="button" class="hgo" data-pv="note" aria-label="ノートを開く">すべて ›</button></div><button type="button" class="pvnote" data-act="daynote" data-day="${k}" aria-label="${esc(dayLabel(k))}のノート${n ? `${n}件を開く` : 'を書く'}">${lines.length ? richHtml(lines) : '<span class="pvph">今日のノートを書く</span>'}</button></section>`;
 }
 function pvTasksHtml() {
   const all = homeTaskList(), today = todayKey();
@@ -1356,8 +1357,8 @@ function pickBottom(id) {
 }
 // メモ入力中の拡大口: 下の段をマスの上端（y106）まで広げる。再描画せず class だけ切り替える（入力欄のフォーカスを保つ）。
 function setPanelExpand(on) { PN.expand = on; root.querySelector('.pnl')?.classList.toggle('up', on); }
-root.addEventListener('focusin', (ev) => { if (ev.target.closest?.('.pnl') && ev.target.matches('textarea, [contenteditable=true]')) setPanelExpand(true); });
-root.addEventListener('focusout', (ev) => { if (!rendering && ev.target.closest?.('.pnl') && ev.target.matches('textarea, [contenteditable=true]')) setPanelExpand(false); });
+root.addEventListener('focusin', (ev) => { if (ev.target.closest?.('.pnl') && ev.target.matches('textarea, .ned-body, [contenteditable=true]')) setPanelExpand(true); });
+root.addEventListener('focusout', (ev) => { if (!rendering && ev.target.closest?.('.pnl') && ev.target.matches('textarea, .ned-body, [contenteditable=true]')) setPanelExpand(false); });
 // つまみを下へ引く＝しまう／マスの下端から上へ引く＝出す。8px以内は押しただけ（つまみは click、下端は下のマスへ通す）。
 let pg = null;
 root.addEventListener('pointerdown', (ev) => {
@@ -1427,7 +1428,10 @@ function tlBlock({ e, s, en, col, n }, k, cw = false) {
   return `<button type="button" class="tlev ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}--m:${s};--d:${en - s};left:calc(${col} * 100% / ${n} + 1px);width:calc(100% / ${n} - 2px)" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${t}${e.recurring ? ' 繰り返し' : ''}${isX(e) ? '' : `、${tagText(e)}`}${e.nativeLink?.state === 'linked' ? '、iPhoneにも追加済み' : ''}${alLabel(e)}`)}">${cw ? `<span class="tn">${esc(t)}</span>` : `<span class="tt">${sub}${bell(e)}</span>${esc(t)}`}</button>`; // 閉じた週（cw）は枠に時刻を出さず題名だけ（H-07）
 }
 // 終日段: 11px「終日」＋カテゴリの淡色地・本色12px太字のピル。最大3件（3日表示は各日1件）、幅不足なら減らして +N（その日の一覧へ）。
-function allDayRow(ks, avail) {
+// 第19.1版 S3（M-07）: ノートの札は見出しの行から外して、終日の行の右へ（押せる 44）。札の分の幅は終日のピルから引く。
+const NOTE_CHIP_W = 92;
+function allDayRow(ks, avail, chip = false) {
+  if (chip) avail = Math.max(0, avail - NOTE_CHIP_W);
   const cap = ks.length === 1 ? 3 : 1, colW = avail / ks.length;
   const cols = ks.map((k) => {
     const list = eventsOnDay(occIn(k, k), k).filter((e) => e.all);
@@ -1438,7 +1442,7 @@ function allDayRow(ks, avail) {
     const extra = list.length - shown;
     return `<div class="adcol" data-day="${k}">${pills}${extra > 0 ? `<button type="button" class="adplus" data-jump="${k}" aria-label="${dayLabel(k)}の終日の予定をすべて見る（ほか${extra}件）">+${extra}</button>` : ''}</div>`;
   }).join('');
-  return `<div class="allday" aria-label="終日の予定"><span class="adl">終日</span><div class="adcols">${cols}</div></div>`;
+  return `<div class="allday" aria-label="終日の予定"><span class="adl">終日</span><div class="adcols">${cols}</div>${chip ? noteChip() : ''}</div>`;
 }
 // 閉じた週の終日段（H-07）: 複数日の終日は週の中で1本の帯（題名 9pt W6＋線 2）。日ごとの丸い札にはしない。段は最大3、あふれは日ごとの +N。
 function allDayWeek(ks) {
@@ -1459,7 +1463,7 @@ function allDayWeek(ks) {
   const h = Math.max(24, 2 + lanes.length * 18 + (more ? 14 : 0) + 2);
   return `<div class="allday adweek" aria-label="終日の予定" style="height:${h}px"><span class="adl">終日</span><div class="adcols">${bars}${plus}</div></div>`;
 }
-function timelineHtml(ks, avail, pane = 'right', fixedHh = 0) {
+function timelineHtml(ks, avail, pane = 'right', fixedHh = 0, chip = false) {
   const cwk = pane === 'closed' && ks.length > 1; // 閉じた週: 曜日 10pt と日付 13pt の2段（M-08）
   const heads = ks.length > 1 ? `<div class="tlheads"><span class="tlh0"></span>${ks.map((k) => { const d = parseKey(k); return `<button type="button" class="tlhd${k === state.selected ? ' sel' : ''}${k === todayKey() ? ' today' : ''}" data-tlday="${k}" aria-pressed="${k === state.selected}" aria-label="${dayLabel(k)}を選ぶ">${cwk ? `<span class="dw">${DOW[d.getDay()]}</span><span class="dd">${d.getDate()}</span>` : `${d.getDate()}（${DOW[d.getDay()]}）`}${rkSpan(k, 'wrk')}</button>`; }).join('')}</div>` : '';
   let lines = '';
@@ -1468,7 +1472,7 @@ function timelineHtml(ks, avail, pane = 'right', fixedHh = 0) {
     if (h < 24) lines += `<span class="hlab" style="--m:${h * 60}">${h}:00</span><i class="hl half" style="--m:${h * 60 + 30}"></i>`;
   }
   const cols = ks.map((k) => `<div class="tlcol" data-day="${k}">${dayBlocks(k).map((b) => tlBlock(b, k, cwk)).join('')}</div>`).join('');
-  return `${pane === 'closed' ? `${heads}${cwk ? allDayWeek(ks) : allDayRow(ks, avail)}` : `${allDayRow(ks, avail)}${heads}`}<div class="tl" data-scroll="tl" data-pane="${pane}" style="--hh:${fixedHh || TLP[pane].hh}px"><div class="tlin" data-pane="${pane}" data-days="${ks.join(',')}">${lines}<div class="tlcols">${cols}</div><div class="nowl" hidden><span class="nowt"></span></div></div></div>`;
+  return `${pane === 'closed' ? `${heads}${cwk ? allDayWeek(ks) : allDayRow(ks, avail)}` : `${allDayRow(ks, avail, chip)}${heads}`}<div class="tl" data-scroll="tl" data-pane="${pane}" style="--hh:${fixedHh || TLP[pane].hh}px"><div class="tlin" data-pane="${pane}" data-days="${ks.join(',')}">${lines}<div class="tlcols">${cols}</div><div class="nowl" hidden><span class="nowt"></span></div></div></div>`;
 }
 // 右ページの日見出し（11月14日（土））＋ 1日／3日の切替（見た目 60×32・押せる範囲の高さ 44）。帯がないときは 今日・検索・＋ も見出しへ。
 const rctl = () => (POS.band ? '' : `<div class="rctl"><button type="button" class="rbtn s44 rtoday" data-act="today" aria-label="今日に戻る"><span aria-hidden="true">${todayLabel()}</span></button><button type="button" class="rbtn s44 rsearch" data-act="search" aria-label="予定を検索">${ICON_SEARCH}</button><button type="button" class="rbtn s44 radd" data-act="add" aria-label="予定を追加"><span aria-hidden="true">＋</span></button></div>`);
@@ -1491,9 +1495,9 @@ const gearBtn = () => (POS.band ? '' : `<button type="button" class="sset" data-
 const paneNav = (side, dir) => `<button type="button" data-act="${dir > 0 ? 'next' : 'prev'}" data-pane="${side}" aria-label="${dir > 0 ? '次' : '前'}の${PG()[side] === 'time' && tmode(side) === 'week' ? '週' : '日'}">${dir > 0 ? '›' : '‹'}</button>`;
 // 時間・タスク・メモの見出し: 日付（たたくと小さな月）｜（右は 今日・検索・＋）｜（時間のみ）カプセル ｜ 前・次（左右とも）。帯がなければ左は設定もここ。
 function dateHead(side, id) {
-  return `<div class="rhead dh"><h2 class="rdate"><button type="button" class="datebtn" data-act="mini" data-pane="${side}" aria-haspopup="dialog" aria-expanded="${MM.open === side}" aria-label="日付を選ぶ: ${esc(dayLabel(state.selected))}">${dayTitle(state.selected)}</button></h2>${id === 'time' ? noteChip() : ''}${side === 'right' ? rctl() : ''}${id === 'time' ? timeCapsule(side) : ''}<div class="sctl">${paneNav(side, -1)}${paneNav(side, 1)}${side === 'left' ? gearBtn() : ''}</div></div>`;
+  return `<div class="rhead dh"><h2 class="rdate${id === 'time' ? ' keep' : ''}"><button type="button" class="datebtn" data-act="mini" data-pane="${side}" aria-haspopup="dialog" aria-expanded="${MM.open === side}" aria-label="日付を選ぶ: ${esc(dayLabel(state.selected))}">${dayTitle(state.selected)}</button></h2>${side === 'right' ? rctl() : ''}${id === 'time' ? timeCapsule(side) : ''}<div class="sctl">${paneNav(side, -1)}${paneNav(side, 1)}${side === 'left' ? gearBtn() : ''}</div></div>`;
 }
-const noteChip = () => { const n = NB.marks.get(state.selected) || 0; return `<button type="button" class="ndchip${n ? ' has' : ''}" data-act="notedayjump" aria-label="${esc(dayLabel(state.selected))}のノート${n}件を開く">ノート${n ? ` ${n}` : ''}</button>`; };
+const noteChip = () => { const n = NB.marks.get(state.selected) || 0; return `<button type="button" class="ndchip${n ? ' has' : ''}" data-act="notedayjump" aria-label="${esc(dayLabel(state.selected))}のノート${n}件を開く">ノート${n ? ` ${n}件` : ''}</button>`; };
 // 小さな月（幅 280・高さ 260、1マス 40×36）。選んでいる日は共通。六曜は出さない。
 const MM = { open: null, ym: '' };
 function miniMonth(side) {
@@ -1585,9 +1589,10 @@ root.addEventListener('keydown', (ev) => {
 // 時間ページの中身（1日・3日は時間軸、週とリストはそのペイン内で描く）。
 function timeBody(side, w) {
   const m = tmode(side);
-  if (m === 'week') return `<div class="scroll weekpage padb" data-scroll="wk" data-pane="${side}">${weekKeys().map((x) => weekRow(x, false)).join('')}</div>`;
-  if (m === 'list') return agendaView(side);
-  return timelineHtml(tlKeys(tdays(side)), w - 50, side);
+  const nd = `<div class="ndrow">${noteChip()}</div>`; // 週・リストには終日の行が無いので、同じ高さの行に札だけ置く
+  if (m === 'week') return `${nd}<div class="scroll weekpage padb" data-scroll="wk" data-pane="${side}">${weekKeys().map((x) => weekRow(x, false)).join('')}</div>`;
+  if (m === 'list') return nd + agendaView(side);
+  return timelineHtml(tlKeys(tdays(side)), w - 50, side, 0, true);
 }
 // ページ id 付きの描画。side＝'left'|'right'、id＝'month'|'time'|'task'|'memo'。
 // ---------- ノート（旧「日ごとのメモ」。左右ページ・縦の下パネル・閉じた画面の帯で同じ一覧と同じエディタ。保存は notes.js） ----------
@@ -2409,10 +2414,13 @@ function ttList(k) {
   return `<div class="dlist" data-scroll="dlist" data-pane="${k}" role="list" aria-label="${esc(dayLabel(k))}の予定">${rows || '<p class="dnone">予定はありません</p>'}</div>`;
 }
 // 1日ページ。縦の寸法（見出し82・予定欄・つまみ24・ノート）は左右で同じ。ノート欄の行の y は CSS の整数 px。
+// 見るだけのノートの行（記号は出さない）。書式は notes-ui の本文と同じ data-k の描き方。
+const richHtml = (vs, tag = 'span') => vs.map((v) => `<${tag} class="nl" data-k="${v.kind}"${v.kind === 'check' ? ` data-c="${v.checked ? 1 : 0}"` : ''}>${esc(v.text)}</${tag}>`).join('');
 function dayPage(side, k, portrait = false) {
   const body = !portrait && ttSplitNow() < TT_TIME_MIN ? ttList(k) : timelineHtml([k], Math.max(0, (portrait ? safeW() : paneWidth(side)) - 80), side, 60);
   const first = NB.first.get(k), n = NB.marks.get(k) || 0;
-  const note = `<button type="button" class="dnote" data-act="daynote" data-day="${k}" aria-label="${esc(dayLabel(k))}のノート${n ? `${n}件を開く` : 'を書く'}"><span class="dnt">${first ? esc(first) : ''}</span></button>`;
+  // 第19.1版 S3（M-06）: ノートが無い日は 1行目に「この日のノートを書く」（たたくとシートが開いて消える）。記号は出さず行の種類で描く。
+  const note = `<button type="button" class="dnote" data-act="daynote" data-day="${k}" aria-label="${esc(dayLabel(k))}のノート${n ? `${n}件を開く` : 'を書く'}"><span class="dnt">${first ? richHtml(richLines(first), 'div') : '<span class="dnt-ph">この日のノートを書く</span>'}</span></button>`;
   const grip = portrait ? '' : `<div class="dgrip" role="separator" aria-orientation="horizontal" tabindex="0" aria-label="予定とノートの境目" aria-valuemin="64" aria-valuemax="${ttSplitMax()}" aria-valuenow="${ttSplitNow()}"><i aria-hidden="true"></i></div>`;
   return `<section class="page ${side === 'left' ? 'lp' : 'rp'} dpage" data-page="day" data-day="${k}" aria-label="${esc(dayLabel(k))}"><div class="dph"><h2 class="dd"><span class="hdt${isRed(k) ? ' hol' : ''}">${dayLabel(k)}</span>${holSpan(k)}</h2>${rkSpan(k, 'drk')}</div><div class="dev">${body}</div>${grip}${note}</section>`;
 }
@@ -2766,6 +2774,7 @@ function placeNoteSheet() {
   const g = sheetGeometry(NB.sheet.side), st = SHEET_EL.style;
   st.left = `${g.x}px`; st.top = `${g.y}px`; st.width = `${g.w}px`; st.height = `${Math.max(120, g.bottom - g.y)}px`;
   st.setProperty('--ns-pl', `${g.pl}px`); st.setProperty('--ns-pr', `${g.pr}px`); st.setProperty('--ns-bml', `${g.bml}px`); st.setProperty('--ns-bmr', `${g.bmr}px`);
+  st.setProperty('--ns-pb', de.dataset.kb && kbTopOf(window.visualViewport, window.innerHeight) !== null ? '8px' : '0px'); // キーボードが出ているとき本文の窓の下端は kbTop の 8 上（20 §3）
   SHEET_EL.dataset.kind = g.kind; SHEET_EL.dataset.side = NB.sheet.side;
   const fs = NB.ed?.fsheetEl; if (fs) { fs.style.setProperty('--ns-x', `${g.x}px`); fs.style.setProperty('--ns-w', `${g.w}px`); }
 }
@@ -5815,6 +5824,7 @@ window.addEventListener('resize', () => updateFoldProbe());
 updateFoldProbe();
 window.__posture = postureCtl; // 手動「折り」代替とテスト用
 async function initNative() {
+  hideKeyboardAccessoryBar(); // ∧∨✓ の帯を消す（19.1）。ネイティブ以外・失敗しても何も起きない
   if (!NATIVE) return;
   postureCtl.start(); // 権限処理より前に購読→取得。失敗・未対応でも起動を止めない
   // 連携オフ・カレンダー権限なしでも通知は動くので、購読は権限確認より前に行う。
@@ -5894,7 +5904,7 @@ document.addEventListener('keydown', (ev) => {
 
 // ---------- スワイプ（左＝次、右＝前） ----------
 const SWIPE_ZONE = '.mgrid, .mday, .scroll, .agenda, .remaining, .home, .hero, .page, .list, .tlx, .fold';
-const SWIPE_EXCLUDE = '.mgrab, .mph, .top, .shead, .rhead, .allday, .tlheads, .dgrip, .mmenu, .chead, .foot, .add, .tabs, .pgsw, .tlmenu, .dbox, .ctl, .bandbg, .hline, .foldband, .gutter, input, select, textarea, label, dialog';
+const SWIPE_EXCLUDE = '.mgrab, .mph, .top, .shead, .rhead, .allday, .tlheads, .dgrip, .mmenu, .chead, .foot, .add, .tabs, .pgsw, .tlmenu, .dbox, .ctl, .bandbg, .hline, .foldband, .gutter, input, select, textarea, .ned-body, label, dialog';
 let swiping = false;
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const paneContent = () => [...root.querySelectorAll('.mgrid, .mday > *, .dpage > *, .scroll > *, .agenda > *, .hero > *, .remaining > *, .margin > *, .tlx > .tlw, .fold .fani')];
@@ -5968,8 +5978,8 @@ function ttMetrics() { // めくりの寸法（アプリ座標）。見えてい
 const CURL_EXCLUDE = '.dgrip, .dbox, .hdl, .dx, .tlmenu, .mmenu, .ctl, .bandbg, .tabs, .pgsw, .foldband, .hline, .top, .foot, .add, input, select, label, dialog, [contenteditable="true"]';
 const curlCanStart = (t) => {
   if (!(t instanceof Element) || !t.closest('.dpage') || t.closest(CURL_EXCLUDE)) return false;
-  const ta = t.closest('textarea'); if (ta && ta === document.activeElement) return false;
-  return t.closest('.tlev, .adpill, .adplus, .dlrow, .dnote, button, textarea') ? 'quiet' : true; // タップで開く物の上：角は持ち上げず、横に動いたらめくる
+  const ta = t.closest('textarea, .ned-body'); if (ta && ta === document.activeElement) return false;
+  return t.closest('.tlev, .adpill, .adplus, .dlrow, .dnote, button, textarea, .ned-body') ? 'quiet' : true; // タップで開く物の上：角は持ち上げず、横に動いたらめくる
 };
 // iOS のめくり（B、1段目の試作）。設定 › 詳細「めくりの方式（試作）」で選ぶ。撮った絵は rev（描き直し）・時間軸のスクロール位置・分が同じなら使い回す
 const natCurl = createNativeCurl({
@@ -6145,7 +6155,7 @@ async function undoMove() {
 }
 document.addEventListener('visibilitychange', () => { if (document.hidden) mvDropUndo(); });
 
-const DIRECT_ZONE_EXCLUDE = '.ev, .strip, .tlev, .dbox, button, input, select, textarea, label, dialog, .tlheads, .tlmenu, .mmenu, .tabs';
+const DIRECT_ZONE_EXCLUDE = '.ev, .strip, .tlev, .dbox, button, input, select, textarea, .ned-body, label, dialog, .tlheads, .tlmenu, .mmenu, .tabs';
 function directOrigin(t) {
   if (anyPanel() || !(t instanceof Element)) return null;
   if (t.closest('.pvwk')) return null; // 開いた縦ホームの今週の帯: 長押しで期間選択・メニューは出さない（たたくと日タブ）

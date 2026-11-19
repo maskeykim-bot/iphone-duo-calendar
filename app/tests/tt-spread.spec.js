@@ -1,6 +1,6 @@
 // 第18版 PR1: 見開きの型「今日＋明日」と1日ページ。寸法は design/26 §1・§2（951×669・右の帯 84）。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, seed, ev, swipe } from './helpers.js';
+import { openApp, SIZES, seed, ev, swipe, bodyIs } from './helpers.js';
 
 const UI = 'duo.ui.v1';
 const setSafe = (page, { t = 0, r = 0, b = 0, l = 0 }) => page.evaluate(([t, r, b, l]) => {
@@ -234,7 +234,7 @@ test.describe('今日＋明日（開いた横）', () => {
     expect(await page.locator('.dpage.lp .dnt').evaluate((e) => getComputedStyle(e).lineHeight)).toBe('30px');
     await page.locator('.dpage.lp .dnote').click();
     await expect(page.locator('.nsheet .ned-body')).toBeVisible();
-    await expect(page.locator('.nsheet .ned-body')).toHaveValue(/会議の準備/);
+    await bodyIs(page.locator('.nsheet .ned-body'), /会議の準備/);
     await page.getByRole('button', { name: '完了' }).click();
     await expect(page.locator('.nsheet')).toBeHidden();
     await page.locator('.dpage.rp .dnote').click();

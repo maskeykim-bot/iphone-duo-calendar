@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES } from './helpers.js';
+import { openApp, SIZES, bodyIs } from './helpers.js';
 
 // 第16版 PR30: ノートのチェック欄と書式操作（部品を直接マウントして検査）。
 async function mount(page) {
@@ -36,11 +36,11 @@ test.describe('ノートのチェック欄と書式', () => {
     await page.getByRole('button', { name: 'チェックリストにする', exact: true }).click();
     await page.keyboard.type('牛乳'); await page.keyboard.press('Enter');
     await page.keyboard.type('卵'); await page.keyboard.press('Enter');
-    await expect(body(page)).toHaveValue('- [ ] 牛乳\n- [ ] 卵\n- [ ] ');
+    await bodyIs(body(page), '- [ ] 牛乳\n- [ ] 卵\n- [ ] ');
     await page.keyboard.press('Enter');
-    await expect(body(page)).toHaveValue('- [ ] 牛乳\n- [ ] 卵\n');
+    await bodyIs(body(page), '- [ ] 牛乳\n- [ ] 卵\n');
     await page.keyboard.type('おわり');
-    await expect(body(page)).toHaveValue('- [ ] 牛乳\n- [ ] 卵\nおわり');
+    await bodyIs(body(page), '- [ ] 牛乳\n- [ ] 卵\nおわり');
   });
 
   test('日本語変換中の Return は項目を増やさない', async ({ page }) => {
@@ -49,12 +49,12 @@ test.describe('ノートのチェック欄と書式', () => {
     await body(page).fill('- [ ] ');
     await body(page).evaluate((e) => { e.focus(); e.setSelectionRange(e.value.length, e.value.length); e.dispatchEvent(new CompositionEvent('compositionstart')); e.value += 'かんじ'; e.dispatchEvent(new InputEvent('input', { isComposing: true })); });
     await body(page).evaluate((e) => e.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 229, isComposing: true, bubbles: true, cancelable: true })));
-    await expect(body(page)).toHaveValue('- [ ] かんじ');
+    await bodyIs(body(page), '- [ ] かんじ');
     await body(page).evaluate((e) => { e.value = '- [ ] 漢字'; e.dispatchEvent(new CompositionEvent('compositionend')); });
-    await expect(body(page)).toHaveValue('- [ ] 漢字');
+    await bodyIs(body(page), '- [ ] 漢字');
   });
 
-  test('チェック欄: 22pt の四角・44pt の当たり、押すと済みがブロック末尾へ、取り消しで戻る', async ({ page }) => {
+  test('チェック欄: 20pt の四角（第19.1版 H-14）・44pt の当たり、押すと済みがブロック末尾へ、取り消しで戻る', async ({ page }) => {
     await putNote(page, { id: 'n2', body: '題\n- [ ] a\n- [ ] b\n- [ ] c\n中間\n- [ ] x', createdAt: 1, updatedAt: 5, folderId: null });
     await page.evaluate(() => window.__ned.open('n2'));
     const chk = page.locator('.ned-chk');
@@ -62,17 +62,17 @@ test.describe('ノートのチェック欄と書式', () => {
     await expect.poll(async () => { const b = await chk.first().boundingBox(); return b && Math.min(b.width, b.height); }).toBeGreaterThanOrEqual(44);
     await expect(page.locator('.ned-box').first()).toBeVisible();
     const box = await page.locator('.ned-box').first().boundingBox();
-    expect(Math.round(box.width)).toBe(22);
+    expect(Math.round(box.width)).toBe(20);
     await chk.nth(0).click();
-    await expect(body(page)).toHaveValue('- [ ] b\n- [ ] c\n- [x] a\n中間\n- [ ] x');
+    await bodyIs(body(page), '- [ ] b\n- [ ] c\n- [x] a\n中間\n- [ ] x');
     await expect(chk.nth(2)).toHaveAttribute('aria-checked', 'true');
     await expect.poll(async () => (await getNote(page, 'n2')).body).toBe('題\n- [ ] b\n- [ ] c\n- [x] a\n中間\n- [ ] x');
     await page.getByRole('button', { name: '元に戻す' }).click();
-    await expect(body(page)).toHaveValue('- [ ] a\n- [ ] b\n- [ ] c\n中間\n- [ ] x');
+    await bodyIs(body(page), '- [ ] a\n- [ ] b\n- [ ] c\n中間\n- [ ] x');
     await chk.nth(0).click(); // a を済みにして末尾へ。次に外すと未了の後ろへ戻る
-    await expect(body(page)).toHaveValue('- [ ] b\n- [ ] c\n- [x] a\n中間\n- [ ] x');
+    await bodyIs(body(page), '- [ ] b\n- [ ] c\n- [x] a\n中間\n- [ ] x');
     await chk.nth(2).click();
-    await expect(body(page)).toHaveValue('- [ ] b\n- [ ] c\n- [ ] a\n中間\n- [ ] x');
+    await bodyIs(body(page), '- [ ] b\n- [ ] c\n- [ ] a\n中間\n- [ ] x');
   });
 
   test('題名は本文1行目と同期し、保存して再読込しても同じ形で戻る。HTML 文字は文字のまま', async ({ page }) => {
@@ -90,7 +90,7 @@ test.describe('ノートのチェック欄と書式', () => {
     await expect.poll(async () => (await getNote(page, id)).body).toBe('<b>題</b>\n- [x] <img src=x onerror=alert(1)>\n# H');
     await page.reload(); await page.waitForSelector('html[data-ready]'); await mount(page);
     await page.evaluate((id) => window.__ned.open(id), id);
-    await expect(body(page)).toHaveValue('- [x] <img src=x onerror=alert(1)>\n# H');
+    await bodyIs(body(page), '- [x] <img src=x onerror=alert(1)>\n# H');
     await expect(page.locator('.ned-chk')).toHaveCount(1);
     expect(await page.locator('.ned img, .ned b').count()).toBe(0);
   });
