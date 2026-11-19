@@ -45,7 +45,7 @@ test.describe('タスクの分類と完了履歴', () => {
     expect(await rp.locator('[data-sec]').evaluateAll((e) => e.map((x) => x.dataset.sec))).toEqual(SECS);
     await page.locator(`.page.lp [data-date="${day(3)}"]`).first().click({ position: { x: 12, y: 10 } });
     await expect(rp.locator('[data-sec="selected"] [data-key="rm:soon"]')).toBeVisible();
-    await expect(rp.locator('[data-sec="overdue"] [data-key="rm:today"]')).toBeVisible();
+    await expect(rp.locator('[data-sec^="before"] [data-key="rm:today"]')).toBeVisible(); // 今日の期限は赤の期限切れではなく日付の見出し（S5 M-17）
   });
   test('外部変更の通知（calendarChanged）では取り直さない。旧リマインダー集合は混ざらない', async ({ page }) => {
     await spy(page);

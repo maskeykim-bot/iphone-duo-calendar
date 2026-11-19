@@ -1,6 +1,6 @@
 // 第14版 PR33: コピー開始と貼る日の選択画面。確定（実行）は PR34 なので、ここでは選択・キャンセル・DB/native0 を確かめる。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, seed, ev, dbEvents, tab, OPEN_SIZES, enableCalendars } from './helpers.js';
+import { openApp, SIZES, seed, ev, dbEvents, tab, OPEN_SIZES, enableCalendars, clickChip } from './helpers.js';
 
 const CALS = [
   { id: 'cal-1', title: '家族', color: '#d93025', sourceId: 's-g', source: 'Google', sourceType: 'caldav', allowsModify: true, isDefault: true },
@@ -69,7 +69,7 @@ test.describe('入口', () => {
     await longPress(page, chip(page, '撮影'));
     await expect(page.locator('.cmenu')).toBeVisible();
     await page.mouse.click(5, 5);
-    await chip(page, '撮影').click();
+    await clickChip(page, chip(page, '撮影'));
     await expect(page.locator('#copyrow')).toBeVisible();
   });
 });
@@ -119,7 +119,7 @@ test.describe('チップ長押しのメニュー', () => {
   });
   test('ポップアップの下の行にコピー（高さ44）。未保存の変更があれば止める', async ({ page }) => {
     await boot(page);
-    await chip(page, '撮影').click();
+    await clickChip(page, chip(page, '撮影'));
     const c = page.locator('#copy');
     await expect(c).toBeVisible();
     expect(Math.round((await c.boundingBox()).height)).toBe(44);
@@ -331,7 +331,7 @@ test.describe('iPhone の予定（ext）', () => {
   });
   test('招待の予定もコピーでき、iPhone 予定のポップアップにもコピー行がある', async ({ page }) => {
     await boot(page, SIZES.openPortrait669, { ext: true });
-    await chip(page, '招待会議').click();
+    await clickChip(page, chip(page, '招待会議'));
     await expect(page.locator('#xd-copy')).toBeVisible();
     await expect(page.locator('#xd-copy')).toBeEnabled();
     expect(Math.round((await page.locator('#xd-copy').boundingBox()).height)).toBe(44);

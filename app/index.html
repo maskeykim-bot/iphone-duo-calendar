@@ -134,18 +134,18 @@
       <button type="button" class="srow" data-go="details"><span class="sic"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="M11 10v5M11 7v.5"/></svg></span><span class="sname">詳細</span><span class="sch" aria-hidden="true">›</span></button>
     </div>
     <div class="menurows" data-screen="general" hidden>
-      <button type="button" data-m="week" id="m-week" class="mrow"><span class="mn">週の始まり</span><span class="mv" id="m-week-v"></span><span class="sch" aria-hidden="true">›</span></button>
+      <button type="button" data-m="week" id="m-week" class="setrow"><span class="mn">週の始まり</span><span class="mv" id="m-week-v"></span><span class="sch" aria-hidden="true">›</span></button>
       <button type="button" data-m="holiday" id="m-holiday" class="swrow" role="switch" aria-checked="true" aria-describedby="m-holiday-d"><span>祝日を赤で表示</span><i class="rkswitch" aria-hidden="true"></i></button>
       <p id="m-holiday-d" class="swnote">祝日の日付を赤にします。日曜は常に赤です。名前は内蔵の祝日表から出し、連携がなくても使えます。</p>
       <button type="button" data-m="rokuyo" id="m-rokuyo" class="swrow" role="switch" aria-checked="true" aria-describedby="m-rokuyo-d"><span>六曜を表示</span><i class="rkswitch" aria-hidden="true"></i></button>
       <p id="m-rokuyo-d" class="swnote">月のマスと日の見出しに、大安・仏滅などを出します。</p>
-      <button type="button" data-m="desk" id="m-desk" class="mrow"><span class="mn">卓上表示</span><span class="mv" id="m-desk-v"></span><span class="sch" aria-hidden="true">›</span></button>
+      <button type="button" data-m="desk" id="m-desk" class="setrow"><span class="mn">卓上表示</span><span class="mv" id="m-desk-v"></span><span class="sch" aria-hidden="true">›</span></button>
     </div>
     <div class="menurows" data-screen="display" hidden>
-      <button type="button" data-m="mode" id="m-mode" class="mrow" aria-label="月の表現" aria-expanded="false" aria-controls="m-variant"><span class="mn">月の表現</span><span class="mv" id="m-mode-v"></span><span class="sch" aria-hidden="true">›</span></button>
+      <button type="button" data-m="mode" id="m-mode" class="setrow" aria-label="月の表現" aria-expanded="false" aria-controls="m-variant"><span class="mn">月の表現</span><span class="mv" id="m-mode-v"></span><span class="sch" aria-hidden="true">›</span></button>
       <div class="variant" id="m-variant" role="group" aria-label="月の表現" hidden></div>
-      <button type="button" data-m="msize" id="m-msize" class="mrow" aria-pressed="false"><span class="mn">月の文字</span><span class="mv" id="m-msize-v"></span><span class="sch" aria-hidden="true">›</span></button>
-      <button type="button" data-m="mtime" id="m-mtime" class="mrow swrow" role="switch" aria-checked="false" aria-pressed="false"><span class="mn">月表示に時刻を出す</span><i class="rkswitch" aria-hidden="true"></i></button>
+      <button type="button" data-m="msize" id="m-msize" class="setrow" aria-pressed="false"><span class="mn">月の文字</span><span class="mv" id="m-msize-v"></span><span class="sch" aria-hidden="true">›</span></button>
+      <button type="button" data-m="mtime" id="m-mtime" class="setrow swrow" aria-pressed="false"><span class="mn">月表示に時刻を出す</span><i class="rkswitch" aria-hidden="true"></i></button>
       <div id="m-tlz" class="tlz mrowd" role="group" aria-label="時間軸の大きさ" hidden><span class="mn">時間軸の大きさ</span><span class="mpm"><button type="button" data-m="tlout" aria-label="時間軸を縮小">−</button><button type="button" data-m="tlin" aria-label="時間軸を拡大">＋</button></span></div>
     </div>
     <div class="menurows" data-screen="calendar" hidden>

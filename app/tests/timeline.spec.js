@@ -126,7 +126,7 @@ test.describe('見開き: 判定・背景・操作列', () => {
       for (const n of ['前の月', '次の月', '設定']) { const r = await page.getByRole('button', { name: n }).first().boundingBox(); expect(r.width).toBeGreaterThanOrEqual(44); expect(r.height).toBeGreaterThanOrEqual(44); expect(r.x + r.width).toBeLessThanOrEqual(f - 10 + 0.5); }
       const tabs = await page.locator('.pgsw.pgl').boundingBox();
       expect(tabs.x + tabs.width).toBeLessThanOrEqual(f - 10 + 0.5);
-      for (const b of await page.locator('.pgsw button').all()) { const r = await b.boundingBox(); expect(r.width).toBeGreaterThanOrEqual(44); expect(r.height).toBeGreaterThanOrEqual(46 - 0.5); }
+      for (const b of await page.locator('.pgsw button').all()) { const r = await b.boundingBox(); expect(r.width).toBeGreaterThanOrEqual(44); expect(r.height).toBeGreaterThanOrEqual(40 - 0.5); } // 下のタブは 64×40（S5 M-03）。押せる範囲は疑似要素で 44
     });
   }
 
@@ -214,7 +214,7 @@ test.describe('見開き: 右ページの時間軸', () => {
       expect(tl.ch / 60).toBeGreaterThanOrEqual(minHours);
       expect(Math.abs(tl.st - (9 * 60 + 41 - 60))).toBeLessThanOrEqual(1); // 2026-11-12 09:41 の1時間前
       const now = page.locator('.nowt');
-      await expect(now).toHaveText('09:41');
+      await expect(now).toHaveText('9:41');
       const [pill, line] = await Promise.all([now.boundingBox(), page.locator('.nowl').evaluate((e) => { const c = getComputedStyle(e, '::before'); return { h: parseFloat(c.height), bg: c.backgroundColor }; })]);
       expect(Math.round(pill.height)).toBe(22);
       expect(line.h).toBeCloseTo(1.5, 1);

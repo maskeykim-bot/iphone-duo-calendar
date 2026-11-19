@@ -253,14 +253,16 @@ test.describe('月の文字「大」・時刻の出し入れ', () => {
     await setStyle(page, '予定名');
     const s = chip(page, '2026-11-12');
     await expect(s).toHaveText('大小0');
-    await expect(s).toHaveAttribute('aria-label', /09:00 – 09:30 大小0/);
+    // チップは押す的ではない（S5）。題名の全文はマスのボタンの aria-label「予定1件：…」に残る
+    await expect(s).toHaveAttribute('aria-hidden', 'true');
+    await expect(page.locator('.calendar .day[data-date="2026-11-12"]')).toHaveAttribute('aria-label', /予定1件：大小0/);
     await openMenu(page, 'display');
     const t = menuBtn(page, '月表示に時刻を出す');
     await expect(t).toHaveAttribute('aria-pressed', 'false');
     await t.click();
     await expect(t).toHaveAttribute('aria-pressed', 'true');
     await expect(s).toHaveText('9:00 大小0');
-    await expect(s).toHaveAttribute('aria-label', /大小0/);
+    await expect(page.locator('.calendar .day[data-date="2026-11-12"]')).toHaveAttribute('aria-label', /大小0/);
     const ui = await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')));
     expect(ui).toMatchObject({ monthTimeClosed: true, monthTimeOpen: false });
     await page.reload();

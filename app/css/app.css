@@ -1991,12 +1991,12 @@ html:not([data-dev]) #touch-check-open,html:not([data-dev]) #layout-diagnostics,
 .srnone{margin:4px 16px 0;font-size:13px;line-height:18px;color:#68716A;text-align:center}
 
 /* H-18/19・M-14: 設定の行 48（名札 15pt／今の値 15pt #68716A＋›／スイッチ 51×31）、−／＋ 88×32、左上「‹ 設定」・右上 ×丸 44 */
-.mscreens .menurows>button.mrow{display:flex;flex-direction:row;align-items:center;gap:8px;height:48px;min-height:48px;padding:0 20px;background:transparent;font-size:15px;font-weight:400;color:#293B35}
-.mscreens .menurows>button.mrow .mn{flex:1;min-width:0;text-align:left}
-.mscreens .menurows>button.mrow .mv{flex:none;font-size:15px;color:#68716A}
-.mscreens .menurows>button.mrow .sch{flex:none;width:12px;text-align:right}
-.menurows button.mrow[aria-pressed=true],.menurows button.mrow[aria-checked=true]{background:transparent;color:#293B35}
-.mscreens .menurows>button.mrow.swrow{justify-content:space-between}
+.mscreens .menurows>button.setrow{display:flex;flex-direction:row;align-items:center;gap:8px;height:48px;min-height:48px;padding:0 20px;background:transparent;font-size:15px;font-weight:400;color:#293B35}
+.mscreens .menurows>button.setrow .mn{flex:1;min-width:0;text-align:left}
+.mscreens .menurows>button.setrow .mv{flex:none;font-size:15px;color:#68716A}
+.mscreens .menurows>button.setrow .sch{flex:none;width:12px;text-align:right}
+.menurows button.setrow[aria-pressed=true],.menurows button.setrow[aria-checked=true]{background:transparent;color:#293B35}
+.mscreens .menurows>button.setrow.swrow{justify-content:space-between}
 .menurows .mrowd{display:flex;align-items:center;gap:8px;height:48px;padding:0 20px;font-size:15px;margin:0}
 .menurows .mrowd .mn{flex:1}
 .menurows .mpm{flex:none;display:flex;width:88px;height:32px;border-radius:8px;background:#EFECE4;overflow:hidden}
@@ -2067,18 +2067,20 @@ button.cb.ctt.on[aria-pressed=true] .bi{color:#fff}
 .hgo{position:relative}
 .hgo::after{content:"";position:absolute;left:-6px;right:-6px;top:-6px;bottom:-6px}
 .pvh .hgo::after{top:-4px;bottom:-4px}
-.mpull .mgrab::after,.mgrab::after{content:"";position:absolute;left:0;right:0;top:-10px;bottom:-10px}
+.mpull .mgrab::after,.mgrab::after{content:"";position:absolute;left:0;right:0;top:0;bottom:-20px}
 .rmchipx::before{inset:-10px -10px}
 span.rmchip{position:relative}
 span.rmchip::before{content:"";position:absolute;left:0;right:0;top:-10px;bottom:-10px}
 span.rmchip>button{position:relative;z-index:1}
 .ftchips .rmchip::before{left:-4px;right:-4px}
-.ned .ned-title,.nsheet .ned-title{min-height:44px;line-height:30px;padding-top:7px;padding-bottom:7px;box-sizing:border-box}
-.hrow,.pv-today .hrow{min-height:44px;height:auto}
-.hmore{min-height:44px;display:flex;align-items:center}
 .weekrow .wd,.spread .weekrow .wd{min-height:44px}
 .weekrow .event.week-event{min-height:44px}
 .pv-week .pvh .hgo::after{top:-10px;bottom:-10px}
 /* S4 の残り: 時刻ダイヤル（#tp-h / #tp-m）に触れた瞬間、その列の地を変える（:active 0.10 秒） */
 #tpop .dcol{transition:background-color .15s ease-out}
 #tpop .dcol:active{background-color:#F6F4EE;transition-duration:.10s}
+
+.menurows .swrow[aria-pressed=true] .rkswitch{background:var(--green)}
+.menurows .swrow[aria-pressed=true] .rkswitch::after{transform:translateX(20px)}
+/* ノートの下のシート（新しいフォルダ・移動など）が開いている間は、下のタブを出さない（タブがシートのボタンを覆っていた。タブが 320 幅になって届いた） */
+body:has(.nmenu) :is(.pgsw,.tabs){visibility:hidden}

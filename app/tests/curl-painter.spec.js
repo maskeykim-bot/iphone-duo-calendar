@@ -168,7 +168,7 @@ test.describe('内容の一致', () => {
   }
   test('内容：DOM にある文字と色が絵に出る（+N・省略・終日のピル）', async ({ page }) => {
     await land(page, { events: EVENTS, notes: NOTES });
-    const dom = await page.evaluate(() => ({ plus: document.querySelector('.dpage.rp .adplus')?.textContent, pills: document.querySelectorAll('.dpage.rp .adpill').length, ell: [...document.querySelectorAll('.dpage.rp .tlev')].map((e) => e.scrollWidth > e.clientWidth) }));
+    const dom = await page.evaluate(() => ({ plus: document.querySelector('.dpage.rp .adplus')?.textContent, pills: document.querySelectorAll('.dpage.rp .adpill').length, ell: [...document.querySelectorAll('.dpage.rp .tlev')].map((e) => { const t = e.querySelector('.tn') || e; return t.scrollWidth > t.clientWidth; }) }));
     expect(dom.pills).toBeGreaterThan(0);
     expect(dom.plus).toMatch(/^\+\d+$/);
     expect(dom.ell.some(Boolean), '長い名前が DOM でも切れている').toBe(true);

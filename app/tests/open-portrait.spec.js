@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { monthFormInit, openApp, loadSample, addEvent, tab, layout, findTextOverlaps, pickDay, modeStates, setStyle, seed, ev, SIZES, openMenu } from './helpers.js';
+import { monthFormInit, openApp, loadSample, addEvent, tab, layout, findTextOverlaps, pickDay, modeStates, setStyle, seed, ev, SIZES, openMenu, clickChip } from './helpers.js';
 
 const box = (loc) => loc.boundingBox();
 const inside = (a, o, tol = 1) => a.y >= o.y - tol && a.y + a.height <= o.y + o.height + tol && a.x >= o.x - tol && a.x + a.width <= o.x + o.width + tol;
@@ -146,7 +146,7 @@ for (const size of PORTRAITS) {
         expect(p.x < q.right - 0.5 && q.x < p.right - 0.5 && p.y < q.bottom - 0.5 && q.y < p.bottom - 0.5).toBe(false);
       }
       expect(await findTextOverlaps(page)).toEqual([]);
-      await page.locator('.mgrid .bar', { hasText: '出張A' }).click({ position: { x: 4, y: 8 } });
+      await clickChip(page, page.locator('.mgrid .bar', { hasText: '出張A' }));
       await expect(page.locator('#editor')).toBeVisible();
     });
 

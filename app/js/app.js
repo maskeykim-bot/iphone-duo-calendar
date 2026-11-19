@@ -4140,7 +4140,6 @@ const timeKey = () => (['home', 'browse'].includes(layoutKind()) ? 'monthTimeClo
 function syncMonthMenu() {
   const t = $('#m-mtime'), z = $('#m-msize');
   t.setAttribute('aria-pressed', String(state[timeKey()]));
-  t.setAttribute('aria-checked', String(state[timeKey()]));
   z.setAttribute('aria-pressed', String(state.monthTextSize === 'large'));
   z.setAttribute('aria-label', `月の文字: ${state.monthTextSize === 'large' ? '大（標準にする）' : '標準（大にする）'}`);
   $('#m-msize-v').textContent = state.monthTextSize === 'large' ? '大' : '標準';

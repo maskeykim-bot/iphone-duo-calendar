@@ -408,3 +408,16 @@ export async function monthUnshrink(page) {
   await page.evaluate(() => { const d = document.querySelector('.mday'); if (d) d.scrollTop = 0; });
   await page.waitForTimeout(400);
 }
+
+// 月のマスの中のチップ・帯は押す的ではない（第19.1版 S5 M-11）。予定を開くときは、マスを押してその日にし、日の部分の行（button[data-event]）を押す。
+export async function clickChip(page, loc) {
+  const first = loc.first();
+  const id = await first.getAttribute('data-event');
+  const direct = page.locator(`button[data-event="${id}"]:visible`).first();
+  if (!(await direct.count())) {
+    const b = await first.boundingBox();
+    await page.mouse.click(b.x + Math.min(8, b.width / 2), b.y + b.height / 2);
+    await direct.waitFor({ timeout: 5000 });
+  }
+  await direct.click();
+}

@@ -248,7 +248,7 @@ test.describe('閉じた週の時間軸', () => {
     const p = await pointAt(page, 9 * 60, 2);
     await press(page, p); await page.mouse.up();
     await expect(page.locator('#f-start')).toHaveJSProperty('value', day.replaceAll('-', '/'));
-    await expect(page.locator('#f-stime')).toContainText('09:00');
+    await expect(page.locator('#f-stime')).toContainText('9:00');
   });
 });
 

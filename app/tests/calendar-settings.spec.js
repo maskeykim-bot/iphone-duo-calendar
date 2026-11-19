@@ -51,7 +51,7 @@ test.describe('設定 › カレンダー（PR8）', () => {
     await expect(page.locator('[data-cal="cal-r"] .cro')).toHaveText('表示のみ');
     await expect(page.locator('[data-cal="cal-a"] .cro')).toHaveCount(0);
     const m = await page.evaluate(() => ({ h: document.querySelector('#m-cal-ip .calsec').getBoundingClientRect().height, r: document.querySelector('[data-cal="cal-a"]').getBoundingClientRect().height, d: document.querySelector('[data-cal="cal-a"] .cdot').getBoundingClientRect().width }));
-    expect(m).toEqual({ h: 32, r: 40, d: 14 });
+    expect(m).toEqual({ h: 32, r: 44, d: 14 }); // 行は押せる 44（S5 M-11）
     // 初回は全選択
     await expect(page.locator('#m-cal-ip [aria-checked="true"]')).toHaveCount(5);
     expect(await ls(page)).toMatchObject({ enabled: true, selectionInitialized: true });

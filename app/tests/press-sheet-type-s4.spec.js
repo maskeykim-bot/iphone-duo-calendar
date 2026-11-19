@@ -10,11 +10,11 @@ test.describe('CSS の決まり', () => {
     expect(CSS).not.toMatch(/Georgia|Mincho|明朝/i);
     expect(CSS.replace(/sans-serif/g, '')).not.toMatch(/serif/i);
   });
-  test('角丸は組（0・3・4・8・10・12・14・16・24・50%・999）だけ', () => {
+  test('角丸は組（0・3・4・8・10・12・14・16・20（下のタブ）・24・50%・999）だけ', () => {
     const bad = [];
     for (const m of CSS.matchAll(/border-radius:\s*([^;}!]+)/g)) for (const v of m[1].trim().split(/\s+/)) {
       if (v === 'inherit' || v === '50%') continue;
-      if (!['0', '3px', '4px', '8px', '10px', '12px', '14px', '16px', '24px', '999px'].includes(v)) bad.push(v);
+      if (!['0', '3px', '4px', '8px', '10px', '12px', '14px', '16px', '20px', '24px', '999px'].includes(v)) bad.push(v);
     }
     expect(bad).toEqual([]);
   });

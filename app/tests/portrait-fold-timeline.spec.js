@@ -131,7 +131,7 @@ test.describe('ラベルと今の時刻の線', () => {
     expect(await page.locator('.fnow:not([hidden])').count()).toBe(1);
     const y = await page.locator('.fnow:not([hidden])').evaluate((el) => el.getBoundingClientRect().y);
     expect(Math.abs(y - (500 + (9 * 60 + 41) * 44 / 60 - 300))).toBeLessThanOrEqual(0.5); // s=0: 下の窓は 6:49 から（9:41 は下の窓）
-    await expect(page.locator('.fnt:visible')).toHaveText('09:41');
+    await expect(page.locator('.fnt:visible')).toHaveText('9:41');
     // 今の時刻が境ちょうど: 下の窓だけ（y500）
     const s2 = ((9 * 60 + 41) * 44 / 60) - 300; // 境 = 9:41 → 上の窓の上の端 = 9:41 − 300/44h
     await scrollTo(page, Math.max(0, s2));

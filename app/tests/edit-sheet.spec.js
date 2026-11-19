@@ -45,14 +45,14 @@ for (const [name, size] of [['閉じた画面', SIZES.closedPortrait], ['開い�
       await expect(dlg(page)).toBeHidden();
     });
 
-    test('行は高さ 44 の横並び。長さのチップは1行で折り返さない。日付 130×32・時刻 72×32、終日はスイッチ 51×31', async ({ page }) => {
+    test('行は高さ 44 の横並び。長さのチップは3つずつ2行（S5 H-10）。日付 130×32・時刻 72×32、終日はスイッチ 51×31', async ({ page }) => {
       await openApp(page, size);
       await openNew(page);
       for (const id of ['#row-s', '#row-e', '#row-d', '#dest-l']) expect((await rect(dlg(page).locator(id))).h).toBeGreaterThanOrEqual(44);
       const chips = dlg(page).locator('#f-dur .dchip');
       await expect(chips).toHaveText(['15分', '30分', '1時間', '1.5時間', '2時間', '3時間']);
       const tops = await chips.evaluateAll((l) => l.map((e) => Math.round(e.getBoundingClientRect().top)));
-      expect(new Set(tops).size).toBe(1);
+      expect(new Set(tops).size).toBe(2); // 3つずつ2行（84.7×28・間 8）
       expect((await rect(chips.first())).h).toBeCloseTo(28, 0);
       const d = await dlg(page).locator('#f-start').boundingBox(), t = await dlg(page).locator('#f-stime').boundingBox();
       expect(d.width).toBeCloseTo(130, 0); expect(t.width).toBeCloseTo(72, 0);
