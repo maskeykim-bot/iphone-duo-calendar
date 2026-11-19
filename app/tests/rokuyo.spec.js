@@ -23,17 +23,20 @@ for (const [name, size] of POSTURES) {
     await expect(cell('2026-11-01').locator('.num')).toHaveText('11/1');
     await expect(cell('2026-11-16')).toHaveAttribute('aria-label', /^11月16日（月）、大安、予定0件/);
     await expect(rk(page, '2026-11-16')).toHaveAttribute('aria-hidden', 'true');
-    // 前後の月は薄色、当月は #A8ABA4、8px
+    // 第19.1版 M-19: 当月は注の色 #68716A・W6・8px、前後の月は薄色 #8C918A
     const css = (loc) => loc.evaluate((e) => { const s = getComputedStyle(e); return [s.color, s.fontSize]; });
-    expect(await css(rk(page, '2026-11-16'))).toEqual(['rgb(168, 171, 164)', '8px']);
+    expect(await css(rk(page, '2026-11-16'))).toEqual(['rgb(104, 113, 106)', '8px']);
     const out = page.locator('.day.out .rk').first();
-    expect(await css(out)).toEqual(['rgb(201, 198, 188)', '8px']);
-    // 数字（中央）・左3pt・セル内に収まる
+    expect(await css(out)).toEqual(['rgb(140, 145, 138)', '8px']);
+    expect(await rk(page, '2026-11-16').evaluate((e) => Number(getComputedStyle(e).fontWeight))).toBeGreaterThanOrEqual(600);
+    // 第19.1版 H-06: 日付の行 18 に 日付（左）→ 六曜（右、閉じた画面 x+21 / 開いた画面 x+26）と並べ、重ならない
     for (const d of ['2026-11-01', '2026-11-16', '2026-11-30']) {
-      const g = await cell(d).evaluate((c) => { const r = c.getBoundingClientRect(), k = c.querySelector(".rk").getBoundingClientRect(); const tn = c.querySelector('.num'), rg = document.createRange(); rg.selectNodeContents(tn); const n = rg.getBoundingClientRect(); return { left: k.left - r.left, kr: k.right, nl: n.left, ok: k.right <= r.right + 0.5 }; });
-      expect(g.left).toBeCloseTo(3, 0);
-      expect(g.kr).toBeLessThanOrEqual(g.nl + 0.5);
+      const g = await cell(d).evaluate((c) => { const r = c.getBoundingClientRect(), k = c.querySelector(".rk").getBoundingClientRect(); const tn = c.querySelector('.num'), rg = document.createRange(); rg.selectNodeContents(tn); const n = rg.getBoundingClientRect(); return { left: k.left - r.left, kl: k.left, nr: n.right, ok: k.right <= r.right + 0.5, top: k.top - r.top, h: k.height }; });
+      if (d !== '2026-11-01') expect(g.left).toBeCloseTo(['closed', 'closedL'].includes(name) ? 21 : 26, 0);
+      expect(g.kl).toBeGreaterThanOrEqual(g.nr - 0.5);
       expect(g.ok).toBe(true);
+      expect(g.top).toBeLessThanOrEqual(1.5); // 日付の行（上 18）の中
+      expect(g.h).toBeLessThanOrEqual(18.5);
     }
     expect(errs).toEqual([]);
   });
@@ -46,11 +49,13 @@ test('「+N」・チップと六曜が重ならない（開いた縦・開いた
     await setStyle(page, '予定名');
     const g = await page.locator('[data-date="2026-11-16"]').evaluate((c) => {
       const k = c.querySelector('.rk').getBoundingClientRect(), n = c.querySelector('.num').getBoundingClientRect();
-      const p = c.parentElement.querySelector('.plus[data-jump="2026-11-16"]').getBoundingClientRect();
+      const pe = c.parentElement.querySelector('.plus[data-jump="2026-11-16"]'), pr = document.createRange(); pr.selectNodeContents(pe);
+      const p = pr.getBoundingClientRect(); // +N の文字の範囲（押せる範囲 44×44 ではなく）
       const strips = [...c.parentElement.querySelectorAll('.strip')].map((e) => e.getBoundingClientRect()).filter((r) => r.left < c.getBoundingClientRect().right && r.right > c.getBoundingClientRect().left);
-      return { kr: k.right, nl: n.left, nr: n.right, pText: p.right, minStripTop: Math.min(...strips.map((r) => r.top)), kb: k.bottom };
+      return { kl: k.left, kr: k.right, nr: n.right, pl: p.left, minStripTop: Math.min(...strips.map((r) => r.top)), kb: k.bottom };
     });
-    expect(g.kr).toBeLessThanOrEqual(g.nl + 0.5);
+    expect(g.kl).toBeGreaterThanOrEqual(g.nr - 0.5); // 六曜は日付の右
+    expect(g.kr).toBeLessThanOrEqual(g.pl + 0.5); // +N は六曜の右（日付の行の右端）で重ならない
     expect(g.kb).toBeLessThanOrEqual(g.minStripTop + 0.5);
   }
 });

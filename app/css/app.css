@@ -392,7 +392,7 @@ input,select,textarea,.date-text{font-size:16px}
 .toastbar{position:fixed;left:12px;right:12px;bottom:max(calc(16px + var(--sab,0px)),calc(var(--layout-h,0px) - var(--tabs-y,0px) + 8px)); /* 浮動タブの上 */z-index:50;margin:0 auto;max-width:480px}
 
 /* ===== 第10版 ①: 月の共通描画（手帳｜予定名｜全部）。寸法は JS の --chip-fs 等と同値 ===== */
-:root{--chip-h:14px;--chip-gap:2px;--lane-step:16px;--date-h:18px;--lane-top:19px;--fold-keepout:10px;--chip-fs:9px}
+:root{--chip-h:14px;--chip-gap:2px;--lane-step:16px;--date-h:18px;--lane-top:18px;--fold-keepout:10px;--chip-fs:9px}
 .week .day{position:relative;min-height:0;padding:0;border-right:1px solid #e5e3db;align-items:center}
 .week .day:last-child{border-right:0}
 .week .day.sat{background:#EEF1F4}
@@ -1765,3 +1765,65 @@ dialog#rsheet[data-kind=explain] .rsmain{margin-bottom:26px}
 .rspk[role=radio]::before{border-radius:50%}
 .rspk[aria-checked=true]::before{border-color:var(--green);background:var(--green);box-shadow:inset 0 0 0 3px #fff}
 .rspk .ldot{width:12px;height:12px}
+
+/* ===== 第19.1版 S1: 閉じた画面の月は1本でスクロール（design/33 §5）・タブの上のぼかし（M-18）・日付の行（H-05/H-06/M-19） ===== */
+/* タブの上 24（y575〜599）に地色 #F7F4ED の 0→100% のぼかし。閉じた画面のホーム・日・週・月すべて。右の帯は避ける。 */
+.tabfade{display:none}
+.shell.closed .tabfade{display:block;position:fixed;z-index:5;left:var(--sal,0px);right:var(--sar,0px);top:calc(var(--tabs-y) - 24px);height:24px;pointer-events:none;background:linear-gradient(to bottom,rgba(247,244,237,0),#F7F4ED)}
+/* 月を引く画面（閉じた画面）: .mpull が1本のスクロール。見出し 48＋曜日の行 20 だけ上に固定。 */
+.closed .mpull{display:block;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;box-sizing:border-box;padding:0 8px;overscroll-behavior:contain;scrollbar-width:none}
+.closed .mpull::-webkit-scrollbar{display:none}
+.closed .mpull .mpfix{position:sticky;top:0;z-index:5;background:var(--paper)}
+.closed .mpull .mph,.closed.fb .mpull .mph{padding:0}
+.closed .mpull .mph h2{flex:1 1 auto;text-align:left;padding-left:8px}
+.mpull .mph .mpdate{display:none}
+.closed .mpull .mph .mpdate{display:block;flex:none;margin:0 4px 0 auto;font-size:13px;line-height:1;color:#68716A;white-space:nowrap;opacity:0;transition:opacity .15s ease;pointer-events:none}
+.closed .mpull .mph.scrd .mpdate{opacity:1}
+@media (prefers-reduced-motion:reduce){.closed .mpull .mph .mpdate{transition:none}}
+.closed .mpull .mgrid{overflow:visible}
+.closed .mpull .mday{flex:none;overflow:visible;min-height:523px;padding:0;box-sizing:border-box}
+.closed .mpull .mpend{height:calc(var(--end-pad-closed,79px) + 8px);flex:none}
+/* 日の見出しの「予定｜時間軸」: 見た目 132×32（1つ 66、角丸 8）、押せる範囲は高さ 44（M-10）。ボタン自体が 66×44 で、白い玉は透明の縁の内側に描く。 */
+.mdsw{padding:0;align-items:center;border-radius:8px}
+.mdsw button{height:44px;min-height:44px;margin:-6px 0;border:solid transparent;border-width:8px 2px;background-clip:padding-box;border-radius:8px}
+.mdsw button[aria-pressed=true]{background-color:#fff;box-shadow:none;filter:drop-shadow(0 1px 1px rgba(0,0,0,.15))}
+
+/* 日付の行 18（H-05・H-06・M-19）: 日付 11pt（今日は丸）→ 六曜 8pt W6 #68716A を横に並べ、+N は行の右。段は全部名前に使う。
+   開いた縦・開いた横: 日付 左4・今日の丸 18・六曜は x+26〜42・+N 9pt W6 右3。閉じた画面（マス 52.3）: 丸 16・日付 x+3〜19・六曜 x+21〜37・+N 8pt W6 右2。 */
+.week.named .day,.week.all .day{flex-direction:row;justify-content:flex-start;align-items:flex-start;padding:0 0 0 4px}
+.week.named .day .num,.week.all .day .num{order:1;width:auto;min-width:18px;height:18px;line-height:18px;padding:0;margin:0;border-radius:9px;text-align:center;font-size:11px}
+.week.named .day .num.sd,.week.all .day .num.sd{padding:0 2px;margin:0;letter-spacing:-.5px}
+.week.named .day .rk,.week.all .day .rk{order:2;position:static;flex:none;margin-left:4px;height:18px;font-size:8px;font-weight:600;line-height:18px;color:#68716A}
+.week.named .day.out .rk,.week.all .day.out .rk{color:#8C918A}
+.week .plus{font-weight:600;color:#68716A;line-height:18px;padding-right:3px}
+.week .plus:hover{color:var(--ink)}
+.closed .week.named .day,.closed .week.all .day{padding-left:3px}
+.closed .week.named .day .num,.closed .week.all .day .num{min-width:16px;height:16px;line-height:16px;margin-top:1px;border-radius:8px}
+.closed .week.named .day .rk,.closed .week.all .day .rk{margin-left:2px}
+.closed .week .plus{font-size:8px;padding-right:2px}
+.week .strip,.week .bar{font-weight:600}
+.week .strip{border-radius:3px}
+.week .strip.cut::after{content:'';position:absolute;right:0;top:0;bottom:0;width:4px;background:linear-gradient(to right,transparent,var(--cat));pointer-events:none}
+.week .bar .bt.cut{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 4px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 4px),transparent)}
+/* L-01: 見えない「期間を選ぶ」は押せない所に（キーボードの Tab・Enter では今までどおり開く） */
+.mrpick{pointer-events:none}
+
+/* 閉じた週（第19.1版 H-07・M-08）: 見出しは曜日 10pt と日付 13pt の2段（今日は日付に緑の丸 22）。枠は時刻なしで題名 9pt W6 を2行まで。終日は週の中で1本の帯。 */
+.closed.tv-week .tlheads{height:42px}
+.closed.tv-week .tlhd{margin:-1px 0;height:44px;padding:0;gap:0;border-radius:8px;color:var(--ink)}
+.closed.tv-week .tlhd .dw{display:block;font-size:10px;line-height:10px;font-weight:600;color:var(--muted)}
+.closed.tv-week .tlhd .dd{display:block;min-width:22px;height:22px;margin-top:0;border-radius:11px;font-size:13px;line-height:22px;font-weight:700;text-align:center}
+.closed.tv-week .tlhd .wrk{font-size:8px;line-height:8px;font-weight:600;color:#68716A}
+.closed.tv-week .tlhd.today .dd{background:var(--green);color:#fff}
+.closed.tv-week .tlhd[aria-pressed=true]{background:#E5EEE9;color:var(--ink)}
+.closed.tv-week .tlhd.today[aria-pressed=true]{color:var(--ink)}
+.closed.tv-week .allday{align-items:flex-start;margin-bottom:0}
+.closed.tv-week .allday .adl{line-height:20px;padding-top:2px}
+.closed.tv-week .adcols{position:relative}
+.closed.tv-week .adband{position:absolute;height:16px;min-height:16px;padding:0;border-radius:0;background:transparent;color:var(--cat);font-size:9px;font-weight:600;line-height:12px;text-align:center;overflow:hidden}
+.closed.tv-week .adband::after{content:'';position:absolute;left:1px;right:1px;top:12.5px;height:2px;border-radius:1px;background:var(--cat)}
+.closed.tv-week .adband:hover{background:transparent;filter:brightness(.9)}
+.closed.tv-week .adband .bt{display:inline-block;max-width:100%;overflow:hidden;vertical-align:top}
+.closed.tv-week .adcols .adplus{position:absolute;height:14px;min-height:14px;padding:0 2px 0 0;font-size:9px;font-weight:600;line-height:14px;color:#68716A;text-align:right;border-radius:0}
+.closed.tv-week .tlev{min-height:24px;padding:1px 2px 1px 6px;box-shadow:inset 3px 0 0 var(--cat);font-size:9px;font-weight:600;line-height:11px;overflow:hidden;border-radius:3px}
+.closed.tv-week .tlev .tn{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;white-space:normal;overflow-wrap:anywhere}

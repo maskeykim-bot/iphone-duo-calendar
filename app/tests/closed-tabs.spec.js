@@ -106,11 +106,13 @@ for (const size of CLOSED) {
     test('日の部分の末尾（タスク・ノート）はスクロールでタブの上へ出せる（第19版 PR6: 月を引く画面）', async ({ page }) => {
       await openApp(page, size);
       await tab(page, '月').click();
-      const sc = page.locator('.mday');
+      // 第19.1版（design/33 §5）: 閉じた画面は .mpull が1本のスクロール。一番下は最後の行がタブの上 8 まで出る（下の余白 87）
+      const sc = page.locator('.mpull');
       await sc.evaluate((el) => { el.scrollTop = el.scrollHeight; });
       const last = await box(page.locator('.mday .mdnote'));
       const tabTop = (await box(page.locator('.tabs'))).t;
-      expect(last.b).toBeLessThanOrEqual(tabTop + 1);
+      expect(last.b).toBeLessThanOrEqual(tabTop - 8 + 1);
+      expect(last.b).toBeGreaterThanOrEqual(tabTop - 8 - 1);
     });
   });
 }

@@ -29,7 +29,7 @@ test.describe('月「全部」表示', () => {
     await openApp(page, SIZES.closedPortrait);
     await tab(page, '月').click();
     expect(Object.keys(await modeStates(page))).toEqual(['手帳', '予定名', '全部']); // 入口は設定の「月の表現」
-    expect((await modeStates(page))['手帳']).toBe(true);
+    expect((await modeStates(page))['予定名']).toBe(true); // 第19.1版 H-04: 新しい端末の既定は予定名
     await setStyle(page, '予定名');
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')))).toMatchObject({ style: 'named', monthExpand: false });
     await setStyle(page, '全部');
@@ -56,7 +56,7 @@ test.describe('月「全部」表示', () => {
     expect(pb.width).toBeGreaterThanOrEqual(44);
     expect(pb.height).toBeGreaterThanOrEqual(44);
     expect(Math.abs(dayBox.x + dayBox.width - (pb.x + pb.width))).toBeLessThanOrEqual(1);
-    expect(await plus.evaluate((e) => parseFloat(getComputedStyle(e).fontSize))).toBe(9);
+    expect(await plus.evaluate((e) => parseFloat(getComputedStyle(e).fontSize))).toBe(8); // 閉じた画面（マス 52.3）は 8pt W6（design/33 §5）
     const glyph = await plus.evaluate((e) => { const r = document.createRange(); r.selectNodeContents(e); const b = r.getBoundingClientRect(); return { top: b.top, bottom: b.bottom }; });
     expect(glyph.bottom - dayBox.y).toBeLessThanOrEqual(19);
     await plus.click();
@@ -68,21 +68,21 @@ test.describe('月「全部」表示', () => {
     await expect(page.locator('.plus[data-jump="2026-11-26"]')).toHaveCount(0);
   });
 
-  test('行の高さは週ごとの最大件数で決まる（5件の週は 19+5×16+2=101pt）', async ({ page }) => {
+  test('行の高さは週ごとの最大件数で決まる（5件の週は 18+5×16+2=100pt）', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await seed(page, [...many(day(12), 6), ...many(day(18), 3, 'r')]);
     await showAll(page);
     const hs = await weekH(page); // 10/26〜 の6週（月曜始まり）: 11/9週=5件, 11/16週=3件
     const weeks = await page.locator('.week.all').evaluateAll((els) => els.map((e) => e.dataset.wk));
     expect(weeks).toEqual(['2026-10-26', '2026-11-02', '2026-11-09', '2026-11-16', '2026-11-23', '2026-11-30']);
-    expect(hs[2]).toBeGreaterThanOrEqual(101);
+    expect(hs[2]).toBeGreaterThanOrEqual(100);
     expect(hs[2]).toBeGreaterThan(hs[3]);
-    expect(hs[3]).toBeGreaterThanOrEqual(19 + 3 * 16 + 2);
+    expect(hs[3]).toBeGreaterThanOrEqual(18 + 3 * 16 + 2);
     // 予定の少ない週は「いつもの高さ」（同じ値）のまま
     expect(hs[0]).toBe(hs[1]);
     expect(hs[1]).toBe(hs[4]);
-    expect(hs[2]).toBe(101);
-    expect(await page.locator('.week.all').nth(2).evaluate((e) => e.style.getPropertyValue('--need'))).toBe('101px');
+    expect(hs[2]).toBe(100);
+    expect(await page.locator('.week.all').nth(2).evaluate((e) => e.style.getPropertyValue('--need'))).toBe('100px');
   });
 
   test('曜日見出しと下部は固定で、月の部分だけ上下にスクロールする。月は変わらない', async ({ page }) => {
@@ -125,7 +125,7 @@ test.describe('月「全部」表示', () => {
     expect(d0.startsWith('1')).toBe(true);
     // 高さは描画の有無に関係なく同じ（空の行も確保済み）
     const h0 = await weekH(page);
-    expect(h0.filter((h) => h >= 101).length).toBeGreaterThanOrEqual(4);
+    expect(h0.filter((h) => h >= 100).length).toBeGreaterThanOrEqual(4);
     await page.locator('.scroll.all').evaluate((e) => { e.scrollTop = e.scrollHeight; });
     await expect.poll(drawn).toMatch(/1$/);
     await expect.poll(async () => (await drawn()) === (await expected())).toBe(true); // 描画はスクロール後のフレームで追随する
@@ -197,7 +197,7 @@ test.describe('月「全部」表示', () => {
     // 別の保存領域（既定の月曜・手帳）へ置き換え読み込み
     await openApp(page, SIZES.closedPortrait, '?ns=mall2&nosw');
     await tab(page, '月').click();
-    expect((await modeStates(page))['手帳']).toBe(true);
+    expect((await modeStates(page))['予定名']).toBe(true); // 第19.1版 H-04: 新しい端末の既定は予定名
     await expect(page.locator('.weekdays span').first()).toHaveText('月');
     await open();
     await page.setInputFiles('#bk-file', p);
@@ -221,7 +221,7 @@ test.describe('月「全部」表示', () => {
     for (const b of wrapA) expect(b.t).toBe('週またぎ'); // 矢印なし。週ごとに分割して各週で題名を中央に置く
     // 帯は週の上端から 19 + lane*16 のレーン位置
     const wkTop = async (wk) => (await page.locator(`.week.all[data-wk="${wk}"]`).boundingBox()).y;
-    for (const b of [trip, ...wrapA]) expect(((b.y - (await wkTop(b.wk)) - 19) % 16 + 16) % 16).toBeLessThan(1.01);
+    for (const b of [trip, ...wrapA]) expect(((b.y - (await wkTop(b.wk)) - 18) % 16 + 16) % 16).toBeLessThan(1.01);
     // 同じ週の中で、帯と短冊が重ならない
     const items = await page.locator('.week.all .bar, .week.all .strip').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { wk: e.closest('.week').dataset.wk, l: r.left, r: r.right, t: r.top, b: r.bottom, n: e.textContent.trim() }; }));
     for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
@@ -284,7 +284,7 @@ test.describe('週の始まり（月曜が既定）', () => {
   for (const [name, y, m] of [['2026年11月（6週）', 0, 0], ['2027年2月（4週）', 3, 0]]) {
     for (const mode of ['手帳', '予定名', '全部']) {
       test(`月曜始まり ${name} ${mode}: グリッドの下が空かない`, async ({ page }) => {
-        await monthFormInit(page); // 第19版 PR6: 閉じた画面の月は「月を引く画面」。手帳・予定名は「月」の型（6行×50）で見る
+        await monthFormInit(page); // 第19版 PR6: 閉じた画面の月は「月を引く画面」。手帳・予定名は「月」の型（6行×64）で見る
         await openApp(page, SIZES.closedPortrait);
         await tab(page, '月').click();
         for (let i = 0; i < y; i++) await page.getByRole('button', { name: '次の月' }).click();
@@ -296,7 +296,7 @@ test.describe('週の始まり（月曜が既定）', () => {
           await expect(weeks).toHaveCount(6); // 4週の月も後ろの週で6行にそろえる
           expect(await weeks.first().locator('.day').first().getAttribute('data-date')).toBe(y ? '2027-02-01' : '2026-10-26');
           const top = (await weeks.first().boundingBox()).y, last = await weeks.last().boundingBox();
-          expect(Math.abs(last.y + last.height - (top + 300))).toBeLessThanOrEqual(1);
+          expect(Math.abs(last.y + last.height - (top + 384))).toBeLessThanOrEqual(1); // 6行×64（design/33 §1）
           return;
         }
         const weeks = page.locator('.week');
@@ -476,8 +476,8 @@ test.describe('AE-3 「全」の解除と再押下・状態保持', () => {
     const firstWk = () => sc.evaluate((s) => { const r = s.getBoundingClientRect(); for (const w of s.children) if (w.getBoundingClientRect().bottom > r.top + 2) return w.dataset.wk; return ''; });
     await sc.evaluate((e) => { e.scrollTop = e.scrollHeight; });
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-    const wk = await firstWk();
-    expect(wk).not.toBe('2026-10-26');
+    void firstWk; // 第19.1版: 行が 1pt 低くなり、先頭の週が丸ごと外れるほどは溢れない。スクロールしていること（先頭からずれている）を確かめる
+    expect(await sc.evaluate((e) => e.scrollTop)).toBeGreaterThan(40);
     await page.locator('.allbtn').click(); // 解除
     await expect(page.locator('.scroll.all')).toHaveCount(0);
     await page.locator('.allbtn').click(); // 再押下

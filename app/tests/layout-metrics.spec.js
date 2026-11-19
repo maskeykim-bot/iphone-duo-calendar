@@ -176,8 +176,8 @@ const placedOn = (page, k) => page.evaluate((k) => {
 }, k);
 
 test.describe('月レーン: 終日・帯・時刻チップの混在', () => {
-  // 第19版 PR6: 閉じた・開いた縦の月は「月を引く画面」（2週: 閉じ 4段・縦 6段）。入りきらない日は最後の段を「+n」にするので、置く件数は cap−1
-  for (const [name, size, cap, placed] of [['閉じた 466×678', SIZES.closedPortrait, 4, 3], ['開いた縦 669×951', SIZES.openPortrait669, 6, 5], ['開いた横 951×669', SIZES.openLandscape951, 4, 4]]) {
+  // 第19.1版 H-05: 「+N」は日付の行の右に置き、段は全部名前に使う（置く件数は cap）。月を引く画面の2週: 閉じ 4段・縦 6段
+  for (const [name, size, cap, placed] of [['閉じた 466×678', SIZES.closedPortrait, 4, 4], ['開いた縦 669×951', SIZES.openPortrait669, 6, 6], ['開いた横 951×669', SIZES.openLandscape951, 4, 4]]) {
     test(`${name}: +N = 全件 - 置いた件数、同じ予定は同じ日に二重に置かない（通常 ${cap} 段）`, async ({ page }) => {
       if (size.width < size.height) await monthFormInit(page, 'two');
       await openApp(page, size);
@@ -225,25 +225,25 @@ test.describe('月の文字「大」・時刻の出し入れ', () => {
     await openApp(page, SIZES.openPortrait669);
     await seed(page, six);
     await setStyle(page, '予定名');
-    // 第19版 PR6: 開いた縦の月は 2週の型（6段）。6件ちょうどは全部出る。「大」は 1段減って 4件＋「+2」
+    // 開いた縦の月は 2週の型（6段）。6件ちょうどは全部出る。「大」は 1段減って 5件＋「+1」（+N は日付の行）
     await expect(chip(page, '2026-11-12')).toHaveCount(6);
     await openMenu(page, 'display');
     await menuBtn(page, /^月の文字/).click();
-    await expect(chip(page, '2026-11-12')).toHaveCount(4);
-    await expect(page.locator('.plus[data-jump="2026-11-12"]')).toHaveText('+2');
+    await expect(chip(page, '2026-11-12')).toHaveCount(5);
+    await expect(page.locator('.plus[data-jump="2026-11-12"]')).toHaveText('+1');
     expect(await chip(page, '2026-11-12').first().evaluate((e) => getComputedStyle(e).fontSize)).toBe('11px');
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')).monthTextSize)).toBe('large');
     await page.reload();
     await page.waitForSelector('html[data-ready]');
-    await expect(chip(page, '2026-11-12')).toHaveCount(4);
-    // 閉じた画面は 4段→3段（最後の段は +n）なので 3→2件
+    await expect(chip(page, '2026-11-12')).toHaveCount(5);
+    // 閉じた画面は 4段→3段なので 4→3件（+N は日付の行）
     await page.setViewportSize(SIZES.closedPortrait);
     await tab(page, '月').click();
-    await expect(chip(page, '2026-11-12')).toHaveCount(2);
-    // 標準へ戻す（4段: 3件＋「+3」）
+    await expect(chip(page, '2026-11-12')).toHaveCount(3);
+    // 標準へ戻す（4段: 4件＋「+2」）
     await openMenu(page, 'display');
     await menuBtn(page, /^月の文字/).click();
-    await expect(chip(page, '2026-11-12')).toHaveCount(3);
+    await expect(chip(page, '2026-11-12')).toHaveCount(4);
   });
 
   test('時刻は閉じ・開きとも既定オフで別。切替は保存され、題名の全文は aria に残る', async ({ page }) => {

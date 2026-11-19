@@ -7,10 +7,10 @@ const POSTURES = [
   ['閉じた縦 466×678', SIZES.closedPortrait, 9],
   ['開いた縦 626×890', SIZES.openPortrait, 10],
   ['開いた縦 669×951', SIZES.openPortrait669, 10],
-  ['開いた横 890×626', SIZES.openLandscape, 9.5],
-  ['開いた横 951×669', SIZES.openLandscape951, 9.5],
+  ['開いた横 890×626', SIZES.openLandscape, 9],
+  ['開いた横 951×669', SIZES.openLandscape951, 9],
 ];
-// 第19版 PR6: 閉じた画面・開いた縦の月は「月を引く画面」。チップの高さ 14 は月の型（段 2）でも同じ、文字は 9pt
+// 第19版 PR6: 閉じた画面・開いた縦の月は「月を引く画面」。第19.1版 H-04・design/33 §1: 閉じた月の型「月」はチップ 16・10pt、そのほかは 14・9pt。角丸は 3、開いた横の文字も 9pt
 const isPull = (size) => size.width < size.height;
 const rgb = (hex) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
 
@@ -35,7 +35,7 @@ const cs = (loc) => loc.evaluate((el) => {
 
 for (const [name, size, fs] of POSTURES) {
   for (const scheme of ['light', 'dark']) {
-    test(`${name} ${scheme}: 時刻つきチップは 本色＋白・太字・14px・角丸3.5・切って省略しない（12色）`, async ({ page }) => {
+    test(`${name} ${scheme}: 時刻つきチップは 本色＋白・太字・角丸3・切って省略しない（12色）`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });
       if (isPull(size)) await monthFormInit(page);
       await openApp(page, size);
@@ -45,10 +45,10 @@ for (const [name, size, fs] of POSTURES) {
         const strip = chip(page, `2026-11-${String(2 + i).padStart(2, '0')}`);
         await expect(strip).toHaveCount(1);
         const s = await cs(strip);
-        expect(s.fs).toBe(isPull(size) ? 9 : fs);
+        expect(s.fs).toBe(size === SIZES.closedPortrait ? 10 : isPull(size) ? 9 : fs);
         expect(s.fw).toBeGreaterThanOrEqual(600);
-        expect(Math.abs(s.h - 14)).toBeLessThanOrEqual(0.2);
-        expect(s.radius).toBe('3.5px');
+        expect(Math.abs(s.h - (size === SIZES.closedPortrait ? 16 : 14))).toBeLessThanOrEqual(0.2);
+        expect(s.radius).toBe('3px');
         expect(s.bg).toBe(rgb(p.light)); // 保存された本色（dark 値・tint へ差し替えない）
         expect(s.color).toBe('rgb(255, 255, 255)');
         expect(s.to).toBe('clip');
@@ -60,7 +60,7 @@ for (const [name, size, fs] of POSTURES) {
   }
 }
 
-test('レーンは日付行の下（19px）から16px刻み、チップ14px＋隙間2px（開いた横。閉じた・縦は月を引く画面で別の段）', async ({ page }) => {
+test('レーンは日付行 18 の下から16px刻み、チップ14px＋隙間2px（開いた横。閉じた・縦は月を引く画面で別の段）', async ({ page }) => {
   await openApp(page, SIZES.openLandscape951);
   await seed(page, ['a', 'b', 'c'].map((n, i) => ev(n, `予定${n}`, `2026-11-12T${String(9 + i).padStart(2, "0")}:00`, `2026-11-12T${String(9 + i).padStart(2, "0")}:30`)));
   await setStyle(page, '予定名');
@@ -68,8 +68,8 @@ test('レーンは日付行の下（19px）から16px刻み、チップ14px＋�
   const tops = [];
   for (const n of ['a', 'b', 'c']) tops.push((await chip(page, '2026-11-12').filter({ hasText: `予定${n}` }).boundingBox()).y - week.y);
   // 週の上端の罫線1pxぶんを許容
-  expect(tops[0]).toBeGreaterThanOrEqual(19);
-  expect(tops[0]).toBeLessThanOrEqual(21);
+  expect(tops[0]).toBeGreaterThanOrEqual(18);
+  expect(tops[0]).toBeLessThanOrEqual(20);
   expect(tops[1] - tops[0]).toBeCloseTo(16, 1);
   expect(tops[2] - tops[1]).toBeCloseTo(16, 1);
 });
