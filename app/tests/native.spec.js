@@ -368,7 +368,7 @@ test.describe('ネイティブ（偽装）', () => {
     const dent = page.locator('.calendar .strip[data-sday="2026-11-12"]', { hasText: '歯医者' });
     await expect(dent).not.toContainText('▦');
     await expect(dent).toHaveAttribute('aria-hidden', 'true'); // チップは押す的ではない（S5）。出所と題名はマスのボタンの aria-label にある
-    await expect(page.locator('.calendar .day[data-date="2026-11-12"]')).toHaveAttribute('aria-label', /予定\d+件.*歯医者/);
+    await expect(page.locator('.calendar .day[data-date="2026-11-12"]')).toHaveAttribute('aria-label', /予定\d+件.*：iPhone、[^、]+、歯医者/); // 出所（iPhone、カレンダー名）も読み上げに残す
     expect(await dent.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(217, 48, 37)'); // カレンダーの色 #d93025
     await expect(page.locator('.bar', { hasText: '<b>旅行</b>' })).toHaveCount(1); // 11/14(土)〜15(日)は月曜始まりでは同じ週なので1本（週境界の分割は month-all.spec.js で確認）。HTML は文字として表示
     // 凡例は設定メニューの中

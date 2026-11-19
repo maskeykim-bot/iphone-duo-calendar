@@ -120,7 +120,12 @@ test.describe('開いた縦のホーム（案A）', () => {
       near(hit[0], -4, 0.1); near(hit[1], -4, 0.1); // 押せる高さ 44（y19〜63）
     }
     expect(await page.locator('.fmodes').evaluate((e) => getComputedStyle(e).borderRadius)).toBe('10px');
-    expect(await page.locator('.fmodes button[aria-pressed=true]').evaluate((e) => [getComputedStyle(e).fontSize, getComputedStyle(e).backgroundColor])).toEqual(['15px', 'rgb(255, 255, 255)']);
+    // design/review H-11・17 §1: 選んだ側は白地に緑 14pt W6。15pt W700 だと「カレンダー」(75) が札 73.3 からはみ出した（S6 で 14pt W6 に戻した）
+    expect(await page.locator('.fmodes button[aria-pressed=true]').evaluate((e) => [getComputedStyle(e).fontSize, getComputedStyle(e).fontWeight, getComputedStyle(e).backgroundColor])).toEqual(['14px', '600', 'rgb(255, 255, 255)']);
+    for (const b of await page.locator('.fmodes button').all()) { // 文字が札からはみ出さない
+      const w = await b.evaluate((e) => { const r = document.createRange(); r.selectNodeContents(e); return [r.getBoundingClientRect().width, e.getBoundingClientRect().width]; });
+      expect(w[0]).toBeLessThanOrEqual(w[1] - 4);
+    }
     const t = await box(page.locator('.tabs'));
     expect(f.y + f.height).toBeLessThan(t.y);
   });

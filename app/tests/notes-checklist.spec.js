@@ -61,8 +61,8 @@ test.describe('ノートのチェック欄と書式', () => {
     await expect(chk).toHaveCount(4);
     await expect.poll(async () => { const b = await chk.first().boundingBox(); return b && Math.min(b.width, b.height); }).toBeGreaterThanOrEqual(44);
     await expect(page.locator('.ned-box').first()).toBeVisible();
-    const box = await page.locator('.ned-box').first().boundingBox();
-    expect(Math.round(box.width)).toBe(20);
+    // 行の描き直しの最中は boundingBox が null になる。状態（20pt になる）を待つ
+    await expect.poll(async () => Math.round((await page.locator('.ned-box').first().boundingBox())?.width ?? 0)).toBe(20);
     await chk.nth(0).click();
     await bodyIs(body(page), '- [ ] b\n- [ ] c\n- [x] a\n中間\n- [ ] x');
     await expect(chk.nth(2)).toHaveAttribute('aria-checked', 'true');

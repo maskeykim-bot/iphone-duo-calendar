@@ -768,10 +768,10 @@ function weekInner(w, { mode, cur, sel, today, cap, time, tk = null, lt = LANE_T
     const { e } = b, top = `top:${lt + b.lane * ls}px`;
     if (b.band) {
       const when = dayOf(e.start) === dayOf(e.end) ? `${dayLabel(dayOf(e.start))} 終日` : `${dayOf(e.start)}から${dayOf(e.end)}`;
-      html += `<span class="bar ${catCls(e)}" data-event="${esc(e.id)}" style="${catVar(e)}left:calc(${b.sc} * 100% / 7);width:calc(${b.ec - b.sc + 1} * 100% / 7);${top}" aria-hidden="true" title="${esc(`${e.title} ${when}`)}"><span class="bt">${esc(e.title)}</span></span>`;
+      html += `<span class="bar ${catCls(e)}" data-event="${esc(e.id)}" style="${catVar(e)}left:calc(${b.sc} * 100% / 7);width:calc(${b.ec - b.sc + 1} * 100% / 7);${top}" aria-hidden="true" title="${esc(`${e.title} ${when}`)}"><span class="bt"><span class="st">${esc(e.title)}</span></span></span>`;
     } else {
       const k = days[b.sc];
-      html += `<span class="strip ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}${colPos(b.sc, b.ec)};${top}" aria-hidden="true">${time ? `${chipTime(e.start)} ` : ''}${esc(e.title)}</span>`;
+      html += `<span class="strip ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}${colPos(b.sc, b.ec)};${top}" aria-hidden="true"><span class="st">${time ? `${chipTime(e.start)} ` : ''}${esc(e.title)}</span></span>`;
     }
   }
   return html;
@@ -2305,7 +2305,7 @@ function rsOpen(sheet, focusSel) {
   RS.sheet = sheet;
   rsPlace(sheet.kind);
   rsDlg.innerHTML = rsHtml();
-  if (!rsDlg.open) { rsDlg.show(); syncInert(); }
+  if (!rsDlg.open || rsDlg._slide) { rsDlg.show(); syncInert(); } // 閉じる最中に開き直したら閉じずに開き直す
   (rsDlg.querySelector(focusSel || '.rsmain, .rsrowp, button') || rsDlg).focus({ preventScroll: true });
 }
 const rsRepaint = (keepFocus) => { const a = document.activeElement?.dataset?.rs, i = document.activeElement?.dataset?.i, c = document.activeElement?.dataset?.c; rsDlg.innerHTML = rsHtml(); if (keepFocus && a) rsDlg.querySelector(`[data-rs="${a}"]${i ? `[data-i="${i}"][data-c="${c}"]` : ''}`)?.focus({ preventScroll: true }); };
@@ -2916,6 +2916,10 @@ root.addEventListener('click', (ev) => {
   if (MM.open && !ev.target.closest('.mmenu, [data-act="mini"]')) { closeMini(false); return; } // 小さな月の外をたたくと閉じる（たたいた先の操作はしない）
   if (!b || !root.contains(b)) return;
   const d = b.dataset;
+  if (b.matches('.week .day[data-date]') && ev.detail > 0) { // 月のチップ・帯は押す的でない（pointer-events:none）。押した位置にあれば、その予定を開く（第19版と同じ）。なければその日を選ぶ
+    const chip = chipAtPoint(b, ev);
+    if (chip && !PS.on) { openEditor(chip.dataset.event, b); return; } // 貼る日の選択中は、チップの上でもその日を選ぶ
+  }
   if (PS.on && pasteClick(b)) return;
   const pg = layoutKind() === 'spread' && d.act !== 'add' ? b.closest('.page') : null;
   if (pg) { const sd = pg.classList.contains('lp') ? 'left' : 'right'; if (sd !== state.lastSide) { state.lastSide = sd; saveUi(); } }
@@ -3062,9 +3066,15 @@ function slideOut(d, done) {
   };
   setTimeout(fin, sheetMs());
 }
-function cancelSlide(d) { if (d._slide) { d._slide = null; d.classList.remove('sheet-out', 'fading'); } }
+function cancelSlide(d) { if (d._slide) { d._slide = null; d.classList.remove('sheet-out', 'fading'); d._reopen?.(); } } // 閉じる最中に開き直したら、閉じ方の持ち越し（_reopen）を捨てる
 let fading = false;
-const SLIDE_SHEETS = new Set([dlg, xdDlg, taskDlg, menuDlg, searchDlg]);
+const SLIDE_SHEETS = new Set([dlg, xdDlg, taskDlg, menuDlg, searchDlg, catsDlg, notifyDlg, backupDlg]);
+// 小さな確認シート（削除の確認・範囲・破棄・再試行・リマインダー）も同じ寄せ（出る 0.25 秒・閉じるは同じ秒数で逆・reduced motion は 0.15 秒のフェード）。出るのは CSS、閉じるは close() を差し替えて動かしてから閉じる。閉じる最中に show() されたら閉じずに開き直す
+for (const d of [confirmDlg, scopeDlg, discardDlg, xrDlg, rsDlg]) {
+  const realClose = d.close.bind(d), realShow = d.show.bind(d);
+  d.close = (rv) => { if (!d.open || d._slide) { if (!d.open) realClose(rv); return; } slideOut(d, () => { if (d.open) realClose(rv); syncInert(); }); syncInert(); };
+  d.show = () => { cancelSlide(d); realShow(); };
+}
 function openPanel(d, from) {
   origins.set(d, from || document.activeElement);
   cancelSlide(d);
@@ -3074,7 +3084,8 @@ function openPanel(d, from) {
 }
 function closePanel(d, restore = true, instant = false) {
   d._restore = restore;
-  if (d.open && restore && !instant && SLIDE_SHEETS.has(d) && !fading) { // restore=false は別のパネルへ受け渡す閉じ方なので動かさずに閉じる
+  if (d.open && restore && SLIDE_SHEETS.has(d) && !fading) { // 設定の「選んで閉じる」（instant）も同じ寄せで閉じる（S6）
+    // restore=false は別のパネルへ受け渡す閉じ方なので動かさずに閉じる
     if (d._slide) return;
     const sc = [dlg, xdDlg, taskDlg].includes(d);
     if (sc) scrim.classList.add('fade');
@@ -5603,6 +5614,7 @@ $('#xr-retry').addEventListener('click', () => {
   if (b) retryBatch(b); else createNative(xrId);
 });
 // 閉じる・Escape・通知タップなど「再試行しない」閉じ方はすべてここで確定する（pending を放置しない）。
+xrDlg._reopen = () => { xrKeep = false; }; // 「再試行」で閉じ始めた直後に再失敗で開き直した場合、close イベントが来ないので keep を捨てる
 xrDlg.addEventListener('close', () => {
   syncInert();
   const keep = xrKeep, id = xrId, b = xrBatch;
@@ -6241,6 +6253,17 @@ function chipAtPoint(t, ev) {
   }
   return null;
 }
+// 押した位置のチップ・帯に、押した反応（黒 12% の被せ）を 0.1秒（離したあと）出す。チップは pointer-events:none で :active が効かないため、#app の外の被せで見せる（描き直しにも消えず、DOM の比較にも入らない）
+root.addEventListener('pointerdown', (ev) => {
+  const d = ev.target instanceof Element ? ev.target.closest('.week .day[data-date]') : null;
+  const c = d ? chipAtPoint(d, ev) : null; if (!c) return;
+  const r = c.getBoundingClientRect(), v = document.createElement('div');
+  v.className = 'chip-press'; v.setAttribute('aria-hidden', 'true');
+  v.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;border-radius:${getComputedStyle(c).borderRadius}`;
+  document.body.append(v);
+  const off = () => { document.removeEventListener('pointerup', off, true); document.removeEventListener('pointercancel', off, true); setTimeout(() => v.remove(), 100); };
+  document.addEventListener('pointerup', off, true); document.addEventListener('pointercancel', off, true);
+});
 function directOrigin(t, ev) {
   if (anyPanel() || !(t instanceof Element)) return null;
   if (t.closest('.pvwk')) return null; // 開いた縦ホームの今週の帯: 長押しで期間選択・メニューは出さない（たたくと日タブ）
