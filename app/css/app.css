@@ -1176,7 +1176,7 @@ dialog#menu #m-destpop{border-radius:inherit}
 .haxis .hbars{display:block;position:absolute;left:26px;right:0;top:0;bottom:0;border-left:1px solid #E3E0D7;background:repeating-linear-gradient(to bottom,transparent 0,transparent 13px,#EFEDE6 13px,#EFEDE6 14px)}
 .hbarev{position:absolute;left:2px;right:2px;padding:0 6px;border:0;border-radius:3px;display:flex;align-items:center;box-sizing:border-box;background:var(--tint,#DCE7E0);box-shadow:inset 3px 0 0 var(--cat,#6E8F7F);font-size:10px;text-align:left;overflow:hidden;color:var(--ink,#222);min-height:0}
 .hbarev.past{opacity:.45}
-.hbarev span{display:block;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:12px;font-size:10px}
+.hbarev span{display:block;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:12px;font-size:11px;font-weight:400}
 .hnow{position:absolute;left:0;right:0;height:0;border-top:1.5px solid #B43C3C;pointer-events:none}
 .spread .home.listview{padding-bottom:72px}
 @media (max-height:560px){.hm-axis .htmr{display:none}}
@@ -2244,7 +2244,11 @@ body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#tas
 .mdev strong,.portrait .mdev strong{font-weight:400}
 /* N-05: 選んでいるマスでは +N を右 4（選んだ枠の内側 2 ＋すき間 2）。今日のマスでは、ノートの印を丸の中へ（白・8×2・角丸 1、x+7〜15・y+12） */
 .week .plus.onsel,.closed .week .plus.onsel,.spread .week .plus.onsel{padding-right:4px}
-.week .day.today .mline{left:11px;top:13px;width:8px;height:2px;margin-left:-4px;border-radius:4px;background:#fff}
+.week .day.today .mline{left:10px;top:14px;width:8px;height:1.5px;margin-left:-4px;border-radius:1px;background:#fff}
+/* S9 Q1（設計 fc56bc9）: 印は白 8×1.5・角丸1。閉じ・横は x+7〜15・y+15〜16.5、開いた縦は x+9〜17・y+16〜17.5 */
+.portrait .week .day.today .mline{left:12px;top:15px}
+/* S9 Q2（設計 fc56bc9）: 閉じた月で、選んだマスに +N があるときだけ六曜を隠す（六曜は下の日見出しに出る。+N の右あきは 4 のまま） */
+.closed .week .day.selplus .rk{visibility:hidden}
 /* ★1-10（品質・設計 2026-11-20 4:05）: 閉じたホームの「＋ タスクを追加」はカードの見出しのすぐ下。行 44・押せる範囲は行全体（x12〜374）。「＋」はチェック欄と同じ列、文字はタスク名と同じ x、15/400 緑 */
 .hadd.first{display:flex;align-items:center;box-sizing:border-box;width:calc(100% + 22px);height:44px;min-height:44px;margin:0 -13px 0 -9px;padding:0 13px 0 9px;text-align:left;font-size:15px;font-weight:400;color:#294E42}
 .hadd.first .hadd-p{flex:none;width:44px;text-align:center;font-size:20px;line-height:20px;margin-left:-10px}

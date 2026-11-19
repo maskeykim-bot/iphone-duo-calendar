@@ -51,7 +51,7 @@ test.describe('N-01 開いた横・右ページの箱 x493.5〜851（見出し �
   test('今日＋明日の型は 1日ページの箱 485.5（めくりの背）のまま、中の見出しは x501.5', async ({ page }) => {
     await openApp(page, L); await band(page, 84);
     await page.evaluate(() => { const k = 'duo.ui.v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); s.spreadType = 'tt'; localStorage.setItem(k, JSON.stringify(s)); });
-    await page.reload(); await page.waitForSelector('html[data-ready]'); await band(page, 84);
+    await page.reload(); await page.waitForSelector('html[data-ready]'); await band(page, 84); await page.waitForTimeout(400); // 描き直しが落ち着くのを待つ（待たないと見出しが 0 で測れる）
     const r = page.locator('.dpage.rp');
     if (await r.count()) { near((await boxOf(r)).x, 485.5, 0.6, 'tt の箱'); near((await boxOf(page.locator('.dpage.rp .hdt'))).x, 501.5, 1, 'tt の見出し'); }
   });
@@ -139,7 +139,7 @@ test.describe('N-04 月の日の一覧の予定名 15/400', () => {
   }
 });
 
-test.describe('N-05 選んだ今日のマス：+N は右 4、ノートの印は白 8×2 で丸の中', () => {
+test.describe('N-05/Q1 選んだ今日のマス：+N は右 4、ノートの印は白 8×1.5 角丸1 で丸の中', () => {
   for (const [name, size, sar, open] of [['閉じた月', C, 84, false], ['開いた横の月', L, 84, true]]) {
     test(name, async ({ page }) => {
       await openApp(page, size); if (sar) await band(page, sar);
@@ -154,13 +154,15 @@ test.describe('N-05 選んだ今日のマス：+N は右 4、ノートの印は�
         const ml = d.querySelector('.mline'), num = d.querySelector('.num').getBoundingClientRect();
         const out = { cellR: c.right, num: [num.left - c.left, num.top - c.top, num.right - c.left, num.bottom - c.top] };
         if (pl) { const g = document.createRange(); g.selectNodeContents(pl); out.plusR = g.getBoundingClientRect().right; }
-        if (ml) { const m = ml.getBoundingClientRect(); const cs = getComputedStyle(ml); out.ml = [m.left - c.left, m.top - c.top, m.width, m.height, cs.backgroundColor]; }
+        if (ml) { const m = ml.getBoundingClientRect(); const cs = getComputedStyle(ml); out.ml = [m.left - c.left, m.top - c.top, m.width, m.height, cs.backgroundColor, cs.borderTopLeftRadius]; }
         return out;
       });
       expect(r, '選んだ今日のマスがある').not.toBeNull();
       if (r.plusR != null) near(r.cellR - r.plusR, 4, 1, '+N の右');
       expect(r.ml, 'ノートの印がある').toBeTruthy();
-      expect(r.ml[4]).toBe('rgb(255, 255, 255)'); near(r.ml[2], 8, 0.5); near(r.ml[3], 2, 0.5);
+      expect(r.ml[4]).toBe('rgb(255, 255, 255)'); near(r.ml[2], 8, 0.5); near(r.ml[3], 1.5, 0.1);
+      // Q1（設計 fc56bc9）: 閉じ・横は x+7〜15・y+15〜16.5
+      near(r.ml[0], 7, 0.6, '印の x'); near(r.ml[1], 15, 0.6, '印の y'); expect(r.ml[5]).toBe('1px');
       // 丸（今日の数字）の中：印の矩形が丸 [3..19]×[2..18] に収まる
       expect(r.ml[0]).toBeGreaterThanOrEqual(r.num[0]); expect(r.ml[0] + r.ml[2]).toBeLessThanOrEqual(r.num[2]);
       expect(r.ml[1]).toBeGreaterThanOrEqual(r.num[1]); expect(r.ml[1] + r.ml[3]).toBeLessThanOrEqual(r.num[3]);
@@ -274,7 +276,7 @@ test.describe('★1-10（品質・設計 2026-11-20 4:05）閉じたホームの
     await openApp(page, C); await band(page, 84);
     await seedTasks(page, []); await band(page, 84); await page.waitForTimeout(300);
     const c = await boxOf(page.locator('.htasks'));
-    if (await page.locator('.htasks .hadd').count()) { expect(await page.locator('.htasks .htask').count()).toBe(0); near(c.b - c.y, 522 - 432, 5, 'カードの高さ（設計 y432〜522。実測は見出し 28＋追加 44＋上下の余白 22）'); }
+    if (await page.locator('.htasks .hadd').count()) { expect(await page.locator('.htasks .htask').count()).toBe(0); near(c.b - c.y, 94, 1, 'カードの高さ 94（設計 fc56bc9 レビュー Q3 で受け入れ。見出し 28＋追加 44＋上下の余白 22。旧 90）'); }
   });
   test('押した見た目：押している間 opacity .5', async ({ page }) => {
     await openApp(page, C); await band(page, 84);
@@ -290,4 +292,48 @@ test('品質の低：月のマスの読み上げに時刻（「9:00 朝会」）
   await tab(page, '月').click(); await page.waitForTimeout(400);
   const l = await page.locator('.calendar .day[data-date="2026-11-12"]').first().getAttribute('aria-label');
   expect(l).toContain('9:00 朝会'); expect(l).toContain('研修'); expect(l).not.toMatch(/0:00 研修|終日 研修/);
+});
+
+// ===== S9（設計 fc56bc9 レビュー Q1・Q2・L-01）=====
+async function seedMany(page, size, sar) {
+  const many = ['a', 'b', 'c', 'd', 'e', 'f'].map((k, i) => ev(k, `予定${k}`, `2026-11-12T${String(8 + i).padStart(2, '0')}:00`, `2026-11-12T${String(8 + i).padStart(2, '0')}:30`));
+  await page.evaluate(async (list) => { const db = await import('/js/db.js'); await db.putMany(list); await db.putNote({ id: 'dn', body: '今日のノート', createdAt: 1, updatedAt: 2, folderId: null, date: '2026-11-12' }); }, many);
+  await page.reload(); await page.waitForSelector('html[data-ready]'); if (sar) await band(page, sar);
+}
+test('Q1 開いた縦：今日のマスのノートの印は x+9〜17・y+16〜17.5（白 8×1.5 角丸1）', async ({ page }) => {
+  await openApp(page, P); await seedMany(page, P, 0);
+  await page.getByRole('button', { name: '月', exact: true }).first().click().catch(() => {}); await page.waitForTimeout(500);
+  const r = await page.evaluate(() => {
+    const d = [...document.querySelectorAll('.week .day.today')].find((e) => e.offsetParent); if (!d) return null;
+    const ml = d.querySelector('.mline'); if (!ml) return null; const c = d.getBoundingClientRect(), m = ml.getBoundingClientRect(), cs = getComputedStyle(ml);
+    return [m.left - c.left, m.top - c.top, m.width, m.height, cs.borderTopLeftRadius];
+  });
+  expect(r, '印がある').toBeTruthy();
+  near(r[0], 9, 0.6, 'x'); near(r[1], 16, 0.6, 'y'); near(r[2], 8, 0.1); near(r[3], 1.5, 0.1); expect(r[4]).toBe('1px');
+});
+test('Q2 閉じた月：+N のある選んだマスだけ六曜を隠す。+N 右あき 4。非選択マスは出す。開いた横は出す', async ({ page }) => {
+  for (const [size, sar, open] of [[C, 84, false], [L, 84, true]]) {
+    await openApp(page, size); if (sar) await band(page, sar); await seedMany(page, size, sar);
+    if (open) { await pagePick(page, 'left', '月').click().catch(() => {}); } else { await tab(page, '月').click(); }
+    await page.waitForTimeout(500);
+    const r = await page.evaluate(() => {
+      const days = [...document.querySelectorAll('.week .day')].filter((e) => e.offsetParent);
+      const vis = (d) => { const k = d.querySelector('.rk'); return k ? getComputedStyle(k).visibility : 'none'; };
+      const sel = days.find((d) => d.classList.contains('selected') && d.classList.contains('today'));
+      const others = days.filter((d) => !d.classList.contains('selected')).map(vis);
+      const hasPlus = !!sel?.parentElement.querySelector(`.plus[data-plus="${sel.dataset.date}"]`);
+      return { selRk: sel ? vis(sel) : null, hasPlus, others };
+    });
+    expect(r.hasPlus, '+N が出ている').toBe(true);
+    expect(r.selRk, open ? '開いた横は六曜を出す' : '閉じた月は隠す').toBe(open ? 'visible' : 'hidden');
+    expect(r.others.every((v) => v === 'visible'), '非選択マスの六曜は出す').toBe(true);
+  }
+});
+test('L-01 開いた横ホームのミニタイムライン：.hbarev span は 11/400・行 12', async ({ page }) => {
+  await openApp(page, L); await band(page, 84);
+  await page.evaluate(async (e) => { const db = await import('/js/db.js'); await db.putMany([e]); }, ev('m1', '会議', '2026-11-12T10:00', '2026-11-12T11:00'));
+  await page.reload(); await page.waitForSelector('html[data-ready]'); await band(page, 84);
+  await pagePick(page, 'right', 'ホーム').click(); await page.waitForTimeout(250);
+  const cs = await page.locator('.hbarev span').first().evaluate((e) => { const c = getComputedStyle(e); return [c.fontSize, c.fontWeight, c.lineHeight, e.getBoundingClientRect().height]; });
+  expect(cs.slice(0, 3)).toEqual(['11px', '400', '12px']);
 });
