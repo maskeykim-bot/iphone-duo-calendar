@@ -54,6 +54,27 @@ export function reminderErrText(e, fallback) {
   }
 }
 
+// リマインダーの許可と一覧（第19版 D5）。同期をオンにした経路だけが呼ぶ（既定の同期オフでは0回）。
+// native が無い・古くて関数が無いときは reject せず「使えない」を返す（呼び出し側は許可なし扱いにする）。
+const unsupported = (e) => !nativeAvailable() || errCode(e) === 'UNIMPLEMENTED' || errCode(e) === 'UNAVAILABLE';
+export const reminderPermission = () => (nativeAvailable() ? call('reminderPermission').then((r) => ({ status: r?.status || 'denied' }), (e) => (unsupported(e) ? { status: 'unavailable' } : Promise.reject(e))) : Promise.resolve({ status: 'unavailable' }));
+export const requestReminderPermission = () => (nativeAvailable() ? call('requestReminderPermission').then((r) => ({ status: r?.status || 'denied' }), (e) => (unsupported(e) ? { status: 'unavailable' } : Promise.reject(e))) : Promise.resolve({ status: 'unavailable' }));
+export const listReminderLists = () => (nativeAvailable() ? call('listReminderLists').then((r) => ({ lists: Array.isArray(r?.lists) ? r.lists : [] }), (e) => (unsupported(e) ? { lists: [], unavailable: true } : Promise.reject(e))) : Promise.resolve({ lists: [], unavailable: true }));
+
+// リマインダーの同期（第19版 D7）。native が無い・古いときは UNAVAILABLE で reject する（同期側が「今回は何もしない」に倒す）。
+const remCall = (method, o) => (nativeAvailable() ? call(method, o) : Promise.reject({ code: 'UNAVAILABLE', message: 'native is not available' }));
+export const remNative = {
+  permission: reminderPermission,
+  lists: listReminderLists,
+  listReminders: (o) => remCall('listReminders', o),
+  createReminder: (o) => remCall('createReminder', o),
+  updateReminder: (o) => remCall('updateReminder', o),
+  setReminderDone: (o) => remCall('setReminderDone', o),
+  deleteReminder: (o) => remCall('deleteReminder', o),
+  checkReminderList: (o) => remCall('checkReminderList', o),
+  createReminderList: (o) => remCall('createReminderList', o),
+};
+
 // 触覚（PR27）。kind: 'light'（刻みの変化）| 'warning'。非ネイティブ・失敗は無操作。不正な kind は INVALID_ARGUMENT で拒否。
 export function haptic(kind = 'light') {
   if (kind !== 'light' && kind !== 'warning') return Promise.reject({ code: 'INVALID_ARGUMENT', message: 'kind' });

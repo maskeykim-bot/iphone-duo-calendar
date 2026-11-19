@@ -3,7 +3,8 @@ import { isoFromInput, stateFromInput, setStartDate, pickEndDate, setStartTime, 
 import { createTimeUi, createDateUi, createDateField, createTimeField, fireInput, monthOf, withHm } from './datetime-ui.js';
 import { SAMPLE } from './sample.js';
 import { initSwipe } from './swipe.js';
-import { initDirectInput, dayRange, rangeText, minutesAt, dragRange, tapRange, moveHandle, moveBox, spanText, hm as hmText, snap15, hitDraftPart, edgeZone, edgeVelocity, createDwell, createFrameLoop } from './direct-input.js';
+import { planMoveDuo, planMoveDuoUndo, buildMoveExtArgs, buildUndoExtArgs, extUndoAllowed, UNDO_CONFLICT_TEXT } from './move-day.js';
+import { grabAllowed, initDirectInput, dayRange, rangeText, minutesAt, dragRange, tapRange, moveHandle, moveBox, spanText, hm as hmText, snap15, hitDraftPart, edgeZone, edgeVelocity, createDwell, createFrameLoop } from './direct-input.js';
 import { occurrenceAt, parseOccId, planDelete, planEdit, editInfo, normRule } from './recur.js';
 import { bumpRevision, occBetween } from './occcache.js';
 import { LIMIT, groupByDay, highlight, excerpt, normalize, terms, searchEvents, searchNotes, searchTasks, noteIndexSize } from './search.js';
@@ -21,12 +22,14 @@ import { noteStore, setNoteHook, recoverNoteDrafts, importLegacyMemoDrafts, fold
 import { mountNoteEditor } from './notes-ui.js';
 import { titleOf, noteDateOf, dateOccupants, dailyHeading, ensureDailyFolder } from './notes-model.js';
 import { DELETE_UNDO_MS, tasksHtml, focusTasksHtml, HIST_DAYS, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDeleteController, TASK_DELETED } from './reminders.js';
-import { LOCAL_LIST, TASK_STORE_TEXT, createTaskStore, createLocalCall, createLocalAddController, rowOf, createTaskDoneController, DONE_UNDO_MS, TASK_VIEWS, TASK_VIEW_LABELS, normTaskView, dueCounts, todayTasks, inheritTaskSettings, normTaskSettings } from './tasks.js';
+import { liveTasks as liveTasksOf, LOCAL_LIST, TASK_STORE_TEXT, createTaskStore, createLocalCall, createLocalAddController, rowOf, createTaskDoneController, DONE_UNDO_MS, TASK_VIEWS, TASK_VIEW_LABELS, normTaskView, dueCounts, todayTasks, inheritTaskSettings, normTaskSettings } from './tasks.js';
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
-import { call, errCode, errReason, errText, haptic, listen, nativeAvailable } from './native.js';
+import { call, errCode, errReason, errText, haptic, listen, nativeAvailable, remNative, requestReminderPermission } from './native.js';
+import { createReminderSync, normSyncSettings, previewFirst, applyFirst, prevListCandidates, SYNC_WINDOW_DAYS } from './reminder-sync.js';
 import { createDestPage, destRowsHtml } from './destination-ui.js';
 import { KB_METRICS_ENABLED, kbMetrics, kbText, screenText } from './kbmetrics.js';
-import { createPosture, postureText } from './posture.js';
+import { createPosture, postureText, grooveBands } from './posture.js';
+import { FOLD_HH, FOLD_RATE, foldGeometry, windowMinutes, rawMinutesAt, foldEdgeZone, labelY, partTitles, openingMinute, clampS } from './fold.js';
 import { kbTopOf, hingeBand, computeKbLayout, caretBox, scrollDelta, STRIP_MIN } from './keyboard-layout.js';
 import { makeVisible, buildExtArgs, buildExtDeleteArgs, cleanLink, covers, dedupe, extCanMove, extEditable, extIn, extRange, fmtLoaded, groupBySource, keepAfterReplace, lastDay, mergeOps, normDest, normSettings, pickAddCal, planLinkMigration, planNativeOps, resolveDest, rangeKey, refreshLinks, relink, searchExt, stampOf, subLabel, toDisplay, uniqueRequestIds, visibleDestGroups, allDestHidden, withIdent, writable, ymdSlash } from './iphone.js';
 import {
@@ -58,6 +61,8 @@ function loadUi() {
     desk: s.desk === true,
     home: s.home === true ? true : s.home === false ? false : null, // null=未選択（閉じた画面では一覧、開いた画面では月などの本文）。true=「一覧」を選んだ
     monthExpand: s.monthExpand === true,
+    monthForm: ['one', 'two', 'month'].includes(s.monthForm) ? s.monthForm : 'two', // 月を引く画面の型（第19版 PR6）。初めは 2週
+    monthDay: s.monthDay === 'time' ? 'time' : 'list', // 月を引く画面の日の部分（予定｜時間軸）。初めは 予定
     weekStart: s.weekStart === 0 ? 0 : 1, // 週の始まり: 0=日曜 / 1=月曜（既定）
     monthTimeClosed: s.monthTimeClosed === true, // 月表示に時刻を出す（閉じた画面。既定は切）
     // 同（開いた画面・見開き・卓上。既定は切）。第10版は既定「入」の値を自動保存していたため、monthTimeV=11 の印がない保存値の true は旧既定とみなして切に戻す
@@ -120,8 +125,8 @@ async function applyNotifyPolicy() {
 }
 const chipTime = (iso) => iso.slice(11).replace(/^0/, ''); // 月チップの時刻は先頭の0なし（3:00 / 10:00）
 function saveUi() {
-  const { selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView, spreadType, ttSplit } = state;
-  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTimeV: 11, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView, spreadType, ttSplit })); } catch { /* 保存不可でも動作は続ける */ }
+  const { selected, view, style, desk, home, monthExpand, monthForm, monthDay, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView, spreadType, ttSplit } = state;
+  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, monthForm, monthDay, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTimeV: 11, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView, spreadType, ttSplit })); } catch { /* 保存不可でも動作は続ける */ }
 }
 // 左右（または縦の下パネル）のページを選ぶ。同じ種類が左右に並ぶ場合は交換。
 function setPage(side, id) { set({ pages: selectPage(state.pages, side, id) }); }
@@ -235,6 +240,8 @@ function vpTick() {
   updateDiagnostics();
   if (changed || sc) { directCtl?.cancel('rotate'); ttCurl?.reset('rotate'); flushEditing(); render(); }
   applyKbLayout();
+  placeNoteSheet();
+  if (dlg.open) grooveSchedule();
   const a = document.activeElement;
   if (kb && isTextEl(a)) {
     const d = a.closest('dialog');
@@ -256,7 +263,7 @@ const isPortrait = () => layoutKind() === 'open' && L.h >= L.w;
 // 開いた縦の下パネル（月タブのときだけ使える）。設定（pages.portraitShown / portraitBottom）は他のタブへ移っても消さない。
 // 開いた縦の集中モード。開いた縦以外では常に calendar 扱い（保存値は残す）。
 const fmode = () => (layoutKind() === 'open' && isPortrait() ? state.focusMode : 'calendar');
-const panelAvail = () => layoutKind() === 'open' && isPortrait() && fmode() === 'calendar' && state.view === 'month' && !listShown() && state.spreadType !== 'tt';
+const panelAvail = () => layoutKind() === 'open' && isPortrait() && fmode() === 'calendar' && state.view === 'month' && !listShown() && state.spreadType !== 'tt' && !pullOn();
 const panelOn = () => panelAvail() && state.pages.portraitShown;
 // 「一覧」（今日と次の予定のリスト）を本文に出しているか。閉じた画面は home、開いた画面は「一覧」を選んだとき。
 function listShown() { const k = layoutKind(); return k === 'home' || (state.home === true && k !== 'browse' && k !== 'spread'); }
@@ -317,10 +324,12 @@ function updateLayoutMetrics() {
   } else if (post === 'portrait') {
     // 開いた縦: 見出しは上 safe の帯の中（T に足さない）。head = max(T, 82)。縦位置は safe を除いた画面全体（上は帯込み）。
     const head = Math.max(T, 82), p = (H - B) / 951, ux = U / 669;
-    left = x0; right = W - R; c = U / 7; headH = head; gridTop = head + 24; G = (H - B - 71 * p) - gridTop;
-    const rowTop = Math.min(H - B - 70 * p, H - B - 48);
+    // 第19版 PR5（design/28）: タブ x191〜477・y863〜909（高さ 46）、＋ は右下の丸 48（y863〜911）。下の 34 はよける。
+    left = x0; right = W - R; c = U / 7; headH = head; gridTop = head + 24;
+    const rowTop = Math.min(H - B - 88 * p, H - B - 48);
+    G = rowTop - 8 * p - gridTop; // 月はタブの上 8 まで
     ctrlY = rowTop; tabsY = rowTop; tabsCx = Ls + U / 2;
-    tabsW = Math.min(270, Math.max(0, U - 2 * (20 + 48 + 8)));
+    tabsW = Math.min(286, Math.max(0, U - 2 * (20 + 48 + 8)));
     hc = Math.min(head - 22, Math.max(22, head * 46 / 82));
     pos.hbar = true; pos.ux = ux;
     pos.set = box(Ls + 20 * ux, hc - 22, HIT_HDR, HIT_HDR); pos.search = box(Ls + 484 * ux, hc - 22, HIT_HDR, HIT_HDR);
@@ -344,7 +353,7 @@ function updateLayoutMetrics() {
     if (panelAvail()) pos.pnl = box(Ls + 80, rowTop, 48, 48); // 今日の丸の右、間12
     if (panelOn()) {
       // 下パネル: マスは通常の高さ比 414/774、パネルは マスの下端〜（操作段の上端−8p）。基準 y520〜873。
-      G = G * 414 / 774;
+      G = ((H - B - 71 * p) - gridTop) * 414 / 774; // 下パネルの月は今の高さ比のまま（PR6 で月タブごと作り直す）
       const pb = rowTop - 8 * p;
       v['pnl-top'] = gridTop + G; v['pnl-h'] = Math.max(0, pb - gridTop - G); v['pnl-up-h'] = Math.max(0, pb - gridTop);
       portraitWeekH = G / n;
@@ -621,7 +630,9 @@ function periodTitle() {
   if (viewNow() === 'month') return `${d.getFullYear()}年 ${d.getMonth() + 1}月`;
   if (viewNow() === 'week') {
     const s = parseKey(weekStart(state.selected)), e = parseKey(addDays(weekStart(state.selected), 6));
-    return `${s.getMonth() + 1}月${s.getDate()}日〜${e.getMonth() + 1}月${e.getDate()}日`;
+    // 閉じた画面の週は同じ月なら「11月16日〜22日」（design/28 §1）。月をまたぐときは両方の月を書く
+    const short = (POS.post === 'closed' || foldOn()) && s.getMonth() === e.getMonth();
+    return `${s.getMonth() + 1}月${s.getDate()}日〜${short ? '' : `${e.getMonth() + 1}月`}${e.getDate()}日`;
   }
   return dayLabel(state.selected);
 }
@@ -714,21 +725,25 @@ function pasteGhosts(w, cap) {
   }
   return out;
 }
-function pasteGhostHtml(w, cap) {
+function pasteGhostHtml(w, cap, lt = LANE_TOP, ls = LANE_STEP) {
   const gs = pasteGhosts(w, cap);
   if (!gs.length) return '';
   const s = PS.src, v = s.origin === 'iphone' ? `--cat:${s.color || '#68716A'};` : catVar(s);
   return gs.map((g) => {
     const t = clipTitle(s.title), time = !s.all && g.n === 1 ? `${s.start.slice(11, 16)} ` : '';
     const label = !g.first ? `${t}（つづき）` : g.n > 1 ? `${t} ${g.n}日` : `${time}${t}`;
-    return `<span class="pghost${g.n > 1 ? ' pband2' : ''}${g.first ? '' : ' cont'}${g.last ? '' : ' more'}" aria-hidden="true" data-pghost="${g.day}" style="${v}${colPos(g.sc, g.ec)};top:${LANE_TOP + g.lane * LANE_STEP}px">${esc(label)}</span>`;
+    return `<span class="pghost${g.n > 1 ? ' pband2' : ''}${g.first ? '' : ' cont'}${g.last ? '' : ' more'}" aria-hidden="true" data-pghost="${g.day}" style="${v}${colPos(g.sc, g.ec)};top:${lt + g.lane * ls}px">${esc(label)}</span>`;
   }).join('');
 }
 const colPos = (sc, ec) => `left:calc(${sc} * 100% / 7 + 1.5px);width:calc(${ec - sc + 1} * 100% / 7 - 3px)`;
 // 週の中身: 日セル（button）・+N（兄弟 button）・帯／チップ（兄弟 button）。ボタンの入れ子は作らない。
 // mode: simple（点）| named | all。
-function weekInner(w, { mode, cur, sel, today, cap, time, tk = null }) {
-  const { days, wev, items, hidden } = w;
+function weekInner(w, { mode, cur, sel, today, cap, time, tk = null, lt = LANE_TOP, ls = LANE_STEP, plusLane = -1 }) {
+  const { days, wev, hidden } = w;
+  let items = w.items;
+  // 月を引く画面（design/22 §1）: 入りきらない日は最後の1件の代わりに「+n」を最後の段へ出す（その日だけの予定を1件はずして数に足す）。
+  const dropped = Array(7).fill(0);
+  if (plusLane >= 0) items = items.filter((b) => { if (b.sc === b.ec && b.lane === plusLane && hidden[b.sc] > 0) { dropped[b.sc]++; return false; } return true; });
   let html = '';
   days.forEach((k, col) => {
     const es = eventsOnDay(wev, k), d = parseKey(k), dow = d.getDay();
@@ -736,14 +751,15 @@ function weekInner(w, { mode, cur, sel, today, cap, time, tk = null }) {
     const tn = tk?.get(k) || 0; // 月にタスクの件数（開いた画面だけ。タスク名は出さない）
     const dots = mode === 'simple' ? `<span class="dots">${es.slice(0, cap).map((e) => `<i class="dot ${catCls(e)}"${catSty(e)}></i>`).join('')}</span>` : '';
     const ps = PS.on ? PS.days.includes(k) : false, pSrc = PS.on && k === PS.srcDay;
-    html += `<button type="button" class="day${d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}${dow === 6 ? ' sat' : dow === 0 ? ' sun' : ''}${state.holidayRed && holName(k) ? ' hol' : ''}${ps ? ' psel' : ''}${pSrc ? ' psrc' : ''}" data-date="${k}" aria-label="${dayLabel(k)}${holSpoken(k)}${r ? `、${r.name}` : ''}、予定${es.length}件${xCount(es)}${NB.marks.has(k) ? '、ノートあり' : ''}${tn ? `、未完了のタスク${tn}件` : ''}${PS.on ? `${pSrc ? '、コピー元' : ''}、${ps ? '選択中。この日を外す' : 'この日を選ぶ'}` : ''}" aria-pressed="${PS.on ? ps : k === sel}">${pSrc ? '<span class="pcsrc" aria-hidden="true">コピー元</span>' : ''}${ps ? '<i class="pck" aria-hidden="true">✓</i>' : ''}${r ? `<span class="rk" aria-hidden="true">${r.name}</span>` : ''}<span class="num${state.rokuyo && d.getDate() === 1 ? ' sd' : ''}">${label}</span>${tn ? `<span class="tkn" aria-hidden="true">✓${tn}</span>` : ''}${NB.marks.has(k) ? '<i class="mline" aria-hidden="true"></i>' : ''}${dots}</button>`;
+    html += `<button type="button" class="day${cur !== null && d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}${dow === 6 ? ' sat' : dow === 0 ? ' sun' : ''}${state.holidayRed && holName(k) ? ' hol' : ''}${ps ? ' psel' : ''}${pSrc ? ' psrc' : ''}" data-date="${k}" aria-label="${dayLabel(k)}${holSpoken(k)}${r ? `、${r.name}` : ''}、予定${es.length}件${xCount(es)}${NB.marks.has(k) ? '、ノートあり' : ''}${tn ? `、未完了のタスク${tn}件` : ''}${PS.on ? `${pSrc ? '、コピー元' : ''}、${ps ? '選択中。この日を外す' : 'この日を選ぶ'}` : ''}" aria-pressed="${PS.on ? ps : k === sel}">${pSrc ? '<span class="pcsrc" aria-hidden="true">コピー元</span>' : ''}${ps ? '<i class="pck" aria-hidden="true">✓</i>' : ''}${r ? `<span class="rk" aria-hidden="true">${r.name}</span>` : ''}<span class="num${state.rokuyo && d.getDate() === 1 ? ' sd' : ''}">${label}</span>${tn ? `<span class="tkn" aria-hidden="true">✓${tn}</span>` : ''}${NB.marks.has(k) ? '<i class="mline" aria-hidden="true"></i>' : ''}${dots}</button>`;
     const extra = mode === 'simple' ? es.length - cap : hidden[col];
-    if (extra > 0) html += `<button type="button" class="plus" data-jump="${k}" style="right:calc(${6 - col} * 100% / 7)" aria-label="${dayLabel(k)}の予定をすべて見る（ほか${extra}件）">+${extra}</button>`;
+    if (extra > 0 && plusLane >= 0) html += `<button type="button" class="plus pn" data-jump="${k}" style="${colPos(col, col)};top:${lt + plusLane * ls}px" aria-label="${dayLabel(k)}の予定をすべて見る（ほか${extra + dropped[col]}件）">+${extra + dropped[col]}</button>`;
+    else if (extra > 0) html += `<button type="button" class="plus" data-jump="${k}" style="right:calc(${6 - col} * 100% / 7)" aria-label="${dayLabel(k)}の予定をすべて見る（ほか${extra}件）">+${extra}</button>`;
   });
   if (mode === 'simple') return html;
-  html += pasteGhostHtml(w, cap);
+  html += pasteGhostHtml(w, cap, lt, ls);
   for (const b of items) {
-    const { e } = b, top = `top:${LANE_TOP + b.lane * LANE_STEP}px`;
+    const { e } = b, top = `top:${lt + b.lane * ls}px`;
     if (b.band) {
       const when = dayOf(e.start) === dayOf(e.end) ? `${dayLabel(dayOf(e.start))} 終日` : `${dayOf(e.start)}から${dayOf(e.end)}`;
       html += `<button type="button" class="bar ${catCls(e)}" data-event="${esc(e.id)}" style="${catVar(e)}left:calc(${b.sc} * 100% / 7);width:calc(${b.ec - b.sc + 1} * 100% / 7);${top}" aria-label="${esc(`${xname(e)}${e.title} ${when}${e.recurring ? ' 繰り返し' : ''}`)}"><span class="bt">${esc(e.title)}</span></button>`;
@@ -845,13 +861,142 @@ function weekRow(k, short, vlist = false) {
 const weekNotes = '<div class="weeknotes"><div class="eyebrow">今週の余白</div>日付から一日の詳細へ。予定を選ぶと全文を確認できます。</div>';
 
 // 閉じた日・週: 空き時刻を選べる時間軸（日1列／週7列。狭幅は横スクロールで列幅 CLOSED_COL を確保）。
-const CLOSED_COL = 52;
+const CLOSED_COL = 48; // 第19版 PR5（design/28 §1）: 7日を1画面に入れる 1列 48。時刻の列 30、1時間 44
 function closedTimeBody() {
   const ks = viewNow() === 'week' ? weekKeys() : [state.selected];
   const empty = state.loaded && state.events.length === 0 ? `<div class="tlempty">${sampleBtn()}</div>` : '';
-  const inner = timelineHtml(ks, Math.max(CLOSED_COL * ks.length, safeW() - 8) - 50, 'closed');
-  return `${empty}<div class="tlx"><div class="tlw" style="min-width:${50 + ks.length * CLOSED_COL}px">${inner}</div></div>`;
+  const wk = ks.length > 1, lw = wk ? 30 : 50;
+  const inner = timelineHtml(ks, Math.max(wk ? CLOSED_COL * ks.length : 0, safeW() - 16) - lw, 'closed');
+  return `${empty}<div class="tlx${wk ? ' wk' : ''}"><div class="tlw" style="min-width:${lw + (wk ? ks.length * CLOSED_COL : 0)}px">${inner}</div></div>`;
 }
+// ---------- 開いた縦の日・週（第19版 PR7、design/29 案A「1枚の紙・2つの窓」。計算は js/fold.js） ----------
+// 時間軸を1枚の紙として、上の窓と下の窓（折り目の溝で切る）から見る。2つの窓は同じ scrollTop（紙の位置 s）で一緒に動く。
+const FD = { s: 0, key: '', g: null, ks: [], carry: false };
+const VIEWTOP = { min: null, toFold: false, toClosed: false }; // 閉じた画面⇔開いた縦で、いちばん上の時刻（分）を共通に覚える
+const cssPx = (n, d) => { const v = parseFloat(de.style.getPropertyValue(n)); return Number.isFinite(v) ? v : d; };
+const foldOn = () => layoutKind() === 'open' && isPortrait() && fmode() === 'calendar' && !listShown() && !PS.on && !ttOn() && (state.view === 'day' || state.view === 'week');
+function foldGeom(week, rows) {
+  const bot = L.h - safe().bottom;
+  return foldGeometry({ head: cssPx('--head-h', 82), week, rows, cut0: cssPx('--groove-cut-y0', 458), cut1: cssPx('--groove-cut-y1', 500), tabsTop: cssPx('--tabs-y', bot - 88), winBot: bot - 34 });
+}
+const foldAll = (k) => eventsOnDay(occIn(k, k), k).filter((e) => e.all);
+function foldBlock(b, k, i, week) {
+  const { e, s, en, col, n } = b, t = e.title, gap = week ? 3 : 8;
+  const lab = `${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${t}${e.recurring ? ' 繰り返し' : ''}${isX(e) ? '' : `、${tagText(e)}`}${e.nativeLink?.state === 'linked' ? '、iPhoneにも追加済み' : ''}${alLabel(e)}`;
+  return `<button type="button" class="tlev fev ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" data-s="${s}" data-en="${en}" data-fk="${k}:${i}" style="${catVar(e)}--m:${s};--d:${en - s};left:calc(var(--ins) + ${col} * (100% - 2 * var(--ins)) / ${n});width:calc((100% - 2 * var(--ins)) / ${n} - ${gap}px)" aria-label="${esc(lab)}"><span class="ftl">${xi(e)}${esc(t)}</span>${week ? '' : `<span class="ftm">${hhmm(s)}〜${hhmm(en)}${bell(e)}</span>`}</button>`;
+}
+function foldPaper(g, ks, week) {
+  let lines = '';
+  for (let h = 0; h <= 24; h++) {
+    lines += `<i class="fhl" style="--m:${h * 60}"></i>`;
+    if (h < 24) lines += `<i class="fhl half" style="--m:${h * 60 + 30}"></i>`;
+  }
+  const cols = ks.map((k) => `<div class="tlcol${k === todayKey() ? ' ftd' : ''}" data-day="${k}">${dayBlocks(k).map((b, i) => foldBlock(b, k, i, week)).join('')}</div>`).join('');
+  const ti = ks.indexOf(todayKey());
+  const now = ti < 0 ? '' : `<div class="fnow" hidden style="--m:${nowMin()};--i:${ti};--n:${ks.length}"><i class="fn1"></i><i class="fn2"></i></div>`;
+  return `${lines}<div class="tlcols flcols">${cols}</div>${now}`;
+}
+function foldHtml() {
+  const week = state.view === 'week', ks = week ? weekKeys() : [state.selected], today = todayKey();
+  const ads = ks.map(foldAll);
+  const rows = Math.min(3, Math.max(1, ...ads.map((l) => l.length)));
+  const g = foldGeom(week, rows); FD.g = g; FD.ks = ks;
+  const lw = week ? 36 : 48;
+  const chips = ads.map((list, i) => {
+    const k = ks[i], over = list.length > 3, shown = over ? list.slice(0, 2) : list;
+    const pills = shown.map((e) => `<button type="button" class="adpill ${catCls(e)}" data-event="${esc(e.id)}" style="${catVar(e)}" aria-label="${esc(`${xname(e)}${dayLabel(k)} 終日 ${e.title}${e.recurring ? ' 繰り返し' : ''}${alLabel(e)}`)}">${esc(e.title)}</button>`).join('');
+    const plus = over ? `<button type="button" class="adplus" data-jump="${k}" aria-label="${dayLabel(k)}の終日の予定をすべて見る（ほか${list.length - 2}件）">+${list.length - 2}</button>` : '';
+    return `<div class="adcol${k === today ? ' ftd' : ''}" data-day="${k}">${pills}${plus}</div>`;
+  }).join('');
+  const dates = week ? `<div class="fdates fani" style="top:${g.allTop - g.dates}px;height:${g.dates}px"><span class="fdl" style="width:${lw}px"></span>${ks.map((k) => { const d = parseKey(k); return `<button type="button" class="fdt${k === today ? ' today' : ''}${isRed(k) ? ' hol' : ''}${k === state.selected ? ' sel' : ''}" data-jump="${k}" aria-label="${dayLabel(k)}${holSpoken(k)}を日表示で開く"><span class="fdw">${DOW[d.getDay()]}</span><b class="fdd">${d.getDate()}</b>${rkSpan(k, 'wrk')}</button>`; }).join('')}</div>` : '';
+  const labs = Array.from({ length: 25 }, (_, h) => `<span class="fh" data-m="${h * 60}">${week ? h : `${h}:00`}</span>`).join('');
+  const win = (cls, top, h, ih, off) => `<div class="fwin ${cls} fani" style="top:${r2(top)}px;height:${r2(h)}px"><div class="fl ${cls}" data-fl="${cls}"><div class="flin" style="height:${r2(ih)}px"><div class="flpaper" style="top:${r2(-off)}px;height:${r2(g.paperH)}px">${foldPaper(g, ks, week)}</div></div></div><div class="fllab" aria-hidden="true">${labs}<span class="fnt" hidden></span></div></div>`;
+  const style = `--lw:${lw}px;--hh:${FOLD_HH}px;--ins:${week ? 1.5 : 4}px;--ftop:${r2(g.winTop)}px;--fcut0:${r2(g.cut0)}px;--fcut1:${r2(g.cut1)}px`;
+  return `<section class="calendar fold fold-${week ? 'week' : 'day'}" aria-label="カレンダー" style="${style}">${foldHead()}${dates}<div class="allday fall fani" style="top:${g.allTop}px;height:${g.allH}px"><span class="adl" style="width:${lw}px">終日</span><div class="adcols">${chips}</div></div><div class="fgv" aria-hidden="true"></div>${win('ft', g.winTop, g.topH, g.topH + g.smax, 0)}${win('fb', g.cut1, g.botH, g.paperH - g.topH, g.topH)}</section>`;
+}
+const foldHead = () => `<div class="chead fhead">${navBtn(-1)}<h2 id="ctitle">${periodTitle()}${state.view === 'day' ? rkSpan(state.selected, 'hrk') : ''}</h2>${navBtn(1)}<button type="button" class="ftoday" data-act="today" aria-label="今日の日付へ">今日</button></div>`;
+const foldDefaultMin = () => {
+  const ks = FD.ks, today = todayKey(), isNow = ks.includes(today);
+  let first = null;
+  for (const k of ks) for (const b of dayBlocks(k)) if (first == null || b.s < first) first = b.s;
+  return openingMinute({ today: isNow, nowMin: nowMin(), firstStart: first });
+};
+// 描画のあと: 紙の位置を戻して配置し直す。日・週が変わったとき（key）だけ開いたときの位置にする。姿勢が変わったときは見ていた時刻を引き継ぐ。
+function initFold() {
+  const ft = root.querySelector('.fl.ft'), fb = root.querySelector('.fl.fb');
+  if (!ft || !fb || !FD.g) { FD.key = ''; FD.carry = false; return; }
+  const key = `${state.view}|${state.view === 'week' ? weekStart(state.selected) : state.selected}`;
+  if (FD.carry && VIEWTOP.min != null) { FD.s = clampS(FD.g, (VIEWTOP.min * FOLD_HH) / 60); FD.key = key; }
+  else if (key !== FD.key) { FD.key = key; FD.s = clampS(FD.g, (foldDefaultMin() * FOLD_HH) / 60); }
+  FD.carry = false;
+  FD.s = clampS(FD.g, FD.s);
+  ft.scrollTop = FD.s; fb.scrollTop = FD.s;
+  foldLayout();
+}
+// 2つの窓の位置から、ラベル・今の時刻の線・またぐ予定・長押しの札を配置する（スクロールのたびに呼ぶ。軽い計算だけ）。
+function foldLayout() {
+  const fold = root.querySelector('.fold'), g = FD.g; if (!fold || !g) return;
+  const ft = fold.querySelector('.fl.ft'), fb = fold.querySelector('.fl.fb'); if (!ft || !fb) return;
+  const s = FD.s = clampS(g, ft.scrollTop), wm = windowMinutes(g, s), week = state.view === 'week';
+  const wins = [{ el: fold.querySelector('.fwin.ft'), t: wm.top, h: g.topH, bottom: false }, { el: fold.querySelector('.fwin.fb'), t: wm.bot, h: g.botH, bottom: true }];
+  const nowOn = FD.ks.includes(todayKey()), now = nowMin();
+  const nowIn = (w) => nowOn && (w.bottom ? now >= wm.tc && now <= w.t[1] : now >= w.t[0] && now < wm.tc);
+  for (const w of wins) {
+    for (const h of w.el.querySelectorAll('.fh')) {
+      const m = Number(h.dataset.m), y = labelY(m, w.t[0], w.t[1], w.h, w.bottom);
+      const hide = y == null || (nowOn && Math.abs(m - now) <= 18 && nowIn(w));
+      h.style.visibility = hide ? 'hidden' : '';
+      if (!hide) h.style.top = `${r2(y)}px`;
+    }
+    const nt = w.el.querySelector('.fnt'), ny = nowIn(w) ? labelY(now, w.t[0], w.t[1], w.h, w.bottom) : null;
+    nt.hidden = ny == null;
+    if (ny != null) { nt.style.top = `${r2(ny)}px`; nt.textContent = hhmm(now); }
+    const nl = w.el.querySelector('.fnow'); if (nl) nl.hidden = !nowIn(w);
+  }
+  // 予定: 上下の窓に同じ予定がある。またぐ予定は窓ごとに見える部分を測って題名・時刻・切り口を決める。
+  const pxs = (m) => (m * FOLD_HH) / 60, topP = s, botP = s + g.topH; // 各窓の上の端の紙 px
+  const byKey = new Map();
+  fold.querySelectorAll('.fev').forEach((el) => { const k = el.dataset.fk; (byKey.get(k) || byKey.set(k, []).get(k)).push(el); });
+  for (const [, [a, b]] of byKey) {
+    if (!a || !b) continue;
+    const s0 = Number(a.dataset.s), en = Number(a.dataset.en), p0 = pxs(s0), p1 = pxs(en);
+    const vis = (lo, hi) => Math.max(0, Math.min(p1, hi) - Math.max(p0, lo)); // 窓の紙 px の範囲 [lo, hi) で見える高さ
+    const hA = vis(topP, topP + g.topH), hB = vis(botP, botP + g.botH);
+    const both = hA > 0 && hB > 0 && s0 < wm.tc && en > wm.tc;
+    const day = !week;
+    const r = both ? partTitles(hA, hB, day) : { a: { title: true, time: day && hA >= 34, small: false }, b: { title: true, time: day && hB >= 34, small: false } };
+    const set1 = (el, h, part, lo, cut, upper) => {
+      el.style.visibility = h > 0 ? '' : 'hidden';
+      el.dataset.ti = part.title ? '1' : '0'; el.dataset.tm = part.time ? '1' : '0'; el.dataset.small = part.small ? '1' : '0';
+      el.style.setProperty('--ty', `${r2(Math.max(0, lo - p0))}px`);
+      if (cut) { el.dataset.cut = upper ? 'b' : 't'; el.style.setProperty('--cl', `${r2(upper ? lo + g.topH - p0 - 2.5 : lo - p0 + 1.5)}px`); } else { delete el.dataset.cut; }
+      if (upper) el.removeAttribute('aria-hidden'); else if (both || h <= 0) el.setAttribute('aria-hidden', 'true'); else el.removeAttribute('aria-hidden'); // VoiceOver は1つの予定として読む
+      el.tabIndex = el.getAttribute('aria-hidden') ? -1 : 0;
+    };
+    set1(a, hA, r.a, topP, both, true); set1(b, hB, r.b, botP, both, false);
+    if (hA <= 0) { a.setAttribute('aria-hidden', 'true'); a.tabIndex = -1; }
+  }
+  // 長押しで作る枠の札（緑 44×18）。始まりと終わりは、その時刻がある窓の時刻の列に出す。
+  for (const t of fold.querySelectorAll('.dtag[data-fm]')) {
+    const w = wins[Number(t.dataset.fw)], m = Number(t.dataset.fm), isEnd = t.classList.contains('dtag-e');
+    let y = labelY(m, w.t[0], w.t[1], w.h, w.bottom);
+    if (y != null && isEnd && DF.start != null) { const ys = labelY(DF.start, w.t[0], w.t[1], w.h, w.bottom); if (ys != null) y = Math.max(y, ys + 18); }
+    t.style.display = y == null ? 'none' : '';
+    if (y != null) t.style.top = `${r2(y - 9)}px`;
+  }
+}
+// 窓の位置（紙の s）を動かす。2つの窓が同じ値で動く。
+function foldScrollTo(s) {
+  const g = FD.g; if (!g) return 0;
+  const v = clampS(g, s);
+  for (const el of root.querySelectorAll('.fl')) if (Math.abs(el.scrollTop - v) > 0.01) el.scrollTop = v;
+  FD.s = v; foldLayout(); return v;
+}
+root.addEventListener('scroll', (ev) => {
+  const el = ev.target;
+  if (el?.classList?.contains('fl')) { const o = root.querySelector(`.fl.${el.dataset.fl === 'ft' ? 'fb' : 'ft'}`); if (o && Math.abs(o.scrollTop - el.scrollTop) > 0.01) o.scrollTop = el.scrollTop; FD.s = el.scrollTop; foldLayout(); VIEWTOP.min = (FD.s * 60) / FOLD_HH; return; }
+  if (el?.matches?.('.closed .tlx .tl')) VIEWTOP.min = Math.max(0, ((el.scrollTop - TL_PAD) * 60) / TLP.closed.hh);
+}, true);
 function calendarBody(kind) {
   if (kind === 'browse' && viewNow() !== 'month') return closedTimeBody();
   if (viewNow() === 'month') return state.monthExpand ? monthGridAll(kind) : `${weekdaysHtml()}<div class="scroll msc" data-scroll="cal">${monthGrid(kind)}</div>`;
@@ -862,7 +1007,153 @@ function calendarBody(kind) {
   }
   return `<div class="scroll" data-scroll="cal"><div class="daylist">${dayList(state.selected)}</div></div>`;
 }
-const calendar = (kind) => `<section class="calendar" aria-label="カレンダー">${chead()}${calendarBody(kind)}</section>`;
+const calendar = (kind) => (pullOn() && (kind === 'browse' || kind === 'portrait') ? pullHtml(kind) : `<section class="calendar" aria-label="カレンダー">${chead()}${calendarBody(kind)}</section>`);
+
+// ---------- 月を引く画面（第19版 PR6、design/22。閉じた画面と開いた縦の「月」タブ） ----------
+// つまみで 1週・2週・月 に縮み、下に選んだ日（予定｜時間軸・タスク・ノート）がつながる。「全部」（monthExpand）のときは従来の月のまま。
+const MFORMS = ['one', 'two', 'month'];
+const MFORM_NAME = { one: '1週', two: '2週', month: '月' };
+const pullKind = () => { const k = layoutKind(); return k === 'browse' ? 'browse' : k === 'open' && isPortrait() ? 'portrait' : null; };
+function pullOn() {
+  const k = pullKind();
+  if (!k || state.view !== 'month' || state.monthExpand || listShown() || state.strip || fmode() !== 'calendar') return false;
+  return !(k === 'portrait' && ttOn());
+}
+// 型ごとの行の高さと予定の段（閉じた画面 466×678 は 22 §1、開いた縦 669×951 は §5）。lt=最初の段の上端、ls=段の間隔、chip=帯の高さ。
+const PULL_CFG = {
+  browse: { one: { rows: 1, h: 80, lt: 16, ls: 15, chip: 14, cap: 4, fs: 9 }, two: { rows: 2, h: 80, lt: 16, ls: 15, chip: 14, cap: 4, fs: 9 }, month: { rows: 6, h: 50, lt: 16, ls: 15, chip: 14, cap: 2, fs: 9 } },
+  portrait: { one: { rows: 1, h: 297, lt: 20, ls: 20, chip: 18, cap: 13, fs: 10 }, two: { rows: 2, h: 148.5, lt: 20, ls: 20, chip: 18, cap: 6, fs: 10 }, month: { rows: 6, h: 49.5, lt: 18, ls: 15, chip: 14, cap: 2, fs: 9 } },
+};
+// 「月の文字: 大」は 1件減らして文字を 11pt に。時刻の出し入れは姿勢ごとの設定（閉じた=monthTimeClosed／開いた=monthTimeOpen）。
+function pullCfg(kind, form) {
+  const c = PULL_CFG[kind][form];
+  return state.monthTextSize === 'large' ? { ...c, cap: Math.max(1, c.cap - 1), fs: 11 } : c;
+}
+const MP = { anchor: '', shrunk: false, drag: null, scroll: 0, swallow: 0 }; // anchor: 1週・2週で見せる先頭の週。shrunk: 日の部分のスクロールで一時的に 1週へ縮んでいる
+const monthFormNow = () => (MP.shrunk && pullKind() === 'browse' ? 'one' : state.monthForm);
+function pullWeeks(form) {
+  const n = { one: 1, two: 2, month: 6 }[form];
+  let start;
+  if (form === 'month') start = monthWeeks(state.selected)[0][0];
+  else {
+    const sw = weekStart(state.selected);
+    if (!MP.anchor || state.selected < MP.anchor || state.selected >= addDays(MP.anchor, n * 7)) MP.anchor = sw;
+    start = MP.anchor;
+  }
+  return Array.from({ length: n }, (_, i) => Array.from({ length: 7 }, (_, j) => addDays(start, i * 7 + j)));
+}
+function pullGridHtml(kind, form) {
+  const c = pullCfg(kind, form), sel = state.selected, today = todayKey(), cur = parseKey(sel).getMonth(), tk = monthTaskCounts(kind);
+  return pullWeeks(form).map((days) => `<div class="week named" data-wk="${days[0]}">${weekInner(weekData(days, c.cap), { mode: 'named', cur: form === 'month' ? cur : null, sel, today, cap: c.cap, time: kind === 'browse' ? state.monthTimeClosed : state.monthTimeOpen, tk, lt: c.lt, ls: c.ls, plusLane: c.cap - 1 })}</div>`).join('');
+}
+function pullHead() {
+  if (PS.on) return `<div class="mph pasting">${pasteBand()}</div>`;
+  const u = state.monthForm === 'month' ? '月' : '週';
+  const d = parseKey(state.selected);
+  return `<div class="mph"><button type="button" data-act="prev" aria-label="前の${u}">‹</button><h2 id="ctitle">${d.getFullYear()}年 ${d.getMonth() + 1}月</h2><button type="button" data-act="next" aria-label="次の${u}">›</button>${allBtn()}<button type="button" class="mptoday" data-act="mptoday" aria-label="今日へ">今日</button></div>`;
+}
+function pullDayList(k) {
+  const list = eventsOnDay(occIn(k, k), k);
+  if (!list.length) return `<div class="mdnone"><p>予定はありません</p><button type="button" class="ghost" data-new="${k}">＋ この日に追加</button></div>`;
+  return `<div class="mdlist" role="list">${list.map((e) => {
+    const t = e.all || dayOf(e.start) !== k ? '終日' : e.start.slice(11);
+    return `<button type="button" class="mdev ${catCls(e)}"${catSty(e)} role="listitem" data-event="${esc(e.id)}" data-sday="${k}" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${e.title}${e.recurring ? ' 繰り返し' : ''}${alLabel(e)}`)}"><i class="mdbar" aria-hidden="true"></i><span class="mdt">${t}${bell(e)}</span><strong>${xi(e)}${rep(e)}${esc(e.title)}</strong></button>`;
+  }).join('')}</div>`;
+}
+function pullDayTasks(k) {
+  const all = homeTaskList();
+  if (!all) return '';
+  const pend = doneCtl.pending();
+  const rows = all.filter((r) => r?.due?.date === k).map((r) => {
+    const done = pend.has(r.itemId) ? pend.get(r.itemId) === true : !!r.done;
+    return `<div class="htask mdtask${done ? ' done' : ''}"><button type="button" class="rmckb" data-act="remck" data-id="${esc(r.itemId)}" role="checkbox" aria-checked="${done}" aria-label="${done ? '未完了に戻す' : '完了にする'}：${esc(r.title || '')}"${r.readOnly ? ' disabled' : ''}><span class="rmck" aria-hidden="true"></span></button><span class="htt">${esc(r.title || '')}</span>${r.due.time ? `<small class="hdue">${esc(r.due.time)}</small>` : ''}</div>`;
+  });
+  return `<section class="mdsec mdtasks" aria-label="タスク"><h4>タスク</h4>${rows.join('') || '<p class="mdempty">この日が期限のタスクはありません</p>'}</section>`;
+}
+function pullDayNote(k) {
+  const first = NB.first.get(k), n = NB.marks.get(k) || 0;
+  return `<section class="mdsec mdnotes" aria-label="ノート"><h4>ノート</h4><button type="button" class="dnote mdnote" data-act="daynote" data-day="${k}" aria-label="${esc(dayLabel(k))}のノート${n ? `${n}件を開く` : 'を書く'}"><span class="dnt">${first ? esc(first) : '<span class="mdempty">この日のノートを書く</span>'}</span></button></section>`;
+}
+function pullDayHtml() {
+  const k = state.selected, m = state.monthDay;
+  const sw = `<div class="mdsw" role="group" aria-label="日の見せ方">${[['list', '予定'], ['time', '時間軸']].map(([v, l]) => `<button type="button" data-mday="${v}" aria-pressed="${m === v}">${l}</button>`).join('')}</div>`;
+  const body = m === 'time' ? timelineHtml([k], Math.max(0, safeW() - 24 - 50), 'mday', 44) : pullDayList(k);
+  return `<div class="mday" data-scroll="mday"><div class="mdh"><h3>${dayTitle(k)}</h3>${sw}</div><div class="mdbody">${body}</div>${pullDayTasks(k)}${pullDayNote(k)}</div>`;
+}
+function pullHtml(kind) {
+  const form = monthFormNow(), c = pullCfg(kind, form);
+  return `<section class="calendar mpull ${kind}" aria-label="カレンダー" data-form="${form}" style="--mp-row:${c.h}px;--chip-h:${c.chip}px;--chip-fs:${c.fs}px;--date-h:16px">${pullHead()}${weekdaysHtml()}<div class="mgrid" data-nrows="${c.rows}">${pullGridHtml(kind, form)}</div><div class="mgrab" role="slider" tabindex="0" aria-label="月の大きさ: ${MFORM_NAME[form]}。上下に引いて変える" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="2" aria-valuenow="${MFORMS.indexOf(form)}" aria-valuetext="${MFORM_NAME[form]}"><i aria-hidden="true"></i></div>${pullDayHtml()}</section>`;
+}
+// 月の部分だけ描き直す（型・縮み）。日の部分とそのスクロール位置には触らない。
+function paintPull(form = monthFormNow()) {
+  const sec = root.querySelector('.mpull'); if (!sec) return;
+  const kind = pullKind(), c = pullCfg(kind, form);
+  sec.dataset.form = form;
+  sec.style.setProperty('--mp-row', `${c.h}px`); sec.style.setProperty('--chip-h', `${c.chip}px`); sec.style.setProperty('--chip-fs', `${c.fs}px`);
+  const g = sec.querySelector('.mgrid'); g.dataset.nrows = String(c.rows); g.innerHTML = pullGridHtml(kind, form);
+  const h = sec.querySelector('.mgrab'); h.setAttribute('aria-valuenow', String(MFORMS.indexOf(form))); h.setAttribute('aria-valuetext', MFORM_NAME[form]); h.setAttribute('aria-label', `月の大きさ: ${MFORM_NAME[form]}。上下に引いて変える`);
+  paintRange(); applyPasteInert();
+}
+function setMonthForm(f, speak = true) {
+  if (!MFORMS.includes(f)) return;
+  MP.shrunk = false; MP.anchor = '';
+  if (f === state.monthForm) { paintPull(); return; }
+  state.monthForm = f; saveUi();
+  paintPull(f);
+  if (speak) say(`月を${MFORM_NAME[f]}の表示にしました。`);
+}
+const mpHeights = (kind) => MFORMS.map((f) => PULL_CFG[kind][f].rows * PULL_CFG[kind][f].h);
+// つまみ: 上下に引く。閉じた画面は引いた量だけ月の高さが変わり、離すと一番近い型へ 0.25 秒で寄る。開いた縦は月の高さが全部 297 なので、引いた量で型だけ切り替える。
+root.addEventListener('pointerdown', (ev) => {
+  const g = ev.target.closest?.('.mgrab'); if (!g || !ev.isPrimary || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
+  const kind = pullKind(), grid = root.querySelector('.mgrid'); if (!grid) return;
+  MP.drag = { id: ev.pointerId, y0: ev.clientY, kind, form0: state.monthForm, h0: grid.getBoundingClientRect().height, moved: false, form: state.monthForm };
+});
+window.addEventListener('pointermove', (ev) => {
+  const d = MP.drag; if (!d || ev.pointerId !== d.id) return;
+  const dy = ev.clientY - d.y0;
+  if (!d.moved && Math.abs(dy) < 6) return;
+  d.moved = true;
+  const sec = root.querySelector('.mpull'), grid = root.querySelector('.mgrid'); if (!sec || !grid) return;
+  if (d.kind === 'browse') {
+    const hs = mpHeights('browse'), h = Math.min(hs[2], Math.max(hs[0], d.h0 + dy));
+    const f = MFORMS[hs.reduce((bi, v, i) => (Math.abs(v - h) < Math.abs(hs[bi] - h) ? i : bi), 0)];
+    sec.classList.add('dragging'); grid.style.height = `${h}px`;
+    if (f !== d.form) { d.form = f; MP.shrunk = false; paintPull(f); }
+  } else {
+    const i = Math.min(2, Math.max(0, MFORMS.indexOf(d.form0) + Math.round(dy / 60)));
+    if (MFORMS[i] !== d.form) { d.form = MFORMS[i]; paintPull(d.form); }
+  }
+});
+window.addEventListener('pointerup', (ev) => {
+  const d = MP.drag; if (!d || ev.pointerId !== d.id) return;
+  MP.drag = null;
+  if (!d.moved) return; // たたきは何もしない
+  MP.swallow = performance.now() + 400;
+  const sec = root.querySelector('.mpull'), grid = root.querySelector('.mgrid');
+  if (grid && sec) {
+    const c = PULL_CFG[d.kind][d.form], to = `${c.rows * c.h}px`;
+    sec.classList.remove('dragging');
+    if (d.kind === 'browse' && !reduced() && grid.style.height && grid.style.height !== to) { void grid.offsetHeight; grid.style.height = to; setTimeout(() => { grid.style.height = ''; }, 260); } else grid.style.height = '';
+  }
+  setMonthForm(d.form);
+});
+window.addEventListener('pointercancel', (ev) => { if (MP.drag && ev.pointerId === MP.drag.id) { MP.drag = null; root.querySelector('.mpull')?.classList.remove('dragging'); const g = root.querySelector('.mgrid'); if (g) g.style.height = ''; paintPull(); } });
+root.addEventListener('keydown', (ev) => {
+  const g = ev.target.closest?.('.mgrab'); if (!g || !['ArrowUp', 'ArrowDown'].includes(ev.key)) return;
+  ev.preventDefault();
+  const i = MFORMS.indexOf(state.monthForm) + (ev.key === 'ArrowDown' ? 1 : -1);
+  if (i >= 0 && i <= 2) { setMonthForm(MFORMS[i]); root.querySelector('.mgrab')?.focus({ preventScroll: true }); }
+});
+// 日の部分を下へスクロールすると、月は 1週 に縮んで上に残る（閉じた画面）。上まで戻すと元の型。開いた縦は月が上の面に置いたままなので縮めない。
+root.addEventListener('scroll', (ev) => {
+  const el = ev.target;
+  if (!(el instanceof Element) || !el.classList.contains('mday')) return;
+  MP.scroll = el.scrollTop;
+  if (pullKind() !== 'browse' || MP.drag) return;
+  const want = el.scrollTop > 8 && state.monthForm !== 'one';
+  if (want !== MP.shrunk) { MP.shrunk = want; if (want) MP.anchor = weekStart(state.selected); paintPull(); }
+}, true);
 
 // ホーム（今日のカード）。第16版 PR14・design/14 案A。選択日と独立して今日固定。
 // mode: 'cards'＝閉じた画面・縦の一覧（縦に重ねる）、'axis'＝開いた横（今日の予定は9〜19時の小さな時間軸）、'cols'＝開いた縦の下段（3列）。
@@ -915,7 +1206,8 @@ const listView = (mode = 'cards') => `<div class="home listview hm-${mode}" aria
 // 閉じた画面（一覧 = home / 日・週・月 = browse）: 本文は safe の内側いっぱい。操作は帯（右 safe）または見出し・下段。
 function closed(kind) {
   const body = state.strip ? stripPage(state.strip) : kind === 'home' ? listView() : calendar('browse');
-  return `<div class="shell closed ${kind}${POS.band ? ' band' : ' fb'}${state.strip ? ' strp' : ''}"><div class="mpane">${body}</div>${ctl()}${tabs()}</div>`;
+  const tv = kind === 'browse' && !state.strip && viewNow() !== 'month' ? ` tv tv-${viewNow()}` : ''; // 閉じた日・週の時間軸（design/28 §1）
+  return `<div class="shell closed ${kind}${tv}${kind === 'browse' && pullOn() ? ' pull' : ''}${POS.band ? ' band' : ' fb'}${state.strip ? ' strp' : ''}"><div class="mpane">${body}</div>${ctl()}${tabs()}</div>`;
 }
 // 閉じた画面で右の帯のタスク／メモを開いたときの全面ページ。下のタブはどれも選ばれず、帯の同じ丸かタブで戻る。
 function stripPage(id) {
@@ -931,7 +1223,7 @@ function focusPage(m) {
 function open() {
   if (fmode() !== 'calendar') return `<div class="shell open portrait focus" data-focus="${fmode()}"><div class="pcol fcol">${focusPage(fmode())}</div>${ctl()}</div>`;
   if (ttOn()) return `<div class="shell open portrait tt"><div class="pcol ttp">${dayPage('left', state.selected, true)}${dayPage('right', addDays(state.selected, 1), true)}</div><div class="hline" aria-hidden="true"></div>${ctl()}${tabs()}</div>`;
-  return `<div class="shell open portrait"><div class="pcol">${listShown() ? listView() : calendar('portrait')}</div><div class="hline" aria-hidden="true"></div>${panelOn() ? bottomPanel() : panelAvail() ? '<div class="pgrab" data-grab="1" aria-hidden="true"></div>' : ''}${ctl()}${tabs()}</div>`;
+  return `<div class="shell open portrait${pullOn() ? ' pull' : ''}${foldOn() ? ' fd' : ''}"><div class="pcol">${listShown() ? listView() : foldOn() ? foldHtml() : calendar('portrait')}</div><div class="hline" aria-hidden="true"></div>${panelOn() ? bottomPanel() : panelAvail() ? '<div class="pgrab" data-grab="1" aria-hidden="true"></div>' : ''}${ctl()}${tabs()}</div>`;
 }
 // ---------- 開いた縦の下パネル（上は月、下は 時間｜タスク｜メモ） ----------
 const PN = { expand: false, swallow: 0 }; // expand: メモ入力中にマスの上端まで広げる（口だけ。入力は後続の版）
@@ -1016,9 +1308,9 @@ function desk() {
 // 折り目（ビューポート中心 ±10px）には何も置かない。左右ページは中心±10 で clip し、背景は中心で直接接続する。
 // 時間軸の状態はペイン（左 / 右）ごと: 1時間の高さ(px)・1日/3日・初期スクロールの判定キー。quiet はピンチ・ドラッグ直後の空きタップ抑止（共通）。
 const mkTl = () => ({ hh: 60, key: '' });
-const TLP = { left: mkTl(), right: mkTl(), bottom: mkTl(), closed: mkTl() };
+const TLP = { left: mkTl(), right: mkTl(), bottom: mkTl(), closed: { hh: 44, key: '' }, mday: { hh: 44, key: '' } };
 const TLQ = { quiet: 0 };
-const paneOf = (el) => (['left', 'bottom', 'closed'].includes(el?.dataset?.pane) ? el.dataset.pane : 'right');
+const paneOf = (el) => (['left', 'bottom', 'closed', 'mday'].includes(el?.dataset?.pane) ? el.dataset.pane : 'right');
 const firstTl = () => root.querySelector('.tl');
 const HH_MIN = 31, HH_MAX = 80, TL_PAD = 12;
 const clampHh = (n) => Math.min(HH_MAX, Math.max(HH_MIN, n));
@@ -1078,7 +1370,7 @@ function timelineHtml(ks, avail, pane = 'right', fixedHh = 0) {
     if (h < 24) lines += `<span class="hlab" style="--m:${h * 60}">${h}:00</span><i class="hl half" style="--m:${h * 60 + 30}"></i>`;
   }
   const cols = ks.map((k) => `<div class="tlcol" data-day="${k}">${dayBlocks(k).map((b) => tlBlock(b, k)).join('')}</div>`).join('');
-  return `${allDayRow(ks, avail)}${heads}<div class="tl" data-scroll="tl" data-pane="${pane}" style="--hh:${fixedHh || TLP[pane].hh}px"><div class="tlin" data-pane="${pane}" data-days="${ks.join(',')}">${lines}<div class="tlcols">${cols}</div><div class="nowl" hidden><span class="nowt"></span></div></div></div>`;
+  return `${pane === 'closed' ? `${heads}${allDayRow(ks, avail)}` : `${allDayRow(ks, avail)}${heads}`}<div class="tl" data-scroll="tl" data-pane="${pane}" style="--hh:${fixedHh || TLP[pane].hh}px"><div class="tlin" data-pane="${pane}" data-days="${ks.join(',')}">${lines}<div class="tlcols">${cols}</div><div class="nowl" hidden><span class="nowt"></span></div></div></div>`;
 }
 // 右ページの日見出し（11月14日（土））＋ 1日／3日の切替（見た目 60×32・押せる範囲の高さ 44）。帯がないときは 今日・検索・＋ も見出しへ。
 const rctl = () => (POS.band ? '' : `<div class="rctl"><button type="button" class="rbtn s44 rtoday" data-act="today" aria-label="今日に戻る"><span aria-hidden="true">${todayLabel()}</span></button><button type="button" class="rbtn s44 rsearch" data-act="search" aria-label="予定を検索">${ICON_SEARCH}</button><button type="button" class="rbtn s44 radd" data-act="add" aria-label="予定を追加"><span aria-hidden="true">＋</span></button></div>`);
@@ -1203,13 +1495,16 @@ function timeBody(side, w) {
 // ---------- ノート（旧「日ごとのメモ」。左右ページ・縦の下パネル・閉じた画面の帯で同じ一覧と同じエディタ。保存は notes.js） ----------
 // 画面からは旧 memos へ一切書かない。旧メモは起動時にノートへ複製済み（db.js の移行）。
 let noteComposing = false, renderPending = false, rendering = false;
-const NB = { marks: new Map(), first: new Map(), day: null, dp: null, cur: null, rows: null, q: { left: '', right: '', bottom: '', closed: '' }, seq: 0, failed: false, blocked: false, ed: null, opening: null, focusNew: false, said: false, folders: null, sel: 'all', menu: null, swallow: 0 };
+const NB = { marks: new Map(), first: new Map(), day: null, dp: null, cur: null, rows: null, q: { left: '', right: '', bottom: '', closed: '' }, seq: 0, failed: false, blocked: false, ed: null, opening: null, focusNew: false, said: false, folders: null, sel: 'all', menu: null, swallow: 0, sheet: null };
 const noteHead = (side) => `<div class="rhead dh"><h2 class="rdate">ノート</h2>${side === 'right' ? rctl() : ''}<div class="sctl">${side === 'left' ? gearBtn() : ''}</div></div>`;
 function noteEditor() {
   if (!NB.ed) NB.ed = mountNoteEditor(document.createElement('div'), {
     store: noteStore,
     onOpen: (id) => { db.setLastNote(id).catch(() => {}); },
     onTrashChange: (id) => { if (id === NB.cur) { NB.cur = null; db.setLastNote(null).catch(() => {}); } invalidateNoteList(); render(); },
+    onDone: () => { if (NB.sheet) closeNoteSheet(); else noteBack(); },
+    onFormatSheet: (open, hadKb) => { if (NB.sheet) { NB.sheet.fs = !open ? null : hadKb ? (kbTopOf(window.visualViewport, window.innerHeight) ?? L.h - 250) : L.h - 250; placeNoteSheet(); } },
+    loadInk: (id) => db.getNote(id).then((n) => n?.ink ?? null), // 古い手書きを表示だけする（読むだけ）
   });
   return NB.ed;
 }
@@ -1366,13 +1661,24 @@ async function refreshNoteMarks() {
 }
 async function filterNotesByDay(day) {
   if (NB.blocked) return;
+  if (NB.sheet) { if (await closeNoteSheet() === false) return; }
   if (NB.ed && NB.cur) { const ok = await NB.ed.leave(); if (ok === false) return; NB.cur = null; NB.dp = null; invalidateNoteList(); }
   NB.day = day; render();
 }
 // 「この日のノート」: 0件=日ごとのメモに新規（1行目は日付見出し）、1件=開く、複数=その日に絞った一覧。
 let dayNoteBusy = false;
+// その日の新しいノート（日ごとのメモのフォルダ、1行目は日付見出し）を作って id を返す。
+async function createDayNote(day) {
+  let fid = null;
+  try { const r = ensureDailyFolder(await db.listFolders()); if (r.created) await db.putFolder(r.folder); fid = r.folder.id; invalidateNoteList(); NB.folders = null; } catch { /* フォルダなしで作る */ }
+  const id = noteStore.newNote();
+  await noteStore.setMeta(id, { date: day, ...(fid ? { folderId: fid } : {}) });
+  noteStore.setText(id, `${dailyHeading(day)}\n`);
+  return id;
+}
 async function openDayNote(day) {
   if (!day || NB.blocked || dayNoteBusy) return;
+  if (NB.sheet) { if (await closeNoteSheet() === false) return; }
   dayNoteBusy = true;
   try {
     let all; try { all = await db.listNotes(); } catch { say('ノートを読み込めませんでした。'); return; }
@@ -1380,11 +1686,7 @@ async function openDayNote(day) {
     if (occ.length === 1) { NB.day = null; await noteOpen(occ[0].id); return; }
     if (occ.length > 1) { await filterNotesByDay(day); return; }
     if (NB.ed && NB.cur) { const ok = await NB.ed.leave(); if (ok === false) return; }
-    let fid = null;
-    try { const r = ensureDailyFolder(await db.listFolders()); if (r.created) await db.putFolder(r.folder); fid = r.folder.id; invalidateNoteList(); NB.folders = null; } catch { /* フォルダなしで作る */ }
-    const id = noteStore.newNote();
-    await noteStore.setMeta(id, { date: day, ...(fid ? { folderId: fid } : {}) });
-    noteStore.setText(id, `${dailyHeading(day)}\n`);
+    const id = await createDayNote(day);
     NB.day = null; NB.cur = id; NB.focusNew = true; NB.dp = null; render();
   } finally { dayNoteBusy = false; }
 }
@@ -1397,15 +1699,18 @@ function showNotePage() {
 }
 async function noteDayJump(day) { showNotePage(); await filterNotesByDay(day); }
 async function noteOpen(id) {
+  if (NB.sheet) { if (await closeNoteSheet() === false) return; }
   if (NB.ed && NB.cur && NB.cur !== id) { const ok = await NB.ed.leave(); if (ok === false) return; }
   NB.cur = id; NB.dp = null; render();
 }
 async function noteBack() {
+  if (NB.sheet) { if (await closeNoteSheet() === false) return; }
   if (NB.ed && NB.cur) { const ok = await NB.ed.leave(); if (ok === false) return; }
   NB.cur = null; NB.dp = null; db.setLastNote(null).catch(() => {}); invalidateNoteList(); render();
 }
 async function noteNew() {
   if (NB.blocked) return;
+  if (NB.sheet) { if (await closeNoteSheet() === false) return; }
   if (NB.ed && NB.cur) { const ok = await NB.ed.leave(); if (ok === false) return; }
   NB.cur = noteStore.newNote(); NB.focusNew = true;
   if (NB.sel !== 'all' && NB.sel !== 'none' && NB.folders?.some((f) => f.id === NB.sel)) noteStore.setMeta(NB.cur, { folderId: NB.sel }); // 開いているフォルダの中に作る
@@ -1622,7 +1927,7 @@ async function remSubmit() {
   a.busy = true; a.err = ''; i.readOnly = true; i.setAttribute('aria-busy', 'true');
   root.querySelectorAll('[data-act="remsubmit"]').forEach((b) => { b.disabled = true; });
   root.querySelectorAll('.rmwhy.err').forEach((e) => e.remove());
-  const r = await addCtl.submit({ title: a.title, due, time, notify: a.notify }); // Duo 内に保存（native は呼ばない）
+  const r = await addCtl.submit({ title: a.title, due, time, notify: a.notify, listId: syncOn() ? addDestId() : '' }); // Duo 内に保存（native は呼ばない）
   if (RM.add !== a) return;
   a.busy = false;
   const cur = remInput() || i; // 再描画されても同じノード（保たれている）
@@ -1666,7 +1971,14 @@ function monthTaskCounts(kind) {
   const list = ids.size ? RM.data.reminders.filter((x) => !ids.has(x.itemId)) : RM.data.reminders;
   return dueCounts(list, over);
 }
-const taskStore = createTaskStore(db);
+// ---------- リマインダーとの同期（第19版 D7）。既定はオフ。オンにする入口は設定 › タスク（D8・PR10）。オフ・native なしでは何もしない ----------
+const SYNC_KEY = `duo-rem-sync${suffix}`;
+const SYNC_BASE_KEY = `duo-rem-base${suffix}`; // 端末内の「前回合意した値」（欄ごとの衝突判定用。バックアップには入れない）
+let remSync = null;
+const RS = { perm: '', lists: [], chip: 'all', sheet: null, denied: false, flash: false }; // 第19版 PR10: タスクの画面の状態（許可・リスト・選んだチップ・開いているシート）
+let syncSet = normSyncSettings(parseLS(SYNC_KEY));
+const setSyncSettings = (next) => { syncSet = normSyncSettings(next); try { localStorage.setItem(SYNC_KEY, JSON.stringify(syncSet)); } catch { /* 無視 */ } };
+const taskStore = createTaskStore(db, { syncOn: () => NATIVE && syncSet.enabled, onWrite: () => remSync?.kick('write', 0) });
 const localCall = createLocalCall(taskStore); // 完了・削除・編集の controller の口（Duo 内保存へ）
 const addCtl = createLocalAddController(taskStore);
 // 完了の丸: 押すと表示だけ即変え、1.5秒後に最後の状態を1回保存して完了段へ移す。6秒は「元に戻す」。失敗は表示を戻して理由を出す。
@@ -1725,10 +2037,10 @@ function toggleDone(id) {
 // 集中タスク（開いた縦）。見方・選択・もっと前の開閉は画面だけの状態（見方は保存）。
 const FT = { sel: null, older: false, timer: 0, chain: Promise.resolve() };
 function focusTaskBody() {
-  return focusTasksHtml(RM.data ? { ...RM.data, reminders: RM.data.reminders.filter((x) => !delCtl.has(x.itemId)) } : RM.data, { view: state.taskView, sel: FT.sel, olderOpen: FT.older, selected: state.selected, pending: doneCtl.pending(), add: RM.data ? { draft: RM.add } : null, loading: !RM.err, error: RM.err });
+  return focusTasksHtml(viewData(), { view: state.taskView, sel: FT.sel, olderOpen: FT.older, selected: state.selected, pending: doneCtl.pending(), add: RM.data ? { draft: RM.add } : null, loading: !RM.err, error: RM.err, rl: listUi() });
 }
 function taskBody(where) {
-  return tasksHtml(RM.data ? { ...RM.data, reminders: RM.data.reminders.filter((x) => !delCtl.has(x.itemId)) } : RM.data, { selected: state.selected, doneOpen: RM.doneOpen, histDays: RM.histDays, loading: !RM.err, error: RM.err, busyMore: RM.more, pending: doneCtl.pending(), add: RM.data ? { draft: RM.add } : null });
+  return tasksHtml(viewData(), { selected: state.selected, doneOpen: RM.doneOpen, histDays: RM.histDays, loading: !RM.err, error: RM.err, busyMore: RM.more, pending: doneCtl.pending(), add: RM.data ? { draft: RM.add } : null, rl: listUi() });
 }
 // Duo 内の保存から読む。読込の間に追加・完了・削除があれば、その結果は捨てて読み直す（追加済みの行を消さない）。
 let loadSeq = 0;
@@ -1739,6 +2051,7 @@ async function loadTasks() {
     if (g !== loadSeq) return;
     if (m0 !== RM.mut) { scheduleTasks(); return; }
     RM.err = false; RM.more = false;
+    if (RS.flash && RM.data) { const old = new Set(RM.data.reminders.map((x) => x.itemId)); for (const x of rows) if (!old.has(x.itemId)) x.fresh = true; RS.flash = false; setTimeout(() => { if (RM.data) { RM.data = { ...RM.data, reminders: RM.data.reminders.map(({ fresh, ...x }) => x) }; RM.sig = ''; render(); } }, 1000); }
     const r = { lists: [LOCAL_LIST], reminders: rows };
     const sig = JSON.stringify(r);
     if (sig === RM.sig && RM.data) return;
@@ -1749,6 +2062,218 @@ async function loadTasks() {
     RM.more = false;
     if (!RM.data) { RM.err = true; render(); }
   }
+}
+remSync = createReminderSync({
+  db, native: remNative,
+  getSettings: () => (NATIVE ? syncSet : { ...syncSet, enabled: false }),
+  setSettings: setSyncSettings,
+  base: { get: () => parseLS(SYNC_BASE_KEY), set: (b) => { try { localStorage.setItem(SYNC_BASE_KEY, JSON.stringify(b)); } catch { /* 無視 */ } } },
+  onChange: () => { RM.mut++; RM.sig = ''; scheduleTasks(); },
+  onNotice: (m) => { notice(m, null, 3000); document.querySelector('#native-toast')?.classList.add('rstoast'); say(m); },
+  onEvent: (e) => { if (e.type === 'incoming') { RS.flash = true; notice('iPhone のリマインダーの変更を入れました', null, 3000); document.querySelector('#native-toast')?.classList.add('rstoast'); say('iPhone のリマインダーの変更を入れました。'); } },
+});
+window.__remSync = remSync;
+// ---------- 第19版 PR10: タスクの画面（設定 › タスク・リストの部品・説明シート・確認の一覧・止まっている1行） ----------
+// データの口は reminder-sync.js（D7）。ここは見え方と入口。同期オフ・Web・許可なしでは今までと同じ見た目で、リストの部品は出さない。
+const syncOn = () => NATIVE && syncSet.enabled;
+const DUO_COLOR = '#68716A';
+const listColor = (l) => (/^#[0-9a-fA-F]{6}$/.test(l?.color || '') ? l.color : DUO_COLOR);
+// 取り込み先として扱うリスト（Duo ＋ 選んだもの）。Duo は id 'duo'（書き出し先の本当の id とそろえて見せる）。
+function rsLists() {
+  const duo = RS.lists.find((l) => l.id === syncSet.duoListId) || RS.lists.find((l) => l.title === syncSet.duoListTitle && l.allowsModify !== false);
+  const out = [{ id: 'duo', duo: true, realId: duo?.id || syncSet.duoListId || '', title: 'Duo', color: listColor(duo), allowsModify: true }];
+  for (const id of syncSet.lists) { const l = RS.lists.find((x) => x.id === id); if (l && l.id !== duo?.id) out.push({ id: l.id, title: l.title, color: listColor(l), allowsModify: l.allowsModify !== false, shared: !!(l.shared || l.isShared) }); }
+  return out;
+}
+function listUi() {
+  const stalled = NATIVE && syncSet.everEnabled && (RS.perm === 'denied' || RS.perm === 'restricted');
+  const active = syncOn() && RS.perm === 'granted';
+  if (!active && !stalled) return null;
+  const lists = active ? rsLists() : [];
+  const sel = lists.some((l) => l.id === RS.chip) ? RS.chip : 'all';
+  const dest = active ? lists.find((l) => l.id === addDestKey()) || lists[0] : null;
+  return { active, stalled, lists, sel, multi: active && lists.length >= 2, dest, gone: NATIVE && syncSet.everEnabled };
+}
+// 追加先の候補（書けるもの）と、今の保存先（カプセルで選んだ → チップ → 設定 → Duo）
+const addDestKey = () => {
+  const ok = rsLists().filter((l) => l.allowsModify);
+  const pick = [RM.add.listId, RS.chip !== 'all' ? RS.chip : '', syncSet.addTo === syncSet.duoListId ? 'duo' : syncSet.addTo];
+  for (const k of pick) if (k && ok.some((l) => l.id === k)) return k;
+  return 'duo';
+};
+const addDestId = () => { const l = rsLists().find((x) => x.id === addDestKey()); return !l || l.duo ? '' : l.id; };
+// 表示用のデータ（削除待ちを除き、Duo リストを 'duo' にそろえ、チップで絞る）
+function viewData() {
+  if (!RM.data) return RM.data;
+  const ids = delCtl.ids();
+  let rows = ids.size ? RM.data.reminders.filter((x) => !ids.has(x.itemId)) : RM.data.reminders;
+  const ui = listUi();
+  if (!ui || !ui.active) return { ...RM.data, reminders: rows };
+  if (syncSet.duoListId) rows = rows.map((r) => (r.listId === syncSet.duoListId ? { ...r, listId: 'duo' } : r));
+  if (ui.sel !== 'all') rows = rows.filter((r) => r.listId === ui.sel);
+  return { lists: ui.lists.map((l) => ({ id: l.id, color: l.color })), reminders: rows };
+}
+// 許可とリストの今の様子を読む。同期を使ったことがない（または設定を開いていない）ときは native を呼ばない。
+async function refreshRs(force = false) {
+  if (!NATIVE || (!syncSet.everEnabled && !force)) return;
+  const before = JSON.stringify([RS.perm, RS.lists]);
+  try { RS.perm = (await remNative.permission())?.status || 'denied'; } catch { RS.perm = 'unavailable'; }
+  if (RS.perm === 'granted' && syncSet.enabled) { try { const r = await remNative.lists(); if (!r.unavailable) RS.lists = r.lists || []; } catch { /* 前のまま */ } }
+  if (JSON.stringify([RS.perm, RS.lists]) !== before) { syncRsUi(); render(); }
+}
+const hhmm2 = (ms) => { const d = new Date(ms); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+// 設定 › タスク の同期の段
+function syncRsUi() {
+  const box = $('#m-rs');
+  $('#m-rssub').textContent = NATIVE && RS.perm !== 'unavailable' ? (syncSet.enabled ? '同期オン' : '同期オフ') : '';
+  const show = NATIVE && RS.perm !== 'unavailable';
+  box.hidden = !show;
+  if (!show) return;
+  const on = syncSet.enabled && RS.perm !== 'denied' && RS.perm !== 'restricted';
+  $('#m-rssw').setAttribute('aria-checked', String(on));
+  const at = $('#m-rsat'); at.hidden = !(on && syncSet.syncedAt); at.textContent = syncSet.syncedAt ? `同期済み ${hhmm2(syncSet.syncedAt)}` : '';
+  $('#m-rsdeny').hidden = on || !(RS.denied || (syncSet.everEnabled && (RS.perm === 'denied' || RS.perm === 'restricted')));
+  const rson = $('#m-rson'); rson.hidden = !on;
+  if (!on) return;
+  const ls = rsLists(), dest = ls.find((l) => l.id === addDestKeySettings()) || ls[0];
+  $('#m-rsdestv').innerHTML = `<i class="ldot" style="background:${esc(dest.color)}"></i>${esc(dest.title)}`;
+  const duoReal = ls[0].realId;
+  $('#m-rslists').innerHTML = RS.lists.map((l) => {
+    const isDuo = l.id === duoReal || (!duoReal && l.title === syncSet.duoListTitle && ls[0].color === listColor(l));
+    const chk = isDuo || syncSet.lists.includes(l.id);
+    return `<button type="button" class="rslist${isDuo ? ' fixed' : ''}" role="checkbox" aria-checked="${chk}" data-rslist="${esc(l.id)}"${isDuo ? ' aria-disabled="true"' : ''}><i class="ldot" style="background:${esc(listColor(l))}"></i><span class="rsn">${esc(isDuo ? 'Duo' : l.title)}</span>${l.shared || l.isShared ? '<small>共有</small>' : ''}<b aria-hidden="true">${chk ? '✓' : ''}</b></button>`;
+  }).join('');
+}
+const addDestKeySettings = () => { const ok = rsLists().filter((l) => l.allowsModify); return ok.some((l) => l.id === syncSet.addTo) ? syncSet.addTo : ok.some((l) => l.realId && l.realId === syncSet.addTo) ? 'duo' : 'duo'; };
+
+// ---- シート（説明・確認の一覧・保存先の一覧・やめる確認）。1 つの dialog を中身で替える ----
+const rsDlg = $('#rsheet');
+function rsClose(restoreSwitch = true) {
+  RS.sheet = null;
+  if (rsDlg.open) rsDlg.close();
+  syncInert();
+  if (restoreSwitch && menuDlg.open) $('#m-rssw')?.focus({ preventScroll: true });
+}
+function rsPlace(kind) {
+  const vh = window.innerHeight;
+  // 設定が開いていればその枠、編集シートが開いていればその枠、どちらもなければ画面の幅いっぱい（開いた横は左ページ内）
+  const open = menuDlg.open ? menuDlg : taskDlg.open ? taskDlg : null;
+  let m = open ? open.getBoundingClientRect() : null;
+  if (!m) { const S = safe(); const left = S.left + 8; let right = window.innerWidth - S.right - 8; if (layoutKind() === 'spread') right = Math.min(right, window.innerWidth / 2 - 10); m = { left, top: Math.max(S.top, 12) + (layoutKind() === 'open' ? 90 : 12), width: Math.max(200, right - left), bottom: vh - Math.max(S.bottom, 12) }; }
+  const top = kind === 'explain' || kind === 'off' ? Math.max(m.top, Math.min(300, vh - 360)) : m.top;
+  Object.assign(rsDlg.style, { left: `${m.left}px`, width: `${m.width}px`, top: `${top}px`, bottom: kind === 'explain' || kind === 'off' ? `${Math.max(12, vh - m.bottom)}px` : `${Math.max(12, vh - m.bottom)}px`, right: 'auto', margin: '0' });
+  rsDlg.dataset.kind = kind;
+}
+const dueMini = (d) => (d?.date ? `${Number(d.date.slice(5, 7))}/${Number(d.date.slice(8, 10))}${d.time ? ` ${d.time}` : ''}` : '');
+function rsHtml() {
+  const S = RS.sheet; if (!S) return '';
+  const head = (t, x = true) => `<div class="rshead"><h2 id="rs-h">${esc(t)}</h2>${x ? '<button type="button" class="rsx" data-rs="close" aria-label="閉じる">✕</button>' : ''}</div>`;
+  if (S.kind === 'explain') return `${head('iPhone のリマインダーと同期')}<div class="rsbody"><p>Duo のタスクを、リマインダーの「Duo」リストにも入れます。リマインダーで変えた分も Duo に入ります。</p><p>許可しなくても、タスクはこれまでどおり使えます。</p><p>内容は iPhone の外に送りません。</p></div><button type="button" class="primary rsmain" data-rs="continue"${S.busy ? ' disabled' : ''}>続ける</button>`;
+  if (S.kind === 'off') return `${head('同期をやめますか？', false)}<div class="rsbody"><p>同期をやめても、Duo とリマインダーのタスクはどちらも消えません。</p></div><div class="rsacts"><button type="button" data-rs="close">キャンセル</button><button type="button" class="danger" data-rs="off">やめる</button></div>`;
+  if (S.kind === 'dest') {
+    const cur = S.cur;
+    return `${head('保存先のリスト')}<div class="rspage" role="listbox" aria-label="保存先のリスト">${S.lists.map((l) => `<button type="button" class="rsrowp" role="option" aria-selected="${l.id === cur}" data-rs="pick" data-list="${esc(l.id)}"><i class="ldot" style="background:${esc(l.color)}"></i><span>${esc(l.title)}</span><b aria-hidden="true">${l.id === cur ? '✓' : ''}</b></button>`).join('')}</div>`;
+  }
+  if (S.kind === 'confirm') {
+    const pv = S.pv, add = pv.toAdd, shown = add.slice(0, 4);
+    const row = (t) => `<div class="rsrow40"><span class="rst">${esc(t.title)}</span><small>${esc(dueMini(t.due))}</small></div>`;
+    const maybe = pv.maybe.map((m, i) => `<div class="rsmaybe"><div class="rsrow40"><span class="rst">${esc(m.task.title)}</span><small>${esc(dueMini(m.task.due))}</small></div><div class="rsseg" role="group" aria-label="${esc(m.task.title)}の扱い">${[['link', '結びつける'], ['keep', '両方残す'], ['skip', '入れない']].map(([k, t]) => `<button type="button" data-rs="choice" data-i="${i}" data-c="${k}" aria-pressed="${m.choice === k}">${t}</button>`).join('')}</div></div>`).join('');
+    const done = S.result;
+    const NEW = '__new', listRow = (id, t, c) => `<button type="button" class="rspk" role="radio" aria-checked="${S.prevId === id}" data-rs="prevlist" data-list="${esc(id)}"${S.busy ? ' disabled' : ''}>${c ? `<i class="ldot" style="background:${esc(c)}"></i>` : ''}<span class="rst">${esc(t)}</span></button>`;
+    const prevSel = S.choose ? `<h3>以前の「Duo」リスト</h3><p class="rsmore">${S.cands.length >= 2 ? '「Duo」という名前のリストが複数あります。書き出し先を選んでください。' : '「Duo」リストが見つかりません。以前書き出したリストがあれば選んでください。'}</p><div role="radiogroup" aria-label="書き出し先のリスト">${S.cands.map((l) => listRow(l.id, l.title, l.color)).join('')}${listRow(NEW, '新しく「Duo」リストを作る')}</div>` : '';
+    const pk = pv.pick || [];
+    const pickHtml = pk.length ? `<h3>リマインダーにある件 ${pk.length}</h3><p class="rsmore">選んだ件だけ Duo に入ります。選ばない件はリマインダーに残ります。</p><button type="button" class="rslater" data-rs="pickall"${S.busy ? ' disabled' : ''}>${pk.every((x) => x.on) ? 'すべて外す' : 'すべて選ぶ'}</button>${pk.map((x, i) => `<button type="button" class="rspk" role="checkbox" aria-checked="${x.on}" data-rs="pickrem" data-i="${i}"${S.busy ? ' disabled' : ''}><span class="rst">${esc(String(x.rem.title ?? '').trim() || '（題名なし）')}</span><small>${esc(dueMini(x.rem.due))}</small></button>`).join('')}` : '';
+    const needList = S.choose && S.cands.length >= 2 && !S.prevId;
+    return `${head('iPhone のリマインダーと同期', !S.busy)}<div class="rsscroll">${prevSel}<h3>入れるタスク ${add.length}</h3>${shown.map(row).join('')}${add.length > 4 ? `<p class="rsmore">ほか ${add.length - 4}件</p>` : ''}${pv.maybe.length ? `<h3>同じものかもしれない ${pv.maybe.length}</h3>${maybe}` : ''}${pickHtml}</div>`
+      + (done ? `<p class="rsdone" role="status">リマインダーに ${done.created}件入れました${done.errors ? `（入れられなかった ${done.errors}件）` : ''}</p><button type="button" class="primary rsmain" data-rs="close">閉じる</button>`
+        : `<button type="button" class="primary rsmain" data-rs="apply"${S.busy || needList ? ' disabled' : ''}>入れる</button><button type="button" class="rslater" data-rs="later"${S.busy ? ' disabled' : ''}>あとで（設定 › タスク からやり直せる）</button>`);
+  }
+  return '';
+}
+function rsOpen(sheet, focusSel) {
+  RS.sheet = sheet;
+  rsPlace(sheet.kind);
+  rsDlg.innerHTML = rsHtml();
+  if (!rsDlg.open) { rsDlg.show(); syncInert(); }
+  (rsDlg.querySelector(focusSel || '.rsmain, .rsrowp, button') || rsDlg).focus({ preventScroll: true });
+}
+const rsRepaint = (keepFocus) => { const a = document.activeElement?.dataset?.rs, i = document.activeElement?.dataset?.i, c = document.activeElement?.dataset?.c; rsDlg.innerHTML = rsHtml(); if (keepFocus && a) rsDlg.querySelector(`[data-rs="${a}"]${i ? `[data-i="${i}"][data-c="${c}"]` : ''}`)?.focus({ preventScroll: true }); };
+// 選んだ（または 1 つに決まった）以前のリストの中身で確認の一覧を作り直す。読むだけ。
+async function rsLoadPrev(S) {
+  const list = S.prevId && S.prevId !== '__new' ? RS.lists.find((l) => l.id === S.prevId) : null;
+  const rems = list ? ((await remNative.listReminders({ listIds: [list.id], completedSince: '1970-01-01T00:00' }))?.reminders || []) : [];
+  if (RS.sheet !== S) return;
+  S.pv = previewFirst(await db.listTasks(), rems, { declined: syncSet.declined });
+}
+rsDlg.addEventListener('cancel', (ev) => { ev.preventDefault(); if (!RS.sheet?.busy) rsClose(); });
+rsDlg.addEventListener('click', async (ev) => {
+  const b = ev.target.closest('[data-rs]'); if (!b || !RS.sheet) return;
+  const S = RS.sheet, k = b.dataset.rs;
+  if (k === 'close') { if (!S.busy) rsClose(); return; }
+  if (k === 'later') { rsClose(); return; }
+  if (k === 'off') { setSyncSettings({ ...syncSet, enabled: false }); rsClose(false); syncRsUi(); render(); scheduleTasks(); say('同期をやめました。'); $('#m-rssw')?.focus({ preventScroll: true }); return; }
+  if (k === 'choice') { S.pv.maybe[Number(b.dataset.i)].choice = b.dataset.c; rsRepaint(true); return; }
+  if (k === 'pick') {
+    const id = b.dataset.list; S.cur = id; rsRepaint(true);
+    setTimeout(() => { if (RS.sheet !== S) return; rsClose(false); S.onPick(id); }, 150);
+    return;
+  }
+  if (k === 'pickrem') { const x = S.pv.pick[Number(b.dataset.i)]; if (x) x.on = !x.on; rsRepaint(true); return; }
+  if (k === 'pickall') { const all = S.pv.pick.every((x) => x.on); for (const x of S.pv.pick) x.on = !all; rsRepaint(true); return; }
+  if (k === 'prevlist') {
+    if (S.busy) return; S.prevId = b.dataset.list; S.busy = true; rsRepaint(true);
+    try { await rsLoadPrev(S); } catch { S.pv = previewFirst(await db.listTasks(), [], { declined: syncSet.declined }); }
+    if (RS.sheet !== S) return;
+    S.busy = false; rsRepaint(true); return;
+  }
+  if (k === 'continue') {
+    if (S.busy) return; S.busy = true; rsRepaint(true);
+    let st;
+    // OS に求めるのは notDetermined のときだけ（RS-1・RS-2）。granted は求めずに進み、denied・restricted は求めない。
+    try { st = (await remNative.permission()).status; if (st === 'notDetermined') st = (await requestReminderPermission()).status; } catch { st = 'denied'; }
+    if (RS.sheet !== S) return;
+    RS.perm = st;
+    if (st !== 'granted') { RS.denied = true; rsClose(false); syncRsUi(); render(); $('#m-rssw')?.focus({ preventScroll: true }); return; }
+    RS.denied = false;
+    // 以前の「Duo」リスト（題名がちょうど「Duo」で書けるもの）。1 つならそれ、2 つ以上は選んでもらう、0 なら選ぶか新しく作る（RS-49b）。選ぶまで書き込みはしない。
+    S.cands = []; S.prevId = ''; S.choose = false; S.pv = previewFirst(await db.listTasks(), [], { declined: syncSet.declined });
+    try {
+      const ls = await remNative.lists(); RS.lists = ls.lists || [];
+      const cands = prevListCandidates(RS.lists, syncSet.duoListTitle);
+      S.cands = cands.length ? cands : RS.lists.filter((l) => l.allowsModify !== false);
+      S.choose = cands.length !== 1 && S.cands.length > 0;
+      S.prevId = cands.length === 1 ? cands[0].id : cands.length === 0 ? '__new' : '';
+      if (cands.length === 0 && !S.cands.length) S.choose = false;
+      await rsLoadPrev(S);
+    } catch { /* 一覧が取れなければ、リマインダー側の件なしで進む */ }
+    S.kind = 'confirm'; S.busy = false; rsPlace('confirm'); rsDlg.innerHTML = rsHtml(); rsDlg.querySelector('.rsmain')?.focus({ preventScroll: true });
+    return;
+  }
+  if (k === 'apply') {
+    if (S.busy) return; S.busy = true; rsRepaint(true);
+    // ここまで書き込みは 0。オンにして、選んだ分を pending にし、同期を 1 回走らせる。
+    // 書き出し先: 見分けた（選んだ）以前のリストをそのまま使う。同じ名前のリストを増やさない（RS-50b）。選ばなければ新しく作る。
+    let dest = {};
+    const pl = S.choose || S.prevId ? RS.lists.find((l) => l.id === S.prevId) : null;
+    if (pl) dest = { duoListId: pl.id, duoSourceId: pl.sourceId || '', duoListTitle: String(pl.title).trim() || syncSet.duoListTitle };
+    else if (S.choose && S.prevId === '__new' && S.cands.length >= 2) { try { const c = (await remNative.createReminderList({ title: syncSet.duoListTitle, sourceId: '' })).list; dest = { duoListId: c.id, duoSourceId: c.sourceId || '' }; } catch { /* あとの同期でもう一度 */ } }
+    let res = null, dec = [];
+    try {
+      const ar = await applyFirst({ db, toAdd: S.pv.toAdd, maybe: S.pv.maybe, pick: S.pv.pick || [], base: remSync.base() });
+      dec = ar.declined;
+    } catch { res = null; }
+    setSyncSettings({ ...syncSet, ...dest, enabled: true, everEnabled: true, declined: [...syncSet.declined, ...dec] });
+    try { res = await remSync.sync('first'); } catch { res = null; }
+    S.busy = false; S.result = { created: res?.created || 0, errors: res?.errors || 0 };
+    RM.mut++; RM.sig = ''; scheduleTasks(); syncRsUi(); render();
+    rsRepaint(false); rsDlg.querySelector('.rsmain')?.focus({ preventScroll: true });
+    say(`リマインダーに ${S.result.created}件入れました。`);
+  }
+});
+// 保存先の一覧を開く（target: 設定の追加先／追加欄のカプセル／タスクの移動）
+function openDestPage(cur, onPick, only) {
+  const lists = rsLists().filter((l) => l.allowsModify && (!only || only(l)));
+  rsOpen({ kind: 'dest', lists, cur, onPick });
 }
 function scheduleTasks() { clearTimeout(RM.timer); RM.timer = setTimeout(loadTasks, 300); requestNotifySync('task'); } // タスクの追加・完了・削除・編集・復元はすべてここを通る
 function renderPage(side, id) {
@@ -1826,17 +2351,17 @@ function initTimeline() {
   const dts = [...root.querySelectorAll('.dpage .tl')]; // 今日＋明日: 左右共通のスクロール位置（日を送っても保つ）
   if (dts.length) { if (!TT.init) { TT.init = true; TT.top = Math.max(0, nowMin() - 60); } dts.forEach((t) => { t.scrollTop = TT.top; }); } else TT.init = false;
   tls.forEach((tl) => {
-    if (tl.closest('.dpage')) return;
+    if (tl.closest('.dpage, .mday')) return;
     const pane = paneOf(tl), T = TLP[pane];
     const key = `${layoutKind()}|${state.view}|${state.home}|${PG().left}|${PG().right}|${state.selected}|${state.timeMode[pane]}|${pane === 'bottom' ? state.pages.portraitBottom : ''}`;
-    if (key !== T.key) { T.key = key; tl.scrollTop = Math.max(0, nowMin() - 60) * T.hh / 60; }
+    if (key !== T.key) { T.key = key; tl.scrollTop = pane === 'closed' && VIEWTOP.toClosed && VIEWTOP.min != null ? TL_PAD + VIEWTOP.min * T.hh / 60 : Math.max(0, nowMin() - 60) * T.hh / 60; }
   });
   updateNow();
 }
 // 倍率の変更。中心の時刻（画面上の位置 cy）を固定する。
 function setHh(next, cy, tlEl) {
   const tl = tlEl || firstTl();
-  if (!tl || tl.closest('.dpage')) return; // 今日＋明日の時間軸は 1時間 60 で固定
+  if (!tl || tl.closest('.dpage, .mday')) return; // 今日＋明日の時間軸は 1時間 60 で固定
   const T = TLP[paneOf(tl)];
   const hh = clampHh(next);
   if (hh === T.hh) return;
@@ -1851,7 +2376,7 @@ const tlPtr = new Map();
 let tlPinch = null;
 root.addEventListener('pointerdown', (ev) => {
   const tl = ev.target.closest?.('.tl');
-  if (!tl || tl.closest('.dpage')) return;
+  if (!tl || tl.closest('.dpage, .mday')) return;
   tlPtr.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
   if (tlPtr.size === 2) {
     const [a, b] = [...tlPtr.values()];
@@ -1880,9 +2405,10 @@ window.addEventListener('pointercancel', tlEnd);
 // render() で DOM が作り直されても paintDraft() が同じ場所へ描き直す。
 const DF = { mode: null, day: '', pane: '', start: 0, end: 0, anchor: 0 };
 const lastCatOk = () => (state.categories.some((c) => c.id === lastCat) ? lastCat : defaultCatId());
-const colOf = (pane, day) => [...root.querySelectorAll(`.tl[data-pane="${pane}"] .tlcol`)].find((c) => c.dataset.day === day) || null;
-const hhOf = (pane) => (ttOn() ? 60 : TLP[pane]?.hh ?? 60);
-const minAtY = (y, col, pane) => minutesAt(y, col.getBoundingClientRect().top, TL_PAD, hhOf(pane));
+const colOf = (pane, day) => (pane === 'fold' ? [...root.querySelectorAll('.fl.ft .tlcol')] : [...root.querySelectorAll(`.tl[data-pane="${pane}"] .tlcol`)]).find((c) => c.dataset.day === day) || null;
+const hhOf = (pane) => (pane === 'fold' ? FOLD_HH : ttOn() ? 60 : TLP[pane]?.hh ?? 60);
+// 開いた縦（fold）は2つの窓。指の高さを紙の時刻へ（折り目の間は境の時刻で止まる）
+const minAtY = (y, col, pane) => (pane === 'fold' ? Math.min(1440, Math.max(0, snap15(rawMinutesAt(FD.g, FD.s, y)))) : minutesAt(y, col.getBoundingClientRect().top, TL_PAD, hhOf(pane)));
 function paintDraft() {
   root.querySelectorAll('.dbox, .dtag').forEach((n) => n.remove());
   if (!DF.mode) return;
@@ -1896,6 +2422,15 @@ function paintDraft() {
   if ((DF.end - DF.start) * hhOf(DF.pane) / 60 < 60) box.dataset.short = '';
   if (DF.mode === 'temp') {
     box.tabIndex = 0; box.setAttribute('role', 'group'); box.setAttribute('aria-label', `新しい予定の仮枠 ${spanText(DF)}`);
+  }
+  if (DF.pane === 'fold') { // 開いた縦: 2つの窓の紙に同じ枠を置き、札は時刻の列（窓ごと）へ。位置は foldLayout が決める
+    const cols = [...root.querySelectorAll('.fold .tlcol')].filter((c) => c.dataset.day === DF.day);
+    cols.forEach((c, i) => { const b2 = i ? box.cloneNode(true) : box; if (i) b2.setAttribute('aria-hidden', 'true'); c.append(b2); });
+    root.querySelectorAll('.fold .fllab').forEach((lab, i) => [['s', DF.start], ['e', DF.end]].forEach(([k, m]) => {
+      const t = document.createElement('span'); t.className = `dtag dtag-${k}`; t.textContent = hmText(m); t.dataset.fm = String(m); t.dataset.fw = String(i); lab.append(t);
+    }));
+    foldLayout();
+    return;
   }
   col.append(box);
   const inner = col.closest('.tlin'), hh = hhOf(DF.pane);
@@ -1940,14 +2475,14 @@ function tlTap(ev, col) {
   }
   if (DF.mode === 'temp') { if (ev.target.closest('.dbox')) openDraft(); else clearDraftBox(); return; }
   if (DF.mode) return;
-  const pane = paneOf(col.closest('.tl'));
+  const pane = col.closest('.fl') ? 'fold' : paneOf(col.closest('.tl'));
   Object.assign(DF, { mode: 'temp', day: col.dataset.day, pane }, tapRange(minAtY(ev.clientY, col, pane)));
   paintDraft();
 }
 // 仮枠の本体（取っ手の外側）を押したまま上下に引くと、同じ日の中で枠ごと動く（15分刻み）。8pt 以下の動きはたたき（click→openDraft）。
 const BOXMOVE_SLOP = 8, BOXMOVE_EDGE = 48;
 const BM = { on: false, id: 0, y0: 0, raw0: 0, r0: null, moved: false };
-const rawAt = (y, col, pane) => ((y - col.getBoundingClientRect().top - TL_PAD) / hhOf(pane)) * 60;
+const rawAt = (y, col, pane) => (pane === 'fold' ? rawMinutesAt(FD.g, FD.s, y) : ((y - col.getBoundingClientRect().top - TL_PAD) / hhOf(pane)) * 60);
 function boxMoveRecalc(y) {
   const col = colOf(DF.pane, DF.day); if (!col) return;
   const r = moveBox(BM.r0, BM.r0.start + rawAt(y, col, DF.pane) - BM.raw0);
@@ -2006,12 +2541,21 @@ root.addEventListener('pointerdown', (ev) => {
 // ---------- 描画（スクロール位置とフォーカスを保つ） ----------
 let lastKind = '';
 let renderRev = 0; // 描き直し番号（iOS のめくり B が、撮った絵を使い回してよいかを見る）
+// 第19版 PR5（design/28）: 選んでいるタブは閉じた画面と開いた縦で共通に覚える。state.home は「null＝まだ選んでいない」を
+// 閉じた画面ではホーム、開いた縦では月と読むので、姿勢が変わる瞬間に今見ているタブへ確定させる（開いた横は変えない）。
+function syncTabAcrossPosture(kind, fam) {
+  if (!lastKind || fam(lastKind) === fam(kind) || state.home !== null) return;
+  const wasPortrait = document.body.dataset.posture === 'portrait';
+  if (lastKind === 'home' && kind === 'open' && L.h >= L.w) { state.home = true; saveUi(); }
+  else if (lastKind === 'open' && wasPortrait && fam(kind) === 'closed') { state.home = false; saveUi(); }
+}
 function render() {
   if (noteComposing) { renderPending = true; return; } // IME 変換中は入力欄を作り直さない
   renderRev++;
   ensurePasteMonth();
-  const kind = layoutKind();
   const fam = (k) => (k === 'home' || k === 'browse' ? 'closed' : k);
+  syncTabAcrossPosture(layoutKind(), fam);
+  const kind = layoutKind(), prevKind = lastKind;
   if (state.strip && (!['closed', 'spread'].includes(fam(kind)) || (lastKind && fam(lastKind) !== fam(kind)))) state.strip = null; // 開閉・回転で姿勢が変わったら元の表示へ
   updateLayoutMetrics();
   updateDiagnostics();
@@ -2040,9 +2584,14 @@ function render() {
   lastKind = kind;
   root.querySelectorAll('[data-scroll]').forEach((el) => { el.scrollTop = scrolls[`${kind}:${el.dataset.scroll}${el.dataset.pane || ''}`] || 0; });
   restoreScrolls(keepScrolls);
+  // 月を引く画面: 日の部分のスクロール位置は閉じた画面と開いた縦で共通に覚える（姿勢が変わったときだけ共通の値へ）
+  { const md = root.querySelector('.mday'); if (md && prevKind && prevKind !== kind) md.scrollTop = MP.scroll; if (pullKind() !== 'browse') MP.shrunk = false; }
   restoreAll(anchor);
   measureMonthPane();
+  if (prevKind && fam(prevKind) !== fam(kind)) { FD.carry = true; VIEWTOP.toClosed = true; } // 閉じた画面⇔開いた縦: いちばん上の時刻を引き継ぐ
   initTimeline();
+  initFold();
+  VIEWTOP.toClosed = false;
   paintDraft();
   paintRange();
   applyPasteInert();
@@ -2061,6 +2610,7 @@ function move(n, pane) {
   const k = state.selected;
   if (ttOn()) { set({ selected: addDays(k, n * 2) }); return; } // 今日＋明日は2日ずつ
   if (pane && layoutKind() === 'spread' && PG()[pane] !== 'month') { set({ selected: addDays(k, n * (PG()[pane] === 'time' ? tlStep(pane) : 1)) }); return; }
+  if (pullOn() && !pane) { MP.anchor = ''; set({ selected: state.monthForm === 'month' ? addMonths(k, n) : addDays(k, 7 * n) }); return; }
   set({ selected: viewNow() === 'month' ? addMonths(k, n) : addDays(k, n * (viewNow() === 'week' ? 7 : 1)) });
 }
 // 見開きの型の切替（帯のボタン）。選んでいる日は変えない。帯のタスク／メモで置き換えていた右ページは元へ戻す。
@@ -2070,9 +2620,77 @@ function setSpreadType(t) {
   say(ttOn() ? `今日と明日の見開きにしました。${dayLabel(state.selected)}と${dayLabel(addDays(state.selected, 1))}。` : '左右のページの見開きに戻しました。');
 }
 // 1日ページのノート欄をたたく: 帯の「ノート」と同じく右ページをノートにして、第17版の「この日のノート」の規則（0件=新規、1件=開く、複数=絞った一覧）で開く。
-async function ttOpenNote(day) {
-  if (layoutKind() === 'spread') set({ strip: 'memo', lastSide: 'right' }); else showNotePage();
-  await openDayNote(day);
+async function ttOpenNote(day, btn) {
+  // 第19版 PR9: 1日ページのノート欄をたたくと、そのページの上にノートのシートが下から出る（design/27 §2）。複数あるときは今までどおり一覧。
+  if (!day || NB.blocked || dayNoteBusy || NB.sheet || sheetBusy || curlBusyNow()) return;
+  let all; try { all = await db.listNotes(); } catch { say('ノートを読み込めませんでした。'); return; }
+  const occ = dateOccupants(all, day, null);
+  if (occ.length > 1) {
+    if (layoutKind() === 'spread') set({ strip: 'memo', lastSide: 'right' }); else showNotePage();
+    await openDayNote(day); return;
+  }
+  const r = btn?.getBoundingClientRect?.();
+  const side = r && r.width && (r.left + r.right) / 2 > L.w / 2 ? 'right' : 'left';
+  await openNoteSheet(occ.length === 1 ? occ[0].id : null, day, side);
+}
+// ---------- ノートのシート（第19版 PR9、design/27 §2・§8）。常設のエディタ（NB.ed）を下から出るシートに置く ----------
+let sheetBusy = false;
+const curlBusyNow = () => !!ttCurl?.busy?.();
+const SHEET_EL = (() => { const d = document.createElement('div'); d.className = 'nsheet'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', 'ノート'); d.hidden = true; document.body.append(d); return d; })();
+// 位置・帯・本文の窓（design/27 §2.1〜§2.3）。シートの下端は kbTop（書式のシートが出ている間は開く前の kbTop に止める）。
+function sheetGeometry(side) {
+  const W = L.w, H = L.h, kind = layoutKind();
+  const kbT = kbTopOf(window.visualViewport, window.innerHeight);
+  let bottom = NB.sheet?.fs != null ? NB.sheet.fs : (de.dataset.kb && kbT !== null ? kbT : H);
+  bottom = Math.min(bottom, H);
+  const g = { x: 0, y: 152, w: W, pl: 12, pr: 12, bml: 12, bmr: Math.max(0, W - 20 - 342 - 8), kind };
+  if (kind === 'spread') {
+    const pw = (W - 20) / 2 - 8; // 左ページ（457.5）
+    if (side === 'left') Object.assign(g, { x: 8, y: 64, w: pw, pl: 12, pr: 9.5, bml: 8, bmr: 8 });
+    else { const rw = pw - 92; Object.assign(g, { x: W / 2 + 10, y: 64, w: W - (W / 2 + 10), pl: 12, pr: 12, bml: 8, bmr: Math.max(0, (W - (W / 2 + 10)) - 16 - (rw - 32) - 8) }); }
+  } else if (kind === 'open') {
+    const y = 130; const gy0 = cssPx('--groove-y0', 467);
+    Object.assign(g, { x: 0, y, w: W, pl: 16, pr: 16, bml: 20, bmr: 20 });
+    g.bottom = Math.min(bottom, gy0);
+  }
+  g.bottom ??= bottom;
+  return g;
+}
+function placeNoteSheet() {
+  if (!NB.sheet) return;
+  const g = sheetGeometry(NB.sheet.side), st = SHEET_EL.style;
+  st.left = `${g.x}px`; st.top = `${g.y}px`; st.width = `${g.w}px`; st.height = `${Math.max(120, g.bottom - g.y)}px`;
+  st.setProperty('--ns-pl', `${g.pl}px`); st.setProperty('--ns-pr', `${g.pr}px`); st.setProperty('--ns-bml', `${g.bml}px`); st.setProperty('--ns-bmr', `${g.bmr}px`);
+  SHEET_EL.dataset.kind = g.kind; SHEET_EL.dataset.side = NB.sheet.side;
+  const fs = NB.ed?.fsheetEl; if (fs) { fs.style.setProperty('--ns-x', `${g.x}px`); fs.style.setProperty('--ns-w', `${g.w}px`); }
+}
+async function openNoteSheet(id, day, side) {
+  sheetBusy = true;
+  try {
+    if (NB.ed && NB.cur) { const ok = await NB.ed.leave(); if (ok === false) return; NB.cur = null; NB.dp = null; }
+    const fresh = id == null;
+    if (fresh) id = await createDayNote(day);
+    const ed = noteEditor();
+    NB.sheet = { id, day, side, fs: null };
+    SHEET_EL.hidden = false; SHEET_EL.classList.remove('closing'); SHEET_EL.append(ed.el);
+    placeNoteSheet();
+    render(); // 週の帯・ノート欄の描き直し（シートの外はそのまま見える）
+    await ed.open(id);
+    if (fresh) { ed.bodyEl.focus({ preventScroll: true }); const n = ed.bodyEl.value.length; ed.bodyEl.setSelectionRange(n, n); }
+    say('ノートを開きました。');
+  } finally { sheetBusy = false; }
+}
+async function closeNoteSheet() {
+  const sh = NB.sheet; if (!sh) return true;
+  const ed = NB.ed;
+  if (ed) { ed.closeFs?.(false); const ok = await ed.leave(); if (ok === false) return false; }
+  NB.sheet = null;
+  SHEET_EL.classList.add('closing');
+  const fin = () => { if (NB.sheet) return; SHEET_EL.hidden = true; SHEET_EL.classList.remove('closing'); if (ed && SHEET_EL.contains(ed.el)) ed.el.remove(); };
+  setTimeout(fin, reduced() ? 150 : 250);
+  invalidateNoteList(); NB.cur = null; render();
+  document.activeElement?.blur?.();
+  return true;
 }
 // 見開きの切替。左右で同じ種類になるときは入れ替わる。最後に触ったページを記録（＋の行き先）。
 function pickPage(side, id) {
@@ -2178,28 +2796,34 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'remtimeon') { const a = RM.add; if (a.due === null) return; a.time = a.time ? '' : '09:00'; render(); root.querySelector('[data-act="remtimeon"]')?.focus({ preventScroll: true }); }
   else if (d.act === 'remth') { const a = RM.add; haptic('light').catch(() => {}); a.time = withHm(a.time, Number(d.h), null); render(); root.querySelector(`[data-act="remth"][data-h="${d.h}"]`)?.focus({ preventScroll: true }); }
   else if (d.act === 'remtm') { const a = RM.add; haptic('light').catch(() => {}); a.time = withHm(a.time, null, Number(d.m)); a.pop = null; a.focus = true; render(); }
+  else if (d.act === 'lchip') { RS.chip = d.list; render(); root.querySelector(`[data-act="lchip"][data-list="${d.list}"]`)?.focus({ preventScroll: true }); }
+  else if (d.act === 'remdest') { openDestPage(addDestKey(), (id) => { RM.add.listId = id; RM.add.focus = true; render(); }); }
+  else if (d.act === 'stalled') { openMenu(); showMenuScreen('reminders', true); }
+  else if (d.act === 'remwait') { notice('次に開いたときに、もう一度リマインダーへ送ります。', null, 3000); }
   else if (d.act === 'remdone') { RM.doneOpen = !RM.doneOpen; render(); root.querySelector('[data-act="remdone"]')?.focus({ preventScroll: true }); }
   else if (d.act === 'remmore') { RM.histDays += HIST_DAYS; RM.more = true; render(); root.querySelector('[data-act="remmore"]')?.focus({ preventScroll: true }); loadTasks(); }
   else if (d.date) {
-    const compact = ['home', 'browse'].includes(layoutKind()) || (isPortrait() && !panelOn());
+    const compact = !pullOn() && (['home', 'browse'].includes(layoutKind()) || (isPortrait() && !panelOn()));
     // 閉じた画面・開いた縦では選択日サイド（一覧）が無いので、日付選択でその日の日表示へ進む。
     set(compact && state.view === 'month' ? { selected: d.date, view: 'day' } : { selected: d.date });
     if (!compact && layoutKind() === 'spread' && PG().left === 'month' && PG().right === 'memo') filterNotesByDay(d.date); // 左の月の日で右のノート一覧を絞る
-  } else if (d.jump) set({ selected: d.jump, view: 'day' });
+  } else if (d.jump) set(pullOn() ? { selected: d.jump } : { selected: d.jump, view: 'day' });
+  else if (d.act === 'mptoday') { MP.anchor = ''; set({ selected: todayKey() }); }
+  else if (d.mday) { set({ monthDay: d.mday }); root.querySelector(`[data-mday="${d.mday}"]`)?.focus({ preventScroll: true }); }
   else if (d.event) openEditor(d.event, b);
   else if (d.new) openEditor(null, b, d.new);
   else if (d.act === 'add') addFromHere(b);
   else if (d.act === 'pnltoggle') setPanel(!state.pages.portraitShown);
   else if (d.act === 'spreadtype') setSpreadType(ttOn() ? 'pages' : 'tt');
-  else if (d.act === 'daynote') ttOpenNote(d.day);
+  else if (d.act === 'daynote') ttOpenNote(d.day, b);
   else if (d.act === 'pnlhide') setPanel(false);
   else if (d.act === 'pnlgrip') { if (performance.now() >= PN.swallow) setPanel(false); }
   else if (d.pnl) pickBottom(d.pnl);
   else if (d.act === 'strip') { if (STRIP.swallow && performance.now() < STRIP.swallow) { STRIP.swallow = 0; return; } STRIP.swallow = 0; toggleStrip(d.strip); }
   else if (d.act === 'allmonth') set({ monthExpand: !state.monthExpand });
   else if (d.act === 'today') set({ selected: todayKey() }); // 今日へ戻るのは選択日だけ。表示（一覧・日・週・月）は保つ
-  else if (d.act === 'prev') move(-1, d.pane);
-  else if (d.act === 'next') move(1, d.pane);
+  else if (d.act === 'prev') { if (!d.pane && !swiping && closedTv()) swipeTo(-1); else move(-1, d.pane); }
+  else if (d.act === 'next') { if (!d.pane && !swiping && closedTv()) swipeTo(1); else move(1, d.pane); }
   else if (d.act === 'noteback') noteBack();
   else if (d.act === 'notenew') noteNew();
   else if (d.nf) noteFolderAct(b);
@@ -2260,7 +2884,7 @@ async function loadSample() {
 const dlg = $('#editor'), confirmDlg = $('#confirm'), scopeDlg = $('#scope'), menuDlg = $('#menu'), searchDlg = $('#search'), backupDlg = $('#backup'), form = $('#form');
 const discardDlg = $('#discard'), scrim = $('#scrim');
 const xdDlg = $('#xdetail'), xrDlg = $('#xretry'), catsDlg = $('#cats'), notifyDlg = $('#notify'), taskDlg = $('#taskdlg');
-const panels = [dlg, confirmDlg, scopeDlg, discardDlg, menuDlg, searchDlg, backupDlg, xdDlg, xrDlg, catsDlg, notifyDlg, taskDlg];
+const panels = [dlg, confirmDlg, scopeDlg, discardDlg, menuDlg, searchDlg, backupDlg, xdDlg, xrDlg, catsDlg, notifyDlg, taskDlg, $('#rsheet')];
 const anyPanel = () => panels.some((d) => d.open);
 const syncInert = () => { root.inert = anyPanel(); };
 const origins = new Map();
@@ -2285,6 +2909,21 @@ catsDlg.addEventListener('close', () => {
 });
 menuDlg.addEventListener('close', () => { document.body.classList.remove('settings-open'); });
 menuDlg.addEventListener('cancel', (ev) => { ev.preventDefault(); menuBack(); });
+// 設定のクリック
+menuDlg.addEventListener('click', (ev) => {
+  if (ev.target.closest('#m-rssw, #m-rsopen, #m-rsdest, [data-rslist]')) ev._rs = true; // 下の設定の click に「閉じる」と扱わせない
+  if (ev.target.closest('#m-rssw')) { if (syncSet.enabled && RS.perm !== 'denied' && RS.perm !== 'restricted') rsOpen({ kind: 'off' }); else rsOpen({ kind: 'explain' }); return; }
+  if (ev.target.closest('#m-rsopen')) { openSettings(); return; }
+  if (ev.target.closest('#m-rsdest')) { openDestPage(addDestKeySettings(), (id) => { const l = rsLists().find((x) => x.id === id); setSyncSettings({ ...syncSet, addTo: l?.duo ? '' : id }); syncRsUi(); render(); }); return; }
+  const lb = ev.target.closest('[data-rslist]');
+  if (lb) {
+    if (lb.classList.contains('fixed')) return;
+    const id = lb.dataset.rslist, on = syncSet.lists.includes(id);
+    setSyncSettings({ ...syncSet, lists: on ? syncSet.lists.filter((x) => x !== id) : [...syncSet.lists, id], addTo: on && syncSet.addTo === id ? '' : syncSet.addTo });
+    if (on && RS.chip === id) RS.chip = 'all';
+    syncRsUi(); RM.sig = ''; render(); remSync.kick('lists', 0);
+  }
+});
 for (const d of [dlg, menuDlg, searchDlg, backupDlg, xdDlg, catsDlg, notifyDlg, taskDlg]) {
   d.addEventListener('close', () => {
     syncInert();
@@ -2384,13 +3023,16 @@ const dui = createDateUi({
 });
 const tui = createTimeUi({
   box: $('#dtbox'), start: $('#f-stime'), end: $('#f-etime'), badge: $('#f-eday'), dur: $('#f-dur'), pop: $('#tpop'),
-  rows: { start: $('#row-s'), end: $('#row-e') }, hours: $('#tp-h'), mins: $('#tp-m'), minNote: $('#tp-note'),
+  rows: { start: $('#row-s'), end: $('#row-e') }, hours: $('#tp-h'), mins: $('#tp-m'), title: $('#tp-title'), chips: $('#tp-chips'),
 }, {
   get: () => dt,
   buzz: () => { haptic('light').catch(() => {}); },
   setTime: (which, h, m) => { if (!dt) return; dt = (which === 'start' ? setStartTime : setEndTime)(dt, h, m); afterTimeEdit(); },
   setDuration: (min) => { if (!dt) return; dt = setDuration(dt, min); afterTimeEdit(); },
 });
+// 日付と時刻の小さな面は同時に開かない。カプセルに触れた瞬間に閉じると下の行が動いて押し損ねるので、触れた後（click）に相手を閉じる。
+for (const b of [F.start, F.end]) b.addEventListener('click', () => tui.close());
+for (const b of [$('#f-stime'), $('#f-etime')]) b.addEventListener('click', () => dui.close());
 // 繰り返しの終了日: 予定の日付と同じカプセル＋小さな月。値は F.runtil.value（「2026/12/31」。旧下書きと同じ形）。
 const holidayMemo = (k) => state.holidayRed && !!holidayOf(k);
 const untilUi = createDateField(F.runtil, {
@@ -2470,6 +3112,7 @@ function showEditor(values, id, focus = true) {
   if (NATIVE) refreshNotifyPerm().then(() => { if (dlg.open) updateAlarmUi(); });
   edBase = editSnap();
   dlg.show();
+  grooveSchedule();
   syncInert();
   syncScrim();
   if (focus) F.title.focus({ preventScroll: true });
@@ -2678,6 +3321,41 @@ F.all.addEventListener('change', () => {
   saveDraft();
 });
 $('#close').addEventListener('click', () => fadeClose(dlg, closeEditor));
+// 予定名の Return は保存せず次の行へ（design/20 §3）。次の行はカレンダー（なければ開始）。
+F.title.addEventListener('keydown', (ev) => {
+  if (ev.key !== 'Enter' || ev.isComposing || ev.keyCode === 229) return;
+  ev.preventDefault();
+  const nx = [$('#f-dest'), F.start].find((b) => b && !b.disabled && b.offsetParent);
+  if (nx) nx.focus({ preventScroll: false });
+});
+// 開いた縦: 溝（--groove-avoid-y0〜y1）に止まる行は、その行から下の面（avoid-y1）へ送る（design/20 §3）。
+// 本文を先頭にしたときの位置で決める。呼ぶたびに前の送りを消して引き直す（何度呼んでも同じ）。
+function editorGroove() {
+  const body = dlg.querySelector('.fbody');
+  if (!body) return;
+  const rows = [...body.querySelectorAll('.erow')];
+  const had = rows.some((r) => r.dataset.gpush);
+  for (const r of rows) { if (r.dataset.gpush) { r.style.marginTop = ''; delete r.dataset.gpush; } }
+  const y0 = parseFloat(de.style.getPropertyValue('--groove-avoid-y0')), y1 = parseFloat(de.style.getPropertyValue('--groove-avoid-y1'));
+  if (!dlg.open || !Number.isFinite(y0) || !Number.isFinite(y1) || !isPortrait()) return;
+  const st = body.scrollTop;
+  let shift = 0;
+  for (const r of rows) {
+    if (!r.offsetParent) continue;
+    const b = r.getBoundingClientRect();
+    const top = b.top + st + shift, bottom = b.bottom + st + shift;
+    if (bottom > y0 && top < y1) {
+      const push = Math.ceil(y1 - top);
+      r.style.marginTop = `${push}px`; r.dataset.gpush = '1'; shift += push;
+    }
+  }
+}
+let grooveRaf = 0;
+const grooveSchedule = () => { cancelAnimationFrame(grooveRaf); grooveRaf = requestAnimationFrame(editorGroove); };
+window.__editorGrooveNow = editorGroove;
+new ResizeObserver(grooveSchedule).observe(dlg);
+dlg.addEventListener('click', grooveSchedule);
+dlg.addEventListener('toggle', grooveSchedule);
 
 // ---------- 予定のポップアップを閉じる（08 §5）: 幕タップ・下に引く・0.2秒のフェード ----------
 // 未保存の変更の有無（開閉だけの ropen、遅れて決まる既定の追加先、自動曜日は数えない）。
@@ -2867,6 +3545,7 @@ function openTask(id, from) {
   if (!r || anyPanel()) return;
   if (fmode() === 'task') { FT.sel = id; render(); return; } // 集中タスクは下面の詳細で編集する（シートは開かない）
   TK = { ed: openTaskEditor(r, RM.data.lists), busy: false, gone: false, notify: undefined }; tkKey = r.itemId;
+  TK.ed.listRow = editListRow(r);
   $('#tk-body').innerHTML = taskEditorHtml(TK.ed);
   tkFields();
   tkUi();
@@ -2874,6 +3553,27 @@ function openTask(id, from) {
   const t = $('#tk-title'); (t.disabled ? $('#tk-close') : t).focus({ preventScroll: true });
 }
 let tkKey = '';
+// 編集シートの「リスト ›」。同期オンでつながっている件だけ（書けないリストは候補に出さない）
+function editListRow(r) {
+  const ui = listUi();
+  if (!ui?.active || !r.linked || r.recurring) return null;
+  const key = r.listId === syncSet.duoListId ? 'duo' : r.listId;
+  const l = ui.lists.find((x) => x.id === key);
+  return l ? { id: l.id, title: l.title, color: l.color } : { id: key, title: 'リスト', color: DUO_COLOR };
+}
+taskDlg.addEventListener('click', (ev) => {
+  if (!ev.target.closest('#tk-list') || !TK) return;
+  const id = TK.ed.itemId, cur = TK.ed.listRow?.id;
+  openDestPage(cur, async (to) => {
+    if (to === cur) return;
+    const l = rsLists().find((x) => x.id === to);
+    const r = await remSync.moveToList(id, l?.duo ? (l.realId || syncSet.duoListId) : to);
+    if (!r.ok) { say('リストを移せませんでした。'); notice('リストを移せませんでした。', null, 3000); return; }
+    RM.mut++; RM.sig = ''; await loadTasks();
+    const row = RM.data?.reminders.find((x) => x.itemId === id);
+    if (TK && row) { TK.ed.listRow = editListRow(row); const b = $('#tk-list'); if (b) { b.querySelector('.tklv').innerHTML = `<i class="ldot" style="background:${esc(TK.ed.listRow.color)}"></i>${esc(TK.ed.listRow.title)}`; } }
+  });
+});
 tkDrop = () => { if (taskDlg.open) closeTask(); };
 function closeTask() { tkKey = TK?.ed.itemId || tkKey; TK = null; closePanel(taskDlg); }
 taskDlg.addEventListener('close', () => {
@@ -2922,7 +3622,7 @@ async function commit(plan, { ops = [] } = {}) {
 // 送信待ちを作る入力（新系列の id がまだ確定していない np への操作も、確定後に送る操作として積める）。
 const opsCtx = (extra = {}) => ({ waiting: new Set(OBX.items.filter((o) => o.newParentId).map((o) => o.newParentId)), ...extra });
 const planOps = (prev, plan, scope, occKey, form, extra) => (NATIVE ? planNativeOps(prev, plan, scope, occKey, form, opsCtx(extra)) : { ops: [], plan });
-const SAVE_FAIL = 'もう一度お試しください。';
+const SAVE_FAIL = '保存できませんでした。もう一度お試しください。';
 
 let saving = false;
 form.addEventListener('submit', async (ev) => {
@@ -3189,6 +3889,7 @@ function openMenu(from) {
   syncRokuyoMenu();
   syncTaskMenu();
   syncCurlMenu();
+  refreshRs(); // 同期を使ったことがなければ native は呼ばない（許可の状態も読まない）
   $('#m-tlz').hidden = !root.querySelector('.tl');
   const cats = state.categories.filter((c) => !c.hidden);
   $('#m-legend').hidden = !cats.length;
@@ -3221,6 +3922,7 @@ function syncMonthMenu() {
 // タスクの設定（Web でも出す）。月の件数のスイッチと、固定の完了表示期間だけ。リスト・同期・許可の設定はない。
 function syncTaskMenu() {
   $('#m-tk').hidden = false;
+  syncRsUi();
   $('#m-tkmonth').setAttribute('aria-checked', String(remSet.monthTasks));
 }
 // めくりの方式（試作）：今のめくり（A）｜iOS のめくり（B）。iOS のアプリで DuoNative が新しいときだけ B を選べる
@@ -3252,6 +3954,7 @@ function syncModeMenu() {
   $('#m-variant').innerHTML = on ? variantBtns(isPortrait() ? 'portrait' : layoutKind()) : '';
 }
 menuDlg.addEventListener('click', (ev) => {
+  if (ev._rs) return;
   const mb0 = ev.target.closest('[data-m="tkmonth"]');
   if (mb0) { setRemSettings({ ...remSet, monthTasks: !remSet.monthTasks }); syncTaskMenu(); render(); say(`月にタスクを${remSet.monthTasks ? '表示します' : '表示しません'}。`); return; }
   if (calClick(ev)) return;
@@ -3288,7 +3991,7 @@ menuDlg.addEventListener('click', (ev) => {
 });
 menuDlg.addEventListener('change', (ev) => { if (ev.target.id === 'cat-target') calTarget = ev.target.value; });
 document.addEventListener('click', (ev) => {
-  if (menuDlg.open && !ev.composedPath().includes(menuDlg) && !ev.target.closest('[data-act="menu"]')) closePanel(menuDlg); // 中身を描き直してもメニュー内のクリックとして扱う
+  if (menuDlg.open && !ev.composedPath().includes(menuDlg) && !ev.composedPath().includes(rsDlg) && !ev.target.closest('[data-act="menu"], [data-act="stalled"]')) closePanel(menuDlg); // 中身を描き直してもメニュー内のクリックとして扱う
 });
 
 // ---------- カテゴリの名前・色の編集（設定 › カレンダー の編集モードから開く1枚。一覧・並べ替え・削除は設定側） ----------
@@ -3339,7 +4042,7 @@ async function catSave() {
   if (nameTaken(list, v.value.name, v.value.id)) { cs.err = 'ほかのカテゴリと同じ名前は使えません。'; renderCats(); CT.body.querySelector('#cat-name')?.focus({ preventScroll: true }); return; }
   if (!cs.id && list.length >= CAT_LIMITS.max) { cs.err = `カテゴリは最大${CAT_LIMITS.max}個までです。`; renderCats(); return; }
   cs.busy = true;
-  try { await commitCats({ catPuts: [v.value] }); } catch { cs.busy = false; cs.err = 'もう一度お試しください。'; renderCats(); return; }
+  try { await commitCats({ catPuts: [v.value] }); } catch { cs.busy = false; cs.err = 'カテゴリを保存できませんでした。もう一度お試しください。'; renderCats(); return; }
   cs.busy = false;
   calFocusId = v.value.id;
   closePanel(catsDlg);
@@ -3488,7 +4191,7 @@ function renderBackup() {
   const dis = bk.busy ? ' disabled' : '';
   const st = countStats(state.events);
   if (bk.stage === 'main') {
-    BK.body.innerHTML = `<section class="card"><h3>書き出し</h3><p>予定${st.total}件・うち繰り返し${st.recurring}件／設定も含めて保存（ノートとタスクも含みます。リマインダーのリスト・追加先・月の件数の設定は含みません）</p><button type="button" class="solid" id="bk-export"${dis}>JSONを書き出す</button><p class="small">iPhoneでは共有シートの『ファイルに保存』で残せます。</p>${bk.msg ? `<p class="bmsg">${esc(bk.msg)}</p>` : ''}</section>
+    BK.body.innerHTML = `<section class="card"><h3>書き出し</h3><p>予定${st.total}件・うち繰り返し${st.recurring}件／設定も含めて保存（ノートとタスク（リマインダーと同期しているものを含む）も入ります。リマインダーのリスト・追加先・月の件数の設定は含みません）</p><button type="button" class="solid" id="bk-export"${dis}>JSONを書き出す</button><p class="small">iPhoneでは共有シートの『ファイルに保存』で残せます。</p>${bk.msg ? `<p class="bmsg">${esc(bk.msg)}</p>` : ''}</section>
       <section class="card"><h3>読み込み</h3><p>書き出したJSONファイルから予定を戻します。</p><button type="button" id="bk-pick"${dis}>JSONファイルを選ぶ</button>${bk.busy ? '<p class="small" role="status">ファイルを検証しています…</p>' : ''}${bk.err ? `<p class="berr" role="alert">${esc(bk.err)}</p>` : ''}</section>`;
   } else if (bk.stage === 'invalid') {
     BK.body.innerHTML = `<section class="card"><h3>読み込めませんでした</h3><p class="berr" role="alert">このファイルは読み込めません。DuoのバックアップJSONを選んでください。</p><p class="small">ファイル：${esc(bk.name)}</p><p class="small">理由：${esc(bk.reason)}</p><p class="small">今の予定は変更していません。</p><button type="button" id="bk-pick">ファイルを選び直す</button><button type="button" id="bk-back" class="row cancel">戻る</button></section>`;
@@ -3778,7 +4481,7 @@ async function resumeExt() {
   if (X.cache && X.cache.tz !== new Date().getTimezoneOffset()) { X.cache = null; bumpRevision(); } // タイムゾーン変更: キャッシュ破棄
   await loadExt(true);
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (NATIVE) postureCtl?.refresh(); resumeExt(); requestNotifySync('resume'); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (NATIVE) postureCtl?.refresh(); resumeExt(); requestNotifySync('resume'); remSync?.kick('resume', 0); refreshRs(); } });
 
 // ---------- 設定 › カレンダー（Duo／iPhone のアカウント別／リマインダー。✓で表示を切り替える） ----------
 // ✓を変えても iPhone 側の予定・カレンダーは書き換えない（Duo の画面に出すかどうかだけ）。
@@ -3886,7 +4589,7 @@ async function calEditCommit(fn) {
   if (lk.catBusy) return false;
   lk.catBusy = true;
   let ok = true;
-  try { await commitCats(fn()); } catch { ok = false; say('もう一度お試しください。'); }
+  try { await commitCats(fn()); } catch { ok = false; say('カテゴリを保存できませんでした。もう一度お試しください。'); }
   lk.catBusy = false;
   return ok;
 }
@@ -3960,7 +4663,7 @@ async function calToggleCat(id, btn) {
     return;
   }
   lk.catBusy = true;
-  try { await commitCats({ catPuts: [{ ...c, hidden: !c.hidden, updatedAt: Date.now() }] }); } catch { say('もう一度お試しください。'); }
+  try { await commitCats({ catPuts: [{ ...c, hidden: !c.hidden, updatedAt: Date.now() }] }); } catch { say('カテゴリを保存できませんでした。もう一度お試しください。'); }
   lk.catBusy = false;
   renderCalScreen();
   $('#m-cal-duo').querySelector(`[data-cvis="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
@@ -4424,7 +5127,7 @@ async function undoPaste() {
   if (duo.length) {
     let r;
     try { r = await db.applyUndo({ items: duo, mk: (raw) => undoLinkedOp(raw, Date.now()), outbox: (cur, ops) => mergeOps(cur, ops, OBX.inflight) }); } catch {
-      say(SAVE_FAIL); undoRec = rec; armUndo(rec, left); return; // 何も消えていない。残り時間で再度押せる
+      say('元に戻せませんでした。もう一度お試しください。'); undoRec = rec; armUndo(rec, left); return; // 何も消えていない。残り時間で再度押せる
     }
     OBX.items = r.list;
     const gone = new Set(r.deleted);
@@ -4883,9 +5586,13 @@ function openNotifyTarget({ day, eventId }) {
   MM.open = null;
   set({ selected: day, home: false, view: spreadKind ? 'month' : 'day', ...(needTime ? { pages: selectPage(state.pages, 'right', 'time') } : {}) });
   if (!target) { say(`${dayLabel(day)}を開きました。`); return; }
-  const sel = spreadKind ? '.page[data-page="time"] .tlev, .page[data-page="time"] .adpill' : '.daylist .event, .tlx .tlev, .tlx .adpill';
-  const el = [...root.querySelectorAll(sel)].find((b) => b.dataset.event === target.id && (!b.dataset.sday || b.dataset.sday === day));
-  if (el) {
+  const sel = spreadKind ? '.page[data-page="time"] .tlev, .page[data-page="time"] .adpill' : '.daylist .event, .tlx .tlev, .tlx .adpill, .fold .tlev, .fold .adpill';
+  const els = [...root.querySelectorAll(sel)].filter((b) => b.dataset.event === target.id && (!b.dataset.sday || b.dataset.sday === day));
+  const el = els[0];
+  if (el && el.closest('.fold')) { // 開いた縦の日・週: 紙をその予定の少し前まで動かす（上下の窓の同じ予定にしるしを付ける）
+    if (el.dataset.s) foldScrollTo(Math.max(0, (Number(el.dataset.s) * FOLD_HH) / 60 - FOLD_HH));
+    els.forEach((b) => { b.classList.add('nhl'); setTimeout(() => b.classList.remove('nhl'), 1600); });
+  } else if (el) {
     const tl = el.closest('.tl');
     if (tl) tl.scrollTop = Math.max(0, tl.scrollTop + el.getBoundingClientRect().top - tl.getBoundingClientRect().top - 40);
     else el.scrollIntoView({ block: 'nearest' });
@@ -4920,7 +5627,7 @@ async function runNotifySync(gen) {
     N.perm = st?.status || null;
     if (!NOTIFY_OK.includes(N.perm)) { N.scheduled = null; return; } // 許可はここでは要求しない
     let tasks = [];
-    try { tasks = await db.listTasks(); } catch { tasks = []; } // 読めなくても予定の通知は予約する
+    try { tasks = liveTasksOf(await db.listTasks()); } catch { tasks = []; } // 読めなくても予定の通知は予約する
     if (gen !== N.gen) return;
     const { items } = planNotifications(state.events, new Date(), n, { visible: duoVisible(), tasks });
     if (gen !== N.gen) return;
@@ -4939,14 +5646,39 @@ const notifyPermissionChanged = () => requestNotifySync('permission');
 postureCtl = createPosture({
   call, listen, el: document.documentElement,
   eligible: () => !['home', 'browse'].includes(layoutKind()),
-  onChange: () => { updateKbMetrics(); applyKbLayout(); },
+  portrait: () => isPortrait(), // 溝 --groove-* は開いた縦のときだけ（D2）
+  onChange: () => { updateKbMetrics(); applyKbLayout(); updateFoldProbe(); if (dlg.open) grooveSchedule(); },
 });
+// ?foldprobe=1：溝 [g0, g1] の一時表示（TP-25-1）。審査版（KB_METRICS_ENABLED=false）では出さない。
+function updateFoldProbe() {
+  let box = document.getElementById('foldprobe');
+  if (!KB_METRICS_ENABLED || new URLSearchParams(location.search).get('foldprobe') !== '1') { box?.remove(); return; }
+  const g = isPortrait() && postureCtl ? (postureCtl.groove || { g0: 467, g1: 484, source: 'fallback' }) : null;
+  if (!box) {
+    box = document.createElement('div'); box.id = 'foldprobe'; box.setAttribute('aria-hidden', 'true');
+    box.style.cssText = 'position:fixed;inset:0;z-index:99999;pointer-events:none;font:11px/1.4 ui-monospace,monospace';
+    document.body.appendChild(box);
+  }
+  const band = (a, b, c) => `<div style="position:absolute;left:0;right:0;top:${a}px;height:${Math.max(0, b - a)}px;background:${c}"></div>`;
+  const p = postureCtl?.effective ?? null, r = p?.regionRect;
+  const f = (n) => Math.round(n * 100) / 100;
+  let html = '';
+  if (g) { const b = grooveBands(g); html += band(b.cut[0], b.cut[1], 'rgba(0,120,255,.15)') + band(b.avoid[0], b.avoid[1], 'rgba(255,160,0,.2)') + band(g.g0, g.g1, 'rgba(255,0,0,.35)'); }
+  const txt = g ? `groove g0 ${f(g.g0)} g1 ${f(g.g1)} ${g.source} · avoid ${f(g.g0 - 8)}〜${f(g.g1 + 8)} · cut ${f(g.g0 - 9)}〜${f(g.g1 + 16)}` : 'groove null（開いた縦ではない）';
+  const vv = window.visualViewport;
+  html += `<div style="position:absolute;left:4px;top:4px;background:rgba(0,0,0,.7);color:#fff;padding:3px 6px;border-radius:4px">${txt}<br>available ${p?.available ?? '—'} folded ${p?.folded ?? '—'} axis ${p?.axis ?? '—'} status ${p?.status ?? '—'} source ${p?.source ?? '—'}<br>regionRect ${r ? `y${f(r.y)} h${f(r.height)}` : '—'} · ${window.innerWidth}×${window.innerHeight} scale ${f(vv?.scale ?? 1)}</div>`;
+  box.innerHTML = html;
+}
+window.addEventListener('resize', () => updateFoldProbe());
+updateFoldProbe();
 window.__posture = postureCtl; // 手動「折り」代替とテスト用
 async function initNative() {
   if (!NATIVE) return;
   postureCtl.start(); // 権限処理より前に購読→取得。失敗・未対応でも起動を止めない
   // 連携オフ・カレンダー権限なしでも通知は動くので、購読は権限確認より前に行う。
-  listen('calendarChanged', () => { clearTimeout(extTimer); extTimer = setTimeout(() => { if (extActive()) loadExt(true); }, 300); });
+  listen('calendarChanged', () => { remSync?.kick('changed'); clearTimeout(extTimer); extTimer = setTimeout(() => { if (extActive()) loadExt(true); }, 300); });
+  remSync?.kick('start', 0); // 同期がオンのときだけ動く（オフでは何も呼ばない）
+  refreshRs(); // 一度でも同期をオンにした人だけ、許可とリストを読む（止まっている 1 行の判定）
   listen('notificationTapped', onNotifyTap);
   listen('notificationPresented', () => requestNotifySync('fired')); // 前面で鳴ったら次の予約を補充（既存の debounce・直列・世代処理）
   listen('timeChanged', () => { X.cache = null; bumpRevision(); requestNotifySync('time'); if (extActive()) loadExt(true); else render(); });
@@ -4977,6 +5709,7 @@ document.addEventListener('keydown', (ev) => {
   if (MM.open && !anyPanel()) { closeMini(); return; }
   if (TLM.open && !anyPanel()) { const sd = TLM.open; TLM.open = null; render(); root.querySelector(`[data-act="tlmenu"][data-pane="${sd}"]`)?.focus({ preventScroll: true }); return; }
   if (dlg.open && destPage.isOpen() && !scopeDlg.open && !confirmDlg.open && !discardDlg.open) { closeDestPop(); return; }
+  if (rsDlg.open) { if (!RS.sheet?.busy) rsClose(); return; }
   if (scopeDlg.open) cancelScope();
   else if (xrDlg.open) closePanel(xrDlg);
   else if (confirmDlg.open) cancelConfirm();
@@ -5018,11 +5751,12 @@ document.addEventListener('keydown', (ev) => {
 }
 
 // ---------- スワイプ（左＝次、右＝前） ----------
-const SWIPE_ZONE = '.scroll, .agenda, .remaining, .home, .hero, .page, .list, .tlx';
-const SWIPE_EXCLUDE = '.top, .shead, .rhead, .allday, .tlheads, .dgrip, .mmenu, .chead, .foot, .add, .tabs, .pgsw, .tlmenu, .dbox, .ctl, .bandbg, .hline, .foldband, .gutter, input, select, textarea, label, dialog';
+const SWIPE_ZONE = '.mgrid, .mday, .scroll, .agenda, .remaining, .home, .hero, .page, .list, .tlx, .fold';
+const SWIPE_EXCLUDE = '.mgrab, .mph, .top, .shead, .rhead, .allday, .tlheads, .dgrip, .mmenu, .chead, .foot, .add, .tabs, .pgsw, .tlmenu, .dbox, .ctl, .bandbg, .hline, .foldband, .gutter, input, select, textarea, label, dialog';
 let swiping = false;
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const paneContent = () => [...root.querySelectorAll('.dpage > *, .scroll > *, .agenda > *, .hero > *, .remaining > *, .margin > *')];
+const paneContent = () => [...root.querySelectorAll('.mgrid, .mday > *, .dpage > *, .scroll > *, .agenda > *, .hero > *, .remaining > *, .margin > *, .tlx > .tlw, .fold .fani')];
+const closedTv = () => layoutKind() === 'browse' && !state.strip && viewNow() !== 'month'; // 閉じた日・週（design/28 §1）
 
 // 見開きでは、なぞり始めたページ（左 'left' / 右 'right'）で動きを決める。月＝月送り、時間＝日送り（時間の週は7日）、タスク＝動かない。
 let swipePane = null;
@@ -5041,18 +5775,20 @@ function swipeMove(dir) {
 }
 async function swipeTo(dir) {
   if (swiping) return;
-  if (reduced()) { swipeMove(dir); return; }
+  if (reduced() && !closedTv()) { swipeMove(dir); return; }
   swiping = true;
   document.documentElement.dataset.swiping = '1';
-  const dur = ttOn() ? 125 : 100; // 今日＋明日の横すべりは出入り合わせて 0.25 秒（今の型は 0.1＋0.1 のまま）
+  const tvw = closedTv() || foldOn();
+  const dur = reduced() ? 75 : ttOn() || tvw ? 125 : 100; // 今日＋明日・閉じた日／週の横すべりは出入り合わせて 0.25 秒（今の型は 0.1＋0.1）。視差を減らすときは 0.15 秒のフェード
+  const sh = reduced() ? 0 : 32;
   try {
     const out = paneContent().map((el) => el.animate(
-      [{ transform: 'translateX(0)', opacity: 1 }, { transform: `translateX(${-dir * 32}px)`, opacity: 0 }],
+      [{ transform: 'translateX(0)', opacity: 1 }, { transform: `translateX(${-dir * sh}px)`, opacity: 0 }],
       { duration: dur, easing: 'ease-in', fill: 'forwards' }));
     await Promise.all(out.map((a) => a.finished));
     swipeMove(dir);
     const back = paneContent().map((el) => el.animate(
-      [{ transform: `translateX(${dir * 32}px)`, opacity: 0 }, { transform: 'translateX(0)', opacity: 1 }],
+      [{ transform: `translateX(${dir * sh}px)`, opacity: 0 }, { transform: 'translateX(0)', opacity: 1 }],
       { duration: dur, easing: 'ease-out' }));
     await Promise.all(back.map((a) => a.finished));
   } catch { /* アニメーションが中断されても状態は保つ */ } finally { swiping = false; delete document.documentElement.dataset.swiping; }
@@ -5060,7 +5796,7 @@ async function swipeTo(dir) {
 const swipeCtl = initSwipe({
   root,
   canStart: (t) => {
-    if (anyPanel() || swiping || !(t instanceof Element) || !t.closest(SWIPE_ZONE) || t.closest(SWIPE_EXCLUDE)) return false;
+    if (anyPanel() || NB.sheet || swiping || !(t instanceof Element) || !t.closest(SWIPE_ZONE) || t.closest(SWIPE_EXCLUDE)) return false;
     if (ttSpreadOn() && ttCurl?.mode() !== 'slide') return false; // 今日＋明日の見開き：端 24 のめくり（または入れ替え）に任せる。端の外の横スワイプでは日を送らない
     const pg = pageOf(t);
     swipePane = null;
@@ -5100,13 +5836,172 @@ const natCurl = createNativeCurl({
 });
 ttCurl = createCurl({
   root, metrics: ttMetrics, pages: ttPainter(), swipe: swipeCtl, reduced, native: natCurl,
-  enabled: () => ttSpreadOn() && !TT.drag && !anyPanel(),
+  enabled: () => ttSpreadOn() && !TT.drag && !anyPanel() && !NB.sheet,
   canStart: curlCanStart,
   onTurn: (dir) => { swipePane = null; swipeMove(dir); }, // state.selected を ±2 日にして render()（今日＋明日の日送りと同じ）
 });
 
 // ---------- 直接入力の起点（PR24 の共通制御へ PR25 で時間軸を接続。月・チップは PR26 以降） ----------
 // 既存予定・操作部品・入力欄の上は null。時刻座標のない行（旧一覧・余白）は時間入力にしない。
+// ---------- 予定を長押しでつかんで別の日へ落とす（第19版 PR8、design/21 §1.3。データは js/move-day.js） ----------
+// つかめるのは、月と同じ画面にある時間軸の枠・終日・一覧の行だけ（開いた横の月＋その日、開いた縦の月タブの下の面）。落とし先は月の日マス。
+const GRAB_SEL = '.tlev:not(.fev), .adpill, .mdev, .agrow';
+const moveDays = () => [...root.querySelectorAll('.week .day[data-date]')].filter((n) => n.getClientRects().length);
+const grabMonthOk = () => grabAllowed({ layout: layoutKind(), tt: ttOn(), pasting: PS.on, monthDays: moveDays().length });
+function grabOrigin(t) {
+  if (!grabMonthOk() || t.closest('.tabs, .mmenu, .tlmenu, .dbox')) return null;
+  const el = t.closest(GRAB_SEL); if (!el?.dataset.event) return null;
+  const from = el.dataset.sday || el.closest('[data-day]')?.dataset.day || null;
+  const tl = el.matches('.tlev') ? el.closest('.tl') : null;
+  return { kind: 'grab', id: el.dataset.event, el, from, tl };
+}
+const dayDiffKeys = (a, b) => Math.round((parseKey(a) - parseKey(b)) / 864e5);
+const hmOfIso = (iso) => Number(iso.slice(11, 13)) * 60 + Number(iso.slice(14, 16));
+const isoPlusMin = (iso, m) => { const t = hmOfIso(iso) + m; return `${iso.slice(0, 10)}T${pad(Math.floor(t / 60))}:${pad(t % 60)}`; };
+const GR = { on: false, o: null, chip: null, drop: '', off: 0, y0: 0, s0: 0, ext: null, gen: 0 };
+function moveDayAt(x, y) {
+  for (const n of document.elementsFromPoint(x, y)) { const d = n.closest?.('.week .day[data-date]'); if (d) return d.dataset.date; }
+  return null;
+}
+function grabPaintDrop(k) {
+  if (k === GR.drop) return;
+  root.querySelectorAll('.day.mdrop').forEach((n) => n.classList.remove('mdrop'));
+  GR.drop = k || '';
+  if (k) root.querySelectorAll(`.week .day[data-date="${k}"]`).forEach((n) => n.classList.add('mdrop'));
+}
+// つかんだ予定の情報（Duo は回を解いた形、iPhone は表示用）。時刻を動かせるのは Duo の時刻つき・1日内の予定の時間軸の枠だけ。
+function grabInfo() {
+  const o = GR.o, ext = visExt().find((x) => x.id === o.id);
+  if (ext) return { ext, title: ext.title, shift: false };
+  const cur = resolve(o.id); if (!cur) return null;
+  const occ = cur.occ, one = !occ.all && dayOf(occ.start) === dayOf(occ.end);
+  return { cur, title: occ.title, shift: !!o.tl && one, sMin: one ? hmOfIso(occ.start) : 0, eMin: one ? hmOfIso(occ.end) : 0 };
+}
+function grabRecalc() {
+  if (!GR.on) return;
+  if (!GR.o.el.isConnected) { // 描き直されたら、同じ予定の要素へ点線の枠を付け直す
+    const n = root.querySelector(`[data-event="${CSS.escape(GR.o.id)}"]${GR.o.from && GR.o.el.dataset.sday ? `[data-sday="${GR.o.from}"]` : ''}`);
+    if (n) { GR.o.el = n; n.classList.add('grabbed'); }
+  }
+  GR.chip.style.transform = `translate(${EG.x + 12}px, ${EG.y - 18}px)`;
+  const tl = GR.o.tl, g = grabInfo();
+  if (tl?.isConnected && g?.shift) {
+    const rc = tl.getBoundingClientRect(), er = GR.o.el.getBoundingClientRect(); // 時刻は、つかんだ枠の列の中で引いている間だけ動く（月へ向かう横の動きでは変わらない）
+    if (Math.abs(EG.x - GR.x0) <= 24 && EG.x >= er.left && EG.x < er.right && EG.y >= rc.top && EG.y < rc.bottom) {
+      const hh = hhOf(paneOf(tl)), dm = ((EG.y - GR.y0) + (tl.scrollTop - GR.s0)) / hh * 60;
+      const off = Math.min(1440 - g.eMin, Math.max(-g.sMin, Math.round(dm / 15) * 15));
+      if (off !== GR.off) { GR.off = off; feel('light'); }
+    }
+  }
+  const d = moveDayAt(EG.x, EG.y);
+  if (d !== (GR.drop || null)) { grabPaintDrop(d); if (d) feel('light'); }
+  GR.chip.textContent = g ? `${g.title}${g.shift ? ` ${hmText(g.sMin + GR.off)}〜${hmText(g.eMin + GR.off)}` : ''}` : '';
+}
+function grabClear() {
+  grabPaintDrop('');
+  GR.chip?.remove(); GR.chip = null;
+  root.querySelectorAll('.grabbed').forEach((n) => n.classList.remove('grabbed'));
+  document.documentElement.removeAttribute('data-grab');
+  GR.on = false; GR.o = null; GR.ext = null; GR.off = 0; GR.gen++;
+}
+function grabRefuse(msg) { // つかめない予定: 軽く震えて戻す
+  feel('warning'); directCtl?.cancel('refuse');
+  if (msg) notice(msg, null, 3000);
+}
+function grabStart(o, x, y) {
+  GR.o = o;
+  const g = grabInfo();
+  if (!g) { GR.o = null; directCtl?.cancel('gone'); return; }
+  if (g.ext) { // iPhone の予定: 書けない予定はつかめない（読み取り専用・誕生日は先に分かる。招待・出席者・詳細が取れないのは getEvent の返事で）
+    const cal = X.calendars.find((c) => c.id === g.ext.calId), pre = preReason(cal);
+    if (pre) { GR.o = null; grabRefuse(REASON_TEXT[pre]); return; }
+    const gen = ++GR.gen;
+    GR.ext = { gen, status: 'loading', cal };
+    call('getEvent', extTarget(g.ext)).then((d) => {
+      if (gen !== GR.gen || !GR.ext) return;
+      const ed = extEditable(g.ext, cal, d);
+      GR.ext = { ...GR.ext, status: ed.editable ? 'ok' : 'no', detail: d, ed, before: { ...toDisplay(d, cal), id: g.ext.id } };
+      if (!ed.editable) grabRefuse(REASON_TEXT[ed.reason] || null);
+    }).catch(() => { if (gen === GR.gen && GR.ext) { GR.ext.status = 'no'; grabRefuse('この予定は取得できませんでした。'); } });
+  }
+  Object.assign(GR, { on: true, drop: '', off: 0, x0: x, y0: y, s0: o.tl?.scrollTop ?? 0 });
+  o.el.classList.add('grabbed');
+  document.documentElement.dataset.grab = '1';
+  const chip = document.createElement('div'); chip.className = 'gchip'; chip.setAttribute('aria-hidden', 'true');
+  chip.style.setProperty('--cat', getComputedStyle(o.el).getPropertyValue('--cat') || '#294E42');
+  document.body.append(chip); GR.chip = chip;
+  feel('medium');
+  if (o.tl) edgeLoop.start();
+  grabRecalc();
+  say(`${g.title}をつかみました。月の日へ落とします。`);
+}
+// ---- 落とす
+const MV = { rec: null, timer: 0 };
+const mvDropUndo = () => { clearTimeout(MV.timer); MV.rec = null; };
+const dayText = (k) => `${parseKey(k).getMonth() + 1}月${parseKey(k).getDate()}日`;
+function moveDone(toDay, note, rec) {
+  mvDropUndo();
+  MV.rec = rec; MV.timer = setTimeout(() => { if (MV.rec === rec) MV.rec = null; }, UNDO_MS);
+  const msg = `${dayText(toDay)}へ移しました。${note || ''}`;
+  notice(msg, { label: '元に戻す', fn: undoMove }, UNDO_MS);
+  say(msg);
+}
+async function moveGrabbed(g, fromDay, toDay, off, st) {
+  if (g.ext) return moveExt(g, fromDay, toDay, st);
+  const { p, occKey, occ } = g.cur;
+  const occ2 = off ? { ...occ, start: isoPlusMin(occ.start, off), end: isoPlusMin(occ.end, off) } : occ;
+  const eff = addDays(dayOf(occ.start), dayDiffKeys(toDay, fromDay || dayOf(occ.start)));
+  const m = planMoveDuo(p, occ2, occKey, eff, newId);
+  const scope = occKey ? 'only' : 'all';
+  const form = { title: occ.title, categoryId: occ.categoryId, all: !!occ.all, place: occ.place || '', notes: occ.notes || '', ...(occ.alarms !== undefined ? { alarms: occ.alarms } : {}), recurrence: p.recurrence || null, start: m.after.start, end: m.after.end };
+  const { ops, plan } = planOps(p, { puts: m.puts, dels: m.dels }, scope, occKey, form);
+  try { await commit(plan, { ops }); } catch { feel('error'); say(SAVE_FAIL); notice(SAVE_FAIL); return; }
+  const moved = plan.puts.find((e) => e.id === p.id);
+  render();
+  moveDone(dayOf(m.after.start), m.note, { kind: 'duo', id: p.id, occKey, scope, start: occ.start, end: occ.end, stamp: moved.updatedAt });
+}
+async function moveExt(g, fromDay, toDay, st) {
+  const e = g.ext;
+  if (!st || st.status === 'loading') {
+    try { const d = await call('getEvent', extTarget(e)); const cal = X.calendars.find((c) => c.id === e.calId); st = { detail: d, cal, ed: extEditable(e, cal, d), before: { ...toDisplay(d, cal), id: e.id } }; } catch { feel('warning'); notice('この予定は取得できませんでした。'); return; }
+  }
+  if (st.status === 'no' || !st.ed?.editable) { feel('warning'); notice(REASON_TEXT[st.ed?.reason] || XD_NOTE); return; }
+  const eff = addDays(dayOf(st.before.start), dayDiffKeys(toDay, fromDay || dayOf(st.before.start)));
+  const mv = buildMoveExtArgs(st.before, eff, st.detail);
+  if (!mv) return;
+  let r;
+  try { r = await call('updateExternalEvent', mv.args); } catch (err) {
+    feel('error');
+    const code = errCode(err);
+    notice(code === 'NOT_FOUND' ? 'この予定は iPhone のカレンダーで削除されています。' : code === 'NOT_EDITABLE' || code === 'READ_ONLY' ? (REASON_TEXT[errReason(err)] || errText(err, SAVE_FAIL_X)) : SAVE_FAIL_X);
+    loadExt(true); return;
+  }
+  loadExt(true);
+  moveDone(dayOf(mv.after.start), mv.note, { kind: 'ext', before: st.before, moved: mv, reply: r, detail: st.detail });
+}
+async function undoMove() {
+  const rec = MV.rec; if (!rec) return;
+  mvDropUndo(); document.querySelector('#native-toast')?.remove();
+  if (rec.kind === 'ext') {
+    try {
+      const cur = await call('getEvent', extTarget({ ...rec.before, start: rec.moved.after.start, occurrenceDate: rec.before.occurrenceDate || rec.before.start }));
+      if (!extUndoAllowed(rec.reply?.modifiedAt, cur?.modifiedAt)) { notice(UNDO_CONFLICT_TEXT); return; }
+      const args = buildUndoExtArgs(rec.before, rec.moved, rec.reply, rec.detail);
+      if (args) await call('updateExternalEvent', args);
+    } catch { feel('error'); notice(UNDO_CONFLICT_TEXT); loadExt(true); return; }
+    loadExt(true); notice('元に戻しました。'); return;
+  }
+  const p2 = state.events.find((e) => e.id === rec.id);
+  if (!p2 || p2.updatedAt !== rec.stamp) { notice('変更されていたため、そのままにしました。'); return; }
+  const occ2 = rec.occKey ? occurrenceAt(p2, rec.occKey) : p2;
+  const u = planMoveDuoUndo(p2, occ2, { occKey: rec.occKey, start: rec.start, end: rec.end }, newId);
+  const form = { title: occ2.title, categoryId: occ2.categoryId, all: !!occ2.all, place: occ2.place || '', notes: occ2.notes || '', ...(occ2.alarms !== undefined ? { alarms: occ2.alarms } : {}), recurrence: p2.recurrence || null, start: rec.start, end: rec.end };
+  const { ops, plan } = planOps(p2, { puts: u.puts, dels: u.dels }, rec.scope, rec.occKey, form);
+  try { await commit(plan, { ops }); } catch { feel('error'); notice('元に戻せませんでした。もう一度お試しください。'); MV.rec = rec; MV.timer = setTimeout(() => { if (MV.rec === rec) MV.rec = null; }, UNDO_MS); return; }
+  render(); notice('元に戻しました。');
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) mvDropUndo(); });
+
 const DIRECT_ZONE_EXCLUDE = '.ev, .strip, .tlev, .dbox, button, input, select, textarea, label, dialog, .tlheads, .tlmenu, .mmenu, .tabs';
 function directOrigin(t) {
   if (anyPanel() || !(t instanceof Element)) return null;
@@ -5115,10 +6010,12 @@ function directOrigin(t) {
   const md = t.closest('.week .day[data-date]'); // 月の日マス（空白・数字）。帯・チップ・+N は別の要素なので起点にならない
   if (md && !t.closest('.tabs, .mmenu, .tlmenu')) return { kind: 'month', day: md.dataset.date, side: pageOf(md)?.side ?? null };
   if (t.closest('.week')) return null; // チップ・+N など月の他の要素は期間選択しない
+  const gr = grabOrigin(t); if (gr) return gr; // 時間軸の枠・終日・一覧の行をつかむ（第19版 PR8）。閉じた画面・今日＋明日・開いた縦の日・週タブでは出ない
   if (t.closest(DIRECT_ZONE_EXCLUDE)) return null;
   const ad = t.closest('.allday');
   if (ad) { const c = t.closest('.adcol'); return c ? { kind: 'allday', day: c.dataset.day } : null; } // 「終日」の文字や段の外は対象外
   const col = t.closest('.tlcol');
+  if (col && col.closest('.fl')) return { kind: 'time', day: col.dataset.day, pane: 'fold' };
   if (col && col.closest('.tl')) return { kind: 'time', day: col.dataset.day, pane: paneOf(col.closest('.tl')) };
   return null;
 }
@@ -5139,7 +6036,23 @@ function timeRecalc() {
 }
 const edgeLoop = createFrameLoop((dt) => {
   const o = EG.origin, bm = o?.kind === 'boxmove' && DF.mode === 'temp' && BM.moved;
+  if (o?.kind === 'grab') { // つかんだ枠: 時間軸の上下 40 で自動スクロール（1秒に2時間分）。指が軸の横の外なら動かさない
+    const tl = o.tl; if (!GR.on || !tl?.isConnected) return;
+    const rc = tl.getBoundingClientRect(); if (EG.x < rc.left || EG.x >= rc.right) { EG.carry = 0; return; }
+    const v = edgeVelocity(EG.y, rc.top, rc.bottom); if (!v) { EG.carry = 0; return; }
+    const d = v * dt + EG.carry, w = Math.trunc(d); EG.carry = d - w; if (!w) return;
+    const before = tl.scrollTop; tl.scrollTop = before + w; if (tl.scrollTop !== before) grabRecalc();
+    return;
+  }
   if (!o || !(bm || (o.kind === 'time' && DF.mode === 'drag'))) return;
+  if ((bm ? DF.pane : o.pane) === 'fold') { // 開いた縦: 外側の端だけ（上の窓の上 40・タブの上 40）。折り目の側ではしない。1秒に2時間分
+    const z = foldEdgeZone(FD.g, EG.y); if (!z) { EG.carry = 0; return; }
+    const d = z * FOLD_RATE * dt + EG.carry, w = Math.trunc(d); EG.carry = d - w;
+    if (!w) return;
+    const before = FD.s; foldScrollTo(before + w);
+    if (FD.s !== before) { if (bm) boxMoveRecalc(EG.y); else timeRecalc(); }
+    return;
+  }
   const tl = EG.tl?.isConnected ? EG.tl : (EG.tl = (bm ? colOf(DF.pane, DF.day) : colOf(o.pane, o.day))?.closest('.tl') ?? null);
   if (!tl) return;
   const rc = tl.getBoundingClientRect();
@@ -5174,6 +6087,7 @@ directCtl = initDirectInput({
   onStart: ({ origin: o, x, y }) => {
     EG.x = x; EG.y = y; EG.origin = o; EG.carry = 0; EG.tl = null;
     if (o.kind === 'chip') { openChipMenu(o.id, o.el); feel('light'); return; }
+    if (o.kind === 'grab') { grabStart(o, x, y); return; }
     if (o.kind === 'month') {
       Object.assign(MR, { mode: 'drag', anchor: o.day, cur: o.day, side: o.side }); paintRange(); feel('light');
       monthEdgeUpdate(); return;
@@ -5187,6 +6101,7 @@ directCtl = initDirectInput({
   },
   onMove: ({ x, y, origin: o }) => {
     EG.x = x; EG.y = y;
+    if (o.kind === 'grab') { grabRecalc(); return; }
     if (o.kind === 'month') {
       if (MR.mode !== 'drag') return;
       const k = dayAtPoint(x, y, monthScope());
@@ -5199,6 +6114,13 @@ directCtl = initDirectInput({
   },
   onEnd: ({ x, y, origin: o }) => {
     stopEdge();
+    if (o.kind === 'grab') {
+      if (!GR.on) return;
+      const day = moveDayAt(x, y), g = grabInfo(), off = GR.off, st = GR.ext;
+      grabClear();
+      if (day && g) moveGrabbed(g, o.from, day, off, st); // 月の日以外・溝の上で離したら取りやめ（元のまま）
+      return;
+    }
     if (o.kind === 'month') {
       if (MR.mode !== 'drag') return;
       const k = dayAtPoint(x, y, monthScope()); if (k) MR.cur = k;
@@ -5211,7 +6133,7 @@ directCtl = initDirectInput({
     const m = dragAt(y, o); if (m != null) Object.assign(DF, dragRange(DIR.anchor, m));
     openDraft();
   },
-  onCancel: () => { stopEdge(); if (DF.mode === 'drag') clearDraftBox(); if (MR.mode === 'drag') clearRange(); },
+  onCancel: () => { stopEdge(); if (GR.on) grabClear(); if (DF.mode === 'drag') clearDraftBox(); if (MR.mode === 'drag') clearRange(); },
 });
 // 回転・ページ破棄では入力中の枠を取り消す（指の下の座標系が変わるため）。
 window.addEventListener('orientationchange', () => directCtl?.cancel('rotate'));

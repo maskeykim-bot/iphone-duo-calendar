@@ -166,3 +166,21 @@ export function parseDateDigits(text, baseYear) {
   const k = `${String(y).padStart(4, '0')}-${p2(mo)}-${p2(dd)}`;
   return isDay(k) ? k : null;
 }
+
+// ---------- ダイヤルの輪（design/24） ----------
+// 時は 0〜23、分は 00〜55（5分刻み）を輪にしてつなぐ（23→0、55→00）。5分刻みでない分（14:07 の 07）は
+// 回すまで丸めず、輪の中の正しい位置に差し込む（… 05, 07, 10 …）。{ list, idx }（idx は今の値の位置）。
+export function dialRing(kind, cur) {
+  const list = kind === 'h' ? Array.from({ length: 24 }, (_, i) => i) : Array.from({ length: 12 }, (_, i) => i * 5);
+  let idx = list.indexOf(cur);
+  if (idx < 0 && Number.isInteger(cur) && cur >= 0 && cur <= (kind === 'h' ? 23 : 59)) {
+    idx = list.findIndex((v) => v > cur); if (idx < 0) idx = list.length;
+    list.splice(idx, 0, cur);
+  }
+  return { list, idx: Math.max(0, idx) };
+}
+// 輪を dir（+1／-1）だけ回した値（回したときだけ5分に寄る）。
+export function dialStep(kind, cur, dir) {
+  const { list, idx } = dialRing(kind, cur), n = list.length;
+  return list[(((idx + dir) % n) + n) % n];
+}

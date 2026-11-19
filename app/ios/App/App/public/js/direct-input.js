@@ -62,6 +62,8 @@ export function dayAt(x, y, rects) {
   for (const r of rects) if (x >= r.left && x < r.right && y >= r.top && y < r.bottom) return r.key;
   return null;
 }
+// 予定をつかめる画面か（第19版 PR8）。落とし先の月が同じ画面にあるときだけ：開いた横（今日＋明日でない）と開いた縦。閉じた画面・貼り付け中は不可。
+export const grabAllowed = ({ layout, tt = false, pasting = false, monthDays = 0 }) => !pasting && monthDays > 0 && ((layout === 'spread' && !tt) || layout === 'open');
 // 2つの日付キー（YYYY-MM-DD）から含む終了日の昇順 {start,end,days}。逆方向を正規化。
 export function dayRange(a, b) {
   const [s, e] = a <= b ? [a, b] : [b, a];

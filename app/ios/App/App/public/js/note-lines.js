@@ -34,7 +34,7 @@ export function lineAt(text, pos) {
   return i;
 }
 
-const prefixOf = (kind, p) => (kind === 'check' ? `${p?.indent || ''}- [${p?.checked ? 'x' : ' '}] ` : kind === 'bullet' ? `${p?.indent || ''}- ` : kind === 'heading' ? '# ' : '');
+const prefixOf = (kind, p) => (kind === 'check' ? `${p?.indent || ''}- [${p?.checked ? 'x' : ' '}] ` : kind === 'bullet' ? `${p?.indent || ''}- ` : kind === 'heading' ? '# ' : kind === 'heading2' ? '## ' : '');
 const bodyOf = (p) => p.text;
 const lineOf = (kind, p) => prefixOf(kind, p) + bodyOf(p);
 
@@ -49,7 +49,9 @@ export function applyFormat(text, selStart, selEnd, kind) {
   const parsed = texts.map(parseLine);
   const skip = (i) => texts[i] === '' && a !== b; // 複数行の選択では空行を飾らない
   const idx = []; for (let i = a; i <= b; i++) if (!skip(i)) idx.push(i);
-  const all = idx.length > 0 && idx.every((i) => parsed[i].kind === kind);
+  // 小見出し（第19版）は `## `。level 2 以上の見出しを「小見出し」とみなす。見出し（`# `）の切り替えは今のまま。
+  const isKind = (i) => (kind === 'heading2' ? parsed[i].kind === 'heading' && parsed[i].level >= 2 : kind === 'heading' ? parsed[i].kind === 'heading' && parsed[i].level === 1 : parsed[i].kind === kind);
+  const all = idx.length > 0 && idx.every(isKind);
   const to = all || kind === 'plain' ? 'plain' : kind;
   const out = texts.slice(), delta = texts.map(() => 0);
   for (const i of idx) { out[i] = lineOf(to, parsed[i]); delta[i] = out[i].length - texts[i].length; }

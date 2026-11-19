@@ -528,7 +528,7 @@ input,select,textarea,.date-text{font-size:16px}
 .spanbtn span{display:flex;align-items:center;justify-content:center;min-width:60px;width:60px;height:32px;padding:0;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);font-size:14px}
 /* 終日段（28px）: 月の線帯とは別 CSS。カテゴリの淡色地＋本色の太字 */
 .allday{display:flex;align-items:center;flex:none;height:28px;margin-bottom:max(4px,calc(32px * var(--ry,1) - 28px));min-width:0}
-.adl{flex:none;width:50px;font-size:11px;color:var(--muted)}
+.adl{flex:none;width:var(--lw,50px);font-size:11px;color:var(--muted)}
 .adcols{display:flex;flex:1;min-width:0}
 .adcol{display:flex;flex:1;gap:6px;min-width:0;overflow:hidden}
 .adpill,.adplus{height:28px;min-height:28px;padding:0 12px;border-radius:14px;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
@@ -536,7 +536,7 @@ input,select,textarea,.date-text{font-size:16px}
 .adpill:hover{background:var(--tint);filter:brightness(.95)}
 .adplus{flex:none;padding:0 8px;color:var(--muted);background:transparent}
 .tlheads{display:flex;flex:none;height:44px}
-.tlh0{flex:none;width:50px}
+.tlh0{flex:none;width:var(--lw,50px)}
 .tlhd{flex:1;min-width:0;height:44px;padding:0;font-size:13px;font-weight:700;border-radius:8px}
 .tlhd.today{color:var(--green)}
 .tlhd[aria-pressed=true]{background:var(--green);color:#fff}
@@ -544,10 +544,10 @@ input,select,textarea,.date-text{font-size:16px}
 .tl{flex:1;min-height:0;overflow-y:auto;overflow-x:clip;overscroll-behavior:contain;position:relative;touch-action:pan-y}
 .tl *{touch-action:pan-y}
 .tlin{position:relative;height:calc(24 * var(--hh) + 2 * 12px)}
-.hl{position:absolute;left:50px;right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:0;border-top:1px solid #dcd9cf}
+.hl{position:absolute;left:var(--lw,50px);right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:0;border-top:1px solid #dcd9cf}
 .hl.half{border-top:1px dotted #dcd9cf}
-.hlab{position:absolute;left:0;width:44px;top:calc(12px + var(--m) * var(--hh) / 60 - 9px);height:18px;font-size:12px;line-height:18px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
-.tlcols{position:absolute;left:50px;right:0;top:0;bottom:0;display:flex}
+.hlab{position:absolute;left:0;width:calc(var(--lw,50px) - 6px);top:calc(12px + var(--m) * var(--hh) / 60 - 9px);height:18px;font-size:12px;line-height:18px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.tlcols{position:absolute;left:var(--lw,50px);right:0;top:0;bottom:0;display:flex}
 .tlcol{position:relative;flex:1;min-width:0}
 .tlcol+.tlcol{border-left:1px solid #e8e5dc}
 .tlev{position:absolute;z-index:2;top:calc(12px + var(--m) * var(--hh) / 60);height:max(20px,calc(var(--d) * var(--hh) / 60 - 1px));min-height:20px;padding:1px 4px 1px 8px;border-radius:4px;background:var(--tint);color:var(--ink);box-shadow:inset 4px 0 0 var(--cat);
@@ -555,7 +555,7 @@ input,select,textarea,.date-text{font-size:16px}
 .tlev:hover{background:var(--tint);filter:brightness(.95)}
 .tlev .tt{margin-right:5px;font-weight:700;color:var(--cat)}
 .nowl{position:absolute;z-index:3;left:0;right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:0;pointer-events:none}
-.nowl:before{content:'';position:absolute;left:calc(50px + var(--i) * (100% - 50px) / var(--n));width:calc((100% - 50px) / var(--n));top:-.75px;height:1.5px;background:#D64541}
+.nowl:before{content:'';position:absolute;left:calc(var(--lw,50px) + var(--i) * (100% - var(--lw,50px)) / var(--n));width:calc((100% - var(--lw,50px)) / var(--n));top:-.75px;height:1.5px;background:#D64541}
 .nowt{position:absolute;left:0;top:-11px;width:46px;height:22px;border-radius:11px;background:#D64541;color:#fff;font-size:11px;font-weight:700;line-height:22px;text-align:center;font-variant-numeric:tabular-nums}
 body[data-layout=spread] .toastbar{left:var(--left-start);right:auto;width:calc(var(--left-end) - var(--left-start));margin:0}
 .menurows .tlz{display:flex;gap:4px;margin:2px 0 6px}.menurows .tlz button{flex:1;min-width:0;font-size:13px;padding:4px 6px}
@@ -844,7 +844,19 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .tlx .tl,.tlx .tl *{touch-action:pan-x pan-y}
 .tlx .allday,.tlx .tlheads{flex:none}
 .tlempty{flex:none;text-align:center}
-.closed .tlx{padding:0 4px}
+.closed .tlx{padding:0 8px}
+/* 第19版 PR5（design/28 §1）: 閉じた週＝見出し 48・日付の行 42・終日 24・時間軸 y114〜、日＝見出し 48・終日 32（時間軸 y80〜）。1時間 44 */
+.closed.tv .chead{height:48px;padding-bottom:0;align-items:center}
+.closed.tv-week .tlx{--lw:30px}
+.closed.tv-week .tlheads{height:42px;align-items:center}
+.closed.tv-week .tlhd{margin:-1px 0;border:0;flex:1 1 0;box-sizing:border-box}/* 行は 42、押せる範囲は 44（上下 1 はみ出す） */
+.closed.tv-week .tlcol{flex:1 1 0;box-sizing:border-box}
+.closed.tv-week .tlcol+.tlcol{border-left:0;box-shadow:inset 1px 0 #e8e5dc}
+.closed.tv-week .allday{height:24px;margin-bottom:0}
+.closed.tv-week .adl{font-size:10px}
+.closed.tv-day .allday{height:32px;margin-bottom:0}
+.closed.tv .hlab{font-size:11px}
+.closed.tv-week .nowt{width:30px;height:18px;top:-9px;border-radius:9px;font-size:9px;line-height:18px;letter-spacing:-.02em}
 .dbox{position:absolute;z-index:4;left:0;right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:calc(var(--d) * var(--hh) / 60);box-sizing:border-box;border:2px solid var(--cat);border-radius:6px;background:var(--tint);color:var(--cat);padding:1px 6px;overflow:visible;pointer-events:auto;touch-action:none}
 .dbox .dt{display:block;font-size:13px;line-height:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dbox .ds{display:block;font-size:11px;line-height:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1193,8 +1205,6 @@ dialog#menu #m-destpop{border-radius:inherit}
 .ned-chk[data-checked="1"] .ned-box { background: #294e42; border-color: #294e42; color: #fff; }
 .ned-mirror { position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none; box-sizing: border-box; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; border: 0; }
 .ned-mirror .ned-mline { min-height: 1lh; }
-.ned-fmt { display: flex; gap: 8px; padding: 0 8px; }
-.ned-fmt button:disabled { opacity: .4; }
 .ned-status { font-size: 12px; color: #b3261e; padding: 2px 8px; display: flex; gap: 8px; align-items: center; }
 .ned-status[hidden], .ned-trash[hidden], .ned-retry[hidden] { display: none; }
 .ned-bar { display: flex; gap: 8px; padding: 0 8px; }
@@ -1309,7 +1319,6 @@ html.kbl[data-kbl=note] .fpage .notepage{padding:0;flex:none}
 html.kbl[data-kbl=note] .nhost{position:fixed;left:0;right:0;top:var(--kl-ed-top);height:var(--kl-ed-h);z-index:3;background:var(--paper);overflow:hidden;box-sizing:border-box;padding:0 16px}
 html.kbl[data-kbl=note] .nhost .ned{height:100%}
 html.kbl[data-kbl=note] .ned-bodywrap{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-html.kbl[data-kbl=note] .ned-fmt{position:fixed;left:0;right:0;top:var(--kl-as-top);height:var(--kl-as-h);box-sizing:border-box;padding:var(--kl-as-pad) 16px 0;align-items:center;background:#E6E8EB;z-index:5}
 html.kbl[data-kbl=note] .ned-status,html.kbl[data-kbl=note] .ned-bar,html.kbl[data-kbl=note] .ned-trash{display:none}
 html.kbl[data-kbl=note] .nup{position:fixed;left:0;right:0;top:var(--kl-nu-top);height:var(--kl-nu-h);z-index:3;box-sizing:border-box;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 html.kbl[data-kbl=note][data-kbe=up] .nupb{min-height:32px;height:32px;position:relative}
@@ -1320,7 +1329,7 @@ html.kbl[data-kbl=note][data-kbnu="0"] .nup{display:none}
 .nupb{flex:none;max-width:70%;min-height:44px;padding:0 14px;border-radius:22px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);font-size:14px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
 html.kbl[data-kbe=dn] .nupb{max-width:none;width:100%;border-radius:8px;background:transparent;box-shadow:none;border-bottom:1px solid var(--line)}
 .nupe{font-size:13px;color:var(--muted)}
-@media (prefers-color-scheme:dark){ html.kbl .ftchips,html.kbl .ned-fmt{background:#2b2f2d} html.kbl[data-kbe=up] .nup{background:#262a28} }
+@media (prefers-color-scheme:dark){ html.kbl .ftchips{background:#2b2f2d} html.kbl[data-kbe=up] .nup{background:#262a28} }
 .ndchip{flex:none;position:relative;height:22px;min-height:22px;margin:0 0 0 6px;padding:0 8px;border-radius:11px;font-size:12px;line-height:22px;background:transparent;box-shadow:inset 0 0 0 1px var(--line);color:#68716A;white-space:nowrap}
 .ndchip::before{content:"";position:absolute;left:-4px;right:-4px;top:-11px;bottom:-11px}
 .ndchip.has{color:#294E42;box-shadow:inset 0 0 0 1px #8A7E5C}
@@ -1374,3 +1383,385 @@ html[data-curling] #app{user-select:none;-webkit-user-select:none}
 .mcurl .swnote{margin-top:0}
 .menurows .tlz.curleng button[aria-pressed="true"]{background:var(--green);color:#fff}
 .menurows .tlz.curleng button:disabled{opacity:.45}
+/* ===== 第19版 PR3: 予定の編集シート（design/20 §3・§3.1） ===== */
+dialog#editor{padding:0}
+#editor .formhead{height:44px;min-height:44px;padding:0 6px;gap:4px;border-bottom:0}
+#editor .formhead h2{flex:1;min-width:0;text-align:center;font:700 15px/1.3 -apple-system,'Hiragino Sans',system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#editor .formhead .caltag{margin-left:0}
+#editor .hbtn{position:relative;flex:none;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border:0;background:transparent;font-size:16px}
+#editor .hbtn::before{content:"";position:absolute;left:6px;top:6px;width:32px;height:32px;border-radius:50%;background:#EFECE4;z-index:-1}
+#editor .hbtn{isolation:isolate}
+#editor .hbtn.hok{color:#fff}
+#editor .hbtn.hok::before{background:var(--green)}
+#editor>form>.error{margin:0;padding:0 16px 4px;min-height:0}
+#editor .fbody{padding:0 16px 12px}
+#editor .erow{min-height:44px;margin:0;box-sizing:border-box}
+#editor input.etitle{height:44px;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent;padding:0 4px;font-size:17px}
+#editor .destrow{margin-top:0}
+#editor .destbtn{height:44px;padding:0 4px;background:transparent;border:0;border-bottom:1px solid #eeeae0;border-radius:0;font-size:15px}
+#editor .dtbox{margin:0;padding:0;background:transparent;border:0;border-radius:0}
+#editor .dtrow{gap:8px;min-height:44px;border-top:0;border-bottom:1px solid #eeeae0;padding:0 4px}
+#editor .dtrow+.dtrow{border-top:0}
+#editor .dtk{flex:1 1 auto;width:auto;font-size:15px;white-space:nowrap}
+#editor .dtrow .dtk{flex:1 1 auto}
+#editor .dcap{flex:none;width:130px;min-width:130px;height:32px;padding:0 8px;border-radius:8px;background:#EFECE4;font-size:15px;position:relative}
+#editor .tcap{flex:none;width:72px;height:32px;border-radius:8px;background:#EFECE4;font-size:15px;font-weight:700}
+#editor .dcap::after,#editor .tcap::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+#editor .dcap.open,#editor .tcap.open{background:#EFECE4;color:#293B35;box-shadow:inset 0 0 0 1.5px var(--green)}
+#editor .capin.dcap-in{flex:none;width:130px;min-width:130px}
+#editor .capin.tcap-in{flex:none;width:72px}
+#editor .dbadge{position:static;flex:none;height:auto;padding:0;background:transparent;color:#87500F;font-size:11px;line-height:1;margin-right:-3px}
+#editor .dtrow.dlen{min-height:44px;overflow:hidden}
+#editor .dlen .dtk{flex:none}
+#editor .durs{flex:1 1 auto;min-width:0;flex-wrap:nowrap;justify-content:flex-start;overflow-x:auto;overflow-y:hidden;gap:6px;padding:0 0 0 12px;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+#editor .durs::-webkit-scrollbar{display:none}
+#editor .dchip{position:relative;flex:none;height:28px;min-height:28px;min-width:0;padding:0 11px;border:1px solid #DCD7CB;border-radius:14px;background:#fff;font-size:13px;white-space:nowrap}
+#editor .dchip::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
+#editor .dchip[aria-pressed=true]{background:var(--green);border-color:var(--green);color:#fff;font-weight:700}
+#editor label.check{display:flex;align-items:center;gap:8px;padding:0 4px;border-bottom:1px solid #eeeae0;font-size:15px}
+#editor input[type=checkbox][role=switch]{-webkit-appearance:none;appearance:none;flex:none;position:relative;width:51px;height:31px;min-height:31px;margin:0;padding:0;border:0;border-radius:16px;background:#E4E0D6;transition:background .2s}
+#editor input[type=checkbox][role=switch]::before{content:"";position:absolute;left:2px;top:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0003;transition:transform .2s}
+#editor input[type=checkbox][role=switch]:checked{background:var(--green)}
+#editor input[type=checkbox][role=switch]:checked::before{transform:translateX(20px)}
+#editor .alwrap{margin:0}
+#editor .alrow{height:auto;min-height:44px;padding:0 4px;background:transparent;border:0;border-bottom:1px solid #eeeae0;border-radius:0}
+#editor .alrow+.alrow{margin-top:0}
+#editor .repeat{margin:0;border-top:0}
+#editor .rtoggle{min-height:44px;padding:0 4px;border-bottom:1px solid #eeeae0;font-size:15px}
+#editor .eplace{display:flex;align-items:center;gap:8px;padding:0 4px;border-bottom:1px solid #eeeae0;font-size:15px}
+#editor .eplace input{flex:1;min-width:0;min-height:44px;border:0;background:transparent;padding:0 0 0 8px;text-align:right;font-size:16px}
+#editor .enotes{display:block;padding:0 4px;font-size:15px}
+#editor .enotes .dtk{display:flex;align-items:center;min-height:44px}
+#editor .enotes textarea{margin-bottom:4px}
+#editor .ebottom{margin-top:8px}
+#editor .ebottom .danger{display:block;width:100%;height:44px;border:0;background:transparent;font-size:16px;font-weight:700}
+#editor .copyrow{margin-top:0}
+#editor .dtbox.allday{display:block;height:auto;margin:0}
+/* シートの下端はキーボードの上端 kbTop −8、上端は y12。キーボードがないときは今の高さ */
+html[data-kb] dialog#editor{top:calc(var(--rt) + 12px);bottom:calc(var(--vb) + 8px);margin:0 auto;height:auto;max-height:none}
+html[data-kb] body[data-layout=spread] dialog#editor{left:var(--right-start);right:calc(var(--layout-w) - var(--right-end));margin:0}
+html[data-kb] body[data-layout=desk] dialog#editor{top:calc(var(--rt) + 12px)}
+/* 高さは今までどおり最大（行が減っても、小さな面を開いたとき下の行や上端が跳ねない） */
+dialog#editor{height:calc(100% - var(--rt) - var(--rb) - 2 * var(--m))}
+body[data-layout=spread] dialog#editor{height:calc(100% - var(--pt) - var(--pb))}
+body[data-layout=desk] dialog#editor{height:calc(100% - var(--dt) - var(--db))}
+html[data-kb] dialog#editor,html[data-kb] body[data-layout=spread] dialog#editor,html[data-kb] body[data-layout=desk] dialog#editor{height:auto}
+#editor input.etitle:focus,#editor input.etitle:focus-visible{outline:none;box-shadow:none;border-bottom-color:var(--green)}
+
+/* ===== 第19版 PR4: 時刻のダイヤル（design/24）。閉じた画面は行のすぐ下（幅180・1段32・5段）、開いた横は左のページ、開いた縦は下の面（幅220・1段44・7段）。 ===== */
+#tpop{display:flex;flex-direction:column;align-items:center;padding:8px 0 10px;border-top:0;max-height:none;overflow:visible}
+#tpop[hidden]{display:none}
+#tpop .dial{position:relative;flex:none;display:flex;box-sizing:border-box;width:180px;height:calc(var(--rows,5) * var(--rowh,32px));background:#fff;border-radius:12px;box-shadow:0 0 0 1px #E4E0D6;overflow:hidden;animation:dialgrow .2s ease-out}
+@keyframes dialgrow{from{height:0;opacity:.3}}
+@media (prefers-reduced-motion:reduce){#tpop .dial{animation:none}}
+#tpop .dband{position:absolute;left:6px;right:6px;top:calc(50% - var(--rowh,32px) / 2);height:var(--rowh,32px);border-radius:8px;background:#EFECE4}
+#tpop .dcol{position:relative;flex:1 1 0;min-width:0;height:100%;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
+#tpop .dcol:focus-visible{outline:2px solid #294E42;outline-offset:-3px;border-radius:10px}
+#tpop .ditem{position:absolute;left:0;right:0;top:0;height:var(--rowh,32px);display:flex;align-items:center;justify-content:center;font-size:11px;color:#C3C6BF;font-variant-numeric:tabular-nums;pointer-events:none;will-change:transform}
+#tpop .ditem.d1{font-size:13px;color:#8C918A}
+#tpop .ditem.d0{font-size:17px;font-weight:700;color:#293B35}
+#tpop .dunit{position:absolute;top:50%;transform:translateY(-50%);font-size:10px;color:#8C918A;pointer-events:none}
+#tpop .uh{right:calc(50% + 8px)}#tpop .um{right:8px}
+#tpop .tfhead,#tpop .tfchips{display:none}
+#tpop.face{position:fixed;z-index:40;box-sizing:border-box;margin:0;padding:16px 0 12px;background:var(--paper);border-radius:16px;box-shadow:0 0 0 1px var(--line)}
+#tpop.face .tfhead{display:block;margin:0;font:700 15px/1.3 -apple-system,'Hiragino Sans',system-ui,sans-serif;color:#293B35}
+#tpop.face .dial{width:220px;margin-top:14px}
+#tpop.face .ditem{font-size:12px}#tpop.face .ditem.d1{font-size:15px}#tpop.face .ditem.d0{font-size:20px}
+#tpop.face .dunit{font-size:11px}
+#tpop.face .tfchips{display:flex;justify-content:center;flex-wrap:wrap;gap:6px;margin-top:14px;padding:0 12px}
+#tpop .tfchip{position:relative;box-sizing:border-box;flex:none;width:62px;height:28px;min-height:0;min-width:0;padding:0;border:1px solid #DCD7CB;border-radius:14px;background:#fff;color:#294E42;font-size:13px}
+#tpop .tfchip::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
+dialog.panel.tface-open{overflow:visible}
+.dtbox.dtlarge #tpop{max-height:none;overflow:visible}
+
+/* ===== 第19版 PR6（design/22）: 月を引く画面（閉じた画面と開いた縦の「月」タブ） ===== */
+.mpull{display:flex;flex-direction:column;min-width:0;min-height:0;flex:1}
+.mpull .mph{display:flex;align-items:center;flex:none;height:48px;padding:0 4px;gap:0}
+.closed.fb .mpull .mph{padding:0 48px}
+.mpull .mph h2{flex:1;min-width:0;margin:0;text-align:center;font:700 17px/1.2 -apple-system,'Hiragino Sans',sans-serif;white-space:nowrap}
+.mpull .mph button{flex:none;min-width:44px;height:44px;padding:0;font-size:22px}
+.mpull .mph .mptoday{min-width:52px;font-size:13px;font-weight:600;color:var(--green)}
+.mpull .mph.pasting{display:block;height:auto;padding:0}
+.mpull .weekdays{position:static;flex:none;height:20px;padding:0;align-items:center}
+.mpull .mgrid{flex:none;height:calc(var(--mp-row) * attr(data-nrows number,1));overflow:hidden;position:relative}
+.mpull[data-form=one] .mgrid{height:calc(var(--mp-row) * 1)}
+.mpull[data-form=two] .mgrid{height:calc(var(--mp-row) * 2)}
+.mpull[data-form=month] .mgrid{height:calc(var(--mp-row) * 6)}
+.mpull .week{height:var(--mp-row);flex:none;box-sizing:border-box;overflow:hidden}
+.mpull .week .day{height:var(--mp-row);justify-content:flex-start}
+.mpull .strip,.mpull .bar{height:var(--chip-h);min-height:var(--chip-h);line-height:var(--chip-h)}
+.mpull .bar:after{top:calc(var(--chip-h) - 3.5px)}
+.mpull .week .plus.pn{width:auto;height:var(--chip-h);min-width:0;min-height:0;padding:0 0 0 2px;justify-content:flex-start;align-items:center;font-size:8px;line-height:var(--chip-h);color:#8C918A;text-align:left}
+.mpull .mgrab{flex:none;position:relative;display:flex;align-items:center;justify-content:center;height:24px;min-height:24px;touch-action:none;cursor:ns-resize}
+.mpull .mgrab i{display:block;width:36px;height:4px;border-radius:2px;background:#B9B4A8}
+.mpull.dragging .mgrid{transition:none!important}
+.mpull .mgrid{transition:height .25s ease}
+.mpull .mday{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 8px calc(var(--end-pad-closed,56px) + 4px)}
+.mdh{display:flex;align-items:center;justify-content:space-between;height:44px;flex:none}
+.mdh h3{margin:0;font:700 15px/1.2 -apple-system,'Hiragino Sans',sans-serif;min-width:0}
+.mdsw{display:grid;grid-template-columns:1fr 1fr;width:132px;height:32px;flex:none;border-radius:16px;background:#EFECE4;padding:2px;box-sizing:border-box}
+.mdsw button{height:28px;min-height:28px;min-width:0;padding:0;border-radius:14px;background:transparent;font-size:12px;font-weight:600}
+.mdsw button[aria-pressed=true]{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.15)}
+.mdlist{display:flex;flex-direction:column}
+.mdev{display:flex;align-items:center;gap:8px;height:44px;min-height:44px;padding:0 4px;border-radius:0;background:transparent;text-align:left}
+.mdev .mdbar{flex:none;width:4px;height:16px;border-radius:2px;background:var(--cat)}
+.mdev .mdt{flex:none;width:44px;font-size:12px;color:#8C918A}
+.mdev strong{flex:1;min-width:0;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mdnone{display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px;color:#8C918A}
+.mdnone p{margin:0}
+.mdsec h4{margin:12px 0 4px;font-size:12px;color:#8C918A}
+.mdempty{font-size:13px;color:#8C918A}
+.mdnote{display:block;width:100%;text-align:left;min-height:44px}
+.mpull .mdbody .tl{overflow:visible;flex:none}
+.mpull .mdbody .tlin{margin-bottom:0}
+/* 開いた縦（22 §5）: 月は上の面（グリッド y146〜、つまみは溝の上の端 −6）、日は下の面（--groove-avoid-y1〜917）。下の面だけスクロール。 */
+.portrait.pull .pcol{height:auto;display:block}
+.portrait .mpull{padding:var(--head-h) 12px 0;box-sizing:border-box;display:block;flex:none}
+.portrait .mpull .mph{height:44px}
+.portrait .mpull .mph h2{font-size:19px}
+.portrait .mpull .mgrid{height:calc(var(--groove-avoid-y0,459px) - 16px - var(--head-h) - 64px)}
+.portrait .mpull .week{height:calc(100% / var(--rows,1))}
+.portrait .mpull[data-form=one] .week{height:100%}
+.portrait .mpull[data-form=two] .week{height:50%}
+.portrait .mpull[data-form=month] .week{height:calc(100% / 6)}
+.portrait .mpull .week .day{height:100%}
+.portrait .mpull .mgrab{position:absolute;left:0;right:0;top:calc(var(--groove-avoid-y0,459px) - 26px);height:calc(var(--groove-y0,467px) - var(--groove-avoid-y0,459px) + 26px);align-items:flex-end;padding-bottom:0}
+.portrait .mpull .mgrab i{margin-bottom:10px}
+.portrait .mpull .mday{position:fixed;left:var(--content-x);width:var(--content-w);box-sizing:border-box;top:var(--groove-avoid-y1,492px);bottom:34px;padding:0 12px 62px}
+.portrait .mdev{height:44px}.portrait .mdev .mdt{font-size:13px;width:52px}.portrait .mdev strong{font-size:15px}
+.portrait .mpull .mdh h3{font-size:17px}
+.mpull .mgrid{transition:none}
+.closed .mpull .mgrid{transition:height .25s ease}
+.mdsw button,.mdsw button:hover,.mdsw button[aria-pressed=true]{color:var(--ink)}
+.closed.fb .mpull .mph{height:var(--head-h);align-items:flex-end;padding:0 48px 6px}
+.closed.fb .mpull .mph.pasting{height:auto;padding:0}
+.mpull .mph .allbtn{min-width:36px;font-size:12px}
+
+/* ===== 開いた縦の日・週（第19版 PR7、design/29 案A「1枚の紙・2つの窓」）===== */
+/* 時間軸は紙 1枚（0:00〜24:00 ＋下の余白）。上の窓（終日の下〜--fcut0）と下の窓（--fcut1〜）で見る。1時間 44。窓の位置は JS が溝の変数から決める。 */
+.fold{position:fixed;left:var(--content-x);width:var(--content-w);top:0;height:100%;pointer-events:none;--fline:#E4E0D6;--fnow:#B43C3C;--ftoday:#EFF3EF}
+.fold>*{pointer-events:auto}
+.portrait .fold .fhead{position:absolute;top:var(--head-h);left:0;right:0;height:44px;min-height:0;display:flex;align-items:center;padding:0 12px;gap:0}
+.portrait .fold .fhead>*{position:static;top:auto;margin:0}
+.portrait .fold .fhead h2{transform:none;left:auto;width:auto;max-width:none;padding:0 4px;font:700 19px/44px -apple-system,'Hiragino Sans',sans-serif;flex:0 1 auto;overflow:visible;text-align:left}
+.fold .fhead button{width:44px;height:44px;min-width:44px;font-size:22px}
+.fold .fhead .ftoday{margin-left:auto;width:auto;padding:0 4px;font-size:14px;font-weight:700;color:var(--green)}
+.fold .fdates{position:absolute;left:12px;right:12px;display:flex;border-bottom:1px solid var(--fline)}
+.fold .fdt{border:0;flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;background:transparent;border-radius:0;height:100%}
+.fold .fdt{gap:0}
+.fold .fdw{font-size:10px;line-height:10px;color:var(--muted)}
+.fold .fdt .wrk{display:block;font-size:9px;line-height:10px;font-weight:400}
+.fold .fdt.hol .fdw,.fold .fdt.hol .fdd{color:var(--holiday)}
+.fold .fdd{font-size:13px;font-weight:700;width:24px;height:24px;line-height:24px;border-radius:50%;text-align:center}
+.fold .fdt.today .fdd{background:var(--green);color:#fff}
+.fold .fall{position:absolute;left:12px;right:12px;margin:0;display:flex;align-items:flex-start;border-bottom:1px solid var(--fline);overflow:hidden}
+.fold .fall .adl{font-size:11px;line-height:22px;margin-top:5px;text-align:right;padding-right:6px}
+.fold-week .fall .adl{font-size:10px;line-height:18px;margin-top:3px}
+.fold .fall .adcols{align-self:stretch}
+.fold .fall .adcol{flex-direction:column;gap:2px;padding:5px 4px 5px 4px;overflow:hidden;box-sizing:border-box}
+.fold .fall .adpill,.fold .fall .adplus{height:22px;min-height:22px;line-height:22px;border-radius:11px;font-size:11px;padding:0 10px;text-align:left}
+.fold .fall .adplus{font-size:10px;padding:0 4px;background:transparent;color:var(--muted)}
+.fold-week .fall .adcol{gap:0;padding:3px 1.5px}
+.fold-week .fall .adpill,.fold-week .fall .adplus{height:18px;min-height:18px;line-height:18px;border-radius:9px;font-size:9px;padding:0 6px}
+.fold-week .fall .adplus{padding:0 3px}
+.fold-week .adcol.ftd{background:var(--ftoday)}
+.fold .fwin{position:absolute;left:12px;right:12px;overflow:hidden}
+.fold .fl{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:none;touch-action:pan-y}
+.fold .fl *{touch-action:pan-y}
+.fold .fl::-webkit-scrollbar{display:none}
+.fold .flin{position:relative;overflow:hidden}
+.fold .flpaper{position:absolute;left:0;right:0}
+.fold .fhl{position:absolute;left:var(--lw);right:0;top:calc(var(--m) * var(--hh) / 60);height:0;border-top:1px solid var(--fline)}
+.fold .fhl.half{border-top:1px dotted var(--fline);opacity:.7}
+.fold .flcols{left:var(--lw);right:0;top:0;bottom:0}
+.fold-week .tlcol.ftd{background:var(--ftoday)}
+.fold-week .tlcol+.tlcol{border-left:0;box-shadow:inset 1px 0 var(--fline)}
+.fold .fev{top:calc(var(--m) * var(--hh) / 60);height:calc(var(--d) * var(--hh) / 60);min-height:0;padding:0;border-radius:6px;background:var(--cat);color:#fff;box-shadow:none;overflow:hidden;display:block}
+.fold .fev:hover{background:var(--cat);filter:brightness(.95)}
+.fold .ftl{position:absolute;left:6px;right:4px;top:calc(var(--ty,0px) + 2px);font-size:12px;font-weight:700;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fold .ftm{position:absolute;left:6px;right:4px;top:calc(var(--ty,0px) + 18px);font-size:10px;line-height:12px;white-space:nowrap;overflow:hidden}
+.fold-week .ftl{font-size:9px;line-height:11px;left:3px;right:2px;top:calc(var(--ty,0px) + 1px)}
+.fold .fev[data-ti="0"] .ftl,.fold .fev[data-tm="0"] .ftm{display:none}
+.fold .fev[data-small="1"] .ftl{font-size:10px;line-height:12px}
+.fold .fev::after{content:'';position:absolute;left:0;right:0;top:var(--cl,0);height:1px;background:repeating-linear-gradient(90deg,#fff 0 4px,transparent 4px 8px);display:none}
+.fold .fev[data-cut]::after{display:block}
+.fold .fllab{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.fold .fh,.fold .fnt{position:absolute;left:0;width:calc(var(--lw) - 6px);transform:translateY(-50%);text-align:right;font-size:11px;line-height:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.fold-week .fh{font-size:10px}
+.fold .fnt{font-size:10px;font-weight:700;color:var(--fnow);visibility:visible}
+.fold .fllab .dtag{left:calc(var(--lw) - 50px);width:44px}
+.fold .fnow{position:absolute;left:var(--lw);right:0;top:calc(var(--m) * var(--hh) / 60);height:0;z-index:3;pointer-events:none}
+.fold-day .fn1{position:absolute;left:0;right:0;top:-.75px;height:1.5px;background:var(--fnow)}
+.fold-day .fn2{position:absolute;left:-3.5px;top:-3.5px;width:7px;height:7px;border-radius:50%;background:var(--fnow)}
+.fold-week .fn1{position:absolute;left:0;right:0;top:-.5px;height:1px;background:var(--fnow)}
+.fold-week .fn2{position:absolute;left:calc(var(--i) * 100% / var(--n));width:calc(100% / var(--n));top:-1px;height:2px;background:var(--fnow)}
+.fold .fgv{display:none}
+@media (prefers-color-scheme:dark){
+  .shell.fd .fold{--fline:#343A36;--fnow:#E06666;--ftoday:#222824;--muted:#A3A9A2;--ink:#E8E6E0;background:#1C1F1D;color:#E8E6E0}
+  .shell.fd .fold .fgv{display:block;position:absolute;left:0;right:0;top:var(--fcut0);height:calc(var(--fcut1) - var(--fcut0));background:#2A2E2B}
+  .shell.fd .fold .fhead,.shell.fd .fold .fdt,.shell.fd .fold .fhead button{color:#E8E6E0}
+  .shell.fd .fold .fhead .ftoday{color:#6FA08C}
+  .shell.fd .fold .fdt.today .fdd{background:#6FA08C;color:#1C1F1D}
+  .shell.fd .fold .dbox{background:#2B3640}
+  .shell.fd .tabs{background:#262A27;border-color:#343A36;box-shadow:none}
+  .shell.fd .tabs .pill{color:#E8E6E0}
+  .shell.fd .tabs [aria-pressed=true] .pill,.shell.fd .tabs [aria-pressed=true]{background:#6FA08C;color:#1C1F1D}
+  .shell.fd .tabs [aria-pressed=true] .pill{color:#1C1F1D}
+}
+
+/* 第19版 PR8: 予定を長押しでつかんで別の日へ落とす（design/21 §1.3）。元の場所は点線の空き枠、落とす先の日は緑の枠2＋薄い緑の地 */
+.grabbed{background:transparent!important;box-shadow:none!important;outline:1.5px dashed var(--cat,#294E42);outline-offset:-1.5px;color:transparent!important;filter:none!important}
+.grabbed *{opacity:.0}
+.gchip{position:fixed;left:0;top:0;z-index:99998;max-width:220px;padding:6px 10px;border-radius:8px;background:var(--cat,#294E42);color:#fff;font-size:13px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;box-shadow:0 8px 20px #0003}
+.week .day.mdrop{background:#E5EEE9}
+.week .day.mdrop::after{content:"";position:absolute;inset:0;border:2px solid #294E42;border-radius:6px;pointer-events:none;z-index:3}
+@media (prefers-color-scheme:dark){ .week .day.mdrop{background:#2B3640} .week .day.mdrop::after{border-color:#6FA08C} }
+html[data-grab] .tl,html[data-grab] .tlx{touch-action:none}
+
+/* 第19版 PR9: ノート第1段（design/27）。上の帯・書式のシート・下へ伸びる紙・ノートのシート */
+.ned-top{flex:none;display:flex;align-items:center;gap:12px;height:44px;padding:0 var(--ns-pr,12px) 0 var(--ns-pl,12px);box-sizing:border-box}
+.ned-grp{display:flex;align-items:center;height:40px;padding:0 4px;border-radius:16px;background:#EFECE4;box-sizing:border-box}
+.ned-gundo{width:96px}.ned-gtools{width:140px}
+.ned .ned-ib{position:relative;width:44px;height:44px;min-height:44px;min-width:44px;margin:-2px 0;padding:0;border:0;background:transparent;color:#293B35;display:flex;align-items:center;justify-content:center}
+.ned .ned-ib svg{position:relative}
+.ned .ned-ib:disabled{color:#C9C5BA;opacity:1}
+.ned .ned-ib::before{content:"";position:absolute;left:4px;top:6px;width:36px;height:32px;border-radius:10px;background:#E4E0D6;opacity:0;transition:opacity .1s}
+.ned .ned-ib:active:not(:disabled)::before{opacity:1}
+.ned .ned-done{position:relative;margin-left:auto;width:44px;height:44px;padding:0;border:0;background:transparent;color:#fff;display:flex;align-items:center;justify-content:center}
+.ned .ned-done::before{content:"";position:absolute;width:32px;height:32px;border-radius:50%;background:#294E42}
+.ned .ned-done svg{position:relative}
+.ned-fsheet{position:fixed;left:var(--ns-x,0);width:var(--ns-w,100%);bottom:0;height:var(--ned-fs-h,250px);box-sizing:border-box;z-index:60;background:#FFFDFA;border-radius:24px 24px 0 0;box-shadow:0 12px 32px rgba(0,0,0,.16);padding:0 16px 34px;display:flex;flex-direction:column;gap:8px}
+.ned-fsheet[hidden]{display:none}
+.ned-fshead{height:44px;display:flex;align-items:center;justify-content:space-between}
+.ned-fstitle{font-size:15px;font-weight:600}
+.ned .ned-fsclose{width:44px;height:44px;border:0;background:transparent;display:flex;align-items:center;justify-content:center;padding:0}
+.ned-fsclose i{width:28px;height:28px;border-radius:50%;background:#EFECE4;font-style:normal;font-size:13px;display:flex;align-items:center;justify-content:center}
+.ned-fsseg{display:flex;width:268px;max-width:100%;height:44px;border-radius:10px;background:#EFECE4;padding:3px;box-sizing:border-box;gap:0}
+.ned .ned-fsb{flex:1;height:38px;min-height:38px;min-width:0;border:0;border-radius:8px;background:transparent;color:inherit;padding:0}
+.ned .ned-fsb[aria-pressed=true]{background:#fff}
+.ned-fs-heading{font-size:15px;font-weight:600}.ned-fs-heading2{font-size:13px;font-weight:600}.ned-fs-plain{font-size:13px}
+.ned .ned-body,.ned .ned-title{padding-top:0;padding-bottom:0}
+.ned .ned-title{line-height:30px}
+.ned .ned-body{line-height:30px;font-size:16px}
+.ned-bodywrap{background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 29px,#EEEAE1 29px,#EEEAE1 30px);background-attachment:local}
+.ned-tail{height:90px;cursor:text}
+.ned-inkslot{padding:0 8px}
+.ned-ink{color:#293B35;pointer-events:none}
+.ned-ink svg,.ned-ink img{display:block}.ned-ink img{max-width:100%;height:auto}
+.nsheet{position:fixed;z-index:40;display:flex;flex-direction:column;box-sizing:border-box;padding-top:8px;background:#FFFDFA;border-radius:24px 24px 0 0;box-shadow:0 12px 32px rgba(0,0,0,.16);animation:nsheetin .25s ease-out}
+.nsheet[hidden]{display:none}
+.nsheet.closing{transform:translateY(105%);transition:transform .25s ease-in}
+.nsheet .ned{flex:1;min-height:0;height:100%;gap:0}
+.nsheet .ned-bodywrap{margin:0 var(--ns-bmr,8px) 0 var(--ns-bml,8px)}
+.nsheet .ned-title{margin:0 var(--ns-bmr,8px) 0 var(--ns-bml,8px);width:auto}
+.nsheet .ned-status,.nsheet .ned-bar,.nsheet .ned-trash{display:none}
+@keyframes nsheetin{from{transform:translateY(40%);opacity:.6}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.nsheet{animation:nsheetfade .15s}.nsheet.closing{transform:none;opacity:0;transition:opacity .15s}@keyframes nsheetfade{from{opacity:0}to{opacity:1}}}
+@media (prefers-color-scheme:dark){
+ .nsheet,.ned-fsheet{background:#262A27;box-shadow:none;color:#E8E6E0}
+ .ned-bodywrap{background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 29px,#343A36 29px,#343A36 30px)}
+ .ned-grp,.ned-fsseg,.ned-fsclose i{background:#30352F}
+ .ned .ned-ib{color:#E8E6E0}.ned .ned-ib:disabled{color:#5A615B}
+ .ned .ned-done::before{background:#6FA08C}.ned .ned-done{color:#1C1F1D}
+ .ned .ned-fsb[aria-pressed=true]{background:#262A27}
+ .ned-ink{color:#E8E6E0}
+}
+/* 第19版 PR9: 書式の帯は上へ移ったので、キーボードの真上に取っていた補助列の分も本文の窓に使う（下の面で書くとき） */
+html.kbl[data-kbl=note][data-kbe=dn] .nhost{height:calc(var(--kl-ed-h) + var(--kl-as-h) + 4px)}
+.ned .ned-title{min-height:30px}
+.ned .ned-body{min-height:90px}
+
+/* ---------- 第19版 PR10: タスクの画面（リストの部品・設定 › タスク・説明シート・確認の一覧） ---------- */
+.ldot{display:inline-block;flex:none;width:8px;height:8px;border-radius:50%;background:#68716A}
+.lchips{display:flex;gap:8px;align-items:center;height:44px;margin:0 0 4px;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;touch-action:pan-x}
+.lchips::-webkit-scrollbar{display:none}
+.lchip{flex:none;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:14px;border:0;background:#F0EDE5;color:#293B35;font-size:13px;position:relative;white-space:nowrap}
+.lchip::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
+.lchip i{width:8px;height:8px;border-radius:50%;flex:none}
+.lchip.on{background:var(--green);color:#fff}
+.stalled{display:block;width:100%;height:28px;margin:0 0 6px;padding:0 12px;border:0;border-radius:14px;background:#F0EDE5;color:#68716A;font-size:12px;text-align:left;position:relative}
+.stalled::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
+.dcap2{flex:none;margin-left:auto;display:inline-flex;align-items:center;gap:4px;height:28px;max-width:104px;padding:0 8px;border-radius:14px;border:1.5px solid var(--lc,#68716A);background:#fff;color:#293B35;font-size:13px;font-weight:700;position:relative}
+.dcap2::before{content:"";position:absolute;left:-4px;right:-4px;top:-8px;bottom:-8px}
+.dcap2 i{width:8px;height:8px;border-radius:50%;background:var(--lc,#68716A);flex:none}
+.dcap2 span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dcap2 b{flex:none;font-weight:400;color:#68716A}
+.rmlist{flex:none;align-self:flex-end;margin-bottom:6px;display:inline-flex;align-items:center;gap:4px;max-width:38%;font-size:12px;color:#68716A;white-space:nowrap}
+.rmlist i{width:8px;height:8px;border-radius:50%;flex:none}
+.rmlist{overflow:hidden;text-overflow:ellipsis}
+.rmwait{font-size:11px;color:#68716A;margin-right:2px}
+.rmgone{font-size:11px;color:#68716A}
+.rmrow.gone .rmt{color:#68716A}
+.rmrow.fresh{animation:rmfresh 1s ease-out}
+@keyframes rmfresh{0%,90%{background:#E5EEE9}100%{background:transparent}}
+.rmrow.fresh,.rmrow.two{transition:none}
+@media (prefers-reduced-motion:reduce){.rmrow.fresh{animation:none}}
+/* 設定 › タスク */
+.menurows .rsrow{min-height:48px;height:48px}
+.menurows .rsgo b{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-weight:400;font-size:15px;color:#68716A}
+.menurows .rsgo em{font-style:normal;color:#A8ABA4;font-size:20px}
+.menurows .rsgo{gap:8px}
+.menurows .rsgo span{flex:1}
+.ssub{font-size:12px;color:#68716A;margin-right:2px}
+.rsdeny{margin:4px 12px 8px;padding:10px 12px;border-radius:10px;background:#FBF0DC;color:#6E4A12;font-size:13px;line-height:1.5}
+.rsdeny p{margin:0 0 6px}
+.rsdeny button{display:block;width:112px!important;min-height:24px!important;height:24px;padding:0;border:0;border-radius:12px;background:#E9C98A;color:#4A3208;font-size:12px;text-align:center!important;position:relative}
+.rsdeny button::before{content:"";position:absolute;left:0;right:0;top:-10px;bottom:-10px}
+.rsh{margin:12px 20px 4px;font-size:12px;font-weight:400;color:#68716A}
+.rslist{display:flex!important;align-items:center;gap:10px;height:40px;min-height:40px!important;padding:0 20px!important;border:0;background:none;font-size:16px;text-align:left}
+.rslist .ldot{width:14px;height:14px}
+.rslist .rsn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rslist small{font-size:11px;color:#68716A}
+.rslist b{width:18px;text-align:right;color:var(--green);font-weight:700;margin-right:0}
+.rslist.fixed b{color:#A8ABA4}
+.rsnote{margin:0;padding:4px 20px 8px;font-size:11px;line-height:1.5;color:#68716A}
+/* シート */
+dialog#rsheet{z-index:13;padding:0;border:0;border-radius:24px 24px 22px 22px;background:#fff;box-shadow:0 -6px 30px #132c3340;max-width:none;max-height:none;height:auto;overflow:hidden}
+dialog#rsheet[open]{display:flex;flex-direction:column}
+.rshead{flex:none;display:flex;align-items:center;justify-content:space-between;padding:16px 8px 8px 24px}
+.rshead h2{font:700 18px/1.3 system-ui,-apple-system,'Hiragino Sans',sans-serif}
+.rsx{width:44px;height:44px;border:0;background:none;font-size:18px;color:#68716A}
+.rsbody{flex:1;min-height:0;overflow:auto;padding:0 24px}
+.rsbody p{margin:0 0 8px;font-size:13px;line-height:1.6;color:#68716A}
+.rsmain{flex:none;display:block;margin:12px 24px;height:50px;border:0;border-radius:12px;background:var(--green);color:#fff;font-size:16px;font-weight:700}
+.rsmain:disabled{opacity:.6}
+.rsacts{flex:none;display:flex;gap:12px;padding:12px 24px 20px}
+.rsacts button{flex:1;height:44px;border-radius:12px;border:1px solid var(--line);background:#fff;font-size:15px}
+.rsacts .danger{background:var(--danger);color:#fff;border-color:var(--danger)}
+.rsscroll{flex:1;min-height:0;overflow:auto;padding:0 24px}
+.rsscroll h3{margin:12px 0 4px;font-size:13px;color:#68716A;font-weight:700}
+.rsrow40{display:flex;align-items:center;gap:8px;min-height:40px}
+.rsrow40 .rst{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px}
+.rsrow40 small{flex:none;font-size:12px;color:#68716A}
+.rsmore{margin:0;font-size:12px;color:#68716A}
+.rsmaybe{padding-bottom:6px}
+.rsseg{display:flex;gap:2px;padding:2px;height:32px;border-radius:16px;background:#e6e9e4}
+.rsseg button{flex:1;min-width:0;height:28px;border:0;border-radius:14px;background:transparent;font-size:12px;position:relative}
+.rsseg button::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
+.rsseg button[aria-pressed=true]{background:#fff;color:var(--green);font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.rslater{flex:none;display:block;margin:0 24px 16px;min-height:44px;border:0;background:none;color:#68716A;font-size:13px}
+.rsdone{flex:none;margin:8px 24px 0;font-size:13px;color:var(--green)}
+.rspage{flex:1;min-height:0;overflow:auto;padding:0 8px 16px}
+.rsrowp{display:flex;align-items:center;gap:12px;width:100%;height:44px;padding:0 16px;border:0;background:none;font-size:16px;text-align:left}
+.rsrowp .ldot{width:12px;height:12px}
+.rsrowp span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rsrowp b{width:18px;color:var(--green)}
+.tklist{margin-top:8px}
+.tklistb{display:flex;align-items:center;gap:8px;width:100%;height:44px;padding:0 4px;border:0;background:none;font-size:15px;text-align:left}
+.tklistb .dtk{flex:1}
+.tklv{display:inline-flex;align-items:center;gap:6px;color:#68716A}
+.tklistb b{color:#A8ABA4;font-weight:400}
+.stalled{min-height:28px;height:28px;padding-top:0;padding-bottom:0}
+.lchip,.rsseg button{min-height:0}
+.dcap2{min-height:28px;height:28px;padding-top:0;padding-bottom:0}
+.undobar.rstoast{height:44px;min-height:44px;border-radius:12px;box-sizing:border-box}
+.undobar.rstoast{background:#1f2724}
+.menurows .fixrow{padding:0 12px}
+dialog#rsheet[data-kind=explain] .rsmain{margin-bottom:26px}
+.rspk{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:0 4px;border:0;background:none;font-size:15px;text-align:left}
+.rspk .rst{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rspk small{flex:none;font-size:12px;color:#68716A}
+.rspk::before{content:"";flex:none;width:20px;height:20px;box-sizing:border-box;border:2px solid #9aa39c;border-radius:4px;background:#fff}
+.rspk[role=radio]::before{border-radius:50%}
+.rspk[aria-checked=true]::before{border-color:var(--green);background:var(--green);box-shadow:inset 0 0 0 3px #fff}
+.rspk .ldot{width:12px;height:12px}

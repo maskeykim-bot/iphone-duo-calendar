@@ -1,8 +1,10 @@
 // タスク（Duo 内保存）の型・検証・分類。DB には触れない（保存操作は db.js）。
 // Task = { id, title, due: {date:'YYYY-MM-DD', time?:'HH:mm'} | null, done, doneAt: Stamp|null, createdAt, updatedAt: ms, order, note, notify }
-import { LIMITS, isKey } from './util.js';
+import { isKey } from './util.js';
 
 export const TASK_NOTE_MAX = 10000;
+// 題名の保存上限（RS-20）。入力欄は 80 字のまま（LIMITS.title）。取り込みの長い題名を切らない。
+export const TASK_TITLE_MAX = 1000;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const STAMP_RE = /^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d$/;
 const isMs = (n) => typeof n === 'number' && Number.isFinite(n) && n >= 0;
@@ -14,7 +16,7 @@ export function validateTask(t) {
   if (typeof t.title !== 'string') return { ok: false, error: 'タスク名が不正です。' };
   const title = t.title.trim();
   if (!title) return { ok: false, error: 'タスク名を入力してください。' };
-  if (title.length > LIMITS.title) return { ok: false, error: `タスク名は${LIMITS.title}文字以内にしてください。` };
+  if (title.length > TASK_TITLE_MAX) return { ok: false, error: `タスク名は${TASK_TITLE_MAX}文字以内にしてください。` };
   const note = t.note ?? '';
   if (typeof note !== 'string') return { ok: false, error: 'タスクのメモが不正です。' };
   if (note.length > TASK_NOTE_MAX) return { ok: false, error: `タスクのメモは${TASK_NOTE_MAX}文字以内にしてください。` };
@@ -32,7 +34,41 @@ export function validateTask(t) {
   if (typeof notify !== 'boolean') return { ok: false, error: 'タスクの通知設定が不正です。' };
   if (!isMs(t.createdAt) || !isMs(t.updatedAt)) return { ok: false, error: 'タスクの日時が不正です。' };
   if (!(typeof t.order === 'number' && Number.isFinite(t.order))) return { ok: false, error: 'タスクの順序が不正です。' };
-  return { ok: true, task: { id: t.id, title, due, done, doneAt: done ? doneAt : null, createdAt: t.createdAt, updatedAt: t.updatedAt, order: t.order, note, notify: due ? notify : false } };
+  const task = { id: t.id, title, due, done, doneAt: done ? doneAt : null, createdAt: t.createdAt, updatedAt: t.updatedAt, order: t.order, note, notify: due ? notify : false };
+  // リマインダーとのつながり（版 6）。無いタスクには足さない（未リンクのまま）。墓標は同じ tasks に syncState:'tombstone'。
+  for (const k of ['remItemId', 'remExternalId', 'remListId']) {
+    if (t[k] == null) continue;
+    if (typeof t[k] !== 'string' || !t[k] || t[k].length > 512) return { ok: false, error: 'タスクのリマインダーとのつながりが不正です。' };
+    task[k] = t[k];
+  }
+  if (t.remModifiedAt != null) {
+    if (!isMs(t.remModifiedAt)) return { ok: false, error: 'タスクのリマインダーとのつながりが不正です。' };
+    task.remModifiedAt = t.remModifiedAt;
+  }
+  if (t.syncState != null) {
+    if (typeof t.syncState !== 'string' || !t.syncState || t.syncState.length > 32) return { ok: false, error: 'タスクのリマインダーとのつながりが不正です。' };
+    task.syncState = t.syncState;
+  }
+  return { ok: true, task };
+}
+
+// リマインダーとのつながり（版 6）。リンクあり＝remItemId か remExternalId がある。墓標は一覧・件数・通知・検索に出さない。
+export const isLinked = (t) => !!t && !!(t.remItemId || t.remExternalId) && t.syncState !== 'tombstone';
+export const isTombstone = (t) => !!t && t.syncState === 'tombstone';
+export const liveTasks = (list) => (Array.isArray(list) ? list : []).filter((t) => !isTombstone(t));
+export const LINK_KEYS = ['remItemId', 'remExternalId', 'remListId', 'remModifiedAt'];
+// つながりを外す（題名・期限・完了・メモ・updatedAt は触らない）。state は 'local'（連携なし）か 'listMissing'。
+export function unlinkTask(t, state = 'local') {
+  const o = { ...t };
+  for (const k of LINK_KEYS) delete o[k];
+  o.syncState = state;
+  return o;
+}
+// 消すとき、つながりがあれば墓標にする（remListId を「リマインダーからの削除待ち」の印にする。消せたら外す）。
+export function tombstoneOf(t, now) {
+  const o = { ...t, syncState: 'tombstone', updatedAt: now };
+  if (!o.remListId) o.remListId = 'pending';
+  return o;
 }
 
 let seq = 0;
@@ -56,7 +92,7 @@ export function classifyTasks(list) {
 export const LOCAL_LIST = { id: 'duo', title: 'タスク', color: '#68716A', allowsModify: true, isDefault: true, source: 'Duo' };
 const pad2 = (n) => String(n).padStart(2, '0');
 export const stampNow = (d = new Date()) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-export const rowOf = (t) => ({ itemId: t.id, listId: LOCAL_LIST.id, title: t.title, notes: t.note, due: t.due, done: t.done, doneAt: t.doneAt, alarms: t.notify ? [{}] : [], alarmsExtra: 0, priority: 0, recurring: false, createdAt: t.createdAt, modifiedAt: t.updatedAt, readOnly: false });
+export const rowOf = (t) => ({ itemId: t.id, listId: isLinked(t) && t.remListId ? t.remListId : LOCAL_LIST.id, title: t.title, notes: t.note, due: t.due, done: t.done, doneAt: t.doneAt, alarms: t.notify ? [{}] : [], alarmsExtra: 0, priority: 0, recurring: false, createdAt: t.createdAt, modifiedAt: t.updatedAt, readOnly: false, ...(t.syncState ? { syncState: t.syncState } : {}), ...(isLinked(t) ? { linked: true } : {}) });
 const fail = (code, e) => Object.assign(new Error(e?.message || code), { code });
 // 保存の失敗は理由を分けて表示できるよう code にする（容量超過は STORAGE_FULL、それ以外は STORE_FAILED）。
 const storeErr = (e) => (e && (e.code === 'INVALID_ARGUMENT' || e.code === 'NOT_FOUND') ? e : fail(/quota/i.test(`${e?.name} ${e?.message}`) ? 'STORAGE_FULL' : /^(タスク|題名)/.test(e?.message || '') ? 'INVALID_ARGUMENT' : 'STORE_FAILED', e));
@@ -91,31 +127,55 @@ export function validateTaskPatch(p) {
   return { ok: true, patch: out };
 }
 
-export function createTaskStore(db) {
+// opts: { syncOn(): 同期がオンか, onWrite(kind, id): Duo に書けたあとの通知（同期の書き出しのきっかけ） }
+export function createTaskStore(db, { syncOn = () => false, onWrite = () => {} } = {}) {
+  // Duo 側の書き込み。つながりのある件は pending（リマインダーへ書く待ち）にする。つながりのない既存の件には足さない。
+  const mark = (t) => (isLinked(t) && t.syncState !== 'listMissing' ? { ...t, syncState: 'pending' } : t);
+  const wrote = (kind, id) => { try { onWrite(kind, id); } catch { /* 無視 */ } };
   return {
-    async list() { try { return await db.listTasks(); } catch (e) { throw storeErr(e); } },
+    async list() { try { return liveTasks(await db.listTasks()); } catch (e) { throw storeErr(e); } },
+    async listAll() { try { return await db.listTasks(); } catch (e) { throw storeErr(e); } },
     // id は呼び出し側が決める（同じ要求の再試行は同じ id → db.addTask が重複させない）。
-    async add({ id, title, due = null, notify = false, note = '' }) { try { return await db.addTask({ id, title, due, notify, note }); } catch (e) { throw storeErr(e); } },
+    async add({ id, title, due = null, notify = false, note = '', listId = '' }) {
+      try {
+        const t = await db.addTask({ id, title, due, notify, note, ...(syncOn() ? { syncState: 'pending', ...(listId ? { remListId: listId } : {}) } : {}) });
+        wrote('add', t.id);
+        return t;
+      } catch (e) { throw storeErr(e); }
+    },
     // patch: { title?, note?, due?, notify? }。変えていない項目は保持する。
     async update(id, patch, now = Date.now()) {
       try {
         const v = validateTaskPatch(patch);
         if (!v.ok) throw fail('INVALID_ARGUMENT', new Error(v.error));
         const cur = await db.getTask(id);
-        if (!cur) throw fail('NOT_FOUND');
+        if (!cur || isTombstone(cur)) throw fail('NOT_FOUND');
         const p = v.patch, due = 'due' in p ? p.due : cur.due;
         // 期限なしは通知なし。期限だけの変更では通知を ON にしない（notify は触らない）。
-        return await db.putTask({ ...cur, ...('title' in p ? { title: p.title } : {}), ...('note' in p ? { note: p.note } : {}), due, ...('notify' in p ? { notify: p.notify } : {}), updatedAt: now });
+        const r = await db.putTask(mark({ ...cur, ...('title' in p ? { title: p.title } : {}), ...('note' in p ? { note: p.note } : {}), due, ...('notify' in p ? { notify: p.notify } : {}), updatedAt: now }));
+        wrote('update', id);
+        return r;
       } catch (e) { throw storeErr(e); }
     },
     async setDone(id, done, now = Date.now()) {
       try {
         const cur = await db.getTask(id);
-        if (!cur) throw fail('NOT_FOUND');
-        return await db.putTask({ ...cur, done: !!done, doneAt: done ? stampNow(new Date(now)) : null, updatedAt: now });
+        if (!cur || isTombstone(cur)) throw fail('NOT_FOUND');
+        const r = await db.putTask(mark({ ...cur, done: !!done, doneAt: done ? stampNow(new Date(now)) : null, updatedAt: now }));
+        wrote('done', id);
+        return r;
       } catch (e) { throw storeErr(e); }
     },
-    async remove(id) { try { const cur = await db.getTask(id); await db.deleteTask(id); return { missing: !cur }; } catch (e) { throw storeErr(e); } },
+    // つながりのある件は墓標を残す（その外部 id を取り込み直さない。リマインダー側の削除は同期が行う）。
+    async remove(id, now = Date.now()) {
+      try {
+        const cur = await db.getTask(id);
+        if (!cur || isTombstone(cur)) return { missing: !cur };
+        if (isLinked(cur)) await db.putTask(tombstoneOf(cur, now)); else await db.deleteTask(id);
+        wrote('delete', id);
+        return { missing: false };
+      } catch (e) { throw storeErr(e); }
+    },
   };
 }
 
@@ -146,14 +206,14 @@ export function createLocalAddController(store) {
   const rid = () => `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
   return {
     get busy() { return busy; },
-    async submit({ title, due = null, time = '', notify }) {
+    async submit({ title, due = null, time = '', notify, listId = '' }) {
       if (busy) return { ok: false, busy: true };
       const t = String(title ?? '').trim();
       if (!t) return { ok: false, empty: true };
       const dueV = due ? (time ? { date: due, time } : { date: due }) : null;
       const nv = !!dueV && notify === true;
-      const fp = JSON.stringify([t, dueV, nv]);
-      if (!pend || pend.fp !== fp) pend = { id: rid(), fp, args: { title: t, due: dueV, notify: nv } };
+      const fp = JSON.stringify([t, dueV, nv, listId]);
+      if (!pend || pend.fp !== fp) pend = { id: rid(), fp, args: { title: t, due: dueV, notify: nv, ...(listId ? { listId } : {}) } };
       const req = pend;
       busy = true;
       try {

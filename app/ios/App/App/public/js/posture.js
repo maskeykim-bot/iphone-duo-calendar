@@ -3,6 +3,32 @@
 const STATUS = [null, 'closed', 'fullyOpen', 'partiallyOpen', 'unknown'];
 const num = (n) => typeof n === 'number' && Number.isFinite(n);
 
+export const FALLBACK_GROOVE = Object.freeze({ g0: 467, g1: 484, source: 'fallback' });
+// 溝 [g0, g1]。null・非数・g1<g0 は null（呼び出し側が開いた縦ならフォールバックを使う）。高さ17未満は中心 c から c±8.5。
+export function normGroove(g) {
+  if (!g || typeof g !== 'object' || !num(g.g0) || !num(g.g1) || g.g1 < g.g0) return null;
+  const source = g.source === 'native' ? 'native' : 'fallback';
+  if (g.g1 - g.g0 < 17) { const c = (g.g0 + g.g1) / 2; return { g0: c - 8.5, g1: c + 8.5, source }; }
+  return { g0: g.g0, g1: g.g1, source };
+}
+// 式（design/29 §9）。467〜484 → avoid 459〜492・cut 458〜500。
+export function grooveBands(g) {
+  return { avoid: [g.g0 - 8, g.g1 + 8], cut: [g.g0 - 9, g.g1 + 16] };
+}
+const GROOVE_VARS = ['--groove-y0', '--groove-y1', '--groove-avoid-y0', '--groove-avoid-y1', '--groove-cut-y0', '--groove-cut-y1', '--groove-source'];
+// 開いた縦のときだけ変数を付ける。ほか（閉じた画面・開いた横）は外す。開いた縦で値が無ければフォールバック。
+export function applyGroove(el, groove, portraitOpen) {
+  if (!portraitOpen) { GROOVE_VARS.forEach((v) => el.style.removeProperty(v)); return null; }
+  const g = normGroove(groove) || { ...FALLBACK_GROOVE };
+  const b = grooveBands(g), px = (n) => `${Math.round(n * 100) / 100}px`;
+  const set = (k, v) => el.style.setProperty(k, v);
+  set('--groove-y0', px(g.g0)); set('--groove-y1', px(g.g1));
+  set('--groove-avoid-y0', px(b.avoid[0])); set('--groove-avoid-y1', px(b.avoid[1]));
+  set('--groove-cut-y0', px(b.cut[0])); set('--groove-cut-y1', px(b.cut[1]));
+  set('--groove-source', g.source);
+  return g;
+}
+
 // 不正値は null（無視）。正しい形だけ正規化して返す。
 export function normPosture(p) {
   if (!p || typeof p !== 'object' || typeof p.available !== 'boolean' || typeof p.folded !== 'boolean') return null;
@@ -16,7 +42,7 @@ export function normPosture(p) {
   const status = STATUS.includes(p.status ?? null) ? (p.status ?? null) : null;
   return {
     available: p.available, folded: p.available && p.folded, regionRect: rect, axis,
-    angle: num(p.angle) ? p.angle : null, status,
+    angle: num(p.angle) ? p.angle : null, status, groove: normGroove(p.groove),
     source: p.source === 'reservedRegions' ? 'reservedRegions' : 'unsupported', at: num(p.at) ? p.at : 0,
   };
 }
@@ -35,16 +61,29 @@ export function applyPosture(el, p, eligible = true) {
 }
 
 // 古い非同期取得が新しいイベントを上書きしない。seq は要求順、at は Swift の時刻。
-export function createPosture({ call, listen, el, eligible = () => true, onChange = () => {}, now = Date.now } = {}) {
+export function createPosture({ call, listen, el, eligible = () => true, portrait = () => false, onChange = () => {}, now = Date.now } = {}) {
   let cur = null, manual = null, seq = 0, lastAt = -Infinity, listening = false, failed = false;
+  let adopted = null, cand = null; // 採用中の溝と直前の候補（開閉の途中の値で変数を動かさない）
   const effective = () => (manual === null ? cur : { ...(cur || normPosture({ available: true, folded: manual, regionRect: null, axis: null, angle: null, status: null, source: 'unsupported', at: 0 })), available: true, folded: manual });
-  const reflect = () => { if (el) applyPosture(el, effective(), eligible()); onChange(effective()); };
+  const reflect = () => {
+    const e = effective();
+    if (el) { applyPosture(el, e, eligible()); applyGroove(el, adopted, !!portrait() && eligible()); }
+    onChange(e);
+  };
+  // 採用は、初めて／null から戻るとき、status が fullyOpen・closed のとき、同じ値（差 0.5 未満）が続いたときだけ。動いている途中は直前の値を保つ。
+  function settleGroove(p) {
+    const g = p.groove;
+    if (!g) { adopted = null; cand = null; return; }
+    const same = cand && Math.abs(cand.g0 - g.g0) < 0.5 && Math.abs(cand.g1 - g.g1) < 0.5;
+    if (!adopted || same || p.status === 'fullyOpen' || p.status === 'closed') adopted = g;
+    cand = g;
+  }
   function accept(raw, fromEvent) {
     const p = normPosture(raw);
     if (!p) return false;
     if (!fromEvent && p.at < lastAt) return false; // 取得の応答がイベントより古い
     if (fromEvent && p.at < lastAt) return false;
-    lastAt = Math.max(lastAt, p.at); cur = p; failed = false; reflect();
+    lastAt = Math.max(lastAt, p.at); cur = p; failed = false; settleGroove(p); reflect();
     return true;
   }
   async function refresh() {
@@ -64,7 +103,7 @@ export function createPosture({ call, listen, el, eligible = () => true, onChang
   return {
     start, refresh, reapply: reflect,
     setManual(v) { manual = v === null ? null : !!v; reflect(); }, // 手動「折り」代替（集中UIが使う）。null で解除
-    get posture() { return cur; }, get effective() { return effective(); }, get failed() { return failed; }, get manual() { return manual; },
+    get posture() { return cur; }, get effective() { return effective(); }, get failed() { return failed; }, get manual() { return manual; }, get groove() { return adopted; },
     _now: now,
   };
 }
