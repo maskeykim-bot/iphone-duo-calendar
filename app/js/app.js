@@ -3037,9 +3037,9 @@ function openPanel(d, from) {
   syncInert();
   if (d === xdDlg || d === taskDlg) syncScrim();
 }
-function closePanel(d, restore = true) {
+function closePanel(d, restore = true, instant = false) {
   d._restore = restore;
-  if (d.open && restore && SLIDE_SHEETS.has(d) && !fading) { // restore=false は別のパネルへ受け渡す閉じ方なので動かさずに閉じる
+  if (d.open && restore && !instant && SLIDE_SHEETS.has(d) && !fading) { // restore=false は別のパネルへ受け渡す閉じ方なので動かさずに閉じる
     if (d._slide) return;
     const sc = [dlg, xdDlg, taskDlg].includes(d);
     if (sc) scrim.classList.add('fade');
@@ -4056,7 +4056,8 @@ function menuBack() {
 }
 function openMenu(from) {
   calEdit = false; calDel = null; calUndo = null; clearTimeout(calUndoTimer);
-  if (menuDlg.open) { closePanel(menuDlg); return; } // 帯の設定ボタン（×）でも閉じる
+  if (menuDlg._slide) cancelSlide(menuDlg); // 閉じる動きの最中にもう一度押したら、閉じずに開き直す
+  else if (menuDlg.open) { closePanel(menuDlg); return; } // 帯の設定ボタン（×）でも閉じる
   $('#m-desk').hidden = L.w < 600 || L.h < 600;
   $('#m-notify').hidden = !NATIVE;
   $('#m-reminders').hidden = false;
@@ -4150,16 +4151,16 @@ menuDlg.addEventListener('click', (ev) => {
   if (ev.target.closest('#m-back')) { menuBack(); return; }
   if (ev.target.closest('#m-gset')) { openGoogleSettings(); return; }
   const mb = ev.target.closest('[data-mode]');
-  if (mb) { closePanel(menuDlg); const m = mb.dataset.mode; set(m === 'all' ? { monthExpand: true } : { style: m, monthExpand: false }); return; }
+  if (mb) { closePanel(menuDlg, true, true); const m = mb.dataset.mode; set(m === 'all' ? { monthExpand: true } : { style: m, monthExpand: false }); return; }
   const b = ev.target.closest('[data-m]');
   if (!b) return;
   const m = b.dataset.m, from = origins.get(menuDlg);
-  if (b.id === 'touch-check-open') { closePanel(menuDlg); openTouchCheck(); return; }
+  if (b.id === 'touch-check-open') { closePanel(menuDlg, true, true); openTouchCheck(); return; }
   else if (m === 'notify') { closePanel(menuDlg, false); openNotify(from); }
   else if (m === 'backup') { closePanel(menuDlg, false); openBackup(from); }
-  else if (m === 'desk') { closePanel(menuDlg); set({ desk: !state.desk }); }
-  else if (m === 'week') { closePanel(menuDlg); set({ weekStart: state.weekStart === 1 ? 0 : 1 }); say(`週の始まりを${state.weekStart === 1 ? '月曜' : '日曜'}にしました。`); }
-  else if (m === 'sample') { closePanel(menuDlg); loadSample(); }
+  else if (m === 'desk') { closePanel(menuDlg, true, true); set({ desk: !state.desk }); }
+  else if (m === 'week') { closePanel(menuDlg, true, true); set({ weekStart: state.weekStart === 1 ? 0 : 1 }); say(`週の始まりを${state.weekStart === 1 ? '月曜' : '日曜'}にしました。`); }
+  else if (m === 'sample') { closePanel(menuDlg, true, true); loadSample(); }
   else if (m === 'curl-web' || m === 'curl-native') pickCurlEngine(m === 'curl-web' ? 'web' : 'native');
   else if (m === 'mode') { const v = $('#m-variant'); v.hidden = !v.hidden; b.setAttribute('aria-expanded', String(!v.hidden)); if (!v.hidden) v.querySelector('button')?.focus({ preventScroll: true }); }
   else if (m === 'mtime') { set({ [timeKey()]: !state[timeKey()] }); syncMonthMenu(); say(`月表示の時刻を${state[timeKey()] ? '出します' : '出しません'}。`); }

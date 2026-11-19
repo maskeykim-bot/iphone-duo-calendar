@@ -83,6 +83,7 @@ test.describe('月の印・日で絞る・長押し', () => {
     await expect(page.locator('#editor')).toBeVisible();
     await expect(page.locator('#f-all')).toBeChecked();
     await page.keyboard.press('Escape');
+    await expect(page.locator('#editor')).toBeHidden(); // S4: シートは閉じる動き（0.25秒）が終わってから閉じる
     const a = await dayCenter(page, '2026-11-24'), b = await dayCenter(page, '2026-11-25');
     await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.waitForTimeout(420);
     await page.mouse.move(b.x, b.y, { steps: 5 }); await page.mouse.up();

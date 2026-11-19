@@ -10,8 +10,8 @@ const POSTURES = [
 const E = ev('p1', '定例会議', '2026-11-12T10:00', '2026-11-12T11:00');
 const E2 = ev('p2', '打ち合わせ', '2026-11-13T10:00', '2026-11-13T11:00');
 
-async function setup(page, size) {
-  await openApp(page, size);
+async function setup(page, size, opts = {}) {
+  await openApp(page, size, '', opts);
   await seed(page, [E, E2]);
 }
 const snapshot = (page) => page.evaluate(() => ({ html: document.querySelector('#app').innerHTML, layout: document.body.dataset.layout }));
@@ -57,7 +57,7 @@ for (const [name, size] of POSTURES) {
     });
 
     test('幕の色は黒12%、フェードは0.25秒（S4: シートと同じ秒数）', async ({ page }) => {
-      await setup(page, size);
+      await setup(page, size, { motion: true });
       await openFirst(page);
       const bg = await page.locator('#scrim').evaluate((e) => getComputedStyle(e).backgroundColor);
       const img = await page.locator('#scrim').evaluate((e) => getComputedStyle(e).backgroundImage);

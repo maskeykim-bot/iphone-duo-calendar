@@ -119,6 +119,7 @@ test.describe('判定', () => {
     await expect(page.locator('#editor')).toBeVisible();
     await unchanged(page, s, { target: '.mgrid', dx: -150 });
     await page.keyboard.press('Escape');
+    await expect(page.locator('#editor')).toBeHidden(); // S4: シートは閉じる動き（0.25秒）が終わってから閉じる
     await swipe(page, nextM(s));
     await expect.poll(() => period(page)).toBe('2026年 12月');
   });

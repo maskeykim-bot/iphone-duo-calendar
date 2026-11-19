@@ -295,6 +295,7 @@ for (const [name, size, setup2] of [
       await expect(page.locator('#f-start')).toHaveJSProperty('value', '2026/11/18');
       await expect(page.locator('#f-end')).toHaveJSProperty('value', '2026/11/20');
       await page.keyboard.press('Escape');
+      await expect(page.locator('#editor')).toBeHidden(); // S4: シートは閉じる動き（0.25秒）が終わってから閉じる
       await monthPress(page, a); await page.mouse.up();
       await expect(page.locator('#editor')).toBeHidden(); // 1日だけ離したら小さなメニュー（第17版 PR3）
       await page.locator('.cmenu [data-dm="ev"]').click();
@@ -485,6 +486,7 @@ test.describe('端スクロール: 月（滞在で前後の月）', () => {
     await page.waitForTimeout(700);
     expect(await period(page)).toBe(before);
     await page.keyboard.press('Escape');
+    await expect(page.locator('#editor')).toBeHidden(); // S4: シートは閉じる動き（0.25秒）が終わってから閉じる
     await monthPress(page, a);
     await page.mouse.move(a.x, g.top + 12, { steps: 5 });
     await page.waitForTimeout(800);

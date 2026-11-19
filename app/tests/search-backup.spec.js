@@ -136,6 +136,7 @@ test.describe('検索とバックアップの表示', () => {
         expect(r.y + r.height).toBeLessThanOrEqual(size.height - 24 + 0.5);
       }
       await page.getByRole('button', { name: '閉じる' }).first().click();
+      await expect(page.locator('#search')).toBeHidden(); // S4: 閉じる動き（0.25秒）が終わってから
       await page.getByRole('button', { name: '設定' }).click();
       await page.getByRole('button', { name: 'バックアップ' }).click();
       await expect(page.locator('#backup')).toBeVisible();

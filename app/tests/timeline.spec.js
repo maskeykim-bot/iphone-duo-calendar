@@ -177,9 +177,9 @@ test.describe('見開き: 折り目の保護域（文字・罫線・チップ・
       await page.locator('.scroll.all').evaluate((e) => { e.scrollTop = e.scrollHeight; });
       await check('全部/末尾');
       // メニュー（左ページ内）・編集パネル（右ページ内）
-      await openMenu(page); await check('menu'); await page.keyboard.press('Escape');
-      await page.locator('[data-act="add"]').first().click(); await expect(page.locator('#editor')).toBeVisible(); await check('editor'); await page.keyboard.press('Escape');
-      await page.locator('[data-act="search"]').first().click(); await expect(page.locator('#search')).toBeVisible(); await check('search'); await page.keyboard.press('Escape');
+      await openMenu(page); await check('menu'); await page.keyboard.press('Escape'); await expect(page.locator('#menu')).toBeHidden(); // S4: 閉じる動きが終わってから
+      await page.locator('[data-act="add"]').first().click(); await expect(page.locator('#editor')).toBeVisible(); await check('editor'); await page.keyboard.press('Escape'); await expect(page.locator('#editor')).toBeHidden();
+      await page.locator('[data-act="search"]').first().click(); await expect(page.locator('#search')).toBeVisible(); await check('search'); await page.keyboard.press('Escape'); await expect(page.locator('#search')).toBeHidden();
       // resize 後
       await page.setViewportSize({ width: size.width + 40, height: size.height });
       await page.waitForTimeout(150);
@@ -220,7 +220,7 @@ test.describe('見開き: 右ページの時間軸', () => {
       expect(line.h).toBeCloseTo(1.5, 1);
       expect(line.bg).toBe('rgb(214, 69, 65)');
       const pr = await now.evaluate((e) => ({ bg: getComputedStyle(e).backgroundColor, c: getComputedStyle(e).color, r: getComputedStyle(e).borderRadius }));
-      expect(pr).toEqual({ bg: 'rgb(214, 69, 65)', c: 'rgb(255, 255, 255)', r: '11px' });
+      expect(pr).toEqual({ bg: 'rgb(214, 69, 65)', c: 'rgb(255, 255, 255)', r: '999px' });
       // 時刻列 44px・線は a+50 から
       const rp = await page.locator('.page.rp').boundingBox();
       const l0 = await page.locator('.tl .hl').first().boundingBox();
