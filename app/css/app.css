@@ -1266,12 +1266,10 @@ dialog#menu #m-destpop{border-radius:inherit}
 .nvs .nsec{height:30px;padding:8px 4px 0;line-height:20px}
 
 /* 開いた縦の集中モード（第16版 PR32）。切替は上の帯、タスク／ノートは全面の専用面。 */
-.fmodes{pointer-events:auto;position:fixed;z-index:6;display:flex;box-sizing:border-box;padding:2px;border-radius:18px;background:#e6e9e4;box-shadow:inset 0 0 0 1px var(--line)}
-.fmodes button{flex:1 1 0;min-width:0;padding:0 2px;border-radius:16px;background:transparent;color:var(--ink);font-size:14px;font-weight:700;line-height:1;white-space:nowrap;touch-action:manipulation;position:relative}
+.fmodes{pointer-events:auto;position:fixed;z-index:6;display:flex;box-sizing:border-box;padding:0;border-radius:10px;background:#e6e9e4;box-shadow:inset 0 0 0 1px var(--line)}
+.fmodes button{flex:1 1 0;min-width:0;padding:0;border-radius:10px;background:transparent;color:var(--ink);font-size:14px;font-weight:700;line-height:1;white-space:nowrap;touch-action:manipulation;position:relative}
 .fmodes button::before{content:"";position:absolute;left:0;right:0;top:-4px;bottom:-4px}
 .fmodes button[aria-pressed=true]{background:#fff;color:var(--green);box-shadow:0 1px 2px rgba(0,0,0,.12)}
-.fmodes.compact{padding:2px 1px}
-.fmodes.compact button{flex:1 1 auto;padding:0;font-size:10px;letter-spacing:-.04em;overflow:hidden}
 .fdate{position:fixed;z-index:5;display:flex;align-items:center;font-size:15px;font-weight:800;color:var(--ink);white-space:nowrap;pointer-events:none;max-width:calc(100px * var(--ux,1));overflow:hidden}
 .shell.focus .fcol{height:100%;padding-top:var(--head-h);box-sizing:border-box;display:flex;flex-direction:column;min-height:0}
 .shell.focus .fpage{flex:1;min-height:0;display:flex;flex-direction:column}
@@ -1830,3 +1828,58 @@ dialog#rsheet[data-kind=explain] .rsmain{margin-bottom:26px}
 .closed .mpull .weekdays{background:transparent}
 /* 月のタスクの件数 ✓N は日付の行で六曜の右（六曜の後ろに続けて並べる） */
 .week.named .day .tkn,.week.all .day .tkn{position:static;order:3;flex:none;margin-left:3px;height:18px;line-height:18px}
+
+/* ===== 開いた縦のホーム（第19.1版 S2・design/32 案A）===== */
+/* 上の面 y82〜459：日付の行 y90〜134、次の予定 y142〜242（角丸16）、今日の予定 y250〜451。下の面 y500〜：今週の帯 112、タスク・ノート 318 を左右（y620〜847）。基準は --head-h と --groove-avoid-y1（決め打ちしない）。 */
+.hm-pv{padding:0!important;overflow:visible!important}
+.phome{position:fixed;left:var(--content-x);width:var(--content-w);top:0;height:100%;pointer-events:none;--pvb:calc(var(--groove-avoid-y1,492px) + 8px)}
+.phome .pvw{display:contents}
+.phome .pvw>*{position:absolute;pointer-events:auto;box-sizing:border-box;margin:0}
+.pv-date{left:24px;right:24px;top:calc(var(--head-h,82px) + 8px);height:44px;display:flex;align-items:center}
+.pv-date h2{margin:0;display:flex;align-items:baseline;font:600 20px/44px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink);white-space:nowrap}
+.pv-date .hrk{margin-left:12px;font-size:13px;color:#68716A}
+.pv-date .hnm{margin-left:12px;font-size:13px;font-weight:600;color:var(--holiday)}
+.pv-date .hdt.hol{color:var(--holiday)}
+.pvnext{left:12px;right:12px;width:auto;top:calc(var(--head-h,82px) + 60px);height:100px;border-radius:16px;padding:0 16px;display:flex;flex-direction:column;justify-content:center;gap:2px;overflow:hidden}
+.pvnext small{font-size:12px;line-height:16px}
+.pvnext strong{font-size:20px;line-height:26px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pvnext .when{font-size:13px;line-height:18px;display:block}
+.pvnext .time{font:400 13px/18px -apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif}
+.pvnext.none{cursor:default}.pvnext.none .ghost{margin-top:2px;min-height:44px}
+.pv-today,.pv-week,.pv-tasks,.pv-notes{background:#fff;border:1px solid #E3E0D7;border-radius:14px;overflow:hidden}
+.pv-today{left:12px;right:12px;top:calc(var(--head-h,82px) + 168px);height:201px;padding:0 12px}
+.pvh{display:flex;align-items:center;gap:12px;height:36px;flex:none}
+.pvh h3{margin:0;flex:1;min-width:0;font:700 13px/1 -apple-system,'Hiragino Sans',sans-serif;color:#68716A;white-space:nowrap}
+.pvh .hgo{position:relative;flex:none;min-height:0;height:36px;padding:0;font-size:12px;font-weight:600;color:var(--green);background:none;border:0;white-space:nowrap}
+.pvh .hgo::before{content:"";position:absolute;left:-6px;right:-6px;top:-4px;bottom:-4px}
+.pv-today .hrow{height:32px;min-height:32px}
+.pv-today .hrow .ht{font-size:13px;min-width:44px}
+.pv-today .hrow strong{font-size:15px;font-weight:500}
+.pv-today .hempty{margin:8px 0}
+.pv-week{left:12px;right:12px;top:var(--pvb);height:112px}
+.pv-week .pvh{padding:0 12px;height:24px}
+.pv-week .pvh .hgo{height:24px}
+.pvwk{position:relative;height:88px}
+.pvwk .week{display:grid;height:88px;border-top:0;box-shadow:inset 0 1px 0 #e5e3db;overflow:hidden}
+.pvwk .week .day{height:88px;justify-content:flex-start}
+.pvwk .strip,.pvwk .bar{height:var(--chip-h);min-height:var(--chip-h);line-height:var(--chip-h)}
+.pvwk .bar:after{top:calc(var(--chip-h) - 3.5px)}
+.pv-tasks,.pv-notes{top:calc(var(--pvb) + 120px);height:calc(var(--tabs-y,863px) - 16px - var(--pvb) - 120px);width:calc((100% - 33px) / 2);padding:0 12px}
+.pv-tasks{left:12px}
+.pv-notes{left:calc(12px + (100% - 33px) / 2 + 9px)}
+.pv-tasks .htask{height:44px;min-height:44px}
+.pv-tasks .hadd{min-height:44px;font-size:13px}
+.pvnote{display:flex;flex-direction:column;justify-content:flex-start;width:100%;height:calc(100% - 36px);padding:0;text-align:left;border:0;border-radius:0;background:repeating-linear-gradient(to bottom,transparent 0,transparent 29px,#EEEAE1 29px,#EEEAE1 30px);overflow:hidden}
+.pvnote span{display:block;height:30px;font-size:15px;line-height:30px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pvnote .pvph{color:#8C918A}
+/* 文字を大きくしたとき: 上の面（y82〜帯の上）と下の面（帯の下〜タブの上16）をそれぞれ窓にして、窓の中だけスクロール。枠は帯にかからない。 */
+.phome.big .pvw{display:block;position:absolute;left:0;right:0;overflow-y:auto;overscroll-behavior:contain;padding:0 12px;box-sizing:border-box}
+.phome.big .pvt{top:var(--head-h,82px);height:calc(var(--groove-avoid-y0,459px) - var(--head-h,82px))}
+.phome.big .pvb{top:var(--pvb);height:calc(var(--tabs-y,863px) - 16px - var(--pvb));display:flex;flex-wrap:wrap;gap:8px 9px;align-content:flex-start}
+.phome.big .pvw>*{position:static;height:auto;width:auto}
+.phome.big .pvt>*{margin-bottom:8px}
+.phome.big .pv-date{padding:0 12px}
+.phome.big .pv-today{padding-bottom:6px}
+.phome.big .pvb>.pv-week{flex:0 0 100%}
+.phome.big .pvb>.pv-tasks,.phome.big .pvb>.pv-notes{flex:1 1 0;min-width:0;min-height:227px}
+.phome.big .pvh{min-height:36px}

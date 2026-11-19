@@ -172,6 +172,37 @@ test.describe('開いた縦（月タブ）', () => {
   });
 });
 
+test.describe('開いた縦（月タブ・日の部分が時間軸）', () => {
+  // 第19.1版 S2（R-49）: 日の部分が「時間軸」でも、下の面の .tlev を長押しで上の月の日へ落とせる。
+  test('時間軸の枠を長押しで引き、上の月の日へ落とすと日だけ変わり時刻は同じ', async ({ page }) => {
+    await boot(page, SIZES.openPortrait669);
+    await expect(page.locator('.mday .tlev:not(.fev)', { hasText: '撮影' })).toHaveCount(1);
+    const row = tlev(page, '撮影');
+    await row.evaluate((el) => el.scrollIntoView({ block: 'center' })); // 時間軸は 0:00 から。下の面を送って枠を見える所へ
+    await expect(row).toBeVisible();
+    const src = await center(row);
+    expect(src.y).toBeGreaterThan(492); // 下の面
+    await grab(page, src, await center(dayBtn(page, '2026-11-20')), { release: false });
+    await expect(page.locator('.gchip')).toHaveCount(1);
+    await expect(dayBtn(page, '2026-11-20')).toHaveClass(/mdrop/);
+    await page.mouse.up();
+    await expect.poll(async () => (await byId(page, 'd1')).start).toBe('2026-11-20T10:00');
+    expect((await byId(page, 'd1')).end).toBe('2026-11-20T11:00');
+  });
+
+  test('時間軸からの落とし：繰り返しはその回だけ（例外）', async ({ page }) => {
+    await boot(page, SIZES.openPortrait669);
+    const row = tlev(page, '定例');
+    await row.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await expect(row).toBeVisible();
+    await grab(page, await center(row), await center(dayBtn(page, '2026-11-20')));
+    await expect.poll(async () => (await byId(page, 'd3')).overrides ? Object.keys((await byId(page, 'd3')).overrides).length : 0).toBeGreaterThan(0);
+    const d3 = await byId(page, 'd3');
+    expect(d3.start).toBe('2026-11-12T09:00'); // 親の予定は動かない
+    expect(d3.recurrence).toBeTruthy();
+  });
+});
+
 test.describe('つかめない画面', () => {
   test('閉じた画面では予定を長押ししてもつかまない', async ({ page }) => {
     await boot(page, SIZES.closedPortrait);

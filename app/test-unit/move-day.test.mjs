@@ -70,3 +70,30 @@ test('iPhone 戻す: modifiedAt が違えば許さない', () => {
   assert.equal(extUndoAllowed(222, 333), false);
   assert.equal(extUndoAllowed(null, 333), false);
 });
+
+// 第19.1版 S2（R-49）: 開いた縦の月タブの「時間軸」からの落とし。時間軸の枠は時刻を動かさず日だけ移す（時刻の文字列はそのまま）。
+// NY の夏時間が終わる 2026-11-01（1:00〜1:59 が2回ある日）をまたいでも、時刻がずれない。
+test('時間軸からの落とし: 2026-11-01（NY 夏時間の終わり）の前後でも時刻の文字列はそのまま', () => {
+  for (const [a, b] of [['2026-10-31', '2026-11-01'], ['2026-11-01', '2026-10-31'], ['2026-11-01', '2026-11-02'], ['2026-10-30', '2026-11-03']]) {
+    for (const t of ['00:30', '01:30', '02:00', '09:00', '23:30']) {
+      const r = moveTimes({ start: `${a}T${t}`, end: `${a}T23:45` > `${a}T${t}` ? `${a}T23:45` : `${a}T23:59` }, b, a);
+      assert.equal(r.start, `${b}T${t}`, `${a}→${b} ${t}`);
+      assert.equal(r.note, null);
+    }
+  }
+  // 2時間にまたがる枠（1:00〜3:00）も長さ・時刻はそのまま
+  const r = moveTimes({ start: '2026-10-31T01:00', end: '2026-10-31T03:00' }, '2026-11-01', '2026-10-31');
+  assert.deepEqual([r.start, r.end, r.note], ['2026-11-01T01:00', '2026-11-01T03:00', null]);
+});
+test('時間軸からの落とし: 繰り返しの1回を 2026-11-01 の前後へ移すと、その回だけの例外（時刻は同じ）', () => {
+  const p = { id: 'r1', title: '定例', categoryId: 'c', all: false, start: '2026-10-29T09:00', end: '2026-10-29T10:00', place: '', notes: '', recurrence: { freq: 'daily', interval: 1 }, exdates: [], overrides: {} };
+  const occKey = '2026-10-31T09:00';
+  const occ = { ...p, start: '2026-10-31T09:00', end: '2026-10-31T10:00' };
+  const m = planMoveDuo(p, occ, occKey, '2026-11-01', () => 'new1');
+  assert.equal(m.after.start, '2026-11-01T09:00');
+  assert.equal(m.after.end, '2026-11-01T10:00');
+  const parent = m.puts.find((e) => e.id === 'r1');
+  assert.equal(parent.start, '2026-10-29T09:00'); // 親は動かない
+  assert.equal(Object.keys(parent.overrides).length, 1);
+  assert.equal(Object.values(parent.overrides)[0].start, '2026-11-01T09:00');
+});
