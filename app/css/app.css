@@ -1205,8 +1205,6 @@ dialog#menu #m-destpop{border-radius:inherit}
 .ned-chk[data-checked="1"] .ned-box { background: #294e42; border-color: #294e42; color: #fff; }
 .ned-mirror { position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none; box-sizing: border-box; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; border: 0; }
 .ned-mirror .ned-mline { min-height: 1lh; }
-.ned-fmt { display: flex; gap: 8px; padding: 0 8px; }
-.ned-fmt button:disabled { opacity: .4; }
 .ned-status { font-size: 12px; color: #b3261e; padding: 2px 8px; display: flex; gap: 8px; align-items: center; }
 .ned-status[hidden], .ned-trash[hidden], .ned-retry[hidden] { display: none; }
 .ned-bar { display: flex; gap: 8px; padding: 0 8px; }
@@ -1321,7 +1319,6 @@ html.kbl[data-kbl=note] .fpage .notepage{padding:0;flex:none}
 html.kbl[data-kbl=note] .nhost{position:fixed;left:0;right:0;top:var(--kl-ed-top);height:var(--kl-ed-h);z-index:3;background:var(--paper);overflow:hidden;box-sizing:border-box;padding:0 16px}
 html.kbl[data-kbl=note] .nhost .ned{height:100%}
 html.kbl[data-kbl=note] .ned-bodywrap{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-html.kbl[data-kbl=note] .ned-fmt{position:fixed;left:0;right:0;top:var(--kl-as-top);height:var(--kl-as-h);box-sizing:border-box;padding:var(--kl-as-pad) 16px 0;align-items:center;background:#E6E8EB;z-index:5}
 html.kbl[data-kbl=note] .ned-status,html.kbl[data-kbl=note] .ned-bar,html.kbl[data-kbl=note] .ned-trash{display:none}
 html.kbl[data-kbl=note] .nup{position:fixed;left:0;right:0;top:var(--kl-nu-top);height:var(--kl-nu-h);z-index:3;box-sizing:border-box;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 html.kbl[data-kbl=note][data-kbe=up] .nupb{min-height:32px;height:32px;position:relative}
@@ -1332,7 +1329,7 @@ html.kbl[data-kbl=note][data-kbnu="0"] .nup{display:none}
 .nupb{flex:none;max-width:70%;min-height:44px;padding:0 14px;border-radius:22px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);font-size:14px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
 html.kbl[data-kbe=dn] .nupb{max-width:none;width:100%;border-radius:8px;background:transparent;box-shadow:none;border-bottom:1px solid var(--line)}
 .nupe{font-size:13px;color:var(--muted)}
-@media (prefers-color-scheme:dark){ html.kbl .ftchips,html.kbl .ned-fmt{background:#2b2f2d} html.kbl[data-kbe=up] .nup{background:#262a28} }
+@media (prefers-color-scheme:dark){ html.kbl .ftchips{background:#2b2f2d} html.kbl[data-kbe=up] .nup{background:#262a28} }
 .ndchip{flex:none;position:relative;height:22px;min-height:22px;margin:0 0 0 6px;padding:0 8px;border-radius:11px;font-size:12px;line-height:22px;background:transparent;box-shadow:inset 0 0 0 1px var(--line);color:#68716A;white-space:nowrap}
 .ndchip::before{content:"";position:absolute;left:-4px;right:-4px;top:-11px;bottom:-11px}
 .ndchip.has{color:#294E42;box-shadow:inset 0 0 0 1px #8A7E5C}
@@ -1620,3 +1617,56 @@ dialog.panel.tface-open{overflow:visible}
 .week .day.mdrop::after{content:"";position:absolute;inset:0;border:2px solid #294E42;border-radius:6px;pointer-events:none;z-index:3}
 @media (prefers-color-scheme:dark){ .week .day.mdrop{background:#2B3640} .week .day.mdrop::after{border-color:#6FA08C} }
 html[data-grab] .tl,html[data-grab] .tlx{touch-action:none}
+
+/* 第19版 PR9: ノート第1段（design/27）。上の帯・書式のシート・下へ伸びる紙・ノートのシート */
+.ned-top{flex:none;display:flex;align-items:center;gap:12px;height:44px;padding:0 var(--ns-pr,12px) 0 var(--ns-pl,12px);box-sizing:border-box}
+.ned-grp{display:flex;align-items:center;height:40px;padding:0 4px;border-radius:16px;background:#EFECE4;box-sizing:border-box}
+.ned-gundo{width:96px}.ned-gtools{width:140px}
+.ned .ned-ib{position:relative;width:44px;height:44px;min-height:44px;min-width:44px;margin:-2px 0;padding:0;border:0;background:transparent;color:#293B35;display:flex;align-items:center;justify-content:center}
+.ned .ned-ib svg{position:relative}
+.ned .ned-ib:disabled{color:#C9C5BA;opacity:1}
+.ned .ned-ib::before{content:"";position:absolute;left:4px;top:6px;width:36px;height:32px;border-radius:10px;background:#E4E0D6;opacity:0;transition:opacity .1s}
+.ned .ned-ib:active:not(:disabled)::before{opacity:1}
+.ned .ned-done{position:relative;margin-left:auto;width:44px;height:44px;padding:0;border:0;background:transparent;color:#fff;display:flex;align-items:center;justify-content:center}
+.ned .ned-done::before{content:"";position:absolute;width:32px;height:32px;border-radius:50%;background:#294E42}
+.ned .ned-done svg{position:relative}
+.ned-fsheet{position:fixed;left:var(--ns-x,0);width:var(--ns-w,100%);bottom:0;height:var(--ned-fs-h,250px);box-sizing:border-box;z-index:60;background:#FFFDFA;border-radius:24px 24px 0 0;box-shadow:0 12px 32px rgba(0,0,0,.16);padding:0 16px 34px;display:flex;flex-direction:column;gap:8px}
+.ned-fsheet[hidden]{display:none}
+.ned-fshead{height:44px;display:flex;align-items:center;justify-content:space-between}
+.ned-fstitle{font-size:15px;font-weight:600}
+.ned .ned-fsclose{width:44px;height:44px;border:0;background:transparent;display:flex;align-items:center;justify-content:center;padding:0}
+.ned-fsclose i{width:28px;height:28px;border-radius:50%;background:#EFECE4;font-style:normal;font-size:13px;display:flex;align-items:center;justify-content:center}
+.ned-fsseg{display:flex;width:268px;max-width:100%;height:44px;border-radius:10px;background:#EFECE4;padding:3px;box-sizing:border-box;gap:0}
+.ned .ned-fsb{flex:1;height:38px;min-height:38px;min-width:0;border:0;border-radius:8px;background:transparent;color:inherit;padding:0}
+.ned .ned-fsb[aria-pressed=true]{background:#fff}
+.ned-fs-heading{font-size:15px;font-weight:600}.ned-fs-heading2{font-size:13px;font-weight:600}.ned-fs-plain{font-size:13px}
+.ned .ned-body,.ned .ned-title{padding-top:0;padding-bottom:0}
+.ned .ned-title{line-height:30px}
+.ned .ned-body{line-height:30px;font-size:16px}
+.ned-bodywrap{background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 29px,#EEEAE1 29px,#EEEAE1 30px);background-attachment:local}
+.ned-tail{height:90px;cursor:text}
+.ned-inkslot{padding:0 8px}
+.ned-ink{color:#293B35;pointer-events:none}
+.ned-ink svg,.ned-ink img{display:block}.ned-ink img{max-width:100%;height:auto}
+.nsheet{position:fixed;z-index:40;display:flex;flex-direction:column;box-sizing:border-box;padding-top:8px;background:#FFFDFA;border-radius:24px 24px 0 0;box-shadow:0 12px 32px rgba(0,0,0,.16);animation:nsheetin .25s ease-out}
+.nsheet[hidden]{display:none}
+.nsheet.closing{transform:translateY(105%);transition:transform .25s ease-in}
+.nsheet .ned{flex:1;min-height:0;height:100%;gap:0}
+.nsheet .ned-bodywrap{margin:0 var(--ns-bmr,8px) 0 var(--ns-bml,8px)}
+.nsheet .ned-title{margin:0 var(--ns-bmr,8px) 0 var(--ns-bml,8px);width:auto}
+.nsheet .ned-status,.nsheet .ned-bar,.nsheet .ned-trash{display:none}
+@keyframes nsheetin{from{transform:translateY(40%);opacity:.6}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.nsheet{animation:nsheetfade .15s}.nsheet.closing{transform:none;opacity:0;transition:opacity .15s}@keyframes nsheetfade{from{opacity:0}to{opacity:1}}}
+@media (prefers-color-scheme:dark){
+ .nsheet,.ned-fsheet{background:#262A27;box-shadow:none;color:#E8E6E0}
+ .ned-bodywrap{background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 29px,#343A36 29px,#343A36 30px)}
+ .ned-grp,.ned-fsseg,.ned-fsclose i{background:#30352F}
+ .ned .ned-ib{color:#E8E6E0}.ned .ned-ib:disabled{color:#5A615B}
+ .ned .ned-done::before{background:#6FA08C}.ned .ned-done{color:#1C1F1D}
+ .ned .ned-fsb[aria-pressed=true]{background:#262A27}
+ .ned-ink{color:#E8E6E0}
+}
+/* 第19版 PR9: 書式の帯は上へ移ったので、キーボードの真上に取っていた補助列の分も本文の窓に使う（下の面で書くとき） */
+html.kbl[data-kbl=note][data-kbe=dn] .nhost{height:calc(var(--kl-ed-h) + var(--kl-as-h) + 4px)}
+.ned .ned-title{min-height:30px}
+.ned .ned-body{min-height:90px}

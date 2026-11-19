@@ -212,11 +212,11 @@ test.describe('今日＋明日（開いた横）', () => {
     await land(page, TT);
     await expect(page.locator('.dpage.lp .dnt')).toHaveText('');
     await page.locator('.dpage.lp .dnote').click();
-    await expect(page.locator('.dpage')).toHaveCount(0); // 右ページがノートに置き換わる
-    await expect(page.locator('.page[data-page="memo"]')).toHaveCount(1);
-    await expect(ttBtn(page)).toHaveAttribute('aria-pressed', 'false');
-    await ttBtn(page).click(); // 戻れる
+    // 第19版 PR9: 0件・1件はそのページの上にノートのシートが出る（ページは置き換わらない）
+    await expect(page.locator('.nsheet .ned-body')).toBeVisible();
     await expect(page.locator('.dpage')).toHaveCount(2);
+    await page.getByRole('button', { name: '完了' }).click();
+    await expect(page.locator('.nsheet')).toBeHidden();
   });
 
   test('ノート欄: 1件は本文を出してたたくと開く・複数は絞った一覧', async ({ page }) => {
@@ -233,9 +233,10 @@ test.describe('今日＋明日（開いた横）', () => {
     // 罫線に沿った行の高さ 30
     expect(await page.locator('.dpage.lp .dnt').evaluate((e) => getComputedStyle(e).lineHeight)).toBe('30px');
     await page.locator('.dpage.lp .dnote').click();
-    await expect(page.locator('.page[data-page="memo"]')).toHaveCount(1);
-    await expect(page.locator('.page[data-page="memo"] textarea, .page[data-page="memo"] [contenteditable]').first()).toBeVisible();
-    await ttBtn(page).click();
+    await expect(page.locator('.nsheet .ned-body')).toBeVisible();
+    await expect(page.locator('.nsheet .ned-body')).toHaveValue(/会議の準備/);
+    await page.getByRole('button', { name: '完了' }).click();
+    await expect(page.locator('.nsheet')).toBeHidden();
     await page.locator('.dpage.rp .dnote').click();
     await expect(page.locator('.page[data-page="memo"]')).toHaveCount(1);
     await expect(page.locator('.page[data-page="memo"]')).toContainText('重なりその1');

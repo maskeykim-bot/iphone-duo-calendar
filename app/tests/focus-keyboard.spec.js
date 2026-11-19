@@ -114,11 +114,11 @@ test.describe('集中ノート: 本文が溝をまたがず、入力行が隠れ
     await page.locator('.ned-body').focus();
     await setKb(page, { kbTop: 690 });
     await expect(page.locator('html[data-kbe=dn]')).toHaveCount(1);
-    const ed = await box(page.locator('.nhost')), nu = await box(page.locator('.nup')), fm = await box(page.locator('.ned-fmt'));
+    const ed = await box(page.locator('.nhost')), nu = await box(page.locator('.nup')), fm = await box(page.locator('.ned-top'));
     expect(ed.top).toBeGreaterThanOrEqual(DEF.bottom + 8 - 0.5);
     expect(nu.bottom).toBeLessThanOrEqual(DEF.top - 8 + 0.5);
-    expect(crosses(fm.top, fm.bottom, DEF)).toBe(false); expect(690 - fm.bottom).toBeGreaterThanOrEqual(0); expect(690 - fm.bottom).toBeLessThanOrEqual(8);
-    expect(ed.bottom).toBeLessThanOrEqual(fm.top + 0.5); expect(fm.h).toBeCloseTo(44, 0);
+    expect(crosses(fm.top, fm.bottom, DEF)).toBe(false); expect(ed.bottom).toBeLessThanOrEqual(690); // 第19版 PR9: 書式の帯は上へ移った（キーボードの真上にはない）
+    expect(fm.top).toBeLessThan(ed.top + 60);
   });
 
   test('折って編集: 同じ本文 DOM が上面へ移り、下面に他ノート題名と補助列。溝をまたがない', async ({ page }) => {
@@ -127,13 +127,12 @@ test.describe('集中ノート: 本文が溝をまたがず、入力行が隠れ
     await fold(page); await setKb(page, { kbTop: 590 });
     await expect(page.locator('html[data-kbe=up]')).toHaveCount(1);
     expect(await page.evaluate(() => window.__bodyNode === document.querySelector('.ned-body'))).toBe(true);
-    const ed = await box(page.locator('.nhost')), fm = await box(page.locator('.ned-fmt'));
+    const ed = await box(page.locator('.nhost')), fm = await box(page.locator('.ned-top'));
     expect(ed.bottom).toBeLessThanOrEqual(DEF.top - 8 + 0.5);
-    expect(crosses(fm.top, fm.bottom, DEF)).toBe(false); expect(590 - fm.bottom).toBeLessThanOrEqual(8);
-    expect(fm.h).toBeCloseTo(44, 0);
+    expect(crosses(fm.top, fm.bottom, DEF)).toBe(false); expect(fm.h).toBeCloseTo(44, 0);
     await setKb(page, { kbTop: 690 });
     const nu = await box(page.locator('.nup'));
-    expect(nu.top).toBeGreaterThanOrEqual(DEF.bottom + 8 - 0.5); expect(nu.bottom).toBeLessThanOrEqual((await box(page.locator('.ned-fmt'))).top + 0.5);
+    expect(nu.top).toBeGreaterThanOrEqual(DEF.bottom + 8 - 0.5); expect(nu.bottom).toBeLessThanOrEqual(690);
     await expect(page.locator('.nup')).toHaveCSS('background-color', 'rgb(207, 211, 216)'); // 下面の空きだけ灰色
     await expect(page.locator('.ned-body')).toBeFocused();
   });
@@ -147,8 +146,8 @@ test.describe('集中ノート: 本文が溝をまたがず、入力行が隠れ
     await page.waitForTimeout(100);
     const caret = await page.evaluate(async () => { const { caretBox } = await import('./js/keyboard-layout.js'); const ta = document.querySelector('.ned-body'), c = caretBox(ta), t = ta.getBoundingClientRect(), v = ta.closest('.ned-bodywrap').getBoundingClientRect(); return { top: t.top + c.top, bottom: t.top + c.bottom, vTop: v.top, vBottom: v.bottom }; });
     expect(caret.top).toBeGreaterThanOrEqual(caret.vTop - 1); expect(caret.bottom).toBeLessThanOrEqual(caret.vBottom + 1);
-    const fm = await box(page.locator('.ned-fmt'));
-    expect(caret.bottom).toBeLessThanOrEqual(fm.top + 1); // 補助列・キーボードに隠れない
+    const fm = await box(page.locator('.ned-top'));
+    expect(caret.bottom).toBeLessThanOrEqual(kb + 1); // キーボードに隠れない
     // 本文の窓だけが動く（文書は動かない）
     expect(await page.evaluate(() => document.scrollingElement.scrollTop)).toBe(0);
   });
@@ -158,7 +157,7 @@ test.describe('集中ノート: 本文が溝をまたがず、入力行が隠れ
     await page.locator('.ctl').getByRole('button', { name: 'ノートを追加' }).click();
     await page.locator('.ned-body').focus(); await fold(page); await setKb(page, { kbTop: 590 });
     await expect(page.locator('.nup .nupb')).toHaveCount(1);
-    await page.locator('.ned-fmt [data-fmt=check]').click();
+    await page.locator('.ned-top [data-fmt=check]').click();
     await expect(page.locator('.ned-body')).toBeFocused();
     await page.locator('.nup .nupb').first().click();
     await expect(page.locator('.ned-title')).toHaveValue('一つ目の題名');

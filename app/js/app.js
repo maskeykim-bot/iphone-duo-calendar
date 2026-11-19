@@ -239,6 +239,7 @@ function vpTick() {
   updateDiagnostics();
   if (changed || sc) { directCtl?.cancel('rotate'); ttCurl?.reset('rotate'); flushEditing(); render(); }
   applyKbLayout();
+  placeNoteSheet();
   if (dlg.open) grooveSchedule();
   const a = document.activeElement;
   if (kb && isTextEl(a)) {
@@ -1493,13 +1494,16 @@ function timeBody(side, w) {
 // ---------- ノート（旧「日ごとのメモ」。左右ページ・縦の下パネル・閉じた画面の帯で同じ一覧と同じエディタ。保存は notes.js） ----------
 // 画面からは旧 memos へ一切書かない。旧メモは起動時にノートへ複製済み（db.js の移行）。
 let noteComposing = false, renderPending = false, rendering = false;
-const NB = { marks: new Map(), first: new Map(), day: null, dp: null, cur: null, rows: null, q: { left: '', right: '', bottom: '', closed: '' }, seq: 0, failed: false, blocked: false, ed: null, opening: null, focusNew: false, said: false, folders: null, sel: 'all', menu: null, swallow: 0 };
+const NB = { marks: new Map(), first: new Map(), day: null, dp: null, cur: null, rows: null, q: { left: '', right: '', bottom: '', closed: '' }, seq: 0, failed: false, blocked: false, ed: null, opening: null, focusNew: false, said: false, folders: null, sel: 'all', menu: null, swallow: 0, sheet: null };
 const noteHead = (side) => `<div class="rhead dh"><h2 class="rdate">ノート</h2>${side === 'right' ? rctl() : ''}<div class="sctl">${side === 'left' ? gearBtn() : ''}</div></div>`;
 function noteEditor() {
   if (!NB.ed) NB.ed = mountNoteEditor(document.createElement('div'), {
     store: noteStore,
     onOpen: (id) => { db.setLastNote(id).catch(() => {}); },
     onTrashChange: (id) => { if (id === NB.cur) { NB.cur = null; db.setLastNote(null).catch(() => {}); } invalidateNoteList(); render(); },
+    onDone: () => { if (NB.sheet) closeNoteSheet(); else noteBack(); },
+    onFormatSheet: (open, hadKb) => { if (NB.sheet) { NB.sheet.fs = !open ? null : hadKb ? (kbTopOf(window.visualViewport, window.innerHeight) ?? L.h - 250) : L.h - 250; placeNoteSheet(); } },
+    loadInk: (id) => db.getNote(id).then((n) => n?.ink ?? null), // 古い手書きを表示だけする（読むだけ）
   });
   return NB.ed;
 }
@@ -1656,13 +1660,24 @@ async function refreshNoteMarks() {
 }
 async function filterNotesByDay(day) {
   if (NB.blocked) return;
+  if (NB.sheet) { if (await closeNoteSheet() === false) return; }
   if (NB.ed && NB.cur) { const ok = await NB.ed.leave(); if (ok === false) return; NB.cur = null; NB.dp = null; invalidateNoteList(); }
   NB.day = day; render();
 }
 // 「この日のノート」: 0件=日ごとのメモに新規（1行目は日付見出し）、1件=開く、複数=その日に絞った一覧。
 let dayNoteBusy = false;
+// その日の新しいノート（日ごとのメモのフォルダ、1行目は日付見出し）を作って id を返す。
+async function createDayNote(day) {
+  let fid = null;
+  try { const r = ensureDailyFolder(await db.listFolders()); if (r.created) await db.putFolder(r.folder); fid = r.folder.id; invalidateNoteList(); NB.folders = null; } catch { /* フォルダなしで作る */ }
+  const id = noteStore.newNote();
+  await noteStore.setMeta(id, { date: day, ...(fid ? { folderId: fid } : {}) });
+  noteStore.setText(id, `${dailyHeading(day)}\n`);
+  return id;
+}
 async function openDayNote(day) {
   if (!day || NB.blocked || dayNoteBusy) return;
+  if (NB.sheet) { if (await closeNoteSheet() === false) return; }
   dayNoteBusy = true;
   try {
     let all; try { all = await db.listNotes(); } catch { say('ノートを読み込めませんでした。'); return; }
@@ -1670,11 +1685,7 @@ async function openDayNote(day) {
     if (occ.length === 1) { NB.day = null; await noteOpen(occ[0].id); return; }
     if (occ.length > 1) { await filterNotesByDay(day); return; }
     if (NB.ed && NB.cur) { const ok = await NB.ed.leave(); if (ok === false) return; }
-    let fid = null;
-    try { const r = ensureDailyFolder(await db.listFolders()); if (r.created) await db.putFolder(r.folder); fid = r.folder.id; invalidateNoteList(); NB.folders = null; } catch { /* フォルダなしで作る */ }
-    const id = noteStore.newNote();
-    await noteStore.setMeta(id, { date: day, ...(fid ? { folderId: fid } : {}) });
-    noteStore.setText(id, `${dailyHeading(day)}\n`);
+    const id = await createDayNote(day);
     NB.day = null; NB.cur = id; NB.focusNew = true; NB.dp = null; render();
   } finally { dayNoteBusy = false; }
 }
@@ -1687,15 +1698,18 @@ function showNotePage() {
 }
 async function noteDayJump(day) { showNotePage(); await filterNotesByDay(day); }
 async function noteOpen(id) {
+  if (NB.sheet) { if (await closeNoteSheet() === false) return; }
   if (NB.ed && NB.cur && NB.cur !== id) { const ok = await NB.ed.leave(); if (ok === false) return; }
   NB.cur = id; NB.dp = null; render();
 }
 async function noteBack() {
+  if (NB.sheet) { if (await closeNoteSheet() === false) return; }
   if (NB.ed && NB.cur) { const ok = await NB.ed.leave(); if (ok === false) return; }
   NB.cur = null; NB.dp = null; db.setLastNote(null).catch(() => {}); invalidateNoteList(); render();
 }
 async function noteNew() {
   if (NB.blocked) return;
+  if (NB.sheet) { if (await closeNoteSheet() === false) return; }
   if (NB.ed && NB.cur) { const ok = await NB.ed.leave(); if (ok === false) return; }
   NB.cur = noteStore.newNote(); NB.focusNew = true;
   if (NB.sel !== 'all' && NB.sel !== 'none' && NB.folders?.some((f) => f.id === NB.sel)) noteStore.setMeta(NB.cur, { folderId: NB.sel }); // 開いているフォルダの中に作る
@@ -2385,9 +2399,77 @@ function setSpreadType(t) {
   say(ttOn() ? `今日と明日の見開きにしました。${dayLabel(state.selected)}と${dayLabel(addDays(state.selected, 1))}。` : '左右のページの見開きに戻しました。');
 }
 // 1日ページのノート欄をたたく: 帯の「ノート」と同じく右ページをノートにして、第17版の「この日のノート」の規則（0件=新規、1件=開く、複数=絞った一覧）で開く。
-async function ttOpenNote(day) {
-  if (layoutKind() === 'spread') set({ strip: 'memo', lastSide: 'right' }); else showNotePage();
-  await openDayNote(day);
+async function ttOpenNote(day, btn) {
+  // 第19版 PR9: 1日ページのノート欄をたたくと、そのページの上にノートのシートが下から出る（design/27 §2）。複数あるときは今までどおり一覧。
+  if (!day || NB.blocked || dayNoteBusy || NB.sheet || sheetBusy || curlBusyNow()) return;
+  let all; try { all = await db.listNotes(); } catch { say('ノートを読み込めませんでした。'); return; }
+  const occ = dateOccupants(all, day, null);
+  if (occ.length > 1) {
+    if (layoutKind() === 'spread') set({ strip: 'memo', lastSide: 'right' }); else showNotePage();
+    await openDayNote(day); return;
+  }
+  const r = btn?.getBoundingClientRect?.();
+  const side = r && r.width && (r.left + r.right) / 2 > L.w / 2 ? 'right' : 'left';
+  await openNoteSheet(occ.length === 1 ? occ[0].id : null, day, side);
+}
+// ---------- ノートのシート（第19版 PR9、design/27 §2・§8）。常設のエディタ（NB.ed）を下から出るシートに置く ----------
+let sheetBusy = false;
+const curlBusyNow = () => !!ttCurl?.busy?.();
+const SHEET_EL = (() => { const d = document.createElement('div'); d.className = 'nsheet'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', 'ノート'); d.hidden = true; document.body.append(d); return d; })();
+// 位置・帯・本文の窓（design/27 §2.1〜§2.3）。シートの下端は kbTop（書式のシートが出ている間は開く前の kbTop に止める）。
+function sheetGeometry(side) {
+  const W = L.w, H = L.h, kind = layoutKind();
+  const kbT = kbTopOf(window.visualViewport, window.innerHeight);
+  let bottom = NB.sheet?.fs != null ? NB.sheet.fs : (de.dataset.kb && kbT !== null ? kbT : H);
+  bottom = Math.min(bottom, H);
+  const g = { x: 0, y: 152, w: W, pl: 12, pr: 12, bml: 12, bmr: Math.max(0, W - 20 - 342 - 8), kind };
+  if (kind === 'spread') {
+    const pw = (W - 20) / 2 - 8; // 左ページ（457.5）
+    if (side === 'left') Object.assign(g, { x: 8, y: 64, w: pw, pl: 12, pr: 9.5, bml: 8, bmr: 8 });
+    else { const rw = pw - 92; Object.assign(g, { x: W / 2 + 10, y: 64, w: W - (W / 2 + 10), pl: 12, pr: 12, bml: 8, bmr: Math.max(0, (W - (W / 2 + 10)) - 16 - (rw - 32) - 8) }); }
+  } else if (kind === 'open') {
+    const y = 130; const gy0 = cssPx('--groove-y0', 467);
+    Object.assign(g, { x: 0, y, w: W, pl: 16, pr: 16, bml: 20, bmr: 20 });
+    g.bottom = Math.min(bottom, gy0);
+  }
+  g.bottom ??= bottom;
+  return g;
+}
+function placeNoteSheet() {
+  if (!NB.sheet) return;
+  const g = sheetGeometry(NB.sheet.side), st = SHEET_EL.style;
+  st.left = `${g.x}px`; st.top = `${g.y}px`; st.width = `${g.w}px`; st.height = `${Math.max(120, g.bottom - g.y)}px`;
+  st.setProperty('--ns-pl', `${g.pl}px`); st.setProperty('--ns-pr', `${g.pr}px`); st.setProperty('--ns-bml', `${g.bml}px`); st.setProperty('--ns-bmr', `${g.bmr}px`);
+  SHEET_EL.dataset.kind = g.kind; SHEET_EL.dataset.side = NB.sheet.side;
+  const fs = NB.ed?.fsheetEl; if (fs) { fs.style.setProperty('--ns-x', `${g.x}px`); fs.style.setProperty('--ns-w', `${g.w}px`); }
+}
+async function openNoteSheet(id, day, side) {
+  sheetBusy = true;
+  try {
+    if (NB.ed && NB.cur) { const ok = await NB.ed.leave(); if (ok === false) return; NB.cur = null; NB.dp = null; }
+    const fresh = id == null;
+    if (fresh) id = await createDayNote(day);
+    const ed = noteEditor();
+    NB.sheet = { id, day, side, fs: null };
+    SHEET_EL.hidden = false; SHEET_EL.classList.remove('closing'); SHEET_EL.append(ed.el);
+    placeNoteSheet();
+    render(); // 週の帯・ノート欄の描き直し（シートの外はそのまま見える）
+    await ed.open(id);
+    if (fresh) { ed.bodyEl.focus({ preventScroll: true }); const n = ed.bodyEl.value.length; ed.bodyEl.setSelectionRange(n, n); }
+    say('ノートを開きました。');
+  } finally { sheetBusy = false; }
+}
+async function closeNoteSheet() {
+  const sh = NB.sheet; if (!sh) return true;
+  const ed = NB.ed;
+  if (ed) { ed.closeFs?.(false); const ok = await ed.leave(); if (ok === false) return false; }
+  NB.sheet = null;
+  SHEET_EL.classList.add('closing');
+  const fin = () => { if (NB.sheet) return; SHEET_EL.hidden = true; SHEET_EL.classList.remove('closing'); if (ed && SHEET_EL.contains(ed.el)) ed.el.remove(); };
+  setTimeout(fin, reduced() ? 150 : 250);
+  invalidateNoteList(); NB.cur = null; render();
+  document.activeElement?.blur?.();
+  return true;
 }
 // 見開きの切替。左右で同じ種類になるときは入れ替わる。最後に触ったページを記録（＋の行き先）。
 function pickPage(side, id) {
@@ -2508,7 +2590,7 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'add') addFromHere(b);
   else if (d.act === 'pnltoggle') setPanel(!state.pages.portraitShown);
   else if (d.act === 'spreadtype') setSpreadType(ttOn() ? 'pages' : 'tt');
-  else if (d.act === 'daynote') ttOpenNote(d.day);
+  else if (d.act === 'daynote') ttOpenNote(d.day, b);
   else if (d.act === 'pnlhide') setPanel(false);
   else if (d.act === 'pnlgrip') { if (performance.now() >= PN.swallow) setPanel(false); }
   else if (d.pnl) pickBottom(d.pnl);
@@ -5446,7 +5528,7 @@ async function swipeTo(dir) {
 const swipeCtl = initSwipe({
   root,
   canStart: (t) => {
-    if (anyPanel() || swiping || !(t instanceof Element) || !t.closest(SWIPE_ZONE) || t.closest(SWIPE_EXCLUDE)) return false;
+    if (anyPanel() || NB.sheet || swiping || !(t instanceof Element) || !t.closest(SWIPE_ZONE) || t.closest(SWIPE_EXCLUDE)) return false;
     if (ttSpreadOn() && ttCurl?.mode() !== 'slide') return false; // 今日＋明日の見開き：端 24 のめくり（または入れ替え）に任せる。端の外の横スワイプでは日を送らない
     const pg = pageOf(t);
     swipePane = null;
@@ -5487,6 +5569,8 @@ const natCurl = createNativeCurl({
 ttCurl = createCurl({
   root, metrics: ttMetrics, pages: ttPainter(), swipe: swipeCtl, reduced, native: natCurl,
   enabled: () => ttSpreadOn() && !TT.drag && !anyPanel(),
+  root, metrics: ttMetrics, pages: ttPainter(), swipe: swipeCtl, reduced,
+  enabled: () => ttSpreadOn() && !TT.drag && !anyPanel() && !NB.sheet,
   canStart: curlCanStart,
   onTurn: (dir) => { swipePane = null; swipeMove(dir); }, // state.selected を ±2 日にして render()（今日＋明日の日送りと同じ）
 });

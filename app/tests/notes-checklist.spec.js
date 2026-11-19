@@ -26,14 +26,14 @@ test.describe('ノートのチェック欄と書式', () => {
     expect((await getNote(page, 'n1')).updatedAt).toBe(5);
     await expect(page.locator('.ned-chk')).toHaveCount(0);
     await body(page).click(); await body(page).evaluate((e) => e.setSelectionRange(0, 0));
-    await page.getByRole('button', { name: 'チェック欄', exact: true }).click();
+    await page.getByRole('button', { name: 'チェックリストにする', exact: true }).click();
     await expect.poll(async () => (await getNote(page, 'n1')).body).toBe('題\r\n- [ ] 牛乳\r\n卵\r\n\r\n- 既存');
   });
 
   test('Return で次の項目、空項目の Return で通常行へ。Return は1回だけ', async ({ page }) => {
     await page.evaluate(() => window.__ned.create());
     await page.locator('.ned-title').fill('買い物'); await page.locator('.ned-title').press('Enter');
-    await page.getByRole('button', { name: 'チェック欄', exact: true }).click();
+    await page.getByRole('button', { name: 'チェックリストにする', exact: true }).click();
     await page.keyboard.type('牛乳'); await page.keyboard.press('Enter');
     await page.keyboard.type('卵'); await page.keyboard.press('Enter');
     await expect(body(page)).toHaveValue('- [ ] 牛乳\n- [ ] 卵\n- [ ] ');
@@ -67,7 +67,7 @@ test.describe('ノートのチェック欄と書式', () => {
     await expect(body(page)).toHaveValue('- [ ] b\n- [ ] c\n- [x] a\n中間\n- [ ] x');
     await expect(chk.nth(2)).toHaveAttribute('aria-checked', 'true');
     await expect.poll(async () => (await getNote(page, 'n2')).body).toBe('題\n- [ ] b\n- [ ] c\n- [x] a\n中間\n- [ ] x');
-    await page.getByRole('button', { name: '書式操作を元に戻す' }).click();
+    await page.getByRole('button', { name: '元に戻す' }).click();
     await expect(body(page)).toHaveValue('- [ ] a\n- [ ] b\n- [ ] c\n中間\n- [ ] x');
     await chk.nth(0).click(); // a を済みにして末尾へ。次に外すと未了の後ろへ戻る
     await expect(body(page)).toHaveValue('- [ ] b\n- [ ] c\n- [x] a\n中間\n- [ ] x');
@@ -79,10 +79,10 @@ test.describe('ノートのチェック欄と書式', () => {
     await page.evaluate(() => window.__ned.create());
     const id = await page.evaluate(() => window.__ned.id);
     await page.locator('.ned-title').fill('<b>題</b>'); await page.locator('.ned-title').press('Enter');
-    await page.getByRole('button', { name: 'チェック欄', exact: true }).click();
+    await page.getByRole('button', { name: 'チェックリストにする', exact: true }).click();
     await page.keyboard.type('<img src=x onerror=alert(1)>');
     await page.keyboard.press('Enter');
-    await page.getByRole('button', { name: '見出し' }).click();
+    await page.getByRole('button', { name: '文字の書式' }).click(); await page.getByRole('button', { name: '見出し', exact: true }).click(); await page.getByRole('button', { name: '書式を閉じる' }).click();
     await page.keyboard.type('H');
     await expect.poll(async () => (await getNote(page, id))?.body).toBe('<b>題</b>\n- [ ] <img src=x onerror=alert(1)>\n# H');
     expect((await getNote(page, id)).title).toBe('<b>題</b>');
