@@ -88,10 +88,10 @@ button[aria-pressed=true]{background:var(--green);color:#fff}
 .date{font:600 17px/22px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif}
 .date span{font:400 13px/18px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;margin-left:8px}
 .next{display:block;width:100%;text-align:left;background:var(--green);color:#fff;border-radius:16px;padding:10px 16px;min-height:0}
-.next:hover{background:#355f50}.next small{color:#d7e3d9;font-size:13px}
+@media (hover:hover) and (pointer:fine){.next:hover{background:#355f50}}.next small{color:#d7e3d9;font-size:13px}
 .next strong{display:block;font-size:20px;line-height:1.3;font-weight:500}
 .next .time{font:600 20px/26px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;font-variant-numeric:tabular-nums}.next .when{display:block}
-.next.none{cursor:default}.next.none:hover{background:var(--green)}
+.next.none{cursor:default}@media (hover:hover) and (pointer:fine){.next.none:hover{background:var(--green)}}
 .next.none .ghost{background:transparent;color:#fff;border-color:#ffffff66;margin-top:4px;min-height:40px}
 .remaining{flex:1;min-height:0;display:flex;flex-direction:column}
 .remaining h3{font-size:15px;margin:0 0 2px;flex:none;font-weight:600}
@@ -174,7 +174,7 @@ input,select{display:block;width:100%;min-height:44px;padding:8px 10px;backgroun
 input[type=checkbox]{display:inline-block;width:20px;min-height:20px;vertical-align:middle;margin:0 8px 0 0}
 .check{min-height:32px}
 .actions{margin-top:12px}
-.primary{background:var(--green);color:#fff;padding:8px 28px}.primary:hover{background:#386351}
+.primary{background:var(--green);color:#fff;padding:8px 28px}@media (hover:hover) and (pointer:fine){.primary:hover{background:#386351}}
 .danger{color:var(--danger)}
 .error{color:var(--danger);font-size:13px;min-height:20px;margin:8px 0 0}
 #status{position:absolute;top:0;left:0;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
@@ -296,7 +296,7 @@ dialog#menu[open]{display:flex;flex-direction:column}
 .facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;margin:0 0 8px;font-size:15px}
 .facts dt{color:var(--muted)}.facts dd{margin:0;overflow-wrap:anywhere}
 .pair2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.dangerfill{background:#873B35;color:#fff}.dangerfill:hover{background:#963E38}
+.dangerfill{background:#873B35;color:#fff}@media (hover:hover) and (pointer:fine){.dangerfill:hover{background:#963E38}}
 .pbody>.row{margin-top:0;margin-bottom:8px}
 .pbody>.row.cancel{margin-top:12px}
 
@@ -480,7 +480,7 @@ input,select,textarea,.date-text{font-size:16px}
 .tabs,.pgsw{position:fixed;z-index:6;left:var(--tabs-x);top:var(--tabs-y);width:var(--tabs-w);height:46px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-radius:999px;
  background:#fffdfab8;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:inset 0 0 0 1px #d6d3c8,0 2px 10px #1a302d1f;touch-action:manipulation}
 .tabs button,.pgsw button{display:flex;align-items:center;justify-content:center;height:46px;min-height:46px;min-width:0;padding:0;border-radius:999px;background:transparent;color:var(--ink)}
-.tabs button:hover,.tabs button[aria-pressed=true],.pgsw button:hover,.pgsw button[aria-pressed=true]{background:transparent;color:var(--ink)}
+.tabs button[aria-pressed=true],.pgsw button[aria-pressed=true]{background:transparent;color:var(--ink)}@media (hover:hover){.tabs button:hover,.pgsw button:hover{background:transparent;color:var(--ink)}}
 .tabs .pill,.pgsw .pill{display:flex;align-items:center;justify-content:center;width:min(56px,calc(100% - 2px));height:36px;border-radius:999px;font-size:15px;font-weight:600}
 .tabs button[aria-pressed=true] .pill,.pgsw button[aria-pressed=true] .pill{background:var(--green);color:#fff}
 .pgsw .pill{width:min(54px,calc(100% - 2px));font-size:15px;font-weight:600}
@@ -564,7 +564,7 @@ body[data-layout=spread] .toastbar{left:var(--left-start);right:auto;width:calc(
 .chsp{flex:none;width:44px}
 .allbtn{border-radius:0;flex:none;position:relative;width:44px;min-width:44px;height:44px;padding:0;border:0;background:none;color:inherit;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
 .allbtn span{display:block;box-sizing:border-box;min-width:28px;width:28px;height:28px;line-height:25px;text-align:center;border:1.5px solid var(--ink);border-radius:8px;background:var(--paper,#F7F5EE);color:var(--ink)}
-.allbtn:hover,.allbtn[aria-pressed]{background:transparent;color:inherit}
+.allbtn[aria-pressed]{background:transparent;color:inherit}@media (hover:hover){.allbtn:hover{background:transparent;color:inherit}}
 .allbtn[aria-pressed="true"] span{background:#294E42;border-color:#294E42;color:#fff}
 .chead .allbtn,.sctl .allbtn{font-size:13px}
 
@@ -1538,7 +1538,7 @@ dialog.panel.tface-open{overflow:visible}
 .portrait .mpull .mdh h3{font-size:17px}
 .mpull .mgrid{transition:none}
 .closed .mpull .mgrid{transition:height .25s ease}
-.mdsw button,.mdsw button:hover,.mdsw button[aria-pressed=true]{color:var(--ink)}
+.mdsw button,.mdsw button[aria-pressed=true]{color:var(--ink)}@media (hover:hover){.mdsw button:hover{color:var(--ink)}}
 .closed.fb .mpull .mph{height:var(--head-h);align-items:flex-end;padding:0 48px 6px}
 .closed.fb .mpull .mph.pasting{height:auto;padding:0}
 .mpull .mph .allbtn{min-width:36px;font-size:13px}
