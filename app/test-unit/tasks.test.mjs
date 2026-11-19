@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateTask, makeTask, classifyTasks, TASK_NOTE_MAX } from '../js/tasks.js';
+import { validateTask, makeTask, classifyTasks, TASK_NOTE_MAX, TASK_TITLE_MAX } from '../js/tasks.js';
 import { LIMITS } from '../js/util.js';
 
 const base = { id: 'a', title: '牛乳', due: null, done: false, doneAt: null, createdAt: 1, updatedAt: 1, order: 1, note: '', notify: false };
@@ -15,8 +15,9 @@ test('期限なしは notify false に、未完了は doneAt null に正規化',
 });
 test('title / note の上限と空', () => {
   assert.equal(validateTask({ ...base, title: '  ' }).ok, false);
-  assert.equal(validateTask({ ...base, title: 'あ'.repeat(LIMITS.title) }).ok, true);
-  assert.equal(validateTask({ ...base, title: 'あ'.repeat(LIMITS.title + 1) }).ok, false);
+  assert.equal(validateTask({ ...base, title: 'あ'.repeat(LIMITS.title) }).ok, true); // 入力は 80 字、保存の上限は 1000 字（RS-20）
+  assert.equal(validateTask({ ...base, title: 'あ'.repeat(TASK_TITLE_MAX) }).ok, true);
+  assert.equal(validateTask({ ...base, title: 'あ'.repeat(TASK_TITLE_MAX + 1) }).ok, false);
   assert.equal(validateTask({ ...base, note: 'x'.repeat(TASK_NOTE_MAX) }).ok, true);
   assert.equal(validateTask({ ...base, note: 'x'.repeat(TASK_NOTE_MAX + 1) }).ok, false);
 });

@@ -7,11 +7,11 @@ import { SIZES } from './helpers.js';
 
 const root = path.resolve(import.meta.dirname, '..');
 const TEXT = 'iPhone のリマインダーと Duo カレンダーのタスクを同期するために使います。Duo でのタスクの追加・変更・完了・削除をリマインダーに反映し、リマインダー側の変更も Duo に取り込みます。内容は端末の外に送りません。';
-// 第19版 D5: 許可と一覧だけ戻した。書き込み系（作成・更新・完了・削除・取得）はまだ無い。
+// 第19版 D5: 許可と一覧を戻した。D7: 書き込み・取得・リスト確認を足した（呼ぶのは js/reminder-sync.js だけ。同期オフでは呼ばない）。
 const BACK = ['reminderPermission', 'requestReminderPermission', 'listReminderLists'];
-const WRITE = ['listReminders', 'createReminder', 'updateReminder', 'setReminderDone', 'deleteReminder'];
+const WRITE = ['listReminders', 'createReminder', 'updateReminder', 'setReminderDone', 'deleteReminder', 'checkReminderList', 'createReminderList'];
 
-test('静的: Info.plist に2キーが §2.4 の文で入り、Swift に許可と一覧が登録・実装され、書き込み系は無い', () => {
+test('静的: Info.plist に2キーが §2.4 の文で入り、Swift に許可・一覧・同期用の書き込みが登録・実装され、JS の書き込み系の呼び出しは同期の部品だけ', () => {
   const pl = fs.readFileSync(path.join(root, 'ios/App/App/Info.plist'), 'utf8');
   for (const k of ['NSRemindersFullAccessUsageDescription', 'NSRemindersUsageDescription']) {
     expect(pl.includes(`<key>${k}</key>\n\t<string>${TEXT}</string>`), k).toBe(true);
@@ -25,10 +25,14 @@ test('静的: Info.plist に2キーが §2.4 の文で入り、Swift に許可�
   }
   expect(sw.includes('requestFullAccessToReminders') && sw.includes('requestAccess(to: .reminder)')).toBe(true);
   expect(sw.includes('self.store.reset()')).toBe(true);
-  for (const m of WRITE) expect(sw.includes(m), `Swift に ${m}`).toBe(false);
+  for (const m of WRITE) {
+    expect(sw.includes(`CAPPluginMethod(name: "${m}", returnType: CAPPluginReturnPromise)`), `登録 ${m}`).toBe(true);
+    expect(sw.includes(`@objc func ${m}(`), `実装 ${m}`).toBe(true);
+  }
+  // 書き込み系を名前で呼ぶのは native.js（橋渡し）だけ。画面（app.js）や reminders.js から直接は呼ばない。
   for (const f of fs.readdirSync(path.join(root, 'js')).filter((n) => n.endsWith('.js'))) {
     const j = fs.readFileSync(path.join(root, 'js', f), 'utf8');
-    for (const m of WRITE) expect(j.includes(m), `${f} に ${m}`).toBe(false);
+    for (const m of WRITE) if (f !== 'native.js') expect(new RegExp(`['"\`]${m}['"\`]`).test(j), `${f} に '${m}' の呼び出し`).toBe(false);
   }
 });
 

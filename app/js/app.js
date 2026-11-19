@@ -22,9 +22,10 @@ import { noteStore, setNoteHook, recoverNoteDrafts, importLegacyMemoDrafts, fold
 import { mountNoteEditor } from './notes-ui.js';
 import { titleOf, noteDateOf, dateOccupants, dailyHeading, ensureDailyFolder } from './notes-model.js';
 import { DELETE_UNDO_MS, tasksHtml, focusTasksHtml, HIST_DAYS, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDeleteController, TASK_DELETED } from './reminders.js';
-import { LOCAL_LIST, TASK_STORE_TEXT, createTaskStore, createLocalCall, createLocalAddController, rowOf, createTaskDoneController, DONE_UNDO_MS, TASK_VIEWS, TASK_VIEW_LABELS, normTaskView, dueCounts, todayTasks, inheritTaskSettings, normTaskSettings } from './tasks.js';
+import { liveTasks as liveTasksOf, LOCAL_LIST, TASK_STORE_TEXT, createTaskStore, createLocalCall, createLocalAddController, rowOf, createTaskDoneController, DONE_UNDO_MS, TASK_VIEWS, TASK_VIEW_LABELS, normTaskView, dueCounts, todayTasks, inheritTaskSettings, normTaskSettings } from './tasks.js';
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
-import { call, errCode, errReason, errText, haptic, listen, nativeAvailable } from './native.js';
+import { call, errCode, errReason, errText, haptic, listen, nativeAvailable, remNative } from './native.js';
+import { createReminderSync, normSyncSettings } from './reminder-sync.js';
 import { createDestPage, destRowsHtml } from './destination-ui.js';
 import { KB_METRICS_ENABLED, kbMetrics, kbText, screenText } from './kbmetrics.js';
 import { createPosture, postureText, grooveBands } from './posture.js';
@@ -1970,7 +1971,13 @@ function monthTaskCounts(kind) {
   const list = ids.size ? RM.data.reminders.filter((x) => !ids.has(x.itemId)) : RM.data.reminders;
   return dueCounts(list, over);
 }
-const taskStore = createTaskStore(db);
+// ---------- リマインダーとの同期（第19版 D7）。既定はオフ。オンにする入口は設定 › タスク（D8・PR10）。オフ・native なしでは何もしない ----------
+const SYNC_KEY = `duo-rem-sync${suffix}`;
+const SYNC_BASE_KEY = `duo-rem-base${suffix}`; // 端末内の「前回合意した値」（欄ごとの衝突判定用。バックアップには入れない）
+let remSync = null;
+let syncSet = normSyncSettings(parseLS(SYNC_KEY));
+const setSyncSettings = (next) => { syncSet = normSyncSettings(next); try { localStorage.setItem(SYNC_KEY, JSON.stringify(syncSet)); } catch { /* 無視 */ } };
+const taskStore = createTaskStore(db, { syncOn: () => NATIVE && syncSet.enabled, onWrite: () => remSync?.kick('write', 0) });
 const localCall = createLocalCall(taskStore); // 完了・削除・編集の controller の口（Duo 内保存へ）
 const addCtl = createLocalAddController(taskStore);
 // 完了の丸: 押すと表示だけ即変え、1.5秒後に最後の状態を1回保存して完了段へ移す。6秒は「元に戻す」。失敗は表示を戻して理由を出す。
@@ -2054,6 +2061,15 @@ async function loadTasks() {
     if (!RM.data) { RM.err = true; render(); }
   }
 }
+remSync = createReminderSync({
+  db, native: remNative,
+  getSettings: () => (NATIVE ? syncSet : { ...syncSet, enabled: false }),
+  setSettings: setSyncSettings,
+  base: { get: () => parseLS(SYNC_BASE_KEY), set: (b) => { try { localStorage.setItem(SYNC_BASE_KEY, JSON.stringify(b)); } catch { /* 無視 */ } } },
+  onChange: () => { RM.mut++; RM.sig = ''; scheduleTasks(); },
+  onNotice: (m) => { notice(m); say(m); },
+});
+window.__remSync = remSync;
 function scheduleTasks() { clearTimeout(RM.timer); RM.timer = setTimeout(loadTasks, 300); requestNotifySync('task'); } // タスクの追加・完了・削除・編集・復元はすべてここを通る
 function renderPage(side, id) {
   const cls = side === 'left' ? 'lp' : 'rp';
@@ -4216,7 +4232,7 @@ async function resumeExt() {
   if (X.cache && X.cache.tz !== new Date().getTimezoneOffset()) { X.cache = null; bumpRevision(); } // タイムゾーン変更: キャッシュ破棄
   await loadExt(true);
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (NATIVE) postureCtl?.refresh(); resumeExt(); requestNotifySync('resume'); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (NATIVE) postureCtl?.refresh(); resumeExt(); requestNotifySync('resume'); remSync?.kick('resume', 0); } });
 
 // ---------- 設定 › カレンダー（Duo／iPhone のアカウント別／リマインダー。✓で表示を切り替える） ----------
 // ✓を変えても iPhone 側の予定・カレンダーは書き換えない（Duo の画面に出すかどうかだけ）。
@@ -5362,7 +5378,7 @@ async function runNotifySync(gen) {
     N.perm = st?.status || null;
     if (!NOTIFY_OK.includes(N.perm)) { N.scheduled = null; return; } // 許可はここでは要求しない
     let tasks = [];
-    try { tasks = await db.listTasks(); } catch { tasks = []; } // 読めなくても予定の通知は予約する
+    try { tasks = liveTasksOf(await db.listTasks()); } catch { tasks = []; } // 読めなくても予定の通知は予約する
     if (gen !== N.gen) return;
     const { items } = planNotifications(state.events, new Date(), n, { visible: duoVisible(), tasks });
     if (gen !== N.gen) return;
@@ -5411,7 +5427,8 @@ async function initNative() {
   if (!NATIVE) return;
   postureCtl.start(); // 権限処理より前に購読→取得。失敗・未対応でも起動を止めない
   // 連携オフ・カレンダー権限なしでも通知は動くので、購読は権限確認より前に行う。
-  listen('calendarChanged', () => { clearTimeout(extTimer); extTimer = setTimeout(() => { if (extActive()) loadExt(true); }, 300); });
+  listen('calendarChanged', () => { remSync?.kick('changed'); clearTimeout(extTimer); extTimer = setTimeout(() => { if (extActive()) loadExt(true); }, 300); });
+  remSync?.kick('start', 0); // 同期がオンのときだけ動く（オフでは何も呼ばない）
   listen('notificationTapped', onNotifyTap);
   listen('notificationPresented', () => requestNotifySync('fired')); // 前面で鳴ったら次の予約を補充（既存の debounce・直列・世代処理）
   listen('timeChanged', () => { X.cache = null; bumpRevision(); requestNotifySync('time'); if (extActive()) loadExt(true); else render(); });
