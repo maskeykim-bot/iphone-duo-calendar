@@ -244,8 +244,19 @@ test.describe('帯・月・ほか（M-03/04/11/12/15/16/17/20、L-07）', () => 
     expect(await day.getAttribute('aria-label')).toContain('朝会');
     const d = await box(day); expect(d.w).toBeGreaterThanOrEqual(44); expect(d.h).toBeGreaterThanOrEqual(44);
     const c = await box(chip);
-    await page.mouse.click(c.x + c.w / 2, c.y + c.h / 2); // チップの上を押してもその日が選ばれる
+    // 第19.1版 S6: チップは押す的ではないが、押した位置にチップがあれば日マスの click がその予定のポップアップを開く（第19版と同じ）。押した印は #app の外の被せで 0.1 秒
+    await page.mouse.move(c.x + c.w / 2, c.y + c.h / 2); await page.mouse.down();
+    const ov = await page.locator('.chip-press').evaluate((e) => { const r = e.getBoundingClientRect(); return [r.x, r.y, r.width, r.height].map(Math.round); });
+    expect(ov).toEqual([c.x, c.y, c.w, c.h].map(Math.round));
+    await page.mouse.up();
+    await expect(page.locator('#editor')).toBeVisible();
+    await expect(page.locator('#f-title')).toHaveValue('朝会');
+    await expect(page.locator('.chip-press')).toHaveCount(0);
+    await page.keyboard.press('Escape'); await expect(page.locator('#editor')).toBeHidden();
+    // チップの無い所（日付の行）を押したら、その日を選ぶだけ
+    await page.mouse.click(d.x + d.w / 2, d.y + 6);
     await expect(day).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#editor')).toBeHidden();
   });
   test('検索の入力欄のフォーカス枠は緑 #294E42 の 2pt', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);

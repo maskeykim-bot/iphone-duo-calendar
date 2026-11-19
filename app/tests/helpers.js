@@ -56,6 +56,7 @@ export async function loadSample(page) {
   else { // 月だけの画面（開いた縦など）は設定メニューから入れる
     await openMenu(page, 'details');
     await page.locator('#menu').getByRole('button', { name: 'サンプルを入れる' }).click();
+    await expect(page.locator('#menu')).toBeHidden(); // 選んで閉じる動き（0.25秒）が終わってから
   }
   await expect(page.getByRole('status')).toHaveText('サンプルの予定を入れました。');
 }
@@ -335,6 +336,7 @@ export async function modeStates(page) {
 export async function toggleDesk(page) {
   await openMenu(page, 'general');
   await page.locator('#menu').getByRole('button', { name: /^卓上表示/ }).click();
+  await expect(page.locator('#menu')).toBeHidden(); // 選んで閉じる動き（0.25秒）が終わってから
 }
 
 // 第14版 PR5: 開いた横の左右ページの切替と時間の表示。side は 'left' | 'right'、name は 月/時間/タスク/メモ。

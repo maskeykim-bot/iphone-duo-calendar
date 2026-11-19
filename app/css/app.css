@@ -2098,3 +2098,11 @@ body:has(.nmenu) :is(.pgsw,.tabs){visibility:hidden}
 
 .chip-press{position:fixed;z-index:60;pointer-events:none;background:rgba(0,0,0,.12);animation:chippress .1s ease-out}
 @keyframes chippress{from{opacity:0}to{opacity:1}}
+
+/* S6: 選んでいる（aria-pressed=true）のに見た目が緑の塗りでない部品を押すと、緑の塗りの規則（button[aria-pressed=true]:active）が勝って地が濃い緑になり、文字が読めなくなっていた（選んだ日のマスを押す、など）。それぞれ自分の押した色にする */
+.week .day:active:not(:disabled),.day:active:not(:disabled){background-color:#EFECE4!important}
+.fmodes button[aria-pressed=true]:active:not(:disabled),.tvseg button[aria-pressed=true]:active:not(:disabled){background-color:#F6F4EE!important;filter:none}
+body :is(.dchip)[aria-pressed=true]:active:not(:disabled){filter:brightness(.92)}
+#editor .dchip[aria-pressed=true]:active:not(:disabled){background-color:var(--green)!important}
+/* +N は日付の数字の上に重なる 44×44 の押せる範囲。押した地が数字を隠さないよう、地ではなく文字を薄くする（文字のリンクと同じ） */
+.week .plus:active:not(:disabled){background-color:transparent!important;opacity:.5;transition-duration:.10s}

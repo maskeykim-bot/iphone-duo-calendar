@@ -2305,7 +2305,7 @@ function rsOpen(sheet, focusSel) {
   RS.sheet = sheet;
   rsPlace(sheet.kind);
   rsDlg.innerHTML = rsHtml();
-  if (!rsDlg.open) { rsDlg.show(); syncInert(); }
+  if (!rsDlg.open || rsDlg._slide) { rsDlg.show(); syncInert(); } // 閉じる最中に開き直したら閉じずに開き直す
   (rsDlg.querySelector(focusSel || '.rsmain, .rsrowp, button') || rsDlg).focus({ preventScroll: true });
 }
 const rsRepaint = (keepFocus) => { const a = document.activeElement?.dataset?.rs, i = document.activeElement?.dataset?.i, c = document.activeElement?.dataset?.c; rsDlg.innerHTML = rsHtml(); if (keepFocus && a) rsDlg.querySelector(`[data-rs="${a}"]${i ? `[data-i="${i}"][data-c="${c}"]` : ''}`)?.focus({ preventScroll: true }); };
@@ -3066,7 +3066,7 @@ function slideOut(d, done) {
   };
   setTimeout(fin, sheetMs());
 }
-function cancelSlide(d) { if (d._slide) { d._slide = null; d.classList.remove('sheet-out', 'fading'); } }
+function cancelSlide(d) { if (d._slide) { d._slide = null; d.classList.remove('sheet-out', 'fading'); d._reopen?.(); } } // 閉じる最中に開き直したら、閉じ方の持ち越し（_reopen）を捨てる
 let fading = false;
 const SLIDE_SHEETS = new Set([dlg, xdDlg, taskDlg, menuDlg, searchDlg, catsDlg, notifyDlg, backupDlg]);
 // 小さな確認シート（削除の確認・範囲・破棄・再試行・リマインダー）も同じ寄せ（出る 0.25 秒・閉じるは同じ秒数で逆・reduced motion は 0.15 秒のフェード）。出るのは CSS、閉じるは close() を差し替えて動かしてから閉じる。閉じる最中に show() されたら閉じずに開き直す
@@ -5614,6 +5614,7 @@ $('#xr-retry').addEventListener('click', () => {
   if (b) retryBatch(b); else createNative(xrId);
 });
 // 閉じる・Escape・通知タップなど「再試行しない」閉じ方はすべてここで確定する（pending を放置しない）。
+xrDlg._reopen = () => { xrKeep = false; }; // 「再試行」で閉じ始めた直後に再失敗で開き直した場合、close イベントが来ないので keep を捨てる
 xrDlg.addEventListener('close', () => {
   syncInert();
   const keep = xrKeep, id = xrId, b = xrBatch;

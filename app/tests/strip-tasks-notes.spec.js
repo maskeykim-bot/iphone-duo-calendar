@@ -92,13 +92,15 @@ test.describe('閉じた画面の帯', () => {
     await expect(sb(page, 'memo')).not.toHaveClass(/has/);
   });
 
-  test('開いている丸は #DDE7E2 に緑枠', async ({ page }) => {
+  test('開いている丸は緑の地・白いアイコン（第19.1版 M-16: design/review M-16「地を緑、アイコンを白」）', async ({ page }) => {
     await mock(page);
     await band(page, SIZES.closedPortrait);
     await sb(page, 'task').click();
-    const s = await sb(page, 'task').locator('.bi').evaluate((e) => { const c = getComputedStyle(e); return [c.backgroundColor, c.boxShadow]; });
-    expect(s[0]).toBe('rgb(221, 231, 226)');
-    expect(s[1]).toContain('rgb(41, 78, 66)');
+    const s = await sb(page, 'task').locator('.bi').evaluate((e) => { const c = getComputedStyle(e); return [c.backgroundColor, c.color]; });
+    expect(s[0]).toBe('rgb(41, 78, 66)');
+    expect(s[1]).toBe('rgb(255, 255, 255)');
+    // 四角い地は出ない: ボタン自体は透明
+    expect(await sb(page, 'task').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
   });
 
   test('長押し0.8秒で名前の吹き出し。離したあとの click で開かない', async ({ page }) => {

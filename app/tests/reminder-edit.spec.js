@@ -100,6 +100,7 @@ test.describe('タスクの編集と完了', () => {
     await page.keyboard.press('Escape');
     await expect(page.locator('#discard')).toBeVisible();
     await page.locator('#dc-keep').click();
+    await expect(page.locator('#discard')).toBeHidden(); // 確認シートが閉じ終わってから（0.25秒の動き）
     await expect(page.locator('#tk-title')).toBeFocused();
     await page.keyboard.press('Escape');
     await page.locator('#dc-drop').click();

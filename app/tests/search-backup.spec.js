@@ -161,6 +161,7 @@ test.describe('検索とバックアップの表示', () => {
 
 // ---- バックアップ ----
 const openBackup = async (page) => {
+  await expect(page.locator('#backup')).toBeHidden(); // 前のページが閉じ終わってから（0.25秒の動き）
   await page.getByRole('button', { name: '設定' }).click();
   await page.getByRole('button', { name: 'バックアップ' }).click();
   await expect(page.locator('#backup')).toBeVisible();

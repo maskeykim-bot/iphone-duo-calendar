@@ -188,7 +188,8 @@ test.describe('月「全部」表示', () => {
     await setStyle(page, '全部');
     await openMenu(page, 'general');
     await page.getByRole('button', { name: /^週の始まり/ }).click(); // 日曜へ
-    const open = async () => { await page.getByRole('button', { name: '設定' }).click(); await page.getByRole('button', { name: 'バックアップ' }).click(); };
+    await expect(page.locator('#menu')).toBeHidden(); // 選んで閉じる動き（0.25秒）が終わってから
+    const open = async () => { await expect(page.locator('#backup')).toBeHidden(); await page.getByRole('button', { name: '設定' }).click(); await page.getByRole('button', { name: 'バックアップ' }).click(); };
     await open();
     const p = info.outputPath('mall.json');
     const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'JSONを書き出す' }).click()]);
