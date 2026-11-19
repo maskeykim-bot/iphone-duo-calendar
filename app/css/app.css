@@ -60,7 +60,7 @@ button[aria-pressed=true]{background:var(--green);color:#fff}
 .event:before{content:'';position:absolute;left:0;top:12px;bottom:12px;width:3px;background:var(--cat);border-radius:4px}
 .event .clock{font-size:15px;line-height:20px;font-variant-numeric:tabular-nums}
 .event .tag{font-size:13px;color:var(--cat);text-align:right;line-height:20px}
-.event strong{grid-column:1/-1;font-size:15px;font-weight:500;line-height:22px;overflow-wrap:anywhere}
+.event strong{grid-column:1/-1;font-size:15px;font-weight:400;line-height:22px;overflow-wrap:anywhere}
 .event .sub{grid-column:1/-1;font-size:13px;color:var(--muted);line-height:18px}
 .empty{padding:16px 4px;color:var(--muted)}.empty p{margin:0}
 .empty-row{font-size:13px;color:var(--muted);padding:6px 4px}
@@ -331,7 +331,7 @@ html[data-kb] body[data-layout=spread] dialog,html[data-kb] body[data-layout=des
 
 /* ===== 第7版: iPhone カレンダー連携 ===== */
 .ext{--cat:#68716a;--tint:var(--paper)}
-.xi{display:inline-block;width:14px;margin-right:0;font-size:10px;line-height:inherit;text-align:center;color:var(--muted)}
+.xi{display:inline-block;width:14px;margin-right:0;font-size:11px;line-height:inherit;text-align:center;color:var(--muted)}
 .event.ext .tag,.hit.ext .hmeta{color:var(--muted)}
 .xlegend{flex:none;padding:0 0 2px;font-size:11px}
 .sfield+.small,#sr-xrange{margin:2px 0 0}
@@ -850,7 +850,7 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .closed.tv-week .tlcol{flex:1 1 0;box-sizing:border-box}
 .closed.tv-week .tlcol+.tlcol{border-left:0;box-shadow:inset 1px 0 #e8e5dc}
 .closed.tv-week .allday{height:24px;margin-bottom:0}
-.closed.tv-week .adl{font-size:10px}
+.closed.tv-week .adl{font-size:11px}
 .closed.tv-day .allday{height:32px;margin-bottom:0}
 .closed.tv .hlab{font-size:11px}
 .closed.tv-week .nowt{width:30px;height:18px;top:-9px;border-radius:999px;font-size:9px;line-height:18px;letter-spacing:-.02em}
@@ -1156,7 +1156,7 @@ dialog#menu #m-destpop{border-radius:inherit}
 .hrow{display:flex;align-items:center;gap:8px;width:100%;min-height:32px;text-align:left;background:none;border:0;padding:0}
 .hrow .ht{font-size:13px;min-width:44px;color:#4a524c}
 .hrow .hbar{width:4px;height:18px;border-radius:4px;background:var(--cat,#6E8F7F);flex:none}
-.hrow strong{font-size:15px;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hrow strong{font-size:15px;font-weight:400;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hmore{display:block;min-height:32px;font-size:13px;color:var(--green);background:none;border:0;padding:0}
 .hempty{color:#8a8f88;font-size:13px;margin:4px 0}
 .htask{display:flex;align-items:center;gap:4px;min-height:48px}
@@ -1466,7 +1466,7 @@ html[data-kb] dialog#editor,html[data-kb] body[data-layout=spread] dialog#editor
 #tpop .ditem{position:absolute;left:0;right:0;top:0;height:var(--rowh,32px);display:flex;align-items:center;justify-content:center;font-size:11px;color:#C3C6BF;font-variant-numeric:tabular-nums;pointer-events:none;will-change:transform}
 #tpop .ditem.d1{font-size:13px;color:#8C918A}
 #tpop .ditem.d0{font-size:17px;font-weight:600;color:#293B35}
-#tpop .dunit{position:absolute;top:50%;transform:translateY(-50%);font-size:10px;color:#8C918A;pointer-events:none}
+#tpop .dunit{position:absolute;top:50%;transform:translateY(-50%);font-size:11px;color:#8C918A;pointer-events:none}
 #tpop .uh{right:calc(50% + 8px)}#tpop .um{right:8px}
 #tpop .tfhead,#tpop .tfchips{display:none}
 #tpop.face{position:fixed;z-index:40;box-sizing:border-box;margin:0;padding:16px 0 12px;background:var(--paper);border-radius:16px;box-shadow:0 0 0 1px var(--line)}
@@ -1555,18 +1555,18 @@ dialog.panel.tface-open{overflow:visible}
 .fold .fdates{position:absolute;left:12px;right:12px;display:flex;border-bottom:1px solid var(--fline)}
 .fold .fdt{border:0;flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;background:transparent;border-radius:0;height:100%}
 .fold .fdt{gap:0}
-.fold .fdw{font-size:10px;line-height:10px;color:var(--muted)}
+.fold .fdw{font-size:11px;line-height:11px;color:var(--muted)}
 .fold .fdt .wrk{display:block;font-size:9px;line-height:10px;font-weight:400}
 .fold .fdt.hol .fdw,.fold .fdt.hol .fdd{color:var(--holiday)}
 .fold .fdd{font-size:13px;font-weight:600;width:24px;height:24px;line-height:24px;border-radius:50%;text-align:center}
 .fold .fdt.today .fdd{background:var(--green);color:#fff}
 .fold .fall{position:absolute;left:12px;right:12px;margin:0;display:flex;align-items:flex-start;border-bottom:1px solid var(--fline);overflow:hidden}
 .fold .fall .adl{font-size:11px;line-height:22px;margin-top:5px;text-align:right;padding-right:6px}
-.fold-week .fall .adl{font-size:10px;line-height:18px;margin-top:3px}
+.fold-week .fall .adl{font-size:11px;line-height:18px;margin-top:3px}
 .fold .fall .adcols{align-self:stretch}
 .fold .fall .adcol{flex-direction:column;gap:2px;padding:5px 4px 5px 4px;overflow:hidden;box-sizing:border-box}
 .fold .fall .adpill,.fold .fall .adplus{height:22px;min-height:22px;line-height:22px;border-radius:999px;font-size:11px;padding:0 10px;text-align:left}
-.fold .fall .adplus{font-size:10px;padding:0 4px;background:transparent;color:var(--muted)}
+.fold .fall .adplus{font-size:11px;padding:0 4px;background:transparent;color:var(--muted)}
 .fold-week .fall .adcol{gap:0;padding:3px 1.5px}
 .fold-week .fall .adpill,.fold-week .fall .adplus{height:18px;min-height:18px;line-height:18px;border-radius:999px;font-size:9px;padding:0 6px}
 .fold-week .fall .adplus{padding:0 3px}
@@ -1585,7 +1585,7 @@ dialog.panel.tface-open{overflow:visible}
 .fold .fev{top:calc(var(--m) * var(--hh) / 60);height:calc(var(--d) * var(--hh) / 60);min-height:22px;container-type:size;padding:0;border-radius:8px;background:var(--cat);color:#fff;box-shadow:none;overflow:hidden;display:block}
 @media (hover:hover){.fold .fev:hover{background:var(--cat);filter:brightness(.95)}}
 .fold .ftl{position:absolute;left:6px;right:4px;top:calc(var(--ty,0px) + 3px);font-size:13px;font-weight:600;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.fold .ftm{position:absolute;left:6px;right:4px;top:calc(var(--ty,0px) + 19px);font-size:10px;line-height:12px;white-space:nowrap;overflow:hidden}
+.fold .ftm{position:absolute;left:6px;right:4px;top:calc(var(--ty,0px) + 19px);font-size:11px;line-height:12px;white-space:nowrap;overflow:hidden}
 .fold-week .ftl{font-size:10px;line-height:12px;left:3px;right:2px;top:calc(var(--ty,0px) + 2px)}
 .fold .fev[data-ti="0"] .ftl,.fold .fev[data-tm="0"] .ftm{display:none}
 .fold .fev[data-small="1"] .ftl{font-size:10px;line-height:12px}
@@ -1593,7 +1593,7 @@ dialog.panel.tface-open{overflow:visible}
 .fold .fev[data-cut]::after{display:block}
 .fold .fllab{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 .fold .fh,.fold .fnt{position:absolute;left:0;width:calc(var(--lw) - 6px);transform:translateY(-50%);text-align:right;font-size:11px;line-height:14px;color:var(--muted);font-variant-numeric:tabular-nums}
-.fold-week .fh{font-size:10px}
+.fold-week .fh{font-size:11px}
 .fold .fnt{font-size:10px;font-weight:600;color:var(--fnow);visibility:visible}
 .fold .fllab .dtag{left:calc(var(--lw) - 50px);width:44px}
 .fold .fnow{position:absolute;left:var(--lw);right:0;top:calc(var(--m) * var(--hh) / 60);height:0;z-index:3;pointer-events:none}
@@ -1840,7 +1840,7 @@ dialog#rsheet[data-kind=explain] .rsmain{margin-bottom:26px}
 .pvh .hgo::before{content:"";position:absolute;left:-6px;right:-6px;top:-4px;bottom:-4px}
 .pv-today .hrow{height:32px;min-height:32px}
 .pv-today .hrow .ht{font-size:13px;min-width:44px}
-.pv-today .hrow strong{font-size:15px;font-weight:500}
+.pv-today .hrow strong{font-size:15px;font-weight:400}
 .pv-today .hempty{margin:8px 0}
 .pv-week{left:12px;right:12px;top:var(--pvb);height:112px}
 .pv-week .pvh{padding:0 12px;height:24px}
@@ -1994,7 +1994,7 @@ html:not([data-dev]) #touch-check-open,html:not([data-dev]) #layout-diagnostics,
 /* M-09: 時間軸の予定の枠は全部 29 §3 の形（カテゴリの色の地・題名 12pt W6 白・時刻 10pt 白・角丸 8）。白文字 4.5 に届かない色は --solid が 10% 暗くする */
 .tlev:not(.fev){display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch;padding:2px 8px 2px 8px;border-radius:8px;background:var(--solid,var(--cat));color:#fff;box-shadow:none;white-space:nowrap;container-type:size;font-size:12px;line-height:16px}
 .tlev:not(.fev) .tn{order:1;display:block;overflow:hidden;text-overflow:ellipsis;font-size:13px;line-height:16px;font-weight:600;color:#fff}
-.tlev:not(.fev) .tt{order:2;margin:0;font-size:10px;line-height:12px;font-weight:400;color:#fff;overflow:hidden;text-overflow:ellipsis}
+.tlev:not(.fev) .tt{order:2;margin:0;font-size:11px;line-height:12px;font-weight:400;color:#fff;overflow:hidden;text-overflow:ellipsis}
 @container (max-height:31px){.tlev:not(.fev) .tt{display:none}}
 @media (hover:hover){.tlev:not(.fev):hover{background:var(--solid,var(--cat));filter:brightness(.95)}}
 .tlev:not(.fev):active{background-color:var(--solid,var(--cat))!important}
@@ -2111,7 +2111,7 @@ body :is(.dchip)[aria-pressed=true]:active:not(:disabled){filter:brightness(.92)
 /* V-15・中-3: 月の日のタスクの行（閉じた 月・2週・1週）。押せる範囲は x8〜52 の 44×44（左へ出さない）、四角 20×20 は x12〜32、題名は x44 */
 .mdtask .rmckb{width:44px;height:44px;margin:0 -12px 0 0;padding:0 0 0 4px;justify-content:flex-start;position:relative;z-index:1}
 .mdtask .rmck{width:20px;height:20px;border-radius:8px}
-.mdtask.done .rmck::after{font-size:14px;line-height:16px}
+.mdtask.done .rmck::after{font-size:14px;font-weight:600;line-height:16px}
 
 /* ===== 第19.1版 S7b（レビュー後の直し・設計の高 V-01〜V-10）===== */
 /* V-02: 右の帯のタスク／メモの絵は currentColor。ふだんは緑の線、選んだ丸（緑の地）では白 */
@@ -2160,8 +2160,7 @@ body :is(.dchip)[aria-pressed=true]:active:not(:disabled){filter:brightness(.92)
 :root{color-scheme:light}
 /* V-10 の見直しで見つけた隙: 開いた縦のノートの型の見出し行（「ノート」「＋ 新規」）だけ左右の余白が 0 で、一覧（x16）より外にはみ出していた。一覧と同じ 16 */
 .shell.focus .ntools{padding-left:16px;padding-right:16px}
-/* 品質 中-5: 開いた横の予定シートにも他のシートと同じ影（0 12px 32px 16%）。ただし左へにじむ影は折り目（中心±10）に入るので、右へ 16 ずらして縮める（16px 12px 32px -16px）。左のにじみは縁でちょうど 0（折り目の保護域に何も入れない。clip-path は中のダイヤルの面の当たりまで切るので使わない） */
-body[data-layout=spread] dialog#editor,body[data-layout=spread] dialog#xdetail,body[data-layout=spread] dialog#taskdlg{box-shadow:16px 12px 32px -16px #00000029}
+/* 品質 中-5・設計 00:25: 開いた横の予定シートの影は開いた縦と同じ値（0 12px 32px 16%）。S7d の「右へ 16 ずらす」形はやめた（上の dialog#editor,#xdetail,#taskdlg の規則がそのまま効く） */
 
 /* ===== 第19.1版 S7c ===== */
 /* V-22: 段にない太さ・大きさ。h/b/strong の既定の太字は W6、small は 11（10.83 をやめる）。見出し（.mdh h3・.fold h2・h2.rdate）は設計の回答待ちなので触らない */
@@ -2213,3 +2212,7 @@ body:not([data-layout=spread]):not([data-layout=desk]) :is(dialog#cats,dialog#no
 
 /* 品質 低-2: 閉じた週の終日の札が「…」なしで切れていた。決まりの切り方（長い題名は …）にそろえる */
 .closed.tv-week .adband .bt{white-space:nowrap;text-overflow:ellipsis;-webkit-mask-image:none;mask-image:none}
+
+/* ===== 第19.1版 S7e ===== */
+/* V-19（設計 25 §5・00:25）: 開いた横の左ページの見出し（2026年11月）も、右ページと同じくページの端から 16（x8→16）。月の格子は x8 のまま */
+.spread .lp .shead h2{padding-left:8px;box-sizing:border-box}
