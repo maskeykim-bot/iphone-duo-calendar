@@ -347,7 +347,8 @@ for (const [name, size, sar] of [['閉じた', C, 84], ['開いた縦', P, 0], [
     await page.locator('[data-act="add"]').first().click();
     await expect(page.locator('#editor[open]')).toHaveCount(1);
     const sh = await page.locator('#editor').evaluate((e) => getComputedStyle(e).boxShadow);
-    expect(sh).toContain('0px 12px 32px');
+    // 開いた横だけは左のにじみが折り目（±10）に入らないよう右へ 16 ずらして縮める（16px 12px 32px -16px）。ほかは 0 12px 32px
+    expect(sh).toContain(size === L ? '16px 12px 32px -16px' : '0px 12px 32px');
     expect(sh).toContain('rgba(0, 0, 0, 0.16)');
   });
 }

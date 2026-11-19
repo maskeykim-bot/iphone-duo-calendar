@@ -2160,5 +2160,5 @@ body :is(.dchip)[aria-pressed=true]:active:not(:disabled){filter:brightness(.92)
 :root{color-scheme:light}
 /* V-10 の見直しで見つけた隙: 開いた縦のノートの型の見出し行（「ノート」「＋ 新規」）だけ左右の余白が 0 で、一覧（x16）より外にはみ出していた。一覧と同じ 16 */
 .shell.focus .ntools{padding-left:16px;padding-right:16px}
-/* 品質 中-5: 開いた横の予定シートにも他のシートと同じ影（0 12px 32px 16%）。ただし左へにじむ影は折り目（中心±10）に入るので、シートの左の縁で切る（折り目の保護域に何も入れない・timeline.spec） */
-body[data-layout=spread] dialog#editor,body[data-layout=spread] dialog#xdetail,body[data-layout=spread] dialog#taskdlg{clip-path:inset(-60px -60px -60px 0)}
+/* 品質 中-5: 開いた横の予定シートにも他のシートと同じ影（0 12px 32px 16%）。ただし左へにじむ影は折り目（中心±10）に入るので、右へ 16 ずらして縮める（16px 12px 32px -16px）。左のにじみは縁でちょうど 0（折り目の保護域に何も入れない。clip-path は中のダイヤルの面の当たりまで切るので使わない） */
+body[data-layout=spread] dialog#editor,body[data-layout=spread] dialog#xdetail,body[data-layout=spread] dialog#taskdlg{box-shadow:16px 12px 32px -16px #00000029}
