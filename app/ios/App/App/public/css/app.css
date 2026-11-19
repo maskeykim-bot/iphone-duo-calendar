@@ -1452,6 +1452,9 @@ dialog#editor{height:calc(100% - var(--rt) - var(--rb) - 2 * var(--m))}
 body[data-layout=spread] dialog#editor{height:calc(100% - var(--pt) - var(--pb))}
 /* S7 G1: 影の値は開いた縦と同じ（設計 00:25）。右ページのシートは折り目側（左辺）だけ影を切る＝折り目の保護域（中心±10）へにじませない */
 body[data-layout=spread] dialog#editor,body[data-layout=spread] dialog#xdetail,body[data-layout=spread] dialog#taskdlg{clip-path:inset(-48px -48px -48px 0)}
+/* S7 G2: 時刻のダイヤルの面（左ページ、シートの子で position:fixed）は clip-path に切られて見えず、膜がクリックを受けていた。
+   面を出している間は、シートの影の範囲（折り目側は切る）と面の矩形（JS が --tf-* に入れる）の和にする。2つの間（折り目の保護域）は零幅の橋で結ぶだけで、何も塗らない */
+body[data-layout=spread] dialog#editor.tface-open{clip-path:polygon(var(--tf-l) var(--tf-t),var(--tf-r) var(--tf-t),0 -48px,calc(100% + 48px) -48px,calc(100% + 48px) calc(100% + 48px),0 calc(100% + 48px),0 -48px,var(--tf-r) var(--tf-t),var(--tf-r) var(--tf-b),var(--tf-l) var(--tf-b))}
 body[data-layout=desk] dialog#editor{height:calc(100% - var(--dt) - var(--db))}
 html[data-kb] dialog#editor,html[data-kb] body[data-layout=spread] dialog#editor,html[data-kb] body[data-layout=desk] dialog#editor{height:auto}
 #editor input.etitle:focus,#editor input.etitle:focus-visible{outline:none;box-shadow:none;border-bottom-color:var(--green)}

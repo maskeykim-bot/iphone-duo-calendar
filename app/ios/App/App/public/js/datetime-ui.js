@@ -225,7 +225,9 @@ export function createTimeUi(els, api) {
   function place() {
     const pop = els.pop, f = open && face();
     pop.classList.toggle('face', !!f);
-    els.box.closest('dialog')?.classList.toggle('tface-open', !!f);
+    const dlgEl = els.box.closest('dialog');
+    dlgEl?.classList.toggle('tface-open', !!f);
+    ['--tf-l', '--tf-r', '--tf-t', '--tf-b'].forEach((n) => dlgEl?.style.removeProperty(n));
     pop.style.cssText = '';
     if (!f) return;
     const de = document.documentElement, v = (n) => parseFloat(getComputedStyle(de).getPropertyValue(n));
@@ -234,6 +236,11 @@ export function createTimeUi(els, api) {
     if (document.body.dataset.layout === 'spread') { l = v('--left-start') || 8; r = v('--left-end') || W / 2; t = 24; b = H - 24; }
     else { const e = els.box.closest('dialog').getBoundingClientRect(); l = e.left; r = e.right; t = v('--groove-avoid-y1') || Math.round(H * 0.517); b = H - Math.max(v('--rb') || 0, 34); }
     Object.assign(pop.style, { left: `${l}px`, top: `${t}px`, width: `${r - l}px`, height: `${b - t}px` });
+    if (document.body.dataset.layout === 'spread' && dlgEl) { // S7 G2: 右ページのシートの clip-path（折り目側の影を切る）が左ページの面まで切らないよう、面の矩形を残す
+      const e = dlgEl.getBoundingClientRect();
+      dlgEl.style.setProperty('--tf-l', `${l - e.left}px`); dlgEl.style.setProperty('--tf-r', `${r - e.left}px`);
+      dlgEl.style.setProperty('--tf-t', `${t - e.top}px`); dlgEl.style.setProperty('--tf-b', `${b - e.top}px`);
+    }
     const q = pop.getBoundingClientRect(); // 変形のある親の中でも合わせる
     if (Math.abs(q.left - l) > 0.5 || Math.abs(q.top - t) > 0.5) Object.assign(pop.style, { left: `${l - (q.left - l)}px`, top: `${t - (q.top - t)}px` });
   }
