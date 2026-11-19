@@ -3011,14 +3011,41 @@ const panels = [dlg, confirmDlg, scopeDlg, discardDlg, menuDlg, searchDlg, backu
 const anyPanel = () => panels.some((d) => d.open);
 const syncInert = () => { root.inert = anyPanel(); };
 const origins = new Map();
+// シートの出入り（H-02・動-5）: 出るのは CSS の animation（dialog[open]）、閉じるのは同じ秒数で逆に動かし、終わってから dialog を閉じる。
+// 視差効果を減らす設定なら 0.15 秒のフェードだけ。
+const SHEET_MS = 250, SHEET_MS_REDUCED = 150;
+const sheetMs = () => (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? SHEET_MS_REDUCED : SHEET_MS);
+function slideOut(d, done) {
+  if (d._slide) return;
+  const tok = d._slide = {};
+  d.classList.add('sheet-out');
+  const fin = () => {
+    if (d._slide !== tok) return;
+    d._slide = null;
+    d.classList.remove('sheet-out');
+    done();
+  };
+  setTimeout(fin, sheetMs());
+}
+function cancelSlide(d) { if (d._slide) { d._slide = null; d.classList.remove('sheet-out', 'fading'); } }
+let fading = false;
+const SLIDE_SHEETS = new Set([dlg, xdDlg, taskDlg, menuDlg, searchDlg]);
 function openPanel(d, from) {
   origins.set(d, from || document.activeElement);
+  cancelSlide(d);
   d.show();
   syncInert();
   if (d === xdDlg || d === taskDlg) syncScrim();
 }
 function closePanel(d, restore = true) {
   d._restore = restore;
+  if (d.open && SLIDE_SHEETS.has(d) && !fading) {
+    if (d._slide) return;
+    const sc = [dlg, xdDlg, taskDlg].includes(d);
+    if (sc) scrim.classList.add('fade');
+    slideOut(d, () => { if (d.open) d.close(); if (sc) scrim.classList.remove('fade'); syncInert(); syncScrim(); });
+    return;
+  }
   if (d.open) d.close();
   syncInert();
 }
@@ -3234,6 +3261,7 @@ function showEditor(values, id, focus = true) {
   if (extEd) extEd.alarms0 = JSON.stringify(alarms ?? null);
   if (NATIVE) refreshNotifyPerm().then(() => { if (dlg.open) updateAlarmUi(); });
   edBase = editSnap();
+  cancelSlide(dlg); scrim.classList.remove('fade');
   dlg.show();
   grooveSchedule();
   syncInert();
@@ -3516,7 +3544,7 @@ const popupTop = () => [dlg, xdDlg, taskDlg].find((d) => d.open && panels.every(
 function syncScrim() { scrim.hidden = !(dlg.open || xdDlg.open || taskDlg.open); }
 for (const d of [dlg, xdDlg, taskDlg]) d.addEventListener('close', syncScrim);
 dlg.addEventListener('close', () => { if (DF.mode === 'sheet') clearDraftBox(); });
-let fading = false, guardUntil = 0, guardAt = null;
+let guardUntil = 0, guardAt = null;
 // 幕を触って閉じた直後は、同じ場所へ遅れて届く click を下の要素へ通さない（別の場所の操作は妨げない）。
 const guardClicks = (x, y) => { guardUntil = performance.now() + 400; guardAt = x == null ? null : { x, y }; };
 const ghost = (ev) => performance.now() < guardUntil && (!guardAt || Math.hypot(ev.clientX - guardAt.x, ev.clientY - guardAt.y) < 40);
@@ -3524,14 +3552,14 @@ function fadeClose(d, done) {
   if (fading || !d.open || (d === dlg && extBusy)) return;
   fading = true;
   if (d === dlg) clearDraft(); // フェード中に再読込されても下書きを復元しない
-  d.classList.add('fading'); scrim.classList.add('fade');
-  setTimeout(() => {
-    done();
+  d.classList.add('fading'); scrim.style.opacity = ''; scrim.classList.add('fade');
+  slideOut(d, () => {
+    done(); // fading の間は closePanel が動かさずに閉じる
     d.classList.remove('fading', 'snap'); d.style.transform = ''; d.style.opacity = '';
     scrim.classList.remove('fade'); scrim.style.opacity = '';
     fading = false;
     syncScrim();
-  }, 200);
+  });
 }
 const closeXd = () => closePanel(xdDlg);
 // 外側タップ・下に引く操作の共通の入口。編集シートは未保存の変更があれば確認を出す。

@@ -9,10 +9,10 @@ html,body{width:100%;max-width:100%;height:100%;margin:0;overscroll-behavior:non
 button,input,select,textarea{font:inherit;color:inherit}
 input,select,textarea{font-size:16px} /* 16px 未満だと iOS がフォーカス時に自動ズームする */
 button{cursor:pointer;border:0;background:transparent;min-height:44px;border-radius:10px;padding:6px 12px;touch-action:manipulation}
-button:hover{background:#e6e9df}
+@media (hover:hover){button:hover{background:#e6e9df}}
 :focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 button[aria-pressed=true]{background:var(--green);color:#fff}
-.small{font-size:12px;color:var(--muted)}.eyebrow{font-size:11px;letter-spacing:.12em;color:var(--muted)}
+.small{font-size:13px;color:var(--muted)}.eyebrow{font-size:11px;letter-spacing:.12em;color:var(--muted)}
 .pad{padding:8px 0}
 
 #app{height:100vh;height:100dvh;display:flex;padding:var(--sat) var(--sar) var(--sab) var(--sal);
@@ -23,23 +23,23 @@ button[aria-pressed=true]{background:var(--green);color:#fff}
 /* 共通ヘッダー（1行） */
 .top{display:flex;align-items:center;gap:8px;min-height:44px;flex:none}
 .brand{display:flex;align-items:baseline;gap:8px;margin-right:auto;white-space:nowrap}
-.logo{font:italic 28px/1 Georgia,'Hiragino Mincho ProN',serif;letter-spacing:-1px}
+.logo{font:600 17px/22px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif}
 .toolbar{display:flex;align-items:center;gap:6px}
-.segment{display:flex;padding:3px;background:#e9e9e1;border-radius:13px}
+.segment{display:flex;padding:3px;background:#e9e9e1;border-radius:14px}
 .segment button{min-width:44px;padding:4px 10px}
 .today,.deskbtn{border:1px solid var(--line);background:var(--card);white-space:nowrap;padding:4px 12px}
 .deskbtn[aria-pressed=true]{background:var(--green)}
 .foot{flex:none}
-.add{width:100%;min-height:48px;background:var(--green);color:#fff;border-radius:15px}
-.add:hover{background:#386351}
+.add{width:100%;min-height:48px;background:var(--green);color:#fff;border-radius:14px}
+@media (hover:hover){.add:hover{background:#386351}}
 .ghost{border:1px solid var(--line);background:var(--card);margin-top:8px}
 
 /* カレンダー領域 */
 .calendar{display:flex;flex-direction:column;min-width:0;min-height:0}
 .chead{display:flex;align-items:center;gap:6px;flex:none;min-height:44px}
-.chead h2{font:24px/1.2 Georgia,'Hiragino Mincho ProN',serif;margin:0;white-space:nowrap}
+.chead h2{font:600 17px/22px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;margin:0;white-space:nowrap}
 .arrows{display:flex}.arrows button{min-width:44px;padding:4px 8px;font-size:20px}
-.variant{display:flex;gap:4px;margin-left:auto}.variant button{font-size:12px;padding:4px 12px;min-height:36px}
+.variant{display:flex;gap:4px;margin-left:auto}.variant button{font-size:13px;padding:4px 12px;min-height:36px}
 .scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
 /* 月グリッド: 行は週の数で高さを等分し（いつもの高さ未満にはしない）、グリッドの下に空きを作らない */
 .scroll.msc{display:flex;flex-direction:column}
@@ -56,14 +56,14 @@ button[aria-pressed=true]{background:var(--green);color:#fff}
 
 /* 予定カード */
 .event{position:relative;display:grid;grid-template-columns:1fr auto;column-gap:8px;align-items:center;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 12px 8px 14px;margin-top:8px;min-height:60px}
-.event:hover{background:#f4f1e8}
-.event:before{content:'';position:absolute;left:0;top:12px;bottom:12px;width:3px;background:var(--cat);border-radius:2px}
-.event .clock{font-size:14px;line-height:20px;font-variant-numeric:tabular-nums}
-.event .tag{font-size:12px;color:var(--cat);text-align:right;line-height:20px}
-.event strong{grid-column:1/-1;font-size:16px;font-weight:500;line-height:22px;overflow-wrap:anywhere}
-.event .sub{grid-column:1/-1;font-size:12px;color:var(--muted);line-height:18px}
+@media (hover:hover){.event:hover{background:#f4f1e8}}
+.event:before{content:'';position:absolute;left:0;top:12px;bottom:12px;width:3px;background:var(--cat);border-radius:4px}
+.event .clock{font-size:15px;line-height:20px;font-variant-numeric:tabular-nums}
+.event .tag{font-size:13px;color:var(--cat);text-align:right;line-height:20px}
+.event strong{grid-column:1/-1;font-size:15px;font-weight:500;line-height:22px;overflow-wrap:anywhere}
+.event .sub{grid-column:1/-1;font-size:13px;color:var(--muted);line-height:18px}
 .empty{padding:16px 4px;color:var(--muted)}.empty p{margin:0}
-.empty-row{font-size:12px;color:var(--muted);padding:6px 4px}
+.empty-row{font-size:13px;color:var(--muted);padding:6px 4px}
 
 /* 週・日 */
 .weekview{display:grid;gap:8px;padding-bottom:4px}
@@ -72,29 +72,29 @@ button[aria-pressed=true]{background:var(--green);color:#fff}
 .weekrow.selected .wd{color:var(--green);font-weight:700}
 .wd{text-align:left;font-weight:600;width:100%;padding:4px 0}
 .weekrow .event{margin-top:4px;min-height:44px;grid-template-columns:auto 1fr;padding:6px 10px 6px 12px}
-.weekrow .event .clock{font-size:14px}.weekrow .event strong{grid-column:2;font-size:15px;line-height:22px}
+.weekrow .event .clock{font-size:15px}.weekrow .event strong{grid-column:2;font-size:15px;line-height:22px}
 .weekview.cols{grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;align-items:start}
 .weekview.cols .weekrow{padding:2px 3px 6px}
-.weekview.cols .wd{font-size:12px;text-align:center;padding:2px 0;min-height:32px}
+.weekview.cols .wd{font-size:13px;text-align:center;padding:2px 0;min-height:32px}
 .weekview.cols .event{display:block;padding:5px 4px 5px 7px;min-height:50px}
-.weekview.cols .event .clock{display:block;font-size:12px;line-height:18px;white-space:nowrap}
-.weekview.cols .event strong{display:block;font-size:12px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.weekview.cols .event .clock{display:block;font-size:13px;line-height:18px;white-space:nowrap}
+.weekview.cols .event strong{display:block;font-size:13px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .weekview.cols .event:before{top:8px;bottom:8px}
 .weekview.cols .empty-row{text-align:center;padding:4px 0}
 .daylist{padding-bottom:4px}.daylist .event:first-child{margin-top:0}
 
 /* ホーム（閉じた初期） */
 .home .hero{flex:none;display:flex;flex-direction:column;gap:6px}
-.date{font:48px/1.1 Georgia,'Hiragino Mincho ProN',serif;letter-spacing:-2px}
-.date span{font:16px sans-serif;letter-spacing:0;margin-left:12px}
+.date{font:600 17px/22px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif}
+.date span{font:400 13px/18px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;margin-left:8px}
 .next{display:block;width:100%;text-align:left;background:var(--green);color:#fff;border-radius:16px;padding:10px 16px;min-height:0}
-.next:hover{background:#355f50}.next small{color:#d7e3d9;font-size:12px}
+.next:hover{background:#355f50}.next small{color:#d7e3d9;font-size:13px}
 .next strong{display:block;font-size:20px;line-height:1.3;font-weight:500}
-.next .time{font:26px Georgia,serif}.next .when{display:block}
+.next .time{font:600 20px/26px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;font-variant-numeric:tabular-nums}.next .when{display:block}
 .next.none{cursor:default}.next.none:hover{background:var(--green)}
 .next.none .ghost{background:transparent;color:#fff;border-color:#ffffff66;margin-top:4px;min-height:40px}
 .remaining{flex:1;min-height:0;display:flex;flex-direction:column}
-.remaining h3{font-size:14px;margin:0 0 2px;flex:none;font-weight:600}
+.remaining h3{font-size:15px;margin:0 0 2px;flex:none;font-weight:600}
 .list{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding-bottom:4px}
 .remaining .event{margin-top:6px;min-height:44px;grid-template-columns:auto 1fr auto;padding:6px 12px 6px 14px}
 .remaining .event strong{grid-column:2;font-size:15px;grid-row:1;margin:0}.remaining .event .tag{grid-column:3;grid-row:1}
@@ -102,7 +102,7 @@ button[aria-pressed=true]{background:var(--green);color:#fff}
 .remaining .event:first-child{margin-top:2px}
 @media (orientation:landscape){
  .home .hero{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:12px;align-items:center}
- .date{font-size:40px}.date span{font-size:14px;margin-left:8px}
+ .date{font-size:40px}.date span{font-size:15px;margin-left:8px}
  .shell{padding:8px 16px}
  .add{min-height:44px}
  .remaining .event{margin-top:4px}
@@ -121,7 +121,7 @@ button[aria-pressed=true]{background:var(--green);color:#fff}
 .shell.desk{display:grid;grid-template-rows:calc(50% - 12px) 24px minmax(0,1fr);gap:0;padding:0}
 .desktop{display:flex;flex-direction:column;gap:4px;min-height:0;padding:8px 16px 0}
 .desktop .calendar{flex:1}
-.foldband{background:#e5e7dd;text-align:center;font-size:12px;line-height:24px;padding:0 12px;white-space:nowrap;overflow:hidden;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.foldband{background:#e5e7dd;text-align:center;font-size:13px;line-height:24px;padding:0 12px;white-space:nowrap;overflow:hidden;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .deskbottom{display:flex;flex-direction:column;min-height:0;padding:4px 16px 8px;gap:6px}
 .deskbottom .agenda{flex:1;border:0;padding:0}
 .deskbottom .agenda .eyebrow{display:none}
@@ -140,19 +140,19 @@ button[aria-pressed=true]{background:var(--green);color:#fff}
 .spread .agenda h3{font-size:18px}
 .spread .agenda .event{height:76px;min-height:76px;margin-top:8px;padding:6px 12px 6px 14px;align-content:center}
 .spread .agenda .event .sub{display:none}
-.spread .agenda .event .clock{font-size:14px}.spread .agenda .event strong{font-size:16px;line-height:24px}
+.spread .agenda .event .clock{font-size:15px}.spread .agenda .event strong{font-size:15px;line-height:24px}
 .spread .agenda .list{padding-bottom:0}
 .spread .agenda .event:first-child{margin-top:6px}
 .spread .variant{margin:0 0 6px;height:36px}
 .spread .weekpage{display:flex;flex-direction:column;gap:6px}
 .spread .weekrow{padding:2px 8px 6px}
-.spread .weekrow .wd{font-size:14px;min-height:28px;padding:0}
+.spread .weekrow .wd{font-size:15px;min-height:28px;padding:0}
 .spread .weekrow .event{display:flex;gap:8px;align-items:baseline;min-height:32px;margin-top:3px;padding:2px 6px 2px 10px}
-.spread .weekrow .event .clock{font-size:12px;flex:none}
-.spread .weekrow .event strong{font-size:16px;line-height:22px}
+.spread .weekrow .event .clock{font-size:13px;flex:none}
+.spread .weekrow .event strong{font-size:15px;line-height:22px}
 .spread .weekrow .event:before{top:6px;bottom:6px}
-.weeknotes{padding:8px 12px;border-top:1px solid var(--line);font-size:14px;color:var(--muted)}
-.margin{padding-top:8px}.margin h3{font:26px Georgia,'Hiragino Mincho ProN',serif;margin:4px 0}.margin p{color:var(--muted);margin:6px 0}
+.weeknotes{padding:8px 12px;border-top:1px solid var(--line);font-size:15px;color:var(--muted)}
+.margin{padding-top:8px}.margin h3{font:600 20px/26px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;margin:4px 0}.margin p{color:var(--muted);margin:6px 0}
 .spread .legend{padding:6px 0 0;gap:4px 10px}
 
 /* 編集シート（非モーダル） */
@@ -161,11 +161,11 @@ button[aria-pressed=true]{background:var(--green);color:#fff}
 dialog{--m:12px;--pw:460px;position:fixed;box-sizing:border-box;min-width:0;
  top:calc(var(--rt) + var(--m));bottom:calc(var(--rb) + var(--m));left:calc(var(--rl) + var(--m));right:calc(var(--rr) + var(--m));
  margin:auto;width:auto;max-width:var(--pw);height:fit-content;max-height:calc(100% - var(--rt) - var(--rb) - 2 * var(--m));overflow:auto;z-index:10;
- padding:18px 20px;border:1px solid var(--line);border-radius:22px;background:var(--card);color:var(--ink);box-shadow:0 0 0 100vmax #1a302d55,0 25px 70px #132c3340}
+ padding:18px 20px;border:1px solid var(--line);border-radius:24px;background:var(--card);color:var(--ink);box-shadow:0 0 0 100vmax #1a302d55,0 12px 32px #00000029}
 html[data-kb] dialog{margin-top:0;margin-bottom:auto}
 dialog#confirm{z-index:11}
 .dtext{white-space:pre-line;font-size:13px;color:#68716A}
-dialog h2{font:700 22px/1.3 -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;margin:0}
+dialog h2{font:600 17px/22px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;margin:0}
 .formhead,.actions{display:flex;align-items:center;justify-content:space-between;gap:8px}
 form label{display:block;margin-top:12px;font-size:13px}
 .pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
@@ -184,7 +184,7 @@ input[type=checkbox]{display:inline-block;width:20px;min-height:20px;vertical-al
  .segment button{padding:4px 8px}
 }
 .day[aria-pressed=true]{background:transparent;color:inherit}
-.day[aria-pressed=true]:hover,.day:hover{background:#ecebe2}
+@media (hover:hover){.day[aria-pressed=true]:hover,.day:hover{background:#ecebe2}}
 .date{line-height:1.3}
 .date-block .eyebrow{margin-bottom:4px}
 
@@ -202,7 +202,7 @@ body[data-posture=portrait] #app{padding-top:0}
 .portrait .chead [data-act=prev]{left:calc(120px * var(--ux))}
 .portrait .chead [data-act=next]{left:calc(376px * var(--ux))}
 .portrait .chead .allbtn{left:calc(432px * var(--ux))}
-.portrait .chead h2{font:700 20px/44px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;left:calc(270px * var(--ux));transform:translateX(-50%);flex:none;padding:0;width:max-content;max-width:calc(200px * var(--ux));overflow:hidden;line-height:44px;font-size:20px;white-space:nowrap}
+.portrait .chead h2{padding:9px 0!important;font:600 20px/26px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;left:calc(270px * var(--ux));transform:translateX(-50%);flex:none;padding:0;width:max-content;max-width:calc(200px * var(--ux));overflow:hidden;line-height:26px;font-size:20px;white-space:nowrap}
 .portrait .weekdays{height:var(--wd-h);padding:0;align-items:center}
 .portrait .week.named,.portrait .week.simple{flex:0 0 max(var(--week-h),var(--need,101px))}
 .portrait .week.all{height:max(var(--week-h),var(--need,0px))}
@@ -215,17 +215,17 @@ body[data-posture=portrait] #app{padding-top:0}
 .vlist .wevents{display:flex;flex-direction:column;gap:8px;min-width:0}
 .vlist .weekrow .event{margin-top:0;min-height:44px;padding:8px 12px 8px 14px;grid-template-columns:46px minmax(0,1fr);column-gap:12px}
 .vlist .weekrow .event:before{top:8px;bottom:8px}
-.vlist .weekrow .event .clock{font-size:14px;line-height:24px;white-space:nowrap}
-.vlist .weekrow .event strong{grid-column:2;font-size:16px;line-height:24px;white-space:normal;overflow-wrap:anywhere}
+.vlist .weekrow .event .clock{font-size:15px;line-height:24px;white-space:nowrap}
+.vlist .weekrow .event strong{grid-column:2;font-size:15px;line-height:24px;white-space:normal;overflow-wrap:anywhere}
 .vlist .empty-row{padding:0;min-height:44px;display:flex;align-items:center}
 .shell.browse>.calendar{flex:1 1 auto}
 
 /* ===== 第6版: 繰り返し・検索・バックアップ ===== */
-.iconbtn{flex:none;width:44px;min-width:44px;height:44px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:22px;line-height:1;border-radius:12px}
-.rep{display:inline-block;width:14px;margin-right:4px;font:400 14px/1 sans-serif;text-align:center;vertical-align:baseline}
+.iconbtn{flex:none;width:44px;min-width:44px;height:44px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:20px;line-height:1;border-radius:12px}
+.rep{display:inline-block;width:14px;margin-right:4px;font:400 13px/1 -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;text-align:center;vertical-align:baseline}
 .next .nd{display:block;font:13px/1.4 -apple-system,sans-serif;color:#d7e3d9}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-mark{background:#E7EBDD;color:inherit;font-weight:inherit;border-radius:2px}
+mark{background:#E7EBDD;color:inherit;font-weight:inherit;border-radius:4px}
 @media (max-width:520px){
  .top{flex-wrap:wrap;row-gap:8px}
  .toolbar{order:3;flex:1 0 100%;justify-content:space-between}
@@ -236,7 +236,7 @@ dialog.panel{padding:0;overflow:hidden}
 dialog.panel[open]{display:flex;flex-direction:column}
 #form{display:flex;flex-direction:column;min-height:0;flex:1}
 .formhead,.phead{display:flex;align-items:center;justify-content:space-between;gap:8px;height:56px;min-height:56px;flex:none;padding:0 12px 0 20px;border-bottom:1px solid var(--line)}
-.phead h2,.formhead h2{font-size:22px}
+.phead h2,.formhead h2{font-size:17px;line-height:22px}
 .fbody{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:0 20px 12px}
 .factions{flex:none;padding:8px 20px;border-top:1px solid var(--line)}
 .factions .actions{margin-top:0}
@@ -257,12 +257,12 @@ dialog#confirm,dialog#scope,dialog#xretry,dialog#discard{top:auto;bottom:calc(va
 #sc-target{margin:6px 0 0;overflow-wrap:anywhere}
 .rows{margin-top:4px}
 .row{display:block;width:100%;min-height:52px;padding:8px 16px;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:12px;margin-top:8px}
-.row small{display:block;font-size:12px;line-height:18px;color:var(--muted);overflow-wrap:anywhere}
+.row small{display:block;font-size:13px;line-height:18px;color:var(--muted);overflow-wrap:anywhere}
 .row.cancel{margin-top:12px;text-align:center}
 .row.danger{color:var(--danger)}
 .row:disabled{opacity:.45;cursor:default}
 #sc-note{margin:8px 0 0}
-dialog#menu{z-index:12;margin:0;padding:0;border-radius:22px;box-shadow:0 12px 30px #132c3340;background:#fff;overflow:hidden}
+dialog#menu{z-index:12;margin:0;padding:0;border-radius:24px;box-shadow:0 12px 32px #00000029;background:#fff;overflow:hidden}
 dialog#menu[open]{display:flex;flex-direction:column}
 .menurows button{display:block;width:100%;text-align:left;min-height:44px}
 
@@ -270,30 +270,30 @@ dialog#menu[open]{display:flex;flex-direction:column}
 .sbar{flex:none;padding:8px 16px;border-bottom:1px solid var(--line)}
 .sfield{position:relative}
 .sfield input{padding-right:48px}
-#sr-clear{position:absolute;right:0;top:0;width:44px;padding:0;font-size:22px;line-height:1}
+#sr-clear{position:absolute;right:0;top:0;width:44px;padding:0;font-size:20px;line-height:1}
 #sr-range{margin:6px 0 0}
 .pbody{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:8px 16px 16px}
 .smsg{color:var(--muted);padding:16px 4px;margin:0}
 .hcount{margin:8px 0 0}
-.hgroup h3{font-size:16px;font-weight:500;margin:16px 0 4px}
+.hgroup h3{font-size:15px;font-weight:500;margin:16px 0 4px}
 .hit{display:block;width:100%;min-height:88px;padding:12px 12px 12px 16px;text-align:left;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--cat);border-radius:12px;margin-top:8px}
-.hit:hover{background:#f4f1e8}
+@media (hover:hover){.hit:hover{background:#f4f1e8}}
 .hit>*{display:block}
-.hmeta{font-size:14px;line-height:20px;color:var(--cat)}
-.hit strong{font-weight:400;font-size:16px;line-height:24px;overflow-wrap:anywhere}
-.hplace{font-size:14px;line-height:20px;color:var(--muted);overflow-wrap:anywhere}
+.hmeta{font-size:15px;line-height:20px;color:var(--cat)}
+.hit strong{font-weight:400;font-size:15px;line-height:24px;overflow-wrap:anywhere}
+.hplace{font-size:15px;line-height:20px;color:var(--muted);overflow-wrap:anywhere}
 .hnote{font-size:13px;line-height:20px;color:var(--muted);overflow-wrap:anywhere}
 
 /* バックアップ */
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
 .card h3{margin:0 0 8px;font-size:18px;font-weight:500;line-height:1.4}
 .card p{margin:0 0 12px}
-.card .small{font-size:14px}
+.card .small{font-size:15px}
 .card>button:not(.row){display:block;width:100%;border:1px solid var(--line);background:var(--card);margin-bottom:12px}
 .card>button.solid{background:var(--green);color:#fff;border-color:var(--green)}
 .berr{color:var(--danger)}
 .bmsg{color:var(--green)}
-.facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;margin:0 0 8px;font-size:14px}
+.facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;margin:0 0 8px;font-size:15px}
 .facts dt{color:var(--muted)}.facts dd{margin:0;overflow-wrap:anywhere}
 .pair2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .dangerfill{background:#873B35;color:#fff}.dangerfill:hover{background:#963E38}
@@ -337,16 +337,16 @@ html[data-kb] body[data-layout=spread] dialog,html[data-kb] body[data-layout=des
 .sfield+.small,#sr-xrange{margin:2px 0 0}
 .lkintro{margin:8px 0}
 .swrow{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;font-size:18px}
-.sw{display:inline-flex;align-items:center;gap:8px;min-width:96px;min-height:44px;padding:4px 12px 4px 6px;border:1px solid var(--line);border-radius:22px;background:var(--card)}
+.sw{display:inline-flex;align-items:center;gap:8px;min-width:96px;min-height:44px;padding:4px 12px 4px 6px;border:1px solid var(--line);border-radius:999px;background:var(--card)}
 .sw .knob{width:28px;height:28px;border-radius:50%;background:#b9bdb3}
 .sw[aria-checked=true]{background:var(--green);color:#fff}.sw[aria-checked=true] .knob{background:#fff;order:2}
 .calgroup h3{font-size:15px;color:var(--muted)}
-.calrow{display:flex;align-items:center;gap:10px;min-height:44px;margin:0;font-size:16px}
+.calrow{display:flex;align-items:center;gap:10px;min-height:44px;margin:0;font-size:15px}
 .calrow input{width:22px;min-height:22px;flex:none;margin:0}
 .cdot{display:inline-block;width:8px;height:8px;border-radius:50%;flex:none}
 .cname{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
-.calrow small{flex:none;color:var(--muted);font-size:12px}
-.lkfoot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;font-size:14px}
+.calrow small{flex:none;color:var(--muted);font-size:13px}
+.lkfoot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;font-size:15px}
 .lkfoot button{border:1px solid var(--line);background:var(--card);flex:none}
 .xdt{font-size:20px;font-weight:500;margin:4px 0;overflow-wrap:anywhere}
 .xdcal{margin:0 0 8px;display:flex;align-items:center;gap:8px;color:var(--muted)}
@@ -373,10 +373,10 @@ input,select,textarea,.date-text{font-size:16px}
 .catadd{color:var(--green);text-align:center}
 .undobar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding:8px 12px;border-radius:12px;background:var(--green);color:#fff}
 .undobar button{color:#fff;border:1px solid #ffffff80;flex:none}
-.undobar button:hover{background:#386351}
+@media (hover:hover){.undobar button:hover{background:#386351}}
 .palette{display:grid;grid-template-columns:repeat(6,36px);gap:12px;justify-content:space-between;margin:8px 0 12px}
 .swatch{width:36px;min-width:36px;height:36px;min-height:36px;padding:0;border-radius:50%;border:0}
-.swatch:hover{filter:brightness(1.1)}
+@media (hover:hover){.swatch:hover{filter:brightness(1.1)}}
 .swatch[aria-pressed=true]{background-clip:padding-box;box-shadow:0 0 0 3px var(--card),0 0 0 6px var(--ink)}
 .catpre{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 8px}
 .delbox{margin-top:12px}
@@ -388,7 +388,7 @@ input,select,textarea,.date-text{font-size:16px}
 .weekdays.all{position:static;flex:none;padding-right:3px}
 .scroll.all{position:relative;container-type:size;scrollbar-gutter:stable;display:block}
 .scroll.all::-webkit-scrollbar{width:3px}
-.scroll.all::-webkit-scrollbar-thumb{background:#9aa39c;border-radius:2px}
+.scroll.all::-webkit-scrollbar-thumb{background:#9aa39c;border-radius:4px}
 .toastbar{position:fixed;left:12px;right:12px;bottom:max(calc(16px + var(--sab,0px)),calc(var(--layout-h,0px) - var(--tabs-y,0px) + 8px)); /* 浮動タブの上 */z-index:50;margin:0 auto;max-width:480px}
 
 /* ===== 第10版 ①: 月の共通描画（手帳｜予定名｜全部）。寸法は JS の --chip-fs 等と同値 ===== */
@@ -396,8 +396,8 @@ input,select,textarea,.date-text{font-size:16px}
 .week .day{position:relative;min-height:0;padding:0;border-right:1px solid #e5e3db;align-items:center}
 .week .day:last-child{border-right:0}
 .week .day.sat{background:#EEF1F4}
-.week .day.sat:hover{background:#e3e8ee}
-.week .num{width:auto;min-width:18px;height:var(--date-h);padding:0 4px;margin-top:0;border-radius:9px;font-size:11px;line-height:var(--date-h);flex:none}
+@media (hover:hover){.week .day.sat:hover{background:#e3e8ee}}
+.week .num{width:auto;min-width:18px;height:var(--date-h);padding:0 4px;margin-top:0;border-radius:999px;font-size:11px;line-height:var(--date-h);flex:none}
 .week .day.sun .num,.week .day.hol .num{color:var(--holiday)}
 .week .day.out .num{color:#A8ABA4}
 .week .day.selected{box-shadow:inset 0 0 0 2px #294E42}
@@ -409,22 +409,22 @@ input,select,textarea,.date-text{font-size:16px}
 /* +N: 見た目は9px・日付行の右端。押せる範囲は日セル右上の44×44（兄弟 button）。 */
 .week .plus{position:absolute;top:0;z-index:4;display:flex;align-items:flex-start;justify-content:flex-end;width:44px;height:44px;min-width:44px;min-height:44px;padding:0 3px 0 0;border-radius:0;background:transparent;
  font-size:9px;font-weight:600;line-height:var(--date-h);text-align:right;color:var(--muted)}
-.week .plus:hover{background:transparent;color:var(--ink)}
+@media (hover:hover){.week .plus:hover{background:transparent;color:var(--ink)}}
 /* 時刻つき単日: 本色の塗り＋白文字・太字。切って省略記号は付けない。 */
-.strip{position:absolute;z-index:2;height:var(--chip-h);min-height:var(--chip-h);padding:0 0 0 1.5px;border:0;border-radius:3.5px;background:var(--cat);color:#fff;
+.strip{position:absolute;z-index:2;height:var(--chip-h);min-height:var(--chip-h);padding:0 0 0 1.5px;border:0;border-radius:3px;background:var(--cat);color:#fff;
  font-size:var(--chip-fs);font-weight:700;line-height:var(--chip-h);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:clip}
-.strip:hover{background:var(--cat);filter:brightness(.92)}
+@media (hover:hover){.strip:hover{background:var(--cat);filter:brightness(.92)}}
 /* 終日・複数日: 塗らず「線＋中央の題名」。線は題名の下（レーン上端から12.5px・太さ2px・列境界から内1px）。 */
 .bar{position:absolute;z-index:2;height:16px;min-height:16px;padding:0;border:0;border-radius:0;background:transparent;color:var(--cat);
  font-size:var(--chip-fs);font-weight:700;line-height:12px;text-align:center;white-space:nowrap;overflow:hidden}
-.bar:hover{background:transparent;filter:brightness(.9)}
-.bar:after{content:'';position:absolute;left:1px;right:1px;top:12.5px;height:2px;border-radius:1px;background:var(--cat)}
+@media (hover:hover){.bar:hover{background:transparent;filter:brightness(.9)}}
+.bar:after{content:'';position:absolute;left:1px;right:1px;top:12.5px;height:2px;border-radius:4px;background:var(--cat)}
 .bar .bt{display:inline-block;max-width:100%;overflow:hidden;vertical-align:top;text-overflow:clip}
 .weekdays.all{padding-right:3px}
 /* カテゴリ編集の見本（月と同じ見た目） */
-.catpre .chip{display:inline-block;height:var(--chip-h);max-width:100%;padding:0 6px 0 1.5px;border-radius:3.5px;background:var(--cat);color:#fff;font-size:10px;font-weight:700;line-height:var(--chip-h);white-space:nowrap;overflow:hidden}
+.catpre .chip{display:inline-block;height:var(--chip-h);max-width:100%;padding:0 6px 0 1.5px;border-radius:3px;background:var(--cat);color:#fff;font-size:10px;font-weight:700;line-height:var(--chip-h);white-space:nowrap;overflow:hidden}
 .catpre .bar-like{position:relative;display:inline-block;height:16px;max-width:100%;padding:0 6px;color:var(--cat);font-size:10px;font-weight:700;line-height:12px;white-space:nowrap;overflow:hidden}
-.catpre .bar-like:after{content:'';position:absolute;left:1px;right:1px;top:12.5px;height:2px;border-radius:1px;background:var(--cat)}
+.catpre .bar-like:after{content:'';position:absolute;left:1px;right:1px;top:12.5px;height:2px;border-radius:4px;background:var(--cat)}
 .diag{margin:6px 4px 2px;padding:6px 8px;border-top:1px solid var(--line);font-size:11px;line-height:1.4;color:var(--muted);overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
 .menurows button[aria-pressed=true]{background:var(--green);color:#fff}
 
@@ -432,7 +432,7 @@ input,select,textarea,.date-text{font-size:16px}
 .weekdays{position:static;flex:none;padding-right:3px}
 .scroll.msc{scrollbar-gutter:stable}
 .scroll.msc::-webkit-scrollbar{width:3px}
-.scroll.msc::-webkit-scrollbar-thumb{background:#9aa39c;border-radius:2px}
+.scroll.msc::-webkit-scrollbar-thumb{background:#9aa39c;border-radius:4px}
 /* 最後の週をタブの上へスクロールで出せるように、末尾に余白（疑似要素なので仮想化の週には数えない） */
 .scroll::after{content:'';display:block;flex:none;height:var(--end-pad,0px)}
 .shell.closed,.shell.spread,.shell.desk{--end-pad:56px}
@@ -440,8 +440,8 @@ input,select,textarea,.date-text{font-size:16px}
 
 /* 期間の見出し: 前｜見出し（中央）｜次。44px の操作枠は見出しと別 */
 .chead{justify-content:center;gap:0}
-.chead h2{flex:1;min-width:0;margin:0;text-align:center;font-size:20px;line-height:1.3}
-.chead button{flex:none;min-width:44px;padding:0;font-size:22px}
+.chead h2{flex:1;min-width:0;margin:0;text-align:center;font-size:17px;line-height:22px}
+.chead button{flex:none;min-width:44px;padding:0;font-size:17px}
 .listview{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
 
 .shell.closed{display:flex;flex-direction:column;gap:0;padding:0}
@@ -461,29 +461,29 @@ input,select,textarea,.date-text{font-size:16px}
 /* 帯・見出し・下段の操作（位置と大きさは JS の inline: left/top/width/height と --v）。押せる範囲 56（帯）／44（見出し）／48（下段） */
 .bandbg{position:fixed;top:0;bottom:0;z-index:4;background:var(--paper);border-left:1px solid #C9C6BC;pointer-events:none}
 .ctl{pointer-events:none}
-.cb{position:fixed;z-index:6;display:flex;align-items:center;justify-content:center;min-width:0;min-height:0;padding:0;border-radius:0;background:transparent;pointer-events:auto;touch-action:manipulation;font-size:14px;font-weight:700;line-height:1}
-.cb:hover{background:transparent}
+.cb{position:fixed;z-index:6;display:flex;align-items:center;justify-content:center;min-width:0;min-height:0;padding:0;border-radius:0;background:transparent;pointer-events:auto;touch-action:manipulation;font-size:13px;font-weight:600;line-height:1}
+@media (hover:hover){.cb:hover{background:transparent}}
 .cb .bi{display:flex;align-items:center;justify-content:center;width:var(--v,48px);height:var(--v,48px);border-radius:50%;background:var(--card);box-shadow:inset 0 0 0 1px var(--line)}
-.cb:hover .bi{background:#ecebe2}
-.cb.cadd .bi{background:var(--green);color:#fff;font-size:26px;font-weight:400;box-shadow:none}
-.cb.cadd:hover .bi{background:#386351}
+@media (hover:hover){.cb:hover .bi{background:#ecebe2}}
+.cb.cadd .bi{background:var(--green);color:#fff;font-size:20px;font-weight:400;box-shadow:none}
+@media (hover:hover){.cb.cadd:hover .bi{background:#386351}}
 .cb.cadd:focus-visible,.cb:focus-visible{outline-offset:-2px}
 .cb.allbtn{position:fixed}
-.rbtn{display:flex;align-items:center;justify-content:center;flex:none;width:48px;height:48px;min-width:48px;min-height:48px;padding:0;border-radius:24px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);font-size:14px;font-weight:700;line-height:1}
-.rbtn:hover{background:#ecebe2}
-.rbtn.radd{background:var(--green);color:#fff;font-size:26px;font-weight:400;box-shadow:none}
-.rbtn.radd:hover{background:#386351}
-.rbtn.s44{width:44px;height:44px;min-width:44px;min-height:44px;border-radius:22px;font-size:12px}
-.rbtn.s44.radd{font-size:22px}
+.rbtn{display:flex;align-items:center;justify-content:center;flex:none;width:48px;height:48px;min-width:48px;min-height:48px;padding:0;border-radius:24px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);font-size:13px;font-weight:600;line-height:1}
+@media (hover:hover){.rbtn:hover{background:#ecebe2}}
+.rbtn.radd{background:var(--green);color:#fff;font-size:20px;font-weight:400;box-shadow:none}
+@media (hover:hover){.rbtn.radd:hover{background:#386351}}
+.rbtn.s44{width:44px;height:44px;min-width:44px;min-height:44px;border-radius:999px;font-size:13px}
+.rbtn.s44.radd{font-size:20px}
 
 /* 浮動タブ: 紙の半透明＋ぼかし。座標は JS の --tabs-x/-y/-w（画面座標） */
-.tabs,.pgsw{position:fixed;z-index:6;left:var(--tabs-x);top:var(--tabs-y);width:var(--tabs-w);height:46px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-radius:23px;
+.tabs,.pgsw{position:fixed;z-index:6;left:var(--tabs-x);top:var(--tabs-y);width:var(--tabs-w);height:46px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-radius:999px;
  background:#fffdfab8;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:inset 0 0 0 1px #d6d3c8,0 2px 10px #1a302d1f;touch-action:manipulation}
-.tabs button,.pgsw button{display:flex;align-items:center;justify-content:center;height:46px;min-height:46px;min-width:0;padding:0;border-radius:23px;background:transparent;color:var(--ink)}
+.tabs button,.pgsw button{display:flex;align-items:center;justify-content:center;height:46px;min-height:46px;min-width:0;padding:0;border-radius:999px;background:transparent;color:var(--ink)}
 .tabs button:hover,.tabs button[aria-pressed=true],.pgsw button:hover,.pgsw button[aria-pressed=true]{background:transparent;color:var(--ink)}
-.tabs .pill,.pgsw .pill{display:flex;align-items:center;justify-content:center;width:min(56px,calc(100% - 2px));height:36px;border-radius:18px;font-size:15px;font-weight:600}
+.tabs .pill,.pgsw .pill{display:flex;align-items:center;justify-content:center;width:min(56px,calc(100% - 2px));height:36px;border-radius:999px;font-size:15px;font-weight:600}
 .tabs button[aria-pressed=true] .pill,.pgsw button[aria-pressed=true] .pill{background:var(--green);color:#fff}
-.pgsw .pill{width:min(54px,calc(100% - 2px));font-size:14px;font-weight:700}
+.pgsw .pill{width:min(54px,calc(100% - 2px));font-size:15px;font-weight:600}
 .pgsw{grid-template-columns:repeat(5,minmax(0,1fr))}
 .pgsw.pgr{left:var(--sw-r-x)}
 .desktop{position:relative}
@@ -491,7 +491,7 @@ input,select,textarea,.date-text{font-size:16px}
 
 /* メニュー: 月の表現・カテゴリの色 */
 .menurows .variant{display:flex;gap:4px;margin:2px 0 6px}
-.menurows .variant button{display:block;flex:1;width:auto;min-width:0;min-height:44px;font-size:14px;padding:4px 6px;text-align:center}
+.menurows .variant button{display:block;flex:1;width:auto;min-width:0;min-height:44px;font-size:15px;padding:4px 6px;text-align:center}
 .mlegend{margin:6px 4px 2px;padding-top:6px;border-top:1px solid var(--line)}
 .mlegend .legend{padding:4px 0 2px}
 
@@ -504,10 +504,10 @@ input,select,textarea,.date-text{font-size:16px}
 /* 左の見出し: 年（薄色）月 ｜ 前・次・設定（各44角） */
 .shead{display:flex;align-items:flex-start;flex:none;height:var(--head-h);padding-top:var(--hpt,24px);min-height:0}
 .sset{display:flex;align-items:center;justify-content:center}
-.shead h2{flex:1;min-width:0;margin:0;font:20px/44px Georgia,'Hiragino Mincho ProN',serif;font-weight:700;white-space:nowrap;overflow:hidden;text-align:left}
-.shead h2 .yr{font-weight:400;color:#9a9d96}
+.shead h2{flex:1;min-width:0;margin:0;padding:9px 0;font:600 20px/26px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;white-space:nowrap;overflow:hidden;text-align:left}
+.shead h2 .yr{font-weight:600;color:#68716A}
 .sctl{display:flex;flex:none}
-.sctl button{min-width:44px;width:44px;height:44px;padding:0;font-size:22px;display:flex;align-items:center;justify-content:center}
+.sctl button{min-width:44px;width:44px;height:44px;padding:0;font-size:20px;display:flex;align-items:center;justify-content:center}
 .spread .calendar{display:flex}
 .spread .weekdays{height:var(--wd-h);padding-bottom:0;align-items:center;background:transparent}
 .spread .scroll.msc,.spread .scroll.all{flex:none;height:var(--grid-h);--end-pad:0px}
@@ -522,18 +522,18 @@ input,select,textarea,.date-text{font-size:16px}
 /* 右の日見出し・1日/3日 */
 .rhead{display:flex;align-items:flex-start;flex-wrap:wrap;flex:none;min-height:var(--head-h);padding-top:var(--hpt,24px)}
 .rctl{display:flex;gap:4px;flex:none;margin-right:4px}
-.rhead h2{flex:1 1 150px;min-width:150px;margin:0;font:20px/44px -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:clip}
+.rhead h2{flex:1 1 150px;min-width:150px;margin:0;font:600 20px/44px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:clip}
 .spanbtn{flex:none;min-width:60px;width:60px;height:44px;padding:0;background:transparent}
-.spanbtn:hover{background:transparent}
-.spanbtn span{display:flex;align-items:center;justify-content:center;min-width:60px;width:60px;height:32px;padding:0;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);font-size:14px}
+@media (hover:hover){.spanbtn:hover{background:transparent}}
+.spanbtn span{display:flex;align-items:center;justify-content:center;min-width:60px;width:60px;height:32px;padding:0;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);font-size:15px}
 /* 終日段（28px）: 月の線帯とは別 CSS。カテゴリの淡色地＋本色の太字 */
 .allday{display:flex;align-items:center;flex:none;height:28px;margin-bottom:max(4px,calc(32px * var(--ry,1) - 28px));min-width:0}
 .adl{flex:none;width:var(--lw,50px);font-size:11px;color:var(--muted)}
 .adcols{display:flex;flex:1;min-width:0}
 .adcol{display:flex;flex:1;gap:6px;min-width:0;overflow:hidden}
-.adpill,.adplus{height:28px;min-height:28px;padding:0 12px;border-radius:14px;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
+.adpill,.adplus{height:28px;min-height:28px;padding:0 12px;border-radius:14px;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
 .adpill{background:var(--tint);color:var(--cat)}
-.adpill:hover{background:var(--tint);filter:brightness(.95)}
+@media (hover:hover){.adpill:hover{background:var(--tint);filter:brightness(.95)}}
 .adplus{flex:none;padding:0 8px;color:var(--muted);background:transparent}
 .tlheads{display:flex;flex:none;height:44px}
 .tlh0{flex:none;width:var(--lw,50px)}
@@ -546,27 +546,27 @@ input,select,textarea,.date-text{font-size:16px}
 .tlin{position:relative;height:calc(24 * var(--hh) + 2 * 12px)}
 .hl{position:absolute;left:var(--lw,50px);right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:0;border-top:1px solid #dcd9cf}
 .hl.half{border-top:1px dotted #dcd9cf}
-.hlab{position:absolute;left:0;width:calc(var(--lw,50px) - 6px);top:calc(12px + var(--m) * var(--hh) / 60 - 9px);height:18px;font-size:12px;line-height:18px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.hlab{position:absolute;left:0;width:calc(var(--lw,50px) - 6px);top:calc(12px + var(--m) * var(--hh) / 60 - 9px);height:18px;font-size:13px;line-height:18px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
 .tlcols{position:absolute;left:var(--lw,50px);right:0;top:0;bottom:0;display:flex}
 .tlcol{position:relative;flex:1;min-width:0}
 .tlcol+.tlcol{border-left:1px solid #e8e5dc}
 .tlev{position:absolute;z-index:2;top:calc(12px + var(--m) * var(--hh) / 60);height:max(20px,calc(var(--d) * var(--hh) / 60 - 1px));min-height:20px;padding:1px 4px 1px 8px;border-radius:4px;background:var(--tint);color:var(--ink);box-shadow:inset 4px 0 0 var(--cat);
- font-size:12px;line-height:17px;text-align:left;white-space:nowrap;overflow:hidden}
-.tlev:hover{background:var(--tint);filter:brightness(.95)}
+ font-size:13px;line-height:17px;text-align:left;white-space:nowrap;overflow:hidden}
+@media (hover:hover){.tlev:hover{background:var(--tint);filter:brightness(.95)}}
 .tlev .tt{margin-right:5px;font-weight:700;color:var(--cat)}
 .nowl{position:absolute;z-index:3;left:0;right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:0;pointer-events:none}
 .nowl:before{content:'';position:absolute;left:calc(var(--lw,50px) + var(--i) * (100% - var(--lw,50px)) / var(--n));width:calc((100% - var(--lw,50px)) / var(--n));top:-.75px;height:1.5px;background:#D64541}
-.nowt{position:absolute;left:0;top:-11px;width:46px;height:22px;border-radius:11px;background:#D64541;color:#fff;font-size:11px;font-weight:700;line-height:22px;text-align:center;font-variant-numeric:tabular-nums}
+.nowt{position:absolute;left:0;top:-11px;width:46px;height:22px;border-radius:999px;background:#D64541;color:#fff;font-size:11px;font-weight:700;line-height:22px;text-align:center;font-variant-numeric:tabular-nums}
 body[data-layout=spread] .toastbar{left:var(--left-start);right:auto;width:calc(var(--left-end) - var(--left-start));margin:0}
 .menurows .tlz{display:flex;gap:4px;margin:2px 0 6px}.menurows .tlz button{flex:1;min-width:0;font-size:13px;padding:4px 6px}
 
 /* 月見出し横の「全部」ボタン（押せる範囲 44pt 角、見た目は小さな札） */
 .chsp{flex:none;width:44px}
-.allbtn{border-radius:0;flex:none;position:relative;width:44px;min-width:44px;height:44px;padding:0;border:0;background:none;color:inherit;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
-.allbtn span{display:block;box-sizing:border-box;min-width:28px;width:28px;height:28px;line-height:25px;text-align:center;border:1.5px solid var(--ink);border-radius:6px;background:var(--paper,#F7F5EE);color:var(--ink)}
+.allbtn{border-radius:0;flex:none;position:relative;width:44px;min-width:44px;height:44px;padding:0;border:0;background:none;color:inherit;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+.allbtn span{display:block;box-sizing:border-box;min-width:28px;width:28px;height:28px;line-height:25px;text-align:center;border:1.5px solid var(--ink);border-radius:8px;background:var(--paper,#F7F5EE);color:var(--ink)}
 .allbtn:hover,.allbtn[aria-pressed]{background:transparent;color:inherit}
 .allbtn[aria-pressed="true"] span{background:#294E42;border-color:#294E42;color:#fff}
-.chead .allbtn,.sctl .allbtn{font-size:12px}
+.chead .allbtn,.sctl .allbtn{font-size:13px}
 
 /* 通知（第11版 PR4）: 編集シートの行・設定パネル・ベル */
 .alwrap{margin-top:12px}
@@ -576,9 +576,9 @@ form .alrow+.alrow,.alwrap .alrow+.alrow{margin-top:6px}
 .alrow .alk{flex:none}
 .alrow .alv{margin-left:auto;min-width:0;text-align:right;color:var(--green);font-size:15px;white-space:nowrap}
 .alrow .alv.none{color:var(--muted)}
-.alrow select{position:absolute;inset:0;width:100%;height:100%;min-height:44px;opacity:0;font-size:16px;border:0;padding:0}
+.alrow select{position:absolute;inset:0;width:100%;height:100%;min-height:44px;opacity:0;font-size:15px;border:0;padding:0}
 .alrow:focus-within{outline:2px solid var(--green);outline-offset:1px}
-.alnote{display:block;margin:6px 0 0;font-size:12px;line-height:1.4;color:var(--muted)}
+.alnote{display:block;margin:6px 0 0;font-size:13px;line-height:1.4;color:var(--muted)}
 .alnote13{display:block;margin:6px 0 0;font-size:13px;line-height:1.4;color:var(--muted)}
 button.alnote.link{min-height:44px;padding:0;text-align:left;background:none;border:0;text-decoration:underline}
 .alperm{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px}
@@ -589,22 +589,23 @@ button.alnote.link{min-height:44px;padding:0;text-align:left;background:none;bor
 .nb .bell{margin-left:0}
 .nsw{min-height:52px}
 .nsw .sw{min-width:96px;min-height:52px}
-.nh{margin:12px 0 6px;font-size:12px;font-weight:700;color:var(--muted)}
+.nh{margin:12px 0 6px;font-size:13px;font-weight:700;color:var(--muted)}
 .nrows{padding:8px}
 .nrows .alrow{background:transparent;border:0;border-bottom:1px solid var(--line);border-radius:0}
 .nrows .alrow+.alrow{margin-top:0;border-bottom:0}
-.nrows .small{margin:8px 4px 0;font-size:12px}
+.nrows .small{margin:8px 4px 0;font-size:13px}
 .nsmall{margin:0 0 12px;font-size:11px;color:var(--muted)}
 .nstat{background:#e9f0e8}
 .nstat .ncount{font-size:15px;margin:0 0 6px}
-.nstat .small{margin:0;font-size:12px}
+.nstat .small{margin:0;font-size:13px}
 .ncard.deny{background:#f6e5e2}
 .nbtn{display:block;width:100%;min-height:44px;border:1px solid var(--line);background:var(--card);border-radius:12px}
 .nhl{outline:2px solid #a77538 !important;outline-offset:-2px;box-shadow:0 0 0 2px #a77538 !important}
 
 /* ===== 第11版 PR11: 予定のポップアップの閉じ方（08 §5） ===== */
 /* 外側の幕: 黒12%（ダーク30%）。ポップアップ(10)の下、確認・範囲シート(11)の下。 */
-#scrim{position:fixed;inset:0;z-index:9;background:#0000001f;opacity:1;transition:opacity .2s ease;touch-action:none}
+#scrim{position:fixed;inset:0;z-index:9;background:#0000001f;opacity:1;transition:opacity .25s cubic-bezier(.16,1,.3,1);touch-action:none}
+#scrim:not([hidden]){animation:scrimin .25s cubic-bezier(.16,1,.3,1)}
 #scrim[hidden]{display:none}
 #scrim.fade{opacity:0}
 @media (prefers-color-scheme:dark){ #scrim{background:#0000004d} }
@@ -612,36 +613,35 @@ button.alnote.link{min-height:44px;padding:0;text-align:left;background:none;bor
 body[data-layout=spread] #scrim{background:linear-gradient(90deg,#0000001f calc(var(--fold-x) - var(--fold-keepout)),#0000 calc(var(--fold-x) - var(--fold-keepout)),#0000 calc(var(--fold-x) + var(--fold-keepout)),#0000001f calc(var(--fold-x) + var(--fold-keepout)))}
 @media (prefers-color-scheme:dark){ body[data-layout=spread] #scrim{background:linear-gradient(90deg,#0000004d calc(var(--fold-x) - var(--fold-keepout)),#0000 calc(var(--fold-x) - var(--fold-keepout)),#0000 calc(var(--fold-x) + var(--fold-keepout)),#0000004d calc(var(--fold-x) + var(--fold-keepout)))} }
 /* ポップアップ自身は幕を使うので、従来の全面の影は外す（落ち影だけ残す） */
-dialog#editor,dialog#xdetail,dialog#taskdlg{box-shadow:0 25px 70px #132c3340}
+dialog#editor,dialog#xdetail,dialog#taskdlg{box-shadow:0 12px 32px #00000029}
 body[data-layout=spread] dialog#editor,body[data-layout=spread] dialog#xdetail,body[data-layout=spread] dialog#taskdlg{box-shadow:none}
-dialog#editor,dialog#xdetail,dialog#taskdlg{transition:opacity .2s ease}
-dialog#editor.fading,dialog#xdetail.fading,dialog#taskdlg.fading{opacity:0;pointer-events:none}
-dialog#editor.snap,dialog#xdetail.snap,dialog#taskdlg.snap{transition:opacity .2s ease,transform .2s ease}
+dialog#editor.fading,dialog#xdetail.fading,dialog#taskdlg.fading{pointer-events:none}
+dialog#editor.snap,dialog#xdetail.snap,dialog#taskdlg.snap{transition:transform .2s ease}
 .formhead,.phead{touch-action:none;-webkit-user-select:none;user-select:none}
 dialog#editor .fbody,dialog#xdetail .pbody,dialog#taskdlg .pbody{overscroll-behavior-y:contain}
 /* 閉じた画面ではシートの形: 下に付け、上だけ丸く、つまみを出す */
 html:not([data-kb]) body[data-layout=home] dialog#editor,html:not([data-kb]) body[data-layout=browse] dialog#editor,
-html:not([data-kb]) body[data-layout=home] dialog#xdetail,html:not([data-kb]) body[data-layout=browse] dialog#xdetail,html:not([data-kb]) body[data-layout=home] dialog#taskdlg,html:not([data-kb]) body[data-layout=browse] dialog#taskdlg{top:auto;bottom:var(--rb);margin:0 auto;border-radius:22px 22px 0 0}
+html:not([data-kb]) body[data-layout=home] dialog#xdetail,html:not([data-kb]) body[data-layout=browse] dialog#xdetail,html:not([data-kb]) body[data-layout=home] dialog#taskdlg,html:not([data-kb]) body[data-layout=browse] dialog#taskdlg{top:auto;bottom:var(--rb);margin:0 auto;border-radius:24px 24px 0 0}
 body[data-layout=home] dialog#editor::before,body[data-layout=browse] dialog#editor::before,
-body[data-layout=home] dialog#xdetail::before,body[data-layout=browse] dialog#xdetail::before,body[data-layout=home] dialog#taskdlg::before,body[data-layout=browse] dialog#taskdlg::before{content:"";position:absolute;top:6px;left:50%;width:36px;height:4px;margin-left:-18px;border-radius:2px;background:#c9c6ba;pointer-events:none}
+body[data-layout=home] dialog#xdetail::before,body[data-layout=browse] dialog#xdetail::before,body[data-layout=home] dialog#taskdlg::before,body[data-layout=browse] dialog#taskdlg::before{content:"";position:absolute;top:6px;left:50%;width:36px;height:4px;margin-left:-18px;border-radius:4px;background:#c9c6ba;pointer-events:none}
 
-.diagbtn{margin:0 4px 6px;padding:6px 10px;font-size:12px}
-#touch-check{position:fixed;inset:0;z-index:2147483647;background:rgba(20,30,25,.45);touch-action:none;user-select:none;-webkit-user-select:none;overflow:hidden;color:#fff;font-size:12px;line-height:1.4}
+.diagbtn{margin:0 4px 6px;padding:6px 10px;font-size:13px}
+#touch-check{position:fixed;inset:0;z-index:2147483647;background:rgba(20,30,25,.45);touch-action:none;user-select:none;-webkit-user-select:none;overflow:hidden;color:#fff;font-size:13px;line-height:1.4}
 #touch-check[hidden]{display:none}
-#touch-check .tc-info{position:absolute;left:8px;top:50%;transform:translateY(-50%);max-width:calc(100% - 16px);padding:6px 8px;background:rgba(0,0,0,.6);border-radius:6px;pointer-events:none;white-space:pre-line;font-variant-numeric:tabular-nums}
-#touch-check .tc-end{position:absolute;left:50%;bottom:24%;transform:translateX(-50%);padding:10px 14px;font-size:14px;font-weight:700;border-radius:10px;border:0;background:#fff;color:#111}
+#touch-check .tc-info{position:absolute;left:8px;top:50%;transform:translateY(-50%);max-width:calc(100% - 16px);padding:6px 8px;background:rgba(0,0,0,.6);border-radius:8px;pointer-events:none;white-space:pre-line;font-variant-numeric:tabular-nums}
+#touch-check .tc-end{position:absolute;left:50%;bottom:24%;transform:translateX(-50%);padding:10px 14px;font-size:15px;font-weight:700;border-radius:10px;border:0;background:#fff;color:#111}
 #touch-check .tc-dot{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:#ffd400;border:1px solid #000;pointer-events:none}
 #touch-check .tc-dot i{position:absolute;left:10px;top:-2px;font-style:normal;font-size:10px;white-space:nowrap;background:rgba(0,0,0,.65);padding:0 3px;border-radius:3px}
 
 /* ===== 第13版 PR4: iPhone の予定の編集・削除（09） ===== */
-.caltag{display:inline-flex;align-items:center;gap:6px;min-height:22px;max-width:50%;padding:0 10px;border-radius:11px;background:#eef0ea;font-size:12px;line-height:22px;color:#68716A;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.caltag{display:inline-flex;align-items:center;gap:6px;min-height:22px;max-width:50%;padding:0 10px;border-radius:999px;background:#eef0ea;font-size:13px;line-height:22px;color:#68716A;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .caltag[hidden]{display:none}
 .formhead .caltag{margin-left:auto;flex:0 1 auto}
 .xdcal.caltag{display:inline-flex;margin:0 0 8px}
 .xdt{font-size:17px;font-weight:700}
 .xdact{display:flex;gap:8px;margin:0 0 4px}
 .xdact[hidden]{display:none}
-.xdact button{min-height:44px;font-size:16px}
+.xdact button{min-height:44px;font-size:15px}
 .xdact .danger{flex:none;padding:0 16px;border:0;background:transparent;color:#C0392B}
 .xdact .primary{flex:1 1 auto;background:#294E42;color:#fff}
 #xd-open.small{min-height:44px;width:auto;margin:0;padding:0 8px;background:transparent;border:0;color:#68716A;font-size:13px}
@@ -656,21 +656,21 @@ body[data-layout=home] dialog#xdetail::before,body[data-layout=browse] dialog#xd
 .repeat[hidden]{display:none}
 
 .xsw,.swl{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px}
-input.swc,.xsw input[type=checkbox]{appearance:none;-webkit-appearance:none;flex:none;width:51px;height:31px;margin:0;border-radius:16px;background:#b9bdb3;position:relative;transition:background .15s;border:0}
-input.swc::after,.xsw input[type=checkbox]::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;transition:transform .15s}
+input.swc,.xsw input[type=checkbox]{appearance:none;-webkit-appearance:none;flex:none;width:51px;height:31px;margin:0;border-radius:16px;background:#b9bdb3;position:relative;transition:background .15s cubic-bezier(0.2,0.8,0.2,1);border:0}
+input.swc::after,.xsw input[type=checkbox]::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;transition:transform .15s cubic-bezier(0.2,0.8,0.2,1)}
 input.swc:checked,.xsw input[type=checkbox]:checked{background:var(--green)}
 input.swc:checked::after,.xsw input[type=checkbox]:checked::after{transform:translateX(20px)}
 input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .xcal{display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px}
-.xcal .cdot{width:8px;height:8px;border-radius:50%;flex:none}.xcal select{flex:1;min-width:0;font-size:16px}
+.xcal .cdot{width:8px;height:8px;border-radius:50%;flex:none}.xcal select{flex:1;min-width:0;font-size:15px}
 
 .menurows .swrow{display:flex;align-items:center;justify-content:space-between;gap:8px;height:44px}
 .menurows .swrow[aria-checked=true]{background:none;color:inherit}
-.menurows .rkswitch{position:relative;flex:none;width:51px;height:31px;border-radius:16px;background:#c9c6ba;transition:background .15s}
-.menurows .rkswitch::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0003;transition:transform .15s}
+.menurows .rkswitch{position:relative;flex:none;width:51px;height:31px;border-radius:16px;background:#c9c6ba;transition:background .15s cubic-bezier(0.2,0.8,0.2,1)}
+.menurows .rkswitch::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0003;transition:transform .15s cubic-bezier(0.2,0.8,0.2,1)}
 .menurows .swrow[aria-checked=true] .rkswitch{background:var(--green)}
 .menurows .swrow[aria-checked=true] .rkswitch::after{transform:translateX(20px)}
-.menurows .swnote{margin:0 0 6px;padding:0 12px;font-size:12px;line-height:1.4;color:#68716A}
+.menurows .swnote{margin:0 0 6px;padding:0 12px;font-size:13px;line-height:1.4;color:#68716A}
 
 /* 第14版 PR3: 六曜。月のマスは数字の行の左端（左3・8pt）、日の見出しは日付の右8pt・13pt、週は9pt */
 .week .rk{position:absolute;left:3px;top:0;z-index:1;font-size:8px;line-height:var(--date-h);color:#A8ABA4;white-space:nowrap;pointer-events:none}
@@ -697,20 +697,20 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 /* 第14版 PR6: 共通の日付移動と小さな月 */
 .rhead.dh h2.rdate{display:flex;align-items:center}
 .datebtn{min-height:44px;height:44px;padding:0;background:transparent;font:inherit;color:inherit;text-align:left;white-space:nowrap;overflow:hidden;max-width:100%;display:flex;align-items:center}
-.datebtn:hover{background:transparent}
+@media (hover:hover){.datebtn:hover{background:transparent}}
 .spread.fb .rhead.dh{flex-wrap:wrap}
 .spread.fb .rhead.dh h2{flex:1 1 150px;min-width:150px}
 .spread .page .mmenu{position:absolute;z-index:9;left:0;top:calc(var(--hpt,24px) + 44px);height:260px;box-sizing:border-box;border-radius:12px;background:#fffdfa;box-shadow:inset 0 0 0 1px var(--line),0 4px 16px #1a302d33;overflow:hidden;display:flex;flex-direction:column}
 .mmh{display:flex;align-items:center;height:44px;flex:none}
-.mmh button{flex:none;width:44px;min-width:44px;height:44px;padding:0;font-size:22px;background:transparent;display:flex;align-items:center;justify-content:center}
+.mmh button{flex:none;width:44px;min-width:44px;height:44px;padding:0;font-size:20px;background:transparent;display:flex;align-items:center;justify-content:center}
 .mmt{flex:1;text-align:center;font-weight:700;font-size:15px}
 .mmg{display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:36px;flex:none}
-.mmc{position:relative;width:100%;min-width:0;height:36px;min-height:36px;padding:0;border-radius:10px;background:transparent;font-size:14px;display:flex;align-items:center;justify-content:center}
+.mmc{position:relative;width:100%;min-width:0;height:36px;min-height:36px;padding:0;border-radius:10px;background:transparent;font-size:15px;display:flex;align-items:center;justify-content:center}
 .mmc.out{color:#a8aba4}
 .mmc.tod .n{font-weight:800;color:var(--green)}
 .mmc.sel{background:var(--green);color:#fff}
 .mmc.sel .n{color:#fff}
-.mmc .mline{position:absolute;left:50%;top:26px;width:12px;height:2px;margin-left:-6px;border-radius:1px;background:#8a7e5c}
+.mmc .mline{position:absolute;left:50%;top:26px;width:12px;height:2px;margin-left:-6px;border-radius:4px;background:#8a7e5c}
 .rhead.dh .spanbtn{margin-right:8px}
 .rhead.dh .sctl{margin-left:auto}
 
@@ -723,16 +723,16 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .pnl-anim .portrait .week{transition:flex-basis .25s ease,height .25s ease}
 .pnl.leave{transition:transform .25s ease;pointer-events:none}
 .pgrip{position:absolute;left:50%;top:0;width:100px;height:44px;margin-left:-50px;padding:0;background:transparent;touch-action:none}
-.pgrip:hover{background:transparent}
-.pgrip i{position:absolute;left:32px;top:5px;width:36px;height:5px;border-radius:2.5px;background:#C9C6BC}
+@media (hover:hover){.pgrip:hover{background:transparent}}
+.pgrip i{position:absolute;left:32px;top:5px;width:36px;height:5px;border-radius:4px;background:#C9C6BC}
 .pdate{position:absolute;left:calc(20px * var(--ux));top:12px;height:44px;margin:0;max-width:calc(50% - 70px);overflow:hidden;white-space:nowrap;font:700 17px/44px -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif}
 .pswitch{position:absolute;right:calc(20px * var(--ux) + 56px);top:12px;width:184px;height:44px;display:grid;grid-template-columns:repeat(4,46px)}
 .pswitch:before{content:'';position:absolute;left:0;right:0;top:6px;height:32px;border-radius:16px;background:#F0EDE4}
 .pswitch button{position:relative;height:44px;min-height:44px;padding:0;background:transparent;border-radius:0}
-.pswitch button:hover{background:transparent}
-.pswitch .pill{display:flex;align-items:center;justify-content:center;width:46px;height:32px;border-radius:16px;font-size:13px;font-weight:700;color:var(--ink)}
+@media (hover:hover){.pswitch button:hover{background:transparent}}
+.pswitch .pill{display:flex;align-items:center;justify-content:center;width:46px;height:32px;border-radius:16px;font-size:13px;font-weight:600;color:var(--ink)}
 .pswitch button[aria-pressed=true] .pill{background:var(--green);color:#fff}
-.pclose{position:absolute;right:calc(20px * var(--ux));top:12px;width:44px;height:44px;min-height:44px;padding:0;border-radius:50%;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);font-size:22px;line-height:1}
+.pclose{position:absolute;right:calc(20px * var(--ux));top:12px;width:44px;height:44px;min-height:44px;padding:0;border-radius:50%;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);font-size:20px;line-height:1}
 .pbody2{position:absolute;left:calc(20px * var(--ux));right:calc(20px * var(--ux));top:60px;bottom:0;display:flex;flex-direction:column;min-height:0}
 .pbody2 .tl,.pbody2 .pagewait{flex:1;min-height:0}
 .pbody2 .pagewait{overflow-y:auto}
@@ -746,18 +746,18 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .memota{flex:1;min-height:0;width:100%;box-sizing:border-box;margin:0;padding:6px;resize:none;border:0;border-radius:0;background-color:transparent;color:var(--ink);font:16px/28px -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif;background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 27px,var(--line) 27px,var(--line) 28px);background-attachment:local;background-origin:padding-box;overflow-y:auto;-webkit-user-select:text;user-select:text;touch-action:pan-y}
 .memota::placeholder{color:#8a8a80}
 .memota:focus-visible{outline-offset:-2px}
-.memost{flex:none;min-height:24px;padding:2px 6px;font-size:12px;line-height:20px;color:#6b6b62}
+.memost{flex:none;min-height:24px;padding:2px 6px;font-size:13px;line-height:20px;color:#6b6b62}
 .memost .merr{color:#b3261e;font-weight:700;margin-right:8px}
 .memost button{min-height:44px;min-width:44px;padding:0 12px}
 .pbody2 .memost{min-height:0}
 
 /* 第14版 PR11: メモの印（月のマス）・一覧・検索の「メモ」段 */
-.week .day .mline{position:absolute;left:50%;top:15.5px;width:12px;height:2px;margin-left:-6px;border-radius:1px;background:#8A7E5C;pointer-events:none}
+.week .day .mline{position:absolute;left:50%;top:15.5px;width:12px;height:2px;margin-left:-6px;border-radius:4px;background:#8A7E5C;pointer-events:none}
 .mtools{display:flex;justify-content:space-between;align-items:center;gap:8px;flex:none;min-height:44px}
 .mseggrp{display:flex;border-radius:16px;box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
-.mseg{min-width:64px;height:44px;padding:0 12px;background:transparent;font-size:14px;border-radius:0}
+.mseg{min-width:64px;height:44px;padding:0 12px;background:transparent;font-size:15px;border-radius:0}
 .mseg[aria-pressed=true]{background:var(--green);color:#fff}
-.mback{min-width:44px;height:44px;padding:0 12px;font-size:14px;background:transparent}
+.mback{min-width:44px;height:44px;padding:0 12px;font-size:15px;background:transparent}
 .rhead.dh .spanbtn[aria-pressed=true] span{background:var(--green);color:#fff}
 .mlist{padding-bottom:0}
 .mlsb{flex:none;padding:0 0 8px}
@@ -766,7 +766,7 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .mrow{display:flex;flex-direction:column;justify-content:center;width:100%;height:56px;min-height:56px;padding:0 4px;text-align:left;background:transparent;border-radius:0;border-bottom:1px solid var(--line);box-sizing:border-box;overflow:hidden}
 .mrow b{font-size:13px;line-height:20px;font-weight:700;white-space:nowrap}
 .mrow span{font-size:13px;line-height:20px;color:#68716A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.srhead{font-size:16px;font-weight:700;margin:20px 0 0}
+.srhead{font-size:15px;font-weight:700;margin:20px 0 0}
 .mhit{display:block;width:100%;min-height:56px;padding:10px 12px 10px 16px;text-align:left;background:var(--card);border:1px solid var(--line);border-left:3px solid #8A7E5C;border-radius:12px;margin-top:8px}
 .mhit>*{display:block}
 .remgate{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;padding:16px}
@@ -784,9 +784,9 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .rmckb{flex:none;width:44px;height:48px;margin:0 -8px 0 -10px;padding:0;border:0;background:none;display:flex;align-items:center;justify-content:center}
 .rmckb:disabled{opacity:.6}
 .rmbody{border:0;background:none;padding:0;text-align:left;font:inherit;color:inherit;min-height:44px;justify-content:center}
-.rmck{flex:none;width:22px;height:22px;border-radius:6px;border:2px solid var(--rc);box-sizing:border-box}
+.rmck{flex:none;width:22px;height:22px;border-radius:8px;border:2px solid var(--rc);box-sizing:border-box}
 .rmrow.done .rmck{background:var(--rc);position:relative}
-.rmrow.done .rmck::after{content:'✓';position:absolute;inset:0;color:#fff;font-size:14px;line-height:18px;text-align:center}
+.rmrow.done .rmck::after{content:'✓';position:absolute;inset:0;color:#fff;font-size:15px;line-height:18px;text-align:center}
 .rmbody{flex:1;min-width:0;display:flex;flex-direction:column}
 .rmt{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rmrow.done .rmt{color:#A8ABA4;text-decoration:line-through}
@@ -803,9 +803,9 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .rmaddbtn{display:block;width:100%;height:44px;border:0;border-radius:10px;background:#F0EDE5;color:#293B35;font-size:15px;text-align:left;padding:0 12px;box-sizing:border-box}
 .rmaddbtn:disabled{color:#A8ABA4}
 .rmaddin{display:flex;align-items:center;gap:8px;height:44px;border-radius:10px;background:#F0EDE5;padding:0 8px 0 12px;box-sizing:border-box}
-.rmaddgo{flex:none;height:44px;min-width:52px;border:0;border-radius:8px;background:#293B35;color:#fff;font-size:14px;padding:0 12px}
+.rmaddgo{flex:none;height:44px;min-width:52px;border:0;border-radius:8px;background:#293B35;color:#fff;font-size:15px;padding:0 12px}
 .rmaddgo:disabled{opacity:.5}
-.remin{flex:1;min-width:0;height:44px;border:0;background:transparent;font-size:16px;color:#293B35;outline:none;padding:0}
+.remin{flex:1;min-width:0;height:44px;border:0;background:transparent;font-size:15px;color:#293B35;outline:none;padding:0}
 .rmchip{flex:none;display:inline-flex;align-items:center;gap:2px;height:24px;border-radius:12px;padding:0 4px 0 8px;background:#fff;font-size:11px;color:#294E42;border:1px solid #E3E0D7;box-sizing:border-box}
 .rmchip0{padding:0 8px;min-height:24px}
 .rmchipx{border:0;background:none;color:#68716A;font-size:13px;min-width:24px;height:24px;padding:0;position:relative}
@@ -816,7 +816,7 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 
 /* タスクの編集シート（第14版 PR19） */
 #tk-body label{display:block;margin-top:12px;font-size:13px}
-#tk-body label input,#tk-body label select,#tk-body label textarea{display:block;width:100%;box-sizing:border-box;min-height:44px;margin-top:4px;font-size:16px}
+#tk-body label input,#tk-body label select,#tk-body label textarea{display:block;width:100%;box-sizing:border-box;min-height:44px;margin-top:4px;font-size:15px}
 #tk-body .pair{display:flex;gap:8px}#tk-body .pair label{flex:1}
 .tkmeta{margin:10px 0 0}
 #tk-save[hidden]{display:none}
@@ -834,7 +834,7 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .week .tkn{position:absolute;left:calc(50% + 14px);top:0;z-index:1;font-size:8px;line-height:var(--date-h);color:#68716A;white-space:nowrap;pointer-events:none}
 .menurows .tkpanel{margin:2px 0 6px}
 .menurows .tkpanel .eyebrow{margin:6px 12px 2px}
-.menurows .tkpanel button{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;font-size:14px;text-align:left}
+.menurows .tkpanel button{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;font-size:15px;text-align:left}
 .menurows .tkpanel button[aria-checked=true]{font-weight:700}
 .menurows .tkpanel button[aria-checked=true]::after{content:"✓";margin-left:auto;color:var(--green)}
 .tkdot{flex:none;width:10px;height:10px;border-radius:50%}
@@ -856,8 +856,8 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .closed.tv-week .adl{font-size:10px}
 .closed.tv-day .allday{height:32px;margin-bottom:0}
 .closed.tv .hlab{font-size:11px}
-.closed.tv-week .nowt{width:30px;height:18px;top:-9px;border-radius:9px;font-size:9px;line-height:18px;letter-spacing:-.02em}
-.dbox{position:absolute;z-index:4;left:0;right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:calc(var(--d) * var(--hh) / 60);box-sizing:border-box;border:2px solid var(--cat);border-radius:6px;background:var(--tint);color:var(--cat);padding:1px 6px;overflow:visible;pointer-events:auto;touch-action:none}
+.closed.tv-week .nowt{width:30px;height:18px;top:-9px;border-radius:999px;font-size:9px;line-height:18px;letter-spacing:-.02em}
+.dbox{position:absolute;z-index:4;left:0;right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:calc(var(--d) * var(--hh) / 60);box-sizing:border-box;border:2px solid var(--cat);border-radius:8px;background:var(--tint);color:var(--cat);padding:1px 6px;overflow:visible;pointer-events:auto;touch-action:none}
 .dbox .dt{display:block;font-size:13px;line-height:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dbox .ds{display:block;font-size:11px;line-height:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hdl{position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px var(--cat);touch-action:none}
@@ -866,34 +866,34 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .hdl-e{left:6px;bottom:-7px}
 .dbox[data-short] .hdl-s:before{transform:translate(-50%,-100%)}
 .dbox[data-short] .hdl-e:before{transform:translate(-50%,0)}
-.dx{position:absolute;right:2px;top:-10px;width:20px;height:20px;padding:0;border:0;border-radius:50%;background:#fff;color:var(--cat);box-shadow:0 0 0 2px var(--cat);font-size:12px;line-height:20px;font-weight:700;text-align:center;touch-action:none;z-index:1}
+.dx{position:absolute;right:2px;top:-10px;width:20px;height:20px;padding:0;border:0;border-radius:50%;background:#fff;color:var(--cat);box-shadow:0 0 0 2px var(--cat);font-size:13px;line-height:20px;font-weight:700;text-align:center;touch-action:none;z-index:1}
 .dx:before{content:'';position:absolute;left:50%;top:50%;width:44px;height:44px;transform:translate(-50%,-50%)}
 .dbox[data-short] .dx:before{transform:translate(-50%,-75%)}
 .dtag{position:absolute;z-index:5;left:3px;width:44px;height:18px;border-radius:4px;background:#294E42;color:#fff;font-size:10px;font-weight:700;line-height:18px;text-align:center;pointer-events:none;font-variant-numeric:tabular-nums}
 .allday .adcols{align-self:stretch}
-.tlx .tlhd{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding:0;font-size:12px;line-height:1.15;overflow:hidden}
+.tlx .tlhd{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding:0;font-size:13px;line-height:1.15;overflow:hidden}
 .tlx .tlhd .wrk{display:block;font-size:9px;font-weight:400}
 
 /* 月の期間入力（第14版 PR26）。2.5pt の緑枠・内側2・角6、日数の札（高さ26・角丸13・白12pt太字）。描画だけで保存はしない。 */
 .week .day.msel{background:rgba(41,78,66,.10)}
-.week .day.msel::after{content:"";position:absolute;inset:2px;border:2.5px solid #294E42;border-radius:6px;pointer-events:none;z-index:3}
-.mrtag{position:fixed;z-index:9000;height:26px;padding:0 12px;border-radius:13px;background:#294E42;color:#fff;font-size:12px;font-weight:700;line-height:26px;white-space:nowrap;pointer-events:none}
+.week .day.msel::after{content:"";position:absolute;inset:2px;border:2.5px solid #294E42;border-radius:8px;pointer-events:none;z-index:3}
+.mrtag{position:fixed;z-index:9000;height:26px;padding:0 12px;border-radius:999px;background:#294E42;color:#fff;font-size:13px;font-weight:700;line-height:26px;white-space:nowrap;pointer-events:none}
 .mrpick{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
 .mrbar{position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom,0px));z-index:9001;display:flex;flex-wrap:wrap;gap:6px;padding:8px;border-radius:12px;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.25)}
-.mrbar button{min-height:44px;padding:0 12px;border-radius:8px;border:1px solid #294E42;background:#fff;color:#294E42;font-size:14px;font-weight:700}
+.mrbar button{min-height:44px;padding:0 12px;border-radius:8px;border:1px solid #294E42;background:#fff;color:#294E42;font-size:15px;font-weight:700}
 .mrbar button[data-mr="ok"]{background:#294E42;color:#fff}
 .week .day{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 
 /* ---- コピーの貼付選択（PR33） ---- */
 .week .bar,.week .strip{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .cmenu{position:fixed;z-index:9100;width:160px;border-radius:12px;background:#fffdfa;box-shadow:inset 0 0 0 1px var(--line),0 4px 16px #1a302d33;overflow:hidden}
-.cmenu button{display:block;width:100%;height:44px;padding:0 16px;border:0;border-bottom:1px solid var(--line);background:transparent;text-align:left;font-size:16px;color:#294E42}
+.cmenu button{display:block;width:100%;height:44px;padding:0 16px;border:0;border-bottom:1px solid var(--line);background:transparent;text-align:left;font-size:15px;color:#294E42}
 .cmenu button:last-child{border-bottom:0}
 .cmenu button.danger{color:#C0392B}
 .cmenu button:disabled{opacity:.4}
 .copyrow{margin-top:4px}
 .copyrow[hidden]{display:none}
-.copyrow button{width:100%;height:44px;border:0;background:transparent;color:#294E42;font-size:16px;font-weight:700}
+.copyrow button{width:100%;height:44px;border:0;background:transparent;color:#294E42;font-size:15px;font-weight:700}
 .copyrow button:disabled{opacity:.4}
 .chead.pasting,.shead.pasting{display:block;padding:0}
 .portrait .chead.pasting>*{position:static}
@@ -905,28 +905,28 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .pbc{flex:none;min-width:60px;height:44px;padding:0;border:0;background:transparent;color:#fff;font-size:13px}
 .pbo{flex:none;min-width:104px;height:32px;padding:0 10px;border:0;border-radius:16px;background:#fff;color:#294E42;font-size:13px;font-weight:700;white-space:nowrap}
 .pbo:disabled{opacity:.4}
-.pbo .pn{display:inline-block;min-width:18px;padding:0 4px;margin-right:1px;border-radius:9px;background:#294E42;color:#fff;text-align:center}
+.pbo .pn{display:inline-block;min-width:18px;padding:0 4px;margin-right:1px;border-radius:999px;background:#294E42;color:#fff;text-align:center}
 .pbo.full .pn{color:#F4C27A}
 .pbnav{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%)}
-.week .day.psel::after{content:"";position:absolute;inset:2px;border:2.5px solid #2F9E6E;border-radius:6px;pointer-events:none;z-index:3}
+.week .day.psel::after{content:"";position:absolute;inset:2px;border:2.5px solid #2F9E6E;border-radius:8px;pointer-events:none;z-index:3}
 .week .day.psrc{box-shadow:inset 0 0 0 1.5px #68716A}
 .week .day .pcsrc{position:absolute;left:0;right:0;bottom:1px;text-align:center;font-size:9px;line-height:1.1;color:#68716A;pointer-events:none;z-index:2}
-.week .day .pck{position:absolute;right:3px;bottom:3px;width:16px;height:16px;border-radius:50%;background:#2F9E6E;color:#fff;font:700 10px/16px sans-serif;text-align:center;font-style:normal;pointer-events:none;z-index:4}
+.week .day .pck{position:absolute;right:3px;bottom:3px;width:16px;height:16px;border-radius:50%;background:#2F9E6E;color:#fff;font:700 10px/16px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;text-align:center;font-style:normal;pointer-events:none;z-index:4}
 .week .day.pshake{animation:pshake .2s}
 @keyframes pshake{0%,100%{transform:scale(1)}50%{transform:scale(.92)}}
 .pdim{filter:brightness(.9)}
 
-.week .pghost{position:absolute;z-index:1;box-sizing:border-box;height:var(--chip-h);padding:0 0 0 3px;border:1px dashed var(--cat);border-radius:3.5px;background:color-mix(in srgb,var(--cat) 18%,transparent);color:var(--cat);font-size:var(--chip-fs);font-weight:700;line-height:calc(var(--chip-h) - 2px);white-space:nowrap;overflow:hidden;pointer-events:none}
-.week .pghost.cont{border-left-style:none;border-radius:0 3.5px 3.5px 0}
-.week .pghost.more{border-right-style:none;border-radius:3.5px 0 0 3.5px}
+.week .pghost{position:absolute;z-index:1;box-sizing:border-box;height:var(--chip-h);padding:0 0 0 3px;border:1px dashed var(--cat);border-radius:3px;background:color-mix(in srgb,var(--cat) 18%,transparent);color:var(--cat);font-size:var(--chip-fs);font-weight:700;line-height:calc(var(--chip-h) - 2px);white-space:nowrap;overflow:hidden;pointer-events:none}
+.week .pghost.cont{border-left-style:none;border-radius:0 3px 3px 0}
+.week .pghost.more{border-right-style:none;border-radius:3px 0 0 3px}
 .week .pghost.cont.more{border-radius:0}
 @keyframes catshake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
 .sw.shake{animation:catshake .2s linear}
 @media (prefers-reduced-motion:reduce){.sw.shake{animation:none;outline:2px solid var(--green)}}
 /* 新規予定のカレンダー選択（1行 + ポップオーバー） */
 .destrow{position:relative;margin-top:12px}.destrow[hidden]{display:none}
-.destbtn{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:44px;padding:0 12px;border-radius:10px;background:#fff;border:1px solid #DCD7CB;font-size:16px;text-align:left}
-.destbtn .dlbl{flex:none}.destbtn .dval{display:flex;align-items:center;gap:6px;min-width:0;color:#68716A;font-size:14px}
+.destbtn{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:44px;padding:0 12px;border-radius:10px;background:#fff;border:1px solid #DCD7CB;font-size:15px;text-align:left}
+.destbtn .dlbl{flex:none}.destbtn .dval{display:flex;align-items:center;gap:6px;min-width:0;color:#68716A;font-size:15px}
 .destbtn .dval #dest-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .destbtn .cdot.big{width:12px;height:12px}
 .destpop{position:absolute;left:0;top:calc(100% + 4px);z-index:20;box-sizing:border-box;width:min(296px,100%);max-height:min(320px,50vh);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:6px 0;border-radius:14px;background:#fff;border:1px solid #DCD7CB;box-shadow:0 8px 24px #0002}
@@ -937,21 +937,21 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 @keyframes destin{from{transform:translateX(100%)}to{transform:none}}
 @media (prefers-reduced-motion:reduce){.destpage{animation:none}}
 .destpage .dphead{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:8px;min-height:56px;padding:0 12px 0 8px;background:#fff;border-bottom:1px solid var(--line)}
-.destpage .dback{flex:none;min-width:44px;min-height:44px;padding:0 10px;border:0;background:transparent;font-size:16px;color:#294E42;white-space:nowrap}
+.destpage .dback{flex:none;min-width:44px;min-height:44px;padding:0 10px;border:0;background:transparent;font-size:15px;color:#294E42;white-space:nowrap}
 .destpage .dptitle{margin:0;font:700 17px/1.3 -apple-system,'Hiragino Sans',sans-serif}
-.destpage h4{margin:0;padding:0 20px;min-height:28px;display:flex;align-items:center;font-size:12px;font-weight:600;color:#68716A}
-.destpage .dnote{margin:8px 20px;font-size:12px;color:#68716A}
-.destpage .dopt{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:0 20px;border:0;background:transparent;font-size:16px;text-align:left}
+.destpage h4{margin:0;padding:0 20px;min-height:28px;display:flex;align-items:center;font-size:13px;font-weight:600;color:#68716A}
+.destpage .dnote{margin:8px 20px;font-size:13px;color:#68716A}
+.destpage .dopt{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:0 20px;border:0;background:transparent;font-size:15px;text-align:left}
 .destpage .dopt .dn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .destpage .dopt .cdot{flex:none;width:12px;height:12px;border-radius:50%}
 .destpage .dopt .dhid{flex:none;font-size:11px;color:#A8ABA4}
 .destpage .dopt .dck{flex:none;width:18px;color:#2E8B57;font-weight:700}
 .destpage .dopt.hid .dn{color:#A8ABA4}.destpage .dopt.hid .cdot{opacity:.4}
-.destpage .dset{display:flex;align-items:center;width:100%;min-height:44px;margin-top:8px;padding:0 20px;border:0;border-top:1px solid var(--line);background:transparent;font-size:16px;color:#2E8B57;text-align:left}
+.destpage .dset{display:flex;align-items:center;width:100%;min-height:44px;margin-top:8px;padding:0 20px;border:0;border-top:1px solid var(--line);background:transparent;font-size:15px;color:#2E8B57;text-align:left}
 .destpage button:focus-visible{outline:2px solid #294E42;outline-offset:-2px}
 .destbtn:disabled{opacity:.6}.destbtn:disabled .dval>span:last-child{visibility:hidden}
-.destpop h4{margin:0;padding:0 14px;min-height:26px;display:flex;align-items:center;font-size:12px;font-weight:600;color:#68716A}
-.destpop .dnote{margin:2px 14px 6px;font-size:12px;color:#68716A}
+.destpop h4{margin:0;padding:0 14px;min-height:26px;display:flex;align-items:center;font-size:13px;font-weight:600;color:#68716A}
+.destpop .dnote{margin:2px 14px 6px;font-size:13px;color:#68716A}
 .destpop .dopt{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:0 14px;border:0;background:transparent;font-size:15px;text-align:left}
 .destpop .dopt .dn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .destpop .dopt .cdot{width:12px;height:12px}
@@ -969,7 +969,7 @@ body[data-layout=spread] dialog#menu,body[data-layout=desk] dialog#menu{height:a
 .mscreens .menurows{padding:0 0 12px}
 .mscreens .menurows[hidden]{display:none}
 .mscreens .menurows>button,.mscreens .menurows .tlz button,.mscreens .menurows .tkpanel button{min-height:48px;padding-left:20px;padding-right:20px;border-radius:0}
-.srow{display:flex!important;align-items:center;gap:6px;height:48px;min-height:48px;padding:0 20px 0 32px!important;font-size:16px;background:transparent;border:0;text-align:left}
+.srow{display:flex!important;align-items:center;gap:6px;height:48px;min-height:48px;padding:0 20px 0 32px!important;font-size:15px;background:transparent;border:0;text-align:left}
 .srow[hidden]{display:none!important}
 .sic{flex:none;display:inline-flex;width:20px;height:20px;color:#68716A}
 .sic .gl{font-size:19px;line-height:20px;font-weight:700}
@@ -985,11 +985,11 @@ body[data-layout=spread] dialog#menu,body[data-layout=desk] dialog#menu{height:a
 #m-gset{margin:8px 20px;width:calc(100% - 40px)}
 /* 帯の設定ボタンは開いている間 × にする（閉じる／戻るの入口） */
 body.settings-open .ctl.band [data-act=menu] .bi svg{display:none}
-body.settings-open .ctl.band [data-act=menu] .bi::after{content:"×";font-size:26px;line-height:1}
+body.settings-open .ctl.band [data-act=menu] .bi::after{content:"×";font-size:20px;line-height:1}
 /* 第15版 PR8: 設定 › カレンダー（アカウント別の段。見出し32・行40・青✓・色丸14・表示のみ札） */
-.calsec{margin:0;height:32px;line-height:32px;padding:0 20px;font-size:12px;font-weight:400;color:#8C918B;border-top:1px solid #ECE9E1}
+.calsec{margin:0;height:32px;line-height:32px;padding:0 20px;font-size:13px;font-weight:400;color:#8C918B;border-top:1px solid #ECE9E1}
 #m-cal>div:first-child .calsec:first-child{border-top:0}
-.mscreens .menurows button.crow{display:flex;align-items:center;gap:10px;min-height:40px;height:40px;padding:0 20px 0 20px;font-size:16px;background:transparent;border:0;text-align:left}
+.mscreens .menurows button.crow{display:flex;align-items:center;gap:10px;min-height:40px;height:40px;padding:0 20px 0 20px;font-size:15px;background:transparent;border:0;text-align:left}
 .crow .cdot{flex:none;width:14px;height:14px;border-radius:50%;display:inline-block}
 .crow .cname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .crow .cro{flex:none;font-size:11px;color:#A8ABA4}
@@ -998,16 +998,16 @@ body.settings-open .ctl.band [data-act=menu] .bi::after{content:"×";font-size:2
 .crow.off .cdot{opacity:.4}
 .crow.shake{animation:catshake .2s linear}
 @media (prefers-reduced-motion:reduce){.crow.shake{animation:none;outline:2px solid #4E7FC4}}
-.cnote{margin:0;padding:4px 20px 6px;font-size:12px;line-height:1.4;color:#68716A}
-.mscreens .menurows button.cbtn{display:inline-block;width:auto;margin:2px 20px 8px 20px;min-height:40px;padding:0 16px;border:1px solid #DCD7CB;border-radius:20px;background:#fff;font-size:14px}
+.cnote{margin:0;padding:4px 20px 6px;font-size:13px;line-height:1.4;color:#68716A}
+.mscreens .menurows button.cbtn{display:inline-block;width:auto;margin:2px 20px 8px 20px;min-height:40px;padding:0 16px;border:1px solid #DCD7CB;border-radius:999px;background:#fff;font-size:15px}
 /* 第15版 PR9: Duo 段の編集モード（赤−・並べ替え・追加） */
 .calsec.dhead{display:flex;align-items:center;justify-content:space-between}
-.mscreens .menurows button.chbtn{flex:none;width:auto;min-width:44px;min-height:32px;height:32px;line-height:32px;padding:0 4px;text-align:right;border:0;background:transparent;font-size:14px;color:#4E7FC4}
+.mscreens .menurows button.chbtn{flex:none;width:auto;min-width:44px;min-height:32px;height:32px;line-height:32px;padding:0 4px;text-align:right;border:0;background:transparent;font-size:15px;color:#4E7FC4}
 .crow.edit{display:flex;align-items:center;gap:6px;min-height:44px;padding:0 8px 0 12px}
 .mscreens .menurows .crow.edit button.cdel{flex:none;width:44px;height:44px;min-height:44px;padding:0;border:0;background:transparent;display:flex;align-items:center;justify-content:center}
 .cdel span{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#C8453B;color:#fff;font-size:18px;line-height:1;font-weight:700}
 .cdel:disabled span{opacity:.35}
-.mscreens .menurows .crow.edit button.cmain{flex:1;min-width:0;display:flex;align-items:center;gap:10px;height:44px;min-height:44px;padding:0;border:0;background:transparent;text-align:left;font-size:16px}
+.mscreens .menurows .crow.edit button.cmain{flex:1;min-width:0;display:flex;align-items:center;gap:10px;height:44px;min-height:44px;padding:0;border:0;background:transparent;text-align:left;font-size:15px}
 .crow.edit .mv button{min-width:44px;min-height:44px;height:44px;padding:0;border:0;background:transparent;font-size:18px;color:#68716A}
 .crow.edit .mv button:disabled{opacity:.3}
 .mscreens .menurows button.crow.addrow{color:#4E7FC4}
@@ -1015,21 +1015,21 @@ body.settings-open .ctl.band [data-act=menu] .bi::after{content:"×";font-size:2
 .calbox{margin:0 16px 8px;padding:10px 12px;border:1px solid #ECE9E1;border-radius:12px;background:#fff}
 .calbox p{margin:0 0 6px}
 #m-cal-duo .undobar{margin:6px 16px 8px}
-.mscreens .menurows button.destrow{display:flex;align-items:center;gap:8px;height:48px;font-size:16px;border-top:1px solid #ECE9E1;background:transparent;border-left:0;border-right:0;border-bottom:0}
+.mscreens .menurows button.destrow{display:flex;align-items:center;gap:8px;height:48px;font-size:15px;border-top:1px solid #ECE9E1;background:transparent;border-left:0;border-right:0;border-bottom:0}
 .destrow .dname{flex:1;min-width:0}
 .destrow .cdot{flex:none;width:12px;height:12px;border-radius:50%}
-.destrow .dval{font-size:14px;color:#68716A;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.destrow .dval{font-size:15px;color:#68716A;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* 設定の追加先ページ（第16版 PR4）は .destpage（編集シートと同じ）。シートの外枠に重ねる */
 dialog#menu #m-destpop{border-radius:inherit}
-#m-cal-foot{padding:8px 20px 0;font-size:12px;color:#68716A}
-#m-cal-foot button{min-height:32px;padding:0 12px;border:1px solid #DCD7CB;border-radius:16px;background:#fff;font-size:12px;width:auto}
+#m-cal-foot{padding:8px 20px 0;font-size:13px;color:#68716A}
+#m-cal-foot button{min-height:32px;padding:0 12px;border:1px solid #DCD7CB;border-radius:16px;background:#fff;font-size:13px;width:auto}
 
 /* 日時（設計12 §1–2）。日付は文字の欄のまま、時刻はカプセルと時分のマス */
 .dtbox{position:relative;margin-top:12px;padding:0 10px;background:#fff;border:1px solid var(--line);border-radius:10px}
 .dtrow{display:flex;align-items:center;gap:8px;min-height:44px}
 .dtrow+.dtrow{border-top:1px solid #eeeae0}
 .dtk{flex:none;width:2.4em;font-size:13px}
-.dcap{flex:1 1 120px;min-width:120px;height:32px;padding:0 8px;border:0;border-radius:8px;background:#F0EDE5;font-size:14px;color:#293B35;white-space:nowrap}
+.dcap{flex:1 1 120px;min-width:120px;height:32px;padding:0 8px;border:0;border-radius:8px;background:#F0EDE5;font-size:15px;color:#293B35;white-space:nowrap}
 .dcap.open{background:#294E42;color:#fff}
 .tcap{position:relative;flex:none;width:58px;height:32px;padding:0;border:0;border-radius:8px;background:#F0EDE5;font-size:15px;font-weight:700;color:#293B35}
 .tcap.open{background:#294E42;color:#fff}
@@ -1038,10 +1038,10 @@ dialog#menu #m-destpop{border-radius:inherit}
 .dbadge[hidden]{display:none}
 .dtrow.dlen{min-height:36px}
 .durs{display:flex;flex-wrap:wrap;gap:6px;padding:4px 0}
-.dchip{height:26px;min-width:44px;padding:0 10px;border:1px solid #DCD7CB;border-radius:13px;background:#fff;font-size:12px}
+.dchip{height:26px;min-width:44px;padding:0 10px;border:1px solid #DCD7CB;border-radius:999px;background:#fff;font-size:13px}
 .dchip[aria-pressed=true]{background:#DDE7E2;border-color:#294E42;font-weight:700}
 .tpop{padding:8px 0 10px;border-top:1px solid #eeeae0}
-.tlab{margin:6px 0 4px;font-size:12px;color:#68716A}
+.tlab{margin:6px 0 4px;font-size:13px;color:#68716A}
 .tnote{margin-left:8px;color:#294E42;font-weight:700}
 .tgrid{display:grid;gap:4px}
 .hgrid{grid-template-columns:repeat(6,minmax(0,1fr))}
@@ -1058,10 +1058,10 @@ dialog#menu #m-destpop{border-radius:inherit}
 .dpchip{height:28px;padding:0 12px;border:1px solid #DCD7CB;border-radius:14px;background:#fff;color:#294E42;font-size:13px}
 .dpchip:disabled{color:#C9C6BC}
 .dpmh{display:flex;align-items:center;justify-content:space-between;margin-top:4px}
-.dpnav{width:44px;height:44px;padding:0;border:0;background:none;font-size:22px;color:#294E42}
+.dpnav{width:44px;height:44px;padding:0;border:0;background:none;font-size:20px;color:#294E42}
 .dpmt{font-size:15px;font-weight:700}
 .dpwk,.dpgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
-.dpwk span{text-align:center;font-size:12px;color:#68716A}.dpwk .hol{color:var(--holiday)}
+.dpwk span{text-align:center;font-size:13px;color:#68716A}.dpwk .hol{color:var(--holiday)}
 .dpgrid{touch-action:pan-y}
 .dcell{height:38px;min-width:0;padding:0;border:0;background:none;font-size:15px;color:#293B35;display:flex;align-items:center;justify-content:center}
 .dcell .n{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;box-sizing:border-box}
@@ -1073,7 +1073,7 @@ dialog#menu #m-destpop{border-radius:inherit}
 
 /* 数字の短縮入力（長押し）・大文字（設計12 §4・6） */
 .dcap.editing,.tcap.editing{display:none}
-.capin{box-sizing:border-box;height:32px;border:2px solid #294E42;border-radius:8px;background:#fff;color:#293B35;font-size:16px;font-weight:700;text-align:center;padding:0 6px;min-width:0}
+.capin{box-sizing:border-box;height:32px;border:2px solid #294E42;border-radius:8px;background:#fff;color:#293B35;font-size:15px;font-weight:700;text-align:center;padding:0 6px;min-width:0}
 .capin.dcap-in{flex:1 1 120px;min-width:120px}
 .capin.tcap-in{flex:none;width:58px}
 .capin:focus-visible{outline:2px solid #294E42;outline-offset:1px}
@@ -1111,17 +1111,17 @@ dialog#menu #m-destpop{border-radius:inherit}
 .hdt.hol,.wdt.hol,.mmc.hol .n{color:var(--holiday)}
 .hnm{margin-left:8px;font:400 13px/1 -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif;color:var(--holiday);white-space:nowrap}
 .wrk.whn{color:var(--holiday)}
-.about{margin-top:12px;padding:0 12px;font-size:12px;line-height:1.5;color:#68716A}.about h3{margin:0 0 4px;font-size:13px;color:var(--ink)}.about p{margin:0 0 6px;overflow-wrap:anywhere}
+.about{margin-top:12px;padding:0 12px;font-size:13px;line-height:1.5;color:#68716A}.about h3{margin:0 0 4px;font-size:13px;color:var(--ink)}.about p{margin:0 0 6px;overflow-wrap:anywhere}
 @media (max-width:420px){.hrk.hx{display:none}}
 
 /* ===== 第16版 PR12: 右の帯のタスク・メモ（丸48・当たり56） ===== */
 .cb .bi{position:relative}
 .cb.on .bi{background:#DDE7E2;box-shadow:inset 0 0 0 1.5px #294E42}
-.cb.cstrip:hover .bi{background:#ecebe2}
-.cb.cstrip.on:hover .bi{background:#DDE7E2}
-.cb .bdg{position:absolute;top:-4px;right:-4px;box-sizing:border-box;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:#B43C3C;color:#fff;font-size:10px;font-weight:700;line-height:18px;text-align:center;box-shadow:0 0 0 1.5px #fff}
-.cb.cmemo.has .bi::after{content:"";position:absolute;left:50%;bottom:6px;width:12px;height:2px;margin-left:-6px;border-radius:1px;background:#294E42}
-.stip{position:fixed;z-index:30;transform:translateY(-50%);padding:4px 8px;border-radius:6px;background:#293B35;color:#fff;font-size:12px;line-height:1.3;white-space:nowrap;pointer-events:none}
+@media (hover:hover){.cb.cstrip:hover .bi{background:#ecebe2}}
+@media (hover:hover){.cb.cstrip.on:hover .bi{background:#DDE7E2}}
+.cb .bdg{position:absolute;top:-4px;right:-4px;box-sizing:border-box;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:#B43C3C;color:#fff;font-size:10px;font-weight:700;line-height:18px;text-align:center;box-shadow:0 0 0 1.5px #fff}
+.cb.cmemo.has .bi::after{content:"";position:absolute;left:50%;bottom:6px;width:12px;height:2px;margin-left:-6px;border-radius:4px;background:#294E42}
+.stip{position:fixed;z-index:30;transform:translateY(-50%);padding:4px 8px;border-radius:8px;background:#293B35;color:#fff;font-size:13px;line-height:1.3;white-space:nowrap;pointer-events:none}
 .chsp{flex:none;width:44px}
 .page.flash{animation:pgflash .2s ease-out}
 @keyframes pgflash{0%{box-shadow:inset 0 0 0 3px #294E42;background:#DDE7E2}100%{box-shadow:inset 0 0 0 0 transparent}}
@@ -1142,13 +1142,13 @@ dialog#menu #m-destpop{border-radius:inherit}
 .agenda-list{flex:1;min-height:0;overflow:auto;padding:0 8px}
 .spread .agenda-list{padding-bottom:64px}
 .agd{display:block}
-.agh{display:flex;align-items:center;gap:8px;height:32px;margin:0;font-size:14px;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden}
+.agh{display:flex;align-items:center;gap:8px;height:32px;margin:0;font-size:15px;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden}
 .agh.hol{color:#B43C3C}
-.agh .hnm{font-size:12px;font-weight:600}
+.agh .hnm{font-size:13px;font-weight:600}
 .agrow{display:flex;align-items:center;gap:8px;width:100%;height:40px;min-height:40px;padding:0 4px;border-radius:0;background:transparent;text-align:left;border:0;color:var(--ink)}
-.agrow:hover{background:transparent}
+@media (hover:hover){.agrow:hover{background:transparent}}
 .agrow .agt{flex:none;width:44px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
-.agrow .agbar{flex:none;width:4px;height:20px;border-radius:2px;background:var(--cat,var(--green))}
+.agrow .agbar{flex:none;width:4px;height:20px;border-radius:4px;background:var(--cat,var(--green))}
 .agrow strong{flex:1;min-width:0;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* 第16版 PR14: ホームの今日のカード（design/14 案A）。全体を1本でスクロール、タブは固定 */
@@ -1158,23 +1158,23 @@ dialog#menu #m-destpop{border-radius:inherit}
 .hcard{display:block;width:100%;text-align:left;background:#fff;border-radius:14px;padding:10px 12px;border:1px solid #E3E0D7;box-sizing:border-box}
 .hh3{display:flex;align-items:center;justify-content:space-between;min-height:28px}
 .hh3 h3{margin:0;font-size:13px;font-weight:700;color:#68716A}
-.hgo{min-height:44px;margin:-8px -6px -8px 0;padding:0 6px;font-size:12px;color:var(--green);background:none;border:0}
+.hgo{min-height:44px;margin:-8px -6px -8px 0;padding:0 6px;font-size:13px;color:var(--green);background:none;border:0}
 .hrow{display:flex;align-items:center;gap:8px;width:100%;min-height:32px;text-align:left;background:none;border:0;padding:0}
 .hrow .ht{font-size:13px;min-width:44px;color:#4a524c}
-.hrow .hbar{width:4px;height:18px;border-radius:2px;background:var(--cat,#6E8F7F);flex:none}
+.hrow .hbar{width:4px;height:18px;border-radius:4px;background:var(--cat,#6E8F7F);flex:none}
 .hrow strong{font-size:15px;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.hmore{display:block;min-height:32px;font-size:12px;color:var(--green);background:none;border:0;padding:0}
-.hempty{color:#8a8f88;font-size:12px;margin:4px 0}
+.hmore{display:block;min-height:32px;font-size:13px;color:var(--green);background:none;border:0;padding:0}
+.hempty{color:#8a8f88;font-size:13px;margin:4px 0}
 .htask{display:flex;align-items:center;gap:4px;min-height:48px}
 .htask .rmck{--rc:#68716A}
 .htask.done .rmck{background:var(--rc);position:relative}
-.htask.done .rmck::after{content:'✓';position:absolute;inset:0;color:#fff;font-size:14px;line-height:18px;text-align:center}
+.htask.done .rmck::after{content:'✓';position:absolute;inset:0;color:#fff;font-size:15px;line-height:18px;text-align:center}
 .htask .htt{flex:1;min-width:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .htask.done .htt{text-decoration:line-through;color:#8a8f88}
-.hdue{font-size:12px;color:#68716A}.hdue.od{color:#B43C3C}
+.hdue{font-size:13px;color:#68716A}.hdue.od{color:#B43C3C}
 .hadd{min-height:44px;font-size:13px;color:var(--green);background:none;border:0;padding:0}
 .hmemob{display:flex;flex-direction:column;gap:0;width:100%;min-height:44px;text-align:left;background:none;border:0;padding:0}
-.hmemob span{font-size:14px;line-height:22px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hmemob span{font-size:15px;line-height:22px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .htmr{min-height:52px;background:#fff;font-size:13px}.htmr b{font-weight:700}.htmr small{color:#68716A}.htmr span{display:block;font-size:13px}
 /* 開いた横: 今日の予定は 9〜19 時の小さな時間軸（1時間14pt） */
 .haxis{position:relative;margin:6px 0 2px}
@@ -1217,7 +1217,7 @@ dialog#menu #m-destpop{border-radius:inherit}
 .ned-gutter { position: absolute; left: 0; top: 0; width: 44px; z-index: 1; }
 .ned-gutter[hidden] { display: none; }
 .ned .ned-chk { position: absolute; left: 0; width: 44px; height: 44px; padding: 0 0 0 8px; border: 0; background: transparent; color: #294E42; display: flex; align-items: center; justify-content: flex-start; }
-.ned-box { width: 20px; height: 20px; box-sizing: border-box; border: 1.75px solid currentColor; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-style: normal; font-size: 14px; line-height: 1; }
+.ned-box { width: 20px; height: 20px; box-sizing: border-box; border: 1.75px solid currentColor; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-style: normal; font-size: 14px; line-height: 1; }
 .ned-chk[data-checked="1"] .ned-box { background: #294e42; border-color: #294e42; color: #fff; }
 .ned-status { font-size: 12px; color: #b3261e; padding: 2px 8px; display: flex; gap: 8px; align-items: center; }
 .ned-status[hidden], .ned-trash[hidden], .ned-retry[hidden] { display: none; }
@@ -1233,14 +1233,14 @@ dialog#menu #m-destpop{border-radius:inherit}
 .nhost .ned{flex:1;min-height:0;display:flex;flex-direction:column}
 .nrw{display:flex;align-items:center;border-bottom:1px solid var(--line)}
 .nrw .mrow{flex:1;min-width:0;border-bottom:0}
-.nsrc{flex:none;min-width:44px;height:44px;padding:0 8px;font-size:12px;background:transparent;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line)}
+.nsrc{flex:none;min-width:44px;height:44px;padding:0 8px;font-size:13px;background:transparent;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line)}
 /* ノートのフォルダとピン留め（第16版 PR29）。当たりは44pt以上 */
 .nchips{display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;overflow-y:hidden;flex:none;padding:0 0 8px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .nchips::-webkit-scrollbar{display:none}
-.nchip{flex:none;min-height:44px;min-width:44px;max-width:60vw;padding:0 14px;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:transparent;border-radius:22px;box-shadow:inset 0 0 0 1px var(--line);touch-action:manipulation}
+.nchip{flex:none;min-height:44px;min-width:44px;max-width:60vw;padding:0 14px;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:transparent;border-radius:999px;box-shadow:inset 0 0 0 1px var(--line);touch-action:manipulation}
 .nchip.on{background:var(--green);color:#fff;box-shadow:none}
 .nchip.nadd{font-size:18px}
-.nsec{margin:8px 4px 2px;font-size:12px;line-height:20px;color:#68716A;font-weight:700}
+.nsec{margin:8px 4px 2px;font-size:13px;line-height:20px;color:#68716A;font-weight:700}
 .nrw{touch-action:pan-y;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .nrw.pinned{background:rgba(41,78,66,.05)}
 .npin{font-style:normal;margin-right:4px}
@@ -1249,26 +1249,26 @@ dialog#menu #m-destpop{border-radius:inherit}
 .ndate{flex:none;min-width:44px;min-height:44px;padding:0 10px;font-size:13px;background:transparent;border-radius:14px;box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap}
 .ndate.on{box-shadow:inset 0 0 0 2px #294E42;color:#294E42}
 .ndpop{position:absolute;z-index:9;left:0;top:100%;width:min(280px,100%);box-sizing:border-box;border-radius:12px;background:#fffdfa;box-shadow:inset 0 0 0 1px var(--line),0 4px 16px #1a302d33;padding:0 0 4px}
-.ndpop p{margin:0;padding:12px 12px 4px;font-size:14px}
+.ndpop p{margin:0;padding:12px 12px 4px;font-size:15px}
 .ndfoot{display:flex;gap:8px;padding:4px 8px 0}
 .ndfoot .nmbtn,.ndconf .nmbtn{min-height:44px}
 .ndconf .nmrow{padding:4px 8px 0}
 .nday{flex:none;display:flex;align-items:center;gap:6px;min-height:44px;font-size:13px}
 .nday button{min-width:44px;min-height:44px;background:transparent;font-size:15px}
 .nmeta .nmlab{flex:1;min-width:0;display:flex;align-items:center;gap:6px;font-size:13px;color:#68716A}
-.nmeta select{flex:1;min-width:0;min-height:44px;font-size:14px}
-.nmpin{flex:none;min-height:44px;min-width:44px;padding:0 12px;font-size:14px;background:transparent;border-radius:22px;box-shadow:inset 0 0 0 1px var(--line)}
+.nmeta select{flex:1;min-width:0;min-height:44px;font-size:15px}
+.nmpin{flex:none;min-height:44px;min-width:44px;padding:0 12px;font-size:15px;background:transparent;border-radius:999px;box-shadow:inset 0 0 0 1px var(--line)}
 .nmpin.on{box-shadow:inset 0 0 0 2px #294E42;color:#294E42}
 .nmenu{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.35)}
 .nmbox{box-sizing:border-box;width:min(100%,420px);max-height:80vh;overflow-y:auto;background:var(--bg,#fff);color:inherit;border-radius:16px 16px 0 0;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px))}
 .nmbox h3{margin:0 0 8px;font-size:15px;overflow-wrap:anywhere}
 .nmbox p{margin:0 0 8px;font-size:13px}
 .nmbox .nerr{color:#b3261e}
-.nfin{width:100%;box-sizing:border-box;min-height:44px;font-size:16px;margin-bottom:8px}
+.nfin{width:100%;box-sizing:border-box;min-height:44px;font-size:15px;margin-bottom:8px}
 .nmrow{display:flex;gap:8px;margin-bottom:8px}
 .nmrow .nmbtn{flex:1}
 .nmlist{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
-.nmbtn{min-height:44px;min-width:44px;padding:0 12px;font-size:14px;background:transparent;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);overflow-wrap:anywhere}
+.nmbtn{min-height:44px;min-width:44px;padding:0 12px;font-size:15px;background:transparent;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);overflow-wrap:anywhere}
 .nmbtn.danger{color:#b3261e}
 .nmbtn:disabled{opacity:.4}
 
@@ -1281,7 +1281,7 @@ dialog#menu #m-destpop{border-radius:inherit}
 
 /* 開いた縦の集中モード（第16版 PR32）。切替は上の帯、タスク／ノートは全面の専用面。 */
 .fmodes{pointer-events:auto;position:fixed;z-index:6;display:flex;box-sizing:border-box;padding:0;border-radius:10px;background:#e6e9e4;box-shadow:inset 0 0 0 1px var(--line)}
-.fmodes button{flex:1 1 0;min-width:0;height:100%;min-height:0;padding:0;border-radius:10px;background:transparent;color:var(--ink);font-size:14px;font-weight:700;line-height:1;white-space:nowrap;touch-action:manipulation;position:relative}
+.fmodes button{flex:1 1 0;min-width:0;height:100%;min-height:0;padding:0;border-radius:10px;background:transparent;color:var(--ink);font-size:15px;font-weight:700;line-height:1;white-space:nowrap;touch-action:manipulation;position:relative}
 .fmodes button::before{content:"";position:absolute;left:0;right:0;top:-4px;bottom:-4px}
 .fmodes button[aria-pressed=true]{background:#fff;color:var(--green);box-shadow:0 1px 2px rgba(0,0,0,.12)}
 .fdate{position:fixed;z-index:5;display:flex;align-items:center;font-size:15px;font-weight:800;color:var(--ink);white-space:nowrap;pointer-events:none;max-width:calc(100px * var(--ux,1));overflow:hidden}
@@ -1292,8 +1292,8 @@ dialog#menu #m-destpop{border-radius:inherit}
 /* 第16版 PR33: 集中タスク（上面＝四つの見方、下面＝追加と詳細） */
 .ftask{flex:1;min-height:0;display:flex;flex-direction:column}
 .ftup{flex:1 1 45%;min-height:0;display:flex;flex-direction:column}
-.tvseg{display:flex;gap:2px;margin:12px 16px 8px;padding:2px;height:36px;box-sizing:border-box;border-radius:18px;background:#e6e9e4;box-shadow:inset 0 0 0 1px var(--line);flex:none}
-.tvseg button{flex:1 1 0;min-width:0;border-radius:16px;background:transparent;color:var(--ink);font-size:14px;font-weight:700;position:relative;touch-action:manipulation}
+.tvseg{display:flex;gap:2px;margin:12px 16px 8px;padding:2px;height:36px;box-sizing:border-box;border-radius:999px;background:#e6e9e4;box-shadow:inset 0 0 0 1px var(--line);flex:none}
+.tvseg button{flex:1 1 0;min-width:0;border-radius:16px;background:transparent;color:var(--ink);font-size:15px;font-weight:700;position:relative;touch-action:manipulation}
 .tvseg button::before{content:"";position:absolute;left:0;right:0;top:-4px;bottom:-4px}
 .tvseg button[aria-pressed=true]{background:#fff;color:var(--green);box-shadow:0 1px 2px rgba(0,0,0,.12)}
 .tvseg small{font-size:11px;font-weight:700;opacity:.8}
@@ -1309,9 +1309,9 @@ dialog#menu #m-destpop{border-radius:inherit}
 .fttitle{width:100%;box-sizing:border-box;font-size:20px;font-weight:800;border:0;background:transparent;padding:4px 0;min-height:44px}
 .ftrow{display:flex;align-items:center;gap:12px;min-height:44px}
 .ftrow>span{width:48px;font-weight:700;color:var(--muted,#68716A)}
-.ftrow input[type=date],.ftrow input[type=time]{font-size:16px;min-height:36px}
+.ftrow input[type=date],.ftrow input[type=time]{font-size:15px;min-height:36px}
 .ftnote{align-items:flex-start}
-.ftnote textarea{flex:1;min-height:88px;font-size:16px;box-sizing:border-box}
+.ftnote textarea{flex:1;min-height:88px;font-size:15px;box-sizing:border-box}
 .ftdel{width:100%;min-height:44px;margin-top:8px;color:#c0392b;font-weight:800;border-radius:10px;background:transparent;box-shadow:inset 0 0 0 1px #e3b4ae}
 .ftdel:disabled{opacity:.4}
 .ftnone .rmh{margin:0 0 4px}
@@ -1338,11 +1338,11 @@ html.kbl[data-kbl=note][data-kbe=up] .nupb::before{content:"";position:absolute;
 html.kbl[data-kbl=note][data-kbe=up] .nup{display:flex;align-items:center;gap:8px;padding:0 16px;overflow-x:auto;overflow-y:hidden;background:#CFD3D8}
 html.kbl[data-kbl=note][data-kbe=dn] .nup{display:flex;flex-direction:column;overflow-y:auto;background:var(--paper);padding:0 16px}
 html.kbl[data-kbl=note][data-kbnu="0"] .nup{display:none}
-.nupb{flex:none;max-width:70%;min-height:44px;padding:0 14px;border-radius:22px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);font-size:14px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.nupb{flex:none;max-width:70%;min-height:44px;padding:0 14px;border-radius:999px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);font-size:15px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
 html.kbl[data-kbe=dn] .nupb{max-width:none;width:100%;border-radius:8px;background:transparent;box-shadow:none;border-bottom:1px solid var(--line)}
 .nupe{font-size:13px;color:var(--muted)}
 @media (prefers-color-scheme:dark){ html.kbl .ftchips{background:#2b2f2d} html.kbl[data-kbe=up] .nup{background:#262a28} }
-.ndchip{flex:none;position:relative;height:22px;min-height:22px;margin:0 0 0 6px;padding:0 8px;border-radius:11px;font-size:12px;line-height:22px;background:transparent;box-shadow:inset 0 0 0 1px var(--line);color:#68716A;white-space:nowrap}
+.ndchip{flex:none;position:relative;height:22px;min-height:22px;margin:0 0 0 6px;padding:0 8px;border-radius:999px;font-size:13px;line-height:22px;background:transparent;box-shadow:inset 0 0 0 1px var(--line);color:#68716A;white-space:nowrap}
 .ndchip::before{content:"";position:absolute;left:-4px;right:-4px;top:-11px;bottom:-11px}
 .ndchip.has{color:#294E42;box-shadow:inset 0 0 0 1px #8A7E5C}
 .nday>span{display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:14px;background:rgba(138,126,92,.14);color:#294E42}
@@ -1368,10 +1368,10 @@ html.kbl[data-kbe=dn] .nupb{max-width:none;width:100%;border-radius:8px;backgrou
 .dpage .dlrow{height:32px;min-height:32px;flex:none}
 .dpage .dnone{margin:0;padding:0 4px;font-size:13px;line-height:32px;color:var(--muted)}
 .dpage .dgrip{flex:none;position:relative;height:24px;touch-action:none;cursor:ns-resize}
-.dpage .dgrip i{position:absolute;left:50%;top:10px;width:36px;height:4px;margin-left:-18px;border-radius:2px;background:#C9C5BA}
+.dpage .dgrip i{position:absolute;left:50%;top:10px;width:36px;height:4px;margin-left:-18px;border-radius:4px;background:#C9C5BA}
 .dpage .dgrip.drag i,.dpage .dgrip:focus-visible i{background:#8A7E5C}
 .dpage .dnote{flex:1;min-height:0;display:block;width:auto;margin:0 16px;padding:0;overflow:hidden;text-align:left;border-radius:0;color:var(--ink);background:repeating-linear-gradient(to bottom,transparent 0,transparent 29px,#EEEAE1 29px,#EEEAE1 30px)}
-.dpage .dnote:hover{background:repeating-linear-gradient(to bottom,transparent 0,transparent 29px,#EEEAE1 29px,#EEEAE1 30px)}
+@media (hover:hover){.dpage .dnote:hover{background:repeating-linear-gradient(to bottom,transparent 0,transparent 29px,#EEEAE1 29px,#EEEAE1 30px)}}
 .dpage .dnt{display:block;font-size:15px;line-height:30px;white-space:pre-wrap;word-break:break-word;overflow:hidden}
 /* 開いた縦: 上＝選択日、下＝次の日（紙のめくりは使わない。横すべり 0.25 秒） */
 .pcol.ttp{position:fixed;left:var(--content-x);width:var(--content-w);top:var(--head-h);height:calc(var(--controls-y) - var(--head-h) - 8px);display:flex;flex-direction:column;gap:0}
@@ -1400,7 +1400,7 @@ dialog#editor{padding:0}
 #editor .formhead{height:44px;min-height:44px;padding:0 6px;gap:4px;border-bottom:0}
 #editor .formhead h2{flex:1;min-width:0;text-align:center;font:700 15px/1.3 -apple-system,'Hiragino Sans',system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #editor .formhead .caltag{margin-left:0}
-#editor .hbtn{position:relative;flex:none;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border:0;background:transparent;font-size:16px}
+#editor .hbtn{position:relative;flex:none;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border:0;background:transparent;font-size:15px}
 #editor .hbtn::before{content:"";position:absolute;left:6px;top:6px;width:32px;height:32px;border-radius:50%;background:#EFECE4;z-index:-1}
 #editor .hbtn{isolation:isolate}
 #editor .hbtn.hok{color:#fff}
@@ -1431,8 +1431,8 @@ dialog#editor{padding:0}
 #editor .dchip::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
 #editor .dchip[aria-pressed=true]{background:var(--green);border-color:var(--green);color:#fff;font-weight:700}
 #editor label.check{display:flex;align-items:center;gap:8px;padding:0 4px;border-bottom:1px solid #eeeae0;font-size:15px}
-#editor input[type=checkbox][role=switch]{-webkit-appearance:none;appearance:none;flex:none;position:relative;width:51px;height:31px;min-height:31px;margin:0;padding:0;border:0;border-radius:16px;background:#E4E0D6;transition:background .2s}
-#editor input[type=checkbox][role=switch]::before{content:"";position:absolute;left:2px;top:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0003;transition:transform .2s}
+#editor input[type=checkbox][role=switch]{-webkit-appearance:none;appearance:none;flex:none;position:relative;width:51px;height:31px;min-height:31px;margin:0;padding:0;border:0;border-radius:16px;background:#E4E0D6;transition:background .15s cubic-bezier(0.2,0.8,0.2,1),filter .15s ease-out}
+#editor input[type=checkbox][role=switch]::before{content:"";position:absolute;left:2px;top:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0003;transition:transform .15s cubic-bezier(0.2,0.8,0.2,1)}
 #editor input[type=checkbox][role=switch]:checked{background:var(--green)}
 #editor input[type=checkbox][role=switch]:checked::before{transform:translateX(20px)}
 #editor .alwrap{margin:0}
@@ -1441,12 +1441,12 @@ dialog#editor{padding:0}
 #editor .repeat{margin:0;border-top:0}
 #editor .rtoggle{min-height:44px;padding:0 4px;border-bottom:1px solid #eeeae0;font-size:15px}
 #editor .eplace{display:flex;align-items:center;gap:8px;padding:0 4px;border-bottom:1px solid #eeeae0;font-size:15px}
-#editor .eplace input{flex:1;min-width:0;min-height:44px;border:0;background:transparent;padding:0 0 0 8px;text-align:right;font-size:16px}
+#editor .eplace input{flex:1;min-width:0;min-height:44px;border:0;background:transparent;padding:0 0 0 8px;text-align:right;font-size:15px}
 #editor .enotes{display:block;padding:0 4px;font-size:15px}
 #editor .enotes .dtk{display:flex;align-items:center;min-height:44px}
 #editor .enotes textarea{margin-bottom:4px}
 #editor .ebottom{margin-top:8px}
-#editor .ebottom .danger{display:block;width:100%;height:44px;border:0;background:transparent;font-size:16px;font-weight:700}
+#editor .ebottom .danger{display:block;width:100%;height:44px;border:0;background:transparent;font-size:15px;font-weight:700}
 #editor .copyrow{margin-top:0}
 #editor .dtbox.allday{display:block;height:auto;margin:0}
 /* シートの下端はキーボードの上端 kbTop −8、上端は y12。キーボードがないときは今の高さ */
@@ -1463,7 +1463,7 @@ html[data-kb] dialog#editor,html[data-kb] body[data-layout=spread] dialog#editor
 /* ===== 第19版 PR4: 時刻のダイヤル（design/24）。閉じた画面は行のすぐ下（幅180・1段32・5段）、開いた横は左のページ、開いた縦は下の面（幅220・1段44・7段）。 ===== */
 #tpop{display:flex;flex-direction:column;align-items:center;padding:8px 0 10px;border-top:0;max-height:none;overflow:visible}
 #tpop[hidden]{display:none}
-#tpop .dial{position:relative;flex:none;display:flex;box-sizing:border-box;width:180px;height:calc(var(--rows,5) * var(--rowh,32px));background:#fff;border-radius:12px;box-shadow:0 0 0 1px #E4E0D6;overflow:hidden;animation:dialgrow .2s ease-out}
+#tpop .dial{position:relative;flex:none;display:flex;box-sizing:border-box;width:180px;height:calc(var(--rows,5) * var(--rowh,32px));background:#fff;border-radius:12px;box-shadow:0 0 0 1px #E4E0D6;overflow:hidden;animation:dialgrow .25s cubic-bezier(0.16,1,0.3,1)}
 @keyframes dialgrow{from{height:0;opacity:.3}}
 @media (prefers-reduced-motion:reduce){#tpop .dial{animation:none}}
 #tpop .dband{position:absolute;left:6px;right:6px;top:calc(50% - var(--rowh,32px) / 2);height:var(--rowh,32px);border-radius:8px;background:#EFECE4}
@@ -1478,7 +1478,7 @@ html[data-kb] dialog#editor,html[data-kb] body[data-layout=spread] dialog#editor
 #tpop.face{position:fixed;z-index:40;box-sizing:border-box;margin:0;padding:16px 0 12px;background:var(--paper);border-radius:16px;box-shadow:0 0 0 1px var(--line)}
 #tpop.face .tfhead{display:block;margin:0;font:700 15px/1.3 -apple-system,'Hiragino Sans',system-ui,sans-serif;color:#293B35}
 #tpop.face .dial{width:220px;margin-top:14px}
-#tpop.face .ditem{font-size:12px}#tpop.face .ditem.d1{font-size:15px}#tpop.face .ditem.d0{font-size:20px}
+#tpop.face .ditem{font-size:13px}#tpop.face .ditem.d1{font-size:15px}#tpop.face .ditem.d0{font-size:20px}
 #tpop.face .dunit{font-size:11px}
 #tpop.face .tfchips{display:flex;justify-content:center;flex-wrap:wrap;gap:6px;margin-top:14px;padding:0 12px}
 #tpop .tfchip{position:relative;box-sizing:border-box;flex:none;width:62px;height:28px;min-height:0;min-width:0;padding:0;border:1px solid #DCD7CB;border-radius:14px;background:#fff;color:#294E42;font-size:13px}
@@ -1491,7 +1491,7 @@ dialog.panel.tface-open{overflow:visible}
 .mpull .mph{display:flex;align-items:center;flex:none;height:48px;padding:0 4px;gap:0}
 .closed.fb .mpull .mph{padding:0 48px}
 .mpull .mph h2{flex:1;min-width:0;margin:0;text-align:center;font:700 17px/1.2 -apple-system,'Hiragino Sans',sans-serif;white-space:nowrap}
-.mpull .mph button{flex:none;min-width:44px;height:44px;padding:0;font-size:22px}
+.mpull .mph button{flex:none;min-width:44px;height:44px;padding:0;font-size:20px}
 .mpull .mph .mptoday{min-width:52px;font-size:13px;font-weight:600;color:var(--green)}
 .mpull .mph.pasting{display:block;height:auto;padding:0}
 .mpull .weekdays{position:static;flex:none;height:20px;padding:0;align-items:center}
@@ -1505,23 +1505,23 @@ dialog.panel.tface-open{overflow:visible}
 .mpull .bar:after{top:calc(var(--chip-h) - 3.5px)}
 .mpull .week .plus.pn{width:auto;height:var(--chip-h);min-width:0;min-height:0;padding:0 0 0 2px;justify-content:flex-start;align-items:center;font-size:8px;line-height:var(--chip-h);color:#8C918A;text-align:left}
 .mpull .mgrab{flex:none;position:relative;display:flex;align-items:center;justify-content:center;height:24px;min-height:24px;touch-action:none;cursor:ns-resize}
-.mpull .mgrab i{display:block;width:36px;height:4px;border-radius:2px;background:#B9B4A8}
+.mpull .mgrab i{display:block;width:36px;height:4px;border-radius:4px;background:#B9B4A8}
 .mpull.dragging .mgrid{transition:none!important}
 .mpull .mgrid{transition:height .25s ease}
 .mpull .mday{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 8px calc(var(--end-pad-closed,56px) + 4px)}
 .mdh{display:flex;align-items:center;justify-content:space-between;height:44px;flex:none}
 .mdh h3{margin:0;font:700 15px/1.2 -apple-system,'Hiragino Sans',sans-serif;min-width:0}
 .mdsw{display:grid;grid-template-columns:1fr 1fr;width:132px;height:32px;flex:none;border-radius:16px;background:#EFECE4;padding:2px;box-sizing:border-box}
-.mdsw button{height:28px;min-height:28px;min-width:0;padding:0;border-radius:14px;background:transparent;font-size:12px;font-weight:600}
+.mdsw button{height:28px;min-height:28px;min-width:0;padding:0;border-radius:14px;background:transparent;font-size:13px;font-weight:600}
 .mdsw button[aria-pressed=true]{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.15)}
 .mdlist{display:flex;flex-direction:column}
 .mdev{display:flex;align-items:center;gap:8px;height:44px;min-height:44px;padding:0 4px;border-radius:0;background:transparent;text-align:left}
-.mdev .mdbar{flex:none;width:4px;height:16px;border-radius:2px;background:var(--cat)}
-.mdev .mdt{flex:none;width:44px;font-size:12px;color:#8C918A}
-.mdev strong{flex:1;min-width:0;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mdev .mdbar{flex:none;width:4px;height:16px;border-radius:4px;background:var(--cat)}
+.mdev .mdt{flex:none;width:44px;font-size:13px;color:#8C918A}
+.mdev strong{flex:1;min-width:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mdnone{display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px;color:#8C918A}
 .mdnone p{margin:0}
-.mdsec h4{margin:12px 0 4px;font-size:12px;color:#8C918A}
+.mdsec h4{margin:12px 0 4px;font-size:13px;color:#8C918A}
 .mdempty{font-size:13px;color:#8C918A}
 .mdnote{display:block;width:100%;text-align:left;min-height:44px}
 .mpull .mdbody .tl{overflow:visible;flex:none}
@@ -1547,7 +1547,7 @@ dialog.panel.tface-open{overflow:visible}
 .mdsw button,.mdsw button:hover,.mdsw button[aria-pressed=true]{color:var(--ink)}
 .closed.fb .mpull .mph{height:var(--head-h);align-items:flex-end;padding:0 48px 6px}
 .closed.fb .mpull .mph.pasting{height:auto;padding:0}
-.mpull .mph .allbtn{min-width:36px;font-size:12px}
+.mpull .mph .allbtn{min-width:36px;font-size:13px}
 
 /* ===== 開いた縦の日・週（第19版 PR7、design/29 案A「1枚の紙・2つの窓」）===== */
 /* 時間軸は紙 1枚（0:00〜24:00 ＋下の余白）。上の窓（終日の下〜--fcut0）と下の窓（--fcut1〜）で見る。1時間 44。窓の位置は JS が溝の変数から決める。 */
@@ -1556,8 +1556,8 @@ dialog.panel.tface-open{overflow:visible}
 .portrait .fold .fhead{position:absolute;top:var(--head-h);left:0;right:0;height:44px;min-height:0;display:flex;align-items:center;padding:0 12px;gap:0}
 .portrait .fold .fhead>*{position:static;top:auto;margin:0}
 .portrait .fold .fhead h2{transform:none;left:auto;width:auto;max-width:none;padding:0 4px;font:700 19px/44px -apple-system,'Hiragino Sans',sans-serif;flex:0 1 auto;overflow:visible;text-align:left}
-.fold .fhead button{width:44px;height:44px;min-width:44px;font-size:22px}
-.fold .fhead .ftoday{margin-left:auto;width:auto;padding:0 4px;font-size:14px;font-weight:700;color:var(--green)}
+.fold .fhead button{width:44px;height:44px;min-width:44px;font-size:20px}
+.fold .fhead .ftoday{margin-left:auto;width:auto;padding:0 4px;font-size:15px;font-weight:700;color:var(--green)}
 .fold .fdates{position:absolute;left:12px;right:12px;display:flex;border-bottom:1px solid var(--fline)}
 .fold .fdt{border:0;flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;background:transparent;border-radius:0;height:100%}
 .fold .fdt{gap:0}
@@ -1571,10 +1571,10 @@ dialog.panel.tface-open{overflow:visible}
 .fold-week .fall .adl{font-size:10px;line-height:18px;margin-top:3px}
 .fold .fall .adcols{align-self:stretch}
 .fold .fall .adcol{flex-direction:column;gap:2px;padding:5px 4px 5px 4px;overflow:hidden;box-sizing:border-box}
-.fold .fall .adpill,.fold .fall .adplus{height:22px;min-height:22px;line-height:22px;border-radius:11px;font-size:11px;padding:0 10px;text-align:left}
+.fold .fall .adpill,.fold .fall .adplus{height:22px;min-height:22px;line-height:22px;border-radius:999px;font-size:11px;padding:0 10px;text-align:left}
 .fold .fall .adplus{font-size:10px;padding:0 4px;background:transparent;color:var(--muted)}
 .fold-week .fall .adcol{gap:0;padding:3px 1.5px}
-.fold-week .fall .adpill,.fold-week .fall .adplus{height:18px;min-height:18px;line-height:18px;border-radius:9px;font-size:9px;padding:0 6px}
+.fold-week .fall .adpill,.fold-week .fall .adplus{height:18px;min-height:18px;line-height:18px;border-radius:999px;font-size:9px;padding:0 6px}
 .fold-week .fall .adplus{padding:0 3px}
 .fold-week .adcol.ftd{background:var(--ftoday)}
 .fold .fwin{position:absolute;left:12px;right:12px;overflow:hidden}
@@ -1588,9 +1588,9 @@ dialog.panel.tface-open{overflow:visible}
 .fold .flcols{left:var(--lw);right:0;top:0;bottom:0}
 .fold-week .tlcol.ftd{background:var(--ftoday)}
 .fold-week .tlcol+.tlcol{border-left:0;box-shadow:inset 1px 0 var(--fline)}
-.fold .fev{top:calc(var(--m) * var(--hh) / 60);height:calc(var(--d) * var(--hh) / 60);min-height:0;padding:0;border-radius:6px;background:var(--cat);color:#fff;box-shadow:none;overflow:hidden;display:block}
-.fold .fev:hover{background:var(--cat);filter:brightness(.95)}
-.fold .ftl{position:absolute;left:6px;right:4px;top:calc(var(--ty,0px) + 2px);font-size:12px;font-weight:700;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fold .fev{top:calc(var(--m) * var(--hh) / 60);height:calc(var(--d) * var(--hh) / 60);min-height:0;padding:0;border-radius:8px;background:var(--cat);color:#fff;box-shadow:none;overflow:hidden;display:block}
+@media (hover:hover){.fold .fev:hover{background:var(--cat);filter:brightness(.95)}}
+.fold .ftl{position:absolute;left:6px;right:4px;top:calc(var(--ty,0px) + 2px);font-size:13px;font-weight:700;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fold .ftm{position:absolute;left:6px;right:4px;top:calc(var(--ty,0px) + 18px);font-size:10px;line-height:12px;white-space:nowrap;overflow:hidden}
 .fold-week .ftl{font-size:9px;line-height:11px;left:3px;right:2px;top:calc(var(--ty,0px) + 1px)}
 .fold .fev[data-ti="0"] .ftl,.fold .fev[data-tm="0"] .ftm{display:none}
@@ -1626,7 +1626,7 @@ dialog.panel.tface-open{overflow:visible}
 .grabbed *{opacity:.0}
 .gchip{position:fixed;left:0;top:0;z-index:99998;max-width:220px;padding:6px 10px;border-radius:8px;background:var(--cat,#294E42);color:#fff;font-size:13px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;box-shadow:0 8px 20px #0003}
 .week .day.mdrop{background:#E5EEE9}
-.week .day.mdrop::after{content:"";position:absolute;inset:0;border:2px solid #294E42;border-radius:6px;pointer-events:none;z-index:3}
+.week .day.mdrop::after{content:"";position:absolute;inset:0;border:2px solid #294E42;border-radius:8px;pointer-events:none;z-index:3}
 @media (prefers-color-scheme:dark){ .week .day.mdrop{background:#2B3640} .week .day.mdrop::after{border-color:#6FA08C} }
 html[data-grab] .tl,html[data-grab] .tlx{touch-action:none}
 
@@ -1637,8 +1637,8 @@ html[data-grab] .tl,html[data-grab] .tlx{touch-action:none}
 .ned .ned-ib{position:relative;width:44px;height:44px;min-height:44px;min-width:44px;margin:-2px 0;padding:0;border:0;background:transparent;color:#293B35;display:flex;align-items:center;justify-content:center}
 .ned .ned-ib svg{position:relative}
 .ned .ned-ib:disabled{color:#C9C5BA;opacity:1}
-.ned .ned-ib::before{content:"";position:absolute;left:4px;top:6px;width:36px;height:32px;border-radius:10px;background:#E4E0D6;opacity:0;transition:opacity .1s}
-.ned .ned-ib:active:not(:disabled)::before{opacity:1}
+.ned .ned-ib::before{content:"";position:absolute;left:4px;top:6px;width:36px;height:32px;border-radius:10px;background:#EFECE4;opacity:0;transition:opacity .15s ease-out}
+.ned .ned-ib:active:not(:disabled)::before{opacity:1;transition-duration:.10s}
 .ned .ned-done{position:relative;margin-left:auto;width:44px;height:44px;padding:0;border:0;background:transparent;color:#fff;display:flex;align-items:center;justify-content:center}
 .ned .ned-done::before{content:"";position:absolute;width:32px;height:32px;border-radius:50%;background:#294E42}
 .ned .ned-done svg{position:relative}
@@ -1660,14 +1660,14 @@ html[data-grab] .tl,html[data-grab] .tlx{touch-action:none}
 .ned-inkslot{padding:0 8px}
 .ned-ink{color:#293B35;pointer-events:none}
 .ned-ink svg,.ned-ink img{display:block}.ned-ink img{max-width:100%;height:auto}
-.nsheet{position:fixed;z-index:40;display:flex;flex-direction:column;box-sizing:border-box;padding-top:8px;padding-bottom:var(--ns-pb,0px);background:#FFFDFA;border-radius:24px 24px 0 0;box-shadow:0 12px 32px rgba(0,0,0,.16);animation:nsheetin .25s ease-out}
+.nsheet{position:fixed;z-index:40;display:flex;flex-direction:column;box-sizing:border-box;padding-top:8px;padding-bottom:var(--ns-pb,0px);background:#FFFDFA;border-radius:24px 24px 0 0;box-shadow:0 12px 32px rgba(0,0,0,.16);animation:nsheetin .25s cubic-bezier(0.16,1,0.3,1)}
 .nsheet[hidden]{display:none}
-.nsheet.closing{transform:translateY(105%);transition:transform .25s ease-in}
+.nsheet.closing{transform:translateY(100%);transition:transform .25s cubic-bezier(0.16,1,0.3,1)}
 .nsheet .ned{flex:1;min-height:0;height:100%;gap:0}
 .nsheet .ned-bodywrap{margin:0 var(--ns-bmr,8px) 0 var(--ns-bml,8px)}
 .nsheet .ned-title{margin:0 var(--ns-bmr,8px) 0 var(--ns-bml,8px);width:auto}
 .nsheet .ned-status,.nsheet .ned-bar,.nsheet .ned-trash{display:none}
-@keyframes nsheetin{from{transform:translateY(40%);opacity:.6}to{transform:none;opacity:1}}
+@keyframes nsheetin{from{transform:translateY(100%)}to{transform:none}}
 @media (prefers-reduced-motion:reduce){.nsheet{animation:nsheetfade .15s}.nsheet.closing{transform:none;opacity:0;transition:opacity .15s}@keyframes nsheetfade{from{opacity:0}to{opacity:1}}}
 @media (prefers-color-scheme:dark){
  .nsheet,.ned-fsheet{background:#262A27;box-shadow:none;color:#E8E6E0}
@@ -1692,14 +1692,14 @@ html.kbl[data-kbl=note][data-kbe=dn] .nhost{height:calc(var(--kl-ed-h) + var(--k
 .lchip::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
 .lchip i{width:8px;height:8px;border-radius:50%;flex:none}
 .lchip.on{background:var(--green);color:#fff}
-.stalled{display:block;width:100%;height:28px;margin:0 0 6px;padding:0 12px;border:0;border-radius:14px;background:#F0EDE5;color:#68716A;font-size:12px;text-align:left;position:relative}
+.stalled{display:block;width:100%;height:28px;margin:0 0 6px;padding:0 12px;border:0;border-radius:14px;background:#F0EDE5;color:#68716A;font-size:13px;text-align:left;position:relative}
 .stalled::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
 .dcap2{flex:none;margin-left:auto;display:inline-flex;align-items:center;gap:4px;height:28px;max-width:104px;padding:0 8px;border-radius:14px;border:1.5px solid var(--lc,#68716A);background:#fff;color:#293B35;font-size:13px;font-weight:700;position:relative}
 .dcap2::before{content:"";position:absolute;left:-4px;right:-4px;top:-8px;bottom:-8px}
 .dcap2 i{width:8px;height:8px;border-radius:50%;background:var(--lc,#68716A);flex:none}
 .dcap2 span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dcap2 b{flex:none;font-weight:400;color:#68716A}
-.rmlist{flex:none;align-self:flex-end;margin-bottom:6px;display:inline-flex;align-items:center;gap:4px;max-width:38%;font-size:12px;color:#68716A;white-space:nowrap}
+.rmlist{flex:none;align-self:flex-end;margin-bottom:6px;display:inline-flex;align-items:center;gap:4px;max-width:38%;font-size:13px;color:#68716A;white-space:nowrap}
 .rmlist i{width:8px;height:8px;border-radius:50%;flex:none}
 .rmlist{overflow:hidden;text-overflow:ellipsis}
 .rmwait{font-size:11px;color:#68716A;margin-right:2px}
@@ -1715,13 +1715,13 @@ html.kbl[data-kbl=note][data-kbe=dn] .nhost{height:calc(var(--kl-ed-h) + var(--k
 .menurows .rsgo em{font-style:normal;color:#A8ABA4;font-size:20px}
 .menurows .rsgo{gap:8px}
 .menurows .rsgo span{flex:1}
-.ssub{font-size:12px;color:#68716A;margin-right:2px}
+.ssub{font-size:13px;color:#68716A;margin-right:2px}
 .rsdeny{margin:4px 12px 8px;padding:10px 12px;border-radius:10px;background:#FBF0DC;color:#6E4A12;font-size:13px;line-height:1.5}
 .rsdeny p{margin:0 0 6px}
-.rsdeny button{display:block;width:112px!important;min-height:24px!important;height:24px;padding:0;border:0;border-radius:12px;background:#E9C98A;color:#4A3208;font-size:12px;text-align:center!important;position:relative}
+.rsdeny button{display:block;width:112px!important;min-height:24px!important;height:24px;padding:0;border:0;border-radius:12px;background:#E9C98A;color:#4A3208;font-size:13px;text-align:center!important;position:relative}
 .rsdeny button::before{content:"";position:absolute;left:0;right:0;top:-10px;bottom:-10px}
-.rsh{margin:12px 20px 4px;font-size:12px;font-weight:400;color:#68716A}
-.rslist{display:flex!important;align-items:center;gap:10px;height:40px;min-height:40px!important;padding:0 20px!important;border:0;background:none;font-size:16px;text-align:left}
+.rsh{margin:12px 20px 4px;font-size:13px;font-weight:400;color:#68716A}
+.rslist{display:flex!important;align-items:center;gap:10px;height:40px;min-height:40px!important;padding:0 20px!important;border:0;background:none;font-size:15px;text-align:left}
 .rslist .ldot{width:14px;height:14px}
 .rslist .rsn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rslist small{font-size:11px;color:#68716A}
@@ -1729,14 +1729,14 @@ html.kbl[data-kbl=note][data-kbe=dn] .nhost{height:calc(var(--kl-ed-h) + var(--k
 .rslist.fixed b{color:#A8ABA4}
 .rsnote{margin:0;padding:4px 20px 8px;font-size:11px;line-height:1.5;color:#68716A}
 /* シート */
-dialog#rsheet{z-index:13;padding:0;border:0;border-radius:24px 24px 22px 22px;background:#fff;box-shadow:0 -6px 30px #132c3340;max-width:none;max-height:none;height:auto;overflow:hidden}
+dialog#rsheet{z-index:13;padding:0;border:0;border-radius:24px;background:#fff;box-shadow:0 12px 32px #00000029;max-width:none;max-height:none;height:auto;overflow:hidden}
 dialog#rsheet[open]{display:flex;flex-direction:column}
 .rshead{flex:none;display:flex;align-items:center;justify-content:space-between;padding:16px 8px 8px 24px}
-.rshead h2{font:700 18px/1.3 system-ui,-apple-system,'Hiragino Sans',sans-serif}
+.rshead h2{font:600 17px/22px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif}
 .rsx{width:44px;height:44px;border:0;background:none;font-size:18px;color:#68716A}
 .rsbody{flex:1;min-height:0;overflow:auto;padding:0 24px}
 .rsbody p{margin:0 0 8px;font-size:13px;line-height:1.6;color:#68716A}
-.rsmain{flex:none;display:block;margin:12px 24px;height:50px;border:0;border-radius:12px;background:var(--green);color:#fff;font-size:16px;font-weight:700}
+.rsmain{flex:none;display:block;margin:12px 24px;height:50px;border:0;border-radius:12px;background:var(--green);color:#fff;font-size:15px;font-weight:700}
 .rsmain:disabled{opacity:.6}
 .rsacts{flex:none;display:flex;gap:12px;padding:12px 24px 20px}
 .rsacts button{flex:1;height:44px;border-radius:12px;border:1px solid var(--line);background:#fff;font-size:15px}
@@ -1745,17 +1745,17 @@ dialog#rsheet[open]{display:flex;flex-direction:column}
 .rsscroll h3{margin:12px 0 4px;font-size:13px;color:#68716A;font-weight:700}
 .rsrow40{display:flex;align-items:center;gap:8px;min-height:40px}
 .rsrow40 .rst{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px}
-.rsrow40 small{flex:none;font-size:12px;color:#68716A}
-.rsmore{margin:0;font-size:12px;color:#68716A}
+.rsrow40 small{flex:none;font-size:13px;color:#68716A}
+.rsmore{margin:0;font-size:13px;color:#68716A}
 .rsmaybe{padding-bottom:6px}
 .rsseg{display:flex;gap:2px;padding:2px;height:32px;border-radius:16px;background:#e6e9e4}
-.rsseg button{flex:1;min-width:0;height:28px;border:0;border-radius:14px;background:transparent;font-size:12px;position:relative}
+.rsseg button{flex:1;min-width:0;height:28px;border:0;border-radius:14px;background:transparent;font-size:13px;position:relative}
 .rsseg button::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
 .rsseg button[aria-pressed=true]{background:#fff;color:var(--green);font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.12)}
 .rslater{flex:none;display:block;margin:0 24px 16px;min-height:44px;border:0;background:none;color:#68716A;font-size:13px}
 .rsdone{flex:none;margin:8px 24px 0;font-size:13px;color:var(--green)}
 .rspage{flex:1;min-height:0;overflow:auto;padding:0 8px 16px}
-.rsrowp{display:flex;align-items:center;gap:12px;width:100%;height:44px;padding:0 16px;border:0;background:none;font-size:16px;text-align:left}
+.rsrowp{display:flex;align-items:center;gap:12px;width:100%;height:44px;padding:0 16px;border:0;background:none;font-size:15px;text-align:left}
 .rsrowp .ldot{width:12px;height:12px}
 .rsrowp span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rsrowp b{width:18px;color:var(--green)}
@@ -1773,7 +1773,7 @@ dialog#rsheet[open]{display:flex;flex-direction:column}
 dialog#rsheet[data-kind=explain] .rsmain{margin-bottom:26px}
 .rspk{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:0 4px;border:0;background:none;font-size:15px;text-align:left}
 .rspk .rst{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rspk small{flex:none;font-size:12px;color:#68716A}
+.rspk small{flex:none;font-size:13px;color:#68716A}
 .rspk::before{content:"";flex:none;width:20px;height:20px;box-sizing:border-box;border:2px solid #9aa39c;border-radius:4px;background:#fff}
 .rspk[role=radio]::before{border-radius:50%}
 .rspk[aria-checked=true]::before{border-color:var(--green);background:var(--green);box-shadow:inset 0 0 0 3px #fff}
@@ -1804,12 +1804,12 @@ dialog#rsheet[data-kind=explain] .rsmain{margin-bottom:26px}
 /* 日付の行 18（H-05・H-06・M-19）: 日付 11pt（今日は丸）→ 六曜 8pt W6 #68716A を横に並べ、+N は行の右。段は全部名前に使う。
    開いた縦・開いた横: 日付 左4・今日の丸 18・六曜は x+26〜42・+N 9pt W6 右3。閉じた画面（マス 52.3）: 丸 16・日付 x+3〜19・六曜 x+21〜37・+N 8pt W6 右2。 */
 .week.named .day,.week.all .day{flex-direction:row;justify-content:flex-start;align-items:flex-start;padding:0 0 0 3px} /* 日セルの左の線 1＋3＝x+4 */
-.week.named .day .num,.week.all .day .num{order:1;width:auto;min-width:18px;height:18px;line-height:18px;padding:0;margin:0;border-radius:9px;text-align:center;font-size:11px}
+.week.named .day .num,.week.all .day .num{order:1;width:auto;min-width:18px;height:18px;line-height:18px;padding:0;margin:0;border-radius:999px;text-align:center;font-size:11px}
 .week.named .day .num.sd,.week.all .day .num.sd{padding:0 2px;margin:0;letter-spacing:-.5px}
 .week.named .day .rk,.week.all .day .rk{order:2;position:static;flex:none;margin-left:4px;height:18px;font-size:8px;font-weight:600;line-height:18px;color:#68716A}
 .week.named .day.out .rk,.week.all .day.out .rk{color:#8C918A}
 .week .plus{font-weight:600;color:#68716A;line-height:18px;padding-right:3px}
-.week .plus:hover{color:var(--ink)}
+@media (hover:hover){.week .plus:hover{color:var(--ink)}}
 .closed .week.named .day,.closed .week.all .day{padding-left:2px} /* 日セルの左の線 1＋2＝x+3 */
 .closed .week.named .day .num,.closed .week.all .day .num{min-width:16px;height:16px;line-height:16px;margin-top:1px;border-radius:8px}
 .closed .week.named .day .rk,.closed .week.all .day .rk{margin-left:2px}
@@ -1825,7 +1825,7 @@ dialog#rsheet[data-kind=explain] .rsmain{margin-bottom:26px}
 .closed.tv-week .tlheads{height:42px}
 .closed.tv-week .tlhd{margin:-1px 0;height:44px;padding:0;gap:0;border-radius:8px;color:var(--ink)}
 .closed.tv-week .tlhd .dw{display:block;font-size:10px;line-height:10px;font-weight:600;color:var(--muted)}
-.closed.tv-week .tlhd .dd{display:block;min-width:22px;height:22px;margin-top:0;border-radius:11px;font-size:13px;line-height:22px;font-weight:700;text-align:center}
+.closed.tv-week .tlhd .dd{display:block;min-width:22px;height:22px;margin-top:0;border-radius:999px;font-size:13px;line-height:22px;font-weight:700;text-align:center}
 .closed.tv-week .tlhd .wrk{font-size:8px;line-height:8px;font-weight:600;color:#68716A}
 .closed.tv-week .tlhd.today .dd{background:var(--green);color:#fff}
 .closed.tv-week .tlhd[aria-pressed=true]{background:#E5EEE9;color:var(--ink)}
@@ -1834,8 +1834,8 @@ dialog#rsheet[data-kind=explain] .rsmain{margin-bottom:26px}
 .closed.tv-week .allday .adl{line-height:20px;padding-top:2px}
 .closed.tv-week .adcols{position:relative}
 .closed.tv-week .adband{position:absolute;height:16px;min-height:16px;padding:0;border-radius:0;background:transparent;color:var(--cat);font-size:9px;font-weight:600;line-height:12px;text-align:center;overflow:hidden}
-.closed.tv-week .adband::after{content:'';position:absolute;left:1px;right:1px;top:12.5px;height:2px;border-radius:1px;background:var(--cat)}
-.closed.tv-week .adband:hover{background:transparent;filter:brightness(.9)}
+.closed.tv-week .adband::after{content:'';position:absolute;left:1px;right:1px;top:12.5px;height:2px;border-radius:4px;background:var(--cat)}
+@media (hover:hover){.closed.tv-week .adband:hover{background:transparent;filter:brightness(.9)}}
 .closed.tv-week .adband .bt{display:inline-block;max-width:100%;overflow:hidden;vertical-align:top}
 .closed.tv-week .adcols .adplus{position:absolute;height:14px;min-height:14px;padding:0 2px 0 0;font-size:9px;font-weight:600;line-height:14px;color:#68716A;text-align:right;border-radius:0}
 .closed.tv-week .tlev{min-height:24px;padding:1px 2px 1px 6px;box-shadow:inset 3px 0 0 var(--cat);font-size:9px;font-weight:600;line-height:11px;overflow:hidden;border-radius:3px}
@@ -1856,7 +1856,7 @@ dialog#rsheet[data-kind=explain] .rsmain{margin-bottom:26px}
 .pv-date .hnm{margin-left:12px;font-size:13px;font-weight:600;color:var(--holiday)}
 .pv-date .hdt.hol{color:var(--holiday)}
 .pvnext{left:12px;right:12px;width:auto;top:calc(var(--head-h,82px) + 60px);height:100px;border-radius:16px;padding:0 16px;display:flex;flex-direction:column;justify-content:center;gap:2px;overflow:hidden}
-.pvnext small{font-size:12px;line-height:16px}
+.pvnext small{font-size:13px;line-height:16px}
 .pvnext strong{font-size:20px;line-height:26px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pvnext .when{font-size:13px;line-height:18px;display:block}
 .pvnext .time{font:400 13px/18px -apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif}
@@ -1865,7 +1865,7 @@ dialog#rsheet[data-kind=explain] .rsmain{margin-bottom:26px}
 .pv-today{left:12px;right:12px;top:calc(var(--head-h,82px) + 168px);height:201px;padding:0 12px}
 .pvh{display:flex;align-items:center;gap:12px;height:36px;flex:none}
 .pvh h3{margin:0;flex:1;min-width:0;font:700 13px/1 -apple-system,'Hiragino Sans',sans-serif;color:#68716A;white-space:nowrap}
-.pvh .hgo{position:relative;flex:none;min-height:0;height:36px;padding:0;font-size:12px;font-weight:600;color:var(--green);background:none;border:0;white-space:nowrap}
+.pvh .hgo{position:relative;flex:none;min-height:0;height:36px;padding:0;font-size:13px;font-weight:600;color:var(--green);background:none;border:0;white-space:nowrap}
 .pvh .hgo::before{content:"";position:absolute;left:-6px;right:-6px;top:-4px;bottom:-4px}
 .pv-today .hrow{height:32px;min-height:32px}
 .pv-today .hrow .ht{font-size:13px;min-width:44px}
@@ -1926,9 +1926,20 @@ body[data-posture=portrait] .mscreens{scrollbar-gutter:stable}
    :hover は触った後に残る（iOS）ので、ここの !important で :active を勝たせる。灰の点滅は消す。 */
 *{-webkit-tap-highlight-color:transparent}
 :where(button,[role=button],[role=tab],[role=checkbox],[role=switch],a[href],.mgrab,summary){transition:background-color .15s ease-out,opacity .15s ease-out,filter .15s ease-out}
-:where(button:not([role=switch]),[role=button],[role=tab],a[href]):active:where(:not(:disabled)){background-color:#EFECE4!important;transition-duration:.10s}
+:where(button:not([role=switch])):active:not(:disabled),
+:where([role=button]):active:not(:disabled),
+:where([role=tab]):active:not(:disabled),
+:where(a[href]):active:not(:disabled){background-color:#EFECE4!important;transition-duration:.10s}
 /* 自分は透明で、見た目を子や疑似要素が持つもの（押せる範囲だけ広い） */
-:is(.cb,.tabs button,.pgsw button,.pswitch button,.allbtn,.spanbtn,#editor .hbtn,.ned .ned-ib,.ned .ned-done):active:where(:not(:disabled)){background-color:transparent!important}
+.cb:active:not(:disabled),
+.tabs button:active:not(:disabled),
+.pgsw button:active:not(:disabled),
+.pswitch button:active:not(:disabled),
+.allbtn:active:not(:disabled),
+.spanbtn:active:not(:disabled),
+#editor .hbtn:active:not(:disabled),
+.ned .ned-ib:active:not(:disabled),
+.ned .ned-done:active:not(:disabled){background-color:transparent!important}
 /* 丸ボタン */
 .cb:active:where(:not(:disabled)) .bi{background-color:#EFECE4!important;transition-duration:.10s}
 .cb .bi{transition:background-color .15s ease-out,filter .15s ease-out}
@@ -1956,3 +1967,23 @@ body[data-posture=portrait] .mscreens{scrollbar-gutter:stable}
 [role=switch]:active:where(:not(:disabled)),.mgrab:active{filter:brightness(.92);transition-duration:.10s}
 .mgrab:active i{background:#8E897D}
 /* 日マス・日付マス・時分マス・週の日の見出しは button なので上の一般の規則（地 #EFECE4）がそのまま効く */
+
+/* ===== 第19.1版 S4: シートの出入り（H-02・動-5, design/25 §1）=====
+   出る: 下から translateY(100%)→0 と下の暗い膜 0→1 を 0.25 秒 cubic-bezier(0.16,1,0.3,1)。閉じる: 同じ秒数で逆（JS が終わってから dialog を閉じる）。
+   視差効果を減らす: 0.15 秒のフェードだけ。 */
+:root{--sheet-ease:cubic-bezier(0.16,1,0.3,1)}
+@keyframes sheetin{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes sheetout{to{transform:translateY(100%)}}
+@keyframes scrimin{from{opacity:0}to{opacity:1}}
+@keyframes sheetfadein{from{opacity:0}to{opacity:1}}
+@keyframes sheetfadeout{to{opacity:0}}
+@keyframes dimin{from{box-shadow:0 0 0 100vmax #1a302d00,0 12px 32px #00000029}}
+dialog#editor[open],dialog#xdetail[open],dialog#taskdlg[open],dialog#menu[open],dialog#search[open]{animation:sheetin .25s var(--sheet-ease)}
+body:not([data-layout=home]):not([data-layout=browse]) dialog#search[open]{animation:sheetin .25s var(--sheet-ease),dimin .25s var(--sheet-ease)}
+dialog.sheet-out{animation:sheetout .25s var(--sheet-ease) forwards!important;pointer-events:none}
+@media (prefers-reduced-motion:reduce){
+ dialog#editor[open],dialog#xdetail[open],dialog#taskdlg[open],dialog#menu[open],dialog#search[open],body:not([data-layout=home]):not([data-layout=browse]) dialog#search[open]{animation:sheetfadein .15s ease-out}
+ dialog.sheet-out{animation:sheetfadeout .15s ease-out forwards!important}
+ #scrim:not([hidden]){animation-duration:.15s}
+ #scrim{transition-duration:.15s}
+}
