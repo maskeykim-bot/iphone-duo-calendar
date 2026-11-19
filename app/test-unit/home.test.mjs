@@ -42,7 +42,7 @@ test('時間軸: 9〜19時で切り、14pt/時、現在線、終日は除く', (
   const A = axisBars([ev('a', '08:00', '10:00'), ev('b', '18:30', '21:00'), ev('c', '20:00', '21:00'), { id: 'z', all: true, start: '2026-11-17', end: '2026-11-17' }, ev('p', '09:00', '09:30')], '2026-11-17T09:41', '2026-11-17');
   assert.deepEqual(A.bars.map((b) => b.id), ['a', 'b', 'p']);
   assert.equal(A.bars[0].top, 0); assert.equal(A.bars[0].height, 14);
-  assert.equal(A.bars[1].top, 9.5 * 14); assert.equal(A.bars[1].height, 7);
+  assert.equal(A.bars[1].top, 9.5 * 14); assert.equal(A.bars[1].height, 14); // 最小の高さ 14（H-20）
   assert.equal(A.bars[2].past, true); assert.equal(A.bars[0].past, false);
   assert.equal(A.nowTop, (41 * 14) / 60); assert.equal(A.height, 140);
   assert.equal(axisBars([], '2026-11-17T20:10', '2026-11-17').nowTop, null);
@@ -54,4 +54,12 @@ test('深夜をまたぐ予定は今日の分だけ', () => {
 });
 test('メモの先頭行', () => {
   assert.deepEqual(firstLines('\n a \n\n b\nc'), ['a', 'b']); assert.deepEqual(firstLines(''), []); assert.deepEqual(firstLines(null), []);
+});
+
+test('時間軸: 重なる枠は横に2列、重ならなければ1列（H-20）', () => {
+  const A = axisBars([ev('a', '09:00', '10:00'), ev('p', '09:00', '09:30'), ev('q', '12:00', '13:00')], '2026-11-17T09:41', '2026-11-17');
+  const by = (id) => A.bars.find((b) => b.id === id);
+  assert.deepEqual([by('a').n, by('p').n], [2, 2]);
+  assert.notEqual(by('a').col, by('p').col);
+  assert.deepEqual([by('q').n, by('q').col], [1, 0]);
 });

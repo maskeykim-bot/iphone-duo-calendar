@@ -20,11 +20,18 @@ test('過去の選択日: 重複せず期限切れだけ。今日以降はこの
   assert.deepEqual(ids(g.upcoming), ['b']);
   assert.equal(g.overdue.length + g.selected.length + g.upcoming.length, 3);
 });
-test('未来の選択日: 選択日前の未来期限は期限切れへ（分類外にしない）', () => {
-  const g = G([R({ itemId: 'a', due: { date: '2026-11-18' } }), R({ itemId: 'b', due: { date: '2026-11-20' } }), R({ itemId: 'c', due: { date: '2026-11-22' } })], '2026-11-20');
-  assert.deepEqual(ids(g.overdue), ['a']);
+test('未来の選択日: 選択日前で今日以降は期限切れにせず before（赤にしない。M-17）', () => {
+  const g = G([R({ itemId: 'a', due: { date: '2026-11-18' } }), R({ itemId: 'b', due: { date: '2026-11-20' } }), R({ itemId: 'c', due: { date: '2026-11-22' } }), R({ itemId: 'd', due: { date: '2026-11-15' } }), R({ itemId: 'e', due: { date: '2026-11-16' } })], '2026-11-20');
+  assert.deepEqual(ids(g.overdue), ['d']);
+  assert.deepEqual(ids(g.before), ['e', 'a']);
   assert.deepEqual(ids(g.selected), ['b']);
   assert.deepEqual(ids(g.upcoming), ['c']);
+});
+test('選んだ日が先: 今日の期限は「11/16（今日）」の見出し（黒）、赤の期限切れは今日より前だけ', () => {
+  const html = tasksHtml({ lists: [], reminders: [R({ itemId: 'e', title: 'きょう', due: { date: '2026-11-16' } }), R({ itemId: 'd', title: 'きのう', due: { date: '2026-11-15' } })] }, { selected: '2026-11-20', now: NOW });
+  assert.match(html, /data-sec="before:2026-11-16"><h3 class="rmh">11\/16（今日）/);
+  assert.match(html, /<h3 class="rmh late">期限切れ<\/h3>/);
+  assert.doesNotMatch(html, /rmh late">11\/16/);
 });
 test('期限なし: 作成の古い順、欠落は後ろで題名・id 順', () => {
   const g = G([R({ itemId: 'z', title: 'b', createdAt: null }), R({ itemId: 'y', title: 'a', createdAt: null }), R({ itemId: 'x', title: 'c', createdAt: 300 }), R({ itemId: 'w', title: 'd', createdAt: 100 }), R({ itemId: 'v', title: 'a', createdAt: null })]);
