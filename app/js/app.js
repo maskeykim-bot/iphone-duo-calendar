@@ -6593,6 +6593,15 @@ async function boot() {
   await Promise.race([initNative(), new Promise((r) => setTimeout(r, 2500))]);
   document.documentElement.dataset.ready = '1';
 }
+// 押した反応（H-01）: iOS の WKWebView で CSS の :active を効かせるには、document に touchstart の聞き手が要る。
+// 触覚（軽）は主なボタン（保存・タブ・チェック・＋）だけ。haptic は非ネイティブでは何もしない。
+document.addEventListener('touchstart', () => {}, { passive: true });
+const BUZZ_SEL = '.tabs button,.pgsw button,.pswitch button,#save,.cadd,.radd,.ned-chk,.rmckb,.ned-done,[data-act="add"],[data-act="remck"],[data-act="remsubmit"]';
+document.addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'mouse') return;
+  const b = e.target.closest?.(BUZZ_SEL);
+  if (b && !b.disabled) feel('light');
+}, { passive: true });
 boot();
 if ('serviceWorker' in navigator && location.protocol !== 'file:' && location.protocol !== 'capacitor:' && !(window.Capacitor?.isNativePlatform?.()) && !params.has('nosw')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});

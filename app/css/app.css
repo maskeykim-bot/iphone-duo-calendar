@@ -1919,3 +1919,40 @@ body[data-posture=portrait] .mscreens{scrollbar-gutter:stable}
 .dpage .dnote{display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch}
 .dpage .dnote .dnt{flex:none;width:100%}
 .allday .ndchip,.ndrow .ndchip{z-index:3}
+
+/* ===== 第19.1版 S4: 押した反応（H-01, design/25 §1「押した反応 0.10」）=====
+   指が触れた瞬間に 0.10 秒 ease-out で変え、離したら 0.15 秒で戻す。
+   丸ボタン・行・タブ・チップ＝地を #EFECE4／緑の塗り＝黒 12%（brightness .88）／文字のリンク＝不透明度 .5。
+   :hover は触った後に残る（iOS）ので、ここの !important で :active を勝たせる。灰の点滅は消す。 */
+*{-webkit-tap-highlight-color:transparent}
+:where(button,[role=button],[role=tab],[role=checkbox],[role=switch],a[href],.mgrab,summary){transition:background-color .15s ease-out,opacity .15s ease-out,filter .15s ease-out}
+:where(button:not([role=switch]),[role=button],[role=tab],a[href]):active:where(:not(:disabled)){background-color:#EFECE4!important;transition-duration:.10s}
+/* 自分は透明で、見た目を子や疑似要素が持つもの（押せる範囲だけ広い） */
+:is(.cb,.tabs button,.pgsw button,.pswitch button,.allbtn,.spanbtn,#editor .hbtn,.ned .ned-ib,.ned .ned-done):active:where(:not(:disabled)){background-color:transparent!important}
+/* 丸ボタン */
+.cb:active:where(:not(:disabled)) .bi{background-color:#EFECE4!important;transition-duration:.10s}
+.cb .bi{transition:background-color .15s ease-out,filter .15s ease-out}
+.cb.cadd:active .bi,.cb.cpnl.on:active .bi,.cb.ctt.on:active .bi{background-color:var(--green)!important;filter:brightness(.88)}
+.cb.on:not(.cpnl):not(.ctt):active .bi{background-color:#DDE7E2!important;filter:brightness(.92)}
+.rbtn.radd:active{background-color:var(--green)!important;filter:brightness(.88)}
+/* 浮動タブの札（選んだ札は緑の上で 12% 黒、ほかは札の上に #EFECE4） */
+.tabs .pill,.pgsw .pill,.pswitch .pill,.spanbtn span,.allbtn span{transition:background-color .15s ease-out,filter .15s ease-out}
+.tabs button:active .pill,.pgsw button:active .pill,.pswitch button:active .pill,.spanbtn:active span,.allbtn:active span{background-color:#EFECE4!important;transition-duration:.10s}
+.tabs button[aria-pressed=true]:active .pill,.pgsw button[aria-pressed=true]:active .pill,.pswitch button[aria-pressed=true]:active .pill,.allbtn[aria-pressed=true]:active span,.rhead.dh .spanbtn[aria-pressed=true]:active span{background-color:var(--green)!important;filter:brightness(.88)}
+/* 予定の編集シートの ✕ ✓（円は疑似要素） */
+#editor .hbtn::before{transition:filter .15s ease-out}
+#editor .hbtn:active::before{filter:brightness(.92);transition-duration:.10s}
+#editor .hbtn.hok:active::before{filter:brightness(.88)}
+/* 緑の塗りのボタン */
+:is(.add,.next,.primary,.card>button.solid,button[aria-pressed=true],.deskbtn[aria-pressed=true],.sw[aria-checked=true],.mseg[aria-pressed=true],.nchip.on,.lchip.on,.rmchip[aria-pressed=true],.dchip[aria-pressed=true],.menurows button[aria-pressed=true],.tlmenu button[aria-checked=true],.tcell[aria-pressed=true],.dcap.open,.tcap.open,.rsmain,.rembtn,.xdact .primary,.mrbar button[data-mr=ok],.mmc.sel,.tlhd[aria-pressed=true],.undobar button):active:where(:not(:disabled)){background-color:var(--green)!important;filter:brightness(.88);transition-duration:.10s}
+:is(.tabs,.pgsw,.pswitch) button[aria-pressed=true]:active:where(:not(:disabled)),.allbtn[aria-pressed=true]:active{background-color:transparent!important;filter:none}
+/* 地の色つきの札（予定の札・時間軸の予定・終日の札・ホームの帯） */
+.strip:active,.fold .fev:active{background-color:var(--cat)!important;filter:brightness(.88);transition-duration:.10s}
+.tlev:active,.adpill:active,.hbarev:active{background-color:var(--tint,#DCE7E0)!important;filter:brightness(.92);transition-duration:.10s}
+.fold .fev:active{background-color:var(--cat)!important;filter:brightness(.88)}
+/* 文字のリンク */
+:is(.hgo,.hadd,.hmore,.rmdonebtn,.mback):active:where(:not(:disabled)){background-color:transparent!important;opacity:.5;transition-duration:.10s}
+/* スイッチ・つまみ */
+[role=switch]:active:where(:not(:disabled)),.mgrab:active{filter:brightness(.92);transition-duration:.10s}
+.mgrab:active i{background:#8E897D}
+/* 日マス・日付マス・時分マス・週の日の見出しは button なので上の一般の規則（地 #EFECE4）がそのまま効く */
