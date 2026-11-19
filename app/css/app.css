@@ -165,7 +165,7 @@ dialog{--m:12px;--pw:460px;position:fixed;box-sizing:border-box;min-width:0;
 html[data-kb] dialog{margin-top:0;margin-bottom:auto}
 dialog#confirm{z-index:11}
 .dtext{white-space:pre-line;font-size:13px;color:#68716A}
-dialog h2{font:24px/1.3 Georgia,'Hiragino Mincho ProN',serif;margin:0}
+dialog h2{font:700 22px/1.3 -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;margin:0}
 .formhead,.actions{display:flex;align-items:center;justify-content:space-between;gap:8px}
 form label{display:block;margin-top:12px;font-size:13px}
 .pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
@@ -197,12 +197,12 @@ body[data-posture=portrait] #app{padding-top:0}
 .shell.portrait{display:block;padding:0;gap:0}
 .pcol{display:flex;flex-direction:column;height:calc(var(--grid-top) + var(--grid-h));min-height:0}
 .portrait .calendar{flex:1 1 auto;min-height:0}
-.portrait .chead{position:relative;height:var(--head-h);min-height:0;flex:none;display:block;padding:0}
-.portrait .chead>*{position:absolute;top:calc(var(--hc) - 22px);margin:0}
+.portrait .chead{position:relative;height:calc(var(--head-h) + 44px);min-height:0;flex:none;display:block;padding:0}
+.portrait .chead>*{position:absolute;top:var(--head-h);margin:0}
 .portrait .chead [data-act=prev]{left:calc(120px * var(--ux))}
 .portrait .chead [data-act=next]{left:calc(376px * var(--ux))}
 .portrait .chead .allbtn{left:calc(432px * var(--ux))}
-.portrait .chead h2{left:calc(270px * var(--ux));transform:translateX(-50%);flex:none;padding:0;width:max-content;max-width:calc(200px * var(--ux));overflow:hidden;line-height:44px;font-size:20px;white-space:nowrap}
+.portrait .chead h2{font:700 20px/44px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;left:calc(270px * var(--ux));transform:translateX(-50%);flex:none;padding:0;width:max-content;max-width:calc(200px * var(--ux));overflow:hidden;line-height:44px;font-size:20px;white-space:nowrap}
 .portrait .weekdays{height:var(--wd-h);padding:0;align-items:center}
 .portrait .week.named,.portrait .week.simple{flex:0 0 max(var(--week-h),var(--need,101px))}
 .portrait .week.all{height:max(var(--week-h),var(--need,0px))}
@@ -1523,8 +1523,8 @@ dialog.panel.tface-open{overflow:visible}
 .portrait .mpull[data-form=two] .week{height:50%}
 .portrait .mpull[data-form=month] .week{height:calc(100% / 6)}
 .portrait .mpull .week .day{height:100%}
-.portrait .mpull .mgrab{position:absolute;left:0;right:0;top:calc(var(--groove-avoid-y0,459px) - 26px);height:calc(var(--groove-y0,467px) - var(--groove-avoid-y0,459px) + 26px);align-items:flex-end;padding-bottom:0}
-.portrait .mpull .mgrab i{margin-bottom:10px}
+.portrait .mpull .mgrab{position:absolute;left:0;right:0;top:calc(var(--groove-avoid-y0,459px) - 26px);height:26px;min-height:0;align-items:center;padding-bottom:0}
+.portrait .mpull .mgrab i{margin-bottom:0}
 .portrait .mpull .mday{position:fixed;left:var(--content-x);width:var(--content-w);box-sizing:border-box;top:var(--groove-avoid-y1,492px);bottom:34px;padding:0 12px 62px}
 .portrait .mdev{height:44px}.portrait .mdev .mdt{font-size:13px;width:52px}.portrait .mdev strong{font-size:15px}
 .portrait .mpull .mdh h3{font-size:17px}
@@ -1845,7 +1845,7 @@ dialog#rsheet[data-kind=explain] .rsmain{margin-bottom:26px}
 .pvnext strong{font-size:20px;line-height:26px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pvnext .when{font-size:13px;line-height:18px;display:block}
 .pvnext .time{font:400 13px/18px -apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif}
-.pvnext.none{cursor:default}.pvnext.none .ghost{margin-top:2px;min-height:44px}
+.pvnext.none{cursor:default;gap:0}.pvnext.none strong{font-size:18px;line-height:24px}.pvnext.none .ghost{margin-top:4px;height:44px;min-height:44px;padding:0 12px}
 .pv-today,.pv-week,.pv-tasks,.pv-notes{background:#fff;border:1px solid #E3E0D7;border-radius:14px;overflow:hidden}
 .pv-today{left:12px;right:12px;top:calc(var(--head-h,82px) + 168px);height:201px;padding:0 12px}
 .pvh{display:flex;align-items:center;gap:12px;height:36px;flex:none}
@@ -1883,3 +1883,11 @@ dialog#rsheet[data-kind=explain] .rsmain{margin-bottom:26px}
 .phome.big .pvb>.pv-week{flex:0 0 100%}
 .phome.big .pvb>.pv-tasks,.phome.big .pvb>.pv-notes{flex:1 1 0;min-width:0;min-height:227px}
 .phome.big .pvh{min-height:36px}
+
+/* 開いた縦の月「全部」（H-13・#21）: 1枚の紙を2つの窓で見る。上の窓は y146〜--groove-cut-y0、下の窓は --groove-cut-y1〜マスの下端。窓どうしは同じ位置で動く。 */
+.portrait .alwin{position:fixed;left:var(--content-x);width:var(--content-w);overflow:hidden}
+.portrait .alwin .scroll{height:100%;overflow-y:auto;overscroll-behavior:contain}
+.portrait .alwin .scroll.allb{position:relative;container-type:normal;scrollbar-gutter:stable}
+.portrait .alwin .scroll.allb::-webkit-scrollbar{width:3px}
+.portrait .alwin .allbp{display:block}
+.portrait .alwin .week.all{height:max(var(--ah),var(--need,0px))}

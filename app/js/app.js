@@ -325,7 +325,7 @@ function updateLayoutMetrics() {
     // 開いた縦: 見出しは上 safe の帯の中（T に足さない）。head = max(T, 82)。縦位置は safe を除いた画面全体（上は帯込み）。
     const head = Math.max(T, 82), p = (H - B) / 951, ux = U / 669;
     // 第19版 PR5（design/28）: タブ x191〜477・y863〜909（高さ 46）、＋ は右下の丸 48（y863〜911）。下の 34 はよける。
-    left = x0; right = W - R; c = U / 7; headH = head; gridTop = head + 24;
+    left = x0; right = W - R; c = U / 7; headH = head; gridTop = head + 64; // 見出し（月・‹ ›・全・今日）は上の帯の下 y82〜126、曜日 126〜146、マスは y146〜（上の帯は設定・切替・検索だけ）
     const rowTop = Math.min(H - B - 88 * p, H - B - 48);
     G = rowTop - 8 * p - gridTop; // 月はタブの上 8 まで
     ctrlY = rowTop; tabsY = rowTop; tabsCx = Ls + U / 2;
@@ -393,7 +393,7 @@ function updateLayoutMetrics() {
   Object.assign(v, {
     'left-end': right, 'right-start': rightStart, 'grid-top': gridTop, 'grid-h': G, 'week-h': G / n, 'month-col-w': c,
     'tabs-x': tabsCx - tabsW / 2, 'sw-r-x': swRx - tabsW / 2, 'tabs-y': Math.min(tabsY, maxY - 46), 'tabs-w': tabsW, 'controls-y': Math.min(ctrlY, maxY - 48),
-    'head-h': headH, 'wd-h': gridTop - (post === 'portrait' ? 0 : y0) - headH, 'hc': hc,
+    'head-h': headH, 'wd-h': post === 'portrait' ? 20 : gridTop - y0 - headH, 'hc': hc,
   });
   if (post === 'landscape') v['hpt'] = Math.max(0, 40 * q - 22);
   // 閉じた画面: 月のスクロール末尾は、最終週をタブの上へ出せるだけ（安全矩形の下端 − タブ上端）、最低56
@@ -797,13 +797,36 @@ function monthGridAll(kind) {
     const gl = pasteGhosts(w, cfg.allCap).reduce((m, g) => Math.max(m, g.lane + 1), 0);
     rows += `<div class="week all" data-wk="${days[0]}" style="--need:${needOf(Math.max(w.used, gl))}px"></div>`;
   }
+  if (kind === 'portrait' && !panelOn()) {
+    // 開いた縦（H-13・#21）: 1枚の紙を2つの窓で見る。上の窓 y146〜458、下の窓 y500〜（溝 y459〜492 には何も置かない。行は y458 で切り、残りは y500 から続く。紙は飛ばさない）。
+    const top = cssPx('--grid-top', 146), c0 = cssPx('--groove-cut-y0', 458), c1 = cssPx('--groove-cut-y1', 500), G = cssPx('--grid-h', 709);
+    const topH = Math.max(0, c0 - top), botH = Math.max(0, top + G - c1), st = `--n:${weeks.length};--ah:${r2(G / weeks.length)}px`;
+    return `${weekdaysHtml(' all')}<div class="alwin alt" style="top:${r2(top)}px;height:${r2(topH)}px;${st}"><div class="scroll all" data-scroll="cal" style="${st}">${rows}</div></div><div class="alwin alb" style="top:${r2(c1)}px;height:${r2(botH)}px;${st}"><div class="scroll allb"><div class="allbp" style="margin-top:${-r2(topH)}px">${rows}</div></div></div>`;
+  }
   return `${weekdaysHtml(' all')}<div class="scroll all" data-scroll="cal" style="--n:${weeks.length}">${rows}</div>`;
+}
+// 下の窓（.allb）の行を上の窓の行から写す。2つの窓は同じ scrollTop（紙の位置 s）で一緒に動く。
+const allWin = () => { const a = root.querySelector('.alwin .scroll.all'), b = root.querySelector('.alwin .scroll.allb'); return a && b ? { a, b } : null; };
+function allMirror() {
+  const w = allWin(); if (!w) return;
+  const ra = [...w.a.children], rb = [...w.b.firstElementChild.children];
+  ra.forEach((r, i) => {
+    const c = rb[i]; if (!c) return;
+    if (r.dataset.drawn) { if (c.dataset.src !== r.innerHTML.length + ':' + (r.dataset.drawn || '')) { c.innerHTML = r.innerHTML; c.dataset.drawn = '1'; c.dataset.src = r.innerHTML.length + ':1'; c.querySelectorAll('button').forEach((x) => { x.tabIndex = -1; }); } }
+    else if (c.dataset.drawn) { c.textContent = ''; delete c.dataset.drawn; delete c.dataset.src; }
+  });
+}
+function allSync(el) {
+  const w = allWin(); if (!w) return;
+  const max = Math.max(0, w.a.scrollHeight - w.a.clientHeight - w.b.clientHeight), s = Math.min(max, Math.max(0, el.scrollTop)), o = el === w.a ? w.b : w.a;
+  if (Math.abs(el.scrollTop - s) > 0.01) el.scrollTop = s;
+  if (Math.abs(o.scrollTop - s) > 0.01) o.scrollTop = s;
 }
 // 見えている週（スクロール位置から計算）と前後1週だけ描く。行の高さは固定なので、描画してもスクロール位置はずれない。
 function syncAllWeeks() {
   const sc = root.querySelector('.scroll.all');
   if (!sc) return;
-  const rows = [...sc.children], top = sc.scrollTop, bot = top + sc.clientHeight;
+  const aw = allWin(), rows = [...sc.children], top = sc.scrollTop, bot = top + sc.clientHeight + (aw ? aw.b.clientHeight : 0);
   let a = rows.length, z = -1;
   rows.forEach((r, i) => { if (r.offsetTop < bot && r.offsetTop + r.offsetHeight > top) { a = Math.min(a, i); z = Math.max(z, i); } });
   const cur = parseKey(state.selected).getMonth(), sel = state.selected, today = todayKey();
@@ -812,6 +835,7 @@ function syncAllWeeks() {
     if (want && !r.dataset.drawn) { r.innerHTML = weekInner(allWeeks.get(r.dataset.wk), { ...allCtx, cur, sel, today }); r.dataset.drawn = '1'; if (PS.on) applyPasteInert(); }
     else if (!want && r.dataset.drawn) { r.textContent = ''; delete r.dataset.drawn; }
   });
+  allMirror();
   paintRange();
 }
 // 見えている先頭の週と、その週の中での位置（割合）を覚える。向き・開閉で行の高さが変わっても同じ週に戻せる。
@@ -834,7 +858,8 @@ function restoreAll(anchor) {
   if (target) sc.scrollTop = target.offsetTop + anchor.ratio * target.offsetHeight;
   else { // 初回・月が変わったとき: 選んでいる日の週が見えるように
     const w = sc.querySelector(`[data-wk="${weekStart(state.selected)}"]`);
-    sc.scrollTop = w && w.offsetTop + w.offsetHeight > sc.clientHeight ? w.offsetTop : 0;
+    const vis = sc.clientHeight + (allWin()?.b.clientHeight || 0);
+    sc.scrollTop = w && w.offsetTop + w.offsetHeight > vis ? w.offsetTop : 0;
   }
   allYm = ym;
   syncAllWeeks();
@@ -842,6 +867,7 @@ function restoreAll(anchor) {
   anchorRec = anchorOf(sc);
   let raf = 0;
   sc.addEventListener('scroll', () => {
+    allSync(sc);
     if (sizeOf(sc) === recSize) anchorRec = anchorOf(sc);
     cancelAnimationFrame(raf); raf = requestAnimationFrame(syncAllWeeks);
   }, { passive: true });
@@ -1155,6 +1181,7 @@ function paintMpScroll(sec) {
 root.addEventListener('scroll', (ev) => {
   const el = ev.target;
   if (!(el instanceof Element)) return;
+  if (el.classList.contains('allb')) { allSync(el); return; }
   if (el.classList.contains('mday')) { MP.scroll = el.scrollTop; const c0 = PULL_CFG.browse[state.monthForm]; if (el.scrollTop > 0) MP.cs = c0.rows * c0.h + 24 + el.scrollTop; }
   else if (el.classList.contains('mpull') && pullKind() === 'browse') { const c0 = PULL_CFG.browse[state.monthForm]; MP.cs = el.scrollTop; MP.scroll = Math.max(0, el.scrollTop - (c0.rows * c0.h + 24)); paintMpScroll(el); }
 }, true);
