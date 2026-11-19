@@ -203,13 +203,13 @@ for (const size of OPEN_SIZES) {
     const kind = await page.evaluate(() => document.body.dataset.layout);
     await tab(page, 'ホーム').click();
     await expect(tab(page, 'ホーム')).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('.hero')).toBeVisible();
+    await expect(page.locator(kind === 'open' && size.height > size.width ? '.phome' : '.hero')).toBeVisible(); // 開いた縦のホームは案A（第19.1版 S2。日付の行・次の予定・今日の予定・今週の帯）
     await expect(page.locator('body')).toHaveAttribute('data-layout', kind);
     await page.getByRole('button', { name: '今日に戻る' }).click();
     await expect(tab(page, 'ホーム')).toHaveAttribute('aria-pressed', 'true'); // 今日は表示を保つ
     await tab(page, '週').click();
     await expect(tab(page, '週')).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('.hero')).toHaveCount(0);
+    await expect(page.locator('.hero, .phome')).toHaveCount(0);
     await page.getByRole('button', { name: '今日に戻る' }).click();
     await expect(tab(page, '週')).toHaveAttribute('aria-pressed', 'true');
     await tab(page, '月').click();
