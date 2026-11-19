@@ -1910,8 +1910,7 @@ dialog#rsheet[data-kind=explain] .rsmain{margin-bottom:26px}
 body[data-posture=portrait] .mscreens{scrollbar-gutter:stable}
 
 /* 第19.1版 S3（M-07）: 時間ページの見出しは日付 20 W6 と六曜 13 灰を切らずに（幅 181）。ノートの札は終日の行の右へ（押せる 44）。 */
-.rhead.dh h2.rdate.keep{flex:1 0 auto}
-.rhead.dh h2.rdate.keep .datebtn{max-width:none;overflow:visible}
+.rhead.dh h2.rdate.keep{flex:1 1 auto;min-width:0}
 .rhead.dh h2.rdate.keep .hdt{font-weight:600}
 .allday .ndchip,.ndrow .ndchip{margin:0 0 0 8px;flex:none}
 .ndrow{display:flex;justify-content:flex-end;align-items:center;flex:none;height:28px;margin-bottom:4px;padding:0 4px}
