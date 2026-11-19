@@ -161,6 +161,7 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
     readValue(); const R = rows(); const { s, e } = selNow();
     const ia = rowIndexOf(R, s), ib = rowIndexOf(R, e), A = R[ia];
     const col = s - A.start - A.pre.length;
+    const s2 = ia !== ib && col === 0 ? A.start : s; // 行の頭から複数行を選んで消す・打つとき、頭の行の記号も一緒に消える（全選択して消すと空のノート）
     const data = ev.data ?? ev.dataTransfer?.getData('text/plain') ?? '';
     const norm = (x) => String(x).replace(/\r\n?/g, '\n');
     if (t === 'insertParagraph' || t === 'insertLineBreak') {
@@ -169,11 +170,11 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
       editRaw(s, e, '\n', null, t); return;
     }
     if (t === 'insertFromPaste' || t === 'insertFromDrop' || t === 'insertFromYank' || (t === 'insertReplacementText' && ia !== ib)) {
-      ev.preventDefault(); editRaw(s, e, norm(data), null, t); return;
+      ev.preventDefault(); editRaw(s2, e, norm(data), null, t); return;
     }
-    if (t === 'insertText' && (ia !== ib || /\n/.test(data))) { ev.preventDefault(); editRaw(s, e, norm(data), null, t); return; }
+    if (t === 'insertText' && (ia !== ib || /\n/.test(data))) { ev.preventDefault(); editRaw(s2, e, norm(data), null, t); return; }
     if (/^delete/.test(t)) {
-      if (ia !== ib) { ev.preventDefault(); editRaw(s, e, '', s, t); return; }
+      if (ia !== ib) { ev.preventDefault(); editRaw(s2, e, '', s2, t); return; }
       if (s !== e) { if (t === 'deleteByCut') { ev.preventDefault(); editRaw(s, e, '', s, t); } return; } // 1行の中の選択の削除は任せる
       const back = /Backward/.test(t), fwd = /Forward/.test(t);
       if (back && col === 0) {

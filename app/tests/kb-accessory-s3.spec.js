@@ -82,10 +82,11 @@ test.describe('kbTop が下がっても入力欄・シートは kbTop の真上 
     await withMode(page, 'task'); await fakeEnv(page); await openApp(page, SIZES.openPortrait669);
     await seedTasks(page, [T('a1', { title: 'いち' })]); await page.locator('input.remin').focus();
     await setKb(page, kb);
-    const b = await bottomOf(page.locator('input.remin'));
+    const b = await bottomOf(page.locator('.rmadd'));
     expect(Math.abs(b - (kb - 8))).toBeLessThanOrEqual(1);
   });
   test('開いた横 kbTop 372: ノートのシートの本文の窓の下端 = kbTop−8（シートの下端は kbTop）', async ({ page }) => {
+    await page.addInitScript(() => { if (localStorage.getItem('__s3')) return; localStorage.setItem('__s3', '1'); const k = 'duo.ui.v1'; let s = {}; try { s = JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch { s = {}; } localStorage.setItem(k, JSON.stringify({ ...s, selected: '2026-11-12', spreadType: 'tt' })); });
     await fakeEnv(page); await openApp(page, SIZES.openLandscape951);
     await page.locator('.dpage.rp .dnote').click();
     await expect(page.locator('.nsheet .ned-body')).toBeVisible(); await page.waitForTimeout(400);

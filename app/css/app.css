@@ -1916,3 +1916,7 @@ body[data-posture=portrait] .mscreens{scrollbar-gutter:stable}
 .allday .ndchip,.ndrow .ndchip{margin:0 0 0 8px;flex:none}
 .ndrow{display:flex;justify-content:flex-end;align-items:center;flex:none;height:28px;margin-bottom:4px;padding:0 4px}
 .ndchip::before{left:0;right:0}
+/* 第19.1版 S3（M-06）: ノート欄の中身は上から（button の既定の縦中央にしない）。1行目に「この日のノートを書く」が来る。 */
+.dpage .dnote{display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch}
+.dpage .dnote .dnt{flex:none;width:100%}
+.allday .ndchip,.ndrow .ndchip{z-index:3}

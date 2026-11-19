@@ -210,7 +210,7 @@ test.describe('今日＋明日（開いた横）', () => {
 
   test('ノート欄: 日付つきノートの本文を表示。0件=新規・1件=開く', async ({ page }) => {
     await land(page, TT);
-    await expect(page.locator('.dpage.lp .dnt')).toHaveText('');
+    await expect(page.locator('.dpage.lp .dnt')).toHaveText('この日のノートを書く'); // 第19.1版 M-06: 空の日は1行目に案内（書く手がかり）
     await page.locator('.dpage.lp .dnote').click();
     // 第19版 PR9: 0件・1件はそのページの上にノートのシートが出る（ページは置き換わらない）
     await expect(page.locator('.nsheet .ned-body')).toBeVisible();

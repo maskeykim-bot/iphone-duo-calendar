@@ -82,3 +82,46 @@ test('往復: 整形したあと戻すと元の文字列に完全一致', () => 
   }
   assert.equal(splitLines('a\r\nb\n').texts.length, 3);
 });
+
+// 第19.1版 S3: 画面の見え方（viewOf）。保存の文字は変えない＝ pre + text が必ず元の行に戻る。
+import { viewOf, richLines } from '../js/note-lines.js';
+test('viewOf: 記号を pre に分け、line === pre + text。種類は plain/h1/h2/bullet/check', () => {
+  const cases = [
+    ['', 'plain', ''], ['本文', 'plain', ''], ['# 見出し', 'h1', '# '], ['## 小見出し', 'h2', '## '], ['###### 6', 'h2', '###### '],
+    ['- 項目', 'bullet', '- '], ['  - 字下げ', 'bullet', '  - '], ['- [ ] 予定', 'check', '- [ ] '], ['- [x] 済み', 'check', '- [x] '], ['- [X] 大文字', 'check', '- [X] '],
+    ['- [ ]', 'check', '- [ ]'], ['- [ ] ', 'check', '- [ ] '], ['#見出しでない', 'plain', ''], ['-項目でない', 'plain', ''], ['- ', 'bullet', '- '], ['# ', 'h1', '# '],
+    ['\t- [x]\u3000全角', 'check', '\t- [x]'],
+  ];
+  for (const [line, kind, pre] of cases) {
+    const v = viewOf(line);
+    assert.equal(v.pre + v.text, line, `往復 ${JSON.stringify(line)}`);
+    assert.equal(v.kind, kind, `種類 ${JSON.stringify(line)}`);
+    if (kind !== 'plain' || line === '') assert.equal(v.pre, pre, `pre ${JSON.stringify(line)}`);
+  }
+  assert.equal(viewOf('- [x] a').checked, true); assert.equal(viewOf('- [ ] a').checked, false);
+  assert.equal(viewOf('- [x] a').text, 'a');
+});
+test('viewOf: 本文全体を行ごとに描いて戻しても、保存の文字（LF・CRLF・空行・末尾の改行）が変わらない', () => {
+  const texts = ['題\n# 見出し\n- a\n- [ ] b\n- [x] c\n\n本文\n', '題\r\n- [ ] 牛乳\r\n卵\r\n\r\n- 既存', '', '\n\n', '- [x]', '## 小\n  - [X] 字下げ\n###### 六'];
+  for (const t of texts) {
+    const { texts: ls, eols } = splitLines(t);
+    const back = ls.map((l, i) => { const v = viewOf(l); return v.pre + v.text + eols[i]; }).join('');
+    assert.equal(back, t, JSON.stringify(t));
+  }
+});
+test('書式の操作のあとも、画面の見え方から戻した文字は applyFormat の結果と同じ（見出し・箇条書き・チェックの往復）', () => {
+  let t = '題\n本文の行\n二行目';
+  for (const kind of ['heading', 'bullet', 'check', 'check', 'plain']) {
+    const r = applyFormat(t, 2, 2, kind);
+    const back = splitLines(r.text).texts.map((l) => { const v = viewOf(l); return v.pre + v.text; }).join('\n');
+    assert.equal(back, r.text); t = r.text;
+  }
+  assert.equal(t, '題\n本文の行\n二行目');
+});
+test('richLines: 先頭から n 行・空行を飛ばす・記号は text に出ない', () => {
+  const t = '# 題\n\n- a\n- [x] b\n本文';
+  assert.deepEqual(richLines(t, 3, true).map((v) => [v.kind, v.text]), [['h1', '題'], ['bullet', 'a'], ['check', 'b']]);
+  assert.equal(richLines(t).length, 5);
+  assert.equal(richLines(null).length, 1);
+  for (const v of richLines(t)) assert.ok(!/^(#+ |- )/.test(v.text));
+});

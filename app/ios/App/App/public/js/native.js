@@ -7,6 +7,20 @@ export function nativeAvailable() {
   } catch { return false; }
 }
 
+// 入力補助バー（∧∨✓）を消す（第19.1版 S3、design/20 §2）。ネイティブのときだけ。Web では何もしない。失敗しても例外を外へ出さない。
+// @capacitor/keyboard は bundler なしの静的 PWA なので window.Capacitor.Plugins.Keyboard（なければ nativePromise）で呼ぶ。
+export function hideKeyboardAccessoryBar() {
+  try {
+    const c = window.Capacitor;
+    if (!c?.isNativePlatform?.()) return false;
+    const kb = c.Plugins?.Keyboard;
+    const p = typeof kb?.setAccessoryBarVisible === 'function' ? kb.setAccessoryBarVisible({ isVisible: false })
+      : typeof c.nativePromise === 'function' ? c.nativePromise('Keyboard', 'setAccessoryBarVisible', { isVisible: false }) : null;
+    p?.catch?.(() => {});
+    return !!p;
+  } catch { return false; }
+}
+
 export const call = (method, options = {}) => new Promise((resolve, reject) => {
   try { window.Capacitor.nativePromise('DuoNative', method, options).then(resolve, reject); } catch (e) { reject(e); }
 });

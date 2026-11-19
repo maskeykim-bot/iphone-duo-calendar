@@ -20,12 +20,12 @@ import { splitEvents, eveningFirst, homeTasks, dueText, tomorrowSummary, axisBar
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS, FOCUS_MODES, FOCUS_LABELS, normFocusMode, normSpreadType, normTtSplit } from './pages.js';
 import { noteStore, setNoteHook, recoverNoteDrafts, importLegacyMemoDrafts, folderOps, groupNotes, filterByFolder, FOLDER_NAME_MAX } from './notes.js';
 import { mountNoteEditor } from './notes-ui.js';
-import { richLines } from './note-lines.js';
+import { richLines, viewOf } from './note-lines.js';
 import { titleOf, noteDateOf, dateOccupants, dailyHeading, ensureDailyFolder } from './notes-model.js';
 import { DELETE_UNDO_MS, tasksHtml, focusTasksHtml, HIST_DAYS, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDeleteController, TASK_DELETED } from './reminders.js';
 import { liveTasks as liveTasksOf, LOCAL_LIST, TASK_STORE_TEXT, createTaskStore, createLocalCall, createLocalAddController, rowOf, createTaskDoneController, DONE_UNDO_MS, TASK_VIEWS, TASK_VIEW_LABELS, normTaskView, dueCounts, todayTasks, inheritTaskSettings, normTaskSettings } from './tasks.js';
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
-import { call, errCode, errReason, errText, haptic, listen, nativeAvailable, remNative, requestReminderPermission } from './native.js';
+import { call, hideKeyboardAccessoryBar, errCode, errReason, errText, haptic, listen, nativeAvailable, remNative, requestReminderPermission } from './native.js';
 import { createReminderSync, normSyncSettings, previewFirst, applyFirst, prevListCandidates, SYNC_WINDOW_DAYS } from './reminder-sync.js';
 import { createDestPage, destRowsHtml } from './destination-ui.js';
 import { KB_METRICS_ENABLED, kbMetrics, kbText, screenText } from './kbmetrics.js';
@@ -1099,7 +1099,7 @@ function pullDayTasks(k) {
 }
 function pullDayNote(k) {
   const first = NB.first.get(k), n = NB.marks.get(k) || 0;
-  return `<section class="mdsec mdnotes" aria-label="ノート"><h4>ノート</h4><button type="button" class="dnote mdnote" data-act="daynote" data-day="${k}" aria-label="${esc(dayLabel(k))}のノート${n ? `${n}件を開く` : 'を書く'}"><span class="dnt">${first ? esc(first) : '<span class="mdempty">この日のノートを書く</span>'}</span></button></section>`;
+  return `<section class="mdsec mdnotes" aria-label="ノート"><h4>ノート</h4><button type="button" class="dnote mdnote" data-act="daynote" data-day="${k}" aria-label="${esc(dayLabel(k))}のノート${n ? `${n}件を開く` : 'を書く'}"><span class="dnt">${first ? richHtml(richLines(first), 'div') : '<span class="mdempty">この日のノートを書く</span>'}</span></button></section>`;
 }
 function pullDayHtml() {
   const k = state.selected, m = state.monthDay;
@@ -1429,9 +1429,9 @@ function tlBlock({ e, s, en, col, n }, k, cw = false) {
 }
 // 終日段: 11px「終日」＋カテゴリの淡色地・本色12px太字のピル。最大3件（3日表示は各日1件）、幅不足なら減らして +N（その日の一覧へ）。
 // 第19.1版 S3（M-07）: ノートの札は見出しの行から外して、終日の行の右へ（押せる 44）。札の分の幅は終日のピルから引く。
-const NOTE_CHIP_W = 92;
+const noteChipW = () => { const n = NB.marks.get(state.selected) || 0; return n ? 82 + 6 * (String(n).length - 1) : 60; }; // 札の幅＋左の間 8（実測 73.4＋8）
 function allDayRow(ks, avail, chip = false) {
-  if (chip) avail = Math.max(0, avail - NOTE_CHIP_W);
+  if (chip) avail = Math.max(0, avail - noteChipW());
   const cap = ks.length === 1 ? 3 : 1, colW = avail / ks.length;
   const cols = ks.map((k) => {
     const list = eventsOnDay(occIn(k, k), k).filter((e) => e.all);
@@ -1635,7 +1635,7 @@ function noteRowsHtml(where) {
   if (!rows.length) return `<p class="smsg">${q.trim() ? '該当するノートはありません。' : (NB.sel === 'all' ? 'ノートはまだありません。「＋ 新規」から書けます。' : 'このフォルダにノートはありません。')}</p>`;
   const { pinned, others } = groupNotes(rows);
   const rowHtml = (n) => {
-    const title = n.title || titleOf(n.body), second = n.body.split('\n').slice(1).map((l) => l.trim()).find(Boolean) || '';
+    const title = n.title || titleOf(n.body), second = n.body.split('\n').slice(1).map((l) => viewOf(l.trim()).text.trim()).find(Boolean) || ''; // 一覧の2行目にも記号は出さない（S3）
     const nd = noteDateOf(n), fname = (NB.folders || []).find((x) => x.id === n.folderId)?.name || '';
     const dshort = nd ? `${nd.slice(5, 7).replace(/^0/, '')}/${nd.slice(8, 10).replace(/^0/, '')}` : '';
     const line2 = [noteDayText(n.updatedAt), fname, dshort].filter(Boolean).join(' ・ ');
@@ -2415,7 +2415,7 @@ function ttList(k) {
 }
 // 1日ページ。縦の寸法（見出し82・予定欄・つまみ24・ノート）は左右で同じ。ノート欄の行の y は CSS の整数 px。
 // 見るだけのノートの行（記号は出さない）。書式は notes-ui の本文と同じ data-k の描き方。
-const richHtml = (vs, tag = 'span') => vs.map((v) => `<${tag} class="nl" data-k="${v.kind}"${v.kind === 'check' ? ` data-c="${v.checked ? 1 : 0}"` : ''}>${esc(v.text)}</${tag}>`).join('');
+function richHtml(vs, tag = 'span') { return vs.map((v) => `<${tag} class="nl" data-k="${v.kind}"${v.kind === 'check' ? ` data-c="${v.checked ? 1 : 0}"` : ''}>${esc(v.text)}</${tag}>`).join(''); }
 function dayPage(side, k, portrait = false) {
   const body = !portrait && ttSplitNow() < TT_TIME_MIN ? ttList(k) : timelineHtml([k], Math.max(0, (portrait ? safeW() : paneWidth(side)) - 80), side, 60);
   const first = NB.first.get(k), n = NB.marks.get(k) || 0;
@@ -2774,6 +2774,7 @@ function placeNoteSheet() {
   const g = sheetGeometry(NB.sheet.side), st = SHEET_EL.style;
   st.left = `${g.x}px`; st.top = `${g.y}px`; st.width = `${g.w}px`; st.height = `${Math.max(120, g.bottom - g.y)}px`;
   st.setProperty('--ns-pl', `${g.pl}px`); st.setProperty('--ns-pr', `${g.pr}px`); st.setProperty('--ns-bml', `${g.bml}px`); st.setProperty('--ns-bmr', `${g.bmr}px`);
+  st.setProperty('--ns-pb', de.dataset.kb && kbTopOf(window.visualViewport, window.innerHeight) !== null ? '8px' : '0px'); // キーボードが出ているとき本文の窓の下端は kbTop の 8 上（20 §3）
   SHEET_EL.dataset.kind = g.kind; SHEET_EL.dataset.side = NB.sheet.side;
   const fs = NB.ed?.fsheetEl; if (fs) { fs.style.setProperty('--ns-x', `${g.x}px`); fs.style.setProperty('--ns-w', `${g.w}px`); }
 }
@@ -5823,6 +5824,7 @@ window.addEventListener('resize', () => updateFoldProbe());
 updateFoldProbe();
 window.__posture = postureCtl; // 手動「折り」代替とテスト用
 async function initNative() {
+  hideKeyboardAccessoryBar(); // ∧∨✓ の帯を消す（19.1）。ネイティブ以外・失敗しても何も起きない
   if (!NATIVE) return;
   postureCtl.start(); // 権限処理より前に購読→取得。失敗・未対応でも起動を止めない
   // 連携オフ・カレンダー権限なしでも通知は動くので、購読は権限確認より前に行う。
