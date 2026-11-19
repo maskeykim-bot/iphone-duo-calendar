@@ -37,8 +37,8 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
   const top = el('div', 'ned-top'); top.setAttribute('role', 'toolbar'); top.setAttribute('aria-label', 'ノートの操作');
   const ibtn = (cls, label, act, svg) => { const b = el('button', `ned-ib ${cls}`); b.type = 'button'; b.dataset.act = act; b.setAttribute('aria-label', label); b.innerHTML = svg; return b; };
   const S = (d) => `<svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
-  const undoBtn = ibtn('ned-undo', '元に戻す', 'undo', S('<path d="M8 6 4 10l4 4"/><path d="M4 10h9a5 5 0 0 1 0 10h-3"/>')); undoBtn.disabled = true;
-  const redoBtn = ibtn('ned-redo', 'やり直す', 'redo', S('<path d="m14 6 4 4-4 4"/><path d="M18 10H9a5 5 0 0 0 0 10h3"/>')); redoBtn.disabled = true;
+  const undoBtn = ibtn('ned-undo', '元に戻す', 'undo', S('<path d="M8 6 4 10l4 4"/><path d="M4 10h9a5 5 0 0 1 0 10h-3"/>')); undoBtn.setAttribute('aria-disabled', 'true');
+  const redoBtn = ibtn('ned-redo', 'やり直す', 'redo', S('<path d="m14 6 4 4-4 4"/><path d="M18 10H9a5 5 0 0 0 0 10h3"/>')); redoBtn.setAttribute('aria-disabled', 'true');
   const gUndo = el('div', 'ned-grp ned-gundo'); gUndo.append(undoBtn, redoBtn);
   const fmt = el('div', 'ned-fmt ned-grp ned-gtools'); fmt.setAttribute('aria-label', '書式');
   const FMT = [['type', '文字の書式', S('<path d="M4 6V4h14v2"/><path d="M11 4v14"/><path d="M8 18h6"/>')], ['check', 'チェックリストにする', S('<rect x="3.5" y="3.5" width="15" height="15" rx="3.5"/><path d="m7.5 11 2.5 2.5 4.5-5"/>')], ['bullet', '箇条書きにする', S('<circle cx="5" cy="6" r="1.2"/><circle cx="5" cy="11" r="1.2"/><circle cx="5" cy="16" r="1.2"/><path d="M9 6h9M9 11h9M9 16h9"/>')]];
@@ -191,7 +191,8 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
   let undoSt = [], redoSt = [], last = null, groupOpen = false, groupTimer = 0, root_active = false;
   const snap = () => { const w = document.activeElement === title ? 'title' : 'body'; const t = w === 'title' ? title : body; return { t: title.value, b: body.value, s: t.selectionStart ?? 0, e: t.selectionEnd ?? 0, w }; };
   const closeGroup = () => { groupOpen = false; clearTimeout(groupTimer); groupTimer = 0; };
-  const paintUndo = () => { undoBtn.disabled = !undoSt.length; redoBtn.disabled = !redoSt.length; };
+  // 押せないときも `disabled` にしない（押した瞬間の地の変化 #EFECE4 を見せるため）。薄く見せ、aria-disabled で読み上げ・キーボードにも伝える
+  const paintUndo = () => { undoBtn.setAttribute('aria-disabled', String(!undoSt.length)); redoBtn.setAttribute('aria-disabled', String(!redoSt.length)); };
   function resetHistory() { undoSt = []; redoSt = []; closeGroup(); last = snap(); paintUndo(); }
   // 文字が変わったとき（input）。まとまりの最初の1回だけ、直前の写しを積む。
   function noteChange(breakAfter = false) {
@@ -279,7 +280,7 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
     const b = ev.target.closest('button'); if (!b || b.disabled) return;
     if (b.dataset.fmt === 'type') { fsOpen ? closeFs() : openFs(); } else if (b.dataset.fmt) doFormat(b.dataset.fmt);
   });
-  gUndo.addEventListener('click', (ev) => { const b = ev.target.closest('button'); if (!b || b.disabled) return; if (b.dataset.act === 'undo') doUndo(); else if (b.dataset.act === 'redo') doRedo(); body.focus({ preventScroll: true }); });
+  gUndo.addEventListener('click', (ev) => { const b = ev.target.closest('button'); if (!b || b.disabled || b.getAttribute('aria-disabled') === 'true') return; if (b.dataset.act === 'undo') doUndo(); else if (b.dataset.act === 'redo') doRedo(); body.focus({ preventScroll: true }); });
   fsheet.addEventListener('click', (ev) => {
     const b = ev.target.closest('button'); if (!b) return;
     if (b.dataset.act === 'fsclose') { closeFs(); return; }

@@ -88,6 +88,7 @@ test.describe('検索', () => {
   test('該当なし／HTML は文字として扱い強調も安全', async ({ page }) => {
     await search(page, '存在しない語');
     await expect(page.locator('#sr-body')).toContainText('該当する予定はありません。検索語を確認してください。');
+    await expect(page.locator('#sr-body .srnone')).toHaveText('この3年に見つかりませんでした'); // M-13
     await search(page, 'b>危険');
     await expect(hits(page)).toHaveCount(1);
     await search(page, '危険');

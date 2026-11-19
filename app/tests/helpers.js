@@ -409,15 +409,18 @@ export async function monthUnshrink(page) {
   await page.waitForTimeout(400);
 }
 
-// 月のマスの中のチップ・帯は押す的ではない（第19.1版 S5 M-11）。予定を開くときは、マスを押してその日にし、日の部分の行（button[data-event]）を押す。
-export async function clickChip(page, loc) {
-  const first = loc.first();
-  const id = await first.getAttribute('data-event');
-  const direct = page.locator(`button[data-event="${id}"]:visible`).first();
-  if (!(await direct.count())) {
-    const b = await first.boundingBox();
-    await page.mouse.click(b.x + Math.min(8, b.width / 2), b.y + b.height / 2);
-    await direct.waitFor({ timeout: 5000 });
-  }
-  await direct.click();
+// 月のマスの中のチップ・帯は pointer-events:none（押す的として数えない）。押した位置のチップを日マスの click が開く（第19.1版 S6）。
+// Playwright の locator.click() は遮られると断るので、チップの座標をマウスで押す（日マスが受け、chipAtPoint で予定のポップアップを開く）。
+export async function clickChip(page, loc, pos = {}) {
+  const el = loc.first();
+  await el.scrollIntoViewIfNeeded();
+  const b = await el.boundingBox();
+  await page.mouse.click(b.x + (pos.x ?? Math.min(8, b.width / 2)), b.y + (pos.y ?? b.height / 2));
+}
+
+// 予定を開く: 一覧・時間軸の button はそのまま押し、月のチップ・帯（span）は座標を押す。
+export async function clickEvent(page, id) {
+  const first = page.locator(`[data-event="${id}"]:visible`).first();
+  const tag = await first.evaluate((e) => e.tagName);
+  if (tag === 'BUTTON') await first.click(); else await clickChip(page, first);
 }

@@ -126,7 +126,10 @@ test.describe('見開き: 判定・背景・操作列', () => {
       for (const n of ['前の月', '次の月', '設定']) { const r = await page.getByRole('button', { name: n }).first().boundingBox(); expect(r.width).toBeGreaterThanOrEqual(44); expect(r.height).toBeGreaterThanOrEqual(44); expect(r.x + r.width).toBeLessThanOrEqual(f - 10 + 0.5); }
       const tabs = await page.locator('.pgsw.pgl').boundingBox();
       expect(tabs.x + tabs.width).toBeLessThanOrEqual(f - 10 + 0.5);
-      for (const b of await page.locator('.pgsw button').all()) { const r = await b.boundingBox(); expect(r.width).toBeGreaterThanOrEqual(44); expect(r.height).toBeGreaterThanOrEqual(40 - 0.5); } // 下のタブは 64×40（S5 M-03）。押せる範囲は疑似要素で 44
+      for (const b of await page.locator('.pgsw button').all()) { const r = await b.boundingBox(); expect(r.width).toBeGreaterThanOrEqual(44); expect(r.height).toBeGreaterThanOrEqual(40 - 0.5);
+        // 下のタブは 64×40（S5 M-03）。押せる範囲は疑似要素で上下 2 ずつ＝44
+        for (const y of [r.y - 1.5, r.y + r.height + 1.5]) expect(await page.evaluate(([x, yy]) => document.elementFromPoint(x, yy)?.closest('button') !== null, [r.x + r.width / 2, y])).toBe(true);
+      }
     });
   }
 

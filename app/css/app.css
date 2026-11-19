@@ -1633,7 +1633,7 @@ html[data-grab] .tl,html[data-grab] .tlx{touch-action:none}
 .ned-gundo{width:96px}.ned-gtools{width:140px}
 .ned .ned-ib{position:relative;width:44px;height:44px;min-height:44px;min-width:44px;margin:-2px 0;padding:0;border:0;background:transparent;color:#293B35;display:flex;align-items:center;justify-content:center}
 .ned .ned-ib svg{position:relative}
-.ned .ned-ib:disabled{color:#C9C5BA;opacity:1}
+.ned .ned-ib:disabled,.ned .ned-ib[aria-disabled=true]{color:#C9C5BA;opacity:1}
 .ned .ned-ib::before{content:"";position:absolute;left:4px;top:6px;width:36px;height:32px;border-radius:10px;background:#EFECE4;opacity:0;transition:opacity .15s ease-out}
 .ned .ned-ib:active:not(:disabled)::before{opacity:1;transition-duration:.10s}
 .ned .ned-done{position:relative;margin-left:auto;width:44px;height:44px;padding:0;border:0;background:transparent;color:#fff;display:flex;align-items:center;justify-content:center}
@@ -1670,7 +1670,7 @@ html[data-grab] .tl,html[data-grab] .tlx{touch-action:none}
  .nsheet,.ned-fsheet{background:#262A27;box-shadow:none;color:#E8E6E0}
  .ned-bodywrap{background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 29px,#343A36 29px,#343A36 30px)}
  .ned-grp,.ned-fsseg,.ned-fsclose i{background:#30352F}
- .ned .ned-ib{color:#E8E6E0}.ned .ned-ib:disabled{color:#5A615B}
+ .ned .ned-ib{color:#E8E6E0}.ned .ned-ib:disabled,.ned .ned-ib[aria-disabled=true]{color:#5A615B}
  .ned .ned-done::before{background:#6FA08C}.ned .ned-done{color:#1C1F1D}
  .ned .ned-fsb[aria-pressed=true]{background:#262A27}
  .ned-ink{color:#E8E6E0}
@@ -1975,11 +1975,11 @@ body[data-posture=portrait] .mscreens{scrollbar-gutter:stable}
 @keyframes sheetfadein{from{opacity:0}to{opacity:1}}
 @keyframes sheetfadeout{to{opacity:0}}
 @keyframes dimin{from{box-shadow:0 0 0 100vmax #1a302d00,0 12px 32px #00000029}}
-dialog#editor[open],dialog#xdetail[open],dialog#taskdlg[open],dialog#menu[open],dialog#search[open]{animation:sheetin .25s var(--sheet-ease)}
+dialog#editor[open],dialog#xdetail[open],dialog#taskdlg[open],dialog#menu[open],dialog#search[open],dialog#cats[open],dialog#notify[open],dialog#backup[open],dialog#confirm[open],dialog#scope[open],dialog#discard[open],dialog#xretry[open],dialog#rsheet[open]{animation:sheetin .25s var(--sheet-ease)}
 body:not([data-layout=home]):not([data-layout=browse]) dialog#search[open]{animation:sheetin .25s var(--sheet-ease),dimin .25s var(--sheet-ease)}
 dialog.sheet-out{animation:sheetout .25s var(--sheet-ease) forwards!important;pointer-events:none}
 @media (prefers-reduced-motion:reduce){
- dialog#editor[open],dialog#xdetail[open],dialog#taskdlg[open],dialog#menu[open],dialog#search[open],body:not([data-layout=home]):not([data-layout=browse]) dialog#search[open]{animation:sheetfadein .15s ease-out}
+ dialog#editor[open],dialog#xdetail[open],dialog#taskdlg[open],dialog#menu[open],dialog#search[open],dialog#cats[open],dialog#notify[open],dialog#backup[open],dialog#confirm[open],dialog#scope[open],dialog#discard[open],dialog#xretry[open],dialog#rsheet[open],body:not([data-layout=home]):not([data-layout=browse]) dialog#search[open]{animation:sheetfadein .15s ease-out}
  dialog.sheet-out{animation:sheetfadeout .15s ease-out forwards!important}
  #scrim:not([hidden]){animation-duration:.15s}
  #scrim{transition-duration:.15s}
@@ -2095,3 +2095,6 @@ body:has(.nmenu) :is(.pgsw,.tabs){visibility:hidden}
 .dcell:active:where(:not(:disabled)){background-color:transparent!important;filter:none}
 .dcell:active .n{background-color:#EFECE4}
 .dcell.sel:active .n{background-color:#294E42;filter:brightness(.88)}
+
+.chip-press{position:fixed;z-index:60;pointer-events:none;background:rgba(0,0,0,.12);animation:chippress .1s ease-out}
+@keyframes chippress{from{opacity:0}to{opacity:1}}

@@ -1,6 +1,6 @@
 // 第11版 PR11: 予定のポップアップの閉じ方（design/08 §5）。幕・外側タップ・下に引く・未保存の確認・0.2秒のフェード。
 import { test, expect } from '@playwright/test';
-import { openApp, seed, ev, SIZES, swipe, period } from './helpers.js';
+import { openApp, seed, ev, SIZES, swipe, period, clickEvent } from './helpers.js';
 
 const POSTURES = [
   ['閉じた', SIZES.closedPortrait],
@@ -16,7 +16,7 @@ async function setup(page, size, opts = {}) {
 }
 const snapshot = (page) => page.evaluate(() => ({ html: document.querySelector('#app').innerHTML, layout: document.body.dataset.layout }));
 async function openFirst(page) {
-  await page.locator('button[data-event="p1"]:visible').first().click();
+  await clickEvent(page, 'p1');
   await expect(page.locator('#editor')).toBeVisible();
   await expect(page.locator('#scrim')).toBeVisible();
 }
@@ -52,7 +52,7 @@ for (const [name, size] of POSTURES) {
       await page.waitForTimeout(600); // 遅れて届く click があっても何も起きない
       expect(await snapshot(page)).toEqual(before);
       // 閉じたあとは普通に操作できる
-      await page.locator('button[data-event="p1"]:visible').first().click();
+      await clickEvent(page, 'p1');
       await expect(page.locator('#editor')).toBeVisible();
     });
 

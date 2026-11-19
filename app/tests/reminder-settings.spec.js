@@ -75,7 +75,7 @@ test.describe('月にタスクを表示', () => {
         return out;
       }, D0);
       expect(g.length).toBeGreaterThan(0);
-      for (const x of g) { expect(x.dx).toBeGreaterThanOrEqual(0); expect(x.dx).toBeLessThan(5); expect(x.fs).toBe('8px'); expect(x.right).toBeLessThanOrEqual(x.dayRight); }
+      for (const x of g) { expect(x.dx).toBeCloseTo(3, 0); /* 六曜の右 3 */ expect(x.fs).toBe('8px'); expect(x.right).toBeLessThanOrEqual(x.dayRight); }
       // +N の見た目（文字）と ✓N の矩形が交わらない
       const hit = await page.evaluate(() => {
         const bad = [];

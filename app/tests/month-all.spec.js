@@ -482,8 +482,9 @@ test.describe('AE-3 「全」の解除と再押下・状態保持', () => {
     const firstWk = () => sc.evaluate((s) => { const r = s.getBoundingClientRect(); for (const w of s.children) if (w.getBoundingClientRect().bottom > r.top + 2) return w.dataset.wk; return ''; });
     await sc.evaluate((e) => { e.scrollTop = e.scrollHeight; });
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-    void firstWk; // 第19.1版: 行が 1pt 低くなり、先頭の週が丸ごと外れるほどは溢れない。スクロールしていること（先頭からずれている）を確かめる
-    expect(await sc.evaluate((e) => e.scrollTop)).toBeGreaterThan(40);
+    // 第19.1版: 週の行が 1pt 低くなり（18+5×16+2=100）、末尾まで送った溢れ（78）が先頭の週の高さ（85）に届かない。先頭の週が丸ごとは外れないので、末尾まで送れていること（scrollTop が最大）と、先頭の週が7ptしか見えないことで確かめる
+    const st = await sc.evaluate((e) => ({ top: e.scrollTop, max: e.scrollHeight - e.clientHeight, first: e.children[0].getBoundingClientRect().bottom - e.getBoundingClientRect().top }));
+    expect(st.top).toBeGreaterThan(40); expect(Math.abs(st.top - st.max)).toBeLessThanOrEqual(1); expect(st.first).toBeLessThan(10);
     await page.locator('.allbtn').click(); // 解除
     await expect(page.locator('.scroll.all')).toHaveCount(0);
     await page.locator('.allbtn').click(); // 再押下

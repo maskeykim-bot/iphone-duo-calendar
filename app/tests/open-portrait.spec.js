@@ -157,11 +157,12 @@ for (const size of PORTRAITS) {
       const sc = page.locator('.scroll.all');
       await expect(sc).toBeVisible();
       await sc.evaluate((el) => { el.scrollTop = el.scrollHeight; });
-      await expect.poll(async () => page.locator('.week.all[data-drawn]').count()).toBeGreaterThan(0);
-      // 第19.1版 S2（#21）: 1枚の紙を上の窓（y146〜458）と下の窓（y500〜）で見る。末尾まで送ると最終週の下端が下の窓の下端にそろい、窓はタブの上で終わる
-      await expect.poll(async () => page.locator('.allb .week.all[data-drawn]').count()).toBeGreaterThan(0);
-      const win = await box(page.locator('.alwin.alb')), last = await box(page.locator('.allb .week.all').last()), tabs = await box(page.locator('.tabs'));
-      expect(near(last.y + last.height, win.y + win.height, 1)).toBe(true);
+      // 第19.1版 S2（#21）: 1枚の紙を上の窓（y146〜458）と下の窓（y500〜）で見る。末尾まで送ると最終週の下端が下の窓の下端にそろい、窓はタブの上で終わる。
+      // scroll は次のフレームで下の窓へ写る（allSync → syncAllWeeks → allMirror）。最終週が下の窓に描かれ、位置がそろうという「状態」を待つ（決まった時間は待たない）
+      await expect.poll(async () => page.locator('.allb .week.all').last().evaluate((e) => !!e.dataset.drawn)).toBe(true);
+      const winL = page.locator('.alwin.alb'), lastL = page.locator('.allb .week.all').last();
+      await expect.poll(async () => { const w = await box(winL), l = await box(lastL); return Math.abs(l.y + l.height - (w.y + w.height)) <= 1; }).toBe(true);
+      const win = await box(winL), tabs = await box(page.locator('.tabs'));
       expect(win.y + win.height).toBeLessThanOrEqual(tabs.y + 1);
     });
   });

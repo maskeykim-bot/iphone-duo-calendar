@@ -77,7 +77,8 @@ test('切替は左右に1つずつ。幅320・高40・各64（S5 M-03）、折�
     const bs = await page.locator('.pgsw.pgl button').evaluateAll((l2) => l2.map((e) => e.getBoundingClientRect().width));
     expect(bs).toHaveLength(5); bs.forEach((w) => expect(w).toBeCloseTo(64, 0)); // 5項目（ホーム・月・時間・タスク・メモ）
     const pill = await box(page.locator('.pgsw.pgl button[aria-pressed="true"] .pill'));
-    expect(pill.width).toBeLessThanOrEqual(64.5); expect(pill.height).toBeCloseTo(40, 0);
+    const tw = await page.locator('.pgsw.pgl button[aria-pressed="true"] .pill').evaluate((e) => { const r = document.createRange(); r.selectNodeContents(e); return r.getBoundingClientRect().width; });
+    expect(pill.width).toBeCloseTo(tw + 24, 0); expect(pill.height).toBeCloseTo(40, 0); // M-03: 選んだ札は文字の左右 12
     // 左ページの中央（利用幅 [Ls+8, f-10] の中央）
     expect(l.x + l.width / 2).toBeCloseTo((8 + f - 10) / 2, 0);
     await expect(page.locator('.tabs')).toHaveCount(0);
