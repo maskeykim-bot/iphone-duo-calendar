@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, seed, ev, pagePick, tab } from './helpers.js';
+import { openApp, SIZES, seed, ev, pagePick, tab, legacyPanelInit } from './helpers.js';
 
 // 第16版 PR13: ホームと予定リストの経路を分ける。2026-11-12 09:41 JST 固定。
 const ui = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1') || '{}'));
@@ -57,6 +57,7 @@ test('予定リスト: 端までスクロールすると先の日が追加で読
 });
 
 test('ホームは独立ページ: 切替にホームがあり、右でも選べる。開いた縦の下の段にもホーム', async ({ page }) => {
+  await legacyPanelInit(page);
   await openApp(page, SIZES.openLandscape951);
   await seed(page, EVS);
   await expect(page.locator('.pgsw.pgl button')).toHaveText(['ホーム', '月', '時間', 'タスク', 'ノート']);

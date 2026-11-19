@@ -1,6 +1,6 @@
 // 第16版 PR17: タスクは許可なしで使える（リマインダー許可・list gate は無い）。TM-7「許可要求0」。
 import { test, expect } from '@playwright/test';
-import { openApp, openMenu, SIZES } from './helpers.js';
+import { openApp, openMenu, SIZES, legacyPanelInit } from './helpers.js';
 import { spy, legacyCalls, openTasks, T } from './task-helpers.js';
 
 const OPEN = SIZES.openLandscape;
@@ -42,6 +42,7 @@ test.describe('許可なしでタスクを使える', () => {
 });
 test.describe('縦の下パネル', () => {
   test('下パネルのタスクにも追加欄（許可なし）', async ({ page }) => {
+    await legacyPanelInit(page);
     await spy(page);
     await openApp(page, SIZES.openPortrait);
     await page.getByRole('button', { name: '下の段を表示' }).click();

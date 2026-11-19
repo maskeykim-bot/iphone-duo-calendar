@@ -1,6 +1,6 @@
 // 第16版 PR17: タスクの編集と完了の操作（Duo 内保存。native 呼出0）。操作仕様の仕上げは PR18/19。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, clearTaskDue, pickTaskDue, setTaskTime } from './helpers.js';
+import { openApp, SIZES, legacyPanelInit, clearTaskDue, pickTaskDue, setTaskTime } from './helpers.js';
 import { spy, legacyCalls, openTasks, dbTasks, failPuts, T } from './task-helpers.js';
 
 const lp = (page) => page.locator('.page.lp');
@@ -109,6 +109,7 @@ test.describe('タスクの編集と完了', () => {
   });
 
   for (const k of ['openPortrait', 'openLandscape951']) test(`${k} でも完了できる`, async ({ page }) => {
+    await legacyPanelInit(page);
     await spy(page);
     await openApp(page, SIZES[k]);
     const { seedTasks } = await import('./task-helpers.js');

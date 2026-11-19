@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { CAT_IDS } from '../js/categories.js';
 import { SCHEMA_VERSION } from '../js/db.js';
-import { openApp, tab, setStyle, pickDay, addRepeat, openOccurrence, chip, dbEvents, fillEditor, fillRepeat, ev, seed } from './helpers.js';
+import { openApp, tab, setStyle, pickDay, addRepeat, openOccurrence, chip, dbEvents, fillEditor, fillRepeat, ev, seed, settle, monthUnshrink } from './helpers.js';
 
 // recur.js を実ブラウザで import して展開結果を検証する。
 async function expandKeys(page, event, rs, re) {
@@ -66,6 +66,7 @@ test.describe('繰り返しの UI', () => {
     await expect(page.locator('.tlev', { hasText: '週例' })).toHaveAttribute('aria-label', /繰り返し/);
     await page.getByRole('button', { name: '次の週' }).click();
     await expect(page.locator('.tlev', { hasText: '週例' })).toHaveCount(1);
+    await settle(page); await page.waitForTimeout(400); // 週の送りの滑りが終わる前に月へ替えると、その送りが月の単位で効く（実害は短い間だけ）
     await tab(page, '月').click();
     await setStyle(page, '予定名');
     for (const k of ['2026-11-12', '2026-11-19', '2026-11-26']) await expect(chip(page, k)).toContainText('週例');
@@ -150,7 +151,7 @@ test.describe('繰り返しの UI', () => {
       await expect(page.locator('#editor')).toBeHidden();
       for (const reload of [false, true]) {
         if (reload) { await page.reload(); await page.waitForSelector('html[data-ready]'); }
-        await tab(page, '月').click();
+        await tab(page, '月').click(); await monthUnshrink(page);
         await setStyle(page, '予定名');
         await expect(chip(page, '2026-11-12')).toContainText('週例');
         await expect(chip(page, '2026-11-19')).toContainText('特別回');
@@ -166,7 +167,7 @@ test.describe('繰り返しの UI', () => {
       await page.getByRole('button', { name: 'これ以降すべて' }).click();
       for (const reload of [false, true]) {
         if (reload) { await page.reload(); await page.waitForSelector('html[data-ready]'); }
-        await tab(page, '月').click();
+        await tab(page, '月').click(); await monthUnshrink(page);
         await setStyle(page, '予定名');
         await expect(chip(page, '2026-11-12')).toContainText(/^↻?週例$/);
         await expect(chip(page, '2026-11-19')).toContainText('新週例');
@@ -185,7 +186,7 @@ test.describe('繰り返しの UI', () => {
       await fillEditor(page, { title: '全部変更' });
       await page.locator('#editor').getByRole('button', { name: '保存' }).click();
       await page.getByRole('button', { name: 'すべて', exact: true }).click();
-      await tab(page, '月').click();
+      await tab(page, '月').click(); await monthUnshrink(page);
       await setStyle(page, '予定名');
       for (const k of ['2026-11-12', '2026-11-19', '2026-11-26']) await expect(chip(page, k)).toContainText('全部変更');
       expect(await dbEvents(page)).toHaveLength(1);

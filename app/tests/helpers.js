@@ -29,10 +29,12 @@ export async function openApp(page, size = SIZES.closedPortrait, query = '', opt
   }
   // 第19版 PR6: 月タブ（閉じた画面・開いた縦）は「月を引く画面」で、既定の型は 2週。第18版までの spec は月全体（6行）が見える前提なので、
   // 型が保存されていなければ「月」で起動する。既定（2週）を調べる spec は monthFormInit(page, 'two') を先に呼ぶ。
-  await page.addInitScript((q) => {
+  if (!opts.fresh) await page.addInitScript((q) => { // fresh（まっさらな端末）では保存キーを書かない（既存端末の証拠になるため）
     const ns = new URLSearchParams(q).get('ns'), key = `duo.ui.v1${ns ? `.${ns}` : ''}`;
     let s = {}; try { s = JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch { s = {}; }
     if (!s.monthForm) localStorage.setItem(key, JSON.stringify({ ...s, monthForm: 'month' }));
+    s = JSON.parse(localStorage.getItem(key) || '{}');
+    if (!s.monthDay) localStorage.setItem(key, JSON.stringify({ ...s, monthDay: 'time' })); // 日の部分は 時間軸（.tlev）で起動。既定（予定）を調べる spec は monthFormInit を先に呼ぶ
   }, query);
   await page.setViewportSize(size);
   await page.clock.setFixedTime(new Date('2026-11-12T09:41:00+09:00'));
@@ -261,7 +263,7 @@ export async function addRepeat(page, f) {
 export async function openOccurrence(page, key, nth = 0) {
   await tab(page, '月').click();
   await pickDay(page, key);
-  await page.locator('.daylist .event, .tlev').nth(nth).click(); // 閉じた日は時間軸（.tlev）、開いた縦は一覧（.event）
+  await page.locator('.mdev, .daylist .event, .tlev').nth(nth).click(); // 閉じた日は時間軸（.tlev）、開いた縦は一覧（.event）
   await expect(page.locator('#editor')).toBeVisible();
 }
 // 月の時刻つき単日チップ（日セルの兄弟 button.strip。data-sday が日付）。
@@ -386,5 +388,14 @@ export async function setTaskTime(page, h, m) {
 
 // 第19版 PR6: 閉じた画面・開いた縦の月タブは「月を引く画面」。月送り・月の格子を前提にする検査は、月の型（'one'|'two'|'month'）を保存しておいてから起動する。
 export async function monthFormInit(page, form = 'month') {
-  await page.addInitScript((f) => { const k = 'duo.ui.v1'; let s = {}; try { s = JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch { s = {}; } if (!s.monthForm) localStorage.setItem(k, JSON.stringify({ ...s, monthForm: f })); }, form);
+  await page.addInitScript((f) => { const k = 'duo.ui.v1'; let s = {}; try { s = JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch { s = {}; } if (!s.monthForm) localStorage.setItem(k, JSON.stringify({ ...s, monthForm: f, monthDay: s.monthDay || 'list' })); }, form);
+}
+// 第19版 PR6: 開いた縦の月タブは「月を引く画面」で下の段ボタン（cpnl）を出さない。下パネルを調べる spec は「全部」の月（従来の月）で起動する。
+export async function legacyPanelInit(page) {
+  await page.addInitScript(() => { const k = 'duo.ui.v1'; let s = {}; try { s = JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch { s = {}; } if (s.monthExpand === undefined) localStorage.setItem(k, JSON.stringify({ ...s, monthExpand: true })); });
+}
+// 月を引く画面（閉じた画面）は日の部分を下へスクロールすると月が 1週へ縮む。予定を開くためのスクロールで縮んだ月を、上まで戻して元の型にする。
+export async function monthUnshrink(page) {
+  await page.evaluate(() => { const d = document.querySelector('.mday'); if (d) d.scrollTop = 0; });
+  await page.waitForTimeout(400);
 }
