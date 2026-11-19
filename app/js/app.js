@@ -6266,9 +6266,9 @@ root.addEventListener('pointerdown', (ev) => {
   v.className = 'chip-press'; v.setAttribute('aria-hidden', 'true');
   v.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;border-radius:${getComputedStyle(c).borderRadius}`;
   document.body.append(v);
-  // V-23: チップの上で押したときはマスの地を変えない（マスの :active の色を、押す前の色に据える）
-  d.style.setProperty('--day-rest', getComputedStyle(d).backgroundColor); d.classList.add('chipdown');
-  const off = () => { document.removeEventListener('pointerup', off, true); document.removeEventListener('pointercancel', off, true); setTimeout(() => { v.remove(); d.classList.remove('chipdown'); d.style.removeProperty('--day-rest'); if (!d.getAttribute('style')) d.removeAttribute('style'); }, 100); };
+  // V-23: チップの上で押したときはマスの地を変えない。マスの :active の色を、押す前の色に据える（#app の DOM は触らず、html に置く）
+  de.style.setProperty('--day-rest', getComputedStyle(d).backgroundColor); de.dataset.chipdown = '';
+  const off = () => { document.removeEventListener('pointerup', off, true); document.removeEventListener('pointercancel', off, true); setTimeout(() => { v.remove(); delete de.dataset.chipdown; de.style.removeProperty('--day-rest'); }, 100); };
   document.addEventListener('pointerup', off, true); document.addEventListener('pointercancel', off, true);
 });
 function directOrigin(t, ev) {

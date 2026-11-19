@@ -2195,7 +2195,7 @@ body:not([data-layout=spread]):not([data-layout=desk]) :is(dialog#cats,dialog#no
 .s7fade{animation:s7fade .15s ease-out}
 
 /* V-23: チップの上で押したときは、マスの地を変えない（チップは黒 12% の被せだけ。JS が押す前の地の色を --day-rest に置く） */
-.week .day.chipdown:active:not(:disabled){background-color:var(--day-rest,transparent)!important}
+:root[data-chipdown] .week .day:active:not(:disabled){background-color:var(--day-rest,transparent)!important}
 
 /* V-16: 閉じたホームの「今日の予定」の行と「ほか n件」を 44（開いた縦ホームの行 32 は design/32 の寸法なので変えない） */
 .hrow{min-height:44px}
