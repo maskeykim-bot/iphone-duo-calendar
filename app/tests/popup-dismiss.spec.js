@@ -16,7 +16,7 @@ async function setup(page, size, opts = {}) {
 }
 const snapshot = (page) => page.evaluate(() => ({ html: document.querySelector('#app').innerHTML, layout: document.body.dataset.layout }));
 async function openFirst(page) {
-  await page.locator('[data-event="p1"]:visible').first().click();
+  await page.locator('button[data-event="p1"]:visible').first().click();
   await expect(page.locator('#editor')).toBeVisible();
   await expect(page.locator('#scrim')).toBeVisible();
 }
@@ -52,7 +52,7 @@ for (const [name, size] of POSTURES) {
       await page.waitForTimeout(600); // 遅れて届く click があっても何も起きない
       expect(await snapshot(page)).toEqual(before);
       // 閉じたあとは普通に操作できる
-      await page.locator('[data-event="p1"]:visible').first().click();
+      await page.locator('button[data-event="p1"]:visible').first().click();
       await expect(page.locator('#editor')).toBeVisible();
     });
 
