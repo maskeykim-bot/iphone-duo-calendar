@@ -2209,7 +2209,8 @@ rsDlg.addEventListener('click', async (ev) => {
   if (k === 'continue') {
     if (S.busy) return; S.busy = true; rsRepaint(true);
     let st;
-    try { st = (await requestReminderPermission()).status; } catch { st = 'denied'; }
+    // OS に求めるのは notDetermined のときだけ（RS-1・RS-2）。granted は求めずに進み、denied・restricted は求めない。
+    try { st = (await remNative.permission()).status; if (st === 'notDetermined') st = (await requestReminderPermission()).status; } catch { st = 'denied'; }
     if (RS.sheet !== S) return;
     RS.perm = st;
     if (st !== 'granted') { RS.denied = true; rsClose(false); syncRsUi(); render(); $('#m-rssw')?.focus({ preventScroll: true }); return; }

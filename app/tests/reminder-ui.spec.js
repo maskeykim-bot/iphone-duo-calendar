@@ -293,3 +293,38 @@ test('iPhone で足した件が入ると、まとめの知らせ1行（黒の帯
   await expect(page.locator('.page.lp .rmrow.fresh')).toHaveCount(0, { timeout: 3000 }); // 1 秒で消える
   await expect(toast).toHaveCount(0, { timeout: 5000 }); // 3 秒
 });
+
+// ---- 第19版 D8: 許可の流れ（データ側） ----
+test('D8 RS-1・RS-2: 許可を OS に求めるのは notDetermined のときだけ。granted・denied では求めない', async ({ page }) => {
+  for (const perm of ['granted', 'denied', 'restricted']) {
+    await kit(page, { perm });
+    await openApp(page, CLOSED);
+    await openMenu(page, 'reminders');
+    await page.locator('#m-rssw').click(); await page.locator('#rsheet .rsmain').click();
+    await expect(page.locator(perm === 'granted' ? '#rsheet .rsmain' : '#m-rsdeny')).toBeVisible();
+    expect(await calls(page, ['requestReminderPermission', ...WRITES])).toEqual([]);
+    await page.unrouteAll(); await page.goto('about:blank');
+  }
+});
+test('D8 RS-3・RS-4・RS-45・RS-52: 取り消されても追加・完了・削除はできる。EventKit へは書かず、取得もしない。止まっている1行が出る', async ({ page }) => {
+  await kit(page, { sync: ON, perm: 'granted' });
+  await openTasks(page, OPEN, { seed: [T('a', { title: '牛乳', due: null })] });
+  await page.evaluate(() => { window.__K.perm = 'denied'; window.__K.calls.length = 0; document.dispatchEvent(new Event('visibilitychange')); window.__K.cbs.calendarChanged?.(); });
+  const lp = page.locator('.page.lp');
+  await expect(lp.locator('.stalled')).toHaveCount(1);
+  await lp.locator('input.remin').fill('新しい'); await lp.locator('input.remin').press('Enter');
+  await expect(lp).toContainText('新しい');
+  await lp.locator('[data-act="remck"]').first().click();
+  await expect.poll(async () => (await dbTasks(page)).filter((t) => t.done).length, { timeout: 4000 }).toBe(1);
+  await page.waitForTimeout(900);
+  expect(await calls(page, [...WRITES, 'listReminders', 'requestReminderPermission'])).toEqual([]);
+  expect((await dbTasks(page)).length).toBe(2);
+});
+test('D8: 同期オンの calendarChanged は 300ms の間引きで取得 1 回。オフでは 0 回', async ({ page }) => {
+  await kit(page, { sync: ON, perm: 'granted' });
+  await openTasks(page, OPEN, { seed: [T('a', { title: '牛乳', due: null })] });
+  await page.waitForTimeout(900);
+  await page.evaluate(() => { window.__K.calls.length = 0; for (let i = 0; i < 3; i++) window.__K.cbs.calendarChanged?.(); });
+  await page.waitForTimeout(900);
+  expect(await calls(page, ['listReminders'])).toEqual(['listReminders']);
+});
