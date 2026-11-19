@@ -34,7 +34,7 @@ async function mock(page) {
     };
   }, { cals: CALS, events: EVENTS, details: DETAILS });
 }
-const writes = (page) => page.evaluate(() => window.__mock.calls.filter((c) => !['checkPermission', 'requestPermission', 'listCalendars', 'listEvents', 'getEvent', 'notifyStatus', 'notifySync', 'notifyClear', 'selectionHaptic', 'impactHaptic', 'notificationHaptic', 'reminderPermission', 'getPosture'].includes(c.method)).map((c) => c.method));
+const writes = (page) => page.evaluate(() => window.__mock.calls.filter((c) => !['checkPermission', 'requestPermission', 'listCalendars', 'listEvents', 'getEvent', 'notifyStatus', 'notifySync', 'notifyClear', 'selectionHaptic', 'impactHaptic', 'notificationHaptic', 'reminderPermission', 'getPosture', 'setAccessoryBarVisible'].includes(c.method)).map((c) => c.method));
 
 const SEED = [
   ev('d1', '撮影', '2026-11-12T10:00', '2026-11-12T11:00'),

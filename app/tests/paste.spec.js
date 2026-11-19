@@ -38,7 +38,7 @@ async function mock(page) {
   }, { cals: CALS, events: EVENTS, details: DETAILS });
 }
 const calls = (page, m) => page.evaluate((m) => window.__mock.calls.filter((c) => c.method === m), m);
-const writes = (page) => page.evaluate(() => window.__mock.calls.filter((c) => !['checkPermission', 'requestPermission', 'listCalendars', 'listEvents', 'getEvent', 'notifyStatus', 'notifySync', 'notifyClear', 'selectionHaptic', 'reminderPermission', 'getPosture'].includes(c.method)).map((c) => c.method));
+const writes = (page) => page.evaluate(() => window.__mock.calls.filter((c) => !['checkPermission', 'requestPermission', 'listCalendars', 'listEvents', 'getEvent', 'notifyStatus', 'notifySync', 'notifyClear', 'selectionHaptic', 'reminderPermission', 'getPosture', 'setAccessoryBarVisible'].includes(c.method)).map((c) => c.method));
 const SEED = [
   ev('d1', '撮影', '2026-11-12T10:00', '2026-11-12T11:00', { alarms: [{ before: 10 }] }),
   ev('d2', '出張', '2026-11-16T00:00', '2026-11-18T23:59', { all: true }),
