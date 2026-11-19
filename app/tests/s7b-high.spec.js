@@ -129,7 +129,7 @@ for (const [name, size, sar, ui, expectSel] of [
             const num = d.querySelector('.num'), rk = d.querySelector('.rk');
             const p = plusList.find((e) => { const r = e.getBoundingClientRect(); return r.x >= c.x - 1 && r.right <= c.right + 2 && r.y >= c.y - 1 && r.y < c.y + 30; });
             const pcs = p && getComputedStyle(p);
-            out.push({ date: d.dataset.date, w: c.width, num: num ? rg(num) : null, numBox: num ? num.getBoundingClientRect() : null, rk: rk ? rg(rk) : null, plus: p ? rg(p) : null, plusRight: p ? c.right - rg(p).r : null, plusTxt: p?.textContent, pfs: pcs?.fontSize, pfw: pcs?.fontWeight, cx: c.x });
+            out.push({ sel: d.classList.contains('selected'), date: d.dataset.date, w: c.width, num: num ? rg(num) : null, numBox: num ? num.getBoundingClientRect() : null, rk: rk ? rg(rk) : null, plus: p ? rg(p) : null, plusRight: p ? c.right - rg(p).r : null, plusTxt: p?.textContent, pfs: pcs?.fontSize, pfw: pcs?.fontWeight, cx: c.x });
           }
         }
         return out;
@@ -144,7 +144,7 @@ for (const [name, size, sar, ui, expectSel] of [
       }
       if (size === L) {
         // 閉じた画面の 33 §5 と同じ寸法: 日付の円 16・六曜 x+21〜37（8px）・+N 8px 右 2
-        for (const r of withPlus) { expect(r.pfs).toBe('8px'); near(r.plusRight, 2, 1.1); }
+        for (const r of withPlus) { expect(r.pfs).toBe('8px'); near(r.plusRight, r.sel ? 4 : 2, 1.1); } // S8 N-05: 選んでいるマスは右 4
       }
       // 二桁（+10 以上）も含めて測った
       expect(withPlus.some((r) => /^\+1\d$/.test(r.plusTxt)) || withPlus.some((r) => /^\+[7-9]$/.test(r.plusTxt))).toBe(true);

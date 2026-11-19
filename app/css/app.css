@@ -2159,7 +2159,7 @@ body :is(.dchip)[aria-pressed=true]:active:not(:disabled){filter:brightness(.92)
 .shell.open.portrait .tabfade{display:block;position:fixed;z-index:5;left:var(--sal,0px);right:var(--sar,0px);top:calc(var(--tabs-y) - 24px);height:24px;pointer-events:none;background:linear-gradient(to bottom,rgba(247,244,237,0),#F7F4ED)}
 .shell.spread .tabfade{display:block;position:fixed;z-index:5;top:calc(var(--tabs-y) - 24px);height:24px;pointer-events:none}
 .shell.spread .tabfade.tfl{left:var(--left-start);width:calc(var(--left-end) - var(--left-start));background:linear-gradient(to bottom,rgba(240,237,229,0),#F0EDE5)}
-.shell.spread .tabfade.tfr{left:var(--right-start);width:calc(var(--right-end) - var(--right-start));background:linear-gradient(to bottom,rgba(255,253,250,0),#FFFDFA)}
+.shell.spread .tabfade.tfr{left:calc(var(--right-start) + 8px);width:calc(var(--right-end) - var(--right-start) - 8px);background:linear-gradient(to bottom,rgba(255,253,250,0),#FFFDFA)}
 /* V-07: 暗い色（ダーク用の media query の 7 か所と .shell.fd の暗い色）を外し、全部明るい色にそろえた。ダークは別の版で全画面まとめて入れる（25 §6）。キーボード・ピッカー・共有シート・ステータスバーも明るいまま（iOS は Info.plist の UIUserInterfaceStyle=Light） */
 :root{color-scheme:light}
 /* V-10 の見直しで見つけた隙: 開いた縦のノートの型の見出し行（「ノート」「＋ 新規」）だけ左右の余白が 0 で、一覧（x16）より外にはみ出していた。一覧と同じ 16 */
@@ -2244,7 +2244,7 @@ body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#tas
 .mdev strong,.portrait .mdev strong{font-weight:400}
 /* N-05: 選んでいるマスでは +N を右 4（選んだ枠の内側 2 ＋すき間 2）。今日のマスでは、ノートの印を丸の中へ（白・8×2・角丸 1、x+7〜15・y+12） */
 .week .plus.onsel,.closed .week .plus.onsel,.spread .week .plus.onsel{padding-right:4px}
-.week .day.today .mline{left:11px;top:13px;width:8px;height:2px;margin-left:-4px;border-radius:1px;background:#fff}
+.week .day.today .mline{left:11px;top:13px;width:8px;height:2px;margin-left:-4px;border-radius:4px;background:#fff}
 /* ★1-10（品質・設計 2026-11-20 4:05）: 閉じたホームの「＋ タスクを追加」はカードの見出しのすぐ下。行 44・押せる範囲は行全体（x12〜374）。「＋」はチェック欄と同じ列、文字はタスク名と同じ x、15/400 緑 */
 .hadd.first{display:flex;align-items:center;box-sizing:border-box;width:calc(100% + 22px);height:44px;min-height:44px;margin:0 -13px 0 -9px;padding:0 13px 0 9px;text-align:left;font-size:15px;font-weight:400;color:#294E42}
 .hadd.first .hadd-p{flex:none;width:44px;text-align:center;font-size:20px;line-height:20px;margin-left:-10px}

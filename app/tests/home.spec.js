@@ -86,7 +86,8 @@ test('20時以降は明日が今日の予定の上。選択日と独立して今
 test('0件案内と次の予定なし', async ({ page }) => {
   await openH(page, SIZES.closedPortrait, []);
   await tab(page, 'ホーム').click();
-  await expect(page.locator('.htasks')).toContainText('今日のタスクはありません');
+  // S8 ★1-10（設計 2026-11-20 4:05）: 閉じたホームでタスク 0 件のときは「＋ タスクを追加」の行だけ（案内の文は出さない）
+  await expect(page.locator('.htasks')).not.toContainText('今日のタスクはありません');
   await expect(page.locator('.hevents')).toContainText('この後の予定はありません');
   await expect(page.locator('.htmr')).toContainText('予定はありません');
   await expect(page.locator('.hadd')).toBeVisible();
@@ -105,7 +106,7 @@ test('タスクの完了: ✓と打消線は即、1.5秒後に1回だけ保存�
   await tab(page, 'ホーム').click();
   const ck = page.locator('.htask').first().locator('[data-act="remck"]');
   const b = await ck.boundingBox();
-  expect(b.height).toBeGreaterThanOrEqual(48); expect(b.width).toBeGreaterThanOrEqual(44);
+  expect(b.height).toBeGreaterThanOrEqual(44); expect(b.width).toBeGreaterThanOrEqual(44); // S8 ★1-10: 閉じたホームのタスクの行は 44（旧 48）
   const bx = await page.locator('.htask .rmck').first().boundingBox();
   expect(Math.round(bx.width)).toBe(22);
   await ck.click();

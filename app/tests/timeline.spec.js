@@ -142,7 +142,7 @@ test.describe('見開き: 判定・背景・操作列', () => {
     const lp = await page.locator('.page.lp').boundingBox(), rp = await page.locator('.page.rp').boundingBox();
     expect(lp.x).toBeGreaterThanOrEqual(SAFE.left + 8 - 0.5);
     expect(lp.x + lp.width).toBeCloseTo(W / 2 - 10, 0);
-    expect(rp.x).toBeCloseTo(W / 2 + 10, 0);
+    expect(rp.x).toBeCloseTo(W / 2 + 10 + 8, 0); // S8 N-01: 右ページの箱は折り目の側に 8
     expect(rp.y).toBeGreaterThanOrEqual(SAFE.top - 0.5);
     expect(rp.y + rp.height).toBeLessThanOrEqual(H - SAFE.bottom + 0.5);
     expect(rp.x + rp.width).toBeCloseTo(W - SAFE.right - 16, 0); // E = W-R-16

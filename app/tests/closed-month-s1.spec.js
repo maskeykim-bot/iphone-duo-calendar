@@ -27,7 +27,7 @@ test.describe('閉じた画面 466×678（帯 84）', () => {
     expect(g.kl).toBeGreaterThanOrEqual(g.nl + g.nw - 0.5); expect(near(g.kl, 21, 1.2)).toBe(true);
     expect(g.kfs).toBe(8); expect(g.kfw).toBeGreaterThanOrEqual(600); expect(g.kc).toBe('rgb(104, 113, 106)');
     expect(g.pfs).toBe(8); expect(g.pfw).toBeGreaterThanOrEqual(600); expect(g.pc).toBe('rgb(104, 113, 106)');
-    expect(near(g.pr, 2, 0.8)).toBe(true);
+    expect(near(g.pr, 4, 0.8)).toBe(true); // S8 N-05（設計 2026-11-20）: 選んでいる今日のマスの +N は右 4（枠の内側 2＋すき間 2）。ほかのマスは 2
     expect(g.pl - g.kr).toBeGreaterThanOrEqual(3); // すき間 3.9 で重ならない
     // 今日（11/12）の丸は直径 16
     const t = await page.locator('[data-date="2026-11-12"] .num').boundingBox();
@@ -124,7 +124,7 @@ test.describe('開いた横 951×669', () => {
     expect(info.top).toBeGreaterThanOrEqual(18); expect(info.top).toBeLessThanOrEqual(20);
     const d = await page.locator('[data-date="2026-11-12"]').evaluate((c) => { const r = c.getBoundingClientRect(), n = c.querySelector('.num').getBoundingClientRect(), k = c.querySelector('.rk').getBoundingClientRect(), p = c.parentElement.querySelector('.plus[data-plus="2026-11-12"]'), rg = document.createRange(); rg.selectNodeContents(p); const pt = rg.getBoundingClientRect(); const ps = getComputedStyle(p); return { nl: n.left - r.left, nw: n.width, kl: k.left - r.left, kr: k.right - r.left, pl: pt.left - r.left, pr: r.right - pt.right, pfs: parseFloat(ps.fontSize), pfw: Number(ps.fontWeight), pc: ps.color, ptop: pt.top - r.top, pb: pt.bottom - r.top, txt: p.textContent }; });
     expect(near(d.nl, 3, 0.8)).toBe(true); expect(near(d.kl, 21, 1.2)).toBe(true); /* V-04: 開いた横の六曜 x+21〜37 */ expect(d.kl).toBeGreaterThanOrEqual(d.nl + d.nw - 0.5);
-    expect(d.txt).toBe('+3'); expect(d.pfs).toBe(8); expect(d.pfw).toBeGreaterThanOrEqual(600); expect(d.pc).toBe('rgb(104, 113, 106)'); expect(near(d.pr, 2, 0.8)).toBe(true); /* V-04: +N 8pt 右 2 */
+    expect(d.txt).toBe('+3'); expect(d.pfs).toBe(8); expect(d.pfw).toBeGreaterThanOrEqual(600); expect(d.pc).toBe('rgb(104, 113, 106)'); expect(near(d.pr, 2, 0.8) || near(d.pr, 4, 0.8)).toBe(true); /* S8 N-05: 選んだマスは 4 */ /* V-04: +N 8pt 右 2 */
     expect(d.pl).toBeGreaterThanOrEqual(d.kr); expect(d.pb).toBeLessThanOrEqual(18.5); // 日付の行 18 に収まる
   });
 

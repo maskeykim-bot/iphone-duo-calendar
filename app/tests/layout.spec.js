@@ -225,7 +225,7 @@ test.describe('見開きの折り目（ビューポート中心 ±10px）', () =
     // 左右ページの端は折り目の実座標（中心±10）
     const lp = await page.locator('.page.lp').boundingBox(), rp = await page.locator('.page.rp').boundingBox();
     expect(Math.round(lp.x + lp.width)).toBe(Math.round(size.width / 2 - 10));
-    expect(Math.round(rp.x)).toBe(Math.round(size.width / 2 + 10));
+    expect(Math.round(rp.x)).toBe(Math.round(size.width / 2 + 10 + 8)); // S8 N-01（設計 2026-11-20）: 右ページの箱は折り目の側に 8 ずらす（保護域 ±10 の外に 18）
   });
 });
 

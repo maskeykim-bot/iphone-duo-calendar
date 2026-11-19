@@ -68,9 +68,9 @@ for (const [name, size, sar, kind] of POSTURES) {
       await title.click(); await page.keyboard.press('End'); await page.keyboard.type('です');
       await expect.poll(async () => (await rawNote(page, 'a')).body, { timeout: 4000 }).toBe('# 来期の予定です\n本文の行\n- 牛乳\n- [ ] 予約\n- [x] 済んだ件');
       await expect(title).toHaveValue('来期の予定です');
-      // 題名を全部消す → 記号だけ残る（一覧の題名は「新規ノート」）。書き直すと戻る
+      // 題名を全部消す → 記号も残さない（S8 連携 L-1・STEER 04:06。一覧の題名は「新規ノート」）。書き直すと元の記号が戻る
       await title.fill('');
-      await expect.poll(async () => (await rawNote(page, 'a')).body, { timeout: 4000 }).toBe('# \n本文の行\n- 牛乳\n- [ ] 予約\n- [x] 済んだ件');
+      await expect.poll(async () => (await rawNote(page, 'a')).body, { timeout: 4000 }).toBe('\n本文の行\n- 牛乳\n- [ ] 予約\n- [x] 済んだ件');
       await title.fill('新題');
       await expect.poll(async () => (await rawNote(page, 'a')).body, { timeout: 4000 }).toBe('# 新題\n本文の行\n- 牛乳\n- [ ] 予約\n- [x] 済んだ件');
     });
@@ -145,7 +145,7 @@ test.describe('S7a 題名欄 44・フォルダの行・右ページのそろい�
   test('開いた横: 見出し・一覧・フォルダの行・題と本文の文字が x500（V-19）。札は 28・角丸 14・13pt・間 8（V-20）', async ({ page }) => {
     await setup(page, 'land', SIZES.openLandscape951, 84);
     const listX = await page.evaluate(() => { const r = document.createRange(); r.selectNodeContents(document.querySelector('.ntools .ntitle')); return [r.getClientRects()[0].x, document.querySelector('.mlq').getBoundingClientRect().x]; });
-    near(listX[0], 500); near(listX[1], 500); // 一覧の画面: 「ノート」の文字と検索の欄も x500
+    near(listX[0], 501.5); near(listX[1], 501.5); // S8 N-01（設計 2026-11-20）: 右ページの箱 +8 で見出しの文字は x501.5（旧 x500） // 一覧の画面: 「ノート」の文字と検索の欄も x500
     await openNote(page, 'a');
     const m = await page.evaluate(() => {
       const X = (e) => Math.round(e.getBoundingClientRect().x * 10) / 10;
@@ -155,7 +155,7 @@ test.describe('S7a 題名欄 44・フォルダの行・右ページのそろい�
       return { head: textX(document.querySelector('h2.rdate')), list: textX(document.querySelector('.ntools .mback')), folder: X(document.querySelector('.nmeta')), pill0: pills[0].x, title: X(document.querySelector('.ned-title')) + parseFloat(getComputedStyle(document.querySelector('.ned-title')).paddingLeft), // textarea の文字の頭 = 箱 + 左の余白
       body: textX(nl), pills };
     });
-    for (const k of ['head', 'list', 'folder', 'pill0', 'title', 'body']) near(m[k], 500);
+    for (const k of ['head', 'list', 'folder', 'pill0', 'title', 'body']) near(m[k], 501.5); // S8 N-01: x501.5
     expect(m.pills.map((p) => p.cls.split(' ')[0])).toEqual(['nfpill', 'ndate', 'nmpin']);
     for (const p of m.pills) { near(p.h, 28, 0.5); near(p.bh, 44, 0.5); expect(p.rad).toBe('14px'); expect(p.fs).toBe('13px'); }
     near(m.pills[1].x - (m.pills[0].x + m.pills[0].w), 8, 0.5); near(m.pills[2].x - (m.pills[1].x + m.pills[1].w), 8, 0.5);

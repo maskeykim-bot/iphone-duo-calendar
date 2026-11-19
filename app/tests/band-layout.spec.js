@@ -169,8 +169,9 @@ test.describe('閉じた 466×678 + 右 safe（帯あり）', () => {
 test.describe('開いた横 + 右 safe（帯あり）', () => {
   // [size, 左月の列幅, 右本文の始まり, 線の終端 E, 線幅, 設定top, 検索top, 左タブtop]
   const CASES = [
-    [SIZES.openLandscape951, 65.36, 485.5, 851, 315.5, 124, 184, 611],
-    [SIZES.openLandscape, 61, 455, 790, 285, 116.03, 172.17, 571.73],
+    // S8 N-01（設計 2026-11-20）: 右ページの箱は折り目の側に 8 ずれる（485.5→493.5、455→463）。時間軸の線の左端もそれに従い f+68、幅は 8 縮む
+    [SIZES.openLandscape951, 65.36, 493.5, 851, 307.5, 124, 184, 611],
+    [SIZES.openLandscape, 61, 463, 790, 277, 116.03, 172.17, 571.73],
   ];
   for (const [size, col, rs0, E, lw, setTop, searchTop, tabTop] of CASES) {
     test(`${size.width}×${size.height} R84: 左 [8,f-10]・右 [f+10,W-R]・線 A=f+60〜E=W-R-16・帯 4ボタン`, async ({ page }) => {
@@ -182,7 +183,7 @@ test.describe('開いた横 + 右 safe（帯あり）', () => {
       const rp = await bx(page.locator('.page.rp'));
       near(rp.x, rs0); near(rp.x + rp.width, E);
       const hl = await bx(page.locator('.tl .hl').first());
-      near(hl.x, f + 60); near(hl.x + hl.width, E); near(hl.width, lw);
+      near(hl.x, f + 68); near(hl.x + hl.width, E); near(hl.width, lw);
       const bg = await bx(page.locator('.bandbg'));
       near(bg.x, W - 84); near(bg.width, 84);
       const cx = W - 42;
@@ -222,7 +223,7 @@ test.describe('開いた横 + 右 safe（帯あり）', () => {
       const W = size.width, f = W / 2;
       await expect(page.locator('.ctl.band')).toHaveCount(0);
       const hl = await bx(page.locator('.tl .hl').first());
-      near(hl.x, f + 60); near(hl.x + hl.width, W - 16);
+      near(hl.x, f + 68); near(hl.x + hl.width, W - 16); // S8 N-01: 右ページの箱 +8
       await expect(page.locator('.shead [data-act="menu"]')).toHaveCount(1);
       for (const a of ['today', 'search', 'add']) await expect(page.locator(`.rhead [data-act="${a}"]`)).toHaveCount(1);
     });

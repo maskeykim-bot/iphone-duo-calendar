@@ -255,7 +255,7 @@ test.describe('月の文字「大」・時刻の出し入れ', () => {
     await expect(s).toHaveText('大小0');
     // チップは押す的ではない（S5）。題名の全文はマスのボタンの aria-label「予定1件：…」に残る
     await expect(s).toHaveAttribute('aria-hidden', 'true');
-    await expect(page.locator('.calendar .day[data-date="2026-11-12"]')).toHaveAttribute('aria-label', /予定1件：大小0/);
+    await expect(page.locator('.calendar .day[data-date="2026-11-12"]')).toHaveAttribute('aria-label', /予定1件：(\d+:\d\d )?大小0/);
     await openMenu(page, 'display');
     const t = menuBtn(page, '月表示に時刻を出す');
     await expect(t).toHaveAttribute('aria-pressed', 'false');
