@@ -4,7 +4,7 @@ import { validateTask, newTaskId } from './tasks.js';
 import { noteFromMemo, ensureDailyFolder, titleOf, noteCharLimit, noteDateOf } from './notes-model.js';
 import { CAT_IDS, DEFAULTS_NEW, LEGACY, UNCATEGORIZED, legacyToId, planCategoryRetarget, sortCategories } from './categories.js';
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 const BASE_NAME = 'duo-calendar';
 
 // v2 の既定値（v1→v3 を1回で上がるとき、v2 と v3 のカーソルが並行して走るので、どちらでも補う）。
@@ -77,6 +77,13 @@ const MIGRATIONS = {
     MIGRATIONS[4](db); // memos / meta が無い異常な旧DBでも変換できるよう、足りないストアだけ作る（あれば何もしない）
     if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath: 'key' });
     migrateNotesInTx({ memos: tx.objectStore('memos'), notes: tx.objectStore('notes'), folders: tx.objectStore('folders'), meta: tx.objectStore('meta') }, Date.now());
+  },
+  // v6: リマインダー同期。tasks に remExternalId の索引を足すだけ。レコードは書き換えない・消さない。
+  // 失敗したら versionchange が巻き戻って 5 のまま。
+  6(db, tx) {
+    if (!db.objectStoreNames.contains('tasks')) createV5Stores(db, tx);
+    const s = tx.objectStore('tasks');
+    if (!s.indexNames.contains('remExternalId')) s.createIndex('remExternalId', 'remExternalId');
   },
 };
 

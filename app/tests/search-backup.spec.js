@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { VERSION, SCHEMA } from '../js/backup.js';
 import { readFileSync } from 'node:fs';
 import { CAT_IDS } from '../js/categories.js';
 import { openApp, seed, dbEvents, ev, SIZES, layout, period, findTextOverlaps, textInGutter } from './helpers.js';
@@ -190,8 +191,8 @@ test.describe('バックアップ', () => {
     await dl.saveAs(p);
     const j = JSON.parse(readFileSync(p, 'utf8'));
     expect(j.app).toBe('duo-calendar');
-    expect(j.version).toBe(5);
-    expect(j.schema).toBe(5);
+    expect(j.version).toBe(VERSION);
+    expect(j.schema).toBe(SCHEMA);
     expect(j.categories.length).toBeGreaterThanOrEqual(5);
     expect(j.exportedAt).toMatch(/^2026-11-12T09:41:00\+09:00$/);
     expect(j.events).toHaveLength(7);
@@ -383,7 +384,7 @@ test.describe('バックアップ', () => {
     ['壊れた JSON', '{"app": "duo-calendar", "events": [', '壊れた'],
     ['形式違い', { hello: 'world' }, '未対応の形式'],
     ['別アプリ', { app: 'other', version: 2, events: [] }, '未対応の形式'],
-    ['将来版', { app: 'duo-calendar', version: 6, exportedAt: '2026-11-13T00:00:00Z', events: [] }, '未対応のバージョン'],
+    ['将来版', { app: 'duo-calendar', version: VERSION + 1, exportedAt: '2026-11-13T00:00:00Z', events: [] }, '未対応のバージョン'],
     ['events が配列でない', { app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T00:00:00Z', events: {} }, 'events'],
     ['不正な日時', { app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T00:00:00Z', events: [{ ...SEED[0], start: '2026-13-40T10:00' }] }, '不正な日時'],
     ['必須欠落', { app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T00:00:00Z', events: [{ id: 'x', start: '2026-11-12T10:00', end: '2026-11-12T11:00' }] }, '予定名'],
@@ -578,7 +579,7 @@ test.describe('メモ・設定のバックアップ', () => {
   test('不正なメモ・v5 は読み込み全体を拒否し、何も変えない', async ({ page }) => {
     await openApp(page);
     await putMemoDb(page, '2026-11-01', '守る');
-    for (const f of [V4({ memos: [M('2026-11-02', 'a'), M('2026-11-02', 'b')] }), V4({ memos: [{ ...M('2026-11-02', 'a'), id: 'x' }] }), V4({ memos: [M('2026-11-02', 'a'), { ...M('2026-11-03', 'b'), updatedAt: 'z' }] }), V4({ version: 6 }), V4({ version: 5, notes: [{ id: '' }] }), V4({ version: 5, tasks: [{ id: 'x' }] }), V4({ settings: { rokuyo: 'x' } })]) {
+    for (const f of [V4({ memos: [M('2026-11-02', 'a'), M('2026-11-02', 'b')] }), V4({ memos: [{ ...M('2026-11-02', 'a'), id: 'x' }] }), V4({ memos: [M('2026-11-02', 'a'), { ...M('2026-11-03', 'b'), updatedAt: 'z' }] }), V4({ version: VERSION + 1 }), V4({ version: 5, notes: [{ id: '' }] }), V4({ version: 5, tasks: [{ id: 'x' }] }), V4({ settings: { rokuyo: 'x' } })]) {
       await openBackup(page);
       await pick(page, 'bad.json', f);
       await expect(page.locator('#backup')).toContainText('読み込めませんでした');

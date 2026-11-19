@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { IDBFactory, IDBObjectStore } from 'fake-indexeddb';
-import { buildBackup, validateBackup, planAppend, planNotes } from '../js/backup.js';
+import { buildBackup, VERSION, validateBackup, planAppend, planNotes } from '../js/backup.js';
 import { noteFromMemo, memoTextOf, ensureDailyFolder, DAILY_ID } from '../js/notes-model.js';
 import { makeLegacyMemos, digestOf, FINGERPRINT_3008 } from './fixtures/notes/legacy-memos.mjs';
 import { validateBackupV4 } from './fixtures/notes/v4-legacy.mjs';
@@ -235,7 +235,7 @@ test('PR1: date の往復・date 無しは sourceDate・明示 null は保つ・
   const mk = (id, extra) => ({ id, body: `本${id}`, folderId: null, pinned: false, pinnedAt: null, createdAt: 1, updatedAt: 2, deletedAt: null, ...extra });
   const notes = [mk('a', { sourceDate: '2026-03-04', date: '2026-03-04' }), mk('b', { sourceDate: '2026-03-04', date: '2026-03-04' }), mk('c', { sourceDate: '2026-03-04', date: null }), mk('d', { date: '2026-05-06' }), mk('e', {})];
   const o = JSON.parse(JSON.stringify(buildBackup([], {}, NOW, [], [], [], notes, [])));
-  assert.equal(o.version, 5);
+  assert.equal(o.version, VERSION);
   assert.deepEqual(o.notes.map((x) => x.date), ['2026-03-04', '2026-03-04', null, '2026-05-06', null]);
   assert.equal(o.notes[2].sourceDate, '2026-03-04');
   // v5 の date 無しファイル

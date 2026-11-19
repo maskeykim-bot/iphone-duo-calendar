@@ -5,7 +5,7 @@ import {
   CAT_IDS, DEFAULTS_NEW, LEGACY, PALETTE, UNCATEGORIZED, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, newCategory,
   canHideCategory, ensureOneVisible, supplementForReplace, planDeleteCategory, defaultDeleteTarget, resolveCategory, sortCategories, tint, validateCategory,
 } from '../js/categories.js';
-import { buildBackup, validateBackup } from '../js/backup.js';
+import { buildBackup, validateBackup, VERSION } from '../js/backup.js';
 import { withDefaults } from '../js/util.js';
 import { ev } from './fixtures.mjs';
 
@@ -148,7 +148,7 @@ test('バックアップ v2（旧 cat）→ 固定 id に変換、ファイル�
   assert.equal(r.data.categories.find((c) => c.id === CAT_IDS.other).name, 'その他');
   assert.equal(r.report.retargeted, 2); assert.equal(r.report.legacyAdded, 1);
   assert.equal(r.data.hasCategories, false);
-  assert.equal(validateBackup(JSON.stringify({ ...file, version: 6 })).ok, false);
+  assert.equal(validateBackup(JSON.stringify({ ...file, version: VERSION + 1 })).ok, false);
 });
 
 test('バックアップ: categoryId とカテゴリ一覧が往復する。不正なカテゴリは拒否', () => {

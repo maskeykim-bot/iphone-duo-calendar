@@ -9,9 +9,9 @@ import { noteCharLimit, titleOf, noteFromMemo, memoTextOf, ensureDailyFolder, no
 import { CAT_IDS, DEFAULTS_NEW, LEGACY, UNCATEGORIZED, legacyToId, validateCategory } from './categories.js';
 
 export const APP = 'duo-calendar';
-export const VERSION = 5;
-export const SCHEMA = 5; // 書き出した端末の IndexedDB SCHEMA_VERSION（参考情報）
-export const READABLE = [1, 2, 3, 4, 5];
+export const VERSION = 6;
+export const SCHEMA = 6; // 書き出した端末の IndexedDB SCHEMA_VERSION（参考情報）
+export const READABLE = [1, 2, 3, 4, 5, 6];
 export const MAX_BYTES = 10 * 1024 * 1024;
 export const MAX_EVENTS = 10000;
 export const MAX_EXCEPTIONS = 100000;
@@ -73,7 +73,8 @@ const exportMemo = (m) => {
   return o;
 };
 const taskCmp = (a, b) => a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-const exportTask = (t) => { const r = validateTask(t); const x = r.ok ? r.task : t; return { id: x.id, title: x.title, due: x.due ? { ...x.due } : null, done: x.done, doneAt: x.doneAt, createdAt: x.createdAt, updatedAt: x.updatedAt, order: x.order, note: x.note, notify: x.notify }; };
+const linkOf = (x) => { const o = {}; for (const k of ['remItemId', 'remExternalId', 'remListId', 'remModifiedAt', 'syncState']) if (x[k] != null) o[k] = x[k]; return o; };
+const exportTask = (t) => { const r = validateTask(t); const x = r.ok ? r.task : t; return { id: x.id, title: x.title, due: x.due ? { ...x.due } : null, done: x.done, doneAt: x.doneAt, createdAt: x.createdAt, updatedAt: x.updatedAt, order: x.order, note: x.note, notify: x.notify, ...linkOf(x) }; };
 // ノート有効時用の書出。notes: 現在のノート一覧（db.listNotes({includeDeleted:true})）、folders: db.listFolders()。
 // notes が配列のとき（ノート有効）は tasks+notes+folders を出し memos は出さない。null（既定）なら従来どおり memos+tasks。
 const exportNote = (n) => {
@@ -299,6 +300,7 @@ function validKeys(e) {
 // current: { categories } 現在のカテゴリ一覧（予定が参照する id がファイルにも現在にも無いときだけ未分類へ付け替える）。
 export function validateBackup(text, current = {}) {
   let obj;
+  if (typeof text === 'string' && text.startsWith('PK')) return { ok: false, reason: '新しい Duo カレンダーで作ったバックアップです。アプリを最新にしてから読み込んでください。' }; // 先頭が PK は zip（V20 の版 7）
   try { obj = JSON.parse(text); } catch { return { ok: false, reason: 'JSONとして読み込めません（壊れたファイル）' }; }
   if (!isObj(obj) || obj.app !== APP) return { ok: false, reason: '未対応の形式です（Duoのバックアップではありません）' };
   if (!READABLE.includes(obj.version)) return { ok: false, reason: `未対応のバージョンです（version: ${String(obj.version).slice(0, 20)}）` };

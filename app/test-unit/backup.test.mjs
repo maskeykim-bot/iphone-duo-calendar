@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildBackup, contentKey, planAppend, planTasks, stripRuntime, validateBackup, VERSION, READABLE } from '../js/backup.js';
+import { buildBackup, contentKey, planAppend, planTasks, stripRuntime, validateBackup, VERSION, SCHEMA, READABLE } from '../js/backup.js';
 import { CAT_IDS, DEFAULTS_NEW, UNCATEGORIZED } from '../js/categories.js';
 import { R, ev } from './fixtures.mjs';
 
@@ -21,7 +21,7 @@ const full = () => ev('F', '2026-11-02T10:00', '2026-11-02T11:00', R('weekly', {
 const DP = { left: 'home', right: 'month', portraitBottom: 'time', portraitShown: false };
 test('バージョンは 5、schema と settings の形', () => {
   const bk = buildBackup([], { ...settings, monthExpand: true, notify: { enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } } }, new Date(), cats);
-  assert.equal(bk.version, VERSION); assert.equal(VERSION, 5); assert.equal(bk.schema, 5);
+  assert.equal(bk.version, VERSION); assert.equal(bk.schema, SCHEMA);
   assert.deepEqual(bk.settings, { view: 'month', style: 'simple', desk: false, monthExpand: true, rokuyo: true, holidayRed: true, pages: DP, tasks: { monthTasks: false }, notify: { enabled: true, showTitle: true, defaultTimed: { before: 30 }, defaultAllDay: { day: 0, at: '08:00' } } });
   assert.equal(bk.categories.length, 2);
 });
@@ -178,8 +178,8 @@ test('終了日より後の個別変更キーは捨てられ report.dropped=1（
   assert.equal(w.report.dropped, 2);
 });
 
-test('version: 6 → 拒否、1 → 受理、未知のトップレベルキー（ink）は無視して件数だけ数える', () => {
-  assert.equal(validateBackup(file({ version: 6, events: [] })).ok, false);
+test('version: VERSION+1 → 拒否、1 → 受理、未知のトップレベルキー（ink）は無視して件数だけ数える', () => {
+  assert.equal(validateBackup(file({ version: VERSION + 1, events: [] })).ok, false);
   assert.equal(validateBackup(JSON.stringify({ app: 'duo-calendar', version: 1, exportedAt: '2026-11-12T09:41:00+09:00', events: [] })).ok, true);
   const v = validateBackup(file({ events: [], ink: [{ a: 1 }, { a: 2 }], other: 1 }));
   assert.equal(v.ok, true); assert.equal(v.report.ink, 2);
@@ -353,4 +353,26 @@ test('planAppend は task の計画も返す', () => {
 
 test('READABLE は 1 から VERSION までの整数が全部入っている（版を上げても直さない）', () => {
   assert.deepEqual([...READABLE], Array.from({ length: VERSION }, (_, i) => i + 1));
+});
+
+// ---- D6: 版 6 ----
+test('D6: つながりの項目が書き出し・読み込みで残る（v6 の往復）。v5 のタスクは未リンクのまま', () => {
+  const t = { id: 't1', title: 'a', due: null, done: false, doneAt: null, createdAt: 1, updatedAt: 2, order: 0, note: '', notify: false };
+  const linked = { ...t, remItemId: 'R', remExternalId: 'X', remListId: 'L', remModifiedAt: 9, syncState: 'synced' };
+  const tomb = { ...t, id: 't2', remExternalId: 'X2', syncState: 'tombstone' };
+  const bk = JSON.parse(JSON.stringify(buildBackup([], {}, new Date(2026, 10, 19), [], [], [linked, tomb, { ...t, id: 't3' }])));
+  assert.equal(bk.version, VERSION);
+  const r = validateBackup(JSON.stringify(bk));
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.data.tasks.find((x) => x.id === 't1'), linked);
+  assert.equal(r.data.tasks.find((x) => x.id === 't2').syncState, 'tombstone');
+  assert.ok(!('remItemId' in r.data.tasks.find((x) => x.id === 't3')));
+  const v5f = validateBackup(JSON.stringify({ app: 'duo-calendar', version: 5, exportedAt: '2026-11-17T10:00:00+09:00', events: [], tasks: [t] }));
+  assert.equal(v5f.ok, true); assert.ok(!('remItemId' in v5f.data.tasks[0]));
+});
+test('D6: 先頭が PK（zip）は design/30 §2 の文で断る。版が新しい JSON は未対応のバージョン', () => {
+  const r = validateBackup('PK\u0003\u0004zzzz');
+  assert.equal(r.ok, false); assert.equal(r.reason, '新しい Duo カレンダーで作ったバックアップです。アプリを最新にしてから読み込んでください。');
+  assert.match(validateBackup(JSON.stringify({ app: 'duo-calendar', version: VERSION + 1, events: [] })).reason, /未対応のバージョンです/);
+  assert.match(validateBackup('{bad').reason, /壊れたファイル/);
 });

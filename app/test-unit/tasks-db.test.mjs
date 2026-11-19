@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import { IDBFactory, IDBObjectStore as FDBObjectStore } from 'fake-indexeddb';
+import { SCHEMA_VERSION } from '../js/db.js';
 
 let n = 0;
 async function fresh() { globalThis.indexedDB = new IDBFactory(); const m = await import(`../js/db.js?t${n++}`); m.configure(`t${n}`); return m; }
@@ -9,18 +10,18 @@ const raw = (name, ver, upgrade) => new Promise((res, rej) => { const r = indexe
 const dump = (name, store) => new Promise((res) => { const r = indexedDB.open(name); r.onsuccess = () => { const g = r.result.transaction(store).objectStore(store).getAll(); g.onsuccess = () => { r.result.close(); res(g.result); }; }; });
 const info = (name) => new Promise((res) => { const r = indexedDB.open(name); r.onsuccess = () => { const db = r.result; const o = { version: db.version, stores: [...db.objectStoreNames].sort(), idx: {} }; for (const s of o.stores) o.idx[s] = [...db.transaction(s).objectStore(s).indexNames].sort(); db.close(); res(o); }; });
 
-test('新規は v5。tasks/notes/folders が索引つきで空', async () => {
+test('新規は最新版。tasks/notes/folders が索引つきで空', async () => {
   const m = await fresh(); await m.listEvents();
   const i = await info(`duo-calendar-t${n}`);
-  assert.equal(i.version, 5);
+  assert.equal(i.version, SCHEMA_VERSION);
   assert.deepEqual(i.stores, ['categories', 'events', 'folders', 'memos', 'meta', 'notes', 'tasks']);
-  assert.deepEqual(i.idx.tasks, ['dueDate', 'order', 'updatedAt']);
+  assert.deepEqual(i.idx.tasks, ['dueDate', 'order', 'remExternalId', 'updatedAt']);
   assert.deepEqual(i.idx.notes, ['folderId', 'pinnedAt', 'sourceDate', 'updatedAt']);
   assert.deepEqual(i.idx.folders, ['order']);
   assert.deepEqual(await m.listTasks(), []);
 });
 
-test('v4 から v5: 既存データは一致のまま', async () => {
+test('v4 から最新版: 既存データは一致のまま', async () => {
   globalThis.indexedDB = new IDBFactory();
   const name = 'duo-calendar-mg';
   const ev = { id: 'e1', title: '旧', categoryId: 'c', all: false, start: '2026-11-17T10:00', end: '2026-11-17T11:00', notes: '', recurrence: null, exdates: [], overrides: {} };
@@ -35,15 +36,15 @@ test('v4 から v5: 既存データは一致のまま', async () => {
   assert.deepEqual(await m.getOutbox(), [{ k: 1 }]);
   assert.equal((await m.getMemo('2026-11-01')).text, 'm');
   assert.deepEqual((await dump(name, 'categories')).map((c) => c.id), ['x']);
-  assert.equal((await info(name)).version, 5);
+  assert.equal((await info(name)).version, SCHEMA_VERSION);
 });
 
-test('v1 から v5 まで順に上がる（予定は消えない）', async () => {
+test('v1 から最新版まで順に上がる（予定は消えない）', async () => {
   globalThis.indexedDB = new IDBFactory();
   await raw('duo-calendar-v1', 1, (db) => { const e = db.createObjectStore('events', { keyPath: 'id' }); e.createIndex('start', 'start'); e.put({ id: 'o', title: '旧予定', cat: 'work', start: '2026-11-01T10:00', end: '2026-11-01T11:00', all: false }); db.createObjectStore('meta', { keyPath: 'key' }); });
   const m = await import('../js/db.js?v1'); m.configure('v1');
   assert.deepEqual((await m.listEvents()).map((e) => e.title), ['旧予定']);
-  assert.equal((await info('duo-calendar-v1')).version, 5);
+  assert.equal((await info('duo-calendar-v1')).version, SCHEMA_VERSION);
 });
 
 test('CRUD と再読込、order は単調増加', async () => {
@@ -134,4 +135,52 @@ test('applyImport: 容量失敗で予定・タスクとも全体 rollback', asyn
   try { await assert.rejects(m.applyImport({ replace: true, eventPuts: [EV('ev1')], taskReplace: true, taskPuts: [TK('x'), TK('bad')] })); } finally { FDBObjectStore.prototype.put = orig; }
   assert.deepEqual((await m.listTasks()).map((t) => t.id), ['keep']);
   assert.deepEqual((await m.listEvents()).map((e) => e.id), ['ev0']);
+});
+
+// ---- D6: 版 5 → 6（tasks に remExternalId の索引を足すだけ） ----
+const mk5 = (db) => {
+  const e = db.createObjectStore('events', { keyPath: 'id' }); e.createIndex('start', 'start'); e.put({ id: 'e1', title: '予定', categoryId: 'c', all: false, start: '2026-11-17T10:00', end: '2026-11-17T11:00', notes: '', recurrence: null, exdates: [], overrides: {} });
+  db.createObjectStore('meta', { keyPath: 'key' });
+  const c = db.createObjectStore('categories', { keyPath: 'id' }); c.createIndex('order', 'order');
+  const mm = db.createObjectStore('memos', { keyPath: 'id' }); mm.createIndex('date', 'date');
+  const t = db.createObjectStore('tasks', { keyPath: 'id' }); t.createIndex('dueDate', 'due.date'); t.createIndex('order', 'order'); t.createIndex('updatedAt', 'updatedAt');
+  t.put({ id: 't1', title: 'タスク', due: null, done: false, doneAt: null, createdAt: 1, updatedAt: 1, order: 0, note: '', notify: false });
+  const n = db.createObjectStore('notes', { keyPath: 'id' }); for (const k of ['updatedAt', 'folderId', 'sourceDate', 'pinnedAt']) n.createIndex(k, k);
+  n.put({ id: 'n1', body: 'x' });
+  const f = db.createObjectStore('folders', { keyPath: 'id' }); f.createIndex('order', 'order');
+};
+test('v5 から v6: 件数・中身は同じで remExternalId の索引だけ増える', async () => {
+  globalThis.indexedDB = new IDBFactory();
+  const name = 'duo-calendar-m6';
+  await raw(name, 5, mk5);
+  const before = { t: await dump(name, 'tasks'), n: await dump(name, 'notes'), e: await dump(name, 'events') };
+  const m = await import('../js/db.js?m6'); m.configure('m6');
+  await m.listEvents();
+  assert.deepEqual(await dump(name, 'tasks'), before.t);
+  assert.deepEqual(await dump(name, 'notes'), before.n);
+  assert.deepEqual(await dump(name, 'events'), before.e);
+  const i = await info(name);
+  assert.equal(i.version, 6);
+  assert.deepEqual(i.idx.tasks, ['dueDate', 'order', 'remExternalId', 'updatedAt']);
+});
+test('v6 移行が abort されたら v5 のまま', async () => {
+  globalThis.indexedDB = new IDBFactory();
+  const name = 'duo-calendar-ab6';
+  await raw(name, 5, mk5);
+  await new Promise((res) => { const r = indexedDB.open(name, 6); r.onupgradeneeded = () => { r.transaction.objectStore('tasks').createIndex('remExternalId', 'remExternalId'); r.transaction.abort(); }; r.onerror = () => res(); r.onsuccess = () => res(); });
+  const i = await info(name);
+  assert.equal(i.version, 5);
+  assert.deepEqual(i.idx.tasks, ['dueDate', 'order', 'updatedAt']);
+  assert.equal((await dump(name, 'tasks')).length, 1);
+});
+test('つながりの項目と墓標は保存・往復で落ちない。無いタスクには足さない', async () => {
+  const m = await fresh();
+  const base = { title: 'a', due: null, done: false, doneAt: null, createdAt: 1, updatedAt: 2, order: 0, note: '', notify: false };
+  await m.putTask({ id: 'l1', ...base, remItemId: 'R1', remExternalId: 'X1', remListId: 'L1', remModifiedAt: 5, syncState: 'synced' });
+  await m.putTask({ id: 'l2', ...base, remExternalId: 'X2', syncState: 'tombstone' });
+  await m.putTask({ id: 'l3', ...base });
+  const g = Object.fromEntries((await m.listTasks()).map((t) => [t.id, t]));
+  assert.deepEqual([g.l1.remItemId, g.l1.remExternalId, g.l1.remListId, g.l1.remModifiedAt, g.l1.syncState], ['R1', 'X1', 'L1', 5, 'synced']);
+  assert.equal(g.l2.syncState, 'tombstone');
+  assert.ok(!('remItemId' in g.l3) && !('syncState' in g.l3));
 });

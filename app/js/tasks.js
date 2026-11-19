@@ -32,7 +32,22 @@ export function validateTask(t) {
   if (typeof notify !== 'boolean') return { ok: false, error: 'タスクの通知設定が不正です。' };
   if (!isMs(t.createdAt) || !isMs(t.updatedAt)) return { ok: false, error: 'タスクの日時が不正です。' };
   if (!(typeof t.order === 'number' && Number.isFinite(t.order))) return { ok: false, error: 'タスクの順序が不正です。' };
-  return { ok: true, task: { id: t.id, title, due, done, doneAt: done ? doneAt : null, createdAt: t.createdAt, updatedAt: t.updatedAt, order: t.order, note, notify: due ? notify : false } };
+  const task = { id: t.id, title, due, done, doneAt: done ? doneAt : null, createdAt: t.createdAt, updatedAt: t.updatedAt, order: t.order, note, notify: due ? notify : false };
+  // リマインダーとのつながり（版 6）。無いタスクには足さない（未リンクのまま）。墓標は同じ tasks に syncState:'tombstone'。
+  for (const k of ['remItemId', 'remExternalId', 'remListId']) {
+    if (t[k] == null) continue;
+    if (typeof t[k] !== 'string' || !t[k] || t[k].length > 512) return { ok: false, error: 'タスクのリマインダーとのつながりが不正です。' };
+    task[k] = t[k];
+  }
+  if (t.remModifiedAt != null) {
+    if (!isMs(t.remModifiedAt)) return { ok: false, error: 'タスクのリマインダーとのつながりが不正です。' };
+    task.remModifiedAt = t.remModifiedAt;
+  }
+  if (t.syncState != null) {
+    if (typeof t.syncState !== 'string' || !t.syncState || t.syncState.length > 32) return { ok: false, error: 'タスクのリマインダーとのつながりが不正です。' };
+    task.syncState = t.syncState;
+  }
+  return { ok: true, task };
 }
 
 let seq = 0;
