@@ -67,7 +67,7 @@ test.describe('押した反応', () => {
 test.describe('シートの出入り', () => {
   for (const [name, size] of [['閉じた', SIZES.closedPortrait], ['開いた縦', SIZES.openPortrait669], ['開いた横', SIZES.openLandscape951]]) {
     test(`${name}: 編集シートは開いた直後に translateY のアニメがあり、角丸 24・影は段3、閉じ終わってから閉じる`, async ({ page }) => {
-      await openApp(page, size);
+      await openApp(page, size, '', { motion: true });
       await page.locator('.cb.cadd, .rbtn.radd').first().click();
       const info = await page.evaluate(() => {
         const an = document.getAnimations().map((a) => ({ n: a.animationName, t: a.effect?.getTiming?.().duration, e: getComputedStyle(a.effect.target).animationTimingFunction }));
@@ -91,7 +91,7 @@ test.describe('シートの出入り', () => {
   }
   test('視差効果を減らす設定: 0.15 秒のフェードだけ（translateY なし）', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await openApp(page, SIZES.closedPortrait);
+    await openApp(page, SIZES.closedPortrait, '', { motion: true });
     await page.locator('.cb.cadd').first().click();
     const names = await page.evaluate(() => document.getAnimations().map((a) => [a.animationName, a.effect.getTiming().duration]));
     expect(names).toContainEqual(['sheetfadein', 150]);
