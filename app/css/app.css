@@ -1172,7 +1172,7 @@ dialog#menu #m-destpop{border-radius:inherit}
 .htmr{min-height:52px;background:#fff;font-size:13px}.htmr b{font-weight:600}.htmr small{color:#68716A}.htmr span{display:block;font-size:13px}
 /* 開いた横: 今日の予定は 9〜19 時の小さな時間軸（1時間14pt） */
 .haxis{position:relative;display:block;width:100%;min-height:0;margin:6px 0 2px;padding:0;border:0;border-radius:0;background:none;text-align:left;color:inherit;font:inherit}
-.haxis .hh{position:absolute;left:0;width:22px;font-size:10px;line-height:10px;color:#8a8f88;transform:translateY(-5px)}
+.haxis .hh{position:absolute;left:0;width:22px;font-size:11px;font-weight:400;line-height:14px;color:#8a8f88;transform:translateY(-7px)} /* N-07: 11/400・行 14 */
 .haxis .hbars{display:block;position:absolute;left:26px;right:0;top:0;bottom:0;border-left:1px solid #E3E0D7;background:repeating-linear-gradient(to bottom,transparent 0,transparent 13px,#EFEDE6 13px,#EFEDE6 14px)}
 .hbarev{position:absolute;left:2px;right:2px;padding:0 6px;border:0;border-radius:3px;display:flex;align-items:center;box-sizing:border-box;background:var(--tint,#DCE7E0);box-shadow:inset 3px 0 0 var(--cat,#6E8F7F);font-size:10px;text-align:left;overflow:hidden;color:var(--ink,#222);min-height:0}
 .hbarev.past{opacity:.45}
@@ -2104,12 +2104,11 @@ body :is(.dchip)[aria-pressed=true]:active:not(:disabled){filter:brightness(.92)
 .nmeta :is(.nfpill,.ndate,.nmpin):active:not(:disabled){background-color:transparent!important}
 .nmeta :is(.nfpill,.ndate,.nmpin):active:not(:disabled) .nfp{background-color:#EFECE4;transition-duration:.10s}
 /* V-19: 開いた横・右ページのノートは、見出し・一覧・フォルダの行・題と本文の文字を x500（ページの端から 16）にそろえる */
-.spread .rp[data-page=memo] .rhead{padding-left:14.5px}
-.spread .rp[data-page=memo] .ntools{padding-left:2.5px}
-.spread .rp[data-page=memo] .ntools .ntitle{padding-left:12px}
-.spread .rp[data-page=memo] .memopage{padding-left:14.5px}
-.spread .rp[data-page=memo] .ned-title{margin-left:-8px;width:calc(100% + 8px)}
-.spread .rp[data-page=memo] .ned-bodywrap{margin-left:-8px}
+.spread .page[data-page=memo] .ntools{padding-left:0}
+.spread .page[data-page=memo] .ntools .ntitle{padding-left:8px}
+.spread .page[data-page=memo] .memopage{padding-left:8px}
+.spread .page[data-page=memo] .ned-title{margin-left:-8px;width:calc(100% + 8px)}
+.spread .page[data-page=memo] .ned-bodywrap{margin-left:-8px}
 /* 中-2（品質）・設計 00:25: ノートの完了 ✓ の緑の丸は押している間 opacity .7・scale .94、0.10 秒で入り 0.15 秒で戻る */
 .ned .ned-done::before{transition:opacity .15s ease-out,transform .15s ease-out}
 .ned .ned-done:active:not(:disabled)::before{opacity:.7;transform:scale(.94);transition-duration:.10s}
@@ -2221,3 +2220,34 @@ body:not([data-layout=spread]):not([data-layout=desk]) :is(dialog#cats,dialog#no
 /* ===== 第19.1版 S7e ===== */
 /* V-19（設計 25 §5・00:25）: 開いた横の左ページの見出し（2026年11月）も、右ページと同じくページの端から 16（x8→16）。月の格子は x8 のまま */
 .spread .lp .shead h2{padding-left:8px;box-sizing:border-box}
+
+/* ===== 第19.1版 S8 ===== */
+/* N-01（設計 2026-11-20）: 開いた横の右ページの箱を x493.5〜851（折り目の側に 8）。見出しは箱の端から 8（左 x16・右 x501.5）、カード・行は 4（x12・x497.5）、月の格子は箱の端（x8・x493.5）。
+   1日ページ（今日＋明日の .dpage）は 485.5 の箱のまま（めくりの背 spine。中は元から x501.5）。 */
+.spread .rp:not(.dpage){left:calc(var(--right-start) + 8px);width:calc(var(--right-end) - var(--right-start) - 8px)}
+.spread .page:not(.dpage) .rhead{padding-left:8px;box-sizing:border-box}
+/* N-09: 開いた横・ノートの編集の下「削除」「最近削除した項目」の文字を、ページのほかの文字（見出しの x501.5）と同じ位置へ。ボタンの箱を左へ 12（高さ 44 はそのまま） */
+.spread .page[data-page=memo] .ned-bar{padding-left:0}
+.spread .page[data-page=memo] .ned-bar .ned-del{margin-left:-12px}
+/* N-02（設計 2026-11-20）: 閉じた画面の日・週の時間軸 .tl の下に余白。内側の下の余白 12（TL_PAD）を含めて 87（＝--end-pad-closed 79 + 8）にする（79 − 4 + 12）。送り切ると 24:00 の線がバー（タブ）の上端から 8 に来て、23:00 の予定が見えて押せる */
+.shell.closed .tl[data-pane=closed]{padding-bottom:calc(var(--end-pad-closed,79px) - 4px);box-sizing:border-box}
+.shell.closed .mpull .mdbody .tl[data-pane=closed]{padding-bottom:0}
+/* N-03（設計 2026-11-20）: 開いた横で予定の編集・iPhone の予定・タスクのシート（時刻のダイヤルの面も編集シートの中）を開いている間、右ページの見出しの行と両方の .pgsw（下のタブ）を
+   シートと同じ 0.25s・--sheet-ease で消し、閉じたら同じ秒数で戻す。消えている間は visibility:hidden で押せない・読み上げにも出ない。reduced motion は 0.15s のフェード */
+.spread .rp .rhead,.spread .dpage.rp .dph,.spread .pgsw{transition:opacity .25s var(--sheet-ease),visibility 0s linear 0s}
+body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#taskdlg[open],dialog#rsheet[open]) :is(.spread .rp .rhead,.spread .dpage.rp .dph,.spread .pgsw){opacity:0;visibility:hidden;transition:opacity .25s var(--sheet-ease),visibility 0s linear .25s}
+@media (prefers-reduced-motion:reduce){
+  .spread .rp .rhead,.spread .dpage.rp .dph,.spread .pgsw{transition:opacity .15s ease-out,visibility 0s linear 0s}
+  body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#taskdlg[open],dialog#rsheet[open]) :is(.spread .rp .rhead,.spread .dpage.rp .dph,.spread .pgsw){transition:opacity .15s ease-out,visibility 0s linear .15s}
+}
+/* N-04（設計 2026-11-20・1:20 の決め）: 月の日の一覧の予定名は 15/400（タスク .htt・ホームの行と同じ） */
+.mdev strong,.portrait .mdev strong{font-weight:400}
+/* N-05: 選んでいるマスでは +N を右 4（選んだ枠の内側 2 ＋すき間 2）。今日のマスでは、ノートの印を丸の中へ（白・8×2・角丸 1、x+7〜15・y+12） */
+.week .plus.onsel,.closed .week .plus.onsel,.spread .week .plus.onsel{padding-right:4px}
+.week .day.today .mline{left:11px;top:13px;width:8px;height:2px;margin-left:-4px;border-radius:1px;background:#fff}
+/* ★1-10（品質・設計 2026-11-20 4:05）: 閉じたホームの「＋ タスクを追加」はカードの見出しのすぐ下。行 44・押せる範囲は行全体（x12〜374）。「＋」はチェック欄と同じ列、文字はタスク名と同じ x、15/400 緑 */
+.hadd.first{display:flex;align-items:center;box-sizing:border-box;width:calc(100% + 22px);height:44px;min-height:44px;margin:0 -13px 0 -9px;padding:0 13px 0 9px;text-align:left;font-size:15px;font-weight:400;color:#294E42}
+.hadd.first .hadd-p{flex:none;width:44px;text-align:center;font-size:20px;line-height:20px;margin-left:-10px}
+.hadd.first .hadd-t{flex:1;min-width:0;margin-left:-4px}
+.closed .htasks .htask{min-height:44px}
+.closed .htasks .htask .rmckb{height:44px;min-height:44px}

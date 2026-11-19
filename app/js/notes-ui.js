@@ -71,7 +71,7 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
   host.append(root);
 
   let cur = null;               // 開いているノートID
-  let shape = { nl: false, eol: '\n', crlf: false, mark: '' }; // mark = 1行目の先頭の記号（「# 」など）。題名欄には出さず、保存のときに元のまま付け直す（S7 R-27・V-21）
+  let shape = { nl: false, eol: '\n', crlf: false, mark: '', shown: '' }; // mark = 1行目の先頭の記号（「# 」など）。題名欄には出さず、保存のときに元のまま付け直す（S7 R-27・V-21）
   let lastSynced = '';
   let composing = false;
   let destroyed = false;
@@ -212,10 +212,16 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
   function doUndo() { closeGroup(); const st = undoSt.pop(); if (!st) { paintUndo(); return; } redoSt.push(snap()); restore(st); paintUndo(); }
   function doRedo() { closeGroup(); const st = redoSt.pop(); if (!st) { paintUndo(); return; } undoSt.push(snap()); if (undoSt.length > UNDO_MAX) undoSt.shift(); restore(st); paintUndo(); }
 
-  const value = () => { const { mark, ...sh } = shape; return joinBody({ title: mark + title.value.replace(/\r?\n/g, ' '), rest: body.value, ...sh }); };
+  // 題名欄に触っていないノートは、元の記号をそのまま付け直す（1文字も変えない）。触ったときだけ（S8 連携の低 L-1・L-2）:
+  // 題名が空なら記号も残さない（「# 」だけの行にしない）／打った文字が自分で記号から始まるなら取り分けた記号を足さず打ったまま（「# # x」にしない）。
+  const value = () => {
+    const { mark, shown, ...sh } = shape; const t = title.value.replace(/\r?\n/g, ' ');
+    const head = t === shown ? mark + t : !t.trim() ? '' : markOf(t) ? t : mark + t; // 打った文字が自分で記号から始まるなら、そのまま（二重にしない。連携 04:06）
+    return joinBody({ title: head, rest: body.value, ...sh });
+  };
   function show(text) {
-    const s = splitBody(text); const crlf = isCrlf(text); const mark = markOf(s.title); shape = { nl: s.nl, eol: s.eol, crlf, mark };
-    title.value = s.title.slice(mark.length); body.value = crlf ? s.rest.replace(/\r\n/g, '\n') : s.rest; fit(); resetHistory();
+    const s = splitBody(text); const crlf = isCrlf(text); const mark = markOf(s.title); shape = { nl: s.nl, eol: s.eol, crlf, mark, shown: s.title.slice(mark.length) };
+    title.value = shape.shown; body.value = crlf ? s.rest.replace(/\r\n/g, '\n') : s.rest; fit(); resetHistory();
     lastSynced = value(); // 触っていないノートは、開いただけで書き換えない
   }
   function fit() { title.style.height = 'auto'; title.style.height = `${title.scrollHeight}px`; fitBody(); }
@@ -351,7 +357,9 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
   title.addEventListener('input', (ev) => {
     if (title.value.includes('\n')) { // 複数行の貼り付け: 最初の行を題名、残りを本文の先頭へ
       const p = splitBody(title.value.replace(/\r\n/g, '\n'));
-      title.value = p.title; body.value = p.rest + (body.value ? '\n' + body.value : ''); shape.nl = true;
+      // S8 企画の低: 貼った題名の記号は題名欄に出さない（保存では元の記号を保つ）。元の行に記号がなければ貼った記号を取り分ける
+      const pm = markOf(p.title); if (pm) shape.mark = pm; title.value = p.title.slice(pm.length);
+      body.value = p.rest + (body.value ? '\n' + body.value : ''); shape.nl = true;
     }
     fit(); noteChange(/insertLineBreak|insertParagraph/.test(ev.inputType || ''));
     if (!ev.isComposing && !composing) { sync(); paintStatus(); }

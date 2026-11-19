@@ -238,8 +238,9 @@ export function createTimeUi(els, api) {
     Object.assign(pop.style, { left: `${l}px`, top: `${t}px`, width: `${r - l}px`, height: `${b - t}px` });
     if (document.body.dataset.layout === 'spread' && dlgEl) { // S7 G2: 右ページのシートの clip-path（折り目側の影を切る）が左ページの面まで切らないよう、面の矩形を残す
       const e = dlgEl.getBoundingClientRect();
-      dlgEl.style.setProperty('--tf-l', `${l - e.left}px`); dlgEl.style.setProperty('--tf-r', `${r - e.left}px`);
-      dlgEl.style.setProperty('--tf-t', `${t - e.top}px`); dlgEl.style.setProperty('--tf-b', `${b - e.top}px`);
+      // S8 N-06（設計 2026-11-20）: 面の 1px の縁（0 0 0 1px）が切られないよう、左・上・下だけ外へ 1 広げる。右（折り目の側）は保護域に入らないよう 0 のまま
+      dlgEl.style.setProperty('--tf-l', `${l - e.left - 1}px`); dlgEl.style.setProperty('--tf-r', `${r - e.left}px`);
+      dlgEl.style.setProperty('--tf-t', `${t - e.top - 1}px`); dlgEl.style.setProperty('--tf-b', `${b - e.top + 1}px`);
     }
     const q = pop.getBoundingClientRect(); // 変形のある親の中でも合わせる
     if (Math.abs(q.left - l) > 0.5 || Math.abs(q.top - t) > 0.5) Object.assign(pop.style, { left: `${l - (q.left - l)}px`, top: `${t - (q.top - t)}px` });
