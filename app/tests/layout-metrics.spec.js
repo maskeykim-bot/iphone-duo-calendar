@@ -197,6 +197,8 @@ test.describe('月レーン: 終日・帯・時刻チップの混在', () => {
     });
   }
   test('+N は日一覧へ（全件が見える）', async ({ page }) => {
+    // 月を引く画面の日の部分は「予定」（.mdlist）で見る（helpers の openApp は既定で時間軸にするため）
+    await monthFormInit(page);
     await openApp(page, SIZES.openPortrait669);
     await seed(page, MIX);
     await monthOf(page, SIZES.openPortrait669);

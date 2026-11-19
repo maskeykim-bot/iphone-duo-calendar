@@ -1,6 +1,6 @@
 // 第19版 PR8: 予定を長押しでつかんで別の日へ落とす（design/21 §1.3。データは js/move-day.js・D3）。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, seed, ev, dbEvents, enableCalendars } from './helpers.js';
+import { openApp, SIZES, seed, ev, dbEvents, enableCalendars, monthFormInit } from './helpers.js';
 
 const CALS = [
   { id: 'cal-1', title: '家族', color: '#d93025', sourceId: 's-g', source: 'Google', sourceType: 'caldav', allowsModify: true, isDefault: true },
@@ -162,6 +162,8 @@ test.describe('iPhone の予定', () => {
 
 test.describe('開いた縦（月タブ）', () => {
   test('下の面の予定を上の月の日へ落とせる', async ({ page }) => {
+    // 月を引く画面の日の部分は「予定」（.mdlist）で見る（helpers の openApp は既定で時間軸にするため）
+    await monthFormInit(page);
     await boot(page, SIZES.openPortrait669);
     const row = page.locator('.mdev, .tlev:not(.fev)', { hasText: '撮影' }).first();
     await expect(row).toBeVisible();

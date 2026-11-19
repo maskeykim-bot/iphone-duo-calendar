@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, loadSample, addEvent, fillEditor, tab, pickDay, SIZES, fillDateTime } from './helpers.js';
+import { openApp, loadSample, addEvent, fillEditor, tab, pickDay, SIZES, fillDateTime, monthFormInit } from './helpers.js';
 
 test.describe('予定の追加・編集・削除', () => {
   test('初期は空で、サンプルを入れられる', async ({ page }) => {
@@ -72,6 +72,8 @@ test.describe('予定の追加・編集・削除', () => {
   });
 
   test('終日と複数日: 日付形式に切替わり、各日に表示される', async ({ page }) => {
+    // 月を引く画面の日の部分は「予定」（.mdlist）で見る（helpers の openApp は既定で時間軸にするため）
+    await monthFormInit(page);
     await openApp(page, SIZES.openPortrait);
     await page.getByRole('button', { name: '予定を追加' }).click();
     await fillEditor(page, { title: '社員旅行', all: true });
