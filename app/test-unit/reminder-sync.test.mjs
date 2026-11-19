@@ -53,7 +53,7 @@ async function setup(opts = {}) {
   let sync;
   const store = createTaskStore(db, { syncOn: () => set.enabled, onWrite: () => {} });
   sync = createReminderSync({ db, native: K.native, getSettings: () => set, setSettings: (s) => { set = normSyncSettings(s); }, base: { get: () => bs, set: (b) => { bs = JSON.parse(JSON.stringify(b)); } }, onNotice: (m) => notices.push(m), onEvent: (e) => events.push(e), now: () => new Date(K.clock) });
-  return { db, K, store, sync, notices, events, get set() { return set; } };
+  return { db, K, store, sync, notices, events, setSet: (p) => { set = normSyncSettings({ ...set, ...p }); }, get set() { return set; } };
 }
 const byId = async (db, id) => db.getTask(id);
 
@@ -290,7 +290,7 @@ test('listMissing: 「今はしない」は 0 回。「作り直す」はリス�
     const t = await setup();
     await t.store.add({ id: 'a', title: 'a' }); await t.store.add({ id: 'b', title: 'b' });
     await t.sync.sync();
-    t.K.lists = t.K.lists.filter((l) => l.id !== 'L1'); t.K.rems = [];
+    t.K.lists = t.K.lists.filter((l) => l.id !== 'L1'); t.K.rems = []; t.K.created = {}; // リストごと消えたので、前の要求 id の記録も無い
     await t.sync.sync();
     return t;
   };
@@ -377,4 +377,61 @@ test('applyFirst: 結びつける＝リンクだけ（書き込みなし）、�
   assert.equal(b.syncState, 'pending'); assert.equal(b.remItemId, undefined);
   assert.equal('syncState' in c, false);
   assert.equal(d.syncState, 'pending');
+});
+
+// ---- 第19版 D9: すでにあるタスクの移し方（RS-26・27・28・36・49・50） ----
+import { prevListCandidates } from '../js/reminder-sync.js';
+test('prevListCandidates: 題名がちょうど「Duo」（前後の空白は除く）で書けるものだけ。既定と同じソースは上に置くだけ', () => {
+  const ls = [{ id: 'A', title: 'Duo', sourceId: 'S2', allowsModify: true }, { id: 'B', title: ' Duo ', sourceId: 'S1', allowsModify: true }, { id: 'C', title: 'Duo', sourceId: 'S1', allowsModify: false },
+    { id: 'D', title: 'Duo2', sourceId: 'S1', allowsModify: true }, { id: 'E', title: 'inbox', sourceId: 'S1', allowsModify: true, isDefault: true }];
+  assert.deepEqual(prevListCandidates(ls).map((l) => l.id), ['B', 'A']);
+  assert.deepEqual(prevListCandidates([]).map((l) => l.id), []);
+});
+test('previewFirst: リマインダーにだけある件は pick（初期オフ）。つながり済み・取り込まないと決めた件は出さない', () => {
+  const tasks = [task('a', '牛乳', { date: '2026-11-20' }), task('k', 'つながり', null, { remItemId: 'R7', syncState: 'linked' }), task('l', '連携なし', null, { syncState: 'local' })];
+  const rems = [rem('R1', '牛乳', { date: '2026-11-20' }), rem('R7', 'つながり'), rem('R8', '残り1'), rem('R9', '残り2'), rem('R10', '見送り')];
+  const pv = previewFirst(tasks, rems, { declined: ['R10'] });
+  assert.deepEqual(pv.pick.map((p) => [p.rem.itemId, p.on]), [['R8', false], ['R9', false]]);
+  assert.deepEqual(pv.maybe.map((m) => m.rem.itemId), ['R1']);
+  assert.deepEqual(pv.toAdd.map((t) => t.id), []); // 連携なし（リマインダーで消された）は書き出し直さない
+});
+test('applyFirst: 選んだ件だけ Duo に入ってつながる。選ばなかった件・「入れない」は declined に返る', async () => {
+  const db = await fresh();
+  await db.putTask({ ...task('b', 'パン', { date: '2026-11-20' }), order: 3 });
+  const base = {};
+  const pick = [{ rem: rem('R8', '残り1'), on: true }, { rem: rem('R9', '残り2'), on: false }];
+  const r = await applyFirst({ db, base, toAdd: [], maybe: [{ task: await db.getTask('b'), rem: rem('R2', 'パン', { date: '2026-11-20' }), choice: 'skip' }], pick });
+  const all = await db.listTasks();
+  assert.equal(all.length, 2);
+  const got = all.find((t) => t.remItemId === 'R8');
+  assert.equal(got.title, '残り1'); assert.equal(got.syncState, 'linked'); assert.equal(got.order, 4); assert.equal(got.remListId, 'L1');
+  assert.deepEqual(r.declined.sort(), ['XR2', 'XR9', 'R2', 'R9'].sort()); assert.equal(r.imported, 1);
+});
+test('RS-49・50: 取り込まないと決めた件は、同期でも取り込まれない。選んでいない件だけが declined', async () => {
+  const t = await setup({ lists: [] });
+  t.K.rems.push({ itemId: 'R8', externalId: 'XR8', listId: 'L1', title: '残す', notes: '', due: null, done: false, modifiedAt: 1 }, { itemId: 'R9', externalId: 'XR9', listId: 'L1', title: '見送り', notes: '', due: null, done: false, modifiedAt: 1 });
+  t.setSet({ declined: ['XR9'] });
+  const r = await t.sync.sync();
+  const all = await t.db.listTasks();
+  assert.deepEqual(all.map((x) => x.title), ['残す']);
+  assert.equal(t.K.count('createReminder'), 0);
+  assert.equal(r.imported, 1);
+});
+test('RS-36: バックアップから戻した件は externalId で結び直す。見つからない件は pending のまま作り直さず、「書き出し直す」を選んだときだけ作る', async () => {
+  const t = await setup({ lists: [] });
+  t.K.rems.push({ itemId: 'NEW1', externalId: 'XE1', listId: 'L1', title: '牛乳', notes: '', due: null, done: false, modifiedAt: 7 });
+  await t.db.putTask({ ...task('a', '牛乳'), remItemId: 'OLD1', remExternalId: 'XE1', remListId: 'OLDLIST', syncState: 'linked' });
+  await t.db.putTask({ ...task('b', 'なくなった'), remItemId: 'OLD2', remExternalId: 'XE2', remListId: 'OLDLIST', syncState: 'linked' });
+  const r = await t.sync.sync();
+  const a = await t.db.getTask('a'), b = await t.db.getTask('b');
+  assert.equal(a.remItemId, 'NEW1'); assert.equal(a.remListId, 'L1'); assert.equal((await t.db.listTasks()).length, 2);
+  assert.equal(b.syncState, 'pending'); assert.equal(b.remExternalId, 'XE2'); assert.equal(r.lost, 1);
+  assert.equal(t.K.count('createReminder'), 0); // 自動では作らない
+  assert.ok(t.events.some((e) => e.type === 'lost'));
+  await t.sync.sync(); assert.equal(t.K.count('createReminder'), 0);
+  const x = await t.sync.reexportLost();
+  assert.equal(x.n, 1); assert.equal(t.K.count('createReminder'), 1);
+  const b2 = await t.db.getTask('b');
+  assert.equal(b2.syncState, 'linked'); assert.equal(b2.remListId, 'L1'); assert.notEqual(b2.remItemId, 'OLD2');
+  await t.sync.reexportLost(); assert.equal(t.K.count('createReminder'), 1); // 二重にならない
 });

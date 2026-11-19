@@ -328,3 +328,58 @@ test('D8: 同期オンの calendarChanged は 300ms の間引きで取得 1 回�
   await page.waitForTimeout(900);
   expect(await calls(page, ['listReminders'])).toEqual(['listReminders']);
 });
+
+// ---- 第19版 D9: すでにあるタスクの移し方（RS-49・50・49b・50b） ----
+const PREV = [REM({ itemId: 'P1', listId: 'L1', title: '前の牛乳' }), REM({ itemId: 'P2', listId: 'L1', title: '前のパン' }), REM({ itemId: 'P3', listId: 'L1', title: '前のごみ' })];
+async function toConfirm(page) {
+  await openMenu(page, 'reminders');
+  await page.locator('#m-rssw').click(); await page.locator('#rsheet .rsmain').click();
+}
+test('RS-49・50: 入れ直し。以前の「Duo」リストの件が一覧に出て、選ぶまで書き込み 0。選んだ件だけ入り、残りは取り込まれない。リストは増えない', async ({ page }) => {
+  await kit(page, { rems: PREV.map((r) => ({ ...r })) });
+  await openApp(page, CLOSED);
+  await seedTasks(page, [T('a', { title: '新しい件', order: 1 })]);
+  await toConfirm(page);
+  const sh = page.locator('#rsheet');
+  await expect(sh).toContainText('リマインダーにある件 3');
+  await expect(sh.locator('[data-rs="pickrem"][aria-checked="true"]')).toHaveCount(0); // 初期は全部オフ（自動では取り込まない）
+  await expect(sh).not.toContainText('以前の「Duo」リスト'); // 1 つに決まったので選ばせない
+  const b = await sh.locator('[data-rs="pickrem"]').first().boundingBox();
+  expect(b.height).toBeGreaterThanOrEqual(44);
+  expect(await calls(page, WRITES)).toEqual([]);
+  await sh.locator('[data-rs="pickrem"]').nth(1).click();
+  await expect(sh.locator('[data-rs="pickrem"]').nth(1)).toHaveAttribute('aria-checked', 'true');
+  expect(await calls(page, WRITES)).toEqual([]);
+  await sh.locator('.rsmain').click(); // 入れる
+  await expect(sh.locator('.rsdone')).toBeVisible();
+  const t = await dbTasks(page);
+  expect(t.map((x) => x.title).sort()).toEqual(['前のパン', '新しい件'].sort());
+  expect(t.find((x) => x.title === '前のパン')).toMatchObject({ remItemId: 'P2', remListId: 'L1', syncState: 'linked' });
+  const c = await page.evaluate(() => window.__K.calls.filter((c) => ['createReminder', 'createReminderList'].includes(c[0])).map((c) => [c[0], c[1].title, c[1].listId]));
+  expect(c).toEqual([['createReminder', '新しい件', 'L1']]); // 書き出し先は以前のリスト。新しいリストも作らない
+  await page.reload(); await page.waitForSelector('html[data-ready]');
+  await expect.poll(async () => (await dbTasks(page)).length).toBe(2); // 選ばなかった件は次の同期でも取り込まれない
+  expect(JSON.parse(await page.evaluate(() => localStorage.getItem('duo-rem-sync'))).declined.sort()).toEqual(['P1', 'P3', 'XP1', 'XP3']);
+});
+test('RS-49b: 「Duo」リストが 2 つあるときは自動で選ばない。選ぶまで「入れる」は押せず、選んだリストが書き出し先になる', async ({ page }) => {
+  const lists = [...LISTS, { id: 'L4', title: 'Duo', color: '#118833', sourceId: 'S2', allowsModify: true }];
+  await kit(page, { lists, rems: [REM({ itemId: 'Q1', listId: 'L4', title: '別の件' }), ...PREV.map((r) => ({ ...r }))] });
+  await openApp(page, CLOSED);
+  await seedTasks(page, [T('a', { title: '新しい件', order: 1 })]);
+  await toConfirm(page);
+  const sh = page.locator('#rsheet');
+  await expect(sh).toContainText('「Duo」という名前のリストが複数あります');
+  await expect(sh.locator('[data-rs="prevlist"]')).toHaveCount(3); // Duo ×2 と「新しく作る」
+  await expect(sh.locator('.rsmain')).toBeDisabled();
+  await expect(sh.locator('[data-rs="pickrem"]')).toHaveCount(0);
+  expect(await calls(page, WRITES)).toEqual([]);
+  await sh.locator('[data-rs="prevlist"][data-list="L4"]').click();
+  await expect(sh).toContainText('リマインダーにある件 1');
+  await expect(sh.locator('.rsmain')).toBeEnabled();
+  await sh.locator('.rsmain').click();
+  await expect(sh.locator('.rsdone')).toBeVisible();
+  const c = await page.evaluate(() => window.__K.calls.filter((c) => c[0] === 'createReminder').map((c) => c[1].listId));
+  expect(c).toEqual(['L4']);
+  expect(JSON.parse(await page.evaluate(() => localStorage.getItem('duo-rem-sync'))).duoListId).toBe('L4');
+  expect((await dbTasks(page)).map((x) => x.title)).toEqual(['新しい件']); // 選ばなかった件は入らない
+});

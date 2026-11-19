@@ -25,7 +25,7 @@ import { DELETE_UNDO_MS, tasksHtml, focusTasksHtml, HIST_DAYS, openTaskEditor, t
 import { liveTasks as liveTasksOf, LOCAL_LIST, TASK_STORE_TEXT, createTaskStore, createLocalCall, createLocalAddController, rowOf, createTaskDoneController, DONE_UNDO_MS, TASK_VIEWS, TASK_VIEW_LABELS, normTaskView, dueCounts, todayTasks, inheritTaskSettings, normTaskSettings } from './tasks.js';
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
 import { call, errCode, errReason, errText, haptic, listen, nativeAvailable, remNative, requestReminderPermission } from './native.js';
-import { createReminderSync, normSyncSettings, previewFirst, applyFirst, SYNC_WINDOW_DAYS } from './reminder-sync.js';
+import { createReminderSync, normSyncSettings, previewFirst, applyFirst, prevListCandidates, SYNC_WINDOW_DAYS } from './reminder-sync.js';
 import { createDestPage, destRowsHtml } from './destination-ui.js';
 import { KB_METRICS_ENABLED, kbMetrics, kbText, screenText } from './kbmetrics.js';
 import { createPosture, postureText, grooveBands } from './posture.js';
@@ -2179,9 +2179,14 @@ function rsHtml() {
     const row = (t) => `<div class="rsrow40"><span class="rst">${esc(t.title)}</span><small>${esc(dueMini(t.due))}</small></div>`;
     const maybe = pv.maybe.map((m, i) => `<div class="rsmaybe"><div class="rsrow40"><span class="rst">${esc(m.task.title)}</span><small>${esc(dueMini(m.task.due))}</small></div><div class="rsseg" role="group" aria-label="${esc(m.task.title)}の扱い">${[['link', '結びつける'], ['keep', '両方残す'], ['skip', '入れない']].map(([k, t]) => `<button type="button" data-rs="choice" data-i="${i}" data-c="${k}" aria-pressed="${m.choice === k}">${t}</button>`).join('')}</div></div>`).join('');
     const done = S.result;
-    return `${head('iPhone のリマインダーと同期', !S.busy)}<div class="rsscroll"><h3>入れるタスク ${add.length}</h3>${shown.map(row).join('')}${add.length > 4 ? `<p class="rsmore">ほか ${add.length - 4}件</p>` : ''}${pv.maybe.length ? `<h3>同じものかもしれない ${pv.maybe.length}</h3>${maybe}` : ''}</div>`
+    const NEW = '__new', listRow = (id, t, c) => `<button type="button" class="rspk" role="radio" aria-checked="${S.prevId === id}" data-rs="prevlist" data-list="${esc(id)}"${S.busy ? ' disabled' : ''}>${c ? `<i class="ldot" style="background:${esc(c)}"></i>` : ''}<span class="rst">${esc(t)}</span></button>`;
+    const prevSel = S.choose ? `<h3>以前の「Duo」リスト</h3><p class="rsmore">${S.cands.length >= 2 ? '「Duo」という名前のリストが複数あります。書き出し先を選んでください。' : '「Duo」リストが見つかりません。以前書き出したリストがあれば選んでください。'}</p><div role="radiogroup" aria-label="書き出し先のリスト">${S.cands.map((l) => listRow(l.id, l.title, l.color)).join('')}${listRow(NEW, '新しく「Duo」リストを作る')}</div>` : '';
+    const pk = pv.pick || [];
+    const pickHtml = pk.length ? `<h3>リマインダーにある件 ${pk.length}</h3><p class="rsmore">選んだ件だけ Duo に入ります。選ばない件はリマインダーに残ります。</p><button type="button" class="rslater" data-rs="pickall"${S.busy ? ' disabled' : ''}>${pk.every((x) => x.on) ? 'すべて外す' : 'すべて選ぶ'}</button>${pk.map((x, i) => `<button type="button" class="rspk" role="checkbox" aria-checked="${x.on}" data-rs="pickrem" data-i="${i}"${S.busy ? ' disabled' : ''}><span class="rst">${esc(String(x.rem.title ?? '').trim() || '（題名なし）')}</span><small>${esc(dueMini(x.rem.due))}</small></button>`).join('')}` : '';
+    const needList = S.choose && S.cands.length >= 2 && !S.prevId;
+    return `${head('iPhone のリマインダーと同期', !S.busy)}<div class="rsscroll">${prevSel}<h3>入れるタスク ${add.length}</h3>${shown.map(row).join('')}${add.length > 4 ? `<p class="rsmore">ほか ${add.length - 4}件</p>` : ''}${pv.maybe.length ? `<h3>同じものかもしれない ${pv.maybe.length}</h3>${maybe}` : ''}${pickHtml}</div>`
       + (done ? `<p class="rsdone" role="status">リマインダーに ${done.created}件入れました${done.errors ? `（入れられなかった ${done.errors}件）` : ''}</p><button type="button" class="primary rsmain" data-rs="close">閉じる</button>`
-        : `<button type="button" class="primary rsmain" data-rs="apply"${S.busy ? ' disabled' : ''}>入れる</button><button type="button" class="rslater" data-rs="later"${S.busy ? ' disabled' : ''}>あとで（設定 › タスク からやり直せる）</button>`);
+        : `<button type="button" class="primary rsmain" data-rs="apply"${S.busy || needList ? ' disabled' : ''}>入れる</button><button type="button" class="rslater" data-rs="later"${S.busy ? ' disabled' : ''}>あとで（設定 › タスク からやり直せる）</button>`);
   }
   return '';
 }
@@ -2193,6 +2198,13 @@ function rsOpen(sheet, focusSel) {
   (rsDlg.querySelector(focusSel || '.rsmain, .rsrowp, button') || rsDlg).focus({ preventScroll: true });
 }
 const rsRepaint = (keepFocus) => { const a = document.activeElement?.dataset?.rs, i = document.activeElement?.dataset?.i, c = document.activeElement?.dataset?.c; rsDlg.innerHTML = rsHtml(); if (keepFocus && a) rsDlg.querySelector(`[data-rs="${a}"]${i ? `[data-i="${i}"][data-c="${c}"]` : ''}`)?.focus({ preventScroll: true }); };
+// 選んだ（または 1 つに決まった）以前のリストの中身で確認の一覧を作り直す。読むだけ。
+async function rsLoadPrev(S) {
+  const list = S.prevId && S.prevId !== '__new' ? RS.lists.find((l) => l.id === S.prevId) : null;
+  const rems = list ? ((await remNative.listReminders({ listIds: [list.id], completedSince: '1970-01-01T00:00' }))?.reminders || []) : [];
+  if (RS.sheet !== S) return;
+  S.pv = previewFirst(await db.listTasks(), rems, { declined: syncSet.declined });
+}
 rsDlg.addEventListener('cancel', (ev) => { ev.preventDefault(); if (!RS.sheet?.busy) rsClose(); });
 rsDlg.addEventListener('click', async (ev) => {
   const b = ev.target.closest('[data-rs]'); if (!b || !RS.sheet) return;
@@ -2206,6 +2218,14 @@ rsDlg.addEventListener('click', async (ev) => {
     setTimeout(() => { if (RS.sheet !== S) return; rsClose(false); S.onPick(id); }, 150);
     return;
   }
+  if (k === 'pickrem') { const x = S.pv.pick[Number(b.dataset.i)]; if (x) x.on = !x.on; rsRepaint(true); return; }
+  if (k === 'pickall') { const all = S.pv.pick.every((x) => x.on); for (const x of S.pv.pick) x.on = !all; rsRepaint(true); return; }
+  if (k === 'prevlist') {
+    if (S.busy) return; S.prevId = b.dataset.list; S.busy = true; rsRepaint(true);
+    try { await rsLoadPrev(S); } catch { S.pv = previewFirst(await db.listTasks(), [], { declined: syncSet.declined }); }
+    if (RS.sheet !== S) return;
+    S.busy = false; rsRepaint(true); return;
+  }
   if (k === 'continue') {
     if (S.busy) return; S.busy = true; rsRepaint(true);
     let st;
@@ -2215,21 +2235,35 @@ rsDlg.addEventListener('click', async (ev) => {
     RS.perm = st;
     if (st !== 'granted') { RS.denied = true; rsClose(false); syncRsUi(); render(); $('#m-rssw')?.focus({ preventScroll: true }); return; }
     RS.denied = false;
+    // 以前の「Duo」リスト（題名がちょうど「Duo」で書けるもの）。1 つならそれ、2 つ以上は選んでもらう、0 なら選ぶか新しく作る（RS-49b）。選ぶまで書き込みはしない。
+    S.cands = []; S.prevId = ''; S.choose = false; S.pv = previewFirst(await db.listTasks(), [], { declined: syncSet.declined });
     try {
       const ls = await remNative.lists(); RS.lists = ls.lists || [];
-      const duo = RS.lists.find((l) => l.title === syncSet.duoListTitle && l.allowsModify !== false);
-      const rems = duo ? ((await remNative.listReminders({ listIds: [duo.id], completedSince: '1970-01-01T00:00' }))?.reminders || []) : [];
-      S.pv = previewFirst(await db.listTasks(), rems);
-    } catch { S.pv = previewFirst(await db.listTasks(), []); }
+      const cands = prevListCandidates(RS.lists, syncSet.duoListTitle);
+      S.cands = cands.length ? cands : RS.lists.filter((l) => l.allowsModify !== false);
+      S.choose = cands.length !== 1 && S.cands.length > 0;
+      S.prevId = cands.length === 1 ? cands[0].id : cands.length === 0 ? '__new' : '';
+      if (cands.length === 0 && !S.cands.length) S.choose = false;
+      await rsLoadPrev(S);
+    } catch { /* 一覧が取れなければ、リマインダー側の件なしで進む */ }
     S.kind = 'confirm'; S.busy = false; rsPlace('confirm'); rsDlg.innerHTML = rsHtml(); rsDlg.querySelector('.rsmain')?.focus({ preventScroll: true });
     return;
   }
   if (k === 'apply') {
     if (S.busy) return; S.busy = true; rsRepaint(true);
     // ここまで書き込みは 0。オンにして、選んだ分を pending にし、同期を 1 回走らせる。
-    setSyncSettings({ ...syncSet, enabled: true, everEnabled: true });
-    let res = null;
-    try { await applyFirst({ db, toAdd: S.pv.toAdd, maybe: S.pv.maybe, base: remSync.base() }); res = await remSync.sync('first'); } catch { res = null; }
+    // 書き出し先: 見分けた（選んだ）以前のリストをそのまま使う。同じ名前のリストを増やさない（RS-50b）。選ばなければ新しく作る。
+    let dest = {};
+    const pl = S.choose || S.prevId ? RS.lists.find((l) => l.id === S.prevId) : null;
+    if (pl) dest = { duoListId: pl.id, duoSourceId: pl.sourceId || '', duoListTitle: String(pl.title).trim() || syncSet.duoListTitle };
+    else if (S.choose && S.prevId === '__new' && S.cands.length >= 2) { try { const c = (await remNative.createReminderList({ title: syncSet.duoListTitle, sourceId: '' })).list; dest = { duoListId: c.id, duoSourceId: c.sourceId || '' }; } catch { /* あとの同期でもう一度 */ } }
+    let res = null, dec = [];
+    try {
+      const ar = await applyFirst({ db, toAdd: S.pv.toAdd, maybe: S.pv.maybe, pick: S.pv.pick || [], base: remSync.base() });
+      dec = ar.declined;
+    } catch { res = null; }
+    setSyncSettings({ ...syncSet, ...dest, enabled: true, everEnabled: true, declined: [...syncSet.declined, ...dec] });
+    try { res = await remSync.sync('first'); } catch { res = null; }
     S.busy = false; S.result = { created: res?.created || 0, errors: res?.errors || 0 };
     RM.mut++; RM.sig = ''; scheduleTasks(); syncRsUi(); render();
     rsRepaint(false); rsDlg.querySelector('.rsmain')?.focus({ preventScroll: true });
