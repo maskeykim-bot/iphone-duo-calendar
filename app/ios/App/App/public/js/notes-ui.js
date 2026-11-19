@@ -1,7 +1,7 @@
 // ノートの常設エディタ（保存ボタンなし）。1行目＝題名（20pt）、残り＝本文。保存される本文は1つ（題名＋改行＋本文）。
 // 通常の画面入口にはまだ接続しない（PR28）。DOM は textContent で作り、利用者の文字を HTML として扱わない。
 import { noteStore, SAVE_FAILED, DRAFT_FAILED } from './notes.js';
-import { titleOf, EMPTY_TITLE } from './notes-model.js';
+import { titleOf, markOf, EMPTY_TITLE } from './notes-model.js';
 import { applyFormat, onEnter, toggleCheck, lineAt, splitLines, viewOf } from './note-lines.js';
 import { inkElement } from './note-ink.js';
 
@@ -71,7 +71,7 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
   host.append(root);
 
   let cur = null;               // 開いているノートID
-  let shape = { nl: false, eol: '\n', crlf: false };
+  let shape = { nl: false, eol: '\n', crlf: false, mark: '' }; // mark = 1行目の先頭の記号（「# 」など）。題名欄には出さず、保存のときに元のまま付け直す（S7 R-27・V-21）
   let lastSynced = '';
   let composing = false;
   let destroyed = false;
@@ -212,10 +212,10 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
   function doUndo() { closeGroup(); const st = undoSt.pop(); if (!st) { paintUndo(); return; } redoSt.push(snap()); restore(st); paintUndo(); }
   function doRedo() { closeGroup(); const st = redoSt.pop(); if (!st) { paintUndo(); return; } undoSt.push(snap()); if (undoSt.length > UNDO_MAX) undoSt.shift(); restore(st); paintUndo(); }
 
-  const value = () => joinBody({ title: title.value.replace(/\r?\n/g, ' '), rest: body.value, ...shape });
+  const value = () => { const { mark, ...sh } = shape; return joinBody({ title: mark + title.value.replace(/\r?\n/g, ' '), rest: body.value, ...sh }); };
   function show(text) {
-    const s = splitBody(text); const crlf = isCrlf(text); shape = { nl: s.nl, eol: s.eol, crlf };
-    title.value = s.title; body.value = crlf ? s.rest.replace(/\r\n/g, '\n') : s.rest; fit(); resetHistory();
+    const s = splitBody(text); const crlf = isCrlf(text); const mark = markOf(s.title); shape = { nl: s.nl, eol: s.eol, crlf, mark };
+    title.value = s.title.slice(mark.length); body.value = crlf ? s.rest.replace(/\r\n/g, '\n') : s.rest; fit(); resetHistory();
     lastSynced = value(); // 触っていないノートは、開いただけで書き換えない
   }
   function fit() { title.style.height = 'auto'; title.style.height = `${title.scrollHeight}px`; fitBody(); }

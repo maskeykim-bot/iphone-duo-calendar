@@ -223,8 +223,12 @@ test.describe('ニューヨークの夏時間（R-49）', () => {
       await page.reload(); await page.waitForSelector('html[data-ready]');
       await page.evaluate(() => { const o = JSON.parse(localStorage.getItem('duo.ui.v1') || '{}'); localStorage.setItem('duo.ui.v1', JSON.stringify({ ...o, style: 'named' })); });
       await seed(page, [ev('ny1', '夏時間', `${from}T10:00`, `${from}T11:00`)]);
-      const src = await center(tlev(page, '夏時間')), dst = await center(dayBtn(page, to));
-      await grab(page, src, dst, { release: false });
+      await dayBtn(page, from).click(); // その日を開いて、時間軸に予定を出す
+      const row = tlev(page, '夏時間');
+      await row.evaluate((el) => el.scrollIntoView({ block: 'center' })); // 枠を見える所へ（上が帯の下に入らないように）
+      const src = await center(row), dst = await center(dayBtn(page, to));
+      await page.mouse.move(src.x, src.y); await page.mouse.down(); await page.waitForTimeout(420);
+      await page.mouse.move(dst.x, dst.y, { steps: 8 });
       await expect(page.locator('.gchip')).toHaveCount(1);
       await page.mouse.up();
       await expect.poll(async () => (await byId(page, 'ny1')).start).toBe(`${to}T10:00`);

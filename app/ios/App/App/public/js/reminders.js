@@ -50,7 +50,8 @@ const escH = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '
 const DOWJ = ['日', '月', '火', '水', '木', '金', '土'];
 const mdLabel = (k) => { const [, m, d] = k.split('-').map(Number); return `${m}/${d}`; };
 const nowS0 = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const mdFull = (k) => { const [y, m, d] = k.split('-').map(Number); return `${m}月${d}日(${DOWJ[new Date(y, m - 1, d).getDay()]})`; };
+// 日付の見出し（V-24）: 「11月19日（木）」、今日なら「今日 · 11月19日（木）」。全角のかっこ。
+const mdFull = (k, todayK = '') => { const [y, m, d] = k.split('-').map(Number); return `${k === todayK ? '今日 · ' : ''}${m}月${d}日（${DOWJ[new Date(y, m - 1, d).getDay()]}）`; };
 const safeColor = (c) => (/^#[0-9a-fA-F]{6}$/.test(c || '') ? c : '#68716A');
 
 function dueText(r) {
@@ -99,9 +100,9 @@ export function tasksHtml(data, { selected, now = new Date(), doneOpen = false, 
   const g = groupReminders(data.reminders, { now, selected, histDays });
   const row = (r, late) => taskRowHtml(pending?.has(r.itemId) ? { ...r, done: pending.get(r.itemId) } : r, colors.get(r.listId), late, rl);
   const sec = (key, title, arr, late) => (arr.length ? `<section class="rmsec" data-sec="${key}"><h3 class="rmh${late ? ' late' : ''}">${escH(title)}</h3><div role="list">${arr.map((r) => row(r, late)).join('')}</div></section>` : '');
-  const todayD = nowS0(now), dh = (k) => { const [, m, d] = k.split('-').map(Number); return k === todayD ? `${m}/${d}（今日）` : `${m}/${d}`; };
+  const todayD = nowS0(now), dh = (k) => mdFull(k, todayD);
   const beforeH = [...new Set(g.before.map((r) => r.due.date))].map((k) => sec(`before:${k}`, dh(k), g.before.filter((r) => r.due.date === k), false)).join('');
-  let h = sec('overdue', '期限切れ', g.overdue, true) + beforeH + sec('selected', mdFull(selected), g.selected, false) + sec('upcoming', 'この先', g.upcoming, false) + sec('nodue', '期限なし', g.nodue, false);
+  let h = sec('overdue', '期限切れ', g.overdue, true) + beforeH + sec('selected', mdFull(selected, todayD), g.selected, false) + sec('upcoming', 'この先', g.upcoming, false) + sec('nodue', '期限なし', g.nodue, false);
   const doneHead = `<button type="button" class="rmdonebtn" data-act="remdone" aria-expanded="${doneOpen}">完了（${g.done.length}） <span aria-hidden="true">${doneOpen ? '⌄' : '›'}</span></button>`;
   h += `<section class="rmsec" data-sec="done">${doneHead}${doneOpen ? `<div role="list">${g.done.map((r) => row(r, false)).join('')}</div><button type="button" class="rmmore" data-act="remmore"${busyMore ? ' disabled' : ''}>もっと前を表示</button>` : ''}</section>`;
   if (!g.overdue.length && !g.before.length && !g.selected.length && !g.upcoming.length && !g.nodue.length) h = `<p class="remtx pad rmempty">未完了のタスクはありません。</p>${h}`;
@@ -311,7 +312,7 @@ export function focusTasksHtml(data, { view = 'today', sel = null, olderOpen = f
   const empty = (t) => `<p class="remtx pad rmempty">${t}</p>`;
   let body = '';
   if (view === 'today') body = sec('overdue', '期限切れ', v.overdue, true) + sec('today', '今日', v.todayItems, false) || empty('今日のタスクはありません。');
-  else if (view === 'plan') body = v.plan.map((g) => sec(`day:${g.date}`, mdFull(g.date), g.items, false)).join('') || empty('明日以降のタスクはありません。');
+  else if (view === 'plan') body = v.plan.map((g) => sec(`day:${g.date}`, mdFull(g.date, `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`), g.items, false)).join('') || empty('明日以降のタスクはありません。');
   else if (view === 'all') body = sec('overdue', '期限切れ', v.overdue, true) + sec('today', '今日', v.todayItems, false) + sec('upcoming', 'この先', v.plan.flatMap((g) => g.items), false) + sec('nodue', '期限なし', v.nodue, false) || empty('未完了のタスクはありません。');
   else {
     body = sec('done', `完了（${v.recent.length}）`, v.recent, false) || empty('最近30日の完了はありません。');
