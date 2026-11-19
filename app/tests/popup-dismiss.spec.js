@@ -56,14 +56,14 @@ for (const [name, size] of POSTURES) {
       await expect(page.locator('#editor')).toBeVisible();
     });
 
-    test('幕の色は黒12%、フェードは0.2秒', async ({ page }) => {
+    test('幕の色は黒12%、フェードは0.25秒（S4: シートと同じ秒数）', async ({ page }) => {
       await setup(page, size);
       await openFirst(page);
       const bg = await page.locator('#scrim').evaluate((e) => getComputedStyle(e).backgroundColor);
       const img = await page.locator('#scrim').evaluate((e) => getComputedStyle(e).backgroundImage);
       expect(/rgba\(0, 0, 0, 0\.12/.test(bg + img)).toBe(true);
-      expect(await page.locator('#scrim').evaluate((e) => getComputedStyle(e).transitionDuration)).toBe('0.2s');
-      expect(await page.locator('#editor').evaluate((e) => getComputedStyle(e).transitionDuration)).toContain('0.2s');
+      expect(await page.locator('#scrim').evaluate((e) => getComputedStyle(e).transitionDuration)).toBe('0.25s');
+      expect(await page.locator('#editor').evaluate((e) => getComputedStyle(e).animationDuration)).toContain('0.25s'); // S4: 出るのは animation（opacity の transition ではない）
     });
 
     test('× で閉じる', async ({ page }) => {
@@ -169,7 +169,7 @@ test('閉じた画面: シートの形（下に付く・上だけ丸い・つま
   await openFirst(page);
   const st = await page.locator('#editor').evaluate((e) => { const c = getComputedStyle(e); return { r: c.borderBottomLeftRadius, t: c.borderTopLeftRadius, g: getComputedStyle(e, '::before').content }; });
   expect(st.b ?? st.r).toBe('0px');
-  expect(st.t).toBe('22px');
+  expect(st.t).toBe('24px'); // S4: シートの角丸 24
   expect(st.g).toContain('');
   const box = await page.locator('#editor .fbody').boundingBox();
   const x = box.x + box.width / 2, y = box.y + 20;

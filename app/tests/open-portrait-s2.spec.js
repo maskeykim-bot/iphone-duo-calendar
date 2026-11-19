@@ -120,7 +120,7 @@ test.describe('開いた縦のホーム（案A）', () => {
       near(hit[0], -4, 0.1); near(hit[1], -4, 0.1); // 押せる高さ 44（y19〜63）
     }
     expect(await page.locator('.fmodes').evaluate((e) => getComputedStyle(e).borderRadius)).toBe('10px');
-    expect(await page.locator('.fmodes button[aria-pressed=true]').evaluate((e) => [getComputedStyle(e).fontSize, getComputedStyle(e).backgroundColor])).toEqual(['14px', 'rgb(255, 255, 255)']);
+    expect(await page.locator('.fmodes button[aria-pressed=true]').evaluate((e) => [getComputedStyle(e).fontSize, getComputedStyle(e).backgroundColor])).toEqual(['15px', 'rgb(255, 255, 255)']);
     const t = await box(page.locator('.tabs'));
     expect(f.y + f.height).toBeLessThan(t.y);
   });

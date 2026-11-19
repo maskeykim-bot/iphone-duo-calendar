@@ -3008,7 +3008,7 @@ const dlg = $('#editor'), confirmDlg = $('#confirm'), scopeDlg = $('#scope'), me
 const discardDlg = $('#discard'), scrim = $('#scrim');
 const xdDlg = $('#xdetail'), xrDlg = $('#xretry'), catsDlg = $('#cats'), notifyDlg = $('#notify'), taskDlg = $('#taskdlg');
 const panels = [dlg, confirmDlg, scopeDlg, discardDlg, menuDlg, searchDlg, backupDlg, xdDlg, xrDlg, catsDlg, notifyDlg, taskDlg, $('#rsheet')];
-const anyPanel = () => panels.some((d) => d.open);
+const anyPanel = () => panels.some((d) => d.open && !d._slide); // 閉じる動きの最中のシートは、もう下の画面を止めない
 const syncInert = () => { root.inert = anyPanel(); };
 const origins = new Map();
 // シートの出入り（H-02・動-5）: 出るのは CSS の animation（dialog[open]）、閉じるのは同じ秒数で逆に動かし、終わってから dialog を閉じる。
@@ -3039,11 +3039,12 @@ function openPanel(d, from) {
 }
 function closePanel(d, restore = true) {
   d._restore = restore;
-  if (d.open && SLIDE_SHEETS.has(d) && !fading) {
+  if (d.open && restore && SLIDE_SHEETS.has(d) && !fading) { // restore=false は別のパネルへ受け渡す閉じ方なので動かさずに閉じる
     if (d._slide) return;
     const sc = [dlg, xdDlg, taskDlg].includes(d);
     if (sc) scrim.classList.add('fade');
     slideOut(d, () => { if (d.open) d.close(); if (sc) scrim.classList.remove('fade'); syncInert(); syncScrim(); });
+    syncInert();
     return;
   }
   if (d.open) d.close();

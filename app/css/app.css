@@ -576,7 +576,7 @@ form .alrow+.alrow,.alwrap .alrow+.alrow{margin-top:6px}
 .alrow .alk{flex:none}
 .alrow .alv{margin-left:auto;min-width:0;text-align:right;color:var(--green);font-size:15px;white-space:nowrap}
 .alrow .alv.none{color:var(--muted)}
-.alrow select{position:absolute;inset:0;width:100%;height:100%;min-height:44px;opacity:0;font-size:15px;border:0;padding:0}
+.alrow select{position:absolute;inset:0;width:100%;height:100%;min-height:44px;opacity:0;font-size:16px;border:0;padding:0}
 .alrow:focus-within{outline:2px solid var(--green);outline-offset:1px}
 .alnote{display:block;margin:6px 0 0;font-size:13px;line-height:1.4;color:var(--muted)}
 .alnote13{display:block;margin:6px 0 0;font-size:13px;line-height:1.4;color:var(--muted)}
@@ -662,7 +662,7 @@ input.swc:checked,.xsw input[type=checkbox]:checked{background:var(--green)}
 input.swc:checked::after,.xsw input[type=checkbox]:checked::after{transform:translateX(20px)}
 input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .xcal{display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px}
-.xcal .cdot{width:8px;height:8px;border-radius:50%;flex:none}.xcal select{flex:1;min-width:0;font-size:15px}
+.xcal .cdot{width:8px;height:8px;border-radius:50%;flex:none}.xcal select{flex:1;min-width:0;font-size:16px}
 
 .menurows .swrow{display:flex;align-items:center;justify-content:space-between;gap:8px;height:44px}
 .menurows .swrow[aria-checked=true]{background:none;color:inherit}
@@ -816,7 +816,7 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 
 /* タスクの編集シート（第14版 PR19） */
 #tk-body label{display:block;margin-top:12px;font-size:13px}
-#tk-body label input,#tk-body label select,#tk-body label textarea{display:block;width:100%;box-sizing:border-box;min-height:44px;margin-top:4px;font-size:15px}
+#tk-body label input,#tk-body label select,#tk-body label textarea{display:block;width:100%;box-sizing:border-box;min-height:44px;margin-top:4px;font-size:16px}
 #tk-body .pair{display:flex;gap:8px}#tk-body .pair label{flex:1}
 .tkmeta{margin:10px 0 0}
 #tk-save[hidden]{display:none}
@@ -1256,7 +1256,7 @@ dialog#menu #m-destpop{border-radius:inherit}
 .nday{flex:none;display:flex;align-items:center;gap:6px;min-height:44px;font-size:13px}
 .nday button{min-width:44px;min-height:44px;background:transparent;font-size:15px}
 .nmeta .nmlab{flex:1;min-width:0;display:flex;align-items:center;gap:6px;font-size:13px;color:#68716A}
-.nmeta select{flex:1;min-width:0;min-height:44px;font-size:15px}
+.nmeta select{flex:1;min-width:0;min-height:44px;font-size:16px}
 .nmpin{flex:none;min-height:44px;min-width:44px;padding:0 12px;font-size:15px;background:transparent;border-radius:999px;box-shadow:inset 0 0 0 1px var(--line)}
 .nmpin.on{box-shadow:inset 0 0 0 2px #294E42;color:#294E42}
 .nmenu{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.35)}
@@ -1309,9 +1309,9 @@ dialog#menu #m-destpop{border-radius:inherit}
 .fttitle{width:100%;box-sizing:border-box;font-size:20px;font-weight:800;border:0;background:transparent;padding:4px 0;min-height:44px}
 .ftrow{display:flex;align-items:center;gap:12px;min-height:44px}
 .ftrow>span{width:48px;font-weight:700;color:var(--muted,#68716A)}
-.ftrow input[type=date],.ftrow input[type=time]{font-size:15px;min-height:36px}
+.ftrow input[type=date],.ftrow input[type=time]{font-size:16px;min-height:36px}
 .ftnote{align-items:flex-start}
-.ftnote textarea{flex:1;min-height:88px;font-size:15px;box-sizing:border-box}
+.ftnote textarea{flex:1;min-height:88px;font-size:16px;box-sizing:border-box}
 .ftdel{width:100%;min-height:44px;margin-top:8px;color:#c0392b;font-weight:800;border-radius:10px;background:transparent;box-shadow:inset 0 0 0 1px #e3b4ae}
 .ftdel:disabled{opacity:.4}
 .ftnone .rmh{margin:0 0 4px}
@@ -1441,7 +1441,7 @@ dialog#editor{padding:0}
 #editor .repeat{margin:0;border-top:0}
 #editor .rtoggle{min-height:44px;padding:0 4px;border-bottom:1px solid #eeeae0;font-size:15px}
 #editor .eplace{display:flex;align-items:center;gap:8px;padding:0 4px;border-bottom:1px solid #eeeae0;font-size:15px}
-#editor .eplace input{flex:1;min-width:0;min-height:44px;border:0;background:transparent;padding:0 0 0 8px;text-align:right;font-size:15px}
+#editor .eplace input{flex:1;min-width:0;min-height:44px;border:0;background:transparent;padding:0 0 0 8px;text-align:right;font-size:16px}
 #editor .enotes{display:block;padding:0 4px;font-size:15px}
 #editor .enotes .dtk{display:flex;align-items:center;min-height:44px}
 #editor .enotes textarea{margin-bottom:4px}

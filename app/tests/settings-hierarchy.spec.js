@@ -15,7 +15,7 @@ for (const [name, size] of [['閉じた縦', SIZES.closedPortrait], ['開いた�
     expect(b.y + b.height).toBeLessThanOrEqual(size.height);
     if (size.width > size.height) expect(b.x + b.width).toBeLessThanOrEqual(size.width / 2); // 右ページを残す
     expect(await page.locator('#menu .srow:visible').first().evaluate((e) => e.getBoundingClientRect().height)).toBe(48);
-    expect(await page.locator('#menu').evaluate((e) => getComputedStyle(e).borderRadius)).toContain('22px');
+    expect(await page.locator('#menu').evaluate((e) => getComputedStyle(e).borderRadius)).toContain('24px');
     // 下層: ‹ で戻る、Escape で戻る、一番上の Escape で閉じる
     await page.locator('#menu [data-go="general"]').click();
     await expect(page.locator('#m-title')).toHaveText('一般');
