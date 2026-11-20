@@ -7,6 +7,7 @@ const inside = (inner, outer, tol = 1) => inner.y >= outer.y - tol && inner.y + 
 test.describe('レイアウト（4サイズ）', () => {
   test('466×678 閉じた縦: ホームは今日・次の予定・残り・追加のみ', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
+    await tab(page, 'ホーム').click(); // 起動はカレンダー（design/34 §9.2・11:29 の決定）。ホームはタブから
     await loadSample(page);
     expect(await layout(page)).toBe('home');
     await expect(page.locator('.hero')).toBeVisible();
@@ -25,6 +26,7 @@ test.describe('レイアウト（4サイズ）', () => {
 
   test('予定が増えても今日の予定は3件＋ほか。全体をスクロールすると最後のカードをタブの上へ出せる', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
+    await tab(page, 'ホーム').click(); // 起動はカレンダー（design/34 §9.2・11:29 の決定）
     for (let i = 0; i < 9; i++) await addEvent(page, { title: `追加予定${i}`, start: `2026/11/12 ${String(14 + (i % 8)).padStart(2, '0')}:00`, end: `2026/11/12 ${String(14 + (i % 8)).padStart(2, '0')}:30` });
     await expect(page.locator('.hevents .hrow')).toHaveCount(3); // 最大3件＋ほか
     const list = page.locator('.home.listview');
@@ -54,14 +56,15 @@ test.describe('レイアウト（4サイズ）', () => {
     await tab(page, '月').click();
     await setStyle(page, '予定名');
     await expect(page.locator('.calendar .legend')).toHaveCount(0);
-    const sc = page.locator('.mpull'); // 第19.1版: 閉じた画面は1本のスクロール
+    const sc = page.locator('.mday'); // design/34 §6.3: 閉じた画面は日の欄の中だけが流れる（下の余白 41。タブがなくなるまでは、タブの帯にも重ならない範囲で見る）
     await sc.evaluate((el) => { el.scrollTop = el.scrollHeight; });
     const last = await box(page.locator('.mdnote'));
-    expect(last.y + last.height).toBeLessThanOrEqual((await box(page.locator('.tabs'))).y - 8 + 1);
+    expect(last.y + last.height).toBeLessThanOrEqual(678 - 41 + 0.5);
   });
 
   test('678×466 閉じた横: 1列でホームの操作が使える', async ({ page }) => {
     await openApp(page, SIZES.closedLandscape);
+    await tab(page, 'ホーム').click(); // 起動はカレンダー（design/34 §9.2・11:29 の決定）
     await loadSample(page);
     expect(await layout(page)).toBe('home');
     const next = await box(page.locator('.next'));

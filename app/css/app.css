@@ -2259,3 +2259,43 @@ body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#tas
 .spread .page[data-page=memo] .ntools .mback{margin-left:-4px}
 /* N-01 の結果（右ページの箱が 8 狭い）で終日の札が「…」で切れないよう、終日の行の「ノート」札の余白を 8 詰める（左 8→4、内側 8→6）。計測の文字切れを S7 最終（8）から増やさない */
 .spread .rp:not(.dpage) .allday .ndchip{margin-left:4px;padding:0 6px}
+
+/* ===== 第19.2版 S11a（design/34）: 閉じた画面の引き 7段。格子は自分の高さ H で切る。日の欄は格子・つまみの下に縦に並べ、日の欄の中だけが流れる ===== */
+.shell.closed .mpull.browse{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;box-sizing:border-box;padding:0 8px;overscroll-behavior:contain}
+.shell.closed .mpull.browse .mpfix{position:relative;z-index:5;flex:none;margin:0;padding:0;background:none;height:64px}
+.shell.closed .mpull.browse .mph{position:relative;display:flex;align-items:center;justify-content:flex-end;height:44px;padding:0}
+.shell.closed .mpull.browse .mph h2{position:absolute;left:0;right:0;top:0;margin:0;padding:0;text-align:center;font:600 17px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;pointer-events:none}
+.mpull.browse .mph button{position:relative;z-index:1}
+.mpull.browse .mph button.vh{position:absolute}
+.mpull.browse .weekdays{height:20px;padding:0;font-size:11px;font-weight:400;color:#68716A}
+.mpull.browse .weekdays .sun{color:#B43C3C}
+.mpull.browse .mgwrap{flex:none;position:relative;height:var(--H);overflow:hidden}
+.shell.closed .mpull.browse .mgrid{position:absolute;inset:0;height:auto;overflow:hidden;transition:none!important}
+.mpull.browse .week{height:var(--rh);flex:none;box-sizing:border-box;overflow:hidden;grid-template-rows:minmax(0,1fr);border-top:.5px solid #E4E0D6}
+.mpull.browse .week:first-child{border-top:0}
+.mpull.browse .week .day{height:100%;justify-content:flex-start;align-items:flex-start;border-right:0}
+.shell.closed .mpull.browse .week .day .num{display:block;box-sizing:border-box;width:auto;min-width:0;height:22px;margin:0;padding:0 0 0 4px;border-radius:0;font:600 14px/22px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;font-variant-numeric:tabular-nums;color:#293B35;background:none;text-align:left}
+.shell.closed .mpull.browse .week .day .num .mo{font-size:11px;font-weight:400;color:#68716A}
+.shell.closed .mpull.browse .week .day.sun .num,.shell.closed .mpull.browse .week .day.hol .num{color:#B43C3C}
+.shell.closed .mpull.browse .week .day.out .num{color:#A8ABA4}
+.shell.closed .mpull.browse .week .day.today .num{width:20px;height:20px;margin:1px 0 0 3px;padding:0;border-radius:50%;line-height:20px;text-align:center;background:#294E42;color:#fff}
+.mpull.browse .week .rk{display:none}
+.mpull.browse .week .plus.dyn{position:absolute;top:0;z-index:4;display:block;width:auto;height:22px;min-width:0;min-height:0;padding:0;font:400 11px/22px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#68716A;pointer-events:none}
+.mpull.browse .week .plus.dyn[hidden]{display:none}
+.mgrid [data-lane="0"]{opacity:var(--o0,1)}
+.mgrid [data-lane="1"]{opacity:var(--o1,1)}
+.mgrid [data-lane="2"]{opacity:var(--o2,1)}
+.mgrid [data-lane="3"]{opacity:var(--o3,1)}
+.mpull.browse .week .day.out [data-lane]{opacity:calc(var(--o0,1) * .45)}
+.shell.closed .mpull.browse .mgrab{position:relative;z-index:3;display:flex;justify-content:center;align-items:flex-start;flex:none;box-sizing:border-box;height:44px;min-height:44px;margin:-10px 0;padding-top:20px;touch-action:none;cursor:ns-resize}
+.mpull.browse .mgrab::after{display:none}
+.mpull.browse .mgrab i{display:block;width:36px;height:4px;border-radius:2px;background:#B9B4A8}
+.mpull.browse .mgrab:active i{background:#68716A}
+.shell.closed .mpull.browse .mday{flex:1;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;padding:0 4px 41px;margin:0;box-sizing:border-box;scrollbar-width:none}
+.mpull.browse .mday::-webkit-scrollbar{display:none}
+.mpull.browse .mgrab,.mpull.browse .mgrab *{-webkit-user-select:none;user-select:none;-webkit-user-drag:none}
+.shell.closed .mpull.browse .mph button.vh{position:absolute;top:1px;width:2px;height:2px;min-width:0;padding:0;overflow:hidden;clip-path:none;opacity:0;font-size:1px;line-height:1;color:transparent;z-index:2}
+.shell.closed .mpull.browse .mph button.vh[data-act=prev]{left:1px}
+.shell.closed .mpull.browse .mph button.vh[data-act=next]{left:5px}
+.shell.closed .mpull.browse .week .day{padding:0;border:0;flex-direction:column;align-items:flex-start}
+.shell.closed .mpull.browse .mdh h3{font:600 17px/1.2 -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif}

@@ -10,28 +10,27 @@ const band = async (page) => { await page.evaluate(() => { document.documentElem
 const six = Array.from({ length: 6 }, (_, i) => ev(`z${i}`, `名前${i}`, `2026-11-12T${String(9 + i).padStart(2, '0')}:00`, `2026-11-12T${String(9 + i).padStart(2, '0')}:30`));
 
 test.describe('閉じた画面 466×678（帯 84）', () => {
-  test('日付の行 18: 今日の丸 16・日付 x+3〜19・六曜 x+21〜37・+N 8pt W6 右 2（+N の日も六曜は消さない）', async ({ page }) => {
+  test('日付の行 22（design/34 §2.3 で置き換え）: 今日の丸 20 は中心 (x+13, y+11)・日付 14/600 は左 4・+N 11/400 #68716A は右 4・六曜はマスに出さない', async ({ page }) => {
     await monthFormInit(page, 'month');
     await openApp(page, SIZES.closedPortrait);
     await seed(page, six);
     await tab(page, '月').click();
     await band(page);
     const g = await page.locator('[data-date="2026-11-12"]').evaluate((c) => {
-      const r = c.getBoundingClientRect(), n = c.querySelector('.num'), nb = n.getBoundingClientRect(), k = c.querySelector('.rk').getBoundingClientRect();
+      const r = c.getBoundingClientRect(), n = c.querySelector('.num'), nb = n.getBoundingClientRect();
       const p = c.parentElement.querySelector('.plus[data-plus="2026-11-12"]'), rg = document.createRange(); rg.selectNodeContents(p); const pt = rg.getBoundingClientRect();
-      const ns = getComputedStyle(n), ks = getComputedStyle(c.querySelector('.rk')), ps = getComputedStyle(p);
-      return { cellW: r.width, nl: nb.left - r.left, nw: nb.width, nh: nb.height, kl: k.left - r.left, kr: k.right - r.left, pr: r.right - pt.right, pl: pt.left - r.left, nfs: parseFloat(ns.fontSize), kfs: parseFloat(ks.fontSize), kfw: Number(ks.fontWeight), kc: ks.color, pfs: parseFloat(ps.fontSize), pfw: Number(ps.fontWeight), pc: ps.color, today: c.classList.contains('today') };
+      const ns = getComputedStyle(n), ps = getComputedStyle(p), rk = c.querySelector('.rk');
+      const tr = document.createRange(); tr.selectNodeContents(n.firstChild); const tb = tr.getBoundingClientRect();
+      return { cellW: r.width, nw: nb.width, nh: nb.height, cx: tb.left + tb.width / 2 - r.left, cy: tb.top + tb.height / 2 - r.top, pr: r.right - pt.right, nfs: parseFloat(ns.fontSize), nfw: Number(ns.fontWeight), pfs: parseFloat(ps.fontSize), pfw: Number(ps.fontWeight), pc: ps.color, rk: rk ? getComputedStyle(rk).display : 'none', today: c.classList.contains('today'), ptext: p.textContent };
     });
     expect(near(g.cellW, 52.3, 0.3)).toBe(true);
-    expect(near(g.nl, 3, 0.6) && g.nfs === 11).toBe(true);
-    expect(g.kl).toBeGreaterThanOrEqual(g.nl + g.nw - 0.5); expect(near(g.kl, 21, 1.2)).toBe(true);
-    expect(g.kfs).toBe(8); expect(g.kfw).toBeGreaterThanOrEqual(600); expect(g.kc).toBe('rgb(104, 113, 106)');
-    expect(g.pfs).toBe(8); expect(g.pfw).toBeGreaterThanOrEqual(600); expect(g.pc).toBe('rgb(104, 113, 106)');
-    expect(near(g.pr, 4, 0.8)).toBe(true); // S8 N-05（設計 2026-11-20）: 選んでいる今日のマスの +N は右 4（枠の内側 2＋すき間 2）。ほかのマスは 2
-    expect(g.pl - g.kr).toBeGreaterThanOrEqual(1.5); // 選んだ今日のマスは +N が右 4 になり（S8 N-05）、六曜とのすき間は 3.9→1.9。重ならない
-    // 今日（11/12）の丸は直径 16
-    const t = await page.locator('[data-date="2026-11-12"] .num').boundingBox();
-    expect(near(t.width, 16, 0.6) && near(t.height, 16, 0.6)).toBe(true);
+    expect(g.nfs).toBe(14); expect(g.nfw).toBeGreaterThanOrEqual(600);
+    expect(near(g.nw, 20, 0.6) && near(g.nh, 20, 0.6)).toBe(true); // 今日の丸は直径 20
+    expect(near(g.cx, 13, 0.6) && near(g.cy, 11, 0.6)).toBe(true);
+    expect(g.rk).toBe('none');
+    expect(g.pfs).toBe(11); expect(g.pfw).toBe(400); expect(g.pc).toBe('rgb(104, 113, 106)');
+    expect(near(g.pr, 4, 0.8)).toBe(true);
+    expect(g.ptext).toMatch(/^\+\d+$/);
   });
 
   test('タブの上 24（y575〜599）に地色のぼかし。ホーム・日・週・月すべて。押せるものを邪魔しない', async ({ page }) => {
@@ -50,6 +49,7 @@ test.describe('閉じた画面 466×678（帯 84）', () => {
   test('閉じたホーム: 一番下まで送ると最後のカード（明日）・「＋ タスクを追加」がタブの上 8 まで出る', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await seed(page, six);
+    await tab(page, 'ホーム').click(); // 起動はカレンダー（design/34 §9.2・11:29 の決定）。ホームはタブから
     await seedTasks(page, [T('h1', { title: '今日のタスク1', due: { date: '2026-11-12' } }), T('h2', { title: '今日のタスク2', due: { date: '2026-11-12' } }), T('h3', { title: '今日のタスク3', due: { date: '2026-11-12' } })]);
     await band(page);
     await page.locator('.home.listview').evaluate((e) => { const s = [e, ...e.querySelectorAll('*')].find((x) => x.scrollHeight > x.clientHeight + 2 && getComputedStyle(x).overflowY !== 'visible'); (s || e).scrollTop = 99999; });

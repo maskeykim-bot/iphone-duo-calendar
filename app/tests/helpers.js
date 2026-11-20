@@ -33,13 +33,17 @@ export async function openApp(page, size = SIZES.closedPortrait, query = '', opt
   }
   // 第19版 PR6: 月タブ（閉じた画面・開いた縦）は「月を引く画面」で、既定の型は 2週。第18版までの spec は月全体（6行）が見える前提なので、
   // 型が保存されていなければ「月」で起動する。既定（2週）を調べる spec は monthFormInit(page, 'two') を先に呼ぶ。
-  if (!opts.fresh) await page.addInitScript((q) => { // fresh（まっさらな端末）では保存キーを書かない（既存端末の証拠になるため）
+  if (!opts.fresh) await page.addInitScript(({ q, closedSize }) => { // fresh（まっさらな端末）では保存キーを書かない（既存端末の証拠になるため）
     const ns = new URLSearchParams(q).get('ns'), key = `duo.ui.v1${ns ? `.${ns}` : ''}`;
     let s = {}; try { s = JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch { s = {}; }
     if (!s.monthForm) localStorage.setItem(key, JSON.stringify({ ...s, monthForm: 'month' }));
     s = JSON.parse(localStorage.getItem(key) || '{}');
     if (!s.monthDay) localStorage.setItem(key, JSON.stringify({ ...s, monthDay: 'time' })); // 日の部分は 時間軸（.tlev）で起動。既定（予定）を調べる spec は monthFormInit を先に呼ぶ
-  }, query);
+    // 第19.2版 S11a: 起動の既定がホームからカレンダーに変わった（design/34 §9.2・11:29 の決定）。既存の spec は従来どおりホームから始める前提なので、保存がなければホームを選んだ状態にする。
+    // 新しい起動（カレンダーの段1）は fresh（まっさらな端末）で見る（closed-pull-v20.spec.js）。
+    s = JSON.parse(localStorage.getItem(key) || '{}');
+    if (s.home == null && closedSize) localStorage.setItem(key, JSON.stringify({ ...s, home: true })); // 開いた画面では home:true は「一覧」を選んだ意味になるので、閉じた寸法のときだけ
+  }, { q: query, closedSize: Math.min(size.width, size.height) < 600 });
   // 第19.1版 S4: シートは下から 0.25 秒で出る（H-02）。既存の spec は出きった位置の寸法を測るので、出る動きは止めておく。
   // 動きそのものを調べる spec は { motion: true } を渡す（tests/press-sheet-type-s4.spec.js）。閉じ終わるまでの 0.25 秒は動きを止めても同じ（JS の待ち）。
   if (!opts.motion) await page.addInitScript(() => { document.addEventListener('DOMContentLoaded', () => { const st = document.createElement('style'); st.id = 'test-no-sheet-motion'; st.textContent = 'dialog,dialog[open],dialog.sheet-out,#scrim{animation:none!important}'; document.head.append(st); }); });
