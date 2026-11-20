@@ -91,12 +91,16 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
       if (c.nodeType === 3) out.push(c.data);
       else if (c.tagName === 'BR') out.push('');
       else if (c.tagName === 'DIV') out.push((c.classList.contains('nl') ? c.dataset.pre || '' : '') + c.textContent);
+      else out.push(c.textContent); // R-70: span など想定外の要素の文字を捨てない
     }
     return out.join('\n');
   };
+  // R-70: 今のキャレット位置を、文字（記号つき）の通し位置に直す。作り直しのあとに戻すために使う。
+  const flatCaret = () => { const g = getSelection(); if (!g || !g.rangeCount || !body.contains(g.anchorNode)) return null; let pos = 0; const kids = [...body.childNodes]; for (let i = 0; i < kids.length; i++) { const c = kids[i]; const len = c.nodeType === 3 ? c.data.length : c.tagName === 'BR' ? 0 : c.tagName === 'DIV' ? ((c.classList.contains('nl') ? c.dataset.pre || '' : '') + c.textContent).length : c.textContent.length; if (g.anchorNode === body && g.anchorOffset === i) return pos; if (c === g.anchorNode || c.contains(g.anchorNode)) { const rg = document.createRange(); rg.selectNodeContents(c); try { rg.setEnd(g.anchorNode, g.anchorOffset); } catch { /* */ } return pos + (c.nodeType === 1 && c.classList?.contains('nl') ? (c.dataset.pre || '').length : 0) + rg.toString().length; } if (c.nodeType === 3 || c.tagName === 'BR' || c.tagName === 'DIV' || c.nodeType === 1) pos += len + 1; } return Math.max(0, pos - 1); };
   const paintEmpty = () => { const one = body.children.length <= 1 && !body.textContent; if (one) body.dataset.empty = '1'; else delete body.dataset.empty; };
   function renderValue(text) { body.replaceChildren(...splitLines(text).texts.map(mkLine)); paintEmpty(); }
-  function readValue() { if (!body.firstChild) renderValue(''); else if (!sane()) renderValue(flat()); return rows().map((r) => r.pre + r.text).join('\n'); }
+  // R-70: 変換中（IME composing）は作り直さず読むだけ。確定後に作り直すときはキャレットを文字の位置へ戻す（頭に飛ばさない）。
+  function readValue() { if (composing && (!body.firstChild || !sane())) return flat(); if (!body.firstChild) renderValue(''); else if (!sane()) { const c = flatCaret(); renderValue(flat()); if (c != null && document.activeElement === body) setRange(c, c); } return rows().map((r) => r.pre + r.text).join('\n'); }
   const rawAt = (R, node, off) => {
     if (!R.length) return 0;
     if (node === body) { const r = R[Math.min(off, R.length - 1)]; return off >= R.length ? r.start + r.pre.length + r.text.length : r.start + r.pre.length; }
@@ -116,7 +120,7 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
   const selNow = () => {
     const g = window.getSelection();
     if (!g || !g.rangeCount || !body.contains(g.anchorNode) || !body.contains(g.focusNode)) return selCache;
-    if (!sane()) readValue();
+    if (!sane()) { if (composing) return selCache; readValue(); } // R-70: 変換中は作り直さない
     const R = rows(); const a = rawAt(R, g.anchorNode, g.anchorOffset), f = rawAt(R, g.focusNode, g.focusOffset);
     selCache = { s: Math.min(a, f), e: Math.max(a, f), d: a === f ? 'none' : a < f ? 'forward' : 'backward' };
     return selCache;

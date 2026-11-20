@@ -19,7 +19,7 @@ export default defineConfig({
   projects: [
     // 全 spec（今の設定そのまま）
     { name: 'chromium' },
-    // めくりの spec だけ WebKit でも回す（第18版。iOS の WebKit に近い描画の確認）
-    { name: 'webkit', testMatch: /curl-.*\.spec\.js/, use: { browserName: 'webkit', launchOptions: {} } },
+    // めくりの spec と R-70 の日本語変換テスト（S10）を WebKit でも回す（iOS の WebKit に近い描画・IME の確認）
+    { name: 'webkit', testMatch: /(curl-.*|note-ime-r70)\.spec\.js/, use: { browserName: 'webkit', launchOptions: {} } },
   ],
 });
