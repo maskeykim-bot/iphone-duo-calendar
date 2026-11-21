@@ -2303,7 +2303,7 @@ body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#tas
 .mpull.browse .week .day.out [data-lane="1"]{opacity:calc(var(--o1,1) * .45)}
 .mpull.browse .week .day.out [data-lane="2"]{opacity:calc(var(--o2,1) * .45)}
 .mpull.browse .week .day.out [data-lane="3"]{opacity:calc(var(--o3,1) * .45)}
-.shell.closed .mpull.browse:not(.pulling) .week .day:active:not(:disabled):not(.nopress),.shell.closed .mpull.browse:not(.pulling) .week .day.prs{background-color:#E2DDD2!important;transition:background-color .10s linear}
+.shell.closed .mpull.browse:not(.pulling) .week .day:active:not(:disabled):not(.nopress):not(.grabd),.shell.closed .mpull.browse:not(.pulling) .week .day.prs{background-color:#E2DDD2!important;transition:background-color .10s linear}
 .shell.closed .mpull.browse .week .day.nopress:active:not(.prs){background-color:var(--rest,transparent)!important}
 .shell.closed .mpull.browse .mgrab{position:relative;z-index:3;display:flex;justify-content:center;align-items:flex-start;flex:none;box-sizing:border-box;height:44px;min-height:44px;margin:0 0 -20px;padding-top:10px;touch-action:none;cursor:ns-resize}
 .mpull.browse .mgrab::after{display:none}
@@ -2371,14 +2371,14 @@ body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#tas
 .mpull.browse .week .day .strip.chip::after,.mpull.browse .week .day .bar .bt.cut{-webkit-mask-image:none;mask-image:none}
 .mpull.browse .week .day .strip.chip.cut::after{display:none}
 /* ===== 第19.2版 S11c（design/34 §9・§12 Q-3・Q-10・Q-11）: 下のタブ廃止・右の列（タスク・…・＋）・「…」の中・今日へ・‹ カレンダー・ノート中・初回ヒント ===== */
-.cb.cmore .bi,.cb.cundo .bi{color:#293B35}
+.cb.cmore .bi,.cb.cundo .bi,.cb.credo .bi{color:#293B35}
 .cb.cmore.on .bi{background:#EFECE4}
 .shell.closed.fb .cb.ctask .bi,.shell.closed.fb .cb.cmore .bi,.shell.closed.fb .cb.cundo .bi{box-shadow:none;background:transparent}
-.shell.closed .cb.ctask,.shell.closed .cb.cadd{transition:opacity .15s ease-out,visibility 0s}
-.shell.closed .cb.cundo{visibility:hidden;opacity:0;transition:opacity .15s ease-out,visibility 0s linear .15s}
-.shell.closed.noteedit .cb.cundo{visibility:visible;opacity:1;transition:opacity .15s ease-out,visibility 0s}
-.shell.closed.noteedit .cb.ctask,.shell.closed.noteedit .cb.cadd{visibility:hidden;opacity:0;transition:opacity .15s ease-out,visibility 0s linear .15s}
-@media (prefers-reduced-motion:reduce){.shell.closed .cb.ctask,.shell.closed .cb.cadd,.shell.closed .cb.cundo{transition:none!important}}
+.shell.closed .cb.ctask,.shell.closed .cb.cmore,.shell.closed .cb.cadd{transition:opacity .15s ease-out,visibility 0s}
+.shell.closed .cb.cundo,.shell.closed .cb.credo{visibility:hidden;opacity:0;transition:opacity .15s ease-out,visibility 0s linear .15s}
+.shell.closed.noteedit .cb.cundo,.shell.closed.noteedit .cb.credo{visibility:visible;opacity:1;transition:opacity .15s ease-out,visibility 0s}
+.shell.closed.noteedit .cb.ctask,.shell.closed.noteedit .cb.cmore,.shell.closed.noteedit .cb.cadd{visibility:hidden;opacity:0;transition:opacity .15s ease-out,visibility 0s linear .15s}
+@media (prefers-reduced-motion:reduce){.shell.closed .cb.ctask,.shell.closed .cb.cmore,.shell.closed .cb.cadd,.shell.closed .cb.cundo,.shell.closed .cb.credo{transition:none!important}}
 /* 「…」の中: 幅 224、上下のあき 8、行 44、左右の内側 16、行の間の線 0.5 #E4E0D6、角丸 12、影は段2（25 §2）、15/400 */
 .moremenu{position:fixed;z-index:30;box-sizing:border-box;padding:8px 0;border-radius:12px;background:#FFFDFA;box-shadow:0 4px 12px rgba(41,59,53,.10),0 0 0 .5px #E4E0D6;animation:morein .15s ease-out;overflow:hidden}
 @keyframes morein{from{opacity:0}to{opacity:1}}
@@ -2392,7 +2392,6 @@ body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#tas
 /* 見出し（y0〜44）: 題名をたたくと今日へ。「今日へ」は 11/400 緑、押せる範囲 64×44（帯があるとき x318〜382。文字は x370 で右揃え） */
 .shell.closed .mpull.browse .mph h2{pointer-events:auto;cursor:pointer}
 .shell.closed .mpull.browse .mph .mptoday{position:absolute;top:0;right:-8px;display:flex;align-items:center;justify-content:flex-end;box-sizing:border-box;width:64px;min-width:64px;height:44px;min-height:44px;padding:0 12px 0 0;background:transparent;color:#294E42;font:400 11px/16px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;white-space:nowrap}
-.shell.closed.fb .mpull.browse .mph .mptoday{right:84px}
 .shell.closed .mpull.browse .mph .mptoday[hidden]{display:none}
 /* ‹ カレンダー（ホーム・週の時間軸・タスク・ノートの一覧の見出しの左。15/400 緑、押せる範囲 x0〜120×44） */
 .cback{position:fixed;z-index:6;left:var(--sal,0px);top:var(--sat,0px);display:flex;align-items:center;justify-content:flex-start;box-sizing:border-box;width:120px;min-width:0;height:44px;min-height:44px;padding:0 0 0 12px;border-radius:0;background:transparent;color:#294E42;font:400 15px/20px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;white-space:nowrap;touch-action:manipulation}
@@ -2403,16 +2402,13 @@ body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#tas
 .shell.closed .chead.cch .cnav{position:absolute;top:1px;left:1px;width:2px;height:2px;min-width:0;min-height:0;padding:0;overflow:hidden;clip-path:none;opacity:0;font-size:1px;line-height:1;color:transparent;z-index:7}
 .shell.closed .chead.cch .cnav[data-act=next]{left:5px}
 .shell.closed.fb .chead.cch{padding-left:0;padding-right:0}
-.shell.closed.tv .chead.cch h2{padding-left:120px}
-.shell.closed.tv.fb .chead.cch h2{padding-right:92px}
 /* 初めて開いたときの札（x56〜326、高さ 52、角丸 16、地 #293B35、13/400 #F7F4ED）。つまみの上（格子の下端）に出す */
 .shell.closed .mpull.browse{position:relative}
-.mhint{position:absolute;z-index:8;left:calc(50% - 135px);top:calc(64px + var(--H) - 52px);box-sizing:border-box;width:270px;height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;background:#293B35;color:#F7F4ED;font:400 13px/18px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;text-align:center;white-space:nowrap;pointer-events:none;animation:morein .15s ease-out}
+.mhint{position:absolute;z-index:8;left:calc(50% - 135px);top:calc(64px + var(--H) - 60px);box-sizing:border-box;width:270px;height:52px;padding:8px 0;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;background:#293B35;color:#F7F4ED;font:400 13px/18px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;text-align:center;white-space:nowrap;pointer-events:none;animation:morein .15s ease-out}
 .mhint.out{opacity:0;transition:opacity .15s linear}
 /* 知らせ（「…へ移しました。元に戻す」など）は、閉じた画面では日の欄の幅 x12〜370 に収め、右の列にかけない（設計レビュー 7c9fb05 D2） */
 body[data-layout=home] .toastbar,body[data-layout=browse] .toastbar{left:calc(var(--sal,0px) + 12px);right:calc(var(--sar,0px) + 12px)}
 /* 帯がないとき（ブラウザなど）: 題名の箱は見出しの右の「…」「タスク」（各 44）にかけない */
-.shell.closed.fb .mpull.browse .mph h2{left:84px;right:84px}
 /* 下のタブがなくなったので、閉じた画面のページ（ホーム・タスク・ノートの一覧・日と週の時間軸）の下の余白は 41（ホームバーの帯 33＋8。design/34 §6.1・§10「33 全体」）。送り切ると最後の行が帯の上端 y645 から 8 上に来る */
 .closed .home.listview{padding-bottom:41px}
 .closed .remaining .list{padding-bottom:41px}
@@ -2431,11 +2427,57 @@ body[data-layout=home] .toastbar,body[data-layout=browse] .toastbar{left:calc(va
 .mpull.browse .week .day .chip.grabbed,.mpull.browse .week .day .chip.grabbed:active{background:transparent!important;background-color:transparent!important;filter:none!important;outline:1.5px dashed var(--cat,#294E42);outline-offset:-1.5px}
 /* M9（34 §3・§6.3）: 格子は自分ではスクロールしない。縦の引きを指に渡す（横の払いは JS の月送り） */
 .shell.closed .mpull.browse .mgwrap,.shell.closed .mpull.browse .mgwrap *{touch-action:none}
-/* 品質⑥: つまみ（下）が画面の外にある日は、見出しの右に「時間軸」（「カード」と同じ形。34 §6.2 の「カード」と対の入口） */
 .mpull.browse .mdback[hidden]{display:none}
 /* 設計レビュー D4: つまみのキーの焦点の枠は区域の中に収める */
-.mpull.browse .mgrab:focus-visible,.mpull.browse .mdgrab:focus-visible{outline-offset:-2px;border-radius:8px}
 /* M6: 日付（17/44）は見出し 44 の上端から置く（中心 y+22）。曜日（13/44）は baseline でそろえる */
 .shell.closed .mpull.browse .mdh h3{align-self:flex-start}
 /* 帯がない画面（ブラウザ）: 見出しの右の「カード」「時間軸」は、右下の＋（x410〜458）にかからない所へ */
 .shell.closed.fb .mpull.browse .mdh .mdback{margin-right:56px}
+
+/* ===== 第19.2版 S11e（design/34 §14・§15、設計レビュー 7207f8a、企画・品質の指示） ===== */
+/* 閉じた横（678×466）の帯の仮の値。右の帯 84（x594〜678）、ホームバーの帯 33（y433〜466）。実機（D-16）で測って、ここ1か所を置き換える（JS は closedLandVals() で読む） */
+:root{--cl-land-rail:84px;--cl-land-home:33px}
+/* §14: 閉じた横は、格子（x8〜374・y64〜424、行 60×6）と日の欄（x382〜帯の手前、全部の高さ）を左右に並べる。つまみ（上）はない */
+.shell.closed.land .mpull.browse{display:block;padding:0}
+.shell.closed.land .mpull.browse .mpfix{box-sizing:border-box;width:382px;padding:0 8px}
+.shell.closed.land .mpull.browse .mgwrap{width:366px;margin:0 0 0 8px}
+.shell.closed.land .mpull.browse .mday{position:absolute;left:382px;right:0;top:0;bottom:0;padding:0 12px var(--cl-day-pb,41px)}
+.shell.closed.land.fb .mpull.browse .mdh{padding-right:84px}
+.shell.closed.land.fb .mpull.browse .mdh .mdback{margin-right:0}
+/* §15-③・§14.5: 帯がない画面。日の欄の下の余白は 105（最後のカードを右下の＋の上まで送れる）。「…」とタスクは丸を描かず、押したときだけ地 #E2DDD2 の丸 36。＋は見える 48・押せる 56、影は段2 */
+.shell.closed.fb .mpull.browse .mday{padding-bottom:105px}
+.shell.closed.fb .cb.ctask:active .bi,.shell.closed.fb .cb.cmore:active .bi{background:#E2DDD2;transition:background-color .10s linear}
+.shell.closed.fb .cb.cadd .bi{box-shadow:0 4px 12px rgba(41,59,53,.10)}
+/* 帯がない縦: 「今日へ」x306〜370（文字は x362 で右揃え）、題名の箱 x84〜306・文字は格子の中央 x233 */
+.shell.closed.fb:not(.land) .mpull.browse .mph .mptoday{right:88px;padding-right:8px}
+.shell.closed.fb:not(.land) .mpull.browse .mph h2{left:76px;right:152px;padding-left:76px}
+/* §15-②: 帯があるとき、書いている間の「元に戻す」「やり直す」は右の列だけ。シートの戻す群は出さない（道具は x12 から）。使えないときの記号は #C9C5BA */
+.nsheet[data-rail="1"] .ned-gundo{display:none}
+.cb.cundo[data-off="1"] .bi,.cb.credo[data-off="1"] .bi{color:#C9C5BA}
+/* 企画7・設計の確定値: つまみ（上・下）を指でたたいたあとは枠を出さない。キーボード・VoiceOver（:focus-visible）のときだけ、太さ 2・#2F6B4F・角丸 4 の枠を内側 2 に描く */
+.shell.closed .mpull.browse .mgrab:focus:not(:focus-visible),.shell.closed .mpull.browse .mdgrab:focus:not(:focus-visible),.shell.closed .mpull.browse .mday:focus:not(:focus-visible),.shell.closed .mpull.browse .mdh :focus:not(:focus-visible){outline:none}
+.shell.closed .mpull.browse .mgrab:focus-visible,.shell.closed .mpull.browse .mdgrab:focus-visible{outline:2px solid #2F6B4F;outline-offset:-2px;border-radius:4px}
+/* 望ましい1・企画8: ヒントは 2文を1文ずつ2行（13/400・行 18・上下の内側 8、段1で y520〜572＝格子の下端の 8 上）。約物は詰める（palt）。それでも幅 270 に入らない書体のときは JS（hintFit）が字間で収める */
+.mhint span{display:block;font-feature-settings:"palt"}
+/* 帯がない縦の段1: 日の欄は高さ 74 しかなく、下の余白 105 は入らない（箱が画面の下へはみ出す）。段1 のときだけ 41 のまま */
+.shell.closed.fb:not(.land) .mpull.browse[data-stage="1"] .mday{padding-bottom:41px}
+
+/* ===== 第19.2版 S11f（design/34 §16、設計レビュー 0568d18） ===== */
+/* §16-1: 段2〜7（と閉じた横）は、つまみ（下）を日の欄の下端（下の余白 41 の内側）に貼り付ける。押せる範囲 x8〜374・y593〜637、線 y611〜615。中身はつまみの面（#EFECE4）の下を流れる。段1 は貼り付けない（日の欄が 74 しかない） */
+.shell.closed .mpull.browse:not([data-stage="1"]) .mday .mdgrab{position:sticky;bottom:0;z-index:5;width:auto;margin:-8px -4px 0;background:#EFECE4}
+.shell.closed.land .mpull.browse .mday .mdgrab{margin:-8px -12px 0}
+/* 貼り付いている間だけ、上の辺に 0.5 の線（行の線と同じ色。ぼかしは使わない） */
+.shell.closed .mpull.browse .mday .mdgrab.stuck{box-shadow:inset 0 .5px 0 #E4E0D6}
+/* 帯がない画面: 下の余白 105 は送り切ったときの＋よけ。貼り付く位置は帯ありと同じ y593〜637（余白 41 の内側）。右下の＋（押せる x402〜458）にかからないよう x8〜402、線の中心は日の欄の中央 x233 */
+.shell.closed.fb .mpull.browse:not([data-stage="1"]) .mday .mdgrab{bottom:-64px;margin-right:52px;padding-left:56px}
+.shell.closed.land.fb .mpull.browse .mday .mdgrab{margin-right:52px;padding-left:64px}
+/* §16-2: 段2〜7（と閉じた横）は、カード（A）でも日の見出しを貼り付ける（B・C と同じ値。下に線は引かない）。段1 は貼らない */
+.shell.closed .mpull.browse:not([data-stage="1"]) .mday .mdh{position:sticky;top:0;z-index:6}
+/* §16-2 D1: つかんだ瞬間に、元のマスの地を 0.10 秒（標準の緩急）で戻す */
+.shell.closed .mpull.browse .week .day.grabd,.shell.closed .mpull.browse .week .day.grabd:active{background-color:var(--rest,transparent)!important;transition:background-color .10s cubic-bezier(.2,.8,.2,1)}
+/* 見出しを貼り付けても、日の欄の上 20 はつまみ（上）の押せる範囲のまま（§13-1: 格子の下端から 44）。B・C は見出しの右の「カード」（44）を押せるよう今のまま */
+.shell.closed .mpull.browse .mday[data-dg="A"]{isolation:isolate}
+/* 帯がない画面: 押せる範囲は＋の左までだが、つまみの面と上の線は日の欄の右端まで続ける（＋のまわりにカードがのぞかない。＋はこの上） */
+.shell.closed.fb .mpull.browse:not([data-stage="1"]) .mday .mdgrab::after{content:"";position:absolute;left:100%;top:0;width:56px;height:100%;background:#EFECE4;pointer-events:none}
+.shell.closed.fb .mpull.browse:not([data-stage="1"]) .mday .mdgrab.stuck::after{box-shadow:inset 0 .5px 0 #E4E0D6}
+.shell.closed.land.fb .mpull.browse .mday .mdgrab::after{width:64px}

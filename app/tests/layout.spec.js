@@ -41,12 +41,16 @@ test.describe('レイアウト（4サイズ）', () => {
     await loadSample(page);
     await tab(page, '日').click();
     expect(await layout(page)).toBe('browse');
-    // PR25: 閉じた日は時間軸。5件が時間ブロックとして並び、軸は画面（タブの上）に収まる
-    const sc = await box(page.locator('.tlx'));
-    await expect(page.locator('.tlev')).toHaveCount(5);
-    expect(inside(await box(page.locator('.tl')), sc)).toBe(true);
-    // 見出しは1回だけ
-    await expect(page.getByRole('heading', { name: '11月12日（木）' })).toHaveCount(1);
+    // 第19.2版 S11e（34 §15-④）: 閉じた画面の「日」は、カレンダーの日の欄の時間軸 B（段1 からは段7）。5件が時間ブロックとして並び、軸は日の欄（y174〜678）の中を流れる
+    await expect(page.locator('.mpull')).toHaveAttribute('data-stage', '7');
+    const md = page.locator('.mday');
+    await expect(md).toHaveAttribute('data-dg', 'B');
+    await expect(md.locator('.tlev')).toHaveCount(5);
+    const pane = await box(md), tl = await box(md.locator('.tl'));
+    expect(tl.x).toBeGreaterThanOrEqual(pane.x - 0.5); expect(tl.x + tl.width).toBeLessThanOrEqual(pane.x + pane.width + 0.5);
+    expect(await md.evaluate((e) => e.scrollHeight > e.clientHeight)).toBe(true);
+    // 見出し（日付）は1回だけ
+    await expect(page.locator('.mday .mdh .hdt')).toHaveCount(1); await expect(page.locator('.mday .mdh .hdt')).toHaveText('11月12日');
     await expect(page.locator('.agenda')).toHaveCount(0);
   });
 

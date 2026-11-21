@@ -118,9 +118,9 @@ test('閉じた画面・開いた縦の日表示の見出しに六曜（切る�
   for (const size of [SIZES.closedPortrait, SIZES.openPortrait669]) {
     await openApp(page, size);
     await setUi(page, { view: 'day', home: false, selected: '2026-11-14', rokuyo: true }); await page.reload(); await page.waitForSelector('html[data-ready]');
-    const h = page.locator('#ctitle');
-    // 閉じた画面は開いたときカレンダーから始まり（design/34 §9.2）、日の時間軸はホームの「タイムライン ›」（今日 11/12）から開く。開いた縦は保存した日（11/14）の日表示のまま
-    const closed = size === SIZES.closedPortrait, want = closed ? '11月12日（木）' : '11月14日（土）', rk = closed ? '先勝' : '先負';
+    // 閉じた画面は開いたときカレンダーから始まる（design/34 §9.2）。S11e（34 §15-④）: 閉じた画面の「日」はカレンダーの日の欄の時間軸 B で、日付と六曜は日の欄の見出し（「11月12日」「木 先勝」）。開いた縦は保存した日（11/14）の日表示のまま
+    const closed = size === SIZES.closedPortrait, want = closed ? '11月12日木' : '11月14日（土）', rk = closed ? ' 先勝' : '先負';
+    const h = closed ? page.locator('.mday .mdh h3') : page.locator('#ctitle');
     if (closed) await tab(page, '日').click();
     await expect(h).toHaveText(`${want}${rk}`);
     const clip = await h.evaluate((e) => e.scrollWidth > e.clientWidth + 1);

@@ -70,7 +70,7 @@ test('V-17 開いた縦ホームの「月 ›」は 44×44（x613・y492）', as
   const r = await rect(page.locator('.pv-week .hgo')); near(r.x, 613); near(r.y, 492); near(r.w, 44); near(r.h, 44);
 });
 
-test('V-23（R-75 で置き換え）チップの上で押しても、そのマスの地は #E2DDD2（押した反応はマスだけ。チップの被せは出さない）', async ({ page }) => {
+test('V-23（R-75 で置き換え）チップの上で押すと、つかむまで（0.22 秒）そのマスの地は #E2DDD2、つかんだら（0.50 秒）元の地（押した反応はマスだけ。チップの被せは出さない）', async ({ page }) => {
   await openApp(page, C); await band(page, 84);
   await seed(page, [ev('c1', '朝会', '2026-11-12T09:00', '2026-11-12T09:30')]); await band(page, 84);
   await tab(page, '月').click(); await page.waitForTimeout(300);
@@ -81,8 +81,10 @@ test('V-23（R-75 で置き換え）チップの上で押しても、そのマ�
   expect(await chip.evaluate((e) => [e.matches(':active'), getComputedStyle(e).backgroundColor, getComputedStyle(e).filter])).toEqual([true, 'rgba(0, 0, 0, 0)', 'none']);
   expect(await bg(day)).toBe('rgb(226, 221, 210)');
   await page.mouse.up(); await page.waitForTimeout(300);
-  await press(page, chip);
-  await page.waitForTimeout(200); expect(await bg(day)).toBe('rgb(226, 221, 210)'); await expect(page.locator('.chip-press')).toHaveCount(0);
+  // S11f（design/34 §16-2 D1）: 押して 0.22 秒（つかむ前）はマスの地 #E2DDD2。つかんだ瞬間（0.35 秒）に 0.10 秒で元の地へ戻すので、押して 0.50 秒では元の地
+  { const r = await rect(chip); await page.mouse.move(r.x + r.w / 2, r.y + r.h / 2); await page.mouse.down(); }
+  await page.waitForTimeout(220); expect(await bg(day), '0.22 秒').toBe('rgb(226, 221, 210)'); await expect(page.locator('.chip-press')).toHaveCount(0);
+  await page.waitForTimeout(280); await expect(page.locator('.mgrid .chip.grabbed')).toHaveCount(1); expect(await bg(day), '0.50 秒は元の地').toBe(base);
   // 0.35 秒を過ぎてつかんだあとも、元のチップは破線の枠だけ（地 transparent・filter なし）
   expect(await page.evaluate(() => { const g = document.querySelector('.mgrid .chip.grabbed'); if (!g) return null; const c = getComputedStyle(g); return [c.backgroundColor, c.filter, c.outlineStyle]; })).toEqual(['rgba(0, 0, 0, 0)', 'none', 'dashed']);
   await page.mouse.up(); await page.waitForTimeout(400);

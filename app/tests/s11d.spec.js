@@ -185,16 +185,17 @@ test.describe('S11d 品質レビュー 7c9fb05 ⑤ 終日の並び', () => {
   });
 });
 
-test.describe('S11d 品質レビュー 7c9fb05 ⑥ つまみ（下）が画面の外にある日', () => {
-  test('予定の多い日（段4）: つまみ（下）は最後のカードの下（画面の外）のまま。見出しの右の「時間軸」で時間軸へ行け、「カード」で戻る', async ({ page }) => {
+// S11f（design/34 §16-1）: ⑥ の「見出しの右の『時間軸』」はやめた。段2〜7 は、つまみ（下）を日の欄の下端に貼り付ける（押せる y593〜637）。.mdtl はない
+test.describe('S11d 品質レビュー 7c9fb05 ⑥ → S11f §16-1 予定の多い日のつまみ（下）', () => {
+  test('予定の多い日（段4）: 見出しの右に「時間軸」（.mdtl）はない。つまみ（下）は日の欄の下端に貼り付いていて、そのまま引くと時間軸、「カード」で戻る', async ({ page }) => {
     await boot(page); await toStage(page, 4);
-    const m = await page.evaluate(() => { const g = document.querySelector('.mdgrab').getBoundingClientRect(), last = [...document.querySelectorAll('.mday .mdcard')].at(-1).getBoundingClientRect(), b = document.querySelector('.mdh .mdtl'); const r = b.getBoundingClientRect(); return { gTop: g.top, gBottom: g.bottom, last: last.bottom, hidden: b.hidden, r: [r.left, r.top, r.right, r.bottom], fs: getComputedStyle(b).fontSize, fw: getComputedStyle(b).fontWeight, col: getComputedStyle(b).color }; });
-    expect(Math.abs(m.gTop - m.last)).toBeLessThanOrEqual(0.5); // 34 §13-2 の位置は動かさない
-    expect(m.gBottom).toBeGreaterThan(678 - 41); // 見える範囲（下の余白 41 の上）に入りきらない
-    expect(m.hidden).toBe(false);
-    expect(m.r[3] - m.r[1]).toBe(44); expect(m.r[2]).toBeLessThanOrEqual(370.5); expect(m.r[1]).toBe(260); // 押せる高さ 44、日の欄の幅 x12〜370 の中、見出し y260〜304
-    expect([m.fs, m.fw, m.col]).toEqual(['11px', '400', 'rgb(41, 78, 66)']); // 「カード」と同じ 11/400 緑
-    await page.getByRole('button', { name: '時間軸にする' }).click();
+    await expect(page.locator('.mdtl')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '時間軸にする' })).toHaveCount(0);
+    const m = await page.evaluate(() => { const g = document.querySelector('.mdgrab'), b = g.getBoundingClientRect(), last = [...document.querySelectorAll('.mday .mdcard')].at(-1).getBoundingClientRect(); return { r: [b.left, b.top, b.right, b.bottom], last: last.bottom, pos: getComputedStyle(g).position, stuck: g.classList.contains('stuck') }; });
+    expect(m.pos).toBe('sticky'); expect(m.stuck).toBe(true);
+    expect(m.last).toBeGreaterThan(593); // 最後のカードは見える範囲の下（元の位置は画面の外）
+    m.r.forEach((v, i) => expect(Math.abs(v - [8, 593, 374, 637][i])).toBeLessThanOrEqual(0.6)); // 押せる範囲 x8〜374・y593〜637（ホームバーの帯 y645 の 8 上まで）
+    await drag(page, 191, 615, 191, 615 + 40); // 貼り付いたつまみを下へ 40 → 時間軸 B
     await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B');
     await expect(page.locator('.mday .tlev')).not.toHaveCount(0);
     await page.getByRole('button', { name: 'カードの一覧に戻す' }).click();
@@ -204,13 +205,13 @@ test.describe('S11d 品質レビュー 7c9fb05 ⑥ つまみ（下）が画面�
     await drag(page, 200, d.y + 60, 200, d.y + 110);
     await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'A');
   });
-  test('つまみ（下）が見えている日は「時間軸」を出さない（段7・予定5件、段4・予定1件）。段を変えると出し入れが合う', async ({ page }) => {
-    await boot(page); await toStage(page, 7);
-    await expect(page.locator('.mdh .mdtl')).toBeHidden();
-    expect(await page.locator('.mdgrab').evaluate((g) => g.getBoundingClientRect().bottom)).toBeLessThanOrEqual(678 - 41 + 0.5);
+  test('どの段・どの日にも .mdtl はない。予定1件の日はつまみ（下）が貼り付かず、最後のカードのすぐ下（上の線なし）', async ({ page }) => {
+    await boot(page);
+    for (const n of [7, 4, 1]) { await toStage(page, n); await expect(page.locator('.mdtl'), `段${n}`).toHaveCount(0); }
     await toStage(page, 4);
-    await expect(page.locator('.mdh .mdtl')).toBeVisible(); // 段4では入りきらない
     await page.locator(cell('2026-11-18')).click({ position: { x: 30, y: 70 } }); await page.waitForTimeout(400);
-    await expect(page.locator('.mdh .mdtl')).toBeHidden(); // 予定1件の日
+    await expect(page.locator('.mdtl')).toHaveCount(0);
+    const m = await page.evaluate(() => { const g = document.querySelector('.mdgrab'), last = [...document.querySelectorAll('.mday .mdcard, .mday .mdnone2')].at(-1).getBoundingClientRect(); return { top: g.getBoundingClientRect().top, last: last.bottom, stuck: g.classList.contains('stuck'), sh: getComputedStyle(g).boxShadow }; });
+    expect(Math.abs(m.top - m.last)).toBeLessThanOrEqual(0.5); expect(m.stuck).toBe(false); expect(m.sh).toBe('none');
   });
 });

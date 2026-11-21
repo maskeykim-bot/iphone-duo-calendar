@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { OPEN_SIZES, SIZES, loadSample, openApp, setStyle, tab, openMenu, layout, monthFormInit, expectShown } from './helpers.js';
+import { OPEN_SIZES, SIZES, loadSample, openApp, setStyle, tab, openMenu, layout, monthFormInit, expectShown, moreGo } from './helpers.js';
 
 // 第10版 ②: 閉じた画面（月領域＋操作列）・4タブ・操作列。画面サイズは固定せず、同じ検査を複数の大きさで通す。
 const CLOSED = [SIZES.closedPortrait, SIZES.closedLandscape];
@@ -52,27 +52,37 @@ for (const size of CLOSED) {
       await monthFormInit(page, 'two');
       await openApp(page, size);
       await expect(page.locator('body')).toHaveAttribute('data-layout', 'browse');
-      const st0 = await stageOf(page);
-      expect(st0).toBe(4); // 2週の型＝段4（34 §10: 段を「月 1〜3・2週 4〜6・1週 7」に読み替える）
+      // 第19.2版 S11e（34 §14.2）: 閉じた横は段を使わない（data-stage なし・いつも月）。縦は 2週の型＝段4（34 §10: 段を「月 1〜3・2週 4〜6・1週 7」に読み替える）
+      const land = size.width > size.height;
+      const st0 = land ? await page.locator('.mpull').getAttribute('data-stage') : await stageOf(page);
+      expect(st0).toBe(land ? null : 4);
+      if (land) await expect(page.locator('.mgrab')).toHaveCount(0);
       await expect(page.getByRole('button', { name: '今日へ' })).toHaveCount(0); // 今日が画面にある間は出ない（34 §2.1）
-      for (let i = 0; i < 4; i++) await page.locator('.mph [data-act="next"]').click({ force: true }); // 見えない「次の月」（2×2・opacity 0）。2週の段は 1週ずつ進む（11/12 → 12/10）
+      for (let i = 0; i < (land ? 1 : 4); i++) await page.locator('.mph [data-act="next"]').click({ force: true }); // 見えない「次の月」（2×2・opacity 0）。2週の段は 1週ずつ進む（11/12 → 12/10）。横は月なので 1か月
       await expect(page.locator('#ctitle')).toHaveText('2026年12月');
       await page.getByRole('button', { name: '今日へ' }).click();
       await expect(page.locator('#ctitle')).toHaveText('2026年11月');
-      expect(await stageOf(page)).toBe(st0); // 段は保つ（§12 Q-11）
+      expect(land ? await page.locator('.mpull').getAttribute('data-stage') : await stageOf(page)).toBe(st0); // 段は保つ（§12 Q-11）
       await expect(page.locator('.mgrid:not([data-leaving]) .day[data-date="2026-11-12"]')).toHaveAttribute('aria-selected', 'true');
       await tab(page, '週').click();
       await expect(page.locator('body')).toHaveAttribute('data-layout', 'browse');
       await expect(page.locator('.shell.closed.tv-week')).toHaveCount(1);
       await expect(page.locator('.cback')).toBeVisible();
-      await tab(page, '日').click(); // 日の時間軸（28 §1）はホームの「タイムライン ›」から
-      await expect(page.locator('.shell.closed.tv-day')).toHaveCount(1);
+      await tab(page, '日').click(); // S11e（34 §15-④）: ホームの「タイムライン ›」は、別の画面ではなくカレンダーの日の欄の時間軸 B を開く（「‹ カレンダー」は要らない）
+      await expect(page.locator('.shell.closed.tv-day')).toHaveCount(0);
+      await expect(page.locator('.shell.closed.cal .mday')).toHaveAttribute('data-dg', 'B');
+      await expect(page.locator('.cback')).toHaveCount(0);
+      if (!land) expect(await stageOf(page)).toBe(st0); // 段4 は覚えている段のまま（段1〜3 のときだけ段7。§15-④）
       await tab(page, 'ホーム').click();
       await expect(page.locator('body')).toHaveAttribute('data-layout', 'home');
       await page.getByRole('button', { name: 'カレンダーへ戻る' }).click();
       await expect(page.locator('body')).toHaveAttribute('data-layout', 'browse');
       await expect(page.locator('#ctitle')).toHaveText('2026年11月');
-      expect(await stageOf(page)).toBe(st0); // 覚えている段へ戻る
+      expect(land ? await page.locator('.mpull').getAttribute('data-stage') : await stageOf(page)).toBe(st0); // 覚えている段へ戻る
+      if (land) { // 横の間は段を書き換えない。縦に戻すと覚えている段（指示10）
+        await page.setViewportSize({ width: size.height, height: size.width });
+        await expect(page.locator('.mpull')).toHaveAttribute('data-stage', '4');
+      }
     });
 
     test('操作列: タスク・…・＋ は各44以上（＋は48）、どれも最前面に届き重ならない。設定・検索は「…」から', async ({ page }) => {
@@ -90,7 +100,8 @@ for (const size of CLOSED) {
         all.push(r);
       }
       const add = await box(page.getByRole('button', { name: '予定を追加' }));
-      expect(Math.round(add.w)).toBe(48); expect(Math.round(add.h)).toBe(48);
+      expect(Math.round(add.w)).toBe(56); expect(Math.round(add.h)).toBe(56); // S11e（34 §15-③・§14.5）: 帯がないときの＋は 見える 48・押せる 56
+      const addVis = await box(page.locator('.cadd > :first-child')); expect(Math.round(addVis.w)).toBe(48); expect(Math.round(addVis.h)).toBe(48);
       for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) expect(hits(all[i], all[j]), `重なり ${i}/${j}`).toBe(false);
       // 設定は「…」→「設定」でメニュー、検索は「…」→「検索」で検索パネル（34 §9.1-5・6）
       await page.getByRole('button', { name: 'その他', exact: true }).click();
@@ -109,6 +120,7 @@ for (const size of CLOSED) {
       await page.evaluate(() => { const s = document.documentElement.style; s.setProperty('--sat', '47px'); s.setProperty('--sab', '34px'); s.setProperty('--sal', '47px'); s.setProperty('--sar', '47px'); });
       await expect.poll(() => page.evaluate(() => document.querySelector('.mpane').getBoundingClientRect().left)).toBeGreaterThanOrEqual(47);
       await expect.poll(() => page.evaluate(() => document.querySelector('.ctl').lastElementChild.getBoundingClientRect().bottom <= innerHeight - 34 + 0.5)).toBe(true);
+      await expect.poll(() => page.evaluate(() => document.querySelector('.ctl .ctask').getBoundingClientRect().right <= innerWidth - 47 + 0.5)).toBe(true); // S11e: ＋の新しい位置（§15-③）は safe を入れる前から下 34 の内側なので、描き直しはタスクの位置で待つ
       const { W, H } = await page.evaluate(() => ({ W: innerWidth, H: innerHeight }));
       const rects = [];
       for (const loc of [0, 1, 2].map((i) => page.locator('.ctl').getByRole('button').nth(i))) rects.push(await box(loc));
@@ -119,7 +131,7 @@ for (const size of CLOSED) {
       for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) expect(hits(rects[i], rects[j]), `重なり ${i}/${j}`).toBe(false);
     });
 
-    test('日の欄の末尾（ノート）は、日の欄の中を送り切ると下の余白 41 の上に出る。格子は流れない（34 §2.1・§6.3）', async ({ page }) => {
+    test('日の欄の末尾（ノート）は、日の欄の中を送り切ると下の余白の上に出る（帯なしの縦の段1は 41、帯なしの横は 105）。格子は流れない（34 §2.1・§6.3・§14.5）', async ({ page }) => {
       await openApp(page, size);
       await tab(page, '月').click();
       // 34: 閉じた画面は格子を固定し、日の欄（.mday）の中だけが流れる。タブがなくなったので下の余白は 87 → 41（34 §10「33 全体」）
@@ -128,9 +140,18 @@ for (const size of CLOSED) {
       await sc.evaluate((el) => { el.scrollTop = el.scrollHeight; });
       const last = await box(page.locator('.mday .mdnote'));
       const paneBottom = (await box(sc)).b;
-      if (size.height > size.width) expect(Math.abs(paneBottom - size.height)).toBeLessThan(0.6); // 日の欄は画面の下端まで（design/34 は 466×678 の寸法。横向きは段の寸法が決まっていない）
-      expect(last.b).toBeLessThanOrEqual(paneBottom - 41 + 1);
-      expect(last.b).toBeGreaterThanOrEqual(paneBottom - 41 - 1);
+      // S11e（品質の指示13）: 横の確かめを戻した。34 §14: 閉じた横は格子 x8〜374・y64〜424、日の欄は x382 から右・全部の高さ（y0〜466）。この試験は safe=0（帯なし）なので下の余白は 105（§14.5）。縦の段1は日の欄が 74 しかないので 41
+      const land = size.width > size.height, pad = land ? 105 : 41;
+      expect(await sc.evaluate((el) => parseFloat(getComputedStyle(el).paddingBottom))).toBe(pad);
+      expect(Math.abs(paneBottom - size.height)).toBeLessThan(0.6); // 日の欄は画面の下端まで
+      if (land) {
+        const pane = await box(sc);
+        expect(Math.abs(pane.l - 382)).toBeLessThan(0.6); expect(Math.abs(pane.t)).toBeLessThan(0.6); expect(Math.abs(pane.r - size.width)).toBeLessThan(0.6);
+        expect(Math.abs(g0.l - 8) < 0.6 && Math.abs(g0.t - 64) < 0.6 && Math.abs(g0.r - 374) < 0.6 && Math.abs(g0.b - 424) < 0.6, JSON.stringify(g0)).toBe(true);
+        expect(last.l).toBeGreaterThanOrEqual(382 + 12 - 0.6); // 日の欄の中身は格子（x382 より左）に出ない
+      }
+      expect(last.b).toBeLessThanOrEqual(paneBottom - pad + 1);
+      if (await sc.evaluate((el) => el.scrollHeight > el.clientHeight + 1)) expect(last.b).toBeGreaterThanOrEqual(paneBottom - pad - 1); // 中身が日の欄より短いとき（横は日の欄が全部の高さ）は送れないので、上の「余白の上」だけを見る
       expect(Math.abs((await box(page.locator('.mgrid'))).t - g0.t)).toBeLessThan(0.3);
     });
   });
@@ -152,11 +173,12 @@ test('閉じた縦 466×678（safe=0・帯なし）: 本文は全幅。見出し
   expect(Math.abs(pane.l)).toBeLessThan(0.3);
   expect(Math.abs(pane.r - 466)).toBeLessThan(0.3);
   await expect(page.locator('.rail')).toHaveCount(0); // 本文内の縦の操作列はない
-  // 見出しの右: … x374・タスク x418（各44）。右下: ＋ x410（48）、中心 y622
+  // S11e（34 §15-③）: 見出しの右: … x370・タスク x414（各44。右端を 8 あける）。右下: ＋ は押せる 56 を x402〜458・y581〜637（見える 48 は x406〜454・y585〜633）、中心 y609
   const more = await box(page.getByRole('button', { name: 'その他', exact: true })), task = await box(page.locator('.ctl .ctask')), add = await box(page.getByRole('button', { name: '予定を追加' }));
-  expect([more.l, more.w, task.l, task.w, add.l, add.w].map(Math.round)).toEqual([374, 44, 418, 44, 410, 48]);
+  expect([more.l, more.w, task.l, task.w, add.l, add.w].map(Math.round)).toEqual([370, 44, 414, 44, 402, 56]);
   expect([more.t, more.h, task.t, task.h].map(Math.round)).toEqual([0, 44, 0, 44]);
-  expect(Math.round(add.t + 24)).toBe(622);
+  expect(Math.round(add.t + add.h / 2)).toBe(609);
+  expect(await page.locator('.mday').evaluate((e) => parseFloat(getComputedStyle(e).paddingBottom))).toBe(105); // 日の欄の下の余白 105（最後のカードを＋の上まで送れる）
 });
 
 test('閉じた縦で、月の表現は設定の「月の表現」から選ぶ。全部・手帳が保存され、リロード後も復元される', async ({ page }) => {
@@ -263,52 +285,87 @@ test('PR5 開いた縦 669×951: タブ x191〜477・y863〜909、＋は右下�
   await expect(page.getByRole('group', { name: '集中モード' })).toBeVisible(); // 切替（カレンダー｜タスク｜ノート）を残す（TP-23 の答えまで）
 });
 
-// 閉じた画面で今どれを見ているか（タブの代わり。34 §9.1-9）: ホーム／日の時間軸／週の時間軸／月（カレンダー）
-const closedShown = (page) => page.evaluate(() => { const c = document.querySelector('.shell.closed')?.classList; if (!c) return '（開いた画面）'; return c.contains('home') ? 'ホーム' : c.contains('tv-day') ? '日' : c.contains('tv-week') ? '週' : c.contains('cal') ? '月' : '?'; });
+// 閉じた画面で今どれを見ているか（タブの代わり。34 §9.1-9）: ホーム／日（日の欄の時間軸 B。34 §15-④）／週の時間軸／月（カレンダー）
+const closedShown = (page) => page.evaluate(() => { const c = document.querySelector('.shell.closed')?.classList; if (!c) return '（開いた画面）'; return c.contains('home') ? 'ホーム' : c.contains('tv-week') ? '週' : c.contains('cal') ? (document.querySelector('.mday')?.dataset.dg === 'B' ? '日' : '月') : '?'; });
 const openPressed = (page) => page.evaluate(() => [...document.querySelectorAll('.tabs button')].find((b) => b.getAttribute('aria-pressed') === 'true')?.textContent.trim() ?? '');
-test('PR5 選んだ表示は閉じた画面と開いた縦で共通。5回開閉しても同じ表示・同じ日付', async ({ page }) => {
-  await openApp(page, SIZES.closedPortrait);
-  const sel = () => page.evaluate(() => { const u = JSON.parse(localStorage.getItem('duo.ui.v1') || '{}'); return `${u.selected}|${u.view}`; });
-  for (const name of ['週', '日', '月', 'ホーム']) {
+const uiRaw = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1') || '{}'));
+// 第19.2版 S11e（指示14・設計で確定）: 第19版 PR5 の「選んだ表示は閉じた画面と開いた縦で共通」を置き換える。
+// 画面の記憶は閉じた画面と開いた画面とで別々。閉じている間は閉じた画面の分（一番上の stage・selected・dayGrip。品質 s11d-design-14-15 S11e(b) の CLOSED_KEYS と同じ）だけを書き、開いた画面の分（view・home）には触れない。開いたら前に開いていた画面に戻る。
+test('S11e 画面の記憶は別々: 閉じた画面でどの面を見ていても、開くと前に開いていた表示。5回開閉しても、閉じた側・開いた側それぞれ同じ面', async ({ page }) => {
+  await openApp(page, SIZES.openPortrait669);
+  await tab(page, '週').click(); // 開いた縦は「週」を選んでおく
+  expect((await uiRaw(page)).view).toBe('week');
+  await page.setViewportSize(SIZES.closedPortrait);
+  await expect.poll(() => layout(page)).toBe('browse');
+  expect(await closedShown(page)).toBe('月'); // 閉じた画面はカレンダーから（開いた縦の「週」を持ち込まない）
+  for (const name of ['週', '日', 'ホーム', '月']) {
     await tab(page, name).click();
-    if (name === '週') { await page.locator('.chead [data-act="next"]').click({ force: true }); await expect.poll(sel).toContain('2026-11-19'); }
     expect(await closedShown(page)).toBe(name);
-    const s0 = await sel();
+    if (name === '日') { await page.locator('.mday .mdback').click(); await tab(page, '月').click(); continue; } // 日の欄を時間軸 B にしたまま次へ進むと「月」の面も B なので、カードへ戻す
     for (let i = 0; i < 5; i++) {
       await page.setViewportSize(SIZES.openPortrait669);
       await expect.poll(() => layout(page)).toBe('open');
-      expect(await openPressed(page), `${name} 開 ${i}`).toBe(name);
-      expect(await sel(), `${name} 開 ${i} 日付`).toBe(s0);
+      expect(await openPressed(page), `${name} 開 ${i}`).toBe('週'); // 前に開いていた画面
       await page.setViewportSize(SIZES.closedPortrait);
       await expect.poll(() => layout(page)).toMatch(/home|browse/);
-      expect(await closedShown(page), `${name} 閉 ${i}`).toBe(name);
-      expect(await sel(), `${name} 閉 ${i} 日付`).toBe(s0);
+      expect(await closedShown(page), `${name} 閉 ${i}`).toBe(name); // 閉じた画面で見ていた面
+      const u = await uiRaw(page);
+      expect([u.view, u.home === true], `${name} 閉 ${i} 保存`).toEqual(['week', false]); // 閉じている間、開いた画面の保存には触れない
     }
   }
 });
 
-test('PR5 閉じた画面で「週の時間軸」を見ている途中で開くと、開いた縦も「週」。日付も保つ', async ({ page }) => {
+test('S11e 閉じた画面で起動すると、開いた縦・横で保存していた画面（view・home）を書き換えない。閉じた画面が書くのは stage・selected・dayGrip だけ', async ({ page }) => {
+  await page.addInitScript(() => { if (!localStorage.getItem('__s11e')) { localStorage.setItem('__s11e', '1'); localStorage.setItem('duo.ui.v1', JSON.stringify({ view: 'day', home: true, selected: '2026-10-05', monthForm: 'month', monthDay: 'list', pages: { left: 'month', right: 'time', portraitBottom: 'time', portraitShown: false } })); } });
+  await openApp(page, SIZES.closedPortrait);
+  await expect(page.locator('body')).toHaveAttribute('data-layout', 'browse'); // 起動はカレンダー（34 §9.2）
+  await expect(page.locator('#ctitle')).toHaveText('2026年10月'); // 閉じた画面の分がまだないときは、前の保存の日から
+  await page.locator('.mgrid .day[data-date="2026-10-20"]').click({ position: { x: 8, y: 8 } });
+  await page.locator('.mgrab').focus(); await page.keyboard.press('ArrowUp');
+  await expect(page.locator('.mpull')).toHaveAttribute('data-stage', '2');
+  await page.locator('.mdgrab').focus(); await page.keyboard.press('ArrowDown');
+  await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B');
+  await moreGo(page, '週の時間軸');
+  await expect.poll(async () => { const u = await uiRaw(page); return { selected: u.selected, stage: u.stage, dayGrip: u.dayGrip }; }).toEqual({ selected: '2026-10-20', stage: 2, dayGrip: 1 }); // S11f: 品質 B-2 の形（一番上の stage・selected・dayGrip）
+  const u = await uiRaw(page);
+  expect([u.view, u.home]).toEqual(['day', true]); // 開いた画面の分はそのまま
+  expect(u.closed).toBeUndefined();
+  // 読み込み直すと、閉じた画面は自分の分（10/20・段2・B）で開く
+  await page.reload(); await page.waitForSelector('html[data-ready]');
+  await expect(page.locator('.mpull')).toHaveAttribute('data-stage', '2');
+  await expect(page.locator('.mgrid:not([data-leaving]) .day[data-date="2026-10-20"]')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B');
+  // 開くと、前に開いていた画面（ホーム）。選んだ日はいま見ている日を引き継ぐ
+  await page.setViewportSize(SIZES.openPortrait669);
+  await expect.poll(() => layout(page)).toBe('open');
+  await expectShown(page, 'ホーム');
+});
+
+test('S11e 閉じた画面で「週の時間軸」を見ている途中で開いても、開いた縦は前の表示（月）のまま。日付は引き継ぎ、閉じると週の時間軸に戻る', async ({ page }) => {
   await openApp(page, SIZES.closedPortrait);
   await tab(page, '週').click();
   await page.locator('.chead [data-act="next"]').click({ force: true });
   await expect(page.locator('#ctitle')).toHaveText('11月16日〜22日');
   await page.setViewportSize(SIZES.openPortrait669);
-  await expectShown(page, '週');
-  await expect(page.locator('#ctitle')).toHaveText('11月16日〜22日'); // 第19版 PR7: 開いた縦の週も同じ月なら短い見出し
+  await expectShown(page, '月');
+  await expect(page.locator('.day.selected[data-date="2026-11-19"]')).toHaveCount(1); // 選んだ日は引き継ぐ
   await page.setViewportSize(SIZES.closedPortrait);
   await expect.poll(() => closedShown(page)).toBe('週');
   await expect(page.locator('#ctitle')).toHaveText('11月16日〜22日');
 });
 
-test('PR5 ホームを見ている途中で開くと開いた縦もホーム（月ではない）。月なら月のまま閉じてもホームにならない', async ({ page }) => {
+test('S11e 閉じた画面でホームを見ている途中で開いても、開いた縦はホームにならない（前の表示）。開いた縦で月を選んで閉じると、閉じた画面は見ていたホームのまま', async ({ page }) => {
   await openApp(page, SIZES.closedPortrait, '', { home: true });
   expect(await closedShown(page)).toBe('ホーム');
   await page.setViewportSize(SIZES.openPortrait669);
-  await expectShown(page, 'ホーム');
-  await tab(page, '月').click();
+  await expectShown(page, 'ホーム', false);
+  await tab(page, '週').click();
   await page.setViewportSize(SIZES.closedPortrait);
-  await expect.poll(() => closedShown(page)).toBe('月');
+  await expect.poll(() => closedShown(page)).toBe('ホーム');
+  await page.getByRole('button', { name: 'カレンダーへ戻る' }).click();
   await expect(page.locator('body')).toHaveAttribute('data-layout', 'browse');
+  await page.setViewportSize(SIZES.openPortrait669);
+  await expectShown(page, '週');
 });
 
 test('PR5 閉じた画面の週: 見出し 48・日付の行 42・終日 24・時間軸 y114〜、1列 48・1時間 44（帯 84 の本文 366 幅）', async ({ page }) => {
@@ -334,15 +391,35 @@ test('PR5 閉じた画面の週: 見出し 48・日付の行 42・終日 24・�
   await expect(page.locator('.mpane .hcard, .mpane .rmrow, .mpane [data-page="task"], .mpane [data-page="memo"]')).toHaveCount(0);
 });
 
-test('PR5 閉じた画面の日: 時間軸 y80〜、1時間 44。タスク・ノートは出さない', async ({ page }) => {
+// 第19.2版 S11e（34 §15-④）: 閉じた画面に日の時間軸の画面（28 §1。時間軸 y80〜）はもうない。ホームの「タイムライン ›」は、カレンダーの日の欄の時間軸 B（1時間 44）を開く
+test('S11e 閉じた画面の日: ホームの「タイムライン ›」→ カレンダーの日の欄の時間軸 B（1時間 44）。段1〜3 は段7、段4〜7 はそのまま。最初の予定の1時間前が見出しの下', async ({ page }) => {
   await openApp(page, SIZES.closedPortrait);
   await setSafeRight(page, 84);
   await loadSample(page);
+  await expect(page.locator('.mpull')).toHaveAttribute('data-stage', '1');
   await tab(page, '日').click();
-  const tl = await box(page.locator('.tl'));
-  expect(near(tl.t, 80), JSON.stringify(tl)).toBe(true);
-  expect(await page.locator('.tl').evaluate((e) => parseFloat(getComputedStyle(e).getPropertyValue('--hh')))).toBe(44);
+  await expect(page.locator('.shell.closed.tv-day')).toHaveCount(0);
+  await expect(page.locator('.cback')).toHaveCount(0);
+  await expect(page.locator('.mpull')).toHaveAttribute('data-stage', '7'); // 段1 → 段7（日の欄 y174〜678）
+  const md = page.locator('.mday');
+  await expect(md).toHaveAttribute('data-dg', 'B');
+  const pane = await box(md);
+  expect(near(pane.t, 174) && near(pane.b, 678), JSON.stringify(pane)).toBe(true);
+  expect(await page.locator('.mday .tl').evaluate((e) => parseFloat(getComputedStyle(e).getPropertyValue('--hh')))).toBe(44);
+  const hl = await page.locator('.mday .hl:not(.half)').evaluateAll((els) => els.slice(0, 3).map((e) => e.getBoundingClientRect().top));
+  expect(near(hl[1] - hl[0], 44) && near(hl[2] - hl[1], 44)).toBe(true);
+  // 最初の時刻つきの予定の1時間前が、貼り付いた見出し（44）のすぐ下
+  const m = await page.evaluate(() => { const md = document.querySelector('.mday'), tl = md.querySelector('.tl'), ev = [...md.querySelectorAll('.tlev[data-event]')].map((e) => e.getBoundingClientRect().top).sort((a, b) => a - b)[0]; return { ev, head: md.querySelector('.mdh').getBoundingClientRect().bottom, st: md.scrollTop }; });
+  expect(m.st).toBeGreaterThan(0);
+  expect(m.ev - m.head).toBeGreaterThan(44 - 2); expect(m.ev - m.head).toBeLessThan(44 + 14); // 1時間（44）＋時間軸の上のあき 12
   await expect(page.locator('.mpane .hcard, .mpane .rmrow, .mpane [data-page="task"], .mpane [data-page="memo"]')).toHaveCount(0);
+  // 段4 から開くと、段は覚えている段のまま
+  await page.locator('.mday .mdback').click();
+  await page.locator('.mgrab').focus(); for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowDown');
+  await expect(page.locator('.mpull')).toHaveAttribute('data-stage', '4');
+  await tab(page, 'ホーム').click(); await tab(page, '日').click();
+  await expect(page.locator('.mpull')).toHaveAttribute('data-stage', '4');
+  await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B');
 });
 
 test('PR5 閉じた週・日で日付を変えると 0.25 秒で横に滑る（視差を減らすときは 0.15 秒のフェード）', async ({ page }) => {

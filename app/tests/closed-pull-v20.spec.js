@@ -692,8 +692,19 @@ test.describe('I. 変えないもの・戻らないもの', () => {
     const hs = await rec;
     const end = hs.find(([, h]) => Math.abs(h - S.STAGES[7].H) <= S.TOL);
     expect(end, '段7の高さへ戻る').toBeTruthy();
-    expect(end[0]).toBeGreaterThanOrEqual(S.RUBBER.backSec * 1000 - 50);
-    expect(end[0]).toBeLessThanOrEqual(S.RUBBER.backSec * 1000 + 50);
+    // 7207f8a QA: 0.22 秒の out-cubic は 0.5pt 以内に入るのが約 0.16〜0.19 秒（無負荷で 162ms 実測）。
+    // 「最初に TOL 以内のコマ」ではなく、C と同じく「変化 0.05 未満が続き始めるコマ」を戻り終わりとして見る。
+    let settle = null;
+    for (let i = 1; i < hs.length; i++) {
+      if (Math.abs(hs[i][1] - hs[i - 1][1]) >= 0.05) continue;
+      let ok = true;
+      for (let j = i + 1; j < Math.min(i + 4, hs.length); j++) if (Math.abs(hs[j][1] - hs[j - 1][1]) >= 0.05) { ok = false; break; }
+      if (ok) { settle = hs[i]; break; }
+    }
+    expect(settle, '戻りが止まるコマがある').toBeTruthy();
+    expect(settle[0]).toBeGreaterThanOrEqual(S.RUBBER.backSec * 1000 - 50);
+    expect(settle[0]).toBeLessThanOrEqual(S.RUBBER.backSec * 1000 + 50);
+    expect(Math.abs(hs[hs.length - 1][1] - S.STAGES[7].H), '最後は段7の高さ').toBeLessThanOrEqual(S.TOL);
     expect(await stageOf(page)).toBe(7);
   });
 });

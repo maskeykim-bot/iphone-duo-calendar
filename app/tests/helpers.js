@@ -80,23 +80,24 @@ export async function loadSample(page) {
 export const isClosedSize = (page) => { const v = page.viewportSize(); return !!v && Math.min(v.width, v.height) < 600; };
 export async function openMore(page) { await page.locator('.cmore').click(); await expect(page.getByRole('menu')).toBeVisible(); }
 export async function moreGo(page, name) { await openMore(page); await page.getByRole('menuitem', { name }).click(); }
+export const CLOSED_DAY = '.shell.closed.tv-day, .shell.closed.cal .mpull.browse .mday:is([data-dg="B"], [data-dg="C"])';
 export async function closedGo(page, name) {
   const back = page.locator('.cback');
   if (name === '月') { if (await back.count()) await back.click(); await expect(page.locator('.shell.closed.cal')).toHaveCount(1); return; }
   if (name === 'ホーム') { if (!(await page.locator('.shell.closed.home:not(.strp)').count())) await moreGo(page, /ホーム/); await expect(page.locator('.home.listview')).toBeVisible(); return; }
   if (name === '週') { if (!(await page.locator('.shell.closed.tv-week').count())) await moreGo(page, '週の時間軸'); await expect(page.locator('.shell.closed.tv-week')).toHaveCount(1); return; }
-  if (name === '日') { // 日の時間軸（28 §1）の入口はホームの「タイムライン ›」（今日を開く）
-    if (await page.locator('.shell.closed.tv-day').count()) return;
+  if (name === '日') { // 第19.2版 S11e（design/34 §15-④）: 閉じた画面に日の時間軸の画面（28 §1）はない。ホームの「タイムライン ›」で、カレンダーの日の欄の時間軸 B（今日）を開く。日の欄がない「全部」の月のときだけ、今までの日の画面
+    if (await page.locator(CLOSED_DAY).count()) return;
     await closedGo(page, 'ホーム');
     await page.locator('.home.listview .hgo[data-act="homego"][data-to="time"]').first().click();
-    await expect(page.locator('.shell.closed.tv-day')).toHaveCount(1); return;
+    await expect(page.locator(CLOSED_DAY)).toHaveCount(1); return;
   }
   throw new Error(`closedGo: ${name}`);
 }
 // いま見ている表示（ホーム・日・週・月）。開いた画面は下のタブの aria-pressed、閉じた画面はタブがないので（design/34 §9.1-9）出ている面そのもので見る
 export async function expectShown(page, name, shown = true) {
   if (!isClosedSize(page)) { await expect(page.getByRole('button', { name, exact: true })).toHaveAttribute('aria-pressed', String(shown)); return; }
-  const sel = { ホーム: '.shell.closed.home:not(.strp)', 日: '.shell.closed.tv-day', 週: '.shell.closed.tv-week', 月: '.shell.closed.cal' }[name];
+  const sel = { ホーム: '.shell.closed.home:not(.strp)', 日: CLOSED_DAY, 週: '.shell.closed.tv-week', 月: '.shell.closed.cal' }[name];
   await expect(page.locator(sel)).toHaveCount(shown ? 1 : 0);
 }
 // ノートの一覧の入口: 閉じた画面は日の欄の「ノート ›」（design/34 §9.1-7。右の列の「ノート」は消えた）、開いた横は帯の「ノート」
@@ -112,6 +113,12 @@ export async function openNoteList(page) {
 // 設定・検索の入口: 閉じた画面は「…」→「設定」／「検索」（design/34 §9.1-5・6）、開いた画面は今までどおりのボタン
 export async function clickSettings(page) { if (isClosedSize(page) && (await page.locator('.shell.closed .cmore').count())) await moreGo(page, '設定'); else await page.locator('[data-act="menu"]:visible').first().click(); }
 export async function clickSearch(page) { if (isClosedSize(page) && (await page.locator('.shell.closed .cmore').count())) await moreGo(page, '検索'); else await page.locator('[data-act="search"]:visible').first().click(); }
+// 閉じた7段の段を n にする（つまみ（上）のキー操作。34 §3）。閉じた画面の「日」（34 §15-④）は段1〜3 を段7 にするので、そのあと月の別の日を使う試験が段を戻すのに使う
+export async function closedStage(page, n) {
+  const g = page.locator('.mpull.browse .mgrab'); await g.focus();
+  for (let i = 0; i < 8; i++) { const s = Number(await page.locator('.mpull').getAttribute('data-stage')); if (s === n) break; await page.keyboard.press(s < n ? 'ArrowUp' : 'ArrowDown'); }
+  await expect(page.locator('.mpull')).toHaveAttribute('data-stage', String(n)); await page.waitForTimeout(450);
+}
 export const tab = (page, name) => (isClosedSize(page) ? { click: () => closedGo(page, name) } : page.getByRole('button', { name, exact: true }));
 export const layout = (page) => page.evaluate(() => document.body.dataset.layout);
 
@@ -241,7 +248,7 @@ export async function findTextOverlaps(page, { ignoreApp = false } = {}) {
       const inFloat = !!el.closest('.tabs, .pgsw, .ctl');
       for (const r0 of range.getClientRects()) {
         // 浮動タブ・操作列は月の下に重ねて浮かせる設計。その下に隠れた文字（中心がタブ内）は見えないので対象外。
-        if (!inFloat) { const hit = document.elementFromPoint(Math.min(Math.max((r0.left + r0.right) / 2, 0), vw - 1), Math.min(Math.max((r0.top + r0.bottom) / 2, 0), vh - 1)); if (hit?.closest('.tabs, .pgsw, .ctl')) continue; }
+        if (!inFloat) { const hit = document.elementFromPoint(Math.min(Math.max((r0.left + r0.right) / 2, 0), vw - 1), Math.min(Math.max((r0.top + r0.bottom) / 2, 0), vh - 1)); if (hit?.closest('.tabs, .pgsw, .ctl')) continue; if (!el.closest('.mdh, .mdgrab') && hit?.closest('.mpull.browse .mday .mdh, .mpull.browse .mday .mdgrab')) continue; /* 第19.2版 S11e: 閉じた画面の日の欄の時間軸（34 §6.2・§15-④）は見出し 44 を貼り付ける（不透明）。その下へ送られた時刻の文字（中心が見出しの中）は見えないので対象外 */ }
         let r = { l: Math.max(r0.left, 0), t: Math.max(r0.top, 0), r: Math.min(r0.right, vw), b: Math.min(r0.bottom, vh) };
         for (let a = el; a && a !== document.documentElement; a = a.parentElement) {
           const s = getComputedStyle(a);

@@ -57,15 +57,27 @@ test.describe('永続化', () => {
     await expect.poll(() => layout(page)).toBe('open');
 
     await tab(page, '週').click();
+    // 第19.2版 S11e（指示14・設計で確定）: 画面の記憶は閉じた画面と開いた画面とで別々（第19版 PR5 の「閉じた画面・開いた縦で共通」を置き換え）。
+    // 閉じると閉じた画面の面（初めはカレンダー）。開いた縦の「週」は書き換えず、開くと週に戻る
     await page.setViewportSize(SIZES.closedPortrait);
     await expect.poll(() => layout(page)).toBe('browse');
+    await expectShown(page, '月');
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')).view)).toBe('week');
+    await tab(page, '週').click(); // 閉じた画面で「…」→ 週の時間軸
     await expectShown(page, '週');
     await page.setViewportSize(SIZES.openLandscape);
     await expect.poll(() => layout(page)).toBe('spread');
-    // 開いた横は左右ページが表示を決める（第14版 PR5）。閉じた画面・縦の「週」は保たれ、閉じに戻すと週のまま
+    // 開いた横は左右ページが表示を決める（第14版 PR5）。閉じに戻すと、閉じた画面で見ていた週の時間軸のまま（この起動の間）
     await expect(page.locator('.pgsw')).toHaveCount(2);
     await page.setViewportSize(SIZES.closedPortrait);
     await expect.poll(() => layout(page)).toBe('browse');
+    await expectShown(page, '週');
+    await page.locator('.cback').click(); // 閉じた画面をカレンダーへ戻しても、開いた縦は「週」のまま
+    await expectShown(page, '月');
+    await page.setViewportSize(SIZES.openPortrait);
+    await expect.poll(() => layout(page)).toBe('open');
+    await expectShown(page, '週');
+    await page.reload(); await page.waitForSelector('html[data-ready]');
     await expectShown(page, '週');
   });
 

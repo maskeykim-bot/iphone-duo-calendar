@@ -142,11 +142,11 @@ test('導線: タイムライン›は日表示の今日、明日は明日、す
   await tab(page, 'ホーム').click();
   await page.locator('.hevents .hgo').click();
   await expectShown(page, '日');
-  await expect(page.locator('#ctitle')).toContainText('12');
+  await expect(page.locator('.mday .mdh .hdt')).toHaveText('11月12日'); // S11e（34 §15-④）: 閉じた画面の「日」はカレンダーの日の欄の時間軸 B。日付は日の欄の見出し（題名は「2026年11月」のまま）
   await tab(page, 'ホーム').click();
   await page.locator('.htmr').click();
   await expectShown(page, '日');
-  await expect(page.locator('#ctitle')).toContainText('13');
+  await expect(page.locator('.mday .mdh .hdt')).toHaveText('11月13日');
   await tab(page, 'ホーム').click();
   await page.locator('.htasks .hgo').click();
   await expect(page.locator('.stripp[data-page="task"]')).toBeVisible();

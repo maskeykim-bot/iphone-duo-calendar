@@ -21,7 +21,7 @@ export function splitBody(text) {
 export const isCrlf = (text) => /\r\n/.test(text) && !/(^|[^\r])\n/.test(text);
 export const joinBody = ({ title, rest, nl, eol, crlf }) => (nl || rest !== '' ? title + eol + (crlf ? rest.replace(/\n/g, '\r\n') : rest) : title);
 
-export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, onTrashChange = () => {}, onDone = () => {}, onFormatSheet = () => {}, loadInk = null } = {}) {
+export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, onTrashChange = () => {}, onDone = () => {}, onFormatSheet = () => {}, onHistory = () => {}, loadInk = null } = {}) {
   const root = el('section', 'ned'); root.dataset.noteEditor = '';
   const title = el('textarea', 'ned-title'); title.rows = 1; title.setAttribute('aria-label', '題名'); title.placeholder = EMPTY_TITLE; title.enterKeyHint = 'next';
   // 本文は行ごとの div（contenteditable）。記号（「# 」「- 」「- [ ] 」）は画面に出さず、行の種類で描く。
@@ -196,7 +196,7 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
   const snap = () => { const w = document.activeElement === title ? 'title' : 'body'; const t = w === 'title' ? title : body; return { t: title.value, b: body.value, s: t.selectionStart ?? 0, e: t.selectionEnd ?? 0, w }; };
   const closeGroup = () => { groupOpen = false; clearTimeout(groupTimer); groupTimer = 0; };
   // 押せないときも `disabled` にしない（押した瞬間の地の変化 #EFECE4 を見せるため）。薄く見せ、aria-disabled で読み上げ・キーボードにも伝える
-  const paintUndo = () => { undoBtn.setAttribute('aria-disabled', String(!undoSt.length)); redoBtn.setAttribute('aria-disabled', String(!redoSt.length)); };
+  const paintUndo = () => { undoBtn.setAttribute('aria-disabled', String(!undoSt.length)); redoBtn.setAttribute('aria-disabled', String(!redoSt.length)); try { onHistory({ undo: undoSt.length, redo: redoSt.length }); } catch { /* 外の表示だけ */ } };
   function resetHistory() { undoSt = []; redoSt = []; closeGroup(); last = snap(); paintUndo(); }
   // 文字が変わったとき（input）。まとまりの最初の1回だけ、直前の写しを積む。
   function noteChange(breakAfter = false) {

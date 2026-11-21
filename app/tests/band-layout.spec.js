@@ -81,8 +81,9 @@ test.describe('閉じた 466×678 + 右 safe（帯あり）', () => {
       for (const n of bandBtns) { await expect(page.getByRole('button', { name: n, exact: true }), `${v}/${n}`).toHaveCount(1); expect(await reaches(page, btn(page, n)), `${v}/${n}`).toBe(true); }
       await expect(page.locator('[data-act="allmonth"]')).toHaveCount(0); // 全部は「…」→「月の表現」（34 §9.1-2）
       const back = page.getByRole('button', { name: 'カレンダーへ戻る' });
-      await expect(back, `${v}/‹ カレンダー`).toHaveCount(v === '月' ? 0 : 1);
-      if (v !== '月') { const r = await bx(back); near(r.x, 0); near(r.y, 0); near(r.width, 120); near(r.height, 44); expect(await reaches(page, back), `${v}/‹ カレンダー`).toBe(true); } // 34 §9.2: 押せる範囲 x0〜120×44
+      const cal = v === '月' || v === '日'; // S11e（34 §15-④）: 「日」はカレンダーの日の欄の時間軸 B（カレンダーそのものなので「‹ カレンダー」は要らない）
+      await expect(back, `${v}/‹ カレンダー`).toHaveCount(cal ? 0 : 1);
+      if (!cal) { const r = await bx(back); near(r.x, 0); near(r.y, 0); near(r.width, 120); near(r.height, 44); expect(await reaches(page, back), `${v}/‹ カレンダー`).toBe(true); } // 34 §9.2: 押せる範囲 x0〜120×44
     }
   });
 
@@ -146,7 +147,7 @@ test.describe('閉じた 466×678 + 右 safe（帯あり）', () => {
     await setSafe(page, {});
     await expect(page.locator('.ctl.band')).toHaveCount(0);
     near((await bx(page.locator('.mpane'))).width, 466);
-    near((await bx(btn(page, '予定を追加'))).x, 410); // 右下の＋ x=W-8-48
+    near((await bx(btn(page, '予定を追加'))).x, 402); // S11e（34 §15-③）: 右下の＋は 見える 48 を右 12（x406〜454）、押せる 56（x402〜458）
     await setSafe(page, { r: 84 });
     await expect(page.locator('.ctl.band')).toHaveCount(1);
     near((await bx(btn(page, 'その他'))).x + 28, 424);

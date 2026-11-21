@@ -26,7 +26,7 @@ test.describe('閉じた画面の帯', () => {
     await mock(page);
     await band(page, SIZES.closedPortrait);
     await tab(page, '月').click();
-    expect(await names(page)).toEqual(['strip:task', 'noteundo', 'more', 'add']); // 「元に戻す」はノートを書いている間だけ見える（§9.3）
+    expect(await names(page)).toEqual(['strip:task', 'more', 'noteundo', 'noteredo', 'add']); // S11e（34 §15-②）: 書いている間は タスク→「元に戻す」、…→「やり直す」に替わる（同じ位置に重ねて持つ。ふだんは隠れていて押せない・読み上げない。下の toHaveCount(3) が見えるボタンの数）
     await expect(page.locator('.ctl').getByRole('button')).toHaveCount(3);
     const r = await sb(page, 'task').boundingBox();
     near(r.width, 56); near(r.height, 56); near(r.y, 172 - 4); near(r.x + 28, 466 - 42);
@@ -131,7 +131,7 @@ test.describe('閉じた画面の帯', () => {
     await expect(page.locator('[data-strip]')).toHaveCount(1);
     await expect(sb(page, 'memo')).toHaveCount(0);
     const r = await sb(page, 'task').boundingBox();
-    near(r.width, 44); near(r.height, 44); near(r.y, 0); near(r.x + r.width, 466 - 4);
+    near(r.width, 44); near(r.height, 44); near(r.y, 0); near(r.x + r.width, 466 - 8); // S11e（34 §15-③）: タスク x414〜458（右端は 8 あける）
     await sb(page, 'task').click();
     await expect(page.locator('.stripp[data-page="task"]')).toBeVisible();
   });

@@ -1,6 +1,6 @@
 // 第14版 PR33: コピー開始と貼る日の選択画面。確定（実行）は PR34 なので、ここでは選択・キャンセル・DB/native0 を確かめる。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, seed, ev, dbEvents, tab, OPEN_SIZES, enableCalendars, clickChip } from './helpers.js';
+import { openApp, SIZES, seed, ev, dbEvents, tab, OPEN_SIZES, enableCalendars, clickChip, closedStage } from './helpers.js';
 
 const CALS = [
   { id: 'cal-1', title: '家族', color: '#d93025', sourceId: 's-g', source: 'Google', sourceType: 'caldav', allowsModify: true, isDefault: true },
@@ -350,6 +350,7 @@ test('閉じた画面: 日表示のポップアップからコピーすると月
   await expect(band(page)).toBeVisible();
   const bb = await band(page).boundingBox();
   expect(bb.x + bb.width).toBeLessThanOrEqual(SIZES.closedPortrait.width);
+  await closedStage(page, 1); // S11e（34 §15-④）: 閉じた画面の「日」はカレンダーの段7（1週）＋日の欄の時間軸。11/20 の見える段1（月）へ引いてから貼る日を選ぶ
   await dayBtn(page, '2026-11-20').click();
   await expect(band(page).locator('.pn')).toHaveText('1');
 });

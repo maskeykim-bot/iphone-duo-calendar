@@ -91,6 +91,23 @@ test.describe('N-02 閉じた日・週の送り切り：24:00 の線がバーの
       await openApp(page, C); await band(page, 84);
       await seed(page, [ev('late', '深夜の指標', '2026-11-12T23:00', '2026-11-12T23:30')]); await band(page, 84);
       await tab(page, label).click(); await page.waitForTimeout(400);
+      if (name === '日') {
+        // 第19.2版 S11e（design/34 §15-④）・S11f（§16-1）: 閉じた画面の「日」はカレンダーの日の欄の時間軸 B。日の欄（.mday）が1本で送られ、時間軸の下につまみ（下）・「ノート ›」・ノートが続く。
+        // N-02 の趣旨（最後の時間がバーに隠れず、23:00 の予定が見えて押せる）を、この形で見る: 23:00 の予定と 24:00 の線を、貼り付いたつまみ（y593〜637）の上まで送れる。送り切ったとき、最後の中身はバー（y645）の 8 上
+        const md = page.locator('.mpull.browse .mday'); await expect(md).toHaveAttribute('data-dg', 'B');
+        const hh = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.mday .tl')).getPropertyValue('--hh')));
+        await page.locator('.mday .tlev', { hasText: '深夜の指標' }).evaluate((e, hh) => { const md = e.closest('.mday'); md.scrollTop += e.getBoundingClientRect().top + hh - 580; }, hh); await page.waitForTimeout(300);
+        const e = await boxOf(page.locator('.mday .tlev', { hasText: '深夜の指標' })), g = await boxOf(page.locator('.mday .mdgrab'));
+        near(e.y + hh, 580, 1.5, `24:00 の線 ${e.y + hh}`);
+        expect(e.y + hh, '24:00 の線がつまみ（下）の上').toBeLessThanOrEqual(g.y);
+        expect(g.b, 'つまみ（下）はバー上端 645 の 8 上まで').toBeLessThanOrEqual(645 - 8 + 0.5);
+        const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('.tlev')?.textContent ?? null, [e.x + e.w / 2, e.y + e.h / 2]);
+        expect(hit, '予定の中心を押すとその予定に当たる').toContain('深夜の指標');
+        await md.evaluate((m) => { m.scrollTop = m.scrollHeight; }); await page.waitForTimeout(300);
+        const last = await page.evaluate(() => Math.max(...[...document.querySelectorAll('.mday > *')].map((x) => x.getBoundingClientRect().bottom)));
+        near(last, 645 - 8, 1, `送り切ったときの最後の中身の下端 ${last}`);
+        return;
+      }
       const tl = page.locator('.tl[data-pane=closed]').first();
       await tl.evaluate((t) => { t.scrollTop = t.scrollHeight; }); await page.waitForTimeout(300);
       await expect(page.locator('.tabs')).toHaveCount(0);

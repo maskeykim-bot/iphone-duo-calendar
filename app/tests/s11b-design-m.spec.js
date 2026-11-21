@@ -97,22 +97,59 @@ test.describe('S11b 設計レビュー 必須（M1〜M9）', () => {
     const c = page.locator(cell('2026-11-10')); const b = await c.boundingBox();
     await page.mouse.move(b.x + b.width / 2, b.y + b.height - 12); await page.mouse.down(); await page.waitForTimeout(700); await page.mouse.up(); await page.waitForTimeout(200);
     await expect(page.getByText(/11月10日（\d+日）/)).toHaveCount(0);
-    await expect(page.getByRole('button', { name: '終日の予定', exact: true })).toHaveCount(0); // 写しの直し: exact。種の予定「終日の予定」が、選んだ日（11/12）の日の欄の終日チップとマスの読み上げに部分一致して、いつも 2 件になるため（メニューの項目名はちょうど「終日の予定」）
+    await expect(page.getByRole('button', { name: '終日の予定', exact: true })).toHaveCount(0); // 開発の写しの直し（0568d18、QA 採用）: exact。種の予定「終日の予定」が、選んだ日（11/12）の日の欄の終日チップとマスの読み上げに部分一致して、いつも 2 件になるため（メニューの項目名はちょうど「終日の予定」）
     await expect(page.locator('[role="menu"]:visible')).toHaveCount(0);
   });
 
-  test('M5 日を選ぶと日の欄の中身が 0.15 秒で入れ替わる（2つを同時に見せない）', async ({ page }) => {
+  // M5 の測り方（0568d18 の QA で直した）: 前は「不透明度 0.95 未満のコマが続く長さ ≥90ms」で見ていた。これは緩急とコマの間隔で変わり、
+  // WebKit では設計の緩急でも 70〜86ms になって落ちた（QA の切り分け: 標準の緩急で 10 回中 4 回落ち）。
+  // 今は、時間（消す 0〜0.06 秒・出す 0.06〜0.15 秒）、順番（消えきってから替える・同時に2つ見せない）、終わりの状態、緩急の名前を見る。
+  // 緩急は design/34 §16-3（2026-11-21）で確定: 出す方は直線（不透明度だけを 0.10 秒以下で変えるときは直線でよい）、消す方は標準。
+  const M5_EASE = { out: 'cubic-bezier(0.2, 0.8, 0.2, 1)', in: 'linear' };
+  test('M5 日を選ぶと日の欄の中身が 0.15 秒で入れ替わる（消す 0.06・出す 0.09、2つを同時に見せない、終わりは新しい日の一番上）', async ({ page }) => {
     await boot(page);
-    await page.evaluate(() => { window.__qaOp = []; const t0 = performance.now(); const tick = () => { const kids = [...document.querySelectorAll('.mday > *')]; const m = Math.min(...kids.map((k) => Number(getComputedStyle(k).opacity)), 1); window.__qaOp.push([performance.now() - t0, m]); if (performance.now() - t0 < 600) requestAnimationFrame(tick); }; window.__qaStart = () => { window.__qaOp = []; requestAnimationFrame(tick); }; });
-    await page.evaluate(() => window.__qaStart());
-    await page.locator(cell('2026-11-18')).click({ position: { x: 30, y: 70 } }); await page.waitForTimeout(650);
-    const op = await page.evaluate(() => window.__qaOp);
-    const dim = op.filter(([, o]) => o < 0.95);
-    expect(dim.length, '途中で不透明度が下がるコマがある').toBeGreaterThan(0);
-    expect(Math.min(...op.map(([, o]) => o)), '一度消えきる').toBeLessThanOrEqual(0.05);
-    const span = dim.at(-1)[0] - dim[0][0];
-    expect(span, '入れ替えの長さ ≈ 0.15 秒').toBeLessThanOrEqual(150 + 40);
-    expect(span).toBeGreaterThanOrEqual(150 - 60);
+    await page.locator('.mday').evaluate((e) => { e.scrollTop = 120; });
+    await page.evaluate(() => {
+      window.__qaAn = []; window.__qaFr = []; const orig = Element.prototype.animate;
+      Element.prototype.animate = function (kf, opt) {
+        const a = orig.call(this, kf, opt); const t = performance.now(); const o = typeof opt === 'number' ? { duration: opt } : (opt || {});
+        const op = (Array.isArray(kf) ? kf : []).map((k) => k.opacity);
+        const rec = { t, end: null, dur: Number(o.duration), delay: Number(o.delay || 0), ease: o.easing || 'linear', from: op[0], to: op.at(-1), inMday: !!this.closest?.('.mday') };
+        window.__qaAn.push(rec); a.finished.then(() => { rec.end = performance.now(); }, () => { rec.end = -1; }); return a;
+      };
+      const t0 = performance.now(); window.__qaT0 = t0;
+      const tick = () => { const ms = [...document.querySelectorAll('.mpull.browse .mday')]; const kids = ms.flatMap((m) => [...m.children]); window.__qaFr.push([performance.now() - t0, ms.length, Math.min(1, ...kids.map((k) => Number(getComputedStyle(k).opacity)))]); if (performance.now() - t0 < 700) requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
+    });
+    await page.locator(cell('2026-11-18')).click({ position: { x: 30, y: 70 } }); await page.waitForTimeout(700);
+    const r = await page.evaluate(() => ({ an: window.__qaAn.filter((a) => a.inMday), fr: window.__qaFr }));
+    const outs = r.an.filter((a) => a.from === 1 && a.to === 0), ins = r.an.filter((a) => a.from === 0 && a.to === 1);
+    expect(outs.length, '前の中身を消すアニメーションがある').toBeGreaterThan(0);
+    expect(ins.length, '次の中身を出すアニメーションがある').toBeGreaterThan(0);
+    for (const a of outs) expect(a.dur + a.delay, '消すのは 0.06 秒').toBe(60);
+    for (const a of ins) expect(a.dur, '出すのは 0.09 秒（0.06〜0.15）').toBe(90);
+    const outEnd = Math.max(...outs.map((a) => a.end)), inStart = Math.min(...ins.map((a) => a.t + a.delay));
+    expect(outs.every((a) => a.end > 0), '消し終わる').toBe(true);
+    expect(inStart, '消えきってから出し始める（2つを同時に見せない）').toBeGreaterThanOrEqual(outEnd - 1);
+    expect(inStart - Math.min(...outs.map((a) => a.t)), '出し始めは押してから約 0.06 秒（1コマの遅れまで）').toBeLessThanOrEqual(60 + 40);
+    if (M5_EASE.out) for (const a of outs) expect(a.ease).toBe(M5_EASE.out);
+    if (M5_EASE.in) for (const a of ins) expect(a.ease).toBe(M5_EASE.in);
+    expect(Math.max(...r.fr.map(([, n]) => n)), '.mday はいつも1つ').toBe(1);
+    expect(Math.min(...r.fr.map(([, , o]) => o)), '一度消えきる').toBeLessThanOrEqual(0.05);
+    expect(r.fr.at(-1)[2], '終わりは不透明度 1').toBe(1);
+    const end = await page.evaluate(() => { const m = document.querySelector('.mpull.browse .mday'); return { st: m.scrollTop, h: m.querySelector('.mdh h3')?.textContent || '', hidden: m.getAttribute('aria-hidden'), pe: getComputedStyle(m).pointerEvents }; });
+    expect(end.st, 'カードは一番上へ戻る').toBe(0);
+    expect(end.h, '見出しは新しい日').toContain('18');
+    expect(end.hidden).toBeNull(); expect(end.pe).not.toBe('none');
+  });
+
+  test('M5 視差効果を減らす設定では入れ替えは即時', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await boot(page);
+    await page.evaluate(() => { window.__qaN = 0; const o = Element.prototype.animate; Element.prototype.animate = function (...a) { if (this.closest?.('.mday')) window.__qaN++; return o.apply(this, a); }; });
+    await page.locator(cell('2026-11-18')).click({ position: { x: 30, y: 70 } }); await page.waitForTimeout(80);
+    expect(await page.evaluate(() => window.__qaN)).toBe(0);
+    await expect(page.locator('.mpull.browse .mday .mdh h3')).toContainText('18');
   });
 
   test('M6 日の見出し h3 は行 44（段1で日付の中心 y626）', async ({ page }) => {
@@ -128,9 +165,9 @@ test.describe('S11b 設計レビュー 必須（M1〜M9）', () => {
       await toStage(page, n);
       const m = await page.evaluate(() => {
         const g = document.querySelector('.mdgrab'), nl = document.querySelector('.mday [data-act="notelist"]');
-        const cards = [...document.querySelectorAll('.mday .mdcard, .mday .mdnone2')]; // 写しの直し: 「予定はありません」の class は .mdnone2。.mdempty はノートの欄（つまみより下）の「たたいて書く」で、カードではない（34 §13-2 は「最後のカード（予定がない日は『予定はありません』）の下端から」）
-        const last = cards.at(-1); const lastBottom0 = last ? last.getBoundingClientRect().bottom : null; /* 写しの直し: 最後のカードの下端は、つまみと同じく送る前に測る（原本は送ったあとに測っていて、送った量だけずれる） */ const gr = g.getBoundingClientRect(), nr = nl.getBoundingClientRect(), line = g.querySelector('i, ::before') ? g.querySelector('i').getBoundingClientRect() : null;
-        /* 写しの直し: 段1は日の欄が y604〜678 しかなく、center だと「ノート ›」の上端が y619 で、つまみ（上）の押せる範囲（格子の下端から 44＝y580〜624。34 §13-1）の下になる。日の欄の下端へ寄せて、つまみ（下）にかからないことだけを見る */ nl.scrollIntoView({ block: 'end' }); const nr2 = nl.getBoundingClientRect();
+        const cards = [...document.querySelectorAll('.mday .mdcard, .mday .mdnone2')]; // 開発の写しの直し（QA 採用）: 「予定はありません」の class は .mdnone2。.mdempty はノートの欄（つまみより下）の「たたいて書く」で、カードではない（34 §13-2 は「最後のカード（予定がない日は『予定はありません』）の下端から」）
+        const last = cards.at(-1); const lastBottom0 = last ? last.getBoundingClientRect().bottom : null; /* 開発の写しの直し（QA 採用）: 最後のカードの下端は、つまみと同じく送る前に測る（原本は送ったあとに測っていて、送った量だけずれる） */ const gr = g.getBoundingClientRect(), nr = nl.getBoundingClientRect(), line = g.querySelector('i, ::before') ? g.querySelector('i').getBoundingClientRect() : null;
+        /* 開発の写しの直し（QA 採用）: 段1は日の欄が y604〜678 しかなく、center だと「ノート ›」の上端が y619 で、つまみ（上）の押せる範囲（格子の下端から 44＝y580〜624。34 §13-1）の下になる。日の欄の下端へ寄せて、つまみ（下）にかからないことだけを見る */ nl.scrollIntoView({ block: 'end' }); const nr2 = nl.getBoundingClientRect();
         const hit = document.elementFromPoint(nr2.left + nr2.width / 2, nr2.top + 2);
         return { gTop: gr.top, gBottom: gr.bottom, gH: gr.height, nlTop: nr.top, lastBottom: lastBottom0, hitIsNote: !!hit && (hit === nl || nl.contains(hit)), lineTop: line ? line.top - gr.top : null };
       });
@@ -151,6 +188,34 @@ test.describe('S11b 設計レビュー 必須（M1〜M9）', () => {
     const m = page.getByRole('button', { name: '月', exact: true }); if (await m.isVisible().catch(() => false)) { await m.click(); await page.waitForTimeout(300); }
     await expect(page.locator('.mday'), '開き直しても時間軸のまま').toHaveAttribute('data-dg', 'B');
   });
+
+  // M8 の保存値（duo.ui.v1 の dayGrip。app.js loadUi は 0〜2 の整数だけを受け、ほかはカード=0）。
+  for (const bad of [3, -1, 1.5, 'x', null, '1', true]) {
+    test(`M8 保存値 dayGrip=${JSON.stringify(bad)} で起動するとカード（A）`, async ({ page }) => {
+      await page.addInitScript((v) => { if (!sessionStorage.getItem('qa-dg')) { const k = 'duo.ui.v1'; let s = {}; try { s = JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch { s = {}; } localStorage.setItem(k, JSON.stringify({ ...s, dayGrip: v })); sessionStorage.setItem('qa-dg', '1'); } }, bad);
+      await boot(page);
+      await expect(page.locator('.mpull.browse .mday')).toHaveAttribute('data-dg', 'A');
+      await expect(page.locator('.mpull.browse .mday .tl')).toHaveCount(0);
+    });
+  }
+  for (const [v, dg, hh] of [[1, 'B', 44], [2, 'C', 88]]) {
+    test(`M8 保存値 dayGrip=${v} は ${dg} で起動し、閉じる⇄開く・読み込み直しのあとも ${dg}（保存値も ${v} のまま）`, async ({ page }) => {
+      await page.addInitScript((v) => { if (!sessionStorage.getItem('qa-dg')) { const k = 'duo.ui.v1'; let s = {}; try { s = JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch { s = {}; } localStorage.setItem(k, JSON.stringify({ ...s, dayGrip: v })); sessionStorage.setItem('qa-dg', '1'); } }, v);
+      await boot(page);
+      const md = page.locator('.mpull.browse .mday');
+      await expect(md).toHaveAttribute('data-dg', dg);
+      const hours = async () => md.locator('.hour').evaluateAll((es) => es.slice(0, 2).map((e) => e.getBoundingClientRect().top));
+      for (let i = 0; i < 2; i++) {
+        await page.setViewportSize({ width: 626, height: 890 }); await page.waitForTimeout(400);
+        await page.setViewportSize({ width: 466, height: 678 }); await page.waitForTimeout(500);
+        await expect(md, `閉じる⇄開く ${i + 1} 回目`).toHaveAttribute('data-dg', dg);
+      }
+      const h = await hours(); if (h.length === 2) expect(Math.abs(h[1] - h[0] - hh)).toBeLessThanOrEqual(0.5);
+      await page.reload(); await page.waitForSelector('html[data-ready]'); await page.waitForTimeout(400);
+      await expect(page.locator('.mpull.browse .mday')).toHaveAttribute('data-dg', dg);
+      expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')).dayGrip)).toBe(v);
+    });
+  }
 
   test('M9 格子のどこを縦に引いても段が変わる（つまみと同じ）', async ({ page }) => {
     await boot(page);

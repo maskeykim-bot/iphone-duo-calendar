@@ -50,10 +50,13 @@ const hhOfCol = (page, sel) => page.locator(sel).first().evaluate((c) => parseFl
 const pointAt = (page, min, nth = 0, sel = '.tlcol') => page.locator(sel).nth(nth).evaluate((c, min) => {
   const tl = c.closest('.tl'), h = parseFloat(getComputedStyle(tl).getPropertyValue('--hh'));
   tl.scrollTop = Math.max(0, 12 + min * h / 60 - tl.clientHeight / 2);
+  // 第19.2版 S11e（design/34 §15-④）: 閉じた画面の「日」は日の欄（.mday）の時間軸 B。時間軸そのものは送れず、日の欄が1本で送られるので、日の欄を送って見出し 44 と下のつまみ（S11f §16-1）の間の中央へ持ってくる
+  const md = c.closest('.mpull.browse .mday');
+  if (md) { const y0 = c.getBoundingClientRect().top + 12 + min * h / 60 + 1, m = md.getBoundingClientRect(); md.scrollTop += y0 - (m.top + 44 + (m.height - 44 - 85) / 2); }
   const r = c.getBoundingClientRect();
   return { x: r.left + r.width / 2, y: r.top + 12 + min * h / 60 + 1 };
 }, min);
-async function scrollTo(page, sel, top) { await page.locator(sel).first().evaluate((e, t) => { e.scrollTop = t; }, top); }
+async function scrollTo(page, sel, top) { await page.locator(sel).first().evaluate((e, t) => { e.scrollTop = t; const md = e.closest('.mpull.browse .mday'); if (md) md.scrollTop = t; /* 閉じた画面の日の欄の時間軸は .mday が送られる */ }, top); }
 async function press(page, p, ms = 420) { await page.mouse.move(p.x, p.y); await page.mouse.down(); await page.waitForTimeout(ms); }
 const dbCount = (page) => page.evaluate(async () => (await (await import('./js/db.js')).listEvents()).length);
 
@@ -205,7 +208,8 @@ for (const [name, size, setup2] of [
       const b = await page.locator('.tlev').first().boundingBox();
       await press(page, { x: b.x + b.width / 2, y: b.y + b.height / 2 });
       await expect(page.locator('.dbox')).toHaveCount(0);
-      if (await page.locator('.week .day[data-date]').first().isVisible().catch(() => false)) { // PR8: 月と同じ画面ではつかむ。月の日の上でなく同じ場所で離すので取りやめ（編集シートも開かない）
+      // S11e（34 §15-④）: 閉じた画面の「日」はカレンダーの日の欄なので月のマスが同じ画面に見えるが、閉じた画面で長押しでつかめるのは格子のチップだけ（grabAllowed は開いた画面だけ。0568d18 から変えていない）。日の欄の枠は今までどおり離すと編集シート
+      if (name !== '閉じた縦の日' && await page.locator('.week .day[data-date]').first().isVisible().catch(() => false)) { // PR8: 月と同じ画面ではつかむ。月の日の上でなく同じ場所で離すので取りやめ（編集シートも開かない）
         await expect(page.locator('.gchip')).toHaveCount(1);
         await page.mouse.up();
         await expect(page.locator('#editor')).toBeHidden();
@@ -217,6 +221,7 @@ for (const [name, size, setup2] of [
         await expect(page.locator('#editor')).toBeHidden();
       }
       await page.waitForTimeout(450);
+      await scrollTo(page, '.tl', 0); // 閉じた画面の日の欄では、終日の段は時間軸と一緒に送られる（一番上へ戻してから押す）
       const a = await page.locator('.adcol').first().boundingBox();
       await press(page, { x: a.x + a.width / 2, y: a.y + a.height / 2 });
       await page.mouse.up();

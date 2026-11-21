@@ -378,7 +378,11 @@ test.describe('通知のタップ', () => {
     await seed(page, [A]);
     await tap(page, { day: '2026-11-13', eventId: 'a1' });
     await expect(page.locator('.tlev[data-event="a1"].nhl')).toHaveCount(1);
-    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')).view)).toBe('day');
+    // 第19.2版 S11e（design/34 §15-④・指示14）: 閉じた画面は日の時間軸の画面を開かず、カレンダーでその日を選んで日の欄の時間軸 B。開いた画面の view は書き換えない（旧: view='day' を保存）
+    await expect(page.locator('.mpull.browse .mday')).toHaveAttribute('data-dg', 'B');
+    await expect(page.locator('.mday .mdh .hdt')).toHaveText('11月13日');
+    expect(await page.locator('.tlev[data-event="a1"]').evaluate((e) => { const b = e.getBoundingClientRect(), m = e.closest('.mday').getBoundingClientRect(); return b.top >= m.top + 44 && b.bottom <= 637; }), '強調した予定が見出しの下・つまみの上に見えている').toBe(true);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')).selected)).toBe('2026-11-13');
     await expect(page.locator('#editor')).toBeHidden();
     await expect(page.locator('.nhl')).toHaveCount(0, { timeout: 3000 });
   });
@@ -421,10 +425,10 @@ test.describe('通知のタップ', () => {
     await openApp(page, SIZES.closedPortrait, '?nosw');
     await seed(page, [A]);
     await tap(page, { day: '2026-11-20', eventId: 'gone' });
-    await expect(page.locator('.chead h2, #ctitle')).toContainText('11月20日');
+    await expect(page.locator('.mday .mdh .hdt')).toHaveText('11月20日'); // S11e（34 §15-④）: 日付は日の欄の見出し
     expect(await page.locator('.nhl').count()).toBe(0);
     await tap(page, { day: 'xxxx', eventId: 'a1' });
-    await expect(page.locator('.chead h2, #ctitle')).toContainText('11月20日');
+    await expect(page.locator('.mday .mdh .hdt')).toHaveText('11月20日');
   });
 
   test('繰り返しの回: eventId は親。その日の回を強調する', async ({ page }) => {

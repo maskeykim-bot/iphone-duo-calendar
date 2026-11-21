@@ -38,7 +38,9 @@ export const UNDO_CONFLICT_TEXT = 'iPhone のカレンダーで変更された�
 
 // ---- Duo の予定（繰り返しは planEdit の 'only'）。occ: 移す回（単発は予定そのもの）、occKey: 繰り返しの回の目印（単発は null）。
 // 戻り値 { puts, dels, note, after:{start,end}, undo:{occKey, form} }。undo は planMoveDuoUndo へ渡す（戻す回の目印は移す前の回の日時）。
-export function planMoveDuo(p, occ, occKey, toDay, newId) {
+// 同じ日へは移さない（null。design/34 §16-4: 元の日へ落としたら取り消し。繰り返しの回に overrides を作らない）。shifted＝同じ日の中で時刻を動かした（occ はもう動かしたあとの時刻）ときだけ通す。
+export function planMoveDuo(p, occ, occKey, toDay, newId, shifted = false) {
+  if (!shifted && toDay === dayOf(occ.start)) return null;
   const t = moveTimes(occ, toDay);
   const form = { title: occ.title, categoryId: occ.categoryId, all: !!occ.all, place: occ.place || '', notes: occ.notes || '', ...(occ.alarms !== undefined ? { alarms: occ.alarms } : {}), recurrence: p.recurrence || null, start: t.start, end: t.end };
   const plan = occKey ? planEdit(p, occKey, 'only', form, newId) : planEdit(p, p.start, 'all', form, newId);

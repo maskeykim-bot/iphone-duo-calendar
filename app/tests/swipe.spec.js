@@ -36,6 +36,22 @@ for (const [lname, size] of LAYOUTS) {
       await openApp(page, size);
       await loadSample(page);
       await showView(page, view);
+      if (view === '日' && Math.min(size.width, size.height) < 600) {
+        // 第19.2版 S11e（design/34 §15-④）: 閉じた画面に日の時間軸の画面（28 §1）はない。「日」はカレンダーの段7＋日の欄の時間軸 B。
+        // 横の払いは格子（1週）の上で、段7 は 7日ずつ送る（34 §10）。日付は日の欄の見出し、時間軸 B のまま
+        const hd = () => page.locator('.mday .mdh .hdt').textContent();
+        await expect(page.locator('.mpull')).toHaveAttribute('data-stage', '7');
+        expect(await hd()).toBe('11月12日');
+        const gy = Math.round((await page.locator('.mgrid:not([data-leaving])').boundingBox()).y + 40);
+        await swipe(page, { ...next(size), y0: gy });
+        await expect.poll(hd).toBe('11月19日');
+        await swipe(page, { ...prev(size), y0: gy });
+        await expect.poll(hd).toBe('11月12日');
+        await swipe(page, { ...prev(size), y0: gy });
+        await expect.poll(hd).toBe('11月5日');
+        await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B');
+        return;
+      }
       expect(await period(page)).toBe(now);
       const spreadDay = size.width > size.height && view === '日'; // 見開きの日: 左は時間軸なので右の詳細一覧から
       const pm = view === '月' && size.width <= size.height && size.height > 700;

@@ -105,7 +105,10 @@ test.describe('検索', () => {
     await hits(page).first().click();
     await expect(page.locator('#search')).toBeHidden();
     expect(await layout(page)).toBe('browse');
-    expect(await period(page)).toBe('11月13日（金）');
+    // 第19.2版 S11e（design/34 §15-④）: 閉じた画面は日の時間軸の画面を開かず、カレンダーでその日を選んで日の欄の時間軸 B を開く。日付は日の欄の見出し
+    await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B');
+    await expect(page.locator('.mday .mdh .hdt')).toHaveText('11月13日');
+    await expect(page.locator('.mgrid:not([data-leaving]) .day[data-date="2026-11-13"]')).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('.tlev')).toHaveCount(1);
     await expect(page.locator('.tlev')).toBeFocused();
     await expect(page.getByRole('status')).toHaveText('11月13日（金）へ移動しました。');
@@ -114,7 +117,8 @@ test.describe('検索', () => {
   test('繰り返しの回をタップするとその回の日へ', async ({ page }) => {
     await search(page, 'ジム');
     await page.locator('#sr-body .hgroup', { hasText: '11月30日（月）' }).locator('.hit').click();
-    expect(await period(page)).toBe('11月30日（月）');
+    await expect(page.locator('.mday .mdh .hdt')).toHaveText('11月30日'); // S11e（34 §15-④）: 日の欄の時間軸 B
+    await expect(page.locator('.mgrid:not([data-leaving]) .day[data-date="2026-11-30"]')).toHaveAttribute('aria-selected', 'true');
   });
 });
 

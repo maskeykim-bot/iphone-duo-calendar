@@ -114,3 +114,27 @@ test('時間軸からの落とし: 繰り返しの1回を 2026-11-01 の前後�
   assert.equal(Object.keys(parent.overrides).length, 1);
   assert.equal(Object.values(parent.overrides)[0].start, '2026-11-01T09:00');
 });
+
+// 第19.2版 S11f（design/34 §16-4・連携）: 元の日へ落としたら取り消し。保存する案そのものを作らない。
+test('繰り返しの回を同じ日に移すと puts が空で overrides ができない（planMoveDuo は null）', () => {
+  const p = { id: 'r1', title: '定例', categoryId: 'c', all: false, start: '2026-11-05T09:00', end: '2026-11-05T09:30', place: '', notes: '', recurrence: { freq: 'weekly', interval: 1, byDay: [4] }, exdates: [], overrides: {} };
+  const occKey = '2026-11-12T09:00';
+  const occ = { ...p, start: '2026-11-12T09:00', end: '2026-11-12T09:30' };
+  const m = planMoveDuo(p, occ, occKey, '2026-11-12', () => 'n');
+  assert.equal(m, null);
+  assert.deepEqual(m?.puts ?? [], []);
+  assert.deepEqual(p.overrides, {}); // 入力も変えない
+  assert.equal(Object.keys(p.overrides).length, 0);
+});
+test('単発を同じ日に移しても null（updatedAt を変える保存をしない）。終日・複数日も同じ', () => {
+  const one = { id: 'a', title: '撮影', categoryId: 'c', all: false, start: '2026-11-12T10:00', end: '2026-11-12T11:00', place: '', notes: '', recurrence: null, exdates: [], overrides: {} };
+  assert.equal(planMoveDuo(one, one, null, '2026-11-12', () => 'n'), null);
+  const band = { ...one, id: 'b', all: true, start: '2026-11-11T00:00', end: '2026-11-13T23:59' };
+  assert.equal(planMoveDuo(band, band, null, '2026-11-11', () => 'n'), null);
+});
+test('同じ日の中で時刻を動かしたとき（shifted）は今までどおり保存する案を返す。別の日へは今までどおり', () => {
+  const one = { id: 'a', title: '撮影', categoryId: 'c', all: false, start: '2026-11-12T10:00', end: '2026-11-12T11:00', place: '', notes: '', recurrence: null, exdates: [], overrides: {} };
+  const m = planMoveDuo(one, { ...one, start: '2026-11-12T13:00', end: '2026-11-12T14:00' }, null, '2026-11-12', () => 'n', true);
+  assert.equal(m.after.start, '2026-11-12T13:00'); assert.equal(m.puts.length, 1);
+  assert.equal(planMoveDuo(one, one, null, '2026-11-13', () => 'n').after.start, '2026-11-13T10:00');
+});
