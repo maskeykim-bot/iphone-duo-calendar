@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, pagePick, seed, ev, setStyle, bodyIs } from './helpers.js';
+import { openApp, SIZES, pagePick, seed, ev, setStyle, bodyIs, clickSearch } from './helpers.js';
 
 // 第16版 PR28: メモ→ノート。月のメモ線・帯の印は廃止。一覧・検索・元の日付への導線をノートで検査する。
 // 旧メモは旧形式の端末データとして入れ、起動後の複製（migrateNotesOnce）を通す。
@@ -61,7 +61,7 @@ test('全体検索: 別「ノート」段・正規化AND・XSS安全・ノート
   await seed(page, [ev('e1', 'ランチ', '2026-11-13T12:00', '2026-11-13T13:00')]);
   await putNote(page, { id: 'x1', body: 'ﾗﾝﾁ の <b>メモ</b> 本文', createdAt: 1, updatedAt: 2, folderId: null });
   await putNote(page, { id: 'x2', body: '別の話', createdAt: 1, updatedAt: 3, folderId: null });
-  await page.getByRole('button', { name: '予定を検索' }).first().click();
+  await clickSearch(page);
   await page.locator('#sr-q').fill('らんち メモ');
   const mem = page.locator('#sr-body [data-sec="memo"]');
   await expect(mem).toContainText('1件のノート（全期間・最大200件）');

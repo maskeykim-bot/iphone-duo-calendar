@@ -153,6 +153,12 @@ export async function listEvents() {
   const db = await open();
   return (await wrap(db.transaction('events').objectStore('events').getAll())).map(withDefaults);
 }
+// 1件だけ読む（読み取りのみ。閉じた画面の予定の移動の確かめ・テストから使う。ストアの形は版6のまま）
+export async function getEvent(id) {
+  const db = await open();
+  const e = await wrap(db.transaction('events').objectStore('events').get(id));
+  return e ? withDefaults(e) : null;
+}
 export const putEvent = (e) => run(EV, 'readwrite', ({ events }) => { events.put(e); });
 export const putMany = (list) => run(EV, 'readwrite', ({ events }) => { list.forEach((e) => events.put(e)); });
 export const deleteEvent = (id) => run(EV, 'readwrite', ({ events }) => { events.delete(id); });

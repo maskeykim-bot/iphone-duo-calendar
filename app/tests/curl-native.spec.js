@@ -2,7 +2,7 @@
 // 正本：duo-calendar-team/data/連携_第18弾_ネイティブめくりの呼び出し.md（1段目の列）、design/31-native-curl-B.md、qa/verify-curl-native-compare.md
 // ネイティブ側（UIPageViewController の見た目・透明な次のページ・コマの間隔）は箱では見られないので、ここでは扱わない。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, seed, ev } from './helpers.js';
+import { openApp, SIZES, seed, ev, clickSettings } from './helpers.js';
 
 test.use({ viewport: { width: 951, height: 669 }, deviceScaleFactor: 2 });
 test.setTimeout(120000);
@@ -73,7 +73,7 @@ test.describe('第18.5版：iOS のめくりは止めてある', () => {
     expect(await heads(page)).toEqual(['11月14日（土）', '11月15日（日）']);
     const ms = (await calls(page)).map((c) => c.method);
     for (const m of ['curlCaps', 'prepareCurl', 'turnPage', 'backReady', 'webReady']) expect(ms, m).not.toContain(m);
-    await page.locator('[data-act="menu"]:visible').first().click();
+    await clickSettings(page);
     await page.locator('#menu [data-go="details"]').click();
     await expect(page.locator('#m-curl')).toBeHidden();
   });
@@ -195,7 +195,7 @@ test.describe.skip('iOS のめくり（B、1段目）', () => {
 
   test('設定 › 詳細「めくりの方式（試作）」：今のめくり｜iOS のめくり。localStorage duo-curl-engine に保存し、duo.ui.v1 には入れない', async ({ page }) => {
     await land(page, { engine: null });
-    await page.locator('[data-act="menu"]:visible').first().click();
+    await clickSettings(page);
     await page.locator('#menu [data-go="details"]').click();
     await expect(page.locator('#m-curl-t')).toHaveText('めくりの方式（試作）');
     await expect(page.locator('#m-curl-web')).toHaveAttribute('aria-pressed', 'true');
@@ -212,7 +212,7 @@ test.describe.skip('iOS のめくり（B、1段目）', () => {
   test('Web 版（DuoNative なし）では iOS のめくりは選べない', async ({ page }) => {
     await land(page, { engine: 'native', nativeOff: true });
     expect((await st(page)).mode).not.toBe('native');
-    await page.locator('[data-act="menu"]:visible').first().click();
+    await clickSettings(page);
     await page.locator('#menu [data-go="details"]').click();
     await expect(page.locator('#m-curl-native')).toBeDisabled();
     await expect(page.locator('#m-curl-d')).toContainText('iPhone のアプリだけ');

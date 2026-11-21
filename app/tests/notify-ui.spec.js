@@ -1,6 +1,6 @@
 // 第11版 PR4: 通知の画面（編集シートの行・通知パネル・ベル・タップ）。DuoNative は偽装で、Swift の実動作の証明ではない。
 import { test, expect } from '@playwright/test';
-import { notifyOn, openApp, SIZES, seed, ev, dbEvents, openMenu, pickDay as pick, fillDateTime } from './helpers.js';
+import { notifyOn, openApp, SIZES, seed, ev, dbEvents, openMenu, pickDay as pick, fillDateTime, tab } from './helpers.js';
 
 async function mock(page, cfg = {}) {
   await notifyOn(page);
@@ -287,7 +287,7 @@ test.describe('通知パネル', () => {
     await openPanel(page);
     await page.keyboard.press('Escape');
     await expect(page.locator('#notify')).toBeHidden();
-    await expect.poll(() => page.evaluate(() => document.activeElement?.dataset?.act)).toBe('menu');
+    await expect.poll(() => page.evaluate(() => document.activeElement?.dataset?.act)).toBe('more'); // 閉じた画面の設定の起点は右の列の「…」（design/34 §9.1-5。旧: 帯の「設定」）
   });
 });
 
@@ -353,7 +353,7 @@ test.describe('ベル', () => {
     await mock(page);
     await openApp(page, SIZES.closedPortrait, '?nosw');
     await seed(page, [ev('n1', '今日の予定', '2026-11-12T10:00', '2026-11-12T11:00', { alarms: [{ before: 5 }] })]);
-    await page.locator('[data-act="list"]').first().click();
+    await tab(page, 'ホーム').click();
     await expect(page.locator('.next .nb')).toHaveText('9:55 に通知');
   });
 
@@ -462,7 +462,7 @@ test.describe('通知パネルの配置', () => {
 });
 
 async function pickDay(page, day) {
-  if (!(await page.locator(`[data-date="${day}"]`).count())) await page.locator('[data-view="month"]:visible').first().click();
+  if (!(await page.locator(`[data-date="${day}"]`).count())) await tab(page, '月').click();
   await pick(page, day);
 }
 async function openEv(page, day, id) {

@@ -1,7 +1,7 @@
 // 第1弾レビュー対応（小さな修正版）: 非表示カテゴリの既定・通知、同名カテゴリ、読み込みの上限と件数、開いた画面の「今日に戻る」、手帳→予定名の往復。
 import { test, expect } from '@playwright/test';
 import { CAT_IDS } from '../js/categories.js';
-import { openApp, seed, dbEvents, ev, tab, SIZES, addEvent, setStyle, modeStates, showView } from './helpers.js';
+import { openApp, seed, dbEvents, ev, tab, SIZES, addEvent, setStyle, modeStates, showView, clickSettings, expectShown } from './helpers.js';
 
 const dbCats = (page) => page.evaluate(async () => (await import('/js/db.js')).listCategories());
 const hideCat = async (page, id) => {
@@ -14,7 +14,7 @@ const hideCat = async (page, id) => {
   await page.waitForSelector('html[data-ready]');
 };
 const openBackup = async (page) => {
-  await page.locator('[data-act="menu"]:visible').first().click();
+  await clickSettings(page);
   await page.getByRole('button', { name: 'バックアップ' }).click();
   await expect(page.locator('#backup')).toBeVisible();
 };
@@ -42,7 +42,7 @@ test.describe('非表示カテゴリと新しい予定', () => {
 
 test.describe('同名カテゴリ', () => {
   const openCats = async (page) => {
-    await page.locator('[data-act="menu"]:visible').first().click();
+    await clickSettings(page);
     await page.locator('#menu [data-go="calendar"]').click();
     await page.locator('#m-cedit').click();
   };
@@ -147,8 +147,8 @@ test.describe('開いた画面の「今日に戻る」', () => {
         await tab(page, view).click();
         await page.getByRole('button', { name: view === '日' ? '次の日' : '次の週' }).click();
         await page.getByRole('button', { name: '今日に戻る' }).first().click();
-        await expect(tab(page, view)).toHaveAttribute('aria-pressed', 'true');
-        await expect(tab(page, '月')).toHaveAttribute('aria-pressed', 'false');
+        await expectShown(page, view);
+        await expectShown(page, '月', false);
         if (view === '日') await expect(page.locator('#ctitle, .stitle').first()).toContainText('11月12日');
         expect(await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith('duo.ui.v1'))) || '{}').home)).not.toBe(true);
       });

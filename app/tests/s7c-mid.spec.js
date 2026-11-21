@@ -1,7 +1,7 @@
 // 第19.1版 S7c（レビュー後の直し・設計の中・低 V-11〜V-27、品質 中-2・低-1・低-2、STEER 23:00 検索の文）。寸法は getBoundingClientRect で ±1。
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { openApp, SIZES, seed, ev, tab } from './helpers.js';
+import { openApp, SIZES, seed, ev, tab, clickSettings, clickSearch } from './helpers.js';
 
 const P = SIZES.openPortrait669, L = SIZES.openLandscape951, C = SIZES.closedPortrait;
 const near = (a, b, tol = 1) => expect(Math.abs(a - b), `${a} ≈ ${b}`).toBeLessThanOrEqual(tol);
@@ -23,7 +23,7 @@ test.describe('S7c 検索の文（STEER 23:00）', () => {
       await openApp(page, size); if (sar) await band(page, sar);
       await page.evaluate(async () => { const db = await import('/js/db.js'); await db.putNote({ id: 'n1', body: '猫のメモ本文', createdAt: 1, updatedAt: 5, folderId: null }); await db.putTask({ id: 't1', title: '犬のタスク', due: null, done: false, doneAt: null, createdAt: 1, updatedAt: 5, order: 1, note: '', notify: false }); });
       await page.reload(); await page.waitForSelector('html[data-ready]'); if (sar) await band(page, sar);
-      await page.locator('[data-act="search"]:visible').first().click();
+      await clickSearch(page);
       const q = page.locator('#sr-q'), body = page.locator('#sr-body');
       await q.fill('猫'); await page.waitForTimeout(400);
       let t = await body.innerText();
@@ -50,9 +50,10 @@ test('V-11／品質 中-2 予定の編集の日付・時刻カプセルは押す
   }
 });
 
-test('V-12 「今日」の文字リンクは不透明度 0.5・地なし', async ({ page }) => {
+test('V-12 「今日へ」の文字リンクは不透明度 0.5・地なし', async ({ page }) => {
   await openApp(page, C); await band(page, 84); await tab(page, '月').click(); await page.waitForTimeout(300);
-  const el = page.locator('.mptoday').first(); await press(page, el);
+  await page.locator('.mph [data-act="next"]').click({ force: true }); await page.waitForTimeout(300); // 「今日へ」は今日が画面にないときだけ出る（design/34 §2.1）。12月へ送って出す
+  const el = page.locator('.mptoday').first(); await expect(el).toBeVisible(); await press(page, el);
   const s = await el.evaluate((e) => { const cs = getComputedStyle(e); return [cs.opacity, cs.backgroundColor]; }); await page.mouse.up();
   expect(Number(s[0])).toBeCloseTo(0.5, 1); expect(s[1]).toBe('rgba(0, 0, 0, 0)');
 });
@@ -88,20 +89,20 @@ test('V-23 対照: マスの空きを押したときも #E2DDD2（R-75）', asyn
 test('V-25／V-14 設定の上の端は y24、膜は 0.25 秒で 0→1', async ({ page }) => {
   for (const [size, sar] of [[C, 84], [L, 84]]) {
     await openApp(page, size); await band(page, sar);
-    await page.locator('[data-act="menu"]:visible').first().click(); await page.waitForTimeout(400);
+    await clickSettings(page); await page.waitForTimeout(400);
     near((await rect(page.locator('dialog#menu'))).y, 24);
     await page.keyboard.press('Escape'); await page.waitForTimeout(500);
   }
 });
 test('V-14 設定の膜は 0.25 秒で 0→1', async ({ page }) => {
   await openApp(page, C, '', { motion: true }); await band(page, 84); await page.waitForTimeout(300);
-  await page.locator('[data-act="menu"]:visible').first().click();
+  await clickSettings(page);
   const a = await page.evaluate(async () => { const d = document.querySelector('dialog#menu'); const an = d.getAnimations(); an.forEach((x) => x.pause()); const out = []; for (const t of [0, 125, 250]) { an.forEach((x) => { x.currentTime = t; }); await new Promise((r) => requestAnimationFrame(() => r())); out.push([getComputedStyle(d).boxShadow, an.map((x) => x.animationName).join()]); } return out; });
   expect(a[0][1]).toContain('dimin12'); expect(a[0][0]).toContain('rgba(0, 0, 0, 0) 0px 0px 0px'); expect(a[2][0]).toContain('rgba(0, 0, 0, 0.12) 0px 0px 0px');
 });
 
 test('V-26 「全部」高さ28・角丸14・13pt W6、選ぶと緑の地に白', async ({ page }) => {
-  await openApp(page, C); await band(page, 84); await tab(page, '月').click(); await page.waitForTimeout(300);
+  await openApp(page, P); await page.waitForTimeout(300); // 閉じた画面の見出しの「全部」は design/34 §9.1-2 で消えた。ボタンの見た目は開いた縦（月の見出し）で見る
   const sp = page.locator('.allbtn span').first(); await expect(sp).toHaveText('全部');
   let s = await sp.evaluate((e) => { const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return { h: r.height, br: cs.borderRadius, fs: cs.fontSize, fw: cs.fontWeight, bg: cs.backgroundColor, c: cs.color }; });
   near(s.h, 28); expect(s.br).toBe('14px'); expect(s.fs).toBe('13px'); expect(s.fw).toBe('600');

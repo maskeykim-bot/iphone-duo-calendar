@@ -28,7 +28,7 @@ test.describe('CSS の決まり', () => {
 
 test.describe('押した反応', () => {
   test('タブ・丸ボタンを押している間、色が変わり、離すと戻る', async ({ page }) => {
-    await openApp(page, SIZES.closedPortrait);
+    await openApp(page, SIZES.openPortrait669); // 下のタブは開いた画面だけ（閉じた画面は design/34 §9.1-9 で廃止）。タブの押した色は開いた縦で見る
     const off = page.locator('.tabs button[aria-pressed=false]').first();
     const pill = off.locator('.pill');
     const before = await pill.evaluate((e) => getComputedStyle(e).backgroundColor);
@@ -38,8 +38,10 @@ test.describe('押した反応', () => {
     expect(before).not.toBe('rgb(239, 236, 228)');
     await page.mouse.move(0, 0); await page.mouse.up();
     await expect.poll(() => pill.evaluate((e) => getComputedStyle(e).backgroundColor)).toBe(before);
-    const bi = page.locator('.cb.csearch .bi, .rbtn.rsearch').first();
-    const sb = await page.locator('.cb.csearch, .rbtn.rsearch').first().boundingBox();
+    await page.setViewportSize(SIZES.closedPortrait); // 丸ボタンは閉じた画面の「…」（右の列。design/34 §9.1-14）
+    await expect(page.locator('.cb.cmore')).toHaveCount(1);
+    const bi = page.locator('.cb.cmore .bi').first();
+    const sb = await page.locator('.cb.cmore').first().boundingBox();
     await page.mouse.move(sb.x + sb.width / 2, sb.y + sb.height / 2); await page.mouse.down();
     await expect.poll(() => bi.evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(239, 236, 228)');
     await page.mouse.move(0, 0); await page.mouse.up();

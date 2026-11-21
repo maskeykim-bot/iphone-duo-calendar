@@ -21,6 +21,17 @@ for (const [name, size, kind] of POSTURES) {
     await openApp(page, size);
     await toMonth(page, kind);
     if (kind !== 'portrait') await setStyle(page, '手帳');
+    if (kind === 'closed') { // 第19.2版 S11c（design/34 §9.1-2）: 閉じた画面の見出しの「全部」は消え、「…」→「月の表現」で 全部⇔通常。直前の表現（手帳）は保つ
+      await expect(allBtn(page)).toHaveCount(0);
+      await setStyle(page, '全部');
+      await expect(page.locator('.scroll.all')).toBeVisible();
+      expect(await ui(page)).toMatchObject({ monthExpand: true, style: 'simple' });
+      await expect(allBtn(page)).toHaveCount(0);
+      await setStyle(page, '手帳');
+      await expect(page.locator('.scroll.all')).toHaveCount(0);
+      expect(await ui(page)).toMatchObject({ monthExpand: false, style: 'simple' });
+      return;
+    }
     const b = allBtn(page);
     await expect(b).toHaveCount(1);
     await expect(b).toHaveAttribute('aria-pressed', 'false');
@@ -47,12 +58,16 @@ for (const [name, size, kind] of POSTURES) {
   });
 }
 
-test('「全部」ボタンは月以外（週・日）の見出しには出ない', async ({ page }) => {
+test('「全部」ボタンは月以外（週・日）の見出しには出ない。閉じた画面はどの見出しにも出ない', async ({ page }) => {
   await openApp(page, SIZES.closedPortrait);
   await tab(page, '週').click();
   await expect(allBtn(page)).toHaveCount(0);
   await tab(page, '月').click();
-  await expect(allBtn(page)).toHaveCount(1);
+  await expect(allBtn(page)).toHaveCount(0); // 閉じた画面は月の見出しにも出ない（design/34 §9.1-2。「…」→「月の表現」へ）
+  await page.setViewportSize(SIZES.openPortrait669);
+  await expect(allBtn(page)).toHaveCount(1); // 開いた縦の月の見出しには今までどおり出る
+  await tab(page, '週').click();
+  await expect(allBtn(page)).toHaveCount(0);
 });
 
 // ---- 追加1: ダークでも塗りは本色・文字は白 ----
@@ -86,6 +101,7 @@ for (const [name, size, kind] of POSTURES) {
     await toMonth(page, kind);
     await setStyle(page, '予定名');
     if (kind === 'spread') expect(await page.locator('.pgsw button').allTextContents()).toEqual(['ホーム', '月', '時間', 'タスク', 'ノート', 'ホーム', '月', '時間', 'タスク', 'ノート']); // 第14版 PR5: 左右ページの切替
+    else if (kind === 'closed') { await expect(page.locator('.tabs')).toHaveCount(0); expect(await page.locator('.ctl').getByRole('button').evaluateAll((bs) => bs.map((b) => b.getAttribute('aria-label')))).toEqual(['タスク', 'その他', '予定を追加']); } // 閉じた画面: 下のタブはなく、右の列は タスク・…・＋（design/34 §9.1）
     else expect(await page.locator('.tabs button').allTextContents()).toEqual(['ホーム', '日', '週', '月']);
     const shown = (k) => chip(page, day(k)).count();
     const plus = (k) => page.locator(`.plus[data-plus="${day(k)}"]`);
@@ -151,7 +167,7 @@ test('週の数: 月曜始まり 2026/11=6週、2027/2=4週（日曜始まりは
 test('開閉・回転のあとも「全部」と選択日が保たれる', async ({ page }) => {
   await openApp(page, SIZES.closedPortrait);
   await tab(page, '月').click();
-  await allBtn(page).click();
+  await setStyle(page, '全部'); // 閉じた画面の「全部」は「…」→「月の表現」（design/34 §9.1-2）
   await page.locator('[data-date="2026-11-18"]').first().click({ position: { x: 12, y: 10 } });
   for (const s of [SIZES.openPortrait669, SIZES.openLandscape951, SIZES.openPortrait, SIZES.closedPortrait]) {
     await page.setViewportSize(s);

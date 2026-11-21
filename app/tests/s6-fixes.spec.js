@@ -1,6 +1,6 @@
 // 第19.1版 S6: 反応しないボタン 0（元に戻す/やり直しは aria-disabled）、押した色の取り違え、小さな確認シート・全画面ページの動き（25 §1）。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, seed, ev } from './helpers.js';
+import { openApp, SIZES, seed, ev, clickSettings, tab } from './helpers.js';
 
 const POSTS = [['閉じた', SIZES.closedPortrait], ['開いた縦', SIZES.openPortrait669], ['開いた横', SIZES.openLandscape951]];
 const anims = (page) => page.evaluate(() => document.getAnimations().map((a) => `${a.animationName}:${a.effect.getTiming().duration}`));
@@ -40,7 +40,7 @@ test.describe('押した色の取り違えがない', () => {
     await openApp(page, SIZES.closedPortrait);
     await seed(page, [1, 2, 3, 4, 5, 6].map((i) => ev(`p${i}`, `予定${i}`, '2026-11-12T1' + i + ':00', '2026-11-12T1' + i + ':30')));
     await page.reload(); await page.waitForSelector('html[data-ready]');
-    await page.locator('.tabs button', { hasText: '月' }).click();
+    await tab(page, '月').click();
     const day = page.locator('.week .day.selected').first();
     const plus = page.locator('.week .plus:visible').first(); // 閉じた7段の +N は 0 件のとき hidden
     const pb = await plus.boundingBox();
@@ -61,7 +61,7 @@ for (const [name, size] of POSTS) {
   test.describe(`小さな確認シートと全画面ページの動き: ${name}`, () => {
     test('バックアップ（全画面ページ）: 出る 0.25 秒 sheetin、閉じるは同じ秒数で逆、終わってから閉じる', async ({ page }) => {
       await openApp(page, size, '', { motion: true });
-      await page.getByRole('button', { name: '設定' }).first().click();
+      await clickSettings(page);
       await expect(page.locator('#menu')).toBeVisible();
       await page.getByRole('button', { name: 'バックアップ' }).click();
       await expect(page.locator('#backup')).toBeVisible();
@@ -84,7 +84,7 @@ test.describe('小さな確認シート', () => {
     await openApp(page, SIZES.closedPortrait, '', { motion: true });
     await seed(page, [ev('c1', '確認の予定', '2026-11-12T10:00', '2026-11-12T11:00')]);
     await page.reload(); await page.waitForSelector('html[data-ready]');
-    await page.locator('.tabs button', { hasText: '日' }).click();
+    await tab(page, '日').click();
     await page.locator('button[data-event="c1"]:visible').first().click();
     await expect(page.locator('#editor')).toBeVisible();
     await page.locator('#delete').click();
@@ -103,7 +103,7 @@ test.describe('小さな確認シート', () => {
 
   test('設定の「選んで閉じる」（週の始まり）も同じ寄せで閉じる', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait, '', { motion: true });
-    await page.getByRole('button', { name: '設定' }).first().click();
+    await clickSettings(page);
     await page.locator('#menu [data-go="general"]').click();
     await page.waitForTimeout(300);
     await page.getByRole('button', { name: /^週の始まり/ }).click();

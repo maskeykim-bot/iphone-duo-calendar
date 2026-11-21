@@ -1,7 +1,7 @@
 // 第19.1版 S8（d6840a3 の再レビューの直し）。設計 design/review/2026-11-20-v191-d6840a3-visual-review.md の N-01〜N-09、企画 research/review-v19-1-d6840a3-usability-2026-11-20.md の低、
 // 連携 data/連携_レビュー_d6840a3.md の低 L-1・L-2。寸法は getBoundingClientRect で ±1。時計は helpers の 2026-11-12 9:41（実機の確認は 11-19 で別に撮る）。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, ev, seed, tab, pagePick } from './helpers.js';
+import { openApp, SIZES, ev, seed, tab, pagePick, openNoteList } from './helpers.js';
 import { T, seedTasks } from './task-helpers.js';
 
 const P = SIZES.openPortrait669, L = SIZES.openLandscape951, C = SIZES.closedPortrait;
@@ -93,7 +93,8 @@ test.describe('N-02 閉じた日・週の送り切り：24:00 の線がバーの
       await tab(page, label).click(); await page.waitForTimeout(400);
       const tl = page.locator('.tl[data-pane=closed]').first();
       await tl.evaluate((t) => { t.scrollTop = t.scrollHeight; }); await page.waitForTimeout(300);
-      const tabs = await boxOf(page.locator('.tabs'));
+      await expect(page.locator('.tabs')).toHaveCount(0);
+      const tabs = { y: 678 - 33 } /* バー＝ホームバーの帯（上端 y645）。下のタブは design/34 §9.1-9 で廃止、下の余白は 87 → 41（帯 33＋8） */;
       const e = await boxOf(page.locator('.tlev', { hasText: '深夜の指標' }));
       // 23:00 の行の上端 + 1時間（closed の 1時間の高さ）＝ 24:00 の線。バー上端から 8
       const hh = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.tl[data-pane=closed]')).getPropertyValue('--hh')));
@@ -216,7 +217,7 @@ test.describe('連携の低 L-1・L-2／企画の低（題名欄の記号。Inde
     await openApp(page, C); await band(page, 84);
     await page.evaluate(async (b) => { const db = await import('/js/db.js'); await db.putNote({ id: 'n1', body: b, createdAt: 1, updatedAt: 5, folderId: null }); }, body);
     await page.reload(); await page.waitForSelector('html[data-ready]'); await band(page, 84);
-    await page.locator('[data-act="strip"][data-strip="memo"]').first().click(); await page.locator('.mrow[data-nrow]').first().waitFor();
+    await openNoteList(page); await page.locator('.mrow[data-nrow]').first().waitFor();
     await page.locator('.mrow[data-nrow="n1"]').first().click(); await page.locator('.ned-title:visible').first().waitFor();
   };
   const raw = (page) => page.evaluate(async () => (await (await import('/js/db.js')).getNote('n1')).body);
@@ -267,7 +268,7 @@ test.describe('★1-10（品質・設計 2026-11-20 4:05）閉じたホームの
     await openApp(page, C); await band(page, 84);
     await seedTasks(page, ['h1', 'h2', 'h3'].map((k) => T(k, { title: `タスク${k}`, due: { date: '2026-11-12' } })));
     await band(page, 84); await page.waitForTimeout(300);
-    const add = await boxOf(page.locator('.htasks .hadd')), tabs = await boxOf(page.locator('.tabs'));
+    const add = await boxOf(page.locator('.htasks .hadd')), tabs = { y: 678 - 33 } /* バー＝ホームバーの帯（上端 y645）。下のタブは design/34 §9.1-9 で廃止、下の余白は 87 → 41（帯 33＋8） */;
     near(add.h, 44, 0.6); near(add.x, 12, 1); near(add.r, 374, 1);
     expect(add.b, '最初の画面で行の下端がバー上端より 8 以上上').toBeLessThanOrEqual(tabs.y - 8);
     const hh3 = await boxOf(page.locator('.htasks .hh3')); near(add.y, hh3.b, 1, '見出しのすぐ下');
@@ -315,7 +316,7 @@ async function seedMany(page, size, sar) {
 }
 test('Q1 開いた縦：今日のマスのノートの印は x+9〜17・y+16〜17.5（白 8×1.5 角丸1）', async ({ page }) => {
   await openApp(page, P); await seedMany(page, P, 0);
-  await page.getByRole('button', { name: '月', exact: true }).first().click().catch(() => {}); await page.waitForTimeout(500);
+  await tab(page, '月').click().catch(() => {}); await page.waitForTimeout(500);
   const r = await page.evaluate(() => {
     const d = [...document.querySelectorAll('.week .day.today')].find((e) => e.offsetParent); if (!d) return null;
     const ml = d.querySelector('.mline'); if (!ml) return null; const c = d.getBoundingClientRect(), m = ml.getBoundingClientRect(), cs = getComputedStyle(ml);

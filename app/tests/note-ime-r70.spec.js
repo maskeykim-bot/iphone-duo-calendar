@@ -22,8 +22,6 @@ async function boot(page, size = SIZES.closedPortrait) {
   await page.addInitScript(() => { const k = 'duo.ui.v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); if (!s.monthDay) localStorage.setItem(k, JSON.stringify({ ...s, monthDay: 'list' })); });
   await openApp(page, size);
   const m = page.getByRole('button', { name: '月', exact: true }); if (await m.isVisible()) { await m.click(); await page.waitForTimeout(300); }
-  // cal-v191 S11b（仮）: 閉じた月の段1は日の欄が下のタブの帯にかかる（タブは S11c で消える）。ノートの欄を押せるよう段4へ進める（閉じた画面だけ）
-  if (size.width < size.height && size.width < 600) { await page.locator('.mgrab').focus(); for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowUp'); await page.waitForTimeout(400); }
 }
 async function openDaySheet(page, size = SIZES.closedPortrait) {
   await boot(page, size);

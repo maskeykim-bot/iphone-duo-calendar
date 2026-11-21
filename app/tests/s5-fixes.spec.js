@@ -1,6 +1,6 @@
 // 第19.1版 S5: 残りの第19版の直し（H-08/09/10/16〜20、M-03〜05/09/11/12/15〜17/20/21、L-02〜04/06/07）。寸法は getBoundingClientRect で ±1。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, seed, ev, openMenu, setTimeUi } from './helpers.js';
+import { openApp, SIZES, seed, ev, openMenu, setTimeUi, clickSettings, clickSearch, tab } from './helpers.js';
 
 const box = (loc) => loc.evaluate((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
 const near = (a, b, d = 1) => expect(Math.abs(a - b)).toBeLessThanOrEqual(d);
@@ -74,7 +74,7 @@ test.describe('予定の編集（H-09・H-10・L-06・L-03）', () => {
 test.describe('開発用の文を出さない（H-16・H-17・M-13）', () => {
   test('設定の一番下の注・詳細の計測が出ず、詳細は「このアプリについて」だけ', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait, '', { nodev: true });
-    await page.getByRole('button', { name: '設定' }).first().click();
+    await clickSettings(page);
     await expect(page.locator('#menu')).toBeVisible();
     await expect(page.locator('#menu')).not.toContainText('ウィジェット・ヘルプ');
     await page.locator('#menu [data-go="details"]').click();
@@ -85,7 +85,7 @@ test.describe('開発用の文を出さない（H-16・H-17・M-13）', () => {
   });
   test('検索は「検索範囲」を出さず、0件のときだけ「この3年に見つかりませんでした」（13pt 灰）', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait, '', { nodev: true });
-    await page.locator('[data-act="search"]:visible, .cb.csearch').first().click();
+    await clickSearch(page);
     await expect(page.locator('#search')).toBeVisible();
     await expect(page.locator('#sr-range')).toBeHidden();
     const shown = await page.locator('#search').innerText(); // 見えている文字（隠した要素の textContent は数えない）
@@ -128,7 +128,7 @@ test.describe('設定の行・戻る・×（H-18・H-19・M-14・L-02）', () =>
   });
   test('戻るは左上「‹ 設定」（緑 15pt）、閉じるは右上の × 丸 44。ルートは右上だけ ×', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait, '', { nodev: true });
-    await page.getByRole('button', { name: '設定' }).first().click();
+    await clickSettings(page);
     await expect(page.locator('#m-close')).toBeHidden();
     const root = await box(page.locator('#m-back'));
     near(root.w, 44); near(root.h, 44);
@@ -147,25 +147,26 @@ test.describe('設定の行・戻る・×（H-18・H-19・M-14・L-02）', () =>
   });
   test('検索の閉じるも × 丸 44（22×22 の線画）', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
-    await page.locator('[data-act="search"]:visible, .cb.csearch').first().click();
+    await clickSearch(page);
     const b = await box(page.locator('#sr-close')); near(b.w, 44); near(b.h, 44);
     near((await box(page.locator('#sr-close svg'))).w, 22);
   });
   test('ルートの行のアイコンは 22×22・線 1.5 で、項目ごとに別の絵', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
-    await page.getByRole('button', { name: '設定' }).first().click();
+    await clickSettings(page);
     const ds = await page.locator('#menu [data-screen="root"] .srow:visible .sic svg').evaluateAll((a) => a.map((s) => [s.getAttribute('stroke-width'), s.getBoundingClientRect().width, s.innerHTML]));
     expect(ds.length).toBeGreaterThanOrEqual(6);
     for (const d of ds) { expect(d[0]).toBe('1.5'); near(d[1], 22); }
     expect(new Set(ds.map((d) => d[2])).size).toBe(ds.length);
   });
-  test('設定を開いている間、右の帯の「設定」は × に変わらない', async ({ page }) => {
+  test('設定を開いている間、右の帯の入口（閉じた画面は「…」）は × に変わらない', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
-    await page.getByRole('button', { name: '設定' }).first().click();
+    await clickSettings(page);
     await expect(page.locator('#menu')).toBeVisible();
-    const after = await page.locator('.cb[data-act="menu"] .bi').first().evaluate((e) => getComputedStyle(e, '::after').content);
+    // 閉じた画面の設定の入口は右の列の「…」（design/34 §9.1-5）。設定を開いている間も「…」のまま
+    const after = await page.locator('.cb[data-act="more"] .bi').first().evaluate((e) => getComputedStyle(e, '::after').content);
     expect(after).not.toContain('×');
-    await expect(page.locator('.cb[data-act="menu"] .bi svg').first()).toBeVisible();
+    await expect(page.locator('.cb[data-act="more"] .bi svg').first()).toBeVisible();
   });
 });
 
@@ -236,7 +237,7 @@ test.describe('帯・月・ほか（M-03/04/11/12/15/16/17/20、L-07）', () => 
     await openApp(page, SIZES.closedPortrait);
     await seed(page, [ev('a', '朝会', '2026-11-13T09:00', '2026-11-13T09:30')]);
     await page.reload(); await page.waitForSelector('html[data-ready]');
-    await page.locator('.tabs button', { hasText: '月' }).click();
+    await tab(page, '月').click();
     const chip = page.locator('.week .strip[data-event="a"]').first();
     await expect(chip).toBeVisible();
     // 第19.2版 S11b（34 R-75）で置き換え: 閉じた7段のチップは日のボタンの子（aria-hidden）。チップの上をたたいても予定は開かず、そのマスの日を選ぶ。チップの被せは出さない
@@ -258,7 +259,7 @@ test.describe('帯・月・ほか（M-03/04/11/12/15/16/17/20、L-07）', () => 
   });
   test('検索の入力欄のフォーカス枠は緑 #294E42 の 2pt', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
-    await page.locator('[data-act="search"]:visible, .cb.csearch').first().click();
+    await clickSearch(page);
     await page.locator('#sr-q').focus();
     const o = await page.locator('#sr-q').evaluate((e) => { const s = getComputedStyle(e); return [s.outlineColor, s.outlineWidth, s.outlineStyle, s.boxShadow]; });
     const css = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--focus').trim().toLowerCase());

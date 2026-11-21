@@ -1,6 +1,6 @@
 // 第7版: iPhone カレンダー連携。window.Capacitor を偽装して、DuoNative の契約どおりに呼ばれ表示されることを確認する。
 import { test, expect } from '@playwright/test';
-import { notifyOn, openApp, SIZES, tab, seed, ev, dbEvents, setStyle, openMenu, pickDest, enableCalendars, fillDateTime, setDateUi } from './helpers.js';
+import { notifyOn, openApp, SIZES, tab, seed, ev, dbEvents, setStyle, openMenu, pickDest, enableCalendars, fillDateTime, setDateUi, clickSettings, clickSearch } from './helpers.js';
 import { VERSION as BACKUP_VERSION } from '../js/backup.js';
 // 新規予定のカレンダー選択: 種別の先頭を選ぶ（第15版 PR5）
 const pickKind = async (page, type) => { await page.locator('#f-dest').click(); await page.locator(`#dest-pop .dopt[data-dtype="${type}"]`).first().click(); };
@@ -147,7 +147,7 @@ const DETAILS = [
 const calls = (page, m) => page.evaluate((m) => window.__mock.calls.filter((c) => !m || c.method === m), m);
 // 設定 › カレンダー（✓方式。許可済みなら開くだけで連携が入る）。
 const openLinkPanel = async (page) => {
-  await page.locator('[data-act="menu"]:visible').first().click();
+  await clickSettings(page);
   await page.locator('#menu [data-go="calendar"]').click();
   await expect(page.locator('#menu [data-screen="calendar"]')).toBeVisible();
 };
@@ -157,7 +157,7 @@ async function enable(page) { await enableCalendars(page); }
 test.describe('Web 版（Capacitor なし）', () => {
   test('連携の入口もブリッジ呼び出しも出ない', async ({ page }) => {
     await openApp(page);
-    await page.locator('[data-act="menu"]:visible').first().click();
+    await clickSettings(page);
     await expect(page.locator('#menu')).toBeVisible();
     await expect(page.locator('[data-m="link"]')).toBeHidden();
     await page.locator('#menu [data-go="calendar"]').click();
@@ -289,7 +289,7 @@ test.describe('ネイティブ（偽装）', () => {
   test('checkPermission が失敗したら入口を隠す', async ({ page }) => {
     await mock(page, { checkReject: true });
     await openApp(page);
-    await page.locator('[data-act="menu"]:visible').first().click();
+    await clickSettings(page);
     await page.locator('#menu [data-go="calendar"]').click();
     await expect(page.locator('[data-m="link"]')).toBeHidden();
   });
@@ -649,7 +649,7 @@ test.describe('ネイティブ（偽装）', () => {
     await expect(page.locator('.mdcard.ext, .tlev.ext', { hasText: 'Duoで作成済み' })).toHaveCount(0);
     await expect(page.locator('.tlev.ext')).toHaveCount(1); // 歯医者のみ
     // 検索
-    await page.locator('[data-act="search"]:visible').first().click();
+    await clickSearch(page);
     await page.locator('#sr-q').fill('Duoで作成');
     await expect(page.locator('#sr-body .hit')).toHaveCount(1);
   });
@@ -658,7 +658,7 @@ test.describe('ネイティブ（偽装）', () => {
     await mock(page);
     await openApp(page);
     await enable(page);
-    await page.locator('[data-act="search"]:visible').first().click();
+    await clickSearch(page);
     await expect(page.locator('#sr-xrange')).toHaveText('iPhoneの検索範囲：2026/10/01–2026/12/31（読み込み済み）');
     await page.locator('#sr-q').fill('はいしゃ'.replace('はいしゃ', '歯医者'));
     const hit = page.locator('#sr-body .hit.ext');
@@ -675,7 +675,7 @@ test.describe('ネイティブ（偽装）', () => {
     await openApp(page);
     await seed(page, [ev('a1', 'Duo予定', '2026-11-12T18:00', '2026-11-12T19:00', { nativeLink: { state: 'linked', requestId: 'r1', eventId: 'zzz', calendarId: 'cal-1' } })]);
     await enable(page);
-    await page.locator('[data-act="menu"]:visible').first().click();
+    await clickSettings(page);
     await page.locator('[data-m="backup"]').click();
     await page.locator('#bk-export').click();
     await expect(page.locator('.bmsg')).toHaveText('書き出しファイルを共有しました。');

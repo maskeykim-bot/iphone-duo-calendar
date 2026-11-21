@@ -1,6 +1,6 @@
 // 第15版 PR1: 旧カテゴリの一度きり移行（実 IndexedDB）。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, ev, seed } from './helpers.js';
+import { openApp, SIZES, ev, seed, clickSettings } from './helpers.js';
 import { CAT_IDS } from '../js/categories.js';
 
 const KEY = 'categoryRetargetV1';
@@ -113,7 +113,7 @@ test.describe('旧カテゴリの一度きり移行', () => {
 // ---- 第15版 PR2: 古い復元と表示の下限 ----
 const cats = (page) => page.evaluate(async () => (await import('/js/db.js')).listCategories());
 const openBk = async (page) => {
-  await page.locator('[data-act="menu"]:visible').first().click();
+  await clickSettings(page);
   await page.locator('[data-m="backup"]').click();
   await expect(page.locator('#backup')).toBeVisible();
 };
@@ -161,7 +161,7 @@ test.describe('第15版 PR2: 最後の表示カテゴリ', () => {
     await page.evaluate(async () => { const db = await import('/js/db.js'); const cs = await db.listCategories(); await db.applyCategoryChanges({ catPuts: cs.map((c, i) => ({ ...c, hidden: i > 0 })) }); });
     await page.reload(); await page.waitForSelector('html[data-ready]');
     const before = await cats(page);
-    await page.locator('[data-act="menu"]:visible').first().click();
+    await clickSettings(page);
     await page.locator('#menu [data-go="calendar"]').click();
     const sw = page.locator('#m-cal-duo [data-cvis][aria-checked=true]');
     await expect(sw).toHaveCount(1);

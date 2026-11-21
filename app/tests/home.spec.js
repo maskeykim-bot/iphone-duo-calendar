@@ -1,6 +1,6 @@
 // 第16版 PR14: ホームに今日のカード（design/14 案A）。2026-11-12 09:41 JST 固定。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, seed, ev, tab } from './helpers.js';
+import { openApp, SIZES, seed, ev, tab, expectShown } from './helpers.js';
 import { spy, seedTasks, dbTasks, reminderCalls } from './task-helpers.js';
 
 // native は偽装（旧リマインダー集合つき・呼出は reminderCalls で0を検査）。タスクは Duo 内保存へ seed する。
@@ -57,18 +57,20 @@ test('閉じたホーム: 次の予定・今日の予定3件＋ほか・タス�
   expect([...idx].sort((a, b) => a - b)).toEqual(idx);
 });
 
-test('閉じたホーム: 全体がスクロールし、タブは固定', async ({ page }) => {
+test('閉じたホーム: 全体がスクロールし、「‹ カレンダー」は固定（タブは 34 で廃止）', async ({ page }) => {
   await openH(page, SIZES.closedPortrait, TASKS);
   await seed(page, EVS);
   await tab(page, 'ホーム').click();
   const sc = page.locator('.home.listview');
   expect(await sc.evaluate((e) => e.scrollHeight > e.clientHeight)).toBe(true);
-  const before = await tab(page, 'ホーム').boundingBox();
+  // 下のタブはない（design/34 §9.1-9）。固定されるのは見出しの「‹ カレンダー」（§9.2）。送り切ると最後のカードは下の余白 41 の上（ホームバーの帯 y645 の 8 上）
+  const back = page.getByRole('button', { name: 'カレンダーへ戻る' });
+  const before = await back.boundingBox();
   await sc.evaluate((e) => { e.scrollTop = e.scrollHeight; });
-  const after = await tab(page, 'ホーム').boundingBox();
+  const after = await back.boundingBox();
   expect(after.y).toBe(before.y);
-  const last = await page.locator('.htmr').boundingBox(), tb = await tab(page, 'ホーム').boundingBox();
-  expect(last.y + last.height).toBeLessThanOrEqual(tb.y + 1);
+  const last = await page.locator('.htmr').boundingBox();
+  expect(last.y + last.height).toBeLessThanOrEqual(678 - 41 + 1);
 });
 
 test('20時以降は明日が今日の予定の上。選択日と独立して今日固定', async ({ page }) => {
@@ -139,11 +141,11 @@ test('導線: タイムライン›は日表示の今日、明日は明日、す
   await seed(page, EVS);
   await tab(page, 'ホーム').click();
   await page.locator('.hevents .hgo').click();
-  await expect(tab(page, '日')).toHaveAttribute('aria-pressed', 'true');
+  await expectShown(page, '日');
   await expect(page.locator('#ctitle')).toContainText('12');
   await tab(page, 'ホーム').click();
   await page.locator('.htmr').click();
-  await expect(tab(page, '日')).toHaveAttribute('aria-pressed', 'true');
+  await expectShown(page, '日');
   await expect(page.locator('#ctitle')).toContainText('13');
   await tab(page, 'ホーム').click();
   await page.locator('.htasks .hgo').click();

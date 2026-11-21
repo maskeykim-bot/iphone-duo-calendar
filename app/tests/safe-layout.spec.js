@@ -1,6 +1,6 @@
 // 第7版: 4つの Duo ビューポートでのパネル配置・safe area・キーボード相当（高さ縮小）の検証。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, textInGutter } from './helpers.js';
+import { openApp, SIZES, textInGutter, clickSettings, clickSearch } from './helpers.js';
 
 const CASES = [
   ['閉じた縦 466×678', SIZES.closedPortrait, 380],
@@ -10,8 +10,8 @@ const CASES = [
 ];
 const PANELS = {
   edit: { open: async (page) => { await page.locator('[data-act="add"]:visible').first().click(); }, dlg: '#editor', close: '#close', primary: '#editor [type=submit]', input: '#f-title' },
-  search: { open: async (page) => { await page.locator('[data-act="search"]:visible').first().click(); }, dlg: '#search', close: '#sr-close', primary: '#sr-close', input: '#sr-q' },
-  backup: { open: async (page) => { await page.locator('[data-act="menu"]:visible').first().click(); await page.locator('[data-m="backup"]').click(); }, dlg: '#backup', close: '#bk-close', primary: '#bk-close', input: null },
+  search: { open: async (page) => { await clickSearch(page); }, dlg: '#search', close: '#sr-close', primary: '#sr-close', input: '#sr-q' },
+  backup: { open: async (page) => { await clickSettings(page); await page.locator('[data-m="backup"]').click(); }, dlg: '#backup', close: '#bk-close', primary: '#bk-close', input: null },
 };
 
 const rect = (page, sel) => page.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; }, sel);

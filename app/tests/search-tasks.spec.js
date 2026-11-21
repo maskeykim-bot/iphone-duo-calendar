@@ -1,6 +1,6 @@
 // 第16版 PR20: タスク検索（古い完了も見つかる）と、帯・ホーム・月の件数が保存済みタスクと一致する。
 import { test, expect } from '@playwright/test';
-import { SIZES, openApp } from './helpers.js';
+import { SIZES, openApp, clickSearch } from './helpers.js';
 import { spy, seedTasks, dbTasks, T } from './task-helpers.js';
 
 const SEED = [
@@ -14,7 +14,7 @@ test('検索: 未完了（期限順）→期限なし→完了の順で、31日�
   await spy(page, { reminders: false });
   await openApp(page, SIZES.closedPortrait);
   await seedTasks(page, SEED);
-  await page.getByRole('button', { name: '予定を検索' }).first().click();
+  await clickSearch(page);
   await page.locator('#sr-q').fill('買う');
   await expect(page.locator('#sr-body [data-sec="task"]')).toBeVisible();
   const ids = await page.locator('#sr-body [data-thit]').evaluateAll((e) => e.map((x) => x.dataset.thit));

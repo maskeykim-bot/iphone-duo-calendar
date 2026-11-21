@@ -13,27 +13,27 @@ test.describe('レイアウト（4サイズ）', () => {
     await expect(page.locator('.hero')).toBeVisible();
     await expect(page.locator('.hevents')).toBeVisible();
     await expect(page.locator('.week, .agenda, .legend')).toHaveCount(0);
-    for (const t of ['日', '週', '月']) await expect(tab(page, t)).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('.tabs')).toHaveCount(0); // 下のタブはない（design/34 §9.1-9）。戻りは「‹ カレンダー」
+    await expect(page.getByRole('button', { name: 'カレンダーへ戻る' })).toBeVisible();
     const add = await box(page.getByRole('button', { name: '予定を追加' }));
     expect(add.y + add.height).toBeLessThanOrEqual(678);
     expect(add.x).toBeGreaterThanOrEqual(382); // ＋ は右の操作列
     // 今日の予定カードの行（最大3件）は全体スクロールの枠の中に入る（第16版 PR14）
     const list = await box(page.locator('.home.listview'));
-    const tabs = await box(page.locator('.tabs'));
-    expect(tabs.y).toBeGreaterThan(0);
     for (const ev of await page.locator('.hevents .hrow').all()) { const b = await box(ev); expect(inside(b, list)).toBe(true); }
   });
 
-  test('予定が増えても今日の予定は3件＋ほか。全体をスクロールすると最後のカードをタブの上へ出せる', async ({ page }) => {
+  test('予定が増えても今日の予定は3件＋ほか。全体をスクロールすると最後のカードを下の余白 41 の上へ出せる', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await tab(page, 'ホーム').click(); // 起動はカレンダー（design/34 §9.2・11:29 の決定）
     for (let i = 0; i < 9; i++) await addEvent(page, { title: `追加予定${i}`, start: `2026/11/12 ${String(14 + (i % 8)).padStart(2, '0')}:00`, end: `2026/11/12 ${String(14 + (i % 8)).padStart(2, '0')}:30` });
     await expect(page.locator('.hevents .hrow')).toHaveCount(3); // 最大3件＋ほか
     const list = page.locator('.home.listview');
-    expect(await list.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+    // 下の余白が 87 → 41 になり（タブ廃止）、この件数では送らなくても収まることがある。送れるなら送り切って、最後のカードが余白の上にあることを見る
+    expect(await list.evaluate((el) => el.scrollHeight >= el.clientHeight)).toBe(true);
     await list.evaluate((el) => { el.scrollTop = el.scrollHeight; });
     const last = await box(page.locator('.hcards > *').last());
-    expect(last.y + last.height).toBeLessThanOrEqual((await box(page.locator('.tabs'))).y + 1);
+    expect(last.y + last.height).toBeLessThanOrEqual(678 - 41 + 1); // 下の余白 41（ホームバーの帯 33＋8。design/34 §10「33 全体」: タブの上 → 帯の上 8）
   });
 
   test('466×678 閉じた日表示: 5件前後が見える', async ({ page }) => {

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, pagePick } from './helpers.js';
+import { openApp, SIZES, pagePick, clickSearch } from './helpers.js';
 
 // 第16版 PR31: ノート一覧の仮想表示と検索（フォルダ内でも全ノート）。
 const bulk = (page, n, folder = null) => page.evaluate(async ({ n, folder }) => {
@@ -49,7 +49,7 @@ test('削除済みは通常の一覧・全体検索に出ない', async ({ page 
   await openApp(page, SIZES.openLandscape951);
   await page.evaluate(async () => { const db = await import('/js/db.js'); await db.putNote({ id: 'd1', body: '消したやつ', createdAt: 1, updatedAt: 5, folderId: null, deletedAt: Date.now() }); await db.putNote({ id: 'd2', body: '残るやつ', createdAt: 1, updatedAt: 4, folderId: null }); });
   await reload(page);
-  await page.getByRole('button', { name: '予定を検索' }).first().click();
+  await clickSearch(page);
   await page.locator('#sr-q').fill('やつ');
   await expect(page.locator('#sr-body [data-sec="memo"]')).toContainText('1件のノート');
   await expect(page.locator('#sr-body [data-mhit="d1"]')).toHaveCount(0);

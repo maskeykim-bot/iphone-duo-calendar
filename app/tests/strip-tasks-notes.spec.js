@@ -1,6 +1,6 @@
 // 第16版 PR12: 右の帯にタスクとメモの入口（DP-3）。閉じた画面・開いた横の帯に6項目。縦の上帯には置かない。
 import { test, expect } from '@playwright/test';
-import { openApp, tab, SIZES } from './helpers.js';
+import { openApp, tab, SIZES, expectShown, setStyle } from './helpers.js';
 import { spy, seedTasks, T } from './task-helpers.js';
 
 // 期限切れ＋今日の未完了を over 件、他に完了・先の予定を Duo 内保存へ seed（band が起動後に入れる）。native は偽装のみ。
@@ -21,23 +21,22 @@ const near = (a, b, tol = 0.8) => expect(Math.abs(a - b), `${a} ≈ ${b}`).toBeL
 const names = (page) => page.locator('.ctl button').evaluateAll((e) => e.map((b) => b.dataset.act + (b.dataset.strip ? `:${b.dataset.strip}` : '')));
 
 test.describe('閉じた画面の帯', () => {
-  test('6項目が指定の順・位置（丸48・当たり56）、全は帯にない', async ({ page }) => {
+  test('右の列は タスク・…・＋ の3項目（丸48・当たり56）。ノート・設定・検索・今日・全は帯にない（design/34 §9.1 で置き換え）', async ({ page }) => {
+    // 旧: 設定・検索・タスク・ノート・今日・＋ の6項目（タスク y418・ノート y478）。34 §9.1-12: タスクは y172〜220 へ上げ、ノートは日の欄の「ノート ›」へ
     await mock(page);
     await band(page, SIZES.closedPortrait);
     await tab(page, '月').click();
-    expect(await names(page)).toEqual(['menu', 'search', 'strip:task', 'strip:memo', 'today', 'add']);
-    const want = { task: 418, memo: 478 };
-    for (const [id, top] of Object.entries(want)) {
-      const r = await sb(page, id).boundingBox();
-      near(r.width, 56); near(r.height, 56); near(r.y, top - 4); near(r.x + 28, 466 - 42);
-      const v = await sb(page, id).locator('.bi').boundingBox();
-      near(v.width, 48); near(v.height, 48);
-    }
+    expect(await names(page)).toEqual(['strip:task', 'noteundo', 'more', 'add']); // 「元に戻す」はノートを書いている間だけ見える（§9.3）
+    await expect(page.locator('.ctl').getByRole('button')).toHaveCount(3);
+    const r = await sb(page, 'task').boundingBox();
+    near(r.width, 56); near(r.height, 56); near(r.y, 172 - 4); near(r.x + 28, 466 - 42);
+    const v = await sb(page, 'task').locator('.bi').boundingBox();
+    near(v.width, 48); near(v.height, 48);
+    await expect(sb(page, 'memo')).toHaveCount(0);
     await expect(page.locator('.ctl [data-act="allmonth"]')).toHaveCount(0);
-    // 全は月ヘッダーへ。押すと全部表示、状態を保つ
-    const all = page.locator('.mph [data-act="allmonth"]');
-    await expect(all).toHaveCount(1);
-    await all.click();
+    // 全は「…」→「月の表現」へ（§9.1-2）。選ぶと全部表示、状態を保つ
+    await expect(page.locator('.mph [data-act="allmonth"]')).toHaveCount(0);
+    await setStyle(page, '全部');
     await expect(page.locator('.scroll.all')).toBeVisible();
     await tab(page, '週').click(); await tab(page, '月').click();
     await expect(page.locator('.scroll.all')).toBeVisible();
@@ -57,39 +56,44 @@ test.describe('閉じた画面の帯', () => {
     expect(await page.evaluate(() => localStorage.getItem('duo.ui.v1'))).toBe(before);
     await sb(page, 'task').click();
     await expect(page.locator('.stripp')).toHaveCount(0);
-    await expect(tab(page, '週')).toHaveAttribute('aria-pressed', 'true');
+    await expectShown(page, '週');
     await sb(page, 'task').click();
     await tab(page, '月').click();
     await expect(page.locator('.stripp')).toHaveCount(0);
-    await expect(tab(page, '月')).toHaveAttribute('aria-pressed', 'true');
+    await expectShown(page, '月');
   });
 
-  test('ノートの入口: タスクからノートへ直接移れる。日付は動かさず、再押下で戻る', async ({ page }) => {
+  test('ノートの入口は日の欄の「ノート ›」（design/34 §9.1-7 で置き換え）: タスクから「‹ カレンダー」で戻って開ける。日付は動かさず、「‹ カレンダー」で戻る', async ({ page }) => {
+    // 旧: 帯の「ノート」。タスクからノートへ直接移り、再押下で戻る
     await mock(page);
     await band(page, SIZES.closedPortrait);
-    await tab(page, '日').click();
-    await page.locator('[data-act="next"]').first().click();
-    await page.locator('[data-act="next"]').first().click();
+    await tab(page, '月').click();
+    await page.locator('.mgrid [data-date="2026-11-14"]').click({ position: { x: 12, y: 10 } });
     await sb(page, 'task').click();
-    await sb(page, 'memo').click();
+    await expect(page.locator('.stripp[data-page="task"]')).toBeVisible();
+    await page.getByRole('button', { name: 'カレンダーへ戻る' }).click();
+    await expect(page.locator('.stripp')).toHaveCount(0);
+    await page.locator('.mday .mdnl').click();
     await expect(page.locator('.stripp[data-page="memo"] [data-act="notenew"]')).toBeVisible();
     await expect(page.locator('.stripp h2')).toHaveText('ノート');
-    await expect(sb(page, 'memo')).toHaveAttribute('aria-pressed', 'true');
     await expect(sb(page, 'task')).toHaveAttribute('aria-pressed', 'false');
-    await sb(page, 'memo').click();
+    await page.getByRole('button', { name: 'カレンダーへ戻る' }).click();
     await expect(page.locator('.stripp')).toHaveCount(0);
-    await expect(page.locator('#ctitle')).toContainText('14'); // ノートは日付を動かさない
+    await expect(page.locator('.mgrid [data-date="2026-11-14"]')).toHaveAttribute('aria-selected', 'true'); // ノートは日付を動かさない
   });
 
-  test('帯のノートに「今日のメモあり」の印はない。入口の名前は「ノート」', async ({ page }) => {
+  test('帯に「ノート」の丸はなく、「今日のメモあり」の印もない。入口の名前は「ノートの一覧」（日の欄の「ノート ›」）', async ({ page }) => {
     await mock(page);
     await band(page, SIZES.closedPortrait);
     await page.evaluate(async () => { const d = await import('/js/db.js'); await d.putMemo('2026-11-12', '買い物'); await d.migrateNotesOnce(); });
-    await expect(sb(page, 'memo')).not.toHaveClass(/has/);
-    await expect(sb(page, 'memo')).toHaveAttribute('aria-label', 'ノート');
-    await sb(page, 'memo').click();
+    await tab(page, '月').click();
+    await expect(sb(page, 'memo')).toHaveCount(0);
+    await expect(page.locator('.ctl .has')).toHaveCount(0);
+    const nl = page.locator('.mday .mdnl');
+    await expect(nl).toHaveAttribute('aria-label', 'ノートの一覧');
+    await expect(nl).toHaveText('ノート ›');
+    await nl.click();
     await expect(page.locator('.stripp .mrow')).toHaveCount(1);
-    await expect(sb(page, 'memo')).not.toHaveClass(/has/);
   });
 
   test('開いている丸は緑の地・白いアイコン（第19.1版 M-16: design/review M-16「地を緑、アイコンを白」）', async ({ page }) => {
@@ -103,27 +107,33 @@ test.describe('閉じた画面の帯', () => {
     expect(await sb(page, 'task').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
   });
 
-  test('長押し0.8秒で名前の吹き出し。離したあとの click で開かない', async ({ page }) => {
+  test('長押し0.8秒で名前の吹き出し（タスク）。離したあとの click で開かない', async ({ page }) => {
     await mock(page);
     await band(page, SIZES.closedPortrait);
-    const r = await sb(page, 'memo').boundingBox();
+    const r = await sb(page, 'task').boundingBox();
     await page.mouse.move(r.x + 28, r.y + 28);
     await page.mouse.down();
     await page.waitForTimeout(300);
     await expect(page.locator('.stip')).toHaveCount(0);
     await page.waitForTimeout(700);
-    await expect(page.locator('.stip')).toHaveText('ノート');
+    await expect(page.locator('.stip')).toHaveText('タスク');
     await page.mouse.up();
     await expect(page.locator('.stripp')).toHaveCount(0);
     await expect(page.locator('.stip')).toHaveCount(0, { timeout: 3000 });
-    await sb(page, 'memo').click();
+    await sb(page, 'task').click();
     await expect(page.locator('.stripp')).toBeVisible();
   });
 
-  test('帯がない（safe=0）画面には入口を足さない', async ({ page }) => {
+  test('帯がない（safe=0）画面では、タスクの入口は見出しの右（押せる 44）。ノートの丸はない', async ({ page }) => {
+    // 旧: 帯がない画面には入口を足さない。34 で下のタブがなくなり、タスクの入口は右の列だけになったので、帯がない画面でも見出しの右に置く（ブラウザ用）
     await mock(page);
     await openApp(page, SIZES.closedPortrait);
-    await expect(page.locator('[data-strip]')).toHaveCount(0);
+    await expect(page.locator('[data-strip]')).toHaveCount(1);
+    await expect(sb(page, 'memo')).toHaveCount(0);
+    const r = await sb(page, 'task').boundingBox();
+    near(r.width, 44); near(r.height, 44); near(r.y, 0); near(r.x + r.width, 466 - 4);
+    await sb(page, 'task').click();
+    await expect(page.locator('.stripp[data-page="task"]')).toBeVisible();
   });
 });
 

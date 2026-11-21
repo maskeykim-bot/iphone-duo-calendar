@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, seed, ev, setStyle, SIZES } from './helpers.js';
+import { openApp, seed, ev, setStyle, SIZES, tab } from './helpers.js';
 
 // 第14版 PR3: 月と日の見出しに六曜を表示する（RK-1/2/5/7）
 const POSTURES = [
@@ -119,11 +119,15 @@ test('閉じた画面・開いた縦の日表示の見出しに六曜（切る�
     await openApp(page, size);
     await setUi(page, { view: 'day', home: false, selected: '2026-11-14', rokuyo: true }); await page.reload(); await page.waitForSelector('html[data-ready]');
     const h = page.locator('#ctitle');
-    await expect(h).toHaveText('11月14日（土）先負');
+    // 閉じた画面は開いたときカレンダーから始まり（design/34 §9.2）、日の時間軸はホームの「タイムライン ›」（今日 11/12）から開く。開いた縦は保存した日（11/14）の日表示のまま
+    const closed = size === SIZES.closedPortrait, want = closed ? '11月12日（木）' : '11月14日（土）', rk = closed ? '先勝' : '先負';
+    if (closed) await tab(page, '日').click();
+    await expect(h).toHaveText(`${want}${rk}`);
     const clip = await h.evaluate((e) => e.scrollWidth > e.clientWidth + 1);
     expect(clip).toBe(false);
     await setUi(page, { rokuyo: false }); await page.reload(); await page.waitForSelector('html[data-ready]');
-    await expect(h).toHaveText('11月14日（土）');
+    if (closed) await tab(page, '日').click();
+    await expect(h).toHaveText(want);
   }
 });
 

@@ -1,13 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { CAT_IDS, LEGACY, DEFAULTS_NEW } from '../js/categories.js';
 import { SCHEMA_VERSION } from '../js/db.js';
-import { openApp, seed, dbEvents, ev, tab, catId, SIZES, openMenu, addEvent, pickDest } from './helpers.js';
+import { openApp, seed, dbEvents, ev, tab, catId, SIZES, openMenu, addEvent, pickDest, clickSettings } from './helpers.js';
 // カテゴリの凡例は設定メニューの中（月には常設しない）
 const legendCheck = async (page, fn) => { await openMenu(page, 'calendar'); await fn(page.locator('#menu .legend')); await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); };
 
 const dbCats = (page) => page.evaluate(async () => (await import('/js/db.js')).listCategories());
 const openCats = async (page) => {
-  await page.locator('[data-act="menu"]:visible').first().click();
+  await clickSettings(page);
   await page.locator('#menu [data-go="calendar"]').click();
   await page.locator('#m-cedit').click();
   await expect(page.locator('#m-cedit')).toHaveText('完了');
@@ -120,7 +120,7 @@ test.describe('DB v2 → v3 移行', () => {
 test.describe('設定 › カレンダーのカテゴリ編集（Duo 段の編集モード）', () => {
   test('編集/完了で Duo 段だけ編集表示になる。旧「カテゴリ」独立画面への導線は無い', async ({ page }) => {
     await openApp(page);
-    await page.locator('[data-act="menu"]:visible').first().click();
+    await clickSettings(page);
     await page.locator('#menu [data-go="calendar"]').click();
     await expect(page.locator('[data-m="cats"]')).toHaveCount(0);
     await expect(page.locator('#m-cal-duo [data-cvis]')).toHaveCount(5);
@@ -334,7 +334,7 @@ test.describe('バックアップ読み込みとカテゴリ（旧 cat → id �
       { id: 'i1', title: '米・物価', cat: 'economy', all: false, start: '2026-11-12T22:30', end: '2026-11-12T23:00', place: '', notes: '', recurrence: null, exdates: [], overrides: {} },
       { id: 'i2', title: '会議', cat: 'work', all: false, start: '2026-11-12T10:00', end: '2026-11-12T11:00', place: '', notes: '', recurrence: null, exdates: [], overrides: {} },
     ] };
-    await page.locator('[data-act="menu"]:visible').first().click();
+    await clickSettings(page);
     await page.locator('[data-m="backup"]').click();
     await page.setInputFiles('#bk-file', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(file)) });
     await page.locator('#bk-add').click();
@@ -359,7 +359,7 @@ test.describe('バックアップ読み込みとカテゴリ（旧 cat → id �
     });
     await page.evaluate(async () => { const db = await import('/js/db.js'); await db.applyImport({ replace: true, catPuts: [{ id: 'tmp', name: 'tmp', color: '#000000', order: 0, hidden: false, createdAt: 1, updatedAt: 1 }] }); });
     await page.reload(); await page.waitForSelector('html[data-ready]');
-    await page.locator('[data-act="menu"]:visible').first().click();
+    await clickSettings(page);
     await page.locator('[data-m="backup"]').click();
     await page.setInputFiles('#bk-file', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(text) });
     await page.locator('#bk-replace').click();

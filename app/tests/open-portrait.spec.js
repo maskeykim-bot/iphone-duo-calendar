@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { monthFormInit, openApp, loadSample, addEvent, tab, layout, findTextOverlaps, pickDay, modeStates, setStyle, seed, ev, SIZES, openMenu, clickChip } from './helpers.js';
+import { monthFormInit, openApp, loadSample, addEvent, tab, layout, findTextOverlaps, pickDay, modeStates, setStyle, seed, ev, SIZES, openMenu, clickChip, expectShown } from './helpers.js';
 
 const box = (loc) => loc.boundingBox();
 const inside = (a, o, tol = 1) => a.y >= o.y - tol && a.y + a.height <= o.y + o.height + tol && a.x >= o.x - tol && a.x + a.width <= o.x + o.width + tol;
@@ -108,7 +108,7 @@ for (const size of PORTRAITS) {
       await pickDay(page, '2026-11-13');
       await expect(page.locator('.mdh h3')).toContainText('11月13日（金）');
       await expect(page.locator('.mdlist .mdev')).toHaveCount(5);
-      await expect(tab(page, '月')).toHaveAttribute('aria-pressed', 'true');
+      await expectShown(page, '月');
     });
 
     test('simple を保存したまま縦は予定名で表示し、閉じた画面へ戻すと手帳', async ({ page }) => {

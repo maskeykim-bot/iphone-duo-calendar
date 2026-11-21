@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, openMenu } from './helpers.js';
+import { openApp, SIZES, openMenu, clickSettings } from './helpers.js';
 
 // 第11版 PR12: 実機確認用タッチ確認モード（通常時は何も変わらない・保存しない）。
 for (const [name, size] of [['closed', SIZES.closedPortrait], ['spread', SIZES.openLandscape]]) {
@@ -27,7 +27,7 @@ for (const [name, size] of [['closed', SIZES.closedPortrait], ['spread', SIZES.o
     await expect(page.locator('#touch-check')).toHaveCount(0);
     expect(await page.evaluate(() => document.body.dataset.layout)).toBe(before.split('|')[0]);
     // 通常操作に戻る
-    await page.getByRole('button', { name: '設定' }).click();
+    await clickSettings(page);
     await expect(page.locator('#menu')).toBeVisible();
   });
 }

@@ -1,6 +1,6 @@
 // 第16版 PR17: タスクは Duo 内保存（IndexedDB tasks）。偽装 native は「旧リマインダー集合を残したまま、呼出が0」を見るための見張り。
 import { expect } from '@playwright/test';
-import { openApp } from './helpers.js';
+import { openApp, reloadKeep } from './helpers.js';
 
 export const T = (id, o = {}) => ({ id, title: `T${id}`, due: { date: '2026-11-12' }, done: false, doneAt: null, createdAt: 1, updatedAt: 1, order: 1, note: '', notify: false, ...o });
 const LEGACY = /Reminder/;
@@ -36,8 +36,7 @@ export const dbTasks = (page) => withDb(page, `return await new Promise((res) =>
 // 保存してから再読込（時刻の固定は openApp と同じ）。
 export async function seedTasks(page, list) {
   await withDb(page, `await new Promise((res, rej) => { const tx = db.transaction('tasks', 'readwrite'); a.forEach((t) => tx.objectStore('tasks').put(t)); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });`, list);
-  await page.reload();
-  await page.waitForSelector('html[data-ready]');
+  await reloadKeep(page);
 }
 // タスクへの書込みを失敗させる／戻す。
 export const failPuts = (page, on) => page.evaluate((f) => {

@@ -182,7 +182,7 @@ test.describe('C. 段が変わる位置と吸い付き（§3・§5）', () => {
     for (const bd of S.BOUNDS) {
       await page.mouse.move(x, y - (bd.pull - 1)); await raf2(page); expect(await stageOf(page), `引いた量 ${bd.pull - 1}`).toBe(bd.between[0]);
       await page.mouse.move(x, y - (bd.pull + 1)); await raf2(page); expect(await stageOf(page), `引いた量 ${bd.pull + 1}`).toBe(bd.between[1]);
-      near((await box(page.locator(`${SEL.grid}:not([data-leaving])`))).h, S.STAGES[1].H - (bd.pull + 1), '指に 1:1');
+      near((await box(page.locator(`${SEL.grid}:not([data-leaving])`))).h, S.STAGES[1].H - (bd.pull + 1), '指に 1:1'); // 7c9fb05 の写しの直しを反映（入れ替えの間は .mgrid が2つ。入ってくる方を測る）
     }
     await page.mouse.up();
   });
@@ -431,7 +431,7 @@ test.describe('E. 月では日を触る（R-75）', () => {
       const b = await box(cell); const pts = [[3, 3], [b.w - 3, 3], [3, b.h - 3], [b.w - 3, b.h - 3], [b.w / 2, b.h / 2]];
       const chip = cell.locator('.chip,.ev,.bar').first();
       for (const [px, py] of pts) {
-        await page.locator(SEL.cell(n === 7 ? '2026-11-15' : '2026-11-10')).click(); await page.waitForTimeout(150); // cal-v191: 段7の並びは選んだ日から7日で 11/10 は画面にない（§2.2・D 群）。並びの中の別の日を先に選ぶ
+        await page.locator(SEL.cell(n === 7 ? '2026-11-15' : '2026-11-10')).click(); await page.waitForTimeout(150); // 7c9fb05 の写しの直しを反映: 段7の並びは選んだ日 11/12 から7日で 11/10 は画面にない（§2.2）
         await cell.click({ position: { x: px, y: py } }); await page.waitForTimeout(200);
         await expect(cell).toHaveAttribute('aria-selected', 'true');
         expect(await page.locator('#editor[open], dialog[open]').count()).toBe(0);
@@ -564,6 +564,7 @@ test.describe('G. 消したものへ、移した先からたどり着ける（§
   test('[未実装] 4 予定｜時間軸 → 日の欄のつまみ（下）を下へ 40 で時間軸', async ({ page }) => {
     await boot(page); await toStage(page, 4);
     await expect(page.locator('[data-mday]')).toHaveCount(0);
+    await page.locator(SEL.dayGrab).scrollIntoViewIfNeeded(); await page.waitForTimeout(150); // 品質 11/21: 段4・予定7件ではつまみ（下）がカードの下 y≈724 で画面の外（7c9fb05 で確認）。先に見える所へ送る
     const d = await box(page.locator(SEL.dayGrab)); await page.mouse.move(d.x + d.w / 2, d.y + d.h / 2); await page.mouse.down(); await page.mouse.move(d.x + d.w / 2, d.y + d.h / 2 + S.DAYGRIP.toTimeline + 6, { steps: 6 }); await page.mouse.up(); await page.waitForTimeout(400);
     await expect(page.locator(`${SEL.day} .tlev, ${SEL.day} .timeline`).first()).toBeVisible();
   });

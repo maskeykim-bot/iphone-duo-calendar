@@ -30,11 +30,14 @@ async function withSafe(page, size, safe, view) {
   await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--sar'))).toBe(`${safe.r ?? 0}px`);
   await page.waitForTimeout(60);
 }
-const bandBtns = ['設定', '予定を検索', '今日に戻る', '予定を追加'];
+// 第19.2版 S11c（design/34 §9.1・§12 Q-3）: 閉じた画面の右の列は「タスク・…・＋」の3つ。設定・検索は「…」の中、ノートは日の欄の「ノート ›」、今日へは見出し。下のタブはない。
+// ここから下の閉じた画面の試験は、帯の6つのボタンとタブを前提にした古い形を 34 の形に書き直したもの（確かめる項目は同じ: 帯の位置と大きさ・届くこと・重ならないこと・格子の上端・安全矩形・退避）。
+const bandBtns = ['タスク', 'その他', '予定を追加'];
+const moreGo = async (page, name) => { await btn(page, 'その他').click(); await expect(page.getByRole('menu')).toBeVisible(); await page.getByRole('menuitem', { name }).click(); };
 
 test.describe('閉じた 466×678 + 右 safe（帯あり）', () => {
   for (const R of [84, 70, 56]) {
-    test(`R=${R}: 帯 [W-R,W] に設定・検索・タスク・メモ・今日・＋、本文は [0,W-R]、列幅 (W-R)/7`, async ({ page }) => {
+    test(`R=${R}: 帯 [W-R,W] にタスク・…・＋、本文は [0,W-R]、列幅 (W-R)/7`, async ({ page }) => {
       await withSafe(page, SIZES.closedPortrait, { r: R }, '月');
       const W = 466, q = 1, cx = W - R / 2;
       await expect(page.locator('.ctl.band')).toHaveCount(1);
@@ -44,8 +47,8 @@ test.describe('閉じた 466×678 + 右 safe（帯あり）', () => {
       near(await cssVar(page, 'month-col-w'), (W - R) / 7, 0.02);
       const bg = await bx(page.locator('.bandbg'));
       near(bg.x, W - R); near(bg.width, R);
-      // 48角の見た目の top = T+[172,232,292]q、今日 H-B-140q、＋ H-B-80q。押せる範囲は 56 角（上に 4px 広い）
-      const want = { 設定: 172, 予定を検索: 232, タスク: 418, ノート: 478, 今日に戻る: 538, 予定を追加: 598 }; // PR12: 全は月の見出しへ移り、帯にはタスク・メモ
+      // 48角の見た目の top = T+[172,232]q（タスク・…）、＋ H-B-80q。押せる範囲は 56 角（上下左右に 4 広い。34 §9.1-12〜14・§12 Q-3）
+      const want = { タスク: 172, その他: 232, 予定を追加: 598 }; // 旧: 設定 172・検索 232・タスク 418・ノート 478・今日 538・＋ 598
       for (const [n, top] of Object.entries(want)) {
         const b = btn(page, n), r = await bx(b);
         near(r.width, 56); near(r.height, 56); near(r.x + r.width / 2, cx); near(r.y, top * q - 4);
@@ -53,73 +56,88 @@ test.describe('閉じた 466×678 + 右 safe（帯あり）', () => {
         near(vis.width, 48);
         expect(await reaches(page, b), n).toBe(true);
       }
+      await expect(page.locator('.ctl').getByRole('button')).toHaveCount(3);
       const rs = await noOverlaps(page, Object.keys(want).map((n) => btn(page, n)));
       expect(rs[0].y).toBeGreaterThanOrEqual(160 * q - 0.5); // 最初のhit上端は T+160q 以降
-      // 曜日下端／grid top、週高、タブ
-      // 第19版 PR6（design/22 §1）: 見出し 48＋曜日 20 → 月の部分は y68
-      near((await bx(page.locator('.mgrid .week').first())).y, 68);
-      near((await bx(page.locator('.weekdays'))).y + (await bx(page.locator('.weekdays'))).height, 68);
-      const tabs = await bx(page.locator('.tabs'));
-      near(tabs.x + tabs.width / 2, (W - R) / 2); near(tabs.y + tabs.height / 2, 622); near(tabs.width, Math.min(286, W - R - 16)); near(tabs.height, 46);
-      // 見出しは前後矢印＋題名＋全（PR12: 全は月ヘッダーへ。帯にはない）
+      // design/34 §2.1: 見出し y0〜44＋曜日 y44〜64 → 格子の上端は y64（旧: 見出し 48＋曜日 20＝y68）
+      near((await bx(page.locator('.mgrid .week').first())).y, 64);
+      near((await bx(page.locator('.weekdays'))).y + (await bx(page.locator('.weekdays'))).height, 64);
+      await expect(page.locator('.tabs')).toHaveCount(0); // 下のタブはない（34 §9.1-9）
+      // 見出しに ‹ ›・全部・今日は出さない（34 §9.1-1〜3）。読み上げ用の「前の月」「次の月」は見えない 2×2、「今日へ」は今日が画面にある間は出ない
       await expect(page.locator('.ctl [data-act="allmonth"]')).toHaveCount(0);
-      await expect(page.locator('.mph [data-act="allmonth"]')).toHaveCount(1);
-      await expect(page.locator('.mph button')).toHaveCount(4); // 前・次・全・今日
+      await expect(page.locator('.mph [data-act="allmonth"]')).toHaveCount(0);
+      for (const a of ['prev', 'next']) { const nb = page.locator(`.mph [data-act="${a}"]`); await expect(nb).toHaveCount(1); await expect(nb).toHaveCSS('opacity', '0'); const r = await bx(nb); expect(r.width).toBeLessThanOrEqual(2.5); expect(r.height).toBeLessThanOrEqual(2.5); }
+      await expect(page.locator('.mph [data-act="mptoday"]')).toBeHidden();
       // 帯の何もない所は遮らない（本体の帯）
       expect(await page.evaluate((cx) => !document.elementFromPoint(cx, 350)?.closest('.ctl, .bandbg'), cx)).toBe(true);
       expect(await findTextOverlaps(page)).toEqual([]);
     });
   }
 
-  test('R=84: 一覧・日・週・月の4表示で、設定・検索・今日・＋が1つずつ帯に届き、全は月だけ', async ({ page }) => {
+  test('R=84: ホーム・日・週・月の4表示で、タスク・…・＋が1つずつ帯に届く。月以外は「‹ カレンダー」で戻れ、全部のボタンは見出しにない', async ({ page }) => {
     await withSafe(page, SIZES.closedPortrait, { r: 84 });
     for (const v of ['ホーム', '日', '週', '月']) {
       await tab(page, v).click();
-      for (const n of bandBtns) { await expect(page.getByRole('button', { name: n, exact: true }), `${v}/${n}`).toHaveCount(1); expect(await reaches(page, btn(page, n))).toBe(true); }
-      await expect(page.locator('[data-act="allmonth"]')).toHaveCount(v === '月' ? 1 : 0);
+      for (const n of bandBtns) { await expect(page.getByRole('button', { name: n, exact: true }), `${v}/${n}`).toHaveCount(1); expect(await reaches(page, btn(page, n)), `${v}/${n}`).toBe(true); }
+      await expect(page.locator('[data-act="allmonth"]')).toHaveCount(0); // 全部は「…」→「月の表現」（34 §9.1-2）
+      const back = page.getByRole('button', { name: 'カレンダーへ戻る' });
+      await expect(back, `${v}/‹ カレンダー`).toHaveCount(v === '月' ? 0 : 1);
+      if (v !== '月') { const r = await bx(back); near(r.x, 0); near(r.y, 0); near(r.width, 120); near(r.height, 44); expect(await reaches(page, back), `${v}/‹ カレンダー`).toBe(true); } // 34 §9.2: 押せる範囲 x0〜120×44
     }
   });
 
-  test('R=84: 全の aria 名は2状態、aria-pressed と再読込後の状態を保つ。設定はメニュー・検索は検索パネル', async ({ page }) => {
+  test('R=84: 全部は「…」→「月の表現」で入れて戻せ、再読込後も保つ。設定は「…」→メニュー・検索は「…」→検索パネル', async ({ page }) => {
     await withSafe(page, SIZES.closedPortrait, { r: 84 }, '月');
-    const all = page.locator('[data-act="allmonth"]');
-    await expect(all).toHaveAttribute('aria-label', '全部の予定を表示');
-    await expect(all).toHaveAttribute('aria-pressed', 'false');
-    await all.click();
-    await expect(all).toHaveAttribute('aria-label', '通常の予定表示に戻す');
-    await expect(all).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('[data-act="allmonth"]')).toHaveCount(0);
+    await btn(page, 'その他').click();
+    await expect(page.getByRole('menuitem', { name: /月の表現/ })).toHaveText('月の表現（予定名）');
+    await page.getByRole('menuitem', { name: /月の表現/ }).click();
+    const variant = page.locator('#m-variant');
+    await expect(variant.getByRole('button', { name: '全部', exact: true })).toHaveAttribute('aria-pressed', 'false');
+    await variant.getByRole('button', { name: '全部', exact: true }).click();
+    await expect(page.locator('#menu')).toBeHidden();
     await expect(page.locator('.scroll.all')).toBeVisible();
     await page.reload(); await page.waitForSelector('html[data-ready]');
     await setSafe(page, { r: 84 });
-    await expect(page.locator('[data-act="allmonth"]')).toHaveAttribute('aria-pressed', 'true');
-    await page.locator('[data-act="allmonth"]').click();
+    await expect(page.locator('.ctl.band')).toHaveCount(1);
+    await expect(page.locator('.scroll.all')).toBeVisible();
+    await btn(page, 'その他').click();
+    await expect(page.getByRole('menuitem', { name: /月の表現/ })).toHaveText('月の表現（全部）');
+    await page.getByRole('menuitem', { name: /月の表現/ }).click();
+    await expect(variant.getByRole('button', { name: '全部', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await variant.getByRole('button', { name: '予定名', exact: true }).click();
+    await expect(page.locator('#menu')).toBeHidden();
     await expect(page.locator('.scroll.all')).toHaveCount(0);
-    await btn(page, '設定').click();
+    await moreGo(page, '設定');
     const m = await bx(page.locator('#menu'));
     expect(await page.locator('#menu').isVisible()).toBe(true);
     expect(m.x + m.width).toBeLessThanOrEqual(466 - 84 + 0.5); // メニューは安全矩形の内側
     await page.keyboard.press('Escape');
-    await btn(page, '予定を検索').click();
+    await expect(page.locator('#menu')).toBeHidden();
+    await moreGo(page, '検索');
     await expect(page.locator('#search')).toBeVisible();
   });
 
-  test('R=84: 歯車（aria-hidden の svg）と名前「設定」、旧「その他」はない', async ({ page }) => {
+  test('R=84: 帯の入口は「その他」（…、aria-hidden の svg）。設定のボタンは帯になく、「…」の中の項目', async ({ page }) => {
+    // 旧: 歯車と名前「設定」、「その他」はない。34 §9.1-5・14 で 設定 →「…」→「設定」に置き換え
     await withSafe(page, SIZES.closedPortrait, { r: 84 });
-    await expect(page.getByRole('button', { name: '設定', exact: true })).toHaveCount(1);
-    await expect(page.getByRole('button', { name: 'その他' })).toHaveCount(0);
-    await expect(page.locator('[data-act="menu"] svg')).toHaveAttribute('aria-hidden', 'true');
+    await expect(page.getByRole('button', { name: 'その他', exact: true })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: '設定', exact: true })).toHaveCount(0);
+    await expect(page.locator('[data-act="more"] svg')).toHaveAttribute('aria-hidden', 'true');
+    await btn(page, 'その他').click();
+    await expect(page.getByRole('menuitem', { name: '設定', exact: true })).toHaveCount(1);
   });
 
-  test('R=55（56 未満）は帯のボタンを置かず見出し・下段へ。本文右端は W-R のまま', async ({ page }) => {
+  test('R=55（56 未満）は帯のボタンを置かず見出し・右下へ。本文右端は W-R のまま', async ({ page }) => {
     await withSafe(page, SIZES.closedPortrait, { r: 55 }, '月');
     await expect(page.locator('.ctl.band')).toHaveCount(0);
     const pane = await bx(page.locator('.mpane'));
     near(pane.x + pane.width, 466 - 55);
-    await expect(page.locator('.mph [data-act="allmonth"]')).toHaveCount(1);
-    const tabs = await bx(page.locator('.tabs'));
-    near(tabs.width, Math.min(286, 466 - 55 - 128));
-    const rs = await noOverlaps(page, [...bandBtns.map((n) => btn(page, n)), page.locator('.tabs'), page.locator('.mph h2')]);
+    await expect(page.locator('.mph [data-act="allmonth"]')).toHaveCount(0);
+    await expect(page.locator('.tabs')).toHaveCount(0);
+    const rs = await noOverlaps(page, [...bandBtns.map((n) => btn(page, n)), page.locator('.mph h2')]);
     for (const r of rs) expect(r.x + r.width).toBeLessThanOrEqual(466 - 55 + 0.5);
+    for (const n of bandBtns) expect(await reaches(page, btn(page, n)), n).toBe(true);
   });
 
   test('safe を 84→0→84 と変えるだけで配置が再計算される（回転なし）', async ({ page }) => {
@@ -128,40 +146,45 @@ test.describe('閉じた 466×678 + 右 safe（帯あり）', () => {
     await setSafe(page, {});
     await expect(page.locator('.ctl.band')).toHaveCount(0);
     near((await bx(page.locator('.mpane'))).width, 466);
-    near((await bx(btn(page, '予定を追加'))).x, 410); // 下段の＋ x=W-8-48
+    near((await bx(btn(page, '予定を追加'))).x, 410); // 右下の＋ x=W-8-48
     await setSafe(page, { r: 84 });
     await expect(page.locator('.ctl.band')).toHaveCount(1);
-    near((await bx(btn(page, '設定'))).x + 28, 424);
+    near((await bx(btn(page, 'その他'))).x + 28, 424);
   });
 
-  test('高さが小さくて56角のhitが並べないときは、帯があっても見出し・下段へ退避する', async ({ page }) => {
+  test('高さが小さくて56角のhitが並べないときは、帯があっても見出し・右下へ退避する', async ({ page }) => {
     await withSafe(page, { width: 466, height: 560 }, { r: 84 }, '月');
     await expect(page.locator('.ctl.band')).toHaveCount(0);
     for (const n of bandBtns) expect(await reaches(page, btn(page, n)), n).toBe(true);
-    await noOverlaps(page, [...bandBtns.map((n) => btn(page, n)), page.locator('.tabs')]);
+    await noOverlaps(page, bandBtns.map((n) => btn(page, n)));
   });
 
   test('R=84・T47・B34・L0（非対称）: q=(H-T-B)/678 で縦位置を計算し、安全矩形の内側', async ({ page }) => {
     // 高さ 678 では V=597 で 60q<56 になり退避するため、帯が成立する高さ 800 で検査する
     await withSafe(page, { width: 466, height: 800 }, { t: 47, r: 84, b: 34 }, '月');
     const H = 800, q = (H - 47 - 34) / 678;
-    const set = await bx(btn(page, '設定')), today = await bx(btn(page, '今日に戻る')), add = await bx(btn(page, '予定を追加'));
-    near(set.y, 47 + 172 * q - 4); near(today.y, H - 34 - 140 * q - 4); near(add.y, H - 34 - 80 * q - 4);
+    const task = await bx(btn(page, 'タスク')), more = await bx(btn(page, 'その他')), add = await bx(btn(page, '予定を追加'));
+    near(task.y, 47 + 172 * q - 4); near(more.y, 47 + 232 * q - 4); near(add.y, H - 34 - 80 * q - 4);
     expect(add.y + add.height).toBeLessThanOrEqual(H - 34 + 4.5);
-    near((await bx(page.locator('.mgrid .week').first())).y, 47 + 68); // 第19版 PR6
-    const tabs = await bx(page.locator('.tabs'));
-    near(tabs.y + tabs.height / 2, H - 34 - 56 * q);
+    near((await bx(page.locator('.mgrid .week').first())).y, 47 + 64); // design/34 §2.1: 見出し 44＋曜日 20
+    await expect(page.locator('.tabs')).toHaveCount(0);
   });
 
   test.describe('実タップ', () => {
     test.use({ hasTouch: true });
-    test('帯の検索・今日・＋を tap で押せる', async ({ page }) => {
+    test('帯のタスク・「…」→検索・＋を tap で押せる', async ({ page }) => {
       await withSafe(page, SIZES.closedPortrait, { r: 84 }, '月');
-      await btn(page, '予定を検索').tap();
+      await btn(page, 'その他').tap();
+      await page.getByRole('menuitem', { name: '検索' }).tap();
       await expect(page.locator('#search')).toBeVisible();
       await page.keyboard.press('Escape');
+      await expect(page.locator('#search')).toBeHidden();
       await btn(page, '予定を追加').tap();
       await expect(page.locator('#editor')).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(page.locator('#editor')).toBeHidden();
+      await btn(page, 'タスク').tap();
+      await expect(page.locator('.stripp[data-page="task"]')).toBeVisible();
     });
   });
 });

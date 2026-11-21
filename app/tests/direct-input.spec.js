@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, loadSample, SIZES, tab, seed, ev, period, monthFormInit } from './helpers.js';
+import { openApp, loadSample, SIZES, tab, seed, ev, period, monthFormInit, setStyle } from './helpers.js';
 
 // PR24: 共通制御（DOM 接続）。画面への本接続は次PR。ここでは initDirectInput を単体の場にぶら下げて確認する。
 const setup = (page) => page.evaluate(async () => {
@@ -261,7 +261,7 @@ for (const [name, size, setup2] of [
   ['閉じた縦', SIZES.closedPortrait, async (page) => { await tab(page, '月').click(); }],
   ['開いた縦', SIZES.openPortrait, async () => {}],
   ['開いた横', SIZES.openLandscape951, async () => {}],
-  ['全表示', SIZES.closedPortrait, async (page) => { await tab(page, '月').click(); await page.locator('[data-act="allmonth"]').first().click(); }],
+  ['全表示', SIZES.closedPortrait, async (page) => { await tab(page, '月').click(); await setStyle(page, '全部'); }], // 閉じた画面の「全部」は「…」→「月の表現」（design/34 §9.1-2）
 ]) {
   test.describe(`月の期間入力 ${name}`, () => {
     test.beforeEach(async ({ page }) => { if (name === '閉じた縦' || name === '開いた縦') await monthFormInit(page); /* 第19版 PR6: 月を引く画面の「月」の型（11/25 まで見える） */ await openApp(page, size); await setup2(page); await expect(page.locator('.day[data-date="2026-11-18"]').first()).toBeVisible(); });

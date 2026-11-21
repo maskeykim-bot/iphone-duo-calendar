@@ -1,6 +1,6 @@
 // 第19版 PR10: タスクの画面（設定 › タスク・リストの部品・説明シート・確認の一覧・止まっている1行）。EventKit は偽物。
 import { test, expect } from '@playwright/test';
-import { openApp, openMenu, SIZES } from './helpers.js';
+import { openApp, openMenu, SIZES, tab } from './helpers.js';
 import { openTasks, seedTasks, dbTasks, T } from './task-helpers.js';
 
 const WRITES = ['createReminder', 'updateReminder', 'setReminderDone', 'deleteReminder', 'createReminderList'];
@@ -180,7 +180,7 @@ for (const size of [CLOSED, OPEN]) {
     const seedL = [T('a', { title: '牛乳', due: null }), T('b', { title: '会議', due: null, order: 2, remItemId: 'I9', remExternalId: 'XI9', remListId: 'L2', remModifiedAt: 5, syncState: 'linked' })];
     let lp = page.locator('.page.lp');
     await seedThenOn(page, seedL, size);
-    if (size === CLOSED) { await page.locator('button', { hasText: 'すべて ›' }).first().click(); lp = page.locator('.page').filter({ has: page.locator('input.remin') }).first(); }
+    if (size === CLOSED) { await tab(page, 'ホーム').click(); /* 閉じた画面は読み込み直すとカレンダーから（design/34 §9.2） */ await page.locator('button', { hasText: 'すべて ›' }).first().click(); lp = page.locator('.page').filter({ has: page.locator('input.remin') }).first(); }
     else { await page.locator('.pgl [data-pick="task"]').first().click(); }
     const chips = lp.locator('.lchips');
     await expect(chips).toBeVisible();

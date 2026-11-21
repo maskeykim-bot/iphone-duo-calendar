@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { openApp, seed, ev, tab, layout, SIZES, textInGutter, findTextOverlaps, setStyle, modeStates, openMenu, monthFormInit } from './helpers.js';
+import { openApp, seed, ev, tab, layout, SIZES, textInGutter, findTextOverlaps, setStyle, modeStates, openMenu, monthFormInit, clickSettings, expectShown } from './helpers.js';
 
 const day = (n) => `2026-11-${String(n).padStart(2, '0')}`;
 // 1日に n 件（10:00 から30分刻み）。
@@ -60,7 +60,7 @@ test.describe('月「全部」表示', () => {
     expect(glyph.bottom - dayBox.y).toBeLessThanOrEqual(19);
     await page.locator('[data-date="2026-11-12"]').click({ position: { x: dayBox.width - 8, y: 9 } }); // V-03: +N の上をたたく＝マスをたたく
     await expect(page.locator('#ctitle')).toHaveText('11月12日（木）先勝');
-    await expect(page.getByRole('button', { name: '日', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expectShown(page, '日');
     await expect(page.locator('.tlev')).toHaveCount(6);
     // 5件ちょうどの日には +N は出ない
     await tab(page, '月').click();
@@ -91,12 +91,12 @@ test.describe('月「全部」表示', () => {
     const sc = page.locator('.scroll.all');
     expect(await sc.evaluate((e) => e.scrollHeight > e.clientHeight)).toBe(true);
     const head0 = await page.locator('.weekdays').boundingBox();
-    const leg0 = await page.locator('.tabs').boundingBox();
+    const leg0 = await page.locator('.ctl .cadd').boundingBox(); // 下のタブはない（design/34 §9.1-9）。固定されている下部＝右下の「＋」
     const title = await page.locator('#ctitle').textContent();
     await sc.evaluate((e) => { e.scrollTop = e.scrollHeight; });
-    await expect.poll(() => scrollTop(page)).toBeGreaterThan(40);
+    await expect.poll(() => scrollTop(page)).toBeGreaterThan(20); // 下のタブがなくなり末尾の余白が 79 → 56 に減ったぶん、送れる量も減った（旧 >40。design/34 §10「33 全体」）
     expect(await page.locator('.weekdays').boundingBox()).toEqual(head0);
-    expect(await page.locator('.tabs').boundingBox()).toEqual(leg0);
+    expect(await page.locator('.ctl .cadd').boundingBox()).toEqual(leg0);
     expect(await page.locator('#ctitle').textContent()).toBe(title);
     // 最後の週が見える（スクロール領域の内側）
     const last = await page.locator('.week.all').last().boundingBox();
@@ -188,7 +188,7 @@ test.describe('月「全部」表示', () => {
     await openMenu(page, 'general');
     await page.getByRole('button', { name: /^週の始まり/ }).click(); // 日曜へ
     await expect(page.locator('#menu')).toBeHidden(); // 選んで閉じる動き（0.25秒）が終わってから
-    const open = async () => { await expect(page.locator('#backup')).toBeHidden(); await page.getByRole('button', { name: '設定' }).click(); await page.getByRole('button', { name: 'バックアップ' }).click(); };
+    const open = async () => { await expect(page.locator('#backup')).toBeHidden(); await clickSettings(page); await page.getByRole('button', { name: 'バックアップ' }).click(); };
     await open();
     const p = info.outputPath('mall.json');
     const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'JSONを書き出す' }).click()]);
@@ -464,8 +464,8 @@ test.describe('AE-1/2/5 「全」の段数と描画（通常5・大4・5/6週・
       expect(m.weeks.some((w) => w.lanes === cap)).toBe(true);
       expect(m.last.gap).toBeGreaterThanOrEqual(-1); // 末週は領域からはみ出さない
       if (m.last.over > 1 && c.sn !== '閉じた縦') expect(m.last.gap).toBeLessThanOrEqual(1); // あふれて内部スクロールするときは末週が下端まで届く
-      if (c.sn === '閉じた縦') { // 末尾までスクロールした末週の下端は、下のタブバーの上端より上（隠れない）
-        const tabTop = (await tab(page, '月').boundingBox()).y, lastB = await page.locator('.week.all').last().evaluate((e) => e.getBoundingClientRect().bottom);
+      if (c.sn === '閉じた縦') { // 末尾までスクロールした末週の下端は、下の余白 41（ホームバーの帯 33＋8。旧: 下のタブバー）の上端より上（隠れない。design/34 §10「33 全体」）
+        const tabTop = 678 - 41, lastB = await page.locator('.week.all').last().evaluate((e) => e.getBoundingClientRect().bottom);
         expect(lastB).toBeLessThanOrEqual(tabTop + 1);
       }
       expect(await findTextOverlaps(page)).toEqual([]);

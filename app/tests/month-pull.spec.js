@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, seed, ev, tab, SIZES, monthFormInit, findTextOverlaps } from './helpers.js';
+import { openApp, seed, ev, tab, SIZES, monthFormInit, findTextOverlaps, setStyle } from './helpers.js';
 import { seedTasks, T } from './task-helpers.js';
 
 // 第19版 PR6: ③ 月タブ＝月を引く画面（design/22）。閉じた画面 466×678 と開いた縦 669×951。
@@ -31,8 +31,8 @@ test.describe('閉じた画面 466×678', () => {
     await expect(page.locator('.mpull')).toHaveAttribute('data-stage', '1');
     await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'A'); // 34 §6.1・S11b: 日の欄は「カード」から。「予定｜時間軸」の切り替えは消え、つまみ（下）で時間軸へ
     await expect(page.locator('[data-mday]')).toHaveCount(0);
-    await expect(page.locator('#ctitle')).toHaveText('2026年 11月');
-    await expect(page.locator('.mptoday')).toHaveText('今日');
+    await expect(page.locator('#ctitle')).toHaveText('2026年11月'); // design/34 §2.1「2026年11月」（設計レビュー 7c9fb05 D3: 年と月の間をあけない）
+    await expect(page.locator('.mptoday')).toBeHidden(); // 「今日へ」は今日が画面にないときだけ出る（design/34 §2.1。旧: いつも「今日」）
     const mph = await box(page.locator('.mph')), wd = await box(page.locator('.weekdays')), g = await box(page.locator('.mgrid')), h = await box(page.locator('.mgrab')), i = await box(page.locator('.mgrab i')), d = await box(page.locator('.mday'));
     expect(near(mph.y, 0) && near(mph.height, 44)).toBe(true);
     expect(near(wd.y, 44) && near(wd.height, 20)).toBe(true);
@@ -115,7 +115,7 @@ test.describe('閉じた画面 466×678', () => {
     expect(await box(page.locator('.mgrid'))).toEqual(g0);
     expect(await box(page.locator('.mday'))).toEqual(d0);
     expect(((await page.locator('.mgrid .day').first().getAttribute('data-date')))).toBe('2026-10-26'); // 見る月は動かない（段1は 6 週・10/26 から）
-    await expect(tab(page, '月')).toHaveAttribute('aria-pressed', 'true'); // 日表示へは進まない
+    await expect(page.locator('.shell.closed.cal .mpull.browse')).toHaveCount(1); // 日表示へは進まない（下のタブはない。カレンダーのまま。design/34 §9.1-9）
   });
 
   test('前・次（見えないボタン）は段4・2週では1週ずつ、段1・月では1か月ずつ。今日で選んだ日が戻る', async ({ page }) => {
@@ -131,7 +131,7 @@ test.describe('閉じた画面 466×678', () => {
     expect(await page.locator('.mgrid .day').first().getAttribute('data-date')).toBe('2026-11-09');
     await grab(page).focus(); for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowDown'); await settle(page);
     await page.locator('[data-act="next"]').first().click({ force: true });
-    await expect(page.locator('#ctitle')).toHaveText('2026年 12月');
+    await expect(page.locator('#ctitle')).toHaveText('2026年12月');
   });
 
   test('日の欄の中だけが流れ、格子は動かない・縮まない（段1・4・7。design/34 §6.3 で置き換え）。固定は見出し 44＋曜日 20', async ({ page }) => {
@@ -155,12 +155,12 @@ test.describe('閉じた画面 466×678', () => {
       const mph = await box(page.locator('.mph')), wd = await box(page.locator('.weekdays'));
       expect(near(mph.y, 0) && near(mph.height, 44) && near(wd.y, 44) && near(wd.height, 20)).toBe(true);
       await expect(page.locator('.mph .mpdate')).toHaveCount(0); // 見出しの右の日付は出さない（34 §6.3）
-      expect((await ui(page)).stage).toBe(n);
+      expect((await ui(page)).stage ?? 1).toBe(n); // 段1は既定（まだ動かしていなければ保存はない）
       await md.evaluate((e) => { e.scrollTop = 0; });
     }
   });
 
-  test('閉じた画面の月（段1。design/34 §2.2 で置き換え）: 日の見出し y604〜648（17/600）、日の欄は y604〜678 でその中だけが流れる、一番下の余白 41、タブの上 24 のぼかし（タブが消えるまで）', async ({ page }) => {
+  test('閉じた画面の月（段1。design/34 §2.2 で置き換え）: 日の見出し y604〜648（17/600）、日の欄は y604〜678 でその中だけが流れる、一番下の余白 41。タブとその上のぼかしはない', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await seed(page, FIVE.slice(0, 1));
     await page.addInitScript(() => localStorage.setItem('duo.ui.v1', JSON.stringify({ ...JSON.parse(localStorage.getItem('duo.ui.v1') || '{}'), monthForm: 'month', stage: 1, monthDay: 'list' })));
@@ -179,11 +179,9 @@ test.describe('閉じた画面 466×678', () => {
     const md = page.locator('.mday');
     const dd = await box(md); expect(near(dd.y, 604) && near(dd.y + dd.height, 678)).toBe(true);
     expect(await md.evaluate((e) => getComputedStyle(e).paddingBottom)).toBe('41px');
-    // タブの上 24（y575〜599）に地色の 0→100% のぼかし
-    const fade = await page.locator('.tabfade').evaluate((e) => { const r = e.getBoundingClientRect(), s = getComputedStyle(e); return { y: r.top, h: r.height, bg: s.backgroundImage, pe: s.pointerEvents }; });
-    expect(near(fade.y, 575) && near(fade.h, 24)).toBe(true);
-    expect(fade.bg).toContain('rgba(247, 244, 237, 0)'); expect(fade.bg).toContain('rgb(247, 244, 237)');
-    expect(fade.pe).toBe('none');
+    // 34 §6.1・§9.1-9（S11c）: 下のタブと、その上 24（y575〜599）のぼかしは閉じた画面にない
+    await expect(page.locator('.tabs')).toHaveCount(0);
+    expect(await page.locator('.tabfade').evaluateAll((es) => es.filter((e) => getComputedStyle(e).display !== 'none').length)).toBe(0);
   });
 
   test('月の日をたたくと下の日の部分がその日になる。格子（月の部分）は動かない（design/34 §6.3: 日の欄の中だけが流れる）', async ({ page }) => {
@@ -201,7 +199,6 @@ test.describe('閉じた画面 466×678', () => {
     await openApp(page, SIZES.closedPortrait);
     await seedTasks(page, [T('t1', { title: '十二日が期限', due: { date: '2026-11-12' } }), T('t2', { title: '別の日', due: { date: '2026-11-20' } })]);
     await tab(page, '月').click();
-    await grab(page).focus(); for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowUp'); await settle(page); // 段4: 日の欄をタブの上へ出す（段1は日の見出しがタブの帯にかかる。タブは次の段で消える）
     await expect(page.locator('.mdtask')).toHaveCount(0); // 34 §9.1 の 11: 日の欄の下のタスクは出さない（右の列の「タスク」へ）
     await expect(page.locator('.mdnl')).toBeVisible(); await expect(page.locator('.mdnote')).toBeVisible(); // 「ノート ›」と下の欄
     await page.locator('.mdgrab').focus(); await page.keyboard.press('ArrowDown'); // つまみ（下）を下へ＝時間軸（キーでも同じ）
@@ -213,13 +210,15 @@ test.describe('閉じた画面 466×678', () => {
     await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'A'); // 保存しない
   });
 
-  test('「全部」の月は従来のまま。見出しの全で入り・戻る', async ({ page }) => {
+  test('「全部」の月は従来のまま。「…」→「月の表現」で入り・戻る（design/34 §9.1-2: 見出しの「全部」は消えた）', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await tab(page, '月').click();
-    await page.locator('.mph [data-act="allmonth"]').click();
+    await expect(page.locator('.mph [data-act="allmonth"]')).toHaveCount(0);
+    await setStyle(page, '全部');
     await expect(page.locator('.scroll.all')).toBeVisible();
     await expect(page.locator('.mpull')).toHaveCount(0);
-    await page.locator('.chead [data-act="allmonth"]').click();
+    await expect(page.locator('.chead [data-act="allmonth"]')).toHaveCount(0);
+    await setStyle(page, '予定名');
     await expect(page.locator('.mpull')).toBeVisible();
   });
 });
@@ -307,7 +306,7 @@ test('開いても閉じても同じ型・同じ切り替え・同じスクロ�
     expect(near(await page.locator('.mday').evaluate((e) => e.scrollTop), 300, 2)).toBe(true);
     await page.setViewportSize(SIZES.closedPortrait);
     await expect.poll(() => page.evaluate(() => document.body.dataset.layout)).toBe('browse');
-    await expect(tab(page, '月')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.shell.closed.cal')).toHaveCount(1); // 下のタブはない（design/34 §9.1-9）。カレンダーのまま
     await expect(page.locator('.mpull')).toBeVisible();
     expect(near(await page.locator('.mday').evaluate((e) => e.scrollTop), 300, 2)).toBe(true); // 閉じた画面でも同じ位置
   }

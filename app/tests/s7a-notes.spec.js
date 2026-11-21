@@ -2,7 +2,7 @@
 // 題名欄・一覧・ホームのカード・検索・ピン留めのどこにも「# 」「- 」「- [ ] 」を出さない。保存の文字は変えない（IndexedDB の生の文字で確かめる）。
 // 寸法: V-18（題名欄 44）・V-19（開いた横の右ページ x500）・V-20（フォルダの行 28/14/13・札3つ）・V-15/中-3（閉じた月のチェック欄）・V-24（タスクの日付の見出し）・中-2（✓の押した見た目）。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, pagePick, tab } from './helpers.js';
+import { openApp, SIZES, pagePick, tab, clickSearch, openNoteList } from './helpers.js';
 import { spy, seedTasks, T } from './task-helpers.js';
 
 const BODY_A = '# 来期の予定\n本文の行\n- 牛乳\n- [ ] 予約\n- [x] 済んだ件';
@@ -31,7 +31,7 @@ async function seedNotes(page) {
 // その姿勢でノートの一覧まで出す
 async function toNotes(page, kind, sar) {
   if (sar) await page.evaluate((r) => document.documentElement.style.setProperty('--sar', `${r}px`), sar);
-  if (kind === 'closed') await page.locator('[data-act="strip"][data-strip="memo"]').first().click();
+  if (kind === 'closed') await openNoteList(page);
   else if (kind === 'port') await page.locator('[data-fmode="note"]').click();
   else await pagePick(page, 'right', 'ノート').click();
   await page.locator('.mrow[data-nrow]').first().waitFor();
@@ -93,7 +93,7 @@ test.describe('S7a 検索（記号あり・なしの両方で当たる。抜き�
   for (const [name, size, sar, kind] of POSTURES) {
     test(`${name}`, async ({ page }) => {
       await setup(page, kind, size, sar);
-      await page.locator('[data-act="search"]:visible').first().click();
+      await clickSearch(page);
       const q = page.locator('#sr-q');
       const hits = async (text) => { await q.fill(text); await page.waitForTimeout(400); return page.locator('.mhit:not(.thit)').evaluateAll((e) => e.map((x) => ({ id: x.dataset.mhit, text: x.innerText, marks: [...x.querySelectorAll('mark')].map((m) => m.textContent) }))); };
       // 記号なし・記号ありの両方

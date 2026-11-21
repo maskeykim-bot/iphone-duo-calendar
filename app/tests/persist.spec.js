@@ -1,13 +1,12 @@
 import { test, expect } from '@playwright/test';
 import { SCHEMA_VERSION } from '../js/db.js';
-import { openApp, loadSample, addEvent, pickDest, tab, layout, SIZES, catId, setStyle, modeStates, toggleDesk, fillDateTime } from './helpers.js';
+import { openApp, loadSample, addEvent, pickDest, tab, layout, SIZES, catId, setStyle, modeStates, toggleDesk, fillDateTime, expectShown, reloadKeep } from './helpers.js';
 
 test.describe('永続化', () => {
   test('再読込後も予定が残る（IndexedDB）', async ({ page }) => {
     await openApp(page);
     await addEvent(page, { title: '再読込テスト', cat: 'family' });
-    await page.reload();
-    await page.waitForSelector('html[data-ready]');
+    await reloadKeep(page); // 閉じた画面は読み込み直すとカレンダーから始まる（design/34 §9.2）。ホームを開き直して見る
     await expect(page.locator('.next')).toContainText('再読込テスト');
     const meta = await page.evaluate(() => new Promise((res) => {
       const r = indexedDB.open('duo-calendar');
@@ -28,8 +27,7 @@ test.describe('永続化', () => {
     await page.getByRole('button', { name: '削除する' }).click();
     await expect(page.locator('#editor')).toBeHidden();
     await expect(page.getByRole('status')).toHaveText('予定を削除しました。');
-    await page.reload();
-    await page.waitForSelector('html[data-ready]');
+    await reloadKeep(page); // 閉じた画面は読み込み直すとカレンダーから始まる（design/34 §9.2）。ホームを開き直して見る
     await expect(page.locator('.next')).toContainText('ランチと散歩');
   });
 
@@ -61,14 +59,14 @@ test.describe('永続化', () => {
     await tab(page, '週').click();
     await page.setViewportSize(SIZES.closedPortrait);
     await expect.poll(() => layout(page)).toBe('browse');
-    await expect(tab(page, '週')).toHaveAttribute('aria-pressed', 'true');
+    await expectShown(page, '週');
     await page.setViewportSize(SIZES.openLandscape);
     await expect.poll(() => layout(page)).toBe('spread');
     // 開いた横は左右ページが表示を決める（第14版 PR5）。閉じた画面・縦の「週」は保たれ、閉じに戻すと週のまま
     await expect(page.locator('.pgsw')).toHaveCount(2);
     await page.setViewportSize(SIZES.closedPortrait);
     await expect.poll(() => layout(page)).toBe('browse');
-    await expect(tab(page, '週')).toHaveAttribute('aria-pressed', 'true');
+    await expectShown(page, '週');
   });
 
   test('編集中ドラフトはリサイズと再読込でも残る', async ({ page }) => {

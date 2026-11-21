@@ -1,6 +1,6 @@
 // 第19版 PR9: ノート第1段（design/27）。シートの位置・上の帯・戻す/やり直す・完了・下へ伸びる紙・古い手書きの表示。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, bodyIs } from './helpers.js';
+import { openApp, SIZES, bodyIs, tab } from './helpers.js';
 
 const UI = 'duo.ui.v1';
 const near = (a, b, tol = 0.5, msg = '') => expect(Math.abs(a - b), `${msg} ${a} ≈ ${b}`).toBeLessThanOrEqual(tol);
@@ -87,8 +87,7 @@ test.describe('ノートのシート（開いた縦・閉じた画面）', () =>
     await preset(page, { selected: '2026-11-12' });
     await openApp(page, SIZES.closedPortrait);
     let btn = page.locator('[data-act="daynote"]:visible').first();
-    if (!(await btn.count())) { await page.locator('.tabs button', { hasText: /^月$/ }).first().click(); btn = page.locator('[data-act="daynote"]:visible').first(); }
-    if (await page.locator('.mgrab').count()) { await page.locator('.mgrab').focus(); for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowUp'); await page.waitForTimeout(400); } // S11b: 段1は日の欄がタブの帯にかかる（タブは S11c で消える）ので段4へ
+    if (!(await btn.count())) { await tab(page, '月').click(); btn = page.locator('[data-act="daynote"]:visible').first(); }
     await expect(btn).toBeVisible();
     await btn.click(); await expect(sheet(page)).toBeVisible(); await page.waitForTimeout(400);
     const s = await box(sheet(page)); near(s.y, 152); near(s.x, 0); near(s.w, 466);

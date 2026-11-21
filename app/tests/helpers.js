@@ -1,4 +1,15 @@
-import { expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+
+// 第19.2版 S11c（design/34 §9.2・11:29 の決定）: 閉じた画面はいつもカレンダーから始まる（ホームは「…」→「ホーム」）。
+// 第19.1版までに書いた spec は「閉じた画面はホームから始まる」前提なので、下の名前の spec だけ、起動のあと「…」→「ホーム」でホームを開いてから始める
+//（本物の操作で開く。保存値は書かない）。ここに無い spec（新しく足す spec・品質のひな形 closed-pull-v20 / note-ime-r70 など）は仕様どおりカレンダーから始まる。
+// spec ごとに変えたいときは openApp の opts.home（true＝ホームから／false＝カレンダーから）。
+const HOME_START_SPECS = new Set(['allbtn-look', 'calendar-picker', 'calendar-settings', 'calendar-visibility', 'categories', 'category-retarget', 'chip-style', 'closed-month-s1', 'crud', 'curl-app', 'curl-native', 'curl-painter', 'curl-parts', 'curl-perf', 'date-nav', 'dated-notes', 'datetime', 'direct-input', 'edit-sheet', 'ext-edit', 'focus-keyboard', 'focus-modes', 'focus-tasks', 'focus-transition', 'holidays', 'home-list', 'home', 'kb-accessory-s3', 'layout-metrics', 'layout', 'memo-mark-list-search', 'memo', 'month-all', 'month-bottom', 'month-pull', 'move-to-day', 'native', 'note-sheet', 'notes-checklist', 'notes-editor', 'notes-folders', 'notes-rich-s3', 'notes-search-large', 'notify-backfill', 'notify-ui', 'notify', 'open-portrait-s2', 'open-portrait', 'pages', 'panel', 'paste', 'persist', 'popup-dismiss', 'portrait-fold-timeline', 'posture', 'press-sheet-type-s4', 'recur', 'ref-layout', 'reminder-add', 'reminder-delete', 'reminder-edit', 'reminder-gate', 'reminder-notify-ui', 'reminder-notify', 'reminder-removed', 'reminder-settings', 'reminder-sync', 'reminder-tasks', 'reminder-ui', 'review-fixes', 'rokuyo-setting', 'rokuyo', 's5-fixes', 's6-fixes', 's7a-notes', 's7b-high', 's7c-mid', 's7e', 's8-fixes', 'safe-layout', 'screenshots', 'search-backup', 'search-tasks', 'settings-hierarchy', 'strip-tasks-notes', 'sw', 'swipe', 'timeline', 'touch-check-tap', 'touch-check', 'tt-spread']);
+const homeStart = (opts) => {
+  if (opts.home != null) return !!opts.home;
+  if (opts.fresh) return false;
+  try { return HOME_START_SPECS.has(test.info().file.split('/').pop().replace(/\.spec\.js$/, '')); } catch { return false; }
+};
 import { CAT_IDS } from '../js/categories.js';
 
 // テストでは旧キー（work/private）や既定カテゴリのキー（family/out/other）で指定できる。
@@ -39,10 +50,6 @@ export async function openApp(page, size = SIZES.closedPortrait, query = '', opt
     if (!s.monthForm) localStorage.setItem(key, JSON.stringify({ ...s, monthForm: 'month' }));
     s = JSON.parse(localStorage.getItem(key) || '{}');
     if (!s.monthDay) localStorage.setItem(key, JSON.stringify({ ...s, monthDay: 'time' })); // 日の部分は 時間軸（.tlev）で起動。既定（予定）を調べる spec は monthFormInit を先に呼ぶ
-    // 第19.2版 S11a: 起動の既定がホームからカレンダーに変わった（design/34 §9.2・11:29 の決定）。既存の spec は従来どおりホームから始める前提なので、保存がなければホームを選んだ状態にする。
-    // 新しい起動（カレンダーの段1）は fresh（まっさらな端末）で見る（closed-pull-v20.spec.js）。
-    s = JSON.parse(localStorage.getItem(key) || '{}');
-    if (s.home == null && closedSize) localStorage.setItem(key, JSON.stringify({ ...s, home: true })); // 開いた画面では home:true は「一覧」を選んだ意味になるので、閉じた寸法のときだけ
   }, { q: query, closedSize: Math.min(size.width, size.height) < 600 });
   // 第19.1版 S4: シートは下から 0.25 秒で出る（H-02）。既存の spec は出きった位置の寸法を測るので、出る動きは止めておく。
   // 動きそのものを調べる spec は { motion: true } を渡す（tests/press-sheet-type-s4.spec.js）。閉じ終わるまでの 0.25 秒は動きを止めても同じ（JS の待ち）。
@@ -53,7 +60,11 @@ export async function openApp(page, size = SIZES.closedPortrait, query = '', opt
   await page.clock.setFixedTime(new Date('2026-11-12T09:41:00+09:00'));
   await page.goto(`/index.html${query}`);
   await page.waitForSelector('html[data-ready]');
+  // 第19.2版 S11c（design/34 §9.2）: 閉じた画面はいつもカレンダーから始まる。ホームから始める spec（上の HOME_START_SPECS か { home: true }）は「…」→「ホーム」で開く。
+  if (Math.min(size.width, size.height) < 600 && homeStart(opts) && (await page.locator('.shell.closed .cmore').count())) await closedGo(page, 'ホーム');
 }
+// 閉じた画面で読み込み直したあと（起動はカレンダー）、ホームへ戻る
+export async function reloadHome(page) { await page.reload(); await page.waitForSelector('html[data-ready]'); if (isClosedSize(page)) await closedGo(page, 'ホーム'); }
 export async function loadSample(page) {
   const b = page.getByRole('button', { name: 'サンプルを入れる' }).first();
   if (await b.isVisible()) await b.click();
@@ -64,7 +75,44 @@ export async function loadSample(page) {
   }
   await expect(page.getByRole('status')).toHaveText('サンプルの予定を入れました。');
 }
-export const tab = (page, name) => page.getByRole('button', { name, exact: true });
+// 第19.2版 S11c（design/34 §9.1-9・§9.2）: 閉じた画面に下のタブはない。月＝カレンダー（‹ カレンダーで戻る）、ホームと週の時間軸は「…」から、
+// 日の時間軸はホームの「タイムライン ›」から。開いた縦・横のタブは今までどおり（本物のボタンを返す）。
+export const isClosedSize = (page) => { const v = page.viewportSize(); return !!v && Math.min(v.width, v.height) < 600; };
+export async function openMore(page) { await page.locator('.cmore').click(); await expect(page.getByRole('menu')).toBeVisible(); }
+export async function moreGo(page, name) { await openMore(page); await page.getByRole('menuitem', { name }).click(); }
+export async function closedGo(page, name) {
+  const back = page.locator('.cback');
+  if (name === '月') { if (await back.count()) await back.click(); await expect(page.locator('.shell.closed.cal')).toHaveCount(1); return; }
+  if (name === 'ホーム') { if (!(await page.locator('.shell.closed.home:not(.strp)').count())) await moreGo(page, /ホーム/); await expect(page.locator('.home.listview')).toBeVisible(); return; }
+  if (name === '週') { if (!(await page.locator('.shell.closed.tv-week').count())) await moreGo(page, '週の時間軸'); await expect(page.locator('.shell.closed.tv-week')).toHaveCount(1); return; }
+  if (name === '日') { // 日の時間軸（28 §1）の入口はホームの「タイムライン ›」（今日を開く）
+    if (await page.locator('.shell.closed.tv-day').count()) return;
+    await closedGo(page, 'ホーム');
+    await page.locator('.home.listview .hgo[data-act="homego"][data-to="time"]').first().click();
+    await expect(page.locator('.shell.closed.tv-day')).toHaveCount(1); return;
+  }
+  throw new Error(`closedGo: ${name}`);
+}
+// いま見ている表示（ホーム・日・週・月）。開いた画面は下のタブの aria-pressed、閉じた画面はタブがないので（design/34 §9.1-9）出ている面そのもので見る
+export async function expectShown(page, name, shown = true) {
+  if (!isClosedSize(page)) { await expect(page.getByRole('button', { name, exact: true })).toHaveAttribute('aria-pressed', String(shown)); return; }
+  const sel = { ホーム: '.shell.closed.home:not(.strp)', 日: '.shell.closed.tv-day', 週: '.shell.closed.tv-week', 月: '.shell.closed.cal' }[name];
+  await expect(page.locator(sel)).toHaveCount(shown ? 1 : 0);
+}
+// ノートの一覧の入口: 閉じた画面は日の欄の「ノート ›」（design/34 §9.1-7。右の列の「ノート」は消えた）、開いた横は帯の「ノート」
+export async function openNoteList(page) {
+  if (isClosedSize(page) && (await page.locator('.shell.closed .cmore').count())) {
+    if (await page.locator('.shell.closed.strp .stripp[data-page="memo"]').count()) return;
+    await closedGo(page, '月');
+    if (!(await page.locator('.mday .mdnl').count())) await setStyle(page, '予定名'); // 「全部」の月には日の欄がない
+    await page.locator('.mday .mdnl').click(); // click が見える所まで送ってから押す（描き直しの途中でも待つ）
+    await expect(page.locator('.stripp[data-page="memo"]')).toBeVisible();
+  } else await page.locator('[data-act="strip"][data-strip="memo"]').first().click();
+}
+// 設定・検索の入口: 閉じた画面は「…」→「設定」／「検索」（design/34 §9.1-5・6）、開いた画面は今までどおりのボタン
+export async function clickSettings(page) { if (isClosedSize(page) && (await page.locator('.shell.closed .cmore').count())) await moreGo(page, '設定'); else await page.locator('[data-act="menu"]:visible').first().click(); }
+export async function clickSearch(page) { if (isClosedSize(page) && (await page.locator('.shell.closed .cmore').count())) await moreGo(page, '検索'); else await page.locator('[data-act="search"]:visible').first().click(); }
+export const tab = (page, name) => (isClosedSize(page) ? { click: () => closedGo(page, name) } : page.getByRole('button', { name, exact: true }));
 export const layout = (page) => page.evaluate(() => document.body.dataset.layout);
 
 // 新規予定のカレンダー選択（1行 → 一覧）。type は 'duo'（カテゴリ id）か 'iphone'（カレンダー id）。
@@ -227,10 +275,16 @@ export async function findTextOverlaps(page, { ignoreApp = false } = {}) {
 
 // ---- 第6版 ----
 // アプリ自身の db.js（同一モジュール）で IndexedDB を直接読み書きする。シード後は再読込して反映。
-export async function seed(page, events) {
-  await page.evaluate(async (list) => { const db = await import('/js/db.js'); await db.putMany(list); }, events);
+// 第19.2版 S11c: 閉じた画面は読み込み直すとカレンダーから始まる（design/34 §9.2）。ホームを見ている途中でデータを入れた spec は、入れたあともホームを見る（「…」→「ホーム」で開き直す）。
+export async function reloadKeep(page) {
+  const was = !isClosedSize(page) ? null : (await page.locator('.shell.closed.home:not(.strp)').count()) ? 'ホーム' : (await page.locator('.shell.closed.tv-week').count()) ? '週' : (await page.locator('.shell.closed.tv-day').count()) ? '日' : null;
   await page.reload();
   await page.waitForSelector('html[data-ready]');
+  if (was) await closedGo(page, was);
+}
+export async function seed(page, events) {
+  await page.evaluate(async (list) => { const db = await import('/js/db.js'); await db.putMany(list); }, events);
+  await reloadKeep(page);
 }
 export const dbEvents = (page) => page.evaluate(async () => (await (await import('/js/db.js')).listEvents()).sort((a, b) => String(a.id).localeCompare(String(b.id))));
 export const ev = (id, title, start, end, extra = {}) => ({ id, title, categoryId: CAT_IDS.work, all: false, start, end, place: '', notes: '', recurrence: null, exdates: [], overrides: {}, ...extra });
@@ -315,7 +369,8 @@ export async function textInGutter(page, l, r) {
 // 設定メニューを開く／閉じる。月の表現・卓上・凡例の入口はここ。
 // screen を渡すと、その階層（一般・表示形式・カレンダー・リマインダー・詳細 など）まで進む。
 export async function openMenu(page, screen) {
-  await page.getByRole('button', { name: '設定' }).first().click();
+  if (isClosedSize(page)) await moreGo(page, '設定'); // 閉じた画面の設定は「…」→「設定」（design/34 §9.1-5）
+  else await page.getByRole('button', { name: '設定' }).first().click();
   await expect(page.locator('#menu')).toBeVisible();
   if (screen) {
     await page.locator(`#menu [data-go="${screen}"]`).click();

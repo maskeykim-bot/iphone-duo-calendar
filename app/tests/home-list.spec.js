@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, seed, ev, pagePick, tab, legacyPanelInit } from './helpers.js';
+import { openApp, SIZES, seed, ev, pagePick, tab, legacyPanelInit, expectShown } from './helpers.js';
 
 // 第16版 PR13: ホームと予定リストの経路を分ける。2026-11-12 09:41 JST 固定。
 const ui = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1') || '{}'));
@@ -72,12 +72,16 @@ test('ホームは独立ページ: 切替にホームがあり、右でも選べ
   await expect(page.locator('.pnl .hcols')).toHaveCount(0);
 });
 
-test('閉じた画面: 下のタブは ホーム・日・週・月。保存済みの 日・週・月 は保つ', async ({ page }) => {
-  await openApp(page, SIZES.closedPortrait);
-  await expect(page.locator('.tabs button')).toHaveText(['ホーム', '日', '週', '月']);
+test('閉じた画面: 下のタブはない。保存済みの表示が 週・ホーム でも、開いたときはカレンダーから始まる（design/34 §9.1-9・§9.2 で置き換え）', async ({ page }) => {
+  // 旧: 下のタブ ホーム・日・週・月、保存済みの 日・週・月 を保つ。34 §9.2「アプリを開いたときは、ホームではなくカレンダー（覚えている段）から始める」
+  await openApp(page, SIZES.closedPortrait, '', { home: false });
+  await expect(page.locator('.tabs')).toHaveCount(0);
+  await expectShown(page, '月');
   await seedUi(page, { home: false, view: 'week' });
-  await expect(tab(page, '週')).toHaveAttribute('aria-pressed', 'true');
+  await expectShown(page, '月');
+  await expectShown(page, '週', false);
   await seedUi(page, { home: true, view: 'week' });
-  await expect(tab(page, 'ホーム')).toHaveAttribute('aria-pressed', 'true');
-  expect((await ui(page)).view).toBe('week');
+  await expectShown(page, '月');
+  await expectShown(page, 'ホーム', false);
+  await expect(page.locator('.mpull.browse')).toHaveAttribute('data-stage', '1'); // 覚えている段（helpers の既定＝月の型＝段1）
 });

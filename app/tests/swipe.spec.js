@@ -28,7 +28,8 @@ const prevDay = (s) => ({ x0: Math.round(s.width * 0.55), y0: Math.round(s.heigh
 const shortWeek = (t, size) => (size.width < 600 || size.height > size.width ? t.replace(/〜\d+月/, '〜') : t); // 第19版 PR7: 開いた縦の週も同じ
 for (const [lname, size] of LAYOUTS) {
   for (const [view, now0, nextT0, prevT0] of VIEWS) {
-    const [now, nextT, prevT] = [now0, nextT0, prevT0].map((t) => (view === '週' ? shortWeek(t, size) : t));
+    const closedMonth = view === '月' && Math.min(size.width, size.height) < 600; // 閉じた画面の月の見出しは「2026年11月」（design/34 §2.1。年と月の間をあけない）
+    const [now, nextT, prevT] = [now0, nextT0, prevT0].map((t) => (view === '週' ? shortWeek(t, size) : closedMonth ? t.replace('年 ', '年') : t));
     if (size.width > size.height && view !== '月') continue; // 開いた横の日・週は時間ページの表示（第14版 PR5）。スワイプの送りは月
     test(`${lname} ${view}: 左スワイプ＝次、右スワイプ＝前`, async ({ page }) => {
       if (view === '月' && size.width <= size.height) await monthFormInit(page); // 第19版 PR6: 月を引く画面は「月」の型なら1か月ずつ送る（1週・2週は1週ずつ）
@@ -67,7 +68,7 @@ test('閉じたホーム: 左スワイプで月を送り、ホームを終了し
   await expect(page.locator('.shell.home')).toBeVisible();
   await swipe(page, { x0: 330, y0: 400, dx: -120, target: '.hevents' });
   await expect(page.locator('.shell.browse')).toBeVisible();
-  expect(await period(page)).toBe('2026年 12月');
+  expect(await period(page)).toBe('2026年12月') // design/34 §2.1;
 });
 
 test('開いた横: 左ページで1回だけ送る。右の時間軸は対象外（第14版 PR5: 日・週は時間ページの表示）', async ({ page }) => {

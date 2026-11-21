@@ -1,6 +1,6 @@
 // 第15版 PR3: 画面・検索・通知が同じ表示条件（hidden カテゴリ／linked の追加先 ✓）を使う。偽装は契約の写しで実機の証明ではない。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, seed, ev, dbEvents } from './helpers.js';
+import { openApp, SIZES, seed, ev, dbEvents, clickSearch, tab } from './helpers.js';
 import { CAT_IDS } from '../js/categories.js';
 
 const CALS = [
@@ -58,7 +58,7 @@ test.describe('表示条件の統一', () => {
     expect(await page.evaluate(() => window.__mock.pending.filter((i) => i.eventId === 'rec').map((i) => i.day))).not.toContain('2026-11-14');
 
     // 画面（日）: 11/13
-    const body = async (q) => { await page.locator('[data-act="search"]:visible').first().click(); await page.locator('#sr-q').fill(q); await page.waitForTimeout(400); const t = await page.locator('#sr-body').innerText(); await page.keyboard.press('Escape'); return t; };
+    const body = async (q) => { await clickSearch(page); await page.locator('#sr-q').fill(q); await page.waitForTimeout(400); const t = await page.locator('#sr-body').innerText(); await page.keyboard.press('Escape'); return t; };
     expect(await body('会議')).toContain('ふつう会議');
     expect(await body('会議')).toContain('リンクオン会議'); // 追加先 ✓ ありは hidden カテゴリでも出る
     expect(await body('会議')).not.toContain('ひみつ会議');
@@ -81,7 +81,7 @@ test.describe('表示条件の統一', () => {
     await openApp(page, SIZES.closedPortrait, '?nosw');
     await setHidden(page, CAT_IDS.family, true);
     await seed(page, EVS);
-    await page.getByRole('button', { name: '月', exact: true }).click();
+    await tab(page, '月').click();
     await page.locator('[data-date="2026-11-13"]').first().click({ position: { x: 12, y: 10 } });
     await expect(page.getByText('ふつう会議').first()).toBeVisible();
     const txt = await page.locator('body').innerText();

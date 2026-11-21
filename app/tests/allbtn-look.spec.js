@@ -6,7 +6,28 @@ const info = (page) => page.locator('.allbtn').evaluate((b) => {
   return { bBg: cb.backgroundColor, bBorder: cb.borderTopWidth, w: r.width, h: r.height, sw: sr.width, sh: sr.height, bg: cs.backgroundColor, bw: cs.borderTopWidth, bc: cs.borderTopColor, color: cs.color };
 });
 
-for (const [name, size] of [['閉じた', SIZES.closedPortrait], ['開いた縦', SIZES.openPortrait], ['見開き', SIZES.openLandscape]]) {
+// 第19.2版 S11c（design/34 §9.1-2）: 閉じた画面の見出しの「全部」は消えた（「…」→「月の表現（手帳｜予定名｜全部）」へ）。ボタンの見た目は開いた縦・見開きで見る。
+test('閉じた画面の見出しに「全部」ボタンはない。「…」→「月の表現」の「全部」で入り、同じ入口で戻る（選んでいる項目は aria-pressed）', async ({ page }) => {
+  await openApp(page, SIZES.closedPortrait);
+  await tab(page, '月').click();
+  await expect(page.locator('.allbtn')).toHaveCount(0);
+  await page.getByRole('button', { name: 'その他', exact: true }).click();
+  await page.getByRole('menuitem', { name: /月の表現/ }).click();
+  const all = page.locator('#m-variant').getByRole('button', { name: '全部', exact: true });
+  await expect(all).toHaveAttribute('aria-pressed', 'false');
+  await all.click();
+  await expect(page.locator('#menu')).toBeHidden();
+  await expect(page.locator('.scroll.all')).toBeVisible();
+  await expect(page.locator('.allbtn')).toHaveCount(0);
+  await page.getByRole('button', { name: 'その他', exact: true }).click();
+  await expect(page.getByRole('menuitem', { name: /月の表現/ })).toHaveText('月の表現（全部）');
+  await page.getByRole('menuitem', { name: /月の表現/ }).click();
+  await expect(all).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('#m-variant').getByRole('button', { name: '予定名', exact: true }).click();
+  await expect(page.locator('.scroll.all')).toHaveCount(0);
+});
+
+for (const [name, size] of [['開いた縦', SIZES.openPortrait], ['見開き', SIZES.openLandscape]]) {
   test(`「全部」ボタンの見た目（${name}）: 通常は紙色の地に枠と文字、全部表示のときだけ緑。押せる範囲は 44×44 で透明`, async ({ page }) => {
     await openApp(page, size);
     if (name !== '見開き') await tab(page, '月').click(); // 見開きの既定は左=月

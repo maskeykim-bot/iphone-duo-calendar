@@ -33,20 +33,21 @@ test.describe('閉じた画面 466×678（帯 84）', () => {
     expect(g.ptext).toMatch(/^\+\d+$/);
   });
 
-  test('タブの上 24（y575〜599）に地色のぼかし。ホーム・日・週・月すべて。押せるものを邪魔しない', async ({ page }) => {
+  test('下のタブとその上のぼかし（y575〜599）は閉じた画面にない（design/34 §6.1・§9.1-9 で置き換え）。ホーム・日・週・月すべて', async ({ page }) => {
+    // 旧: タブの上 24（y575〜599）に地色のぼかし。34 §6.1「33 §5 の 87 とタブの上のぼかし y575〜599 は、閉じた画面ではなくす」
     await openApp(page, SIZES.closedPortrait);
     await band(page);
     for (const name of ['ホーム', '日', '週', '月']) {
       await tab(page, name).click();
       await page.waitForTimeout(150);
-      const f = await page.locator('.tabfade').evaluate((e) => { const r = e.getBoundingClientRect(); return { y: r.top, h: r.height, x: r.left, w: r.width, pe: getComputedStyle(e).pointerEvents }; });
-      expect(near(f.y, 575) && near(f.h, 24), name).toBe(true);
-      expect(f.pe).toBe('none');
-      expect(near(f.x, 0) && near(f.w, 382), name).toBe(true); // 右の帯は避ける
+      await expect(page.locator('.tabs'), name).toHaveCount(0);
+      expect(await page.locator('.tabfade').evaluateAll((es) => es.filter((e) => getComputedStyle(e).display !== 'none').length), name).toBe(0);
+      // 下の余白 41 の帯（y637〜678、ホームバーの帯 33＋8）に、押せるものを邪魔する被せがない
+      expect(await page.evaluate(() => { const e = document.elementFromPoint(191, 640); return !!e && !e.closest('.tabs, .tabfade'); }), name).toBe(true);
     }
   });
 
-  test('閉じたホーム: 一番下まで送ると最後のカード（明日）・「＋ タスクを追加」がタブの上 8 まで出る', async ({ page }) => {
+  test('閉じたホーム: 一番下まで送ると最後のカード（明日）・「＋ タスクを追加」がホームバーの帯（y645）の上 8 まで出る（34 で置き換え: タブの上 8 → 帯の上 8）', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await seed(page, six);
     await tab(page, 'ホーム').click(); // 起動はカレンダー（design/34 §9.2・11:29 の決定）。ホームはタブから
@@ -54,11 +55,12 @@ test.describe('閉じた画面 466×678（帯 84）', () => {
     await band(page);
     await page.locator('.home.listview').evaluate((e) => { const s = [e, ...e.querySelectorAll('*')].find((x) => x.scrollHeight > x.clientHeight + 2 && getComputedStyle(x).overflowY !== 'visible'); (s || e).scrollTop = 99999; });
     await page.waitForTimeout(200);
-    const tabTop = (await box(page.locator('.tabs'))).y;
+    await expect(page.locator('.tabs')).toHaveCount(0);
+    const barTop = 678 - 33; // ホームバーの帯の上端 y645。下の余白は 41（帯 33＋8。design/34 §6.1・§10「33 全体」: 87 → 41）
     const last = await box(page.locator('.htmr'));
-    expect(near(last.y + last.height, tabTop - 8, 1)).toBe(true);
+    expect(near(last.y + last.height, barTop - 8, 1)).toBe(true);
     const add = await box(page.locator('.hadd'));
-    expect(add.y + add.height).toBeLessThanOrEqual(tabTop - 8 + 1);
+    expect(add.y + add.height).toBeLessThanOrEqual(barTop - 8 + 1);
   });
 
   test('見えない「期間を選ぶ」は押せない（pointer-events:none）。キーボードでは今までどおり開く', async ({ page }) => {

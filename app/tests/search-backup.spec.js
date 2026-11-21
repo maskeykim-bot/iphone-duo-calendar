@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { VERSION, SCHEMA } from '../js/backup.js';
 import { readFileSync } from 'node:fs';
 import { CAT_IDS } from '../js/categories.js';
-import { openApp, seed, dbEvents, ev, SIZES, layout, period, findTextOverlaps, textInGutter } from './helpers.js';
+import { openApp, seed, dbEvents, ev, SIZES, layout, period, findTextOverlaps, textInGutter, clickSettings, clickSearch } from './helpers.js';
 
 const SEED = [
   ev('s1', 'プロジェクト定例', '2026-11-12T10:00', '2026-11-12T11:00', { place: '会議室A', categoryId: CAT_IDS.work }),
@@ -12,7 +12,8 @@ const SEED = [
   ev('s5', '<b>危険</b>&amp;', '2026-11-17T10:00', '2026-11-17T11:00'),
   ev('s6', '複数日の出張', '2026-11-19T00:00', '2026-11-21T23:59', { all: true, categoryId: CAT_IDS.out }),
 ];
-const searchBtn = (page) => page.getByRole('button', { name: '予定を検索' });
+// 検索の入口: 閉じた画面は「…」→「検索」（design/34 §9.1-6）。閉じたあとフォーカスは起点の「…」へ戻る
+const searchBtn = (page) => ({ click: () => clickSearch(page) });
 async function search(page, q) {
   await page.locator('#sr-q').fill(q);
   await expect(page.locator('#sr-body')).not.toContainText('検索しています');
@@ -35,7 +36,7 @@ test.describe('検索', () => {
     await expect(hits(page)).toHaveCount(0);
     await page.keyboard.press('Escape');
     await expect(page.locator('#search')).toBeHidden();
-    await expect(searchBtn(page)).toBeFocused();
+    await expect(page.locator('.cb.cmore')).toBeFocused();
   });
 
   test('タイトル・場所・メモで一致する', async ({ page }) => {
@@ -138,7 +139,7 @@ test.describe('検索とバックアップの表示', () => {
       }
       await page.getByRole('button', { name: '閉じる' }).first().click();
       await expect(page.locator('#search')).toBeHidden(); // S4: 閉じる動き（0.25秒）が終わってから
-      await page.getByRole('button', { name: '設定' }).click();
+      await clickSettings(page);
       await page.getByRole('button', { name: 'バックアップ' }).click();
       await expect(page.locator('#backup')).toBeVisible();
       expect(await findTextOverlaps(page)).toEqual([]);
@@ -154,7 +155,7 @@ test.describe('検索とバックアップの表示', () => {
     await openApp(page, SIZES.openLandscape);
     await seed(page, SEED);
     expect(await textInGutter(page)).toEqual([]);
-    await page.getByRole('button', { name: '設定' }).click();
+    await clickSettings(page);
     expect(await textInGutter(page)).toEqual([]);
   });
 });
@@ -162,7 +163,7 @@ test.describe('検索とバックアップの表示', () => {
 // ---- バックアップ ----
 const openBackup = async (page) => {
   await expect(page.locator('#backup')).toBeHidden(); // 前のページが閉じ終わってから（0.25秒の動き）
-  await page.getByRole('button', { name: '設定' }).click();
+  await clickSettings(page);
   await page.getByRole('button', { name: 'バックアップ' }).click();
   await expect(page.locator('#backup')).toBeVisible();
 };
@@ -311,7 +312,7 @@ test.describe('バックアップ', () => {
     const p = info.outputPath('v3.json');
     await exportFile(page, p);
     const j = JSON.parse(readFileSync(p, 'utf8'));
-    expect(j.settings).toEqual({ view: 'week', style: 'named', desk: true, monthExpand: true, rokuyo: true, holidayRed: true, pages: { left: 'month', right: 'time', portraitBottom: 'time', portraitShown: false }, weekStart: 1, tasks: { monthTasks: false }, notify: { enabled: true, showTitle: false, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '07:30' } } });
+    expect(j.settings).toEqual({ view: 'month' /* 閉じた画面で開くとカレンダー（月）から始まる（design/34 §9.2）。保存の 'week' は起動で 'month' になる */, style: 'named', desk: true, monthExpand: true, rokuyo: true, holidayRed: true, pages: { left: 'month', right: 'time', portraitBottom: 'time', portraitShown: false }, weekStart: 1, tasks: { monthTasks: false }, notify: { enabled: true, showTitle: false, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '07:30' } } });
     expect(j.categories.find((c) => c.id === 'my-cat')).toMatchObject({ name: '自作カテゴリ', color: '#5e4c8e', hidden: true });
     const src = await dbEvents(page);
     expect(src[0].nativeLink).toEqual(LINK);
@@ -324,7 +325,7 @@ test.describe('バックアップ', () => {
     expect(await dbEvents(page)).toEqual(src);
     expect((await dbCats(page)).find((c) => c.id === 'my-cat')).toMatchObject({ name: '自作カテゴリ', color: '#5e4c8e', hidden: true });
     const st = await page.evaluate(() => ({ ui: JSON.parse(localStorage.getItem('duo.ui.v1.v3dst')), notify: JSON.parse(localStorage.getItem('duo-notify.v3dst')) }));
-    expect(st.ui).toMatchObject({ view: 'week', style: 'named', desk: true, monthExpand: true });
+    expect(st.ui).toMatchObject({ view: 'month' /* 閉じた画面で開くとカレンダー（月）から（design/34 §9.2） */, style: 'named', desk: true, monthExpand: true });
     expect(st.notify).toEqual({ version: 1, enabled: true, showTitle: false, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '07:30' } });
   });
 

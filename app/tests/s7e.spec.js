@@ -38,6 +38,8 @@ for (const [name, size, sar] of POS) {
     const tickScan = async () => { ticks.push(...await page.evaluate(() => [...document.querySelectorAll('.mdtask.done .rmck')].filter((e) => e.getBoundingClientRect().width > 0).map((e) => { const cs = getComputedStyle(e, '::after'); return [cs.fontSize, cs.fontWeight]; }))); };
     if (size === L) {
       for (const side of ['left', 'right']) for (const kind of ['月', '時間', 'タスク', 'ノート']) { await pagePick(page, side, kind).click(); await page.waitForTimeout(300); await scan(`${side} ${kind}`); await tickScan(); }
+    } else if (size === C) { // 閉じた画面に下のタブはない（design/34 §9.1-9）。同じ4つの面を「…」・ホーム・「‹ カレンダー」から開く
+      for (const n of ['ホーム', '日', '週', '月']) { await tab(page, n).click(); await page.waitForTimeout(300); await scan(n); await tickScan(); }
     } else {
       const tabs = await page.locator('.tabs button').count();
       for (let i = 0; i < tabs; i++) { await page.locator('.tabs button').nth(i).click(); await page.waitForTimeout(300); await scan(`tab${i}`); await tickScan(); }
@@ -70,23 +72,50 @@ async function lowestTextGap(page) {
     return worst;
   });
 }
+// 閉じた画面（タブなし）: 見えている文字のうち、いちばん下の文字の下端から、ホームバーの帯（画面の下 33）の上端までのあき。帯にかかる文字があれば負になる
+async function lowestTextGapClosed(page) {
+  return page.evaluate(() => {
+    const barTop = innerHeight - 33, right = innerWidth - (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sar')) || 0);
+    let worst = 1e9; const tw = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    while (tw.nextNode()) {
+      const n = tw.currentNode, t = n.nodeValue.trim(); if (!t) continue; const el = n.parentElement;
+      if (el.closest('.cb,.ctl,dialog,.vh,#status,[hidden],script,style,#layout-diagnostics,#screen-diagnostics,#kb-metrics') || getComputedStyle(el).visibility === 'hidden' || getComputedStyle(el).display === 'none') continue;
+      let op = 1; for (let a = el; a; a = a.parentElement) op *= Number(getComputedStyle(a).opacity); if (op <= 0.01) continue;
+      const rg = document.createRange(); rg.selectNodeContents(n);
+      for (const r0 of rg.getClientRects()) {
+        let r = { l: r0.left, t: r0.top, r: r0.right, b: r0.bottom };
+        for (let a = el; a && a !== document.documentElement; a = a.parentElement) { const cs = getComputedStyle(a); if (cs.overflowX !== 'visible' || cs.overflowY !== 'visible') { const ar = a.getBoundingClientRect(); r = { l: Math.max(r.l, ar.left), t: Math.max(r.t, ar.top), r: Math.min(r.r, ar.right), b: Math.min(r.b, ar.bottom) }; } }
+        if (r.r - r.l < 2 || r.b - r.t < 1 || r.t >= innerHeight || r.l >= right) continue;
+        worst = Math.min(worst, barTop - r.b);
+      }
+    }
+    return worst;
+  });
+}
 const fadeOk = (page) => page.evaluate(() => [...document.querySelectorAll('.tabfade')].filter((e) => getComputedStyle(e).display !== 'none').map((e) => { const r = e.getBoundingClientRect(), cs = getComputedStyle(e); return { h: r.height, bottom: r.bottom, bg: cs.backgroundImage.startsWith('linear-gradient'), pe: cs.pointerEvents }; }));
 
 test.describe('1:20-2 タブの下 20: ぼかし 24 が全部の面に出て、送り切ると最後の行はバー上端から 8 以上', () => {
-  test('閉じた画面（ホーム・月・時間・タスク・ノート）', async ({ page }) => {
+  test('閉じた画面（ホーム・月・週と日の時間軸・タスク・ノート）: 下のタブとぼかしはなく（design/34 §6.1・§9.1-9）、送り切ると最後の行はホームバーの帯（y645）から 8 以上', async ({ page }) => {
+    // 旧: 下のタブの上にぼかし 24、送り切ると最後の行がタブの上端から 8 以上（下の余白 87）。34 でタブとぼかしを廃止し、下の余白は 41（帯 33＋8）。
+    // 確かめる項目は同じ（全部の面で、送り切ったとき最後の行が下の帯から 8 以上離れる）。帯だけがタブ（y599）からホームバーの帯（y645）に変わった。
     await monthFormInit(page, 'month');
-    await openApp(page, C); await band(page, 84);
+    await openApp(page, C);
     await seed(page, MANY);
     await seedTasks(page, Array.from({ length: 12 }, (_, i) => T(`k${i}`, { title: `タスク${i}`, due: { date: '2026-11-12' } })));
-    const n = await page.locator('.tabs button').count();
-    expect(n).toBeGreaterThanOrEqual(4); // ホーム・月・時間・ノート（タスクは右の帯から）
-    for (let i = 0; i < n; i++) {
-      await page.locator('.tabs button').nth(i).click(); await page.waitForTimeout(400);
-      const f = await fadeOk(page); expect(f.length, `tab${i} ぼかし`).toBe(1);
-      near(f[0].h, 24); expect(f[0].bg).toBe(true); expect(f[0].pe).toBe('none');
-      const tb = await rect(page.locator('.tabs')); near(f[0].bottom, tb.y);
+    await page.evaluate(async () => { const db = await import('/js/db.js'); for (let i = 0; i < 14; i++) await db.putNote({ id: `n${i}`, body: `# メモ${i}\n本文`, createdAt: 1, updatedAt: 50 + i, folderId: null }); });
+    await page.reload(); await page.waitForSelector('html[data-ready]'); await band(page, 84);
+    const faces = [
+      ['ホーム', () => tab(page, 'ホーム').click()], ['月', () => tab(page, '月').click()], ['週', () => tab(page, '週').click()], ['日', () => tab(page, '日').click()],
+      ['タスク', async () => { await tab(page, '月').click(); await page.locator('.ctl .ctask').click(); }],
+      ['ノート', async () => { await tab(page, '月').click(); await page.locator('.mday .mdnl').scrollIntoViewIfNeeded(); await page.locator('.mday .mdnl').click(); }],
+    ];
+    expect(faces.length).toBeGreaterThanOrEqual(6);
+    for (const [name, go] of faces) {
+      await go(); await page.waitForTimeout(400);
+      await expect(page.locator('.tabs'), `${name} タブ`).toHaveCount(0);
+      expect((await fadeOk(page)).length, `${name} ぼかし`).toBe(0);
       await endState(page);
-      expect(await lowestTextGap(page), `閉じた tab${i}`).toBeGreaterThanOrEqual(8 - 0.5);
+      expect(await lowestTextGapClosed(page), `閉じた ${name}`).toBeGreaterThanOrEqual(8 - 0.5);
     }
   });
   test('開いた縦（日・週・月・ホームと、タスク・ノートの型）', async ({ page }) => {
@@ -94,7 +123,7 @@ test.describe('1:20-2 タブの下 20: ぼかし 24 が全部の面に出て、�
     await seed(page, MANY);
     await seedTasks(page, Array.from({ length: 14 }, (_, i) => T(`k${i}`, { title: `タスク${i}`, due: { date: '2026-11-12' } })));
     for (const t of ['ホーム', '日', '週', '月']) {
-      await page.locator('.tabs button', { hasText: t }).click(); await page.waitForTimeout(400);
+      await tab(page, t).click(); await page.waitForTimeout(400);
       const f = await fadeOk(page); expect(f.length, t).toBe(1); near(f[0].h, 24);
       const tb = await rect(page.locator('.tabs')); near(f[0].bottom, tb.y);
       await endState(page); expect(await lowestTextGap(page), `縦 ${t}`).toBeGreaterThanOrEqual(8 - 0.5);
@@ -122,32 +151,33 @@ test.describe('1:20-2 タブの下 20: ぼかし 24 が全部の面に出て、�
 });
 
 // ---------- 1:20-3 「＋ タスクを追加」 ----------
-test('1:20-3 閉じたホーム: 下の余白 87 で送り切ると「＋ タスクを追加」の行の下端がバー上端から 8 以上離れる', async ({ page }) => {
-  await openApp(page, C); await band(page, 84);
+test('1:20-3 閉じたホーム: 下の余白 41（34 で 87 → 41）で送り切ると「＋ タスクを追加」の行の下端がホームバーの帯の上端から 8 以上離れる', async ({ page }) => {
+  await openApp(page, C, '', { home: true }); await band(page, 84);
   await seed(page, MANY);
   await seedTasks(page, [T('h1', { title: 'タスク1', due: { date: '2026-11-12' } }), T('h2', { title: 'タスク2', due: { date: '2026-11-12' } }), T('h3', { title: 'タスク3', due: { date: '2026-11-12' } })]);
   await page.waitForTimeout(300);
   const pad = await page.evaluate(() => { const h = document.querySelector('.home.listview'); return h ? parseFloat(getComputedStyle(h).paddingBottom) : -1; });
   const inner = await page.evaluate(() => { const h = document.querySelector('.home.listview'); const s = [h, ...h.querySelectorAll('*')].find((x) => x.scrollHeight > x.clientHeight + 2 && getComputedStyle(x).overflowY !== 'visible'); return s ? parseFloat(getComputedStyle(s).paddingBottom) : -1; });
-  expect(Math.max(pad, inner)).toBeGreaterThanOrEqual(87 - 0.5); // 下の余白 87
+  expect(Math.max(pad, inner)).toBeGreaterThanOrEqual(41 - 0.5); // 下の余白 41（ホームバーの帯 33＋8。design/34 §10「33 全体」: タブがなくなり 87 → 41）
   await page.locator('.home.listview').evaluate((e) => { const s = [e, ...e.querySelectorAll('*')].find((x) => x.scrollHeight > x.clientHeight + 2 && getComputedStyle(x).overflowY !== 'visible'); (s || e).scrollTop = 99999; });
   await page.waitForTimeout(250);
-  const tabTop = (await rect(page.locator('.tabs'))).y;
+  await expect(page.locator('.tabs')).toHaveCount(0);
+  const tabTop = 678 - 33; // バー＝ホームバーの帯（y645）。旧: 下のタブの上端 y599
   const add = await rect(page.locator('.hadd'));
   expect(add.y + add.h, `hadd 下端 ${add.y + add.h} / バー上端 ${tabTop}`).toBeLessThanOrEqual(tabTop - 8 + 0.5);
   near(add.h, 44, 0.6);
 });
-test('1:20-3 ノート編集（閉じた画面）に出る .hadd があれば、ホームと同じ形（44 高・余白 87・送り切りで 8 以上）', async ({ page }) => {
+test('1:20-3 ノート編集（閉じた画面）に出る .hadd があれば、ホームと同じ形（44 高・余白 41・送り切りで帯から 8 以上）', async ({ page }) => {
   // measure の「ノート編集」の underBar（button.hadd）は、ホームのまま計った場合の値。右の帯でノートを開き編集に入ると .hadd は DOM に無い（0 件）か、あれば同じ規則に従う。
   await openApp(page, C); await band(page, 84);
   await seed(page, MANY);
   await page.evaluate(async () => { const db = await import('/js/db.js'); await db.putNote({ id: 'a', body: '# 今週のメモ\n- [ ] 買い物', createdAt: 1, updatedAt: 50, folderId: null }); });
   await page.reload(); await page.waitForSelector('html[data-ready]'); await band(page, 84);
-  await page.locator('[data-act="strip"][data-strip="memo"]').first().click(); await page.waitForTimeout(450);
+  await page.locator('.mday .mdnl').scrollIntoViewIfNeeded(); await page.locator('.mday .mdnl').click(); await page.waitForTimeout(450); // ノートの一覧は日の欄の「ノート ›」から（design/34 §9.1-7。右の列の「ノート」は消えた）
   await page.locator('.mpane .mrow').first().click(); await page.waitForTimeout(450);
   const hs = await page.evaluate(() => [...document.querySelectorAll('.hadd')].map((e) => ({ h: e.getBoundingClientRect().height, vis: !!e.offsetParent })));
   for (const h of hs) near(h.h, 44, 0.6);
-  const tabTop = await page.evaluate(() => document.querySelector('.tabs')?.getBoundingClientRect().y ?? 1e9);
+  const tabTop = 678 - 33; // バー＝ホームバーの帯（y645）。下のタブはない（design/34 §9.1-9）
   const bottoms = await page.evaluate(() => [...document.querySelectorAll('.hadd')].filter((e) => e.offsetParent).map((e) => e.getBoundingClientRect().bottom));
   for (const b of bottoms) expect(b).toBeLessThanOrEqual(tabTop - 8 + 0.5);
 });

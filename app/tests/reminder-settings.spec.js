@@ -1,6 +1,6 @@
 // 第16版 PR17: 月のタスク件数（✓N）の設定と、廃止した同期・リスト・追加先・許可の設定が無いこと。タスクは Duo 内保存。
 import { test, expect } from '@playwright/test';
-import { openApp, openMenu, SIZES, OPEN_SIZES } from './helpers.js';
+import { openApp, openMenu, SIZES, OPEN_SIZES, tab } from './helpers.js';
 import { spy, reminderCalls, seedTasks, T } from './task-helpers.js';
 
 const D0 = '2026-11-12', D1 = '2026-11-13';
@@ -57,7 +57,7 @@ test.describe('月にタスクを表示', () => {
   });
   test('閉じた画面では出さない', async ({ page }) => {
     await boot(page, SIZES.closedPortrait, { store: ON });
-    await page.getByRole('button', { name: '月', exact: true }).first().click().catch(() => {});
+    await tab(page, '月').click().catch(() => {});
     await expect(page.locator('.tkn')).toHaveCount(0);
   });
   for (const size of OPEN_SIZES) {

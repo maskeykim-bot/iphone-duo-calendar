@@ -1,6 +1,6 @@
 // 第19.1版 S2: 開いた縦のホーム（design/32 案A）・切替を上の帯へ（17 §1）・月「全部」の2つの窓（29）・設定シートの帯送り。寸法は ±1。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES, seed, ev, tab, openMenu, monthFormInit } from './helpers.js';
+import { openApp, SIZES, seed, ev, tab, openMenu, monthFormInit, expectShown } from './helpers.js';
 
 const P = SIZES.openPortrait669;
 const box = async (loc) => { const b = await loc.first().boundingBox(); expect(b, 'visible').toBeTruthy(); return b; };
@@ -81,12 +81,12 @@ test.describe('開いた縦のホーム（案A）', () => {
 
   test('今週のマスをたたくと日タブのその日。「月 ›」で月タブ', async ({ page }) => {
     await page.locator('.pvwk .day[data-date="2026-11-14"]').click({ position: { x: 20, y: 70 } });
-    await expect(tab(page, '日')).toHaveAttribute('aria-pressed', 'true');
+    await expectShown(page, '日');
     await expect(page.locator('.fold')).toBeVisible();
     await expect(page.locator('.fhead h2')).toContainText('11月14日');
     await tab(page, 'ホーム').click();
     await page.locator('[data-pv="month"]').click();
-    await expect(tab(page, '月')).toHaveAttribute('aria-pressed', 'true');
+    await expectShown(page, '月');
     await expect(page.locator('.mpull')).toBeVisible();
   });
 
@@ -102,7 +102,7 @@ test.describe('開いた縦のホーム（案A）', () => {
     await page.locator('.fmodes [data-fmode="calendar"]').click();
     await tab(page, 'ホーム').click();
     await page.locator('.pv-today [data-pv="day"]').last().click();
-    await expect(tab(page, '日')).toHaveAttribute('aria-pressed', 'true');
+    await expectShown(page, '日');
   });
 
   test('設定 x20〜64・検索 x605〜649（y19〜63・44×44）。切替は上の帯の真ん中 x208.5〜460.5・y23〜59（V-01: 252×36）、下の段にはない', async ({ page }) => {
@@ -133,7 +133,7 @@ test.describe('開いた縦のホーム（案A）', () => {
   test('文字を大きくしたとき: 上の面・下の面が窓になり、窓の中だけスクロール（帯にかからない）', async ({ page }) => {
     await page.addStyleTag({ content: 'html{font-size:20px!important}' });
     await page.evaluate(() => window.dispatchEvent(new Event('resize')));
-    await page.locator('.tabs button', { hasText: '日' }).click();
+    await tab(page, '日').click();
     await tab(page, 'ホーム').click();
     await expect(page.locator('.phome.big')).toBeVisible();
     const a0 = await cssPx(page, '--groove-avoid-y0'), a1 = await cssPx(page, '--groove-avoid-y1');

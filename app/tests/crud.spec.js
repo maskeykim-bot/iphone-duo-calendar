@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openApp, loadSample, addEvent, fillEditor, tab, pickDay, SIZES, fillDateTime, monthFormInit } from './helpers.js';
+import { openApp, loadSample, addEvent, fillEditor, tab, pickDay, SIZES, fillDateTime, monthFormInit, expectShown } from './helpers.js';
 
 test.describe('予定の追加・編集・削除', () => {
   test('初期は空で、サンプルを入れられる', async ({ page }) => {
@@ -100,18 +100,27 @@ test.describe('予定の追加・編集・削除', () => {
     await expect(page.locator('.next')).toContainText('元の名前');
   });
 
-  test('今日に戻る: 選択日だけ今日へ。表示（日・週・月・一覧）は保つ', async ({ page }) => {
+  test('今日へ（閉じた画面は見出し。design/34 §2.1・§9.1-3・8・§12 Q-11）: 選択日だけ今日へ。表示（カレンダー）と段は保つ', async ({ page }) => {
+    // 旧: 右の列／下段の「今日に戻る」を日・週・月で押す。34 で「今日に戻る」のボタンは消え、見出し「2026年11月」をたたく（今日が画面にないときだけ右に「今日へ」）に置き換わった
     await openApp(page);
     await tab(page, '週').click();
-    await page.getByRole('button', { name: '次の週' }).click();
+    await page.getByRole('button', { name: '次の週' }).click({ force: true }); // 閉じた画面の ‹ › は見えない 2×2（34 §9.1-1）
     await expect(page.locator('#ctitle')).toHaveText('11月16日〜22日'); // 閉じた週の横すべり（0.25秒）が終わってから先へ進む
-    await tab(page, '日').click();
-    await page.getByRole('button', { name: '今日に戻る' }).click();
-    await expect(page.locator('.shell.browse')).toBeVisible(); // 一覧（ホーム）へは飛ばない
-    await expect(tab(page, '日')).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('#ctitle')).toHaveText('11月12日（木）先勝');
-    await tab(page, '月').click();
-    await expect(page.locator('h2#ctitle')).toHaveText('2026年 11月');
+    await expect(page.getByRole('button', { name: '今日に戻る' })).toHaveCount(0);
+    await tab(page, '月').click(); // ‹ カレンダー
+    const stage = await page.locator('.mpull.browse').getAttribute('data-stage');
+    await expect(page.locator('[data-date="2026-11-19"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: '今日へ' })).toHaveCount(0); // 今日が画面にある間は出ない
+    await page.locator('#ctitle').click(); // 見出しをたたく
     await expect(page.locator('[data-date="2026-11-12"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.shell.browse.cal')).toBeVisible(); // ホームへは飛ばない
+    await page.locator('.mph [data-act="next"]').click({ force: true }); // 12月へ
+    await expect(page.locator('h2#ctitle')).toHaveText('2026年12月');
+    await page.getByRole('button', { name: '今日へ' }).click();
+    await expect(page.locator('h2#ctitle')).toHaveText('2026年11月');
+    await expect(page.locator('[data-date="2026-11-12"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.mpull.browse')).toHaveAttribute('data-stage', stage); // 段は変えない
+    await expect(page.getByRole('button', { name: '今日へ' })).toHaveCount(0);
   });
+
 });

@@ -1,35 +1,14 @@
-# 品質の原本との差分（cal-v191 の写しだけ。原本は触っていない）
-# 1) E 群: 段7で 11/10 が画面外 → 先に触る日を 11/15 に
-# 2) C:179: 入れ替えの間は .mgrid が2つ（原本の SEL.grid の注記どおり）→ :not([data-leaving]) で入ってくる方を測る
-# 3) note-ime-r70 boot(): S11c でタブを外すまで、閉じた縦画面は段4へ進めて日の列を出す（一時）
---- 品質の原本 qa/scripts/v20-closed/closed-pull-v20.spec.js
-+++ cal-v191/app/tests/closed-pull-v20.spec.js
-@@ -182,7 +182,7 @@
-     for (const bd of S.BOUNDS) {
-       await page.mouse.move(x, y - (bd.pull - 1)); await raf2(page); expect(await stageOf(page), `引いた量 ${bd.pull - 1}`).toBe(bd.between[0]);
-       await page.mouse.move(x, y - (bd.pull + 1)); await raf2(page); expect(await stageOf(page), `引いた量 ${bd.pull + 1}`).toBe(bd.between[1]);
--      near((await box(page.locator(SEL.grid))).h, S.STAGES[1].H - (bd.pull + 1), '指に 1:1');
-+      near((await box(page.locator(`${SEL.grid}:not([data-leaving])`))).h, S.STAGES[1].H - (bd.pull + 1), '指に 1:1');
-     }
-     await page.mouse.up();
-   });
-@@ -431,7 +431,7 @@
-       const b = await box(cell); const pts = [[3, 3], [b.w - 3, 3], [3, b.h - 3], [b.w - 3, b.h - 3], [b.w / 2, b.h / 2]];
-       const chip = cell.locator('.chip,.ev,.bar').first();
-       for (const [px, py] of pts) {
--        await page.locator(SEL.cell('2026-11-10')).click(); await page.waitForTimeout(150);
-+        await page.locator(SEL.cell(n === 7 ? '2026-11-15' : '2026-11-10')).click(); await page.waitForTimeout(150); // cal-v191: 段7の並びは選んだ日から7日で 11/10 は画面にない（§2.2・D 群）。並びの中の別の日を先に選ぶ
-         await cell.click({ position: { x: px, y: py } }); await page.waitForTimeout(200);
-         await expect(cell).toHaveAttribute('aria-selected', 'true');
-         expect(await page.locator('#editor[open], dialog[open]').count()).toBe(0);
+# 品質の原本との差分（cal-v191 の写しだけ。原本は触っていない）。S11c 時点（原本: closed-pull-v20.spec.js・note-ime-r70.spec.js とも 2026-11-21 15:30）
+# closed-pull-v20.spec.js・spec-values.js・pull-scan.js・open-baseline-5bc8af6.json: 差分なし（原本が 7c9fb05 の写しの直し 2 か所と G-4 の scrollIntoViewIfNeeded を取り込んだので、そのまま写した）
+# note-ime-r70.spec.js: 原本の「一時。S11c でタブが消えたら外す」の2行（段4へ進める）を外した。タブがなくなり、段1でも日の欄のノートを押せる（Chromium＋WebKit で通過）
 --- 品質の原本 qa/scripts/note-ime-r70.spec.js
 +++ cal-v191/app/tests/note-ime-r70.spec.js
-@@ -22,6 +22,8 @@
+@@ -22,8 +22,6 @@
    await page.addInitScript(() => { const k = 'duo.ui.v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); if (!s.monthDay) localStorage.setItem(k, JSON.stringify({ ...s, monthDay: 'list' })); });
    await openApp(page, size);
    const m = page.getByRole('button', { name: '月', exact: true }); if (await m.isVisible()) { await m.click(); await page.waitForTimeout(300); }
-+  // cal-v191 S11b（仮）: 閉じた月の段1は日の欄が下のタブの帯にかかる（タブは S11c で消える）。ノートの欄を押せるよう段4へ進める（閉じた画面だけ）
-+  if (size.width < size.height && size.width < 600) { await page.locator('.mgrab').focus(); for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowUp'); await page.waitForTimeout(400); }
+-  // 7c9fb05 の写しの直しを反映（一時。S11c でタブが消えたら外す）: 閉じた月の段1は日の欄が下のタブの帯にかかるので、段4へ進めてからノートの欄を押す
+-  if (size.width < size.height && size.width < 600) { await page.locator('.mgrab').focus(); for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowUp'); await page.waitForTimeout(400); }
  }
  async function openDaySheet(page, size = SIZES.closedPortrait) {
    await boot(page, size);

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { CAT_IDS } from '../js/categories.js';
-import { openApp, seed, ev, SIZES, tab, setStyle, fillEditor, fillRepeat } from './helpers.js';
+import { openApp, seed, ev, SIZES, tab, setStyle, fillEditor, fillRepeat, clickSettings, clickSearch } from './helpers.js';
 
 const DIR = 'screenshots';
 mkdirSync(DIR, { recursive: true });
@@ -44,12 +44,12 @@ test.describe('スクリーンショット', () => {
   test('search-closed / backup / import-confirm（閉じた縦）', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await seed(page, SEED);
-    await page.getByRole('button', { name: '予定を検索' }).click();
+    await clickSearch(page);
     await page.locator('#sr-q').fill('ぷろじぇくと');
     await expect(page.locator('#sr-body .hit').first()).toBeVisible();
     await shot(page, 'search-closed');
     await page.locator('#sr-close').click();
-    await page.getByRole('button', { name: '設定' }).click();
+    await clickSettings(page);
     await page.getByRole('button', { name: 'バックアップ' }).click();
     await shot(page, 'backup');
     await page.setInputFiles('#bk-file', { name: 'duo-calendar-backup-2026-11-13.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ app: 'duo-calendar', version: 2, exportedAt: '2026-11-13T09:41:00+09:00', events: [...SEED.slice(0, 2), ev('n1', '新しい予定', '2026-12-01T10:00', '2026-12-01T11:00')] })) });
@@ -60,7 +60,7 @@ test.describe('スクリーンショット', () => {
   test('search-open-landscape（開いた横）', async ({ page }) => {
     await openApp(page, SIZES.openLandscape);
     await seed(page, SEED);
-    await page.getByRole('button', { name: '予定を検索' }).click();
+    await clickSearch(page);
     await page.locator('#sr-q').fill('定例');
     await expect(page.locator('#sr-body .hit').first()).toBeVisible();
     await shot(page, 'search-open-landscape');
@@ -103,8 +103,8 @@ for (const [posture, size] of V10) {
   test(`v10 ${posture} ${size.width}x${size.height} month all light（先頭／末尾）`, async ({ page }) => {
     await openApp(page, size);
     await seed(page, V10SEED);
-    if (posture === 'closed') await tab(page, '月').click();
-    await page.locator('.allbtn').click();
+    if (posture === 'closed') { await tab(page, '月').click(); await setStyle(page, '全部'); } // 閉じた画面の「全部」は「…」→「月の表現」（design/34 §9.1-2）
+    else await page.locator('.allbtn').click();
     await page.evaluate(async () => { await document.fonts.ready; await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); });
     await shot(page, `v10-${posture}-${size.width}x${size.height}-month-all-light`);
     await page.locator('.scroll.all').evaluate((e) => { e.scrollTop = e.scrollHeight; });
@@ -135,21 +135,22 @@ for (const [name, size, safe, kind] of V12) {
     test(`v12-pr4 ${name} ${theme}`, async ({ page }) => {
       await v12Setup(page, size, safe, kind, theme);
       // 全操作が見える状態（設定・検索・今日・＋・全・前後・タブ）が画面内に出ていること
-      for (const n of ['設定', '予定を検索', '今日に戻る', '予定を追加', '全部の予定を表示', '前の月', '次の月']) await expect(page.getByRole('button', { name: n, exact: true }).first()).toBeVisible();
+      // 閉じた画面（design/34 §9.1）: 操作は タスク・…・＋ と、読み上げ用の見えない「前の月」「次の月」。設定・検索・全部は「…」の中、今日へは見出し
+      for (const n of (kind === 'closed' ? ['タスク', 'その他', '予定を追加', '前の月', '次の月'] : ['設定', '予定を検索', '今日に戻る', '予定を追加', '全部の予定を表示', '前の月', '次の月'])) await expect(page.getByRole('button', { name: n, exact: true }).first()).toBeVisible();
       await shot(page, `v12-pr4-${name}${theme === 'dark' ? '-dark' : ''}`);
     });
   }
 }
 test('v12-pr4 代表の全部on／末尾と設定表示', async ({ page }) => {
   await v12Setup(page, SIZES.closedPortrait, { r: 84 }, 'closed', 'light');
-  await page.locator('[data-act="allmonth"]').click();
-  await expect(page.locator('[data-act="allmonth"]')).toHaveAttribute('aria-pressed', 'true');
+  await setStyle(page, '全部'); // 閉じた画面の「全部」は「…」→「月の表現」（design/34 §9.1-2）
+  await expect(page.locator('.scroll.all')).toBeVisible();
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   await page.locator('.scroll.all').evaluate((e) => { e.scrollTop = e.scrollHeight; });
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   await shot(page, 'v12-pr4-closed-466x678-safe-r84-all-end');
-  await page.locator('[data-act="allmonth"]').click();
-  await page.locator('.ctl').getByRole('button', { name: '設定', exact: true }).click();
+  await setStyle(page, '予定名');
+  await clickSettings(page);
   await expect(page.locator('#menu')).toBeVisible();
   await shot(page, 'v12-pr4-closed-466x678-safe-r84-settings');
 });

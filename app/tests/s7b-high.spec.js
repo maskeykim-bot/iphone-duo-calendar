@@ -77,7 +77,7 @@ test.describe('V-01／V-10 開いた縦の上の帯（どの型でも同じ形�
 // ---------- V-02 ----------
 test('V-02 右の帯のタスク・ノートの絵は currentColor。ふだんは緑の線、選んだ丸（緑の地）では白', async ({ page }) => {
   await openApp(page, C); await band(page, 84);
-  for (const [id, cls] of [['task', '.ctask'], ['memo', '.cmemo']]) {
+  for (const [id, cls] of [['task', '.ctask']]) { // 閉じた画面の右の列に「ノート」はない（design/34 §9.1-7: 日の欄の「ノート ›」へ）。開いた横の帯のノートは下の試験で見る
     const stroke = () => page.locator(`${cls} svg [stroke]`).first().evaluate((e) => getComputedStyle(e).stroke);
     expect(await stroke()).toBe('rgb(41, 78, 66)');
     expect(await page.locator(`${cls} svg [stroke]`).first().getAttribute('stroke')).toBe('currentColor');
@@ -103,7 +103,7 @@ for (const [name, size, sar, ui, expectSel] of [
       await setUi(page, ui);
       await openApp(page, size); if (sar) await band(page, sar);
       await seed(page, MANY);
-      if (size === P || size === C) await page.locator('.tabs button', { hasText: '月' }).click();
+      if (size === P || size === C) await tab(page, '月').click();
       await page.waitForTimeout(400);
     });
 
@@ -156,7 +156,7 @@ test('V-03 閉じた月: +N の 44×44 が無くなったので、チップを�
   await setUi(page, { monthForm: 'month' });
   await openApp(page, C); await band(page, 84);
   await seed(page, MANY);
-  await page.locator('.tabs button', { hasText: '月' }).click(); await page.waitForTimeout(400);
+  await tab(page, '月').click(); await page.waitForTimeout(400);
   const plus = page.locator('[data-date="2026-11-12"]').locator('xpath=..').locator('.plus:visible').first();
   await expect(plus).toHaveCount(1);
   const pr = await plus.evaluate((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y }; });
@@ -180,7 +180,7 @@ test.describe('V-05 閉じた週の題名は 10pt/行 12・行数は枠の高さ
       ev('w90', '午後の会議が長く続く長い名前の予定の続き続き午後の会議が長く続く長い名前の予定の続き続き', '2026-11-14T13:00', '2026-11-14T14:30'),
       ev('w120', '二時間の予定のとても長い名前の予定の続き続き続き二時間の予定のとても長い名前の予定の続き続き続き', '2026-11-15T15:00', '2026-11-15T17:00'),
     ]);
-    await page.locator('.tabs button', { hasText: '週' }).click(); await page.waitForTimeout(500);
+    await tab(page, '週').click(); await page.waitForTimeout(500);
     const rows = await page.locator('.tlev').evaluateAll((l) => l.map((e) => { const r = e.getBoundingClientRect(), n = e.querySelector('.tn'), c = getComputedStyle(n), nr = n.getBoundingClientRect(); return { t: n.textContent.slice(0, 4), h: r.height, fs: c.fontSize, fw: c.fontWeight, lh: c.lineHeight, clamp: c.webkitLineClamp, pt: getComputedStyle(e).paddingTop, nh: nr.height, top: nr.top - r.top, bottom: r.bottom - nr.bottom }; }));
     expect(rows.length).toBe(4);
     for (const r of rows) {
@@ -201,7 +201,7 @@ test.describe('V-06 開いた縦の時間軸の予定は見た目の最小 22', 
       ev('a2', '次の15分', '2026-11-12T10:20', '2026-11-12T10:35'),
       ev('a3', '離れた15分', '2026-11-12T12:00', '2026-11-12T12:15'),
     ]);
-    await page.locator('.tabs button', { hasText: '日' }).click(); await page.waitForTimeout(500);
+    await tab(page, '日').click(); await page.waitForTimeout(500);
     const r = await page.locator('.fev').evaluateAll((l) => l.filter((e) => e.getBoundingClientRect().height > 0 && /15分|離れた/.test(e.textContent)).slice(0, 3).map((e) => { const b = e.getBoundingClientRect(), t = e.querySelector('.ftl'), tb = t.getBoundingClientRect(), c = getComputedStyle(t); return { x: b.x, y: b.y, w: b.width, h: b.height, top: tb.top - b.top, th: tb.height, fs: c.fontSize, fw: c.fontWeight, lh: c.lineHeight, title: t.textContent }; }));
     const byTitle = Object.fromEntries(r.map((x) => [x.title, x]));
     for (const x of r) { near(x.h, 22, 0.6); near(x.top, 3, 0.6); expect(x.fs).toBe('13px'); expect(x.fw).toBe('600'); expect(x.lh).toBe('16px'); expect(x.th).toBeLessThanOrEqual(16.5); expect(x.top + x.th).toBeLessThanOrEqual(x.h + 0.5); }
@@ -213,7 +213,7 @@ test.describe('V-06 開いた縦の時間軸の予定は見た目の最小 22', 
   test('週: 題名 10pt/行 12・上 2・行数は枠の高さ、15分も 22', async ({ page }) => {
     await openApp(page, P);
     await seed(page, [ev('b1', '短い15分の予定', '2026-11-12T10:00', '2026-11-12T10:15'), ev('b2', '一時間の予定のとても長い名前の予定ですよ', '2026-11-13T10:00', '2026-11-13T11:00')]);
-    await page.locator('.tabs button', { hasText: '週' }).click(); await page.waitForTimeout(500);
+    await tab(page, '週').click(); await page.waitForTimeout(500);
     const r = await page.locator('.fev').evaluateAll((l) => l.filter((e) => e.getBoundingClientRect().height > 0).slice(0, 12).map((e) => { const b = e.getBoundingClientRect(), t = e.querySelector('.ftl'), tb = t.getBoundingClientRect(), c = getComputedStyle(t); return { h: b.height, top: tb.top - b.top, th: tb.height, fs: c.fontSize, lh: c.lineHeight, clamp: c.webkitLineClamp, title: t.textContent }; }).filter((x) => /15分|一時間/.test(x.title)));
     const x15 = r.find((x) => /15分/.test(x.title)), x60 = r.find((x) => /一時間/.test(x.title));
     near(x15.h, 22, 0.6); expect(x15.fs).toBe('10px'); expect(x15.lh).toBe('12px'); near(x15.top, 2, 0.6); expect(x15.clamp).toBe('1');
@@ -244,13 +244,13 @@ test.describe('V-07 ダークでも全部明るい色（3姿勢）', () => {
       await check('初期');
       if (size === P) {
         for (const t of ['日', '週', '月', 'ホーム']) {
-          await page.locator('.tabs button', { hasText: t }).click(); await page.waitForTimeout(300);
+          await tab(page, t).click(); await page.waitForTimeout(300);
           await check(t);
           const parts = await page.evaluate(() => { const g = (s) => { const e = document.querySelector(s); return e ? getComputedStyle(e).backgroundColor : null; }; return { fold: g('.fold'), shell: g('.shell'), fmodes: g('.fmodes'), tabs: g('.tabs') }; });
           for (const [k, v] of Object.entries(parts)) if (v && v !== 'rgba(0, 0, 0, 0)') expect(lum(v), `${t} ${k} ${v}`).toBeGreaterThan(0.8);
         }
         // 日の予定の文字は暗い（紙の上）
-        await page.locator('.tabs button', { hasText: '日' }).click(); await page.waitForTimeout(300);
+        await tab(page, '日').click(); await page.waitForTimeout(300);
         const ink = await page.evaluate(() => getComputedStyle(document.querySelector('.fold .fhead') || document.body).color);
         expect(lum(ink)).toBeLessThan(0.4);
       }
@@ -294,7 +294,7 @@ test.describe('V-09 下のバーの上のぼかし 24', () => {
     await openApp(page, P);
     await seed(page, MANY);
     for (const t of ['ホーム', '日', '週', '月']) {
-      await page.locator('.tabs button', { hasText: t }).click(); await page.waitForTimeout(400);
+      await tab(page, t).click(); await page.waitForTimeout(400);
       const f = await rect(page.locator('.shell .tabfade'));
       near(f.x, 0); near(f.y, 839); near(f.w, 669); near(f.h, 24);
       expect(await page.locator('.shell .tabfade').evaluate((e) => { const c = getComputedStyle(e); return [c.backgroundImage, c.pointerEvents]; })).toEqual(['linear-gradient(rgba(247, 244, 237, 0), rgb(247, 244, 237))', 'none']);
