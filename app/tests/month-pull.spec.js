@@ -195,19 +195,41 @@ test.describe('閉じた画面 466×678', () => {
     expect(await box(page.locator('.mgrid'))).toEqual(g0);
   });
 
-  test('日の欄のつまみ（下）で 時間軸（34 §6.2・S11b で置き換え）: 1時間 44 で今の時刻に赤い線。日の欄の下にタスクはなく、ノートがある。段は保存しない（開くたびにカード）', async ({ page }) => {
+  // 第19.2版 S11d（design/34 §5「覚えておくもの」・設計レビュー 7c9fb05 M8・品質レビュー 7c9fb05 中）: S11b の「段は保存しない（開くたびにカード）」は仕様と逆だったので戻す。
+  // 日の欄のつまみの段（A カード／B 時間軸／C 時間軸・広い）は覚える。日を選び直しても、読み込み直しのあとも同じ。保存値が 0〜2 の整数でなければカード。
+  test('日の欄のつまみ（下）で 時間軸（34 §6.2）: 1時間 44 で今の時刻に赤い線。日の欄の下にタスクはなく、ノートがある。段は覚える（日を選び直しても・読み込み直しても同じ。34 §5・M8）', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await seedTasks(page, [T('t1', { title: '十二日が期限', due: { date: '2026-11-12' } }), T('t2', { title: '別の日', due: { date: '2026-11-20' } })]);
     await tab(page, '月').click();
     await expect(page.locator('.mdtask')).toHaveCount(0); // 34 §9.1 の 11: 日の欄の下のタスクは出さない（右の列の「タスク」へ）
     await expect(page.locator('.mdnl')).toBeVisible(); await expect(page.locator('.mdnote')).toBeVisible(); // 「ノート ›」と下の欄
+    await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'A'); // 初めはカード
     await page.locator('.mdgrab').focus(); await page.keyboard.press('ArrowDown'); // つまみ（下）を下へ＝時間軸（キーでも同じ）
     await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B');
     const hs = await page.locator('.mday .hlab').evaluateAll((e) => e.slice(0, 3).map((x) => x.getBoundingClientRect().top));
     expect(near(hs[1] - hs[0], 44, 0.6)).toBe(true);
     await expect(page.locator('.mday .nowl')).not.toHaveAttribute('hidden', ''); // 今日の線
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')).dayGrip)).toBe(1); // UI_KEY に保存（IndexedDB・バックアップの版6は変えない）
+    await page.locator('.mgrid .day[data-date="2026-11-18"]').click({ position: { x: 30, y: 70 } }); await page.waitForTimeout(400);
+    await expect(page.locator('.mdh .hdt')).toHaveText('11月18日');
+    await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B'); // 日を選び直しても時間軸のまま
     await page.reload(); await page.waitForSelector('html[data-ready]');
-    await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'A'); // 保存しない
+    await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B'); // 読み込み直しても時間軸のまま
+    await page.locator('.mdgrab').focus(); await page.keyboard.press('ArrowDown'); // 時間軸・広い
+    await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'C');
+    await page.reload(); await page.waitForSelector('html[data-ready]');
+    await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'C');
+    const hs2 = await page.locator('.mday .hlab').evaluateAll((e) => e.slice(0, 3).map((x) => x.getBoundingClientRect().top));
+    expect(near(hs2[1] - hs2[0], 88, 0.6)).toBe(true); // C は1時間 88
+    await page.locator('.mdback').click(); // 見出しの右の「カード」
+    await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'A');
+    await page.reload(); await page.waitForSelector('html[data-ready]');
+    await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'A');
+    for (const bad of [3, -1, 1.5, '1', null, true]) { // 0〜2 の整数でない保存値はカードへ戻す
+      await page.evaluate((v) => { const k = 'duo.ui.v1'; localStorage.setItem(k, JSON.stringify({ ...JSON.parse(localStorage.getItem(k)), dayGrip: v })); }, bad);
+      await page.reload(); await page.waitForSelector('html[data-ready]');
+      await expect(page.locator('.mday'), `dayGrip=${JSON.stringify(bad)}`).toHaveAttribute('data-dg', 'A');
+    }
   });
 
   test('「全部」の月は従来のまま。「…」→「月の表現」で入り・戻る（design/34 §9.1-2: 見出しの「全部」は消えた）', async ({ page }) => {
@@ -295,6 +317,9 @@ test('開いても閉じても同じ型・同じ切り替え・同じスクロ�
   await grab(page).focus(); for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowUp'); await settle(page); // 段4（2週）から段7（1週）へ
   await expect(page.locator('.mpull')).toHaveAttribute('data-stage', '7');
   expect(await form(page)).toBe('one');
+  // S11d（34 §5・M8・品質レビュー 7c9fb05 中）: 日の欄を時間軸にする。S11b で外した時間軸の確かめを戻す（閉じた画面の段はつまみ（下）。開いた縦の「予定｜時間軸」とは別に覚える）
+  await page.locator('.mdgrab').focus(); await page.keyboard.press('ArrowDown');
+  await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B');
   // 閉じた画面は日の欄（.mday）の中だけが流れる（design/34 §6.3）。日の部分のずれ 300 を覚える
   await page.locator('.mday').evaluate((e) => { e.scrollTop = 300; });
   await page.waitForTimeout(100);
@@ -308,6 +333,8 @@ test('開いても閉じても同じ型・同じ切り替え・同じスクロ�
     await expect.poll(() => page.evaluate(() => document.body.dataset.layout)).toBe('browse');
     await expect(page.locator('.shell.closed.cal')).toHaveCount(1); // 下のタブはない（design/34 §9.1-9）。カレンダーのまま
     await expect(page.locator('.mpull')).toBeVisible();
+    await expect(page.locator('.mpull')).toHaveAttribute('data-stage', '7'); // 段も
+    await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B'); // 日の欄の段（時間軸）も、閉じる⇄開くのあと同じ
     expect(near(await page.locator('.mday').evaluate((e) => e.scrollTop), 300, 2)).toBe(true); // 閉じた画面でも同じ位置
   }
 });

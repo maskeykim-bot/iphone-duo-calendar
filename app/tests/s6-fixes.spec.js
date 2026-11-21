@@ -49,6 +49,13 @@ test.describe('押した色の取り違えがない', () => {
     await page.mouse.move(d.x + 4, d.y + d.height - 4); await page.mouse.down();
     await expect.poll(() => day.evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(226, 221, 210)'); // 第19.2版 S11b（R-75）: 閉じた7段の押した地は #E2DDD2
     await page.mouse.up();
+    { // S11d（設計レビュー 7c9fb05 M3・品質レビュー ⑦）: 時刻つきチップの上で押しても、チップは紺のベタにならない（地 transparent・filter なし）。押した地はマスだけ
+      await page.waitForTimeout(250); const chip = day.locator('.strip.chip.timed').first(); await expect(chip).toBeVisible(); const cb = await chip.boundingBox(); // 上の押下（click）の描き直しが済んでから測る
+      await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2); await page.mouse.down(); await page.waitForTimeout(150);
+      expect(await chip.evaluate((e) => [e.matches(':active'), getComputedStyle(e).backgroundColor, getComputedStyle(e).filter])).toEqual([true, 'rgba(0, 0, 0, 0)', 'none']);
+      expect(await day.evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(226, 221, 210)');
+      await page.mouse.up(); await page.waitForTimeout(250);
+    }
     await page.mouse.move(pb.x + pb.width - 6, pb.y + 8); await page.mouse.down();
     // V-03: +N は pointer-events:none。+N の所を押すと押されるのはマス（地 #EFECE4）で、+N 自体は変わらない
     await expect.poll(() => day.evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(226, 221, 210)');

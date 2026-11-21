@@ -1,14 +1,35 @@
-# 品質の原本との差分（cal-v191 の写しだけ。原本は触っていない）。S11c 時点（原本: closed-pull-v20.spec.js・note-ime-r70.spec.js とも 2026-11-21 15:30）
-# closed-pull-v20.spec.js・spec-values.js・pull-scan.js・open-baseline-5bc8af6.json: 差分なし（原本が 7c9fb05 の写しの直し 2 か所と G-4 の scrollIntoViewIfNeeded を取り込んだので、そのまま写した）
-# note-ime-r70.spec.js: 原本の「一時。S11c でタブが消えたら外す」の2行（段4へ進める）を外した。タブがなくなり、段1でも日の欄のノートを押せる（Chromium＋WebKit で通過）
---- 品質の原本 qa/scripts/note-ime-r70.spec.js
-+++ cal-v191/app/tests/note-ime-r70.spec.js
-@@ -22,8 +22,6 @@
-   await page.addInitScript(() => { const k = 'duo.ui.v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); if (!s.monthDay) localStorage.setItem(k, JSON.stringify({ ...s, monthDay: 'list' })); });
-   await openApp(page, size);
-   const m = page.getByRole('button', { name: '月', exact: true }); if (await m.isVisible()) { await m.click(); await page.waitForTimeout(300); }
--  // 7c9fb05 の写しの直しを反映（一時。S11c でタブが消えたら外す）: 閉じた月の段1は日の欄が下のタブの帯にかかるので、段4へ進めてからノートの欄を押す
--  if (size.width < size.height && size.width < 600) { await page.locator('.mgrab').focus(); for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowUp'); await page.waitForTimeout(400); }
- }
- async function openDaySheet(page, size = SIZES.closedPortrait) {
-   await boot(page, size);
+# 品質の原本との差分（cal-v191 の写しだけ。原本は触っていない）。S11d 時点（原本: closed-pull-v20.spec.js・note-ime-r70.spec.js 2026-11-21 15:30、s11b-design-m.spec.js 2026-11-21 15:29）
+# closed-pull-v20.spec.js・spec-values.js・pull-scan.js・open-baseline-5bc8af6.json: 差分なし（G-4 の scrollIntoViewIfNeeded も原本どおり入っている）
+# note-ime-r70.spec.js: 原本の「一時。S11c でタブが消えたら外す」の2行（段4へ進める）を外した（S11c から。タブがなくなり、段1でも日の欄のノートを押せる）
+# s11b-design-m.spec.js（S11d で写した 12 本）: 試験の前提の直しが 4 か所。アプリの値（M1〜M9 の設計の値）は原本のまま
+#   1. M4: getByRole('button', { name: '終日の予定' }) に exact: true。種の予定「終日の予定」が、選んだ日（11/12）の日の欄の終日チップ（button）とマス（button）の読み上げに部分一致して、直っていてもいつも 2 件になる
+#   2. M7: 「最後のカード」の選択子を '.mday .mdcard, .mday .mdnone2' に。原本の .mdnone は無い class（「予定はありません」は .mdnone2）、.mdempty はつまみより下のノートの欄の「たたいて書く」で、カードではない
+#   3. M7: 最後のカードの下端を、つまみと同じく送る前に測る（原本は scrollIntoView のあとに測っていて、送った量だけずれる）
+#   4. M7: 「ノート ›」を block:'end' で送る。段1は日の欄が y604〜678 しかなく、center だと「ノート ›」の上端 y619 が、つまみ（上）の押せる範囲（格子の下端から 44＝y580〜624。34 §13-1）の下になる
+--- 品質の原本 qa/scripts/v20-closed/s11b-design-m.spec.js
++++ cal-v191/app/tests/s11b-design-m.spec.js
+@@ -97,7 +97,7 @@
+     const c = page.locator(cell('2026-11-10')); const b = await c.boundingBox();
+     await page.mouse.move(b.x + b.width / 2, b.y + b.height - 12); await page.mouse.down(); await page.waitForTimeout(700); await page.mouse.up(); await page.waitForTimeout(200);
+     await expect(page.getByText(/11月10日（\d+日）/)).toHaveCount(0);
+-    await expect(page.getByRole('button', { name: '終日の予定' })).toHaveCount(0);
++    await expect(page.getByRole('button', { name: '終日の予定', exact: true })).toHaveCount(0); // 写しの直し: exact。種の予定「終日の予定」が、選んだ日（11/12）の日の欄の終日チップとマスの読み上げに部分一致して、いつも 2 件になるため（メニューの項目名はちょうど「終日の予定」）
+     await expect(page.locator('[role="menu"]:visible')).toHaveCount(0);
+   });
+ 
+@@ -128,11 +128,11 @@
+       await toStage(page, n);
+       const m = await page.evaluate(() => {
+         const g = document.querySelector('.mdgrab'), nl = document.querySelector('.mday [data-act="notelist"]');
+-        const cards = [...document.querySelectorAll('.mday .mdcard, .mday .mdnone, .mday .mdempty')];
+-        const last = cards.at(-1); const gr = g.getBoundingClientRect(), nr = nl.getBoundingClientRect(), line = g.querySelector('i, ::before') ? g.querySelector('i').getBoundingClientRect() : null;
+-        nl.scrollIntoView({ block: 'center' }); const nr2 = nl.getBoundingClientRect();
++        const cards = [...document.querySelectorAll('.mday .mdcard, .mday .mdnone2')]; // 写しの直し: 「予定はありません」の class は .mdnone2。.mdempty はノートの欄（つまみより下）の「たたいて書く」で、カードではない（34 §13-2 は「最後のカード（予定がない日は『予定はありません』）の下端から」）
++        const last = cards.at(-1); const lastBottom0 = last ? last.getBoundingClientRect().bottom : null; /* 写しの直し: 最後のカードの下端は、つまみと同じく送る前に測る（原本は送ったあとに測っていて、送った量だけずれる） */ const gr = g.getBoundingClientRect(), nr = nl.getBoundingClientRect(), line = g.querySelector('i, ::before') ? g.querySelector('i').getBoundingClientRect() : null;
++        /* 写しの直し: 段1は日の欄が y604〜678 しかなく、center だと「ノート ›」の上端が y619 で、つまみ（上）の押せる範囲（格子の下端から 44＝y580〜624。34 §13-1）の下になる。日の欄の下端へ寄せて、つまみ（下）にかからないことだけを見る */ nl.scrollIntoView({ block: 'end' }); const nr2 = nl.getBoundingClientRect();
+         const hit = document.elementFromPoint(nr2.left + nr2.width / 2, nr2.top + 2);
+-        return { gTop: gr.top, gBottom: gr.bottom, gH: gr.height, nlTop: nr.top, lastBottom: last ? last.getBoundingClientRect().bottom : null, hitIsNote: !!hit && (hit === nl || nl.contains(hit)), lineTop: line ? line.top - gr.top : null };
++        return { gTop: gr.top, gBottom: gr.bottom, gH: gr.height, nlTop: nr.top, lastBottom: lastBottom0, hitIsNote: !!hit && (hit === nl || nl.contains(hit)), lineTop: line ? line.top - gr.top : null };
+       });
+       expect(m.hitIsNote, `段${n}「ノート ›」の上端をたたくと「ノート ›」`).toBe(true);
+       expect(m.gBottom, `段${n} 押せる範囲の下 ≤ ノート › の上`).toBeLessThanOrEqual(m.nlTop + 0.25);

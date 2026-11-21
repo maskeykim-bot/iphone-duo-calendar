@@ -79,7 +79,7 @@ test('V-02 右の帯のタスク・ノートの絵は currentColor。ふだん�
   await openApp(page, C); await band(page, 84);
   for (const [id, cls] of [['task', '.ctask']]) { // 閉じた画面の右の列に「ノート」はない（design/34 §9.1-7: 日の欄の「ノート ›」へ）。開いた横の帯のノートは下の試験で見る
     const stroke = () => page.locator(`${cls} svg [stroke]`).first().evaluate((e) => getComputedStyle(e).stroke);
-    expect(await stroke()).toBe('rgb(41, 78, 66)');
+    await expect.poll(stroke).toBe('rgb(41, 78, 66)'); // 帯の幅を入れた直後の描き直しで、外れた要素を読むと '' になる（ゆらぎ）。同じ値を待って読む
     expect(await page.locator(`${cls} svg [stroke]`).first().getAttribute('stroke')).toBe('currentColor');
     await page.locator(`[data-strip="${id}"]`).first().click();
     await expect(page.locator(`${cls}.on`)).toHaveCount(1);
@@ -141,6 +141,7 @@ for (const [name, size, sar, ui, expectSel] of [
         if (r.plus && r.rk) expect(r.plus.l - r.rk.r, `${r.date} 六曜と ${r.plusTxt}`).toBeGreaterThanOrEqual(2);
         if (r.plus && r.num) expect(r.plus.l - r.num.r, `${r.date} 日付と ${r.plusTxt}`).toBeGreaterThanOrEqual(2);
         if (r.plus && size !== C) { expect(r.pfw).toBe('600'); } // 閉じた7段の +N は 11/400（34 §2.3）
+        if (r.plus && size === C) { expect(r.pfw, `${r.date} 閉じた7段の +N の太さ`).toBe('400'); } // S11d（品質レビュー 7c9fb05 ⑦）: 外した 600 の代わりに 400 を確かめる
       }
       if (size === L) {
         // 閉じた画面の 33 §5 と同じ寸法: 日付の円 16・六曜 x+21〜37（8px）・+N 8px 右 2

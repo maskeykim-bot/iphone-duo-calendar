@@ -2271,8 +2271,8 @@ body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#tas
 .mpull.browse .weekdays .sun{color:#B43C3C}
 .mpull.browse .mgwrap{flex:none;position:relative;height:var(--H);overflow:hidden}
 .shell.closed .mpull.browse .mgrid{position:absolute;inset:0;height:auto;overflow:hidden;transition:none!important}
-.mpull.browse .week{height:var(--rh);flex:none;box-sizing:border-box;overflow:hidden;grid-template-rows:minmax(0,1fr);border-top:.5px solid #E4E0D6}
-.mpull.browse .week:first-child{border-top:0}
+.mpull.browse .week{height:var(--rh);flex:none;box-sizing:border-box;overflow:hidden;grid-template-rows:minmax(0,1fr);border-top:0;box-shadow:inset 0 .5px 0 #E4E0D6}
+.mpull.browse .week:first-child{border-top:0;box-shadow:none}
 .mpull.browse .week .day{height:100%;justify-content:flex-start;align-items:flex-start;border-right:0}
 .shell.closed .mpull.browse .week .day .num{display:block;box-sizing:border-box;width:auto;min-width:0;height:22px;margin:0;padding:0 0 0 4px;border-radius:0;font:600 14px/22px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;font-variant-numeric:tabular-nums;color:#293B35;background:none;text-align:left}
 .shell.closed .mpull.browse .week .day .num .mo{font-size:11px;font-weight:400;color:#68716A}
@@ -2303,7 +2303,7 @@ body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#tas
 .mpull.browse .week .day.out [data-lane="1"]{opacity:calc(var(--o1,1) * .45)}
 .mpull.browse .week .day.out [data-lane="2"]{opacity:calc(var(--o2,1) * .45)}
 .mpull.browse .week .day.out [data-lane="3"]{opacity:calc(var(--o3,1) * .45)}
-.shell.closed .mpull.browse .week .day:active:not(:disabled):not(.nopress),.shell.closed .mpull.browse .week .day.prs{background-color:#E2DDD2!important;transition:background-color .10s linear}
+.shell.closed .mpull.browse:not(.pulling) .week .day:active:not(:disabled):not(.nopress),.shell.closed .mpull.browse:not(.pulling) .week .day.prs{background-color:#E2DDD2!important;transition:background-color .10s linear}
 .shell.closed .mpull.browse .week .day.nopress:active:not(.prs){background-color:var(--rest,transparent)!important}
 .shell.closed .mpull.browse .mgrab{position:relative;z-index:3;display:flex;justify-content:center;align-items:flex-start;flex:none;box-sizing:border-box;height:44px;min-height:44px;margin:0 0 -20px;padding-top:10px;touch-action:none;cursor:ns-resize}
 .mpull.browse .mgrab::after{display:none}
@@ -2316,7 +2316,7 @@ body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#tas
 .shell.closed .mpull.browse .mph button.vh[data-act=prev]{left:1px}
 .shell.closed .mpull.browse .mph button.vh[data-act=next]{left:5px}
 .shell.closed .mpull.browse .week .day{padding:0;border:0;flex-direction:column;align-items:flex-start}
-.shell.closed .mpull.browse .mdh h3{font:600 17px/1.2 -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif}
+.shell.closed .mpull.browse .mdh h3{font:600 17px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif}
 
 /* S11b 日の欄（design/34 §6）。閉じた7段だけ。x12〜370（.mpull 8＋.mday 4）。面 #EFECE4。 */
 .shell.closed .mpull.browse .mday{background:#EFECE4;border-radius:0}
@@ -2342,10 +2342,10 @@ body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#tas
 .mpull.browse .mdcard strong{position:absolute;left:68px;right:12px;top:8px;font:600 15px/20px -apple-system,'Hiragino Sans',sans-serif;color:#1C1F1D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mpull.browse .mdcard small{position:absolute;left:68px;right:12px;top:30px;font:400 11px/16px -apple-system,'Hiragino Sans',sans-serif;color:#68716A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mpull.browse .mdnone2{margin:0;padding:0;height:44px;font:400 13px/44px -apple-system,'Hiragino Sans',sans-serif;color:#68716A}
-.shell.closed .mpull.browse .mdgrab{position:relative;display:flex;justify-content:center;align-items:flex-start;box-sizing:border-box;width:100%;height:44px;min-height:44px;margin:0 0 -20px;padding-top:10px;touch-action:none;cursor:ns-resize;-webkit-user-select:none;user-select:none}
+.shell.closed .mpull.browse .mdgrab{position:relative;display:flex;justify-content:center;align-items:flex-start;box-sizing:border-box;width:100%;height:44px;min-height:44px;margin:-8px 0 0;padding-top:18px;touch-action:none;cursor:ns-resize;-webkit-user-select:none;user-select:none}
 .mpull.browse .mdgrab i{display:block;width:36px;height:4px;border-radius:2px;background:#B9B4A8}
 .mpull.browse .mdgrab:active i{background:#68716A}
-.mpull.browse .mdnl{display:flex;align-items:center;width:100%;height:44px;min-height:44px;margin:10px 0 0;padding:0;border:0;border-radius:0;background:none;font:600 13px/44px -apple-system,'Hiragino Sans',sans-serif;color:#68716A;text-align:left}
+.mpull.browse .mdnl{display:flex;align-items:center;width:100%;height:44px;min-height:44px;margin:0;padding:0;border:0;border-radius:0;background:none;font:600 13px/44px -apple-system,'Hiragino Sans',sans-serif;color:#68716A;text-align:left}
 .mpull.browse .mdnote{display:block;box-sizing:border-box;width:100%;min-height:88px;margin:0;padding:8px 12px;border-radius:14px;background:#fff;text-align:left}
 .mpull.browse .mdnote .mdempty{font:400 13px/20px -apple-system,'Hiragino Sans',sans-serif;color:#A8ABA4}
 .mpull.browse .mdbody .tl{overflow:visible;flex:none}
@@ -2419,3 +2419,23 @@ body[data-layout=home] .toastbar,body[data-layout=browse] .toastbar{left:calc(va
 .shell.closed .stripp .padb,.shell.closed .stripp .taskl{padding-bottom:41px}
 .shell.closed .tl[data-pane=closed]{padding-bottom:29px}
 .shell.closed .mpull .mdbody .tl[data-pane=closed]{padding-bottom:0}
+
+/* ===== 第19.2版 S11d（設計レビュー 7c9fb05 の必須 M1〜M9・design/34 §13） ===== */
+/* M1（34 §13-3）: 週の間の線 0.5 は行の高さを取らない（box-shadow）。土曜・押した地のマスの上にも出るよう、同じ線を行の上の層にも描く。チップ（z2）より下 */
+.mpull.browse .week:not(:first-child)::before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;box-shadow:inset 0 .5px 0 #E4E0D6}
+/* M2（34 §2.3）: 選んだ日の枠はマスの内側 1・太さ 2・角丸 4。チップ（z2・帯 z3）より上に描く */
+.shell.closed .mpull.browse .week .day.selected{box-shadow:none}
+.shell.closed .mpull.browse .week .day.selected:not(.msel):not(.psel):not(.mdrop)::after{content:"";position:absolute;inset:1px;box-sizing:border-box;border:2px solid #294E42;border-radius:4px;z-index:4;pointer-events:none}
+/* M3（34 §9.4）: 閉じた7段の時刻つきチップは、押しても・つかんでも紺のベタにしない。つかんだ元は破線の枠だけ（R-49） */
+.mpull.browse .week .day .strip.chip:active{background-color:transparent!important;filter:none!important}
+.mpull.browse .week .day .chip.grabbed,.mpull.browse .week .day .chip.grabbed:active{background:transparent!important;background-color:transparent!important;filter:none!important;outline:1.5px dashed var(--cat,#294E42);outline-offset:-1.5px}
+/* M9（34 §3・§6.3）: 格子は自分ではスクロールしない。縦の引きを指に渡す（横の払いは JS の月送り） */
+.shell.closed .mpull.browse .mgwrap,.shell.closed .mpull.browse .mgwrap *{touch-action:none}
+/* 品質⑥: つまみ（下）が画面の外にある日は、見出しの右に「時間軸」（「カード」と同じ形。34 §6.2 の「カード」と対の入口） */
+.mpull.browse .mdback[hidden]{display:none}
+/* 設計レビュー D4: つまみのキーの焦点の枠は区域の中に収める */
+.mpull.browse .mgrab:focus-visible,.mpull.browse .mdgrab:focus-visible{outline-offset:-2px;border-radius:8px}
+/* M6: 日付（17/44）は見出し 44 の上端から置く（中心 y+22）。曜日（13/44）は baseline でそろえる */
+.shell.closed .mpull.browse .mdh h3{align-self:flex-start}
+/* 帯がない画面（ブラウザ）: 見出しの右の「カード」「時間軸」は、右下の＋（x410〜458）にかからない所へ */
+.shell.closed.fb .mpull.browse .mdh .mdback{margin-right:56px}

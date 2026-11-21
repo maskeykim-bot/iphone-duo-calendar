@@ -266,6 +266,34 @@ for (const [name, size, setup2] of [
   test.describe(`月の期間入力 ${name}`, () => {
     test.beforeEach(async ({ page }) => { if (name === '閉じた縦' || name === '開いた縦') await monthFormInit(page); /* 第19版 PR6: 月を引く画面の「月」の型（11/25 まで見える） */ await openApp(page, size); await setup2(page); await expect(page.locator('.day[data-date="2026-11-18"]').first()).toBeVisible(); });
 
+    // 第19.2版 S11d（design/34 §9.4・設計レビュー 7c9fb05 M4）: 閉じた7段では、チップのない所を長押ししても何もしない（期間の札・枠・メニュー・シートは出ない）。
+    // 期間を選ぶのは読み上げ用の隠れた「期間を選ぶ」だけ（下の「VoiceOver 代替」の試験）。新しい予定は「＋」から。開いた縦・開いた横・「全部」の月は今までどおり。
+    if (name === '閉じた縦') {
+      test('閉じた7段: チップのない所を長押し→横へ滑らせても、札も枠も出ず、離しても何も開かない。DBは0のまま（34 §9.4・M4）', async ({ page }) => {
+        const a = await dayCenter(page, '2026-11-18'), b = await dayCenter(page, '2026-11-20');
+        await monthPress(page, a);
+        await expect(page.locator('.day.msel')).toHaveCount(0);
+        await expect(page.locator('.mrtag')).toHaveCount(0);
+        await page.mouse.move(b.x, a.y, { steps: 6 }); // 横へ滑らせる（縦は段の引きになる。M9）
+        await expect(page.locator('.day.msel')).toHaveCount(0);
+        await expect(page.locator('.mrtag')).toHaveCount(0);
+        await page.mouse.up();
+        await page.waitForTimeout(300);
+        await expect(page.locator('#editor')).toBeHidden();
+        await expect(page.locator('.cmenu')).toHaveCount(0);
+        expect(await dbCount(page)).toBe(0);
+      });
+      test('閉じた7段: 1日だけ長押しして離しても、小さなメニュー（終日の予定／この日のノート）は出ない。その日は選ばれない（34 §9.4・M4）', async ({ page }) => {
+        const a = await dayCenter(page, '2026-11-20');
+        await monthPress(page, a); await page.waitForTimeout(300); await page.mouse.up();
+        await page.waitForTimeout(300);
+        await expect(page.locator('.cmenu')).toHaveCount(0);
+        await expect(page.locator('[role="menu"]:visible')).toHaveCount(0);
+        await expect(page.locator('#editor')).toBeHidden();
+        await expect(page.locator('.day.msel')).toHaveCount(0);
+        expect(await dbCount(page)).toBe(0);
+      });
+    } else {
     test('長押し→週をまたいで滑らせる→札と枠→離すと終日の期間シート。DBは0のまま', async ({ page }) => {
       const a = await dayCenter(page, '2026-11-18'), b = await dayCenter(page, '2026-11-25');
       await monthPress(page, a);
@@ -305,6 +333,7 @@ for (const [name, size, setup2] of [
       await page.locator('#form [type=submit]').click();
       await expect.poll(() => dbCount(page)).toBe(1);
     });
+    }
 
     test('通常tapは日選択のまま。短い押下の後に期間選択は出ない', async ({ page }) => {
       const a = await dayCenter(page, '2026-11-19');
@@ -329,7 +358,7 @@ test.describe('月の期間入力 その他', () => {
     expect(await dbCount(page)).toBe(2);
   });
   test('長押し中の hidden で取り消され、枠も札も消える', async ({ page }) => {
-    await openApp(page, SIZES.closedPortrait); await tab(page, '月').click();
+    await monthFormInit(page); await openApp(page, SIZES.openPortrait); // S11d: 閉じた7段は長押しの期間選択がない（34 §9.4・M4）ので、同じ取り消しを開いた縦で見る
     const a = await dayCenter(page, '2026-11-18');
     await monthPress(page, a);
     await expect(page.locator('.day.msel')).toHaveCount(1);
@@ -446,7 +475,8 @@ test.describe('端スクロール: 時間軸', () => {
 });
 
 test.describe('端スクロール: 月（滞在で前後の月）', () => {
-  test.beforeEach(async ({ page }) => { await monthFormInit(page); await openApp(page, SIZES.closedPortrait); await tab(page, '月').click(); await expect(page.locator('.day[data-date="2026-11-18"]').first()).toBeVisible(); });
+  // S11d: 閉じた7段は長押しの期間選択がない（34 §9.4・M4）。滞在で前後の月へ送る動きは、長押しの期間選択が残る開いた縦で見る（確かめる中身は同じ）
+  test.beforeEach(async ({ page }) => { await monthFormInit(page); await openApp(page, SIZES.openPortrait); await expect(page.locator('.day[data-date="2026-11-18"]').first()).toBeVisible(); });
   const gridEdge = (page) => page.evaluate(() => { const ws = [...document.querySelectorAll('.week')].map((w) => w.getBoundingClientRect()); return { top: Math.min(...ws.map((r) => r.top)), bottom: Math.max(...ws.map((r) => r.bottom)) }; });
 
   test('下端に600ms滞在で次の月へ1回だけ。起点の日付は保持され、離れて入り直すと再び進む', async ({ page }) => {
@@ -526,7 +556,7 @@ test.describe('触覚', () => {
   });
   test('ネイティブ: 月の長押しと日の変化で light', async ({ page }) => {
     await page.addInitScript(HAPTIC_MOCK);
-    await openApp(page, SIZES.closedPortrait); await tab(page, '月').click();
+    await monthFormInit(page); await openApp(page, SIZES.openPortrait); // S11d: 閉じた7段は長押しの期間選択がない（34 §9.4・M4）ので開いた縦で
     const a = await dayCenter(page, '2026-11-18'), b = await dayCenter(page, '2026-11-19');
     await monthPress(page, a);
     const cnt = () => page.evaluate(() => window.__hap.calls.filter((c) => c.method === 'selectionHaptic').length);

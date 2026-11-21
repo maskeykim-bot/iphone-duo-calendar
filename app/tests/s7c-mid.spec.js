@@ -76,8 +76,16 @@ test('V-23（R-75 で置き換え）チップの上で押しても、そのマ�
   await tab(page, '月').click(); await page.waitForTimeout(300);
   const day = page.locator('.week .day[data-date="2026-11-12"]'); const base = await bg(day);
   const chip = page.locator('.week .strip[data-event="c1"]').first(); await expect(chip).toBeVisible();
+  // S11d（設計レビュー 7c9fb05 M3・品質レビュー ⑦）: 押している間、チップ自身は紺のベタにならない（地 transparent・filter なし）。0.35 秒より前（押した直後）に見る
+  await page.mouse.move((await rect(chip)).x + (await rect(chip)).w / 2, (await rect(chip)).y + (await rect(chip)).h / 2); await page.mouse.down(); await page.waitForTimeout(150);
+  expect(await chip.evaluate((e) => [e.matches(':active'), getComputedStyle(e).backgroundColor, getComputedStyle(e).filter])).toEqual([true, 'rgba(0, 0, 0, 0)', 'none']);
+  expect(await bg(day)).toBe('rgb(226, 221, 210)');
+  await page.mouse.up(); await page.waitForTimeout(300);
   await press(page, chip);
-  await page.waitForTimeout(200); expect(await bg(day)).toBe('rgb(226, 221, 210)'); await expect(page.locator('.chip-press')).toHaveCount(0); await page.mouse.up(); await page.waitForTimeout(400);
+  await page.waitForTimeout(200); expect(await bg(day)).toBe('rgb(226, 221, 210)'); await expect(page.locator('.chip-press')).toHaveCount(0);
+  // 0.35 秒を過ぎてつかんだあとも、元のチップは破線の枠だけ（地 transparent・filter なし）
+  expect(await page.evaluate(() => { const g = document.querySelector('.mgrid .chip.grabbed'); if (!g) return null; const c = getComputedStyle(g); return [c.backgroundColor, c.filter, c.outlineStyle]; })).toEqual(['rgba(0, 0, 0, 0)', 'none', 'dashed']);
+  await page.mouse.up(); await page.waitForTimeout(400);
 });
 
 test('V-23 対照: マスの空きを押したときも #E2DDD2（R-75）', async ({ page }) => {
