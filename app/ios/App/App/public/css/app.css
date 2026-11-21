@@ -2481,3 +2481,14 @@ body[data-layout=home] .toastbar,body[data-layout=browse] .toastbar{left:calc(va
 .shell.closed.fb .mpull.browse:not([data-stage="1"]) .mday .mdgrab::after{content:"";position:absolute;left:100%;top:0;width:56px;height:100%;background:#EFECE4;pointer-events:none}
 .shell.closed.fb .mpull.browse:not([data-stage="1"]) .mday .mdgrab.stuck::after{box-shadow:inset 0 .5px 0 #E4E0D6}
 .shell.closed.land.fb .mpull.browse .mday .mdgrab::after{width:64px}
+
+/* ===== 第19.2版 S11g（design/34 §17、設計レビュー 61b9ce7） ===== */
+/* §17-1（K-1）: つまみ（下）が貼り付いている間だけ、つまみの下端から日の欄の下端まで（余白 41。ホームバーの帯も）を日の欄の地で埋める。カードを見せず、触れも下へ通さない（面はつまみの一部。つまみの引きは JS が始めない）。送り切り・元の位置では出さない */
+.shell.closed .mpull.browse .mday .mdgrab.stuck::before{content:"";position:absolute;z-index:-1;left:0;right:0;top:100%;height:41px;background:#EFECE4}
+/* 帯がない画面: 埋める面は＋の下も（日の欄の右端まで）。§17-2（K-2）: 貼り付いている間、面を＋の押せる所の上端まで 12 上げ（縦 y581〜、横 y369〜）、0.5 の線もそこへ。つまみの押せる所（44）と線は変えない */
+.shell.closed.fb .mpull.browse .mday .mdgrab.stuck::before{right:-56px;top:-12px;height:97px;box-shadow:inset 0 .5px 0 #E4E0D6}
+.shell.closed.land.fb .mpull.browse .mday .mdgrab.stuck::before{right:-64px}
+.shell.closed.fb .mpull.browse .mday .mdgrab.stuck,.shell.closed.fb .mpull.browse:not([data-stage="1"]) .mday .mdgrab.stuck::after{box-shadow:none}
+.shell.closed.fb .mpull.browse:not([data-stage="1"]) .mday .mdgrab.stuck::after{display:none}
+/* §17-5: 帯がない横で、シート（ノート。x0〜678・y8〜）を開いている間は、タスクのバッジ（x660〜678・y0〜18）もボタンと一緒にシートの下へ（シートの上の 8 と角丸にのぞかせない） */
+body:has(> .nsheet:not([hidden])) .shell.closed.land.fb .cb.ctask .bdg{visibility:hidden}

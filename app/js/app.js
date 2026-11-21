@@ -1442,6 +1442,7 @@ function dayGripSnap(hh1, toMode) {
 }
 root.addEventListener('pointerdown', (ev) => {
   const g = ev.target.closest?.('.mdgrab'); if (!g || !ev.isPrimary || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
+  { const r = g.getBoundingClientRect(); if (ev.clientY < r.top || ev.clientY >= r.bottom || ev.clientX < r.left || ev.clientX >= r.right) return; } // S11g（34 §17-1・§17-2）: 貼り付いている間に埋めた面（つまみの下 41・帯なしの上 12 と＋の下）は、たたいても引いても何もしない
   cancelAnimationFrame(DG.raf);
   DG.drag = { id: ev.pointerId, y0: ev.clientY, mode0: dayMode(), hh0: DG.hh, moved: false, dy: 0 };
 });
@@ -5095,7 +5096,7 @@ async function doExport() {
     if (!await flushNotesAwait()) { bk.err = '保存できていないノートがあるため書き出せません。ノートの再試行をしてからもう一度お試しください。'; say(bk.err); renderBackup(); return; }
     // ノート有効: tasks+notes+folders を出し、旧 memos は出さない（旧メモは端末内の控えに残る）。
     const tx0 = performance.now();
-    const text = JSON.stringify(buildBackup(state.events, { ...state, notify: loadNotify(), tasks: remSet }, new Date(), state.categories, [], await db.listTasks(), await db.listNotes({ includeDeleted: true }), await db.listFolders()), null, 2);
+    const text = JSON.stringify(buildBackup(state.events, { ...state, view: closedSize() ? OPENUI.view : state.view, notify: loadNotify(), tasks: remSet }, new Date(), state.categories, [], await db.listTasks(), await db.listNotes({ includeDeleted: true }), await db.listFolders()), null, 2);
     NB.perf.export = Math.round((performance.now() - tx0) * 10) / 10; // 書き出し（読み出し＋JSON化）の実測。端末ごとの記録用
     const file = new File([text], backupName(), { type: 'application/json' });
     if (NATIVE) {

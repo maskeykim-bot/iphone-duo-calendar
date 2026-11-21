@@ -21,7 +21,7 @@ async function moreGo(page,name){await page.locator('.cmore').click();await page
 async function editNote(page){await page.locator('[data-act="daynote"]:visible').first().click();await page.waitForTimeout(450);await page.locator('.nsheet .ned-body').click();await page.waitForTimeout(200);}
 const visRects=(page,selector)=>page.locator(selector).evaluateAll(es=>es.filter(e=>{const c=getComputedStyle(e),b=e.getBoundingClientRect();return c.visibility!=='hidden'&&Number(c.opacity)>.05&&b.width>0&&b.height>0;}).map(e=>{const b=e.getBoundingClientRect();return [b.left,b.top,b.right,b.bottom];}));
 
-test('§14 帯あり横: 格子 x8〜374 y64〜424・行60×6・2件、日の欄 x382〜594・つまみなし',async({page})=>{
+test('§14 帯あり横: 格子 x8〜374 y64〜424・行60×6・2件、日の欄 x382〜594・つまみ（上）なし（つまみ（下）は §17-3 で使う）',async({page})=>{
  await boot(page);await page.setViewportSize(GEO.landscape);await page.waitForTimeout(650);
  const g=page.locator('.mgrid:not([data-leaving])');rect(await r(g),[8,64,374,424],'格子');
  await expect(g.locator('.week')).toHaveCount(6);
@@ -200,7 +200,7 @@ const hasTopLine = (el) => { const c = getComputedStyle(el), b = getComputedStyl
   if (c.boxShadow.includes(line)) return true;
   for (const p of [b, a]) if (p.content !== 'none' && (p.backgroundColor === line || p.borderTopColor === line) && parseFloat(p.height) <= 1) return true;
   return false; };
-async function gripAt(page) { return page.evaluate((fn) => { const hasTopLine = eval(fn); const d = document.querySelector('.mpull.browse .mday'), g = d.querySelector('.mdgrab'); const gb = g.getBoundingClientRect(), db = d.getBoundingClientRect(); const ln = g.querySelector('i')?.getBoundingClientRect(); const hit = document.elementFromPoint(191, gb.top + 22); return { r: [gb.left, gb.top, gb.right, gb.bottom], pane: [db.top, db.bottom], line: ln && [ln.left, ln.top, ln.right, ln.bottom], pos: getComputedStyle(g).position, topLine: hasTopLine(g), hit: !!hit && (hit === g || g.contains(hit)), z: getComputedStyle(g).zIndex, st: d.scrollTop, max: d.scrollHeight - d.clientHeight }; }, hasTopLine.toString()); }
+async function gripAt(page) { return page.evaluate((fn) => { const hasTopLine = eval(fn); const d = document.querySelector('.mpull.browse .mday') || document.querySelector('.mday'), g = d.querySelector('.mdgrab'); const gb = g.getBoundingClientRect(), db = d.getBoundingClientRect(); const ln = g.querySelector('i')?.getBoundingClientRect(); const hit = document.elementFromPoint(191, gb.top + 22); return { r: [gb.left, gb.top, gb.right, gb.bottom], pane: [db.top, db.bottom], line: ln && [ln.left, ln.top, ln.right, ln.bottom], pos: getComputedStyle(g).position, topLine: hasTopLine(g), hit: !!hit && (hit === g || g.contains(hit)), z: getComputedStyle(g).zIndex, st: d.scrollTop, max: d.scrollHeight - d.clientHeight }; }, hasTopLine.toString()); }
 
 for (const n of [2, 3, 4, 5, 6, 7]) {
   test(`§16-1 段${n} 予定の多い日: つまみ（下）は日の欄の下端に貼り付く（押せる x8〜374 y593〜637、線 y611〜615、上に 0.5 #E4E0D6）`, async ({ page }) => {
@@ -321,3 +321,107 @@ for (const [kind, title, id] of [['単発', '撮影', 'd1'], ['繰り返しの�
     });
   }
 }
+
+// ===== design/34 §17（2026-11-22。企画 K-1・K-2、設計の仕上げ）。61b9ce7 では落ちてよい =====
+// §17-1 貼り付いている間だけ、つまみの下端から日の欄の下端までを #EFECE4 で埋める。ホームバーの帯も同じ色。埋めた所をたたいても何もしない。
+const FILL = {
+  '縦・帯あり': { sar: 84, size: GEO.portrait, fill: [8, 637, 374, 678], grip: [8, 593, 374, 637], ys: [640, 670] },
+  '縦・帯なし': { sar: 0, size: GEO.portrait, fill: [8, 637, 458, 678], grip: [8, 593, 402, 637], ys: [640, 670] },
+  '横・帯あり': { sar: 84, size: GEO.landscape, fill: [382, 425, 594, 466], grip: [382, 381, 594, 425], ys: [430, 460] },
+  '横・帯なし': { sar: 0, size: GEO.landscape, fill: [382, 425, 678, 466], grip: [382, 381, 614, 425], ys: [430, 460] },
+};
+async function bootForm(page, f, stage = 4) { await boot(page, { sar: f.sar }); if (f.size === GEO.portrait) await toStage(page, stage); else { await page.setViewportSize(GEO.landscape); await page.waitForTimeout(650); } }
+const fillHits = (page, f) => page.evaluate(({ f }) => {
+  const d = document.querySelector('.mpull.browse .mday') || document.querySelector('.mday'); const out = [];
+  for (const y of f.ys) for (let x = f.fill[0] + 4; x < f.fill[2] - 2; x += 10) { const e = document.elementFromPoint(x, y); const c = e?.closest('.mdcard, .tlev, .tl, .mdad > *, .mdnl, .dnote, .mdsec, .mdnone2'); const bg = e ? getComputedStyle(e).backgroundColor : ''; out.push({ x, y, card: !!c && d.contains(c), cls: e?.className?.split?.(' ')[0] || e?.tagName }); }
+  return out;
+}, { f });
+for (const [name, f] of Object.entries(FILL)) {
+  for (const dg of ['A', 'B']) {
+    test(`§17-1 ${name}・${dg}: 貼り付いている間、つまみの下 ${f.fill.join(',')} に中身が見えない（elementFromPoint はカード・時間軸の枠でない）`, async ({ page }) => {
+      await bootForm(page, f);
+      if (dg === 'B') { await page.locator('.mpull.browse .mday, .mday').first().evaluate((d) => d.scrollTop = 0); const g = await page.locator('.mdgrab').boundingBox(); await page.mouse.move(g.x + g.width / 2, g.y + 20); await page.mouse.down(); await page.mouse.move(g.x + g.width / 2, g.y + 80, { steps: 8 }); await page.mouse.up(); await page.waitForTimeout(500); await expect(page.locator('.mday').first()).toHaveAttribute('data-dg', 'B'); }
+      const g = await page.locator('.mdgrab').evaluate((e) => ({ stuck: e.classList.contains('stuck'), r: (({ left, top, right, bottom }) => [left, top, right, bottom])(e.getBoundingClientRect()) }));
+      expect(g.stuck, '貼り付いている（予定の多い日）').toBe(true);
+      const hits = await fillHits(page, f); const bad = hits.filter((h) => h.card);
+      expect(bad.slice(0, 4), `埋める所に見える中身 ${bad.length} 点`).toEqual([]);
+    });
+  }
+  test(`§17-1 ${name}: 埋めた所をたたいても何もしない（編集シート・段・日の欄の段が変わらない）`, async ({ page }) => {
+    await bootForm(page, f);
+    const before = await page.evaluate(() => ({ st: document.querySelector('.mpull')?.dataset.stage ?? null, dg: document.querySelector('.mday')?.dataset.dg, top: document.querySelector('.mday')?.scrollTop }));
+    await page.mouse.click((f.fill[0] + f.fill[2]) / 2 - 40, f.ys[0]); await page.waitForTimeout(500);
+    const after = await page.evaluate(() => ({ st: document.querySelector('.mpull')?.dataset.stage ?? null, dg: document.querySelector('.mday')?.dataset.dg, top: document.querySelector('.mday')?.scrollTop }));
+    expect(after).toEqual(before);
+    await expect(page.locator('dialog[open], [role="dialog"]:visible, .nsheet:visible')).toHaveCount(0);
+  });
+}
+test('§17-1 送り切ったときは今のまま（つまみは最後のカードの下、その下にノート、埋めない）', async ({ page }) => {
+  await boot(page); await toStage(page, 4);
+  await page.locator('.mpull.browse .mday').evaluate((d) => { d.scrollTop = d.scrollHeight; }); await page.waitForTimeout(250);
+  const r = await page.evaluate(() => { const g = document.querySelector('.mdgrab'); const nl = document.querySelector('.mday .mdnl').getBoundingClientRect(); return { stuck: g.classList.contains('stuck'), gb: g.getBoundingClientRect().bottom, nlTop: nl.top }; });
+  expect(r.stuck).toBe(false); near(r.nlTop, r.gb, 'ノート › はつまみの下');
+});
+// §17-2 帯なしで貼り付いている間、つまみの面を ＋ の上端まで（縦 面 y581〜637・線 y581／横 面 y369〜425・線 y369）。押せる範囲は変えない。
+for (const [name, f, faceTop, gripTop, lineY] of [['縦', FILL['縦・帯なし'], 581, 593, [611, 615]], ['横', FILL['横・帯なし'], 369, 381, [399, 403]]]) {
+  test(`§17-2 帯なし${name}: 面の上端 y${faceTop}（線 0.5 #E4E0D6）、押せる範囲は y${gripTop}〜、＋のまわりにカードが見えない`, async ({ page }) => {
+    await bootForm(page, f);
+    const r = await page.evaluate(({ faceTop, gripTop }) => {
+      const g = document.querySelector('.mdgrab'), a = document.querySelector('.cadd'); const gb = g.getBoundingClientRect(), ab = a.getBoundingClientRect();
+      const probe = []; for (let x = ab.left + 2; x < ab.right - 1; x += 6) for (const y of [faceTop + 2, faceTop + 6, gripTop - 2]) { const e = document.elementFromPoint(x, y); probe.push(!!e?.closest('.mdcard, .tlev, .mdnl, .dnote')); }
+      const left = []; for (let x = 20; x < ab.left - 4; x += 20) { const e = document.elementFromPoint(x, faceTop + 4); left.push(e?.closest('.mdcard, .tlev') ? 'card' : (e?.closest('.mdgrab') ? 'grab' : (e?.className?.split?.(' ')[0] || ''))); }
+      const hitGrab = document.elementFromPoint(100, faceTop + 4)?.closest('.mdgrab');
+      return { gripTop: gb.top, cardNearPlus: probe.filter(Boolean).length, left, faceIsGrabTarget: !!hitGrab };
+    }, { faceTop, gripTop });
+    near(r.gripTop, gripTop, '押せる範囲の上端は変えない');
+    expect(r.cardNearPlus, '＋のまわり（面の上）にカードが見えない').toBe(0);
+    expect(r.left.filter((v) => v === 'card'), `面 y${faceTop}〜${gripTop} にカードが見えない`).toEqual([]);
+    // 足した 12 をたたいても何もしない
+    const st0 = await page.evaluate(() => [document.querySelector('.mpull')?.dataset.stage ?? null, document.querySelector('.mday').dataset.dg]);
+    await page.mouse.click(100, faceTop + 4); await page.waitForTimeout(400);
+    expect(await page.evaluate(() => [document.querySelector('.mpull')?.dataset.stage ?? null, document.querySelector('.mday').dataset.dg])).toEqual(st0);
+    await expect(page.locator('dialog[open], [role="dialog"]:visible, .nsheet:visible')).toHaveCount(0);
+  });
+}
+// §17-3 閉じた横でも つまみ（下）と見出しは貼り付ける（§14 の「使わない」はつまみ（上）と段）。
+test('§17-3 閉じた横・帯あり: つまみ（下）は y381〜425 に貼り付き、線 y399〜403・中心 x488。つまみ（上）は出さない。見出しは sticky', async ({ page }) => {
+  await bootForm(page, FILL['横・帯あり']);
+  const g = await gripAt(page);
+  expect(g.pos).toBe('sticky'); rect(g.r, [382, 381, 594, 425], '横のつまみ');
+  if (g.line) { rect(g.line, [470, 399, 506, 403], '横の線 36×4'); }
+  expect((await visRects(page, '.mgrab')).length, 'つまみ（上）').toBe(0);
+  expect(await page.locator('.mday .mdh').evaluate((e) => getComputedStyle(e).position)).toBe('sticky');
+});
+test('§17-3 閉じた横・帯なし: つまみ（下）は x382〜614 y381〜425 に貼り付き（＋の左まで）、線 y399〜403', async ({ page }) => {
+  await bootForm(page, FILL['横・帯なし']);
+  const g = await gripAt(page);
+  expect(g.pos).toBe('sticky'); rect(g.r, [382, 381, 614, 425], '横・帯なしのつまみ');
+  if (g.line) { near(g.line[1], 399, '線の上'); near(g.line[3], 403, '線の下'); }
+});
+// §17-5 帯なしの横でノートを書いている間、タスクのバッジ（x660〜678 y0〜18）がシートの上に出ない。
+test('§17-5 横・帯なしでノートを書いている間、タスクのバッジはシートの下（y8〜18 の点はシート）', async ({ page }) => {
+  await boot(page, { sar: 0 });
+  await page.evaluate(async (d) => { const m = await import('/js/db.js'); await m.putTask({ id: 'qa-t1', title: '今日のタスク', due: { date: d, time: null }, done: false, doneAt: null, createdAt: 1, updatedAt: 1, order: 1, note: '', notify: false }); }, DAY);
+  await page.reload(); await page.waitForSelector('html[data-ready]'); await page.setViewportSize(GEO.landscape); await page.waitForTimeout(650);
+  const bd = await page.locator('.ctask .bdg').evaluate((e) => (({ left, top, right, bottom }) => [left, top, right, bottom])(e.getBoundingClientRect()));
+  expect(bd[1], 'バッジは y0〜18（再現の前提）').toBeLessThan(18);
+  await editNote(page);
+  const r = await page.evaluate(() => {
+    // バッジが pointer-events:none でも見落とさないよう、elementsFromPoint の重なり順で見る（見えているバッジがシートより手前なら不可）
+    const b = document.querySelector('.ctask .bdg'); const cs = b && getComputedStyle(b); const shown = !!b && cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.05;
+    const out = []; for (const [x, y] of [[664, 12], [669, 14], [674, 16], [666, 10]]) { const st = document.elementsFromPoint(x, y); const ib = st.findIndex((e) => e === b || b?.contains(e)), is = st.findIndex((e) => e.closest('.nsheet')); out.push({ x, y, inSheet: !shown || ib < 0 || (is >= 0 && is < ib), top: st[0]?.className?.split?.(' ')[0] || st[0]?.tagName }); }
+    return out; });
+  expect(r.filter((p) => !p.inSheet), 'シートの右上の角にのぞくもの').toEqual([]);
+});
+// 連携 低①: 閉じた画面でバックアップを書き出しても settings.view は開いた側の画面（週）。戻すと開いた縦は週。
+test('連携 低① 閉じた画面で書き出したバックアップの settings.view は開いた側の値（week）', async ({ page }, info) => {
+  await page.addInitScript(() => { if (!sessionStorage.getItem('qa-set')) { const k = 'duo.ui.v1'; let s = {}; try { s = JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch { s = {}; } localStorage.setItem(k, JSON.stringify({ ...s, view: 'week', home: false })); sessionStorage.setItem('qa-set', '1'); } });
+  await openApp(page, { width: 626, height: 890 }); await seed(page, EVENTS); await page.waitForTimeout(300);
+  await page.setViewportSize(GEO.portrait); await page.reload(); await page.waitForSelector('html[data-ready]'); await page.waitForTimeout(500);
+  await page.locator('.cmore').click(); await page.getByRole('menuitem', { name: '設定' }).click();
+  await page.getByRole('button', { name: 'バックアップ' }).click(); await expect(page.locator('#backup')).toBeVisible();
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'JSONを書き出す' }).click()]);
+  const p = info.outputPath('closed-export.json'); await dl.saveAs(p);
+  const j = JSON.parse((await import('node:fs')).readFileSync(p, 'utf8'));
+  expect(j.settings?.view, '書き出した settings.view').toBe('week');
+});

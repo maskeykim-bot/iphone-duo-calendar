@@ -316,7 +316,7 @@ test.describe('バックアップ', () => {
     const p = info.outputPath('v3.json');
     await exportFile(page, p);
     const j = JSON.parse(readFileSync(p, 'utf8'));
-    expect(j.settings).toEqual({ view: 'month' /* 閉じた画面で開くとカレンダー（月）から始まる（design/34 §9.2）。保存の 'week' は起動で 'month' になる */, style: 'named', desk: true, monthExpand: true, rokuyo: true, holidayRed: true, pages: { left: 'month', right: 'time', portraitBottom: 'time', portraitShown: false }, weekStart: 1, tasks: { monthTasks: false }, notify: { enabled: true, showTitle: false, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '07:30' } } });
+    expect(j.settings).toEqual({ view: 'week' /* S11g（連携レビュー 61b9ce7 低1）: 閉じた画面はカレンダー（月）から始まる（design/34 §9.2）が、書き出す settings.view は開いた側の画面（保存してあった 'week'）。閉じた側の 'month' は入れない */, style: 'named', desk: true, monthExpand: true, rokuyo: true, holidayRed: true, pages: { left: 'month', right: 'time', portraitBottom: 'time', portraitShown: false }, weekStart: 1, tasks: { monthTasks: false }, notify: { enabled: true, showTitle: false, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '07:30' } } });
     expect(j.categories.find((c) => c.id === 'my-cat')).toMatchObject({ name: '自作カテゴリ', color: '#5e4c8e', hidden: true });
     const src = await dbEvents(page);
     expect(src[0].nativeLink).toEqual(LINK);
@@ -329,7 +329,7 @@ test.describe('バックアップ', () => {
     expect(await dbEvents(page)).toEqual(src);
     expect((await dbCats(page)).find((c) => c.id === 'my-cat')).toMatchObject({ name: '自作カテゴリ', color: '#5e4c8e', hidden: true });
     const st = await page.evaluate(() => ({ ui: JSON.parse(localStorage.getItem('duo.ui.v1.v3dst')), notify: JSON.parse(localStorage.getItem('duo-notify.v3dst')) }));
-    expect(st.ui).toMatchObject({ view: 'month' /* 閉じた画面で開くとカレンダー（月）から（design/34 §9.2） */, style: 'named', desk: true, monthExpand: true });
+    expect(st.ui).toMatchObject({ view: 'week' /* S11g（連携 低1）: 書き出しに開いた側の 'week' が入るので、置き換えたあとの保存（開いた側の画面）も 'week'。閉じた画面のいまの面は変わらない（S11f 指示14） */, style: 'named', desk: true, monthExpand: true });
     expect(st.notify).toEqual({ version: 1, enabled: true, showTitle: false, defaultTimed: { before: 15 }, defaultAllDay: { day: 1, at: '07:30' } });
   });
 
