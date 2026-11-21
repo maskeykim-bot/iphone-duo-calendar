@@ -183,22 +183,15 @@ test.describe('S7a 題名欄 44・フォルダの行・右ページのそろい�
 
 test.describe('S7a 閉じた月のタスクのチェック欄（V-15・中-3）', () => {
   for (const form of ['one', 'two', 'month']) {
-    test(`型 ${form}: 押せる範囲 x8〜52（44×44）・四角 20×20 を x12・題名 x44。左へ出ない`, async ({ page }) => {
+    test(`型 ${form}: 閉じた日の欄の下にタスクは出ない（34 で置き換え）`, async ({ page }) => {
       await spy(page);
       await page.addInitScript((f) => { const k = 'duo.ui.v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); localStorage.setItem(k, JSON.stringify({ ...s, monthForm: f, monthDay: 'list', pages: { left: 'month', right: 'time', portraitBottom: 'time', portraitShown: false } })); }, form);
       await openApp(page, SIZES.closedPortrait);
       await seedTasks(page, [T('t1', { title: '今日の資料印刷', due: { date: '2026-11-12', time: '11:00' }, order: 1, createdAt: 1, updatedAt: 1 }), T('t2', { title: '夕方に買い物', due: { date: '2026-11-12' }, order: 2, createdAt: 2, updatedAt: 2 })]);
       await page.evaluate((r) => document.documentElement.style.setProperty('--sar', `${r}px`), 84);
       await tab(page, '月').click(); await page.waitForTimeout(400);
-      await page.evaluate(() => { const s = document.querySelector('.mpull'); if (s) s.scrollTop = s.scrollHeight; });
-      await page.waitForTimeout(300);
-      const rows = await page.evaluate(() => [...document.querySelectorAll('.mdtask .rmckb')].filter((e) => e.offsetParent).map((b) => {
-        const R = (e) => { const r = e.getBoundingClientRect(); return [r.x, r.width, r.height]; };
-        const rng = document.createRange(); rng.selectNodeContents(b.parentElement.querySelector('.htt'));
-        return { hit: R(b), box: R(b.querySelector('.rmck')), tx: rng.getClientRects()[0].x };
-      }));
-      expect(rows.length).toBeGreaterThanOrEqual(1);
-      for (const r of rows) { near(r.hit[0], 8); near(r.hit[1], 44); near(r.hit[2], 44); near(r.box[0], 12); near(r.box[1], 20); near(r.box[2], 20); near(r.tx, 44); expect(r.hit[0]).toBeGreaterThanOrEqual(0); }
+      // 第19.2版 S11b（34 §9.1 の11）で置き換え: 閉じた画面の日の欄の下にタスクは出さない（右の列の「タスク」から）。チェック欄の寸法は開いた縦のほうの spec で見る
+      await expect(page.locator('.mdtask')).toHaveCount(0);
     });
   }
 });

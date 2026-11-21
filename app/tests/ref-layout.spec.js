@@ -66,6 +66,11 @@ for (const [name, size, kind] of POSTURES) {
     const light = await page.evaluate(async (id) => { const c = (await (await import('/js/db.js')).listCategories()).find((x) => x.id === id); return c?.color; }, CAT_IDS.work);
     const s = await chip(page, day(12)).evaluate((el) => { const c = getComputedStyle(el); return { bg: c.backgroundColor, color: c.color }; });
     const rgb = light ? `rgb(${[1, 3, 5].map((i) => parseInt(light.slice(i, i + 2), 16)).join(', ')})` : null;
+    if (kind === 'closed') { // 第19.2版 S11b（34 §7）: 閉じた7段の時刻つきは地を塗らず、左の線がカレンダーの本色
+      expect(s.bg).toBe('rgba(0, 0, 0, 0)');
+      if (rgb) expect(await chip(page, day(12)).locator('.cline').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe(rgb);
+      return;
+    }
     if (rgb) expect(s.bg).toBe(rgb);
     expect(s.color).toBe('rgb(255, 255, 255)');
     expect(s.bg).not.toBe('rgba(0, 0, 0, 0)');
@@ -85,9 +90,9 @@ for (const [name, size, kind] of POSTURES) {
     const shown = (k) => chip(page, day(k)).count();
     const plus = (k) => page.locator(`.plus[data-plus="${day(k)}"]`);
     if (kind === 'closed') {
-      // 第19.1版 H-05: 月を引く画面の「月」の型は名前 2段（+N は日付の行）なので 2件＋「+n」
-      expect(await shown(27)).toBe(2); await expect(plus(27)).toHaveText('+3');
-      expect(await shown(20)).toBe(2); await expect(plus(20)).toHaveText('+8');
+      // 第19.2版 S11b（34 §2.2）: 閉じた段1（月・4件）は名前 4段（+N は日付の行）なので 4件＋「+n」
+      expect(await shown(27)).toBe(4); await expect(plus(27)).toHaveText('+1');
+      expect(await shown(20)).toBe(4); await expect(plus(20)).toHaveText('+6');
     } else if (kind === 'spread') {
       // 第13版 PR7: 6週（2026年11月）の開いた横は 951×669 で4段、890×626 は1週79pxなので3段
       const cap = size.height === 669 ? 4 : 3;

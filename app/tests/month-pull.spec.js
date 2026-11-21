@@ -29,7 +29,8 @@ test.describe('閉じた画面 466×678', () => {
     await tab(page, '月').click();
     expect(await form(page)).toBe('month');
     await expect(page.locator('.mpull')).toHaveAttribute('data-stage', '1');
-    await expect(page.locator('[data-mday="list"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'A'); // 34 §6.1・S11b: 日の欄は「カード」から。「予定｜時間軸」の切り替えは消え、つまみ（下）で時間軸へ
+    await expect(page.locator('[data-mday]')).toHaveCount(0);
     await expect(page.locator('#ctitle')).toHaveText('2026年 11月');
     await expect(page.locator('.mptoday')).toHaveText('今日');
     const mph = await box(page.locator('.mph')), wd = await box(page.locator('.weekdays')), g = await box(page.locator('.mgrid')), h = await box(page.locator('.mgrab')), i = await box(page.locator('.mgrab i')), d = await box(page.locator('.mday'));
@@ -42,7 +43,7 @@ test.describe('閉じた画面 466×678', () => {
     const days = await page.locator('.mgrid .day').evaluateAll((e) => e.map((x) => x.dataset.date));
     expect(days[0]).toBe('2026-10-26'); expect(days.length).toBe(42); expect(days[41]).toBe('2026-12-06');
     for (const r of await page.locator('.mgrid .week').all()) expect(near((await box(r)).height, 86)).toBe(true);
-    await expect(page.locator('.mdh h3')).toContainText('11月12日（木）');
+    await expect(page.locator('.mdh h3')).toContainText('11月12日'); await expect(page.locator('.mdh .hdw')).toContainText('木'); // 34 §6.1: 見出し「11月12日」＋右に「木 先勝」
   });
 
   test('段ごとに 4・3・2 件が名前で出て、あふれは +N（design/34 §2.2・§4）。+N は日付の行の右（11/400 #68716A、右 4）', async ({ page }) => {
@@ -109,8 +110,8 @@ test.describe('閉じた画面 466×678', () => {
     const g0 = await box(page.locator('.mgrid')), d0 = await box(page.locator('.mday'));
     await page.locator('[data-date="2026-11-18"]').click({ position: { x: 12, y: 10 } }); // 2行目の日
     await expect(page.locator('[data-date="2026-11-18"]')).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('.mdh h3')).toContainText('11月18日（水）');
-    await expect(page.locator('.mdlist .mdev')).toHaveText([/10:00\s*十八日の会議/]);
+    await expect(page.locator('.mdh h3')).toContainText('11月18日'); await expect(page.locator('.mdh .hdw')).toContainText('水');
+    await expect(page.locator('.mdcards .mdcard')).toHaveText([/10:00[\s\S]*11:00[\s\S]*十八日の会議/]); // 34 §6.1: カードは始まりと終わりの時刻を必ず出す
     expect(await box(page.locator('.mgrid'))).toEqual(g0);
     expect(await box(page.locator('.mday'))).toEqual(d0);
     expect(((await page.locator('.mgrid .day').first().getAttribute('data-date')))).toBe('2026-10-26'); // 見る月は動かない（段1は 6 週・10/26 から）
@@ -171,10 +172,9 @@ test.describe('閉じた画面 466×678', () => {
     expect(near(gr.y, 590) && near(gr.height, 4)).toBe(true); // つまみの線 y590〜594
     expect(near(dh.y, 604) && near(dh.height, 44)).toBe(true);
     expect(await page.locator('.mdh h3').evaluate((e) => getComputedStyle(e).fontSize)).toBe('17px');
-    // 「予定｜時間軸」（日の欄のつまみに置き換わるまでは残る）: 見た目 132×32、1つ 66、押せる 44
-    const sw = await box(page.locator('.mdsw')), b1 = await box(page.locator('.mdsw button').first());
-    expect(near(sw.width, 132) && near(sw.height, 32)).toBe(true);
-    expect(near(b1.width, 66) && near(b1.height, 44)).toBe(true);
+    // 34 §6.2（S11b）: 「予定｜時間軸」の切り替え 132×32 は消え、日の欄のつまみ（下）に置き換わった
+    await expect(page.locator('.mdsw')).toHaveCount(0);
+    await expect(page.locator('.mdgrab')).toHaveCount(1);
     // 日の欄は y604〜678。流し切ると、最後の行の下に余白 41
     const md = page.locator('.mday');
     const dd = await box(md); expect(near(dd.y, 604) && near(dd.y + dd.height, 678)).toBe(true);
@@ -193,26 +193,24 @@ test.describe('閉じた画面 466×678', () => {
     await band(page);
     const g0 = await box(page.locator('.mgrid'));
     await page.locator('[data-date="2026-11-18"]').click({ position: { x: 12, y: 10 } });
-    await expect(page.locator('.mdh h3')).toContainText('11月18日（水）');
+    await expect(page.locator('.mdh h3')).toContainText('11月18日');
     expect(await box(page.locator('.mgrid'))).toEqual(g0);
   });
 
-  test('「予定｜時間軸」: 1時間 44 で今の時刻に赤い線。型とともに保存される。下にタスクとノート', async ({ page }) => {
+  test('日の欄のつまみ（下）で 時間軸（34 §6.2・S11b で置き換え）: 1時間 44 で今の時刻に赤い線。日の欄の下にタスクはなく、ノートがある。段は保存しない（開くたびにカード）', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await seedTasks(page, [T('t1', { title: '十二日が期限', due: { date: '2026-11-12' } }), T('t2', { title: '別の日', due: { date: '2026-11-20' } })]);
     await tab(page, '月').click();
     await grab(page).focus(); for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowUp'); await settle(page); // 段4: 日の欄をタブの上へ出す（段1は日の見出しがタブの帯にかかる。タブは次の段で消える）
-    await expect(page.locator('.mdtask')).toHaveCount(1);
-    await expect(page.locator('.mdtask')).toContainText('十二日が期限');
-    await expect(page.locator('.mdnotes')).toBeVisible();
-    await page.locator('[data-mday="time"]').click();
-    await expect(page.locator('[data-mday="time"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.mdtask')).toHaveCount(0); // 34 §9.1 の 11: 日の欄の下のタスクは出さない（右の列の「タスク」へ）
+    await expect(page.locator('.mdnl')).toBeVisible(); await expect(page.locator('.mdnote')).toBeVisible(); // 「ノート ›」と下の欄
+    await page.locator('.mdgrab').focus(); await page.keyboard.press('ArrowDown'); // つまみ（下）を下へ＝時間軸（キーでも同じ）
+    await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B');
     const hs = await page.locator('.mday .hlab').evaluateAll((e) => e.slice(0, 3).map((x) => x.getBoundingClientRect().top));
     expect(near(hs[1] - hs[0], 44, 0.6)).toBe(true);
     await expect(page.locator('.mday .nowl')).not.toHaveAttribute('hidden', ''); // 今日の線
-    expect((await ui(page)).monthDay).toBe('time');
     await page.reload(); await page.waitForSelector('html[data-ready]');
-    await expect(page.locator('[data-mday="time"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'A'); // 保存しない
   });
 
   test('「全部」の月は従来のまま。見出しの全で入り・戻る', async ({ page }) => {
@@ -298,7 +296,6 @@ test('開いても閉じても同じ型・同じ切り替え・同じスクロ�
   await grab(page).focus(); for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowUp'); await settle(page); // 段4（2週）から段7（1週）へ
   await expect(page.locator('.mpull')).toHaveAttribute('data-stage', '7');
   expect(await form(page)).toBe('one');
-  await page.locator('[data-mday="time"]').click();
   // 閉じた画面は日の欄（.mday）の中だけが流れる（design/34 §6.3）。日の部分のずれ 300 を覚える
   await page.locator('.mday').evaluate((e) => { e.scrollTop = 300; });
   await page.waitForTimeout(100);
@@ -306,7 +303,6 @@ test('開いても閉じても同じ型・同じ切り替え・同じスクロ�
     await page.setViewportSize(SIZES.openPortrait669);
     await expect.poll(() => page.evaluate(() => document.body.dataset.layout)).toBe('open');
     expect(await form(page)).toBe('one');
-    await expect(page.locator('[data-mday="time"]')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('[data-date="2026-11-12"]')).toHaveAttribute('aria-pressed', 'true');
     expect(near(await page.locator('.mday').evaluate((e) => e.scrollTop), 300, 2)).toBe(true);
     await page.setViewportSize(SIZES.closedPortrait);

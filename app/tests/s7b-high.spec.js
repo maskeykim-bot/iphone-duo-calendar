@@ -108,7 +108,7 @@ for (const [name, size, sar, ui, expectSel] of [
     });
 
     test('V-03 +N は押す的にしない（span・aria-hidden・pointer-events:none）。+N の上をたたくとマスが押される（チップは予定が開く）', async ({ page }) => {
-      const plus = page.locator('.week .plus');
+      const plus = page.locator('.week .plus:visible'); // 第19.2版 S11b: 閉じた7段の +N は 0 件のとき hidden（隠れているものは測らない）
       const cnt = await plus.count();
       expect(cnt).toBeGreaterThan(5);
       const info = await plus.evaluateAll((l) => l.map((e) => ({ tag: e.tagName, ah: e.getAttribute('aria-hidden'), pe: getComputedStyle(e).pointerEvents, jump: e.dataset.jump ?? null, w: e.getBoundingClientRect().width, h: e.getBoundingClientRect().height })));
@@ -129,7 +129,7 @@ for (const [name, size, sar, ui, expectSel] of [
             const num = d.querySelector('.num'), rk = d.querySelector('.rk');
             const p = plusList.find((e) => { const r = e.getBoundingClientRect(); return r.x >= c.x - 1 && r.right <= c.right + 2 && r.y >= c.y - 1 && r.y < c.y + 30; });
             const pcs = p && getComputedStyle(p);
-            out.push({ sel: d.classList.contains('selected'), date: d.dataset.date, w: c.width, num: num ? rg(num) : null, numBox: num ? num.getBoundingClientRect() : null, rk: rk ? rg(rk) : null, plus: p ? rg(p) : null, plusRight: p ? c.right - rg(p).r : null, plusTxt: p?.textContent, pfs: pcs?.fontSize, pfw: pcs?.fontWeight, cx: c.x });
+            out.push({ sel: d.classList.contains('selected'), date: d.dataset.date, w: c.width, num: num ? rg(num) : null, numBox: num ? num.getBoundingClientRect() : null, rk: rk && rk.getClientRects().length ? rg(rk) : null, plus: p ? rg(p) : null, plusRight: p ? c.right - rg(p).r : null, plusTxt: p?.textContent, pfs: pcs?.fontSize, pfw: pcs?.fontWeight, cx: c.x });
           }
         }
         return out;
@@ -140,7 +140,7 @@ for (const [name, size, sar, ui, expectSel] of [
         if (r.rk && r.num) expect(r.rk.l, `${r.date} 日付と六曜`).toBeGreaterThanOrEqual(r.num.r - 0.5);
         if (r.plus && r.rk) expect(r.plus.l - r.rk.r, `${r.date} 六曜と ${r.plusTxt}`).toBeGreaterThanOrEqual(2);
         if (r.plus && r.num) expect(r.plus.l - r.num.r, `${r.date} 日付と ${r.plusTxt}`).toBeGreaterThanOrEqual(2);
-        if (r.plus) { expect(r.pfw).toBe('600'); }
+        if (r.plus && size !== C) { expect(r.pfw).toBe('600'); } // 閉じた7段の +N は 11/400（34 §2.3）
       }
       if (size === L) {
         // 閉じた画面の 33 §5 と同じ寸法: 日付の円 16・六曜 x+21〜37（8px）・+N 8px 右 2
@@ -157,15 +157,16 @@ test('V-03 閉じた月: +N の 44×44 が無くなったので、チップを�
   await openApp(page, C); await band(page, 84);
   await seed(page, MANY);
   await page.locator('.tabs button', { hasText: '月' }).click(); await page.waitForTimeout(400);
-  const plus = page.locator('[data-date="2026-11-12"]').locator('xpath=..').locator('.plus').first();
+  const plus = page.locator('[data-date="2026-11-12"]').locator('xpath=..').locator('.plus:visible').first();
   await expect(plus).toHaveCount(1);
   const pr = await plus.evaluate((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y }; });
-  // +N の右上の隅（元の 44×44 の当たりがチップに重なっていた所）をたたく → マスのたたき（日を選ぶ）。チップは予定が開く
+  // 第19.2版 S11b（R-75）で置き換え: 閉じた7段はチップをたたいても予定は開かず、その日を選ぶ
   const chip = page.locator('.week .strip[data-sday="2026-11-12"]').first();
   await expect(chip).toHaveCount(1);
   const cb = await chip.boundingBox();
   await page.mouse.click(cb.x + cb.width - 6, cb.y + cb.height / 2);
-  await expect(page.locator('#xdetail[open], #editor[open]')).toHaveCount(1);
+  await expect(page.locator('#xdetail[open], #editor[open]')).toHaveCount(0);
+  await expect(page.locator('.week .day[data-date="2026-11-12"]')).toHaveAttribute('aria-pressed', 'true');
   expect(pr.x).toBeGreaterThan(0);
 });
 

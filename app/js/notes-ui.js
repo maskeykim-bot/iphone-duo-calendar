@@ -384,6 +384,7 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
   const onSel = () => {
     if (destroyed || !last) return;
     const a = document.activeElement; if (a !== body && a !== title) return;
+    if (composing || !sane()) return; // R-70: 選択の変化は読むだけ。本文が想定外の形（WebKit の span など）でも作り直さない（次の入力・reconcile で整える）
     if (title.value === last.t && body.value === last.b && (a.selectionStart !== last.s || a.selectionEnd !== last.e || (a === title ? 'title' : 'body') !== last.w)) { closeGroup(); last = snap(); }
     markFormats();
   };

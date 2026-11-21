@@ -2286,16 +2286,87 @@ body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#tas
 .mgrid [data-lane="1"]{opacity:var(--o1,1)}
 .mgrid [data-lane="2"]{opacity:var(--o2,1)}
 .mgrid [data-lane="3"]{opacity:var(--o3,1)}
-.mpull.browse .week .day.out [data-lane]{opacity:calc(var(--o0,1) * .45)}
-.shell.closed .mpull.browse .mgrab{position:relative;z-index:3;display:flex;justify-content:center;align-items:flex-start;flex:none;box-sizing:border-box;height:44px;min-height:44px;margin:-10px 0;padding-top:20px;touch-action:none;cursor:ns-resize}
+/* S11b R-74・R-75: チップは日のボタンの中。時刻つき＝地なし＋左の線 2×10（左 2・上下 2）、文字は左 6。終日・複数日＝ベタ塗り（角丸3）。*/
+.mpull.browse .week .day{overflow:visible}
+.mpull.browse .week .day .strip.chip,.mpull.browse .week .day .bar.chip{position:absolute;z-index:2;display:block;box-sizing:border-box;height:14px;min-height:14px;line-height:14px;font:600 10px/14px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:clip;text-align:left;pointer-events:auto}
+.mpull.browse .week .day .strip.timed{background:transparent;color:#293B35;border-radius:0;padding:0 0 0 6px}
+.mpull.browse .week .day .bar.multi{background:transparent;color:#293B35;padding:0}
+.mpull.browse .week .day .bar.multi::after{top:auto;bottom:0;left:0;right:0;height:1px;border-radius:0;background:var(--cat)}
+.mpull.browse .week .day .cline{position:absolute;left:2px;top:2px;width:2px;height:10px;border-radius:1px;background:var(--cat)}
+.mpull.browse .week .day .bar.all{padding:0;font-weight:600}
+.mpull.browse .week .day .bar.all::after{display:none}
+.mpull.browse .week .day .bar .bt{position:absolute;left:3px;top:0;height:14px;display:block;padding:0;max-width:none;overflow:hidden;text-overflow:clip;pointer-events:none}
+.mpull.browse .week .day .bar.multi .bt{left:6px}
+.mpull.browse .week .day .bar.chip{overflow:visible}
+.mpull.browse .week .day .st{display:inline}
+.mpull.browse .week .day.out [data-lane="0"]{opacity:calc(var(--o0,1) * .45)}
+.mpull.browse .week .day.out [data-lane="1"]{opacity:calc(var(--o1,1) * .45)}
+.mpull.browse .week .day.out [data-lane="2"]{opacity:calc(var(--o2,1) * .45)}
+.mpull.browse .week .day.out [data-lane="3"]{opacity:calc(var(--o3,1) * .45)}
+.shell.closed .mpull.browse .week .day:active:not(:disabled):not(.nopress),.shell.closed .mpull.browse .week .day.prs{background-color:#E2DDD2!important;transition:background-color .10s linear}
+.shell.closed .mpull.browse .week .day.nopress:active:not(.prs){background-color:var(--rest,transparent)!important}
+.shell.closed .mpull.browse .mgrab{position:relative;z-index:3;display:flex;justify-content:center;align-items:flex-start;flex:none;box-sizing:border-box;height:44px;min-height:44px;margin:0 0 -20px;padding-top:10px;touch-action:none;cursor:ns-resize}
 .mpull.browse .mgrab::after{display:none}
 .mpull.browse .mgrab i{display:block;width:36px;height:4px;border-radius:2px;background:#B9B4A8}
 .mpull.browse .mgrab:active i{background:#68716A}
 .shell.closed .mpull.browse .mday{flex:1;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;padding:0 4px 41px;margin:0;box-sizing:border-box;scrollbar-width:none}
 .mpull.browse .mday::-webkit-scrollbar{display:none}
 .mpull.browse .mgrab,.mpull.browse .mgrab *{-webkit-user-select:none;user-select:none;-webkit-user-drag:none}
-.shell.closed .mpull.browse .mph button.vh{position:absolute;top:1px;width:2px;height:2px;min-width:0;padding:0;overflow:hidden;clip-path:none;opacity:0;font-size:1px;line-height:1;color:transparent;z-index:2}
+.shell.closed .mpull.browse .mph button.vh{position:absolute;top:1px;width:2px;height:2px;min-width:0;min-height:0;padding:0;overflow:hidden;clip-path:none;opacity:0;font-size:1px;line-height:1;color:transparent;z-index:2}
 .shell.closed .mpull.browse .mph button.vh[data-act=prev]{left:1px}
 .shell.closed .mpull.browse .mph button.vh[data-act=next]{left:5px}
 .shell.closed .mpull.browse .week .day{padding:0;border:0;flex-direction:column;align-items:flex-start}
 .shell.closed .mpull.browse .mdh h3{font:600 17px/1.2 -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif}
+
+/* S11b 日の欄（design/34 §6）。閉じた7段だけ。x12〜370（.mpull 8＋.mday 4）。面 #EFECE4。 */
+.shell.closed .mpull.browse .mday{background:#EFECE4;border-radius:0}
+.mpull.browse .mdh{display:flex;align-items:center;justify-content:space-between;height:44px;flex:none;padding:0;background:#EFECE4}
+.mpull.browse .mdh h3{display:flex;align-items:baseline;gap:8px;margin:0;font:600 17px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1C1F1D}
+.mpull.browse .mdh .hdw{font:400 13px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#68716A}
+.mpull.browse .mdh .hdt.hol{color:#B43C3C}
+.mpull.browse .mdback{min-height:44px;height:44px;padding:0 8px;background:none;border-radius:0;font:400 11px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#294E42}
+.mpull.browse .mday[data-dg="B"] .mdh,.mpull.browse .mday[data-dg="C"] .mdh{position:sticky;top:0;z-index:6}
+.mpull.browse .mdad{display:flex;flex-wrap:wrap;gap:8px;padding:0;margin:0 0 8px;max-height:64px;overflow:hidden}
+.mpull.browse .mdallday{display:inline-flex;align-items:center;gap:4px;box-sizing:border-box;height:28px;min-height:28px;max-width:100%;padding:0 12px;border-radius:14px;font:600 13px/28px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;border:0;overflow:hidden;white-space:nowrap;text-align:left}
+.mpull.browse .mdallday .mdat{overflow:hidden;text-overflow:ellipsis}
+.mpull.browse .mdallday small{font:400 11px/28px -apple-system,'Hiragino Sans',sans-serif;opacity:.9}
+.mpull.browse .mdallday[hidden]{display:none}
+.mpull.browse .mdmore{display:inline-flex;align-items:center;box-sizing:border-box;height:28px;padding:0 12px;border-radius:14px;background:#E4E0D6;font:600 13px/28px -apple-system,'Hiragino Sans',sans-serif;color:#293B35}
+.mpull.browse .mdmore[hidden]{display:none}
+.mpull.browse .mdcards{padding:0}
+.mpull.browse .mdcard{position:relative;display:block;box-sizing:border-box;width:100%;height:56px;min-height:56px;margin:0 0 8px;padding:0;border:0;border-radius:14px;background:#fff;text-align:left;overflow:hidden}
+.mpull.browse .mdcard .mdt1,.mpull.browse .mdcard .mdt2{position:absolute;left:12px;width:36px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mpull.browse .mdcard .mdt1{top:9px;font:600 13px/18px -apple-system,'Hiragino Sans',sans-serif;color:#1C1F1D;font-variant-numeric:tabular-nums}
+.mpull.browse .mdcard .mdt2{top:29px;font:400 13px/18px -apple-system,'Hiragino Sans',sans-serif;color:#68716A;font-variant-numeric:tabular-nums}
+.mpull.browse .mdcard .mdln{position:absolute;left:56px;top:8px;width:3px;height:40px;border-radius:1.5px;background:var(--cat)}
+.mpull.browse .mdcard strong{position:absolute;left:68px;right:12px;top:8px;font:600 15px/20px -apple-system,'Hiragino Sans',sans-serif;color:#1C1F1D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mpull.browse .mdcard small{position:absolute;left:68px;right:12px;top:30px;font:400 11px/16px -apple-system,'Hiragino Sans',sans-serif;color:#68716A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mpull.browse .mdnone2{margin:0;padding:0;height:44px;font:400 13px/44px -apple-system,'Hiragino Sans',sans-serif;color:#68716A}
+.shell.closed .mpull.browse .mdgrab{position:relative;display:flex;justify-content:center;align-items:flex-start;box-sizing:border-box;width:100%;height:44px;min-height:44px;margin:0 0 -20px;padding-top:10px;touch-action:none;cursor:ns-resize;-webkit-user-select:none;user-select:none}
+.mpull.browse .mdgrab i{display:block;width:36px;height:4px;border-radius:2px;background:#B9B4A8}
+.mpull.browse .mdgrab:active i{background:#68716A}
+.mpull.browse .mdnl{display:flex;align-items:center;width:100%;height:44px;min-height:44px;margin:10px 0 0;padding:0;border:0;border-radius:0;background:none;font:600 13px/44px -apple-system,'Hiragino Sans',sans-serif;color:#68716A;text-align:left}
+.mpull.browse .mdnote{display:block;box-sizing:border-box;width:100%;min-height:88px;margin:0;padding:8px 12px;border-radius:14px;background:#fff;text-align:left}
+.mpull.browse .mdnote .mdempty{font:400 13px/20px -apple-system,'Hiragino Sans',sans-serif;color:#A8ABA4}
+.mpull.browse .mdbody .tl{overflow:visible;flex:none}
+/* 押した反応の filter（brightness）はマスを重ね合わせの層にして、帯（子）が隣のマスの下へ落ちる。7段のマスでは使わない（R-75） */
+.shell.closed .mpull.browse .week .day:active,.shell.closed .mpull.browse .week .day[aria-pressed=true]:active{filter:none!important}
+
+/* S11b 日の欄の時間軸 B・C（design/34 §6.2）: 目盛り 11/400 #68716A を x12 に、線は x48〜370 に 0.5 #E4E0D6。予定は白いカード（角丸4）＋左の線 3＋題名 13/600。色の地は塗らない。C は題名の下に時刻 11/400。 */
+.mpull.browse .mday .tl{--lw:36px}
+.mpull.browse .mday .hlab{left:0;width:36px;height:14px;top:calc(12px + var(--m) * var(--hh) / 60 - 7px);font:400 11px/14px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#68716A;text-align:left}
+.mpull.browse .mday .hl,.mpull.browse .mday .hl.half{border-top:.5px solid #E4E0D6}
+.mpull.browse .mday .hl.half{display:none}
+.mpull.browse .mday .nowl:before{height:1px;top:-.5px;background:#B43C3C}
+.mpull.browse .mday .tlev:not(.fev){background:#fff;color:#1C1F1D;border-radius:4px;box-shadow:inset 3px 0 0 var(--cat);padding:2px 8px 2px 11px;filter:none}
+.mpull.browse .mday .tlev:not(.fev) .tn{color:#1C1F1D;font:600 13px/16px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif}
+.mpull.browse .mday .tlev:not(.fev) .tt{display:none}
+.mpull.browse .mday .tlev .tr{display:none}
+.mpull.browse .mday[data-dg="C"] .tlev .tr{order:2;display:block;font:400 11px/14px -apple-system,'Hiragino Sans',sans-serif;color:#68716A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mpull.browse .mday .tlev:not(.fev):active{background-color:#F5F3EC!important;filter:none}
+@media (hover:hover){.mpull.browse .mday .tlev:not(.fev):hover{background-color:#F5F3EC!important;filter:none}}
+/* 今日の丸が (x+13, y+11) 丸20 になったので、ノートの印（白 8×1.5）も丸の中央（x+9〜17）へ */
+.shell.closed .mpull.browse .week .day.today .mline{left:13px;top:15px}
+/* 閉じた7段のチップは、切れても影（グラデーション）を付けず、そのまま切る（34 §7「…を付けずに切る」） */
+.mpull.browse .week .day .strip.chip::after,.mpull.browse .week .day .bar .bt.cut{-webkit-mask-image:none;mask-image:none}
+.mpull.browse .week .day .strip.chip.cut::after{display:none}

@@ -15,7 +15,7 @@ test.describe('CSS の決まり', () => {
     for (const m of CSS.matchAll(/border-radius:\s*([^;}!]+)/g)) for (const v of m[1].trim().split(/\s+/)) {
       if (v === 'inherit' || v === '50%') continue;
       // 1px は S9 設計の直し（design/review/2026-11-20-v191-fc56bc9-visual-review.md L-01）：ノートの印＝白 8×1.5・角丸1（.mline だけ）
-      if (!['0', '1px', '3px', '4px', '8px', '10px', '12px', '14px', '16px', '20px', '24px', '999px'].includes(v)) bad.push(v);
+      if (!['0', '1px', '1.5px', '2px', '3px', '4px', '8px', '10px', '12px', '14px', '16px', '20px', '24px', '999px'].includes(v)) bad.push(v);
     }
     expect(bad).toEqual([]);
   });

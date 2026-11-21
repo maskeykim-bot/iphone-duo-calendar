@@ -288,6 +288,6 @@ test.describe('schema v1 → v2 移行', () => {
     // 本番 DB には触れていない
     await tab(page, '月').click();
     await pickDay(page, '2026-11-14');
-    await expect(page.locator('.tlev, .adpill')).toHaveCount(1); // 閉じた日は時間軸（複数日・終日は終日段のピル）
+    await expect(page.locator('.mdcard, .mdallday, .tlev, .adpill')).toHaveCount(1); // 閉じた日は時間軸（複数日・終日は終日段のピル）
   });
 });

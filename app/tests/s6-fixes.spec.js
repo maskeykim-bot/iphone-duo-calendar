@@ -38,20 +38,20 @@ test.describe('ノートの元に戻す/やり直し: disabled でなく aria-di
 test.describe('押した色の取り違えがない', () => {
   test('選んでいる日のマスを押しても、地は濃い緑でなく #EFECE4。+N の上を押してもマスが押される（V-03: +N は押す的でない）', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
-    await seed(page, [1, 2, 3, 4].map((i) => ev(`p${i}`, `予定${i}`, '2026-11-12T1' + i + ':00', '2026-11-12T1' + i + ':30')));
+    await seed(page, [1, 2, 3, 4, 5, 6].map((i) => ev(`p${i}`, `予定${i}`, '2026-11-12T1' + i + ':00', '2026-11-12T1' + i + ':30')));
     await page.reload(); await page.waitForSelector('html[data-ready]');
     await page.locator('.tabs button', { hasText: '月' }).click();
     const day = page.locator('.week .day.selected').first();
-    const plus = page.locator('.week .plus').first();
+    const plus = page.locator('.week .plus:visible').first(); // 閉じた7段の +N は 0 件のとき hidden
     const pb = await plus.boundingBox();
     // +N の押せる範囲（日付の行の右 44×44）の外で日マスの右下を押す
     const d = await day.boundingBox();
     await page.mouse.move(d.x + 4, d.y + d.height - 4); await page.mouse.down();
-    await expect.poll(() => day.evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(239, 236, 228)');
+    await expect.poll(() => day.evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(226, 221, 210)'); // 第19.2版 S11b（R-75）: 閉じた7段の押した地は #E2DDD2
     await page.mouse.up();
     await page.mouse.move(pb.x + pb.width - 6, pb.y + 8); await page.mouse.down();
     // V-03: +N は pointer-events:none。+N の所を押すと押されるのはマス（地 #EFECE4）で、+N 自体は変わらない
-    await expect.poll(() => day.evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(239, 236, 228)');
+    await expect.poll(() => day.evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(226, 221, 210)');
     expect(await plus.evaluate((e) => [getComputedStyle(e).opacity, getComputedStyle(e).backgroundColor])).toEqual(['1', 'rgba(0, 0, 0, 0)']);
     await page.mouse.up();
   });

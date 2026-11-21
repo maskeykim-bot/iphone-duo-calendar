@@ -47,10 +47,18 @@ for (const [name, size, fs] of POSTURES) {
         const s = await cs(strip);
         expect(s.fs).toBe(size === SIZES.closedPortrait ? 10 : isPull(size) ? 9 : fs);
         expect(s.fw).toBeGreaterThanOrEqual(600);
-        expect(Math.abs(s.h - (size === SIZES.closedPortrait ? 16 : 14))).toBeLessThanOrEqual(0.2);
+        if (size === SIZES.closedPortrait) { // 第19.2版 S11b（34 §7・R-74）: 閉じた7段の時刻つきは地を塗らず、左の線 2×10（カレンダーの色）。高さ 14・文字 #293B35
+          expect(Math.abs(s.h - 14)).toBeLessThanOrEqual(0.2);
+          expect(s.bg).toBe('rgba(0, 0, 0, 0)');
+          expect(s.color).toBe('rgb(41, 59, 53)');
+          const ln = await strip.locator('.cline').evaluate((e) => { const r = e.getBoundingClientRect(); return { w: r.width, h: r.height, bg: getComputedStyle(e).backgroundColor }; });
+          expect([ln.w, ln.h]).toEqual([2, 10]); expect(ln.bg).toBe(rgb(p.light)); // 保存された本色（dark 値・tint へ差し替えない）
+        } else {
+        expect(Math.abs(s.h - 14)).toBeLessThanOrEqual(0.2);
         expect(s.radius).toBe('3px');
         expect(s.bg).toBe(rgb(p.light)); // 保存された本色（dark 値・tint へ差し替えない）
         expect(s.color).toBe('rgb(255, 255, 255)');
+        }
         expect(s.to).toBe('clip');
         expect(s.ws).toBe('nowrap');
         expect(s.ov).toBe('hidden');

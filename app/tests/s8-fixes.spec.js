@@ -142,7 +142,10 @@ test.describe('N-04 月の日の一覧の予定名 15/400', () => {
       await openApp(page, size); if (sar) await band(page, sar);
       await seed(page, [ev('a', '朝会', '2026-11-12T09:00', '2026-11-12T09:30')]); if (sar) await band(page, sar);
       await tab(page, '月').click().catch(() => {}); await page.waitForTimeout(500);
-      await page.locator('[data-mday="list"]:visible').first().click().catch(() => {}); await page.waitForTimeout(300);
+      if (size !== C) { await page.locator('[data-mday="list"]:visible').first().click().catch(() => {}); await page.waitForTimeout(300); } // 閉じた7段には「予定｜時間軸」の切り替えがない（S11b）
+      if (size === C) { // 第19.2版 S11b（34 §6.1）: 閉じた日の欄のカードの題名は 15/600
+        expect(await page.locator('.mdcard strong').first().evaluate((e) => { const c = getComputedStyle(e); return [c.fontSize, c.fontWeight]; })).toEqual(['15px', '600']); return;
+      }
       const cs = await page.locator('.mdev strong').first().evaluate((e) => { const c = getComputedStyle(e); return [c.fontSize, c.fontWeight]; });
       expect(cs).toEqual(['15px', '400']);
     });
@@ -172,7 +175,7 @@ test.describe('N-05/Q1 選んだ今日のマス：+N は右 4、ノートの印�
       expect(r.ml, 'ノートの印がある').toBeTruthy();
       expect(r.ml[4]).toBe('rgb(255, 255, 255)'); near(r.ml[2], 8, 0.5); near(r.ml[3], 1.5, 0.1);
       // Q1（設計 fc56bc9）: 閉じ・横は x+7〜15・y+15〜16.5
-      near(r.ml[0], 7, 0.6, '印の x'); near(r.ml[1], 15, 0.6, '印の y'); expect(r.ml[5]).toBe('1px');
+      near(r.ml[0], open ? 7 : 9, 0.6, '印の x'); near(r.ml[1], 15, 0.6, '印の y'); expect(r.ml[5]).toBe('1px'); // 第19.2版 S11b: 閉じた月は今日の丸が中央 (x+13, y+11) になり、印も丸の中央 x+9〜17
       // 丸（今日の数字）の中：印の矩形が丸 [3..19]×[2..18] に収まる
       expect(r.ml[0]).toBeGreaterThanOrEqual(r.num[0]); expect(r.ml[0] + r.ml[2]).toBeLessThanOrEqual(r.num[2]);
       expect(r.ml[1]).toBeGreaterThanOrEqual(r.num[1]); expect(r.ml[1] + r.ml[3]).toBeLessThanOrEqual(r.num[3]);

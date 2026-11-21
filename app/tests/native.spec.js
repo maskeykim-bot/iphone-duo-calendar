@@ -356,7 +356,7 @@ test.describe('ネイティブ（偽装）', () => {
     await expect(page.locator('.next')).toContainText('iPhone · 家族');
     // 日表示
     await tab(page, '日').click();
-    const card = page.locator('.tlev.ext', { hasText: '歯医者' });
+    const card = page.locator('.mdcard.ext, .tlev.ext', { hasText: '歯医者' });
     await expect(card).toBeVisible();
     await expect(card).toHaveAttribute('aria-label', /iPhone、家族、/);
     expect(await card.evaluate((el) => getComputedStyle(el).getPropertyValue('--cat').trim())).toBe('#d93025');
@@ -369,7 +369,7 @@ test.describe('ネイティブ（偽装）', () => {
     await expect(dent).not.toContainText('▦');
     await expect(dent).toHaveAttribute('aria-hidden', 'true'); // チップは押す的ではない（S5）。出所と題名はマスのボタンの aria-label にある
     await expect(page.locator('.calendar .day[data-date="2026-11-12"]')).toHaveAttribute('aria-label', /予定\d+件.*：iPhone、[^、]+、(\d+:\d\d )?歯医者/); // S8 品質の低: 読み上げに時刻（「15:00 歯医者」）が入る。 出所（iPhone、カレンダー名）も読み上げに残す
-    expect(await dent.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(217, 48, 37)'); // カレンダーの色 #d93025
+    expect(await dent.locator('.cline').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(217, 48, 37)'); // カレンダーの色 #d93025（第19.2版 S11b: 時刻つきは地を塗らず左の線がカレンダーの色）
     await expect(page.locator('.bar', { hasText: '<b>旅行</b>' })).toHaveCount(1); // 11/14(土)〜15(日)は月曜始まりでは同じ週なので1本（週境界の分割は month-all.spec.js で確認）。HTML は文字として表示
     // 凡例は設定メニューの中
     await openMenu(page, 'calendar');
@@ -384,7 +384,7 @@ test.describe('ネイティブ（偽装）', () => {
     await openApp(page);
     await enable(page);
     await tab(page, '日').click();
-    await page.locator('.tlev.ext', { hasText: '歯医者' }).click();
+    await page.locator('.mdcard.ext, .tlev.ext', { hasText: '歯医者' }).click();
     const d = page.locator('#xdetail');
     await expect(d).toBeVisible();
     await expect(d.getByRole('heading', { name: 'iPhoneの予定' })).toBeVisible();
@@ -409,7 +409,7 @@ test.describe('ネイティブ（偽装）', () => {
     // 終日: 含む最終日
     await tab(page, '月').click();
     await page.locator('[data-date="2026-11-23"]').click({ position: { x: 12, y: 10 } });
-    await page.locator('.tlev.ext, .adpill.ext', { hasText: '勤労感謝' }).click();
+    await page.locator('.mdcard.ext, .mdallday.ext, .tlev.ext, .adpill.ext', { hasText: '勤労感謝' }).click();
     await expect(d).toContainText('終日');
     await expect(d).toContainText('場所なし');
     await expect(d).toContainText('メモなし');
@@ -459,10 +459,10 @@ test.describe('ネイティブ（偽装）', () => {
     await page.evaluate(() => { window.__mock.events.push({ id: 'new-1@2026-11-20T19:00', eventId: 'new-1', calendarId: 'cal-1', title: '会食', start: '2026-11-20T19:00', end: '2026-11-20T21:00', all: false, place: '銀座', notes: '', recurring: false, requestId: null }); window.__mock.listeners.calendarChanged?.(); });
     await tab(page, '月').click();
     await page.locator('[data-date="2026-11-20"]').click({ position: { x: 12, y: 10 } });
-    await expect(page.locator('.tlev', { hasText: '会食' })).toHaveCount(1);
-    await expect(page.locator('.tlev', { hasText: '会食' })).toHaveAttribute('aria-label', /iPhoneにも追加済み/);
+    await expect(page.locator('.mdcard, .tlev', { hasText: '会食' })).toHaveCount(1);
+    await expect(page.locator('.mdcard, .tlev', { hasText: '会食' })).toHaveAttribute('aria-label', /iPhoneにも追加済み/);
     // 編集には案内
-    await page.locator('.tlev', { hasText: '会食' }).click();
+    await page.locator('.mdcard, .tlev', { hasText: '会食' }).click();
     await expect(page.locator('#xlinked')).toContainText('iPhoneにも追加済み。Duo で変えた内容は iPhone のカレンダーにも反映されます。');
     await expect(page.locator('#xadd')).toHaveCount(0);
   });
@@ -645,8 +645,8 @@ test.describe('ネイティブ（偽装）', () => {
     await seed(page, [ev('a1', 'Duoで作成済み', '2026-11-12T18:00', '2026-11-12T19:00', { nativeLink: { state: 'linked', requestId: 'r1', eventId: 'ev-linked', calendarId: 'cal-1' } })]);
     await enable(page);
     await tab(page, '日').click();
-    await expect(page.locator('.tlev', { hasText: 'Duoで作成済み' })).toHaveCount(1);
-    await expect(page.locator('.tlev.ext', { hasText: 'Duoで作成済み' })).toHaveCount(0);
+    await expect(page.locator('.mdcard, .tlev', { hasText: 'Duoで作成済み' })).toHaveCount(1);
+    await expect(page.locator('.mdcard.ext, .tlev.ext', { hasText: 'Duoで作成済み' })).toHaveCount(0);
     await expect(page.locator('.tlev.ext')).toHaveCount(1); // 歯医者のみ
     // 検索
     await page.locator('[data-act="search"]:visible').first().click();
@@ -666,7 +666,7 @@ test.describe('ネイティブ（偽装）', () => {
     await expect(hit).toContainText('iPhone · 家族');
     await hit.click();
     await expect(page.locator('#search')).toBeHidden();
-    await page.locator('.tlev.ext', { hasText: '歯医者' }).click();
+    await page.locator('.mdcard.ext, .tlev.ext', { hasText: '歯医者' }).click();
     await expect(page.locator('#xdetail')).toBeVisible();
   });
 
@@ -715,7 +715,7 @@ test.describe('ネイティブ（偽装）', () => {
     expect(ls.enabled).toBe(true);
     expect(ls.calendarIds).toEqual([]);
     await closeSettings(page);
-    await expect(page.locator('.tlev')).toHaveCount(1);
+    await expect(page.locator('.mdcard, .tlev')).toHaveCount(1);
     for (const m of ['createEvent', 'createEvents', 'updateEvent', 'deleteEvent', 'deleteExternalEvent']) expect(await calls(page, m)).toHaveLength(0);
   });
 });
@@ -765,7 +765,7 @@ const linkedEv = (x = {}) => ev('L1', '会食', '2026-11-12T10:00', '2026-11-12T
 async function openLinked(page, title = '会食') {
   await tab(page, '月').click();
   await page.locator('[data-date="2026-11-12"]').click({ position: { x: 12, y: 10 } });
-  await page.locator('.tlev', { hasText: title }).click();
+  await page.locator('.mdcard, .tlev', { hasText: title }).click();
   await expect(page.locator('#editor')).toBeVisible();
 }
 const saveEdit = async (page, title) => { await page.locator('#f-title').fill(title); await page.locator('#editor [type=submit]').click(); await expect(page.locator('#editor')).toBeHidden(); };
@@ -993,8 +993,8 @@ test.describe('端末をまたぐ照合（ekIdentifier）', () => {
     await enable(page);
     await tab(page, '月').click();
     await page.locator('[data-date="2026-11-12"]').click({ position: { x: 12, y: 10 } });
-    await expect(page.locator('.tlev', { hasText: '会食' })).toHaveCount(1); // Duo の1件だけ
-    await expect(page.locator('.tlev.ext', { hasText: '会食' })).toHaveCount(0);
+    await expect(page.locator('.mdcard, .tlev', { hasText: '会食' })).toHaveCount(1); // Duo の1件だけ
+    await expect(page.locator('.mdcard.ext, .tlev.ext', { hasText: '会食' })).toHaveCount(0);
   });
 
   test('externalId が空だった結びつきは、同期後の読込で埋まり ekIdentifier も付く（同値では書き換えない）', async ({ page }) => {
@@ -1664,7 +1664,7 @@ test.describe('第15版 PR6: 既存予定のカレンダー移動', () => {
     await enable(page);
     await tab(page, '月').click();
     await page.locator('[data-date="2026-11-12"]').click({ position: { x: 12, y: 10 } });
-    await page.locator('.tlev', { hasText: '歯科' }).click();
+    await page.locator('.mdcard, .tlev', { hasText: '歯科' }).click();
     await expect(page.locator('#dest-name')).toHaveText('仕事');
     await page.locator('#f-dest').click();
     await expect(page.locator('#dest-pop .dopt[data-dtype="duo"]').first()).toBeVisible();
@@ -1691,7 +1691,7 @@ test.describe('第15版 PR6: 既存予定のカレンダー移動', () => {
     await page.evaluate(() => { window.__mock.createFail = 1; });
     await tab(page, '月').click();
     await page.locator('[data-date="2026-11-12"]').click({ position: { x: 12, y: 10 } });
-    await page.locator('.tlev', { hasText: '歯科' }).click();
+    await page.locator('.mdcard, .tlev', { hasText: '歯科' }).click();
     const before = (await dbOne(page)).categoryId;
     await pickDest(page, 'iphone', 'cal-3');
     await page.locator('#editor [type=submit]').click();
@@ -1710,7 +1710,7 @@ test.describe('第15版 PR6: 既存予定のカレンダー移動', () => {
     await enable(page);
     await tab(page, '月').click();
     await page.locator('[data-date="2026-11-12"]').click({ position: { x: 12, y: 10 } });
-    const blk = page.locator('.tlev', { hasText: '会食' });
+    const blk = page.locator('.mdcard, .tlev', { hasText: '会食' });
     await expect(blk).toHaveAttribute('style', /--cat:#d93025/);
     await expect(blk).toHaveAttribute('aria-label', /家族/);
   });

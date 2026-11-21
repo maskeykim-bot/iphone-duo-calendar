@@ -88,6 +88,7 @@ test.describe('ノートのシート（開いた縦・閉じた画面）', () =>
     await openApp(page, SIZES.closedPortrait);
     let btn = page.locator('[data-act="daynote"]:visible').first();
     if (!(await btn.count())) { await page.locator('.tabs button', { hasText: /^月$/ }).first().click(); btn = page.locator('[data-act="daynote"]:visible').first(); }
+    if (await page.locator('.mgrab').count()) { await page.locator('.mgrab').focus(); for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowUp'); await page.waitForTimeout(400); } // S11b: 段1は日の欄がタブの帯にかかる（タブは S11c で消える）ので段4へ
     await expect(btn).toBeVisible();
     await btn.click(); await expect(sheet(page)).toBeVisible(); await page.waitForTimeout(400);
     const s = await box(sheet(page)); near(s.y, 152); near(s.x, 0); near(s.w, 466);

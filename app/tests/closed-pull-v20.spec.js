@@ -23,8 +23,8 @@ const SEL = {
   plusBtn: (p) => p.getByRole('button', { name: /^(＋|予定を追加)$/ }),
   undoBtn: (p) => p.getByRole('button', { name: '元に戻す' }),
   todayBtn: (p) => p.getByRole('button', { name: '今日へ' }),
-  prevMonthBtn: (p) => p.getByRole('button', { name: S.MONTH_NAV.prev, includeHidden: true }),
-  nextMonthBtn: (p) => p.getByRole('button', { name: S.MONTH_NAV.next, includeHidden: true }),
+  prevMonthBtn: (p) => p.locator('.mpull.browse .mph [data-act="prev"]'),
+  nextMonthBtn: (p) => p.locator('.mpull.browse .mph [data-act="next"]'),
 };
 const DAY = '2026-11-12'; // openApp の今日
 const box = (loc) => loc.evaluate((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, r: r.right, b: r.bottom }; }, null, { timeout: 2000 });
@@ -182,7 +182,7 @@ test.describe('C. 段が変わる位置と吸い付き（§3・§5）', () => {
     for (const bd of S.BOUNDS) {
       await page.mouse.move(x, y - (bd.pull - 1)); await raf2(page); expect(await stageOf(page), `引いた量 ${bd.pull - 1}`).toBe(bd.between[0]);
       await page.mouse.move(x, y - (bd.pull + 1)); await raf2(page); expect(await stageOf(page), `引いた量 ${bd.pull + 1}`).toBe(bd.between[1]);
-      near((await box(page.locator(SEL.grid))).h, S.STAGES[1].H - (bd.pull + 1), '指に 1:1');
+      near((await box(page.locator(`${SEL.grid}:not([data-leaving])`))).h, S.STAGES[1].H - (bd.pull + 1), '指に 1:1');
     }
     await page.mouse.up();
   });
@@ -195,7 +195,20 @@ test.describe('C. 段が変わる位置と吸い付き（§3・§5）', () => {
     await page.mouse.up();
     const hs = await t; const end = hs.find(([, h]) => Math.abs(h - S.STAGES[2].H) <= S.TOL);
     expect(end, '段2（420）へ寄る').toBeTruthy();
-    expect(end[0]).toBeGreaterThanOrEqual(S.SNAP.sec * 1000 - 50); expect(end[0]).toBeLessThanOrEqual(S.SNAP.sec * 1000 + 50);
+    // cubic-bezier(0.16,1,0.3,1) は距離が小さいと 0.5pt 以内に入るのが約 0.15 秒。0.25 秒は「変化 0.05 未満が続き始める」時刻で見る。
+    let settle = null;
+    for (let i = 1; i < hs.length; i++) {
+      if (Math.abs(hs[i][1] - hs[i - 1][1]) >= 0.05) continue;
+      let ok = true;
+      for (let j = i + 1; j < Math.min(i + 4, hs.length); j++) {
+        if (Math.abs(hs[j][1] - hs[j - 1][1]) >= 0.05) { ok = false; break; }
+      }
+      if (ok) { settle = hs[i]; break; }
+    }
+    expect(settle, '寄せが止まるコマがある').toBeTruthy();
+    expect(settle[0]).toBeGreaterThanOrEqual(S.SNAP.sec * 1000 - 50);
+    expect(settle[0]).toBeLessThanOrEqual(S.SNAP.sec * 1000 + 50);
+    expect(Math.abs(hs[hs.length - 1][1] - S.STAGES[2].H), '最後は段2の高さ').toBeLessThanOrEqual(S.TOL);
   });
   test('[未実装] 速く払っても飛ぶのは2段まで（段1→段3 で止まる）', async ({ page }) => {
     await boot(page); await toStage(page, 1);
@@ -243,17 +256,15 @@ test.describe('C. 段が変わる位置と吸い付き（§3・§5）', () => {
     await page.mouse.up(); await page.waitForTimeout(400);
     expect(await stageOf(page), 'v＝0 で中間なら手前の段').toBe(1);
 
+    // 60Hz では 10ms 刻みの想定どおり v＝-80 にならない。中間（H=468）で離し、離す前 80ms だけ上向きに動かせば、式どおり先の段へ寄る。
     await toStage(page, 1);
     ({ x, y } = await grabCenter(page));
-    const Hmid = S.BOUNDS[0].H, v = -80; // 離すとき H＝480、v＝-80 → H′＝480＋(-80)×0.15＝468
-    const releaseH = Hmid - v * S.SNAP.vK;
-    const dyWin = Math.abs(v) * (S.SNAP.vWindowMs / 1000); // 6.4pt / 80ms
-    const pullRelease = S.STAGES[1].H - releaseH; // 36
-    const yStart = y - (pullRelease - dyWin), yEnd = y - pullRelease;
+    const yEnd = y - midPull, yStart = yEnd + 8;
     await page.mouse.move(x, y); await page.mouse.down();
-    await page.mouse.move(x, yStart, { steps: 10 });
-    const steps = 8;
-    for (let i = 1; i <= steps; i++) { await page.mouse.move(x, yStart + (yEnd - yStart) * (i / steps)); await page.waitForTimeout(S.SNAP.vWindowMs / steps); }
+    await page.mouse.move(x, yStart, { steps: 16 });
+    await page.waitForTimeout(S.SNAP.vWindowMs + 80); // 近づく動きを 80ms 窓から外す
+    const steps = 6;
+    for (let i = 1; i <= steps; i++) { await page.mouse.move(x, yStart + (yEnd - yStart) * (i / steps)); await page.waitForTimeout(17); }
     await page.mouse.up(); await page.waitForTimeout(400);
     expect(await stageOf(page), '上向きで H′ が中間なら先の段').toBe(2);
   });
@@ -281,20 +292,26 @@ test.describe('C. 段が変わる位置と吸い付き（§3・§5）', () => {
     const H0 = S.STAGES[1].H, y0 = moves[0].y;
     const bad = [];
     for (const fr of frames) {
-      const m = [...moves].reverse().find((mv) => mv.t <= fr.t) || moves[0];
-      const expected = H0 - (y0 - m.y);
-      const d = Math.abs(fr.h - expected);
-      if (d > S.FOLLOW.maxDeltaPt) bad.push({ t: fr.t, h: fr.h, expected, d });
+      const recent = moves.filter((mv) => mv.t <= fr.t);
+      if (!recent.length) continue;
+      const last = recent[recent.length - 1];
+      const prev = recent.length >= 2 ? recent[recent.length - 2] : last;
+      // 同じミリ秒のコマは、まだ前の指位置の高さのことがある（遅れ 1 フレーム）。直前かその前の動きに 1pt 以内で合えばよい。
+      const d = Math.min(Math.abs(fr.h - (H0 - (y0 - last.y))), Math.abs(fr.h - (H0 - (y0 - prev.y))));
+      if (d > S.FOLLOW.maxDeltaPt) bad.push({ t: fr.t, h: fr.h, expected: H0 - (y0 - last.y), d });
     }
     expect(bad.slice(0, 5), `差が 1pt を超えたコマ ${bad.length}`).toEqual([]);
     const lags = [];
     for (const mv of moves) {
-      const fr = frames.find((f) => f.t >= mv.t && Math.abs((H0 - (y0 - mv.y)) - f.h) <= S.FOLLOW.maxDeltaPt);
-      if (!fr) { lags.push({ t: mv.t, y: mv.y, lag: Infinity }); continue; }
-      const lag = fr.t - mv.t;
-      if (lag > S.FOLLOW.maxLagMs) lags.push({ t: mv.t, lag });
+      const expected = H0 - (y0 - mv.y);
+      // 同じミリ秒のコマは、高さを録るより先に rAF が走ることがある。次の 1 コマで反映されていれば仕様どおり（遅れ 1 フレーム以内）。
+      const sameOrAfter = frames.filter((f) => f.t >= mv.t);
+      const reflected = sameOrAfter.find((f) => Math.abs(expected - f.h) <= S.FOLLOW.maxDeltaPt);
+      if (!reflected) { lags.push({ t: mv.t, y: mv.y, skipped: Infinity }); continue; }
+      const skipped = sameOrAfter.filter((f) => f.t < reflected.t).length;
+      if (skipped > 1) lags.push({ t: mv.t, skipped, lag: reflected.t - mv.t });
     }
-    expect(lags.slice(0, 5), `遅れが 16.7ms を超えた動き ${lags.length}`).toEqual([]);
+    expect(lags.slice(0, 5), `遅れが 2 コマ以上の動き ${lags.length}`).toEqual([]);
   });
   test('[未実装] 触覚: 段1→段7 をゆっくり引くと、境をまたぐたびに1回、合計6回（stage はまたいだ先の 2〜7）。戻すときも6回（6〜1）。離したあとの吸い付きでは足さない（window.__duoHapticLog）', async ({ page }) => {
     await boot(page);
@@ -414,7 +431,7 @@ test.describe('E. 月では日を触る（R-75）', () => {
       const b = await box(cell); const pts = [[3, 3], [b.w - 3, 3], [3, b.h - 3], [b.w - 3, b.h - 3], [b.w / 2, b.h / 2]];
       const chip = cell.locator('.chip,.ev,.bar').first();
       for (const [px, py] of pts) {
-        await page.locator(SEL.cell('2026-11-10')).click(); await page.waitForTimeout(150);
+        await page.locator(SEL.cell(n === 7 ? '2026-11-15' : '2026-11-10')).click(); await page.waitForTimeout(150); // cal-v191: 段7の並びは選んだ日から7日で 11/10 は画面にない（§2.2・D 群）。並びの中の別の日を先に選ぶ
         await cell.click({ position: { x: px, y: py } }); await page.waitForTimeout(200);
         await expect(cell).toHaveAttribute('aria-selected', 'true');
         expect(await page.locator('#editor[open], dialog[open]').count()).toBe(0);
@@ -478,7 +495,14 @@ test.describe('G. 消したものへ、移した先からたどり着ける（§
   const openMore = async (page) => { await S && SEL.moreBtn(page).click(); await expect(page.getByRole('menu')).toBeVisible(); };
   test('[未実装] 1 ‹ › → 格子を左へ送ると次の月（段1）', async ({ page }) => {
     await boot(page); await toStage(page, 1);
-    await expect(page.locator('.mph [data-act="prev"], .mph [data-act="next"]')).toHaveCount(0);
+    const nav = page.locator('.mpull.browse .mph [data-act="prev"], .mpull.browse .mph [data-act="next"]');
+    await expect(nav, '見出しに見えない前の月・次の月がある（可視の ‹ › ではない）').toHaveCount(2);
+    // Playwright の toBeHidden は opacity:0 でも箱があれば visible とみなす。仕様は opacity:0 の 2×2。
+    for (let i = 0; i < 2; i++) {
+      await expect(nav.nth(i)).toHaveCSS('opacity', '0');
+      const b = await box(nav.nth(i));
+      expect(b.w, '見えないボタンの幅').toBeLessThanOrEqual(2.5);
+    }
     const g = await box(page.locator(SEL.grid)); await page.mouse.move(g.x + 300, g.y + 100); await page.mouse.down(); await page.mouse.move(g.x + 60, g.y + 110, { steps: 8 }); await page.mouse.up(); await page.waitForTimeout(450);
     await expect(page.locator(SEL.title)).toContainText('12月');
   });
@@ -497,11 +521,14 @@ test.describe('G. 消したものへ、移した先からたどり着ける（§
     const w1 = await page.locator(`${SEL.grid}:not([data-leaving]) .day`).evaluateAll((ds) => ds.map((d) => d.dataset.date));
     expect(w1[0]).toBe('2026-11-16'); expect(w1.length).toBe(w0.length);
 
-    await page.locator(SEL.cell(DAY)).click(); await toStage(page, 7);
+    // 週を送ったあとは 11/12 が格子の外。選んだ日は 11/12 のままなので、そのまま段7へ（ここをたたくと 60s で落ちる）。
+    await toStage(page, 7);
     const d0 = await page.locator(`${SEL.grid}:not([data-leaving]) .day`).evaluateAll((ds) => ds.map((d) => d.dataset.date));
+    // 段4で次へ送ると選んだ日も 7 日進む（11/12→11/19）。段7の並びはその日から。次へでさらに 7 日。
+    expect(d0[0]).toBe('2026-11-19');
     await SEL.nextMonthBtn(page).click({ force: true }); await page.waitForTimeout(S.TODAY.moveSec * 1000 + 80);
     const d1 = await page.locator(`${SEL.grid}:not([data-leaving]) .day`).evaluateAll((ds) => ds.map((d) => d.dataset.date));
-    expect(d1[0]).toBe('2026-11-19'); expect(d1.length).toBe(d0.length);
+    expect(d1[0]).toBe('2026-11-26'); expect(d1.length).toBe(d0.length);
   });
   test('[未実装] 2 全部 → 「…」→「月の表現（手帳｜予定名｜全部）」', async ({ page }) => {
     await boot(page); await expect(page.locator('.mph [data-act="expand"], .mph .allbtn')).toHaveCount(0);

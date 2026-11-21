@@ -22,6 +22,8 @@ async function boot(page, size = SIZES.closedPortrait) {
   await page.addInitScript(() => { const k = 'duo.ui.v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); if (!s.monthDay) localStorage.setItem(k, JSON.stringify({ ...s, monthDay: 'list' })); });
   await openApp(page, size);
   const m = page.getByRole('button', { name: '月', exact: true }); if (await m.isVisible()) { await m.click(); await page.waitForTimeout(300); }
+  // cal-v191 S11b（仮）: 閉じた月の段1は日の欄が下のタブの帯にかかる（タブは S11c で消える）。ノートの欄を押せるよう段4へ進める（閉じた画面だけ）
+  if (size.width < size.height && size.width < 600) { await page.locator('.mgrab').focus(); for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowUp'); await page.waitForTimeout(400); }
 }
 async function openDaySheet(page, size = SIZES.closedPortrait) {
   await boot(page, size);
@@ -87,6 +89,33 @@ test.describe('R-70 ノートの変換（模型、Chromium と WebKit）', () =>
     await page.evaluate(() => __emu.end('今日のノート'));
     expect(await lines(page)).toEqual(['これは今日のノート']);
     expect((await savedBody(page)).split('\n').slice(1)).toEqual(['これは今日のノート']);
+  });
+  test('本文直下の span の文字は、変換中の読み取りでも、確定後の作り直しでも消えない（flat が span を捨てていた件）', async ({ page }) => {
+    await openDaySheet(page); await page.evaluate(EMU);
+    await emuType(page, ['こ', 'これ'], 'これは');
+    await page.evaluate(() => {
+      const b = document.querySelector('.nsheet .ned-body');
+      const sp = document.createElement('span');
+      sp.dataset.r70 = 'direct';
+      sp.textContent = '残してほしい行';
+      b.append(sp);
+    });
+    // 変換中: readValue は flat() だけ（作り直さない）。直下の span の文字も拾う。onSel（selectionchange）も踏む。
+    const mid = await ned(page).evaluate((b) => {
+      b.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+      const v = b.value;
+      document.dispatchEvent(new Event('selectionchange'));
+      return { v, stillThere: !!b.querySelector('[data-r70="direct"]') };
+    });
+    expect(mid.v, '変換中の flat が直下の span の文字を拾う').toContain('残してほしい行');
+    expect(mid.stillThere, '変換中は作り直さないので span が残る').toBe(true);
+    await page.evaluate(() => {
+      const b = document.querySelector('.nsheet .ned-body');
+      b.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '' }));
+    });
+    await page.waitForTimeout(400);
+    expect((await lines(page)).join('\n'), '確定後の作り直しでも文字が残る').toContain('残してほしい行');
+    expect(await savedBody(page)).toContain('残してほしい行');
   });
   test('本文: 変換の取り消し（空で確定）で、途中の文字が画面にも保存にも残らない（キャレットが行の外の状態から）', async ({ page }) => {
     await openDaySheet(page); await page.evaluate(EMU);

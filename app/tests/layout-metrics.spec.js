@@ -168,8 +168,9 @@ const placedOn = (page, k) => page.evaluate((k) => {
   const ids = [];
   for (const el of week.querySelectorAll('.bar, .strip')) {
     const r = el.getBoundingClientRect();
-    if (el.matches('.strip') ? el.dataset.sday === k : r.left < mid && r.right > mid) ids.push(el.dataset.event);
+    if (el.matches('.strip') ? el.dataset.sday === k : r.left < mid && r.right > mid) ids.push([Number(el.dataset.lane ?? 0), el.dataset.event || el.dataset.cont]);
   }
+  ids.sort((a, b) => a[0] - b[0]); ids.forEach((v, i) => { ids[i] = v[1]; }); // 第19.2版 S11b: 閉じた7段の帯は1マスごとの片（先頭の片が data-event、続きは data-cont）。段（lane）の順に並べる
   const total = Number(document.querySelector(`[data-date="${k}"]`).getAttribute('aria-label').match(/予定(\d+)件/)[1]);
   const plus = week.querySelector(`.plus[data-plus="${k}"]`);
   return { ids, total, plus: plus ? Number(plus.textContent.replace('+', '')) : 0 };
@@ -236,10 +237,10 @@ test.describe('月の文字「大」・時刻の出し入れ', () => {
     await page.reload();
     await page.waitForSelector('html[data-ready]');
     await expect(chip(page, '2026-11-12')).toHaveCount(5);
-    // 閉じた画面は 4段→3段なので 4→3件（+N は日付の行）
+    // 第19.2版 S11b: 閉じた画面は7段（34 §2.2）で、1マスの件数は段が決める（段1は4件）。「大」でも段の件数は変えない
     await page.setViewportSize(SIZES.closedPortrait);
     await tab(page, '月').click();
-    await expect(chip(page, '2026-11-12')).toHaveCount(3);
+    await expect(chip(page, '2026-11-12')).toHaveCount(4);
     // 標準へ戻す（4段: 4件＋「+2」）
     await openMenu(page, 'display');
     await menuBtn(page, /^月の文字/).click();

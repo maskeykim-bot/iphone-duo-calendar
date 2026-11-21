@@ -18,7 +18,7 @@ test.describe('スクリーンショット', () => {
     await seed(page, SEED);
     await tab(page, '月').click();
     await page.locator('[data-date="2026-11-16"]').click({ position: { x: 12, y: 10 } });
-    await page.locator('.tlev').first().click();
+    await page.locator('.mdcard, .tlev').first().click();
     await page.locator('#delete').click();
     await expect(page.locator('#scope')).toBeVisible();
     await expect(page.locator('#confirm')).toBeHidden();
@@ -32,7 +32,7 @@ test.describe('スクリーンショット', () => {
     await setStyle(page, '予定名');
     await shot(page, 'month-repeat');
     await page.locator('[data-date="2026-11-16"]').click({ position: { x: 12, y: 10 } });
-    await page.locator('.tlev').first().click();
+    await page.locator('.mdcard, .tlev').first().click();
     await fillRepeat(page, {});
     await shot(page, 'editor-repeat');
     await fillEditor(page, { title: 'プロジェクト定例（改）' });

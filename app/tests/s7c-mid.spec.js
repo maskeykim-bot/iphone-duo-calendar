@@ -69,20 +69,20 @@ test('V-17 開いた縦ホームの「月 ›」は 44×44（x613・y492）', as
   const r = await rect(page.locator('.pv-week .hgo')); near(r.x, 613); near(r.y, 492); near(r.w, 44); near(r.h, 44);
 });
 
-test('V-23 チップの上で押してもマスの地は変わらない', async ({ page }) => {
+test('V-23（R-75 で置き換え）チップの上で押しても、そのマスの地は #E2DDD2（押した反応はマスだけ。チップの被せは出さない）', async ({ page }) => {
   await openApp(page, C); await band(page, 84);
   await seed(page, [ev('c1', '朝会', '2026-11-12T09:00', '2026-11-12T09:30')]); await band(page, 84);
   await tab(page, '月').click(); await page.waitForTimeout(300);
   const day = page.locator('.week .day[data-date="2026-11-12"]'); const base = await bg(day);
   const chip = page.locator('.week .strip[data-event="c1"]').first(); await expect(chip).toBeVisible();
   await press(page, chip);
-  expect(await bg(day)).toBe(base); await page.mouse.up(); await page.waitForTimeout(400);
+  await page.waitForTimeout(200); expect(await bg(day)).toBe('rgb(226, 221, 210)'); await expect(page.locator('.chip-press')).toHaveCount(0); await page.mouse.up(); await page.waitForTimeout(400);
 });
 
-test('V-23 対照: マスの空きを押したときは今までどおり #EFECE4', async ({ page }) => {
+test('V-23 対照: マスの空きを押したときも #E2DDD2（R-75）', async ({ page }) => {
   await openApp(page, C); await band(page, 84); await tab(page, '月').click(); await page.waitForTimeout(300);
   const e2 = page.locator('.week .day[data-date="2026-11-17"]'); const r = await rect(e2); await page.mouse.move(r.x + 40, r.y + 20); await page.mouse.down(); await page.waitForTimeout(220);
-  expect(await bg(e2)).toBe('rgb(239, 236, 228)'); await page.mouse.up();
+  expect(await bg(e2)).toBe('rgb(226, 221, 210)'); await page.mouse.up();
 });
 
 test('V-25／V-14 設定の上の端は y24、膜は 0.25 秒で 0→1', async ({ page }) => {

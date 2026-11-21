@@ -277,7 +277,7 @@ export async function addRepeat(page, f) {
 export async function openOccurrence(page, key, nth = 0) {
   await tab(page, '月').click();
   await pickDay(page, key);
-  await page.locator('.mdev, .daylist .event, .tlev').nth(nth).click(); // 閉じた日は時間軸（.tlev）、開いた縦は一覧（.event）
+  await page.locator('.mdcard, .mdev, .daylist .event, .tlev').nth(nth).click(); // 閉じた日はカード（.mdcard。第19.2版 S11b）、開いた縦は一覧（.mdev・.event）
   await expect(page.locator('#editor')).toBeVisible();
 }
 // 月の時刻つき単日チップ（日セルの兄弟 button.strip。data-sday が日付）。

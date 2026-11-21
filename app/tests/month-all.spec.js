@@ -296,7 +296,7 @@ test.describe('週の始まり（月曜が既定）', () => {
           await expect(weeks).toHaveCount(6); // 4週の月も後ろの週で6行にそろえる
           expect(await weeks.first().locator('.day').first().getAttribute('data-date')).toBe(y ? '2027-02-01' : '2026-10-26');
           const top = (await weeks.first().boundingBox()).y, last = await weeks.last().boundingBox();
-          expect(Math.abs(last.y + last.height - (top + 384))).toBeLessThanOrEqual(1); // 6行×64（design/33 §1）
+          expect(Math.abs(last.y + last.height - (top + 516))).toBeLessThanOrEqual(1); // 第19.2版 S11b: 閉じた画面の段1は6行×86＝H516（design/34 §2.2・spec-values STAGES[1]。旧 design/33 §1 の6行×64は34で置き換わる★）
           return;
         }
         const weeks = page.locator('.week');
