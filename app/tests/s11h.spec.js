@@ -1,3 +1,5 @@
+// 品質の写し（S11i 用）: 8960267 の tests/s11h.spec.js を design/34 §18-5 に合わせた。リポジトリの s11h.spec.js は触っていない。
+// §18-5: この日（時刻つき 7 件・終日 1 行・カード）は T＝221（帯あり）／233（帯なし）。貼るのは H≧T、外すのは H＜T−4。段2（170）は貼らない、段3（266）は貼る。
 // 第19.2版 S11h: 8cd8a6c のレビューの直し（実装担当）。
 // 値の根拠: design/34 §18（18-1 貼り付きは日の欄の高さで決める・18-2 帯なしのつまみの箱は 56・18-3 シートの上に残る見出しのボタンを inert）、design/review/review-v19-2-8cd8a6c-closed-final2.md。
 import { test, expect } from '@playwright/test';
@@ -32,9 +34,9 @@ const snap = (page) => page.evaluate(SNAP);
 const frames = (page, ms) => page.evaluate(([src, ms]) => new Promise((res) => { const f = new Function(`return (${src})()`), out = [], t0 = performance.now(); const tick = (now) => { out.push({ t: now - t0, ...f() }); if (now - t0 < ms) requestAnimationFrame(tick); else res(out); }; requestAnimationFrame(tick); }), [SNAP.toString(), ms]);
 
 for (const sar of [84, 0]) {
-  const nm = sar ? '帯あり' : '帯なし', faceTop = sar ? 593 : 581;
+  const nm = sar ? '帯あり' : '帯なし', faceTop = sar ? 593 : 581, T = sar ? 221 : 233; // §18-5
   test.describe(`S11h §18-1 縦・${nm}: 貼り付きは日の欄の高さで決める`, () => {
-    test('つまみ（上）を 2pt ずつ引く（段1→3→1）: どの位置でもつまみ（下）と見出しが重ならない。高さ 170 以上で貼り、166 未満で外す', async ({ page }) => {
+    test('つまみ（上）を 2pt ずつ引く（段1→3→1）: どの位置でもつまみ（下）と見出しが重ならない。高さ T 以上で貼り、T−4 未満で外す（§18-5）', async ({ page }) => {
       await boot(page, { sar });
       expect(await stageOf(page)).toBe(1);
       const s0 = await snap(page); expect(s0.h).toBeCloseTo(74, 0); expect(s0.gs).toBe(false); expect(s0.sticky).toBe(false);
@@ -43,24 +45,24 @@ for (const sar of [84, 0]) {
       const seen = { on: 0, off: 0 }; let prev = false;
       const check = async (s, tag) => {
         expect(s.ov, `${tag} 上端 ${s.top} 高さ ${s.h}: つまみ ${s.gt}〜${s.gb} と見出し 〜${s.hb} の重なり`).toBeLessThanOrEqual(0.5);
-        if (s.h >= 170) { expect(s.gs, `${tag} 高さ ${s.h} は貼る`).toBe(true); seen.on++; }
-        if (s.h < 166 && !prev) expect(s.gs, `${tag} 高さ ${s.h} は貼らない`).toBe(false);
-        if (s.gs && s.h >= 170) { expect(s.stuck).toBe(true); expect(s.ft, `${tag} 面の上端`).toBeCloseTo(faceTop, 0); expect(s.gt).toBeCloseTo(faceTop, 0); expect(s.gb).toBeCloseTo(637, 0); }
+        if (s.h >= T) { expect(s.gs, `${tag} 高さ ${s.h} は貼る`).toBe(true); seen.on++; }
+        if (s.h < T - 4 && !prev) expect(s.gs, `${tag} 高さ ${s.h} は貼らない`).toBe(false);
+        if (s.gs && s.h >= T) { expect(s.stuck).toBe(true); expect(s.ft, `${tag} 面の上端`).toBeCloseTo(faceTop, 0); expect(s.gt).toBeCloseTo(faceTop, 0); expect(s.gb).toBeCloseTo(637, 0); }
       };
       for (let d = 10; d <= 200; d += 2) { await page.mouse.move(x, y0 - d); const s = await snap(page); await check(s, `上へ ${d}`); prev = s.gs; }
       await page.waitForTimeout(250);
       const up = await snap(page); expect(up.gs).toBe(true); expect(up.op).toBe(1); expect(up.anims).toBe(0);
       for (let d = 198; d >= 0; d -= 2) {
         await page.mouse.move(x, y0 - d); const s = await snap(page); await check(s, `下へ ${d}`);
-        if (s.h < 170 && s.h >= 166) expect(s.gs, `下へ ${d} 高さ ${s.h}: 遊び 4 の間は貼ったまま`).toBe(true); // ヒステリシス
+        if (s.h < T && s.h >= T - 4) expect(s.gs, `下へ ${d} 高さ ${s.h}: 遊び 4 の間は貼ったまま`).toBe(true); // ヒステリシス
         prev = s.gs;
       }
       await page.waitForTimeout(250);
       const dn = await snap(page); expect(dn.gs).toBe(false); expect(dn.sticky).toBe(false); expect(dn.anims).toBe(0); expect(dn.ov).toBe(0);
       await page.mouse.up(); await page.waitForTimeout(400);
-      expect(seen.on).toBeGreaterThan(10);
+      expect(seen.on).toBeGreaterThan(5);
     });
-    test('上端 554（今まで段2になって重なった所）で止めても貼らない。カードは見出しの下に見えたまま。上端 508 まで引くと 0.15 秒で出る', async ({ page }) => {
+    test('上端 554（今まで段2になって重なった所）で止めても貼らない。カードは見出しの下に見えたまま。上端 678−T（§18-5）まで引くと 0.15 秒で出る', async ({ page }) => {
       await boot(page, { sar });
       const gb = await page.locator('.mgrab').boundingBox(), x = gb.x + gb.width / 2, y0 = gb.y + gb.height / 2;
       const top0 = (await snap(page)).top;
@@ -73,9 +75,10 @@ for (const sar of [84, 0]) {
       expect(s.gs).toBe(false); expect(s.sticky).toBe(false); expect(s.ov).toBe(0);
       const under = await page.evaluate(() => { const e = document.elementFromPoint(100, 602); return !!e?.closest('.mdallday, .mdcard, .mdad, .mdcards, .mdbody'); });
       expect(under, '見出しのすぐ下に中身が見える').toBe(true);
-      // 上端 508（高さ 170）へ: 貼って、不透明度 0→1 を 0.15 秒・直線
+      // 上端 678−T（高さ T）へ: 貼って、不透明度 0→1 を 0.15 秒・直線。段2（上端 508）ではまだ貼らない（§18-5）
+      await page.mouse.move(x, y0 - (top0 - 508) - off); await page.waitForTimeout(250); expect((await snap(page)).gs, '§18-5 高さ 170 では貼らない').toBe(false);
       const rec = frames(page, 320);
-      await page.mouse.move(x, y0 - (top0 - 508) - off);
+      await page.mouse.move(x, y0 - (top0 - (678 - T - 1)) - off);
       const fr = await rec;
       const on = fr.filter((f) => f.gs);
       expect(on.length).toBeGreaterThan(3);
@@ -88,21 +91,21 @@ for (const sar of [84, 0]) {
       const e = fr[fr.length - 1]; expect(e.op).toBe(1); expect(e.ft).toBeCloseTo(faceTop, 0);
       await page.mouse.up(); await page.waitForTimeout(400);
     });
-    test('キーで段を送る（1→2・2→1・1→2→3、3→1）: どのコマでも重ならず、出るとき・消えるときは 0.15 秒のフェード。2→1 の最初のコマでカードが出ない', async ({ page }) => {
-      await boot(page, { sar });
+    test('§18-5 キーで段を送る（2→3・3→2・2→4→2→3）: どのコマでも重ならず、出るとき・消えるときは 0.15 秒のフェード。3→2 の最初のコマでカードが出ない', async ({ page }) => {
+      await boot(page, { sar }); await toStage(page, 2); expect((await snap(page)).gs, '§18-5 段2 は貼らない').toBe(false);
       await page.locator('.mgrab').focus();
-      // 1→2
+      // 2→3
       let rec = frames(page, 900); await page.keyboard.press('ArrowUp'); let fr = await rec;
       for (const f of fr) expect(f.ov, `1→2 t${f.t | 0} 上端 ${f.top}`).toBeLessThanOrEqual(0.5);
-      for (const f of fr) if (f.gs && f.op > 0.001) expect(f.h, `1→2: 貼って見えるのは高さ 170 に届いてから`).toBeGreaterThanOrEqual(165.9);
-      let end = fr[fr.length - 1]; expect(end.stage).toBe(2); expect(end.gs).toBe(true); expect(end.stuck).toBe(true); expect(end.op).toBe(1); expect(end.ft).toBeCloseTo(faceTop, 0); expect(end.hb).toBeCloseTo(552, 0);
+      for (const f of fr) if (f.gs && f.op > 0.001) expect(f.h, `2→3: 貼って見えるのは高さ T に届いてから`).toBeGreaterThanOrEqual(T - 4.1);
+      let end = fr[fr.length - 1]; expect(end.stage).toBe(3); expect(end.gs).toBe(true); expect(end.stuck).toBe(true); expect(end.op).toBe(1); expect(end.ft).toBeCloseTo(faceTop, 0); expect(end.hb).toBeCloseTo(456, 0);
       expect(fr.some((f) => f.gs && f.op > 0.02 && f.op < 0.98), '1→2: フェードの途中のコマ').toBe(true);
       { const on = fr.filter((f) => f.gs); for (let i = 1; i < on.length; i++) expect(on[i].op, `1→2: 出る間、不透明度は戻らない（コマ ${i}）`).toBeGreaterThanOrEqual(on[i - 1].op - 0.001); }
       await page.waitForTimeout(200);
-      // 2→1
+      // 3→2
       rec = frames(page, 900); await page.keyboard.press('ArrowDown'); fr = await rec;
       for (const f of fr) expect(f.ov, `2→1 t${f.t | 0} 上端 ${f.top}`).toBeLessThanOrEqual(0.5);
-      const i0 = fr.findIndex((f) => f.h < 165.9);
+      const i0 = fr.findIndex((f) => f.h < T - 4.1);
       expect(i0).toBeGreaterThanOrEqual(0);
       expect(fr[i0].gs, '2→1: 外れ始めのコマは、まだ面がある（カードが 1 コマで出ない）').toBe(true);
       expect(fr[i0].op).toBeGreaterThan(0.5);
@@ -110,18 +113,19 @@ for (const sar of [84, 0]) {
       expect(gone.t - fr[i0].t).toBeGreaterThan(80); expect(gone.t - fr[i0].t).toBeLessThan(260);
       expect(fr.some((f, i) => i >= i0 && f.gs && f.op > 0.02 && f.op < 0.98), '2→1: フェードの途中のコマ').toBe(true);
       { const out = fr.filter((f, i) => i >= i0 && f.gs); for (let i = 1; i < out.length; i++) expect(out[i].op, `2→1: 消える間、不透明度は戻らない（コマ ${i}）`).toBeLessThanOrEqual(out[i - 1].op + 0.001); }
-      end = fr[fr.length - 1]; expect(end.stage).toBe(1); expect(end.gs).toBe(false); expect(end.sticky).toBe(false); expect(end.h).toBeCloseTo(74, 0);
+      end = fr[fr.length - 1]; expect(end.stage).toBe(2); expect(end.gs).toBe(false); expect(end.sticky).toBe(false); expect(end.h).toBeCloseTo(170, 0);
       // 続けて送る・戻す（寄せの途中で向きを変える）
       rec = frames(page, 1500);
       await page.keyboard.press('ArrowUp'); await page.waitForTimeout(90); await page.keyboard.press('ArrowUp'); await page.waitForTimeout(300); await page.keyboard.press('ArrowDown'); await page.waitForTimeout(60); await page.keyboard.press('ArrowDown'); await page.waitForTimeout(40); await page.keyboard.press('ArrowUp');
       fr = await rec;
       for (const f of fr) expect(f.ov, `行き来 t${f.t | 0} 上端 ${f.top}`).toBeLessThanOrEqual(0.5);
       await page.waitForTimeout(400); end = await snap(page); // 記録の終わりが最後のフェードの終わりのコマに重なることがあるので、落ち着いてから見る
-      expect(end.stage).toBe(2); expect(end.gs).toBe(true); expect(end.stuck).toBe(true); expect(end.op).toBe(1); expect(end.anims).toBe(0);
+      expect(end.stage).toBe(3); expect(end.gs).toBe(true); expect(end.stuck).toBe(true); expect(end.op).toBe(1); expect(end.anims).toBe(0);
     });
-    test('段2〜7 の止まった位置は今までどおり貼る（線 y611〜615）。日の欄を送って外れる・戻るのは一瞬（フェードなし）', async ({ page }) => {
+    test('§18-5 段2 は貼らない。段3〜7 の止まった位置は今までどおり貼る（線 y611〜615）。日の欄を送って外れる・戻るのは一瞬（フェードなし）', async ({ page }) => {
       await boot(page, { sar });
-      for (const n of [2, 3, 5, 7]) {
+      await toStage(page, 2); await page.waitForTimeout(250); { const s2 = await snap(page); expect(s2.gs, '§18-5 段2 は貼らない').toBe(false); expect(s2.sticky).toBe(false); }
+      for (const n of [3, 5, 7]) {
         await toStage(page, n); await page.waitForTimeout(250);
         const s = await snap(page);
         expect(s.gs).toBe(true); expect(s.stuck).toBe(true); expect(s.op).toBe(1); expect(s.anims).toBe(0); expect(s.ov).toBe(0);
@@ -134,7 +138,7 @@ for (const sar of [84, 0]) {
     });
     test('動きを減らす設定: フェードなしで切り替わる。重ならない', async ({ page }) => {
       await page.emulateMedia({ reducedMotion: 'reduce' });
-      await boot(page, { sar });
+      await boot(page, { sar }); await toStage(page, 2); // §18-5: 貼り付きが変わるのは 2→3
       await page.locator('.mgrab').focus();
       await page.keyboard.press('ArrowUp'); await page.waitForTimeout(150);
       let s = await snap(page); expect(s.gs).toBe(true); expect(s.op).toBe(1); expect(s.anims).toBe(0); expect(s.ov).toBe(0); expect(s.ft).toBeCloseTo(faceTop, 0);
@@ -209,8 +213,10 @@ test.describe('S11h §18-3 シートを開いている間、上に残る見出�
     await page.locator('.mday [data-act="daynote"]').click(); await page.waitForTimeout(600);
     await expect(page.locator('.nsheet')).toBeVisible();
   };
-  const inert = (page) => page.evaluate(() => [...document.querySelectorAll('.shell.closed .cb.ctask, .shell.closed .cb.cmore')].map((b) => b.inert));
-  test('横・帯なし: シートを開いて (656,4)・(620,4) をたたいても shell の class が変わらない（タスクの画面に切り替わらない・メニューも出ない）。閉じると押せる', async ({ page }) => {
+  // §18-6: 見出しの帯ごと inert にしてよいので、ボタン自身の inert でなく 祖先を含めて見る
+  const inert = (page) => page.evaluate(() => [...document.querySelectorAll('.shell.closed .cb.ctask, .shell.closed .cb.cmore')].map((b) => !!b.closest('[inert]')));
+  const head = (page) => page.evaluate(() => (document.querySelector('.mph h2, .mph h1, #ctitle, .stitle')?.textContent || '').trim());
+  test('§18-6 横・帯なし: シートを開いて (656,4)・(620,4)・(350,4) 今日へ・(10,2)/(14,2) 月送り をたたいても shell の class も月も変わらない（タスクの画面に切り替わらない・メニューも出ない）。閉じると押せる', async ({ page }) => {
     await boot(page, { sar: 0, land: true });
     expect(await inert(page)).toEqual([false, false]);
     await openSheet(page);
@@ -218,8 +224,10 @@ test.describe('S11h §18-3 シートを開いている間、上に残る見出�
     expect(await inert(page)).toEqual([true, true]);
     const cls = await page.locator('.shell').getAttribute('class');
     const tb = await page.locator('.cb.ctask').boundingBox(); expect(tb.y).toBeLessThan(8); // 上の 8 に端が残っている
-    for (const [x, y] of [[656, 4], [tb.x + tb.width / 2, 4], [620, 4], [600, 3]]) { await page.mouse.click(x, y); await page.waitForTimeout(250); }
+    const h0 = await head(page); const changed = [];
+    for (const [x, y] of [[656, 4], [tb.x + tb.width / 2, 4], [620, 4], [600, 3], [350, 4], [10, 2], [14, 2]]) { await page.mouse.click(x, y); await page.waitForTimeout(250); const h = await head(page); if (h !== h0) changed.push([x, y, h]); }
     expect(await page.locator('.shell').getAttribute('class')).toBe(cls);
+    expect.soft(changed, '§18-6 見出しの帯（今日へ・月送り）も働かない').toEqual([]);
     await expect(page.locator('.nsheet')).toBeVisible();
     expect(await page.locator('.cb.cmore').getAttribute('aria-expanded')).toBe('false');
     expect(await page.evaluate(() => { const e = document.elementFromPoint(656, 4); return !!e?.closest('.cb'); }), 'inert のボタンは当たらない').toBe(false);

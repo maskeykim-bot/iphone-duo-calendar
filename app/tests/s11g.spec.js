@@ -39,7 +39,7 @@ test.describe('S11g §17-1（K-1）・§17-2（K-2） 貼り付いたつまみ�
   for (const s of SHAPES) {
     test(`${s.name}: 貼り付いている間、つまみの下端から日の欄の下端まで #EFECE4。カード・時間軸は見えず、たたいても引いても何もしない。送り切ると埋めない`, async ({ page }) => {
       await boot(page, s);
-      for (const n of s.land ? [0] : [2, 4, 7]) {
+      for (const n of s.land ? [0] : [3, 4, 7]) { // S11i: 段2 → 段3。根拠＝design/34 §18-5（この日は終日 1 行＋時刻つき 7 件。段2 の高さ 170 は T＝221／233（B は 229／241）に足りず貼らない。貼り付いた形は段3 以上で見る）
         if (n) await toStage(page, n);
         for (const mode of ['A', 'B']) {
           if (mode === 'B') { await page.locator('.mdgrab').focus(); await page.keyboard.press('ArrowDown'); await page.waitForTimeout(500); await page.evaluate(() => document.activeElement?.blur()); await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B'); }

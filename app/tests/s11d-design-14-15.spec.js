@@ -4,6 +4,11 @@ import { test, expect } from '@playwright/test';
 import { openApp, seed, ev, dbEvents, enableCalendars } from './helpers.js';
 // 横の帯の位置は仮値。実機 D-16 のスクショで検証してから、ここ1か所を直す。
 const GEO = Object.freeze({ portrait: { width:466,height:678 }, landscape:{width:678,height:466}, rail:84, homeBand:33, landRailX:594, landHomeY:433 });
+// つまみ（下）の見た目の箱と押せる範囲（S11h の食い違いの整理、2026-11-22 品質。親の訂正どおり）。
+// 帯なし: §18-2 で見た目の箱も押せる範囲も 56（縦 y581〜637、横 y369〜425）。§17-2 の「上に足した 12 は何もしない」はなくなった。線は 縦 y611〜615、横 y399〜403。
+// 帯あり: 見た目も押せる範囲も 44 のまま（縦 y593〜637、横 y381〜425）。
+const NB = Object.freeze({ boxP: [8, 581, 402, 637], boxL: [382, 369, 614, 425], hitP: [581, 637], hitL: [369, 425], lineP: [611, 615], lineL: [399, 403] });
+const BAND = Object.freeze({ boxP: [8, 593, 374, 637], boxL: [382, 381, 594, 425], hitP: [593, 637], hitL: [381, 425] });
 const DAY='2026-11-12';
 const EVENTS=[...Array.from({length:7},(_,i)=>ev(`q${i}`,`予定${i}`,`${DAY}T${String(9+i).padStart(2,'0')}:00`,`${DAY}T${String(9+i).padStart(2,'0')}:30`))];
 const r = (loc)=>loc.evaluate(e=>{const b=e.getBoundingClientRect();return [b.left,b.top,b.right,b.bottom].map(v=>Math.round(v*100)/100);});
@@ -203,9 +208,19 @@ const hasTopLine = (el) => { const c = getComputedStyle(el), b = getComputedStyl
 async function gripAt(page) { return page.evaluate((fn) => { const hasTopLine = eval(fn); const d = document.querySelector('.mpull.browse .mday') || document.querySelector('.mday'), g = d.querySelector('.mdgrab'); const gb = g.getBoundingClientRect(), db = d.getBoundingClientRect(); const ln = g.querySelector('i')?.getBoundingClientRect(); const hit = document.elementFromPoint(191, gb.top + 22); return { r: [gb.left, gb.top, gb.right, gb.bottom], pane: [db.top, db.bottom], line: ln && [ln.left, ln.top, ln.right, ln.bottom], pos: getComputedStyle(g).position, topLine: hasTopLine(g), hit: !!hit && (hit === g || g.contains(hit)), z: getComputedStyle(g).zIndex, st: d.scrollTop, max: d.scrollHeight - d.clientHeight }; }, hasTopLine.toString()); }
 
 for (const n of [2, 3, 4, 5, 6, 7]) {
-  test(`§16-1 段${n} 予定の多い日: つまみ（下）は日の欄の下端に貼り付く（押せる x8〜374 y593〜637、線 y611〜615、上に 0.5 #E4E0D6）`, async ({ page }) => {
+  test(`§16-1 段${n} 予定の多い日: ${n === 2 ? '§18-5 段2 は貼らない（最初のカードがまるごと・送り切るとつまみ）。段3〜7 は' : ''}つまみ（下）は日の欄の下端に貼り付く（押せる x8〜374 y593〜637、線 y611〜615、上に 0.5 #E4E0D6）`, async ({ page }) => {
     await boot(page); await toStage(page, n);
     const g = await gripAt(page);
+    /* §18-5（S11i、品質）: この日（時刻つき 7 件・終日なし・カード）は T＝185（帯あり）／197（帯なし）。段2（170）は貼らない */
+    if (n === 2) {
+      expect(g.pos, '段2 は貼らない（§18-5: 170 ＜ T 185）').not.toBe('sticky'); expect(g.topLine, '貼らないので上の線はない').toBe(false);
+      const c = await page.evaluate(() => { const d = document.querySelector('.mpull.browse .mday'), cs = [...d.querySelectorAll('.mdcard')], h = d.querySelector('.mdh').getBoundingClientRect(), db = d.getBoundingClientRect(); const r = cs[0].getBoundingClientRect(); return { top: r.top, bottom: r.bottom, hdr: h.bottom, pane: db.bottom }; });
+      expect(c.top, '最初のカードの上端は見出しの下').toBeGreaterThanOrEqual(c.hdr - 0.6); expect(c.bottom, '最初のカードがまるごと見える').toBeLessThanOrEqual(c.pane + 0.6);
+      await page.locator('.mpull.browse .mday').evaluate((d) => { d.scrollTop = d.scrollHeight; }); await page.waitForTimeout(250);
+      const e = await gripAt(page); const lastBottom = await page.evaluate(() => [...document.querySelectorAll('.mpull.browse .mday .mdcard')].at(-1).getBoundingClientRect().bottom);
+      near(e.r[1], lastBottom, '段2 送り切ると最後のカードの下端から'); expect(e.topLine, '送り切ったら上の線はない').toBe(false);
+      return;
+    }
     expect(g.pos, 'sticky').toBe('sticky');
     rect(g.r, [8, 593, 374, 637], `段${n} 押せる範囲`);
     if (g.line) { rect(g.line, [173, 611, 209, 615], `段${n} 線 36×4`); }
@@ -226,9 +241,9 @@ test('§16-1 段1は貼り付けない。「時間軸」入口（.mdtl）はど�
   const g = await gripAt(page); expect(g.r[1], '段1のつまみ（下）は元の位置（日の欄の外）').toBeGreaterThan(678);
   for (const n of [1, 2, 3, 4, 5, 6, 7]) { await toStage(page, n); await expect(page.locator('.mdtl'), `段${n}`).toHaveCount(0); }
 });
-test('§16-1 帯なし: 貼り付いたつまみの押せる範囲は x8〜402（＋の左）、線の中心 x233', async ({ page }) => {
+test('§16-1 帯なし: 貼り付いたつまみの見た目の箱は x8〜402 y581〜637（§18-2 の 56。＋の左）、線の中心 x233', async ({ page }) => {
   await boot(page, { sar: 0 }); await toStage(page, 4);
-  /* S11h（実装担当）: 原本のこの行は §18-2（帯なしの箱は 56＝y581/369〜）の試験（下の「§18-2 帯なし…箱は貼り付いても外れても 56」）と両立しないので、§18-2 の値に合わせた。ほかは原本のまま */ const g = await gripAt(page); rect(g.r, [8, 581, 402, 637], '帯なしの押せる範囲');
+  const g = await gripAt(page); rect(g.r, NB.boxP, '帯なしの見た目の箱＝押せる範囲（§18-2）');
   if (g.line) near((g.line[0] + g.line[2]) / 2, 233, '線の中心');
 });
 for (const n of [2, 4, 7]) {
@@ -326,9 +341,9 @@ for (const [kind, title, id] of [['単発', '撮影', 'd1'], ['繰り返しの�
 // §17-1 貼り付いている間だけ、つまみの下端から日の欄の下端までを #EFECE4 で埋める。ホームバーの帯も同じ色。埋めた所をたたいても何もしない。
 const FILL = {
   '縦・帯あり': { sar: 84, size: GEO.portrait, fill: [8, 637, 374, 678], grip: [8, 593, 374, 637], ys: [640, 670] },
-  '縦・帯なし': { sar: 0, size: GEO.portrait, fill: [8, 637, 458, 678], grip: [8, 593, 402, 637], ys: [640, 670] },
+  '縦・帯なし': { sar: 0, size: GEO.portrait, fill: [8, 637, 458, 678], grip: NB.boxP /* §18-2: 帯なしは 56（y581〜637） */, ys: [640, 670] },
   '横・帯あり': { sar: 84, size: GEO.landscape, fill: [382, 425, 594, 466], grip: [382, 381, 594, 425], ys: [430, 460] },
-  '横・帯なし': { sar: 0, size: GEO.landscape, fill: [382, 425, 678, 466], grip: [382, 381, 614, 425], ys: [430, 460] },
+  '横・帯なし': { sar: 0, size: GEO.landscape, fill: [382, 425, 678, 466], grip: NB.boxL /* §18-2: 帯なしは 56（y369〜425） */, ys: [430, 460] },
 };
 async function bootForm(page, f, stage = 4) { await boot(page, { sar: f.sar }); if (f.size === GEO.portrait) await toStage(page, stage); else { await page.setViewportSize(GEO.landscape); await page.waitForTimeout(650); } }
 const fillHits = (page, f) => page.evaluate(({ f }) => {
@@ -371,26 +386,27 @@ test('§17-1 送り切ったときは今のまま（つまみは最後のカー�
   const r = await page.evaluate(() => { const g = document.querySelector('.mdgrab'); const nl = document.querySelector('.mday .mdnl').getBoundingClientRect(); return { stuck: g.classList.contains('stuck'), gb: g.getBoundingClientRect().bottom, nlTop: nl.top }; });
   expect(r.stuck).toBe(false); near(r.nlTop, r.gb, 'ノート › はつまみの下');
 });
-// §17-2 帯なしで貼り付いている間、つまみの面を ＋ の上端まで（縦 面 y581〜637・線 y581／横 面 y369〜425・線 y369）。押せる範囲は変えない。
-for (const [name, f, faceTop, gripTop, lineY] of [['縦', FILL['縦・帯なし'], 581, 593, [611, 615]], ['横', FILL['横・帯なし'], 369, 381, [399, 403]]]) {
-  test(`§17-2 帯なし${name}: 面の上端 y${faceTop}（線 0.5 #E4E0D6）、押せる範囲は y${gripTop}〜、＋のまわりにカードが見えない`, async ({ page }) => {
+// §17-2・§18-2 帯なしのつまみ（下）: §18-2 で箱も押せる範囲も 56（縦 y581〜637・線 0.5 は面の上端 y581／横 y369〜425・上端 y369）。
+// 帯なしの正しい値は 581（縦）・369（横）だけ（§17-2 の 44＝593／381 は §18-2 でなくなった）。つまみの線は 縦 y611〜615・横 y399〜403 のまま。＋は面の上に乗り、カードと重ならない。
+for (const [name, f, faceTop, bottom, lineY] of [['縦', FILL['縦・帯なし'], NB.hitP[0], NB.hitP[1], NB.lineP], ['横', FILL['横・帯なし'], NB.hitL[0], NB.hitL[1], NB.lineL]]) {
+  test(`§18-2 帯なし${name}: つまみの箱・押せる範囲・面の上端はどれも y${faceTop}（56、線 0.5 #E4E0D6）、下端 y${bottom}、＋のまわりにカードが見えない`, async ({ page }) => {
     await bootForm(page, f);
-    const r = await page.evaluate(({ faceTop, gripTop }) => {
+    const r = await page.evaluate(({ faceTop }) => {
       const g = document.querySelector('.mdgrab'), a = document.querySelector('.cadd'); const gb = g.getBoundingClientRect(), ab = a.getBoundingClientRect();
-      const probe = []; for (let x = ab.left + 2; x < ab.right - 1; x += 6) for (const y of [faceTop + 2, faceTop + 6, gripTop - 2]) { const e = document.elementFromPoint(x, y); probe.push(!!e?.closest('.mdcard, .tlev, .mdnl, .dnote')); }
+      const probe = []; for (let x = ab.left + 2; x < ab.right - 1; x += 6) for (const y of [faceTop + 2, faceTop + 6, faceTop + 10]) { const e = document.elementFromPoint(x, y); probe.push(!!e?.closest('.mdcard, .tlev, .mdnl, .dnote')); }
       const left = []; for (let x = 20; x < ab.left - 4; x += 20) { const e = document.elementFromPoint(x, faceTop + 4); left.push(e?.closest('.mdcard, .tlev') ? 'card' : (e?.closest('.mdgrab') ? 'grab' : (e?.className?.split?.(' ')[0] || ''))); }
       const hitGrab = document.elementFromPoint(100, faceTop + 4)?.closest('.mdgrab');
       return { gripTop: gb.top, cardNearPlus: probe.filter(Boolean).length, left, faceIsGrabTarget: !!hitGrab };
-    }, { faceTop, gripTop });
+    }, { faceTop });
     const face = await page.evaluate(() => { const g = document.querySelector('.mdgrab'); const gb = g.getBoundingClientRect(); const bs = getComputedStyle(g, '::before'); const ln = g.querySelector('i')?.getBoundingClientRect(); return { content: bs.content, top: gb.top + parseFloat(bs.top), bottom: gb.top + parseFloat(bs.top) + parseFloat(bs.height), shadow: bs.boxShadow, gb: [gb.top, gb.bottom], line: ln && [ln.top, ln.bottom] }; });
     expect(face.content, '面（::before）がある').not.toBe('none');
     near(face.top, faceTop, '面の上端'); expect(face.shadow, '上の線 0.5 #E4E0D6').toMatch(/rgb\(228, 224, 214\).*inset|inset.*rgb\(228, 224, 214\)/);
-    expect([gripTop, faceTop].some((v) => Math.abs(face.gb[0] - v) <= 0.6), `押せる範囲の上端 ${face.gb[0]}（§17-2 は ${gripTop}、§18-2 の 56 なら ${faceTop}）`).toBe(true); near(face.gb[1], gripTop + 44, '押せる範囲の下端');
+    near(face.gb[0], faceTop, '箱＝押せる範囲の上端（§18-2 の 56。593／381 は不可）'); near(face.gb[1], bottom, '箱＝押せる範囲の下端');
     if (face.line) { near(face.line[0], lineY[0], '線の上'); near(face.line[1], lineY[1], '線の下'); }
-    /* S11h（実装担当）: 原本のこの行は §18-2（帯なしの箱は 56＝y581/369〜）の試験（下の「§18-2 帯なし…箱は貼り付いても外れても 56」）と両立しないので、§18-2 の値に合わせた。ほかは原本のまま */ expect([gripTop, faceTop].some((v) => Math.abs(r.gripTop - v) <= 0.6), `押せる範囲の上端 ${r.gripTop}`).toBe(true);
+    near(r.gripTop, faceTop, '帯なしの箱の上端（§18-2 の 56。593／381 は不可）');
     expect(r.cardNearPlus, '＋のまわり（面の上）にカードが見えない').toBe(0);
-    expect(r.left.filter((v) => v === 'card'), `面 y${faceTop}〜${gripTop} にカードが見えない`).toEqual([]);
-    // 足した 12 をたたいても何もしない
+    expect(r.left.filter((v) => v === 'card'), `面の上端 y${faceTop} の少し下にカードが見えない`).toEqual([]);
+    // §18-2: 上の 12 もつまみ（押せる範囲）。たたくだけ（動かさない）なら段・見せ方は変わらず、シートも開かない
     const st0 = await page.evaluate(() => [document.querySelector('.mpull')?.dataset.stage ?? null, document.querySelector('.mday').dataset.dg]);
     await page.mouse.click(100, faceTop + 4); await page.waitForTimeout(400);
     expect(await page.evaluate(() => [document.querySelector('.mpull')?.dataset.stage ?? null, document.querySelector('.mday').dataset.dg])).toEqual(st0);
@@ -406,10 +422,10 @@ test('§17-3 閉じた横・帯あり: つまみ（下）は y381〜425 に貼�
   expect((await visRects(page, '.mgrab')).length, 'つまみ（上）').toBe(0);
   expect(await page.locator('.mday .mdh').evaluate((e) => getComputedStyle(e).position)).toBe('sticky');
 });
-test('§17-3 閉じた横・帯なし: つまみ（下）は x382〜614 y381〜425 に貼り付き（＋の左まで）、線 y399〜403', async ({ page }) => {
+test('§17-3 閉じた横・帯なし: つまみ（下）の見た目の箱は x382〜614 y369〜425（§18-2 の 56。＋の左まで）、線 y399〜403', async ({ page }) => {
   await bootForm(page, FILL['横・帯なし']);
   const g = await gripAt(page);
-  /* S11h（実装担当）: 原本のこの行は §18-2（帯なしの箱は 56＝y581/369〜）の試験と両立しないので、§18-2 の値に合わせた。ほかは原本のまま */ expect(g.pos).toBe('sticky'); rect(g.r, [382, 369, 614, 425], '横・帯なしのつまみ');
+  expect(g.pos).toBe('sticky'); rect(g.r, NB.boxL, '横・帯なしの見た目の箱＝押せる範囲（§18-2）');
   if (g.line) { near(g.line[1], 399, '線の上'); near(g.line[3], 403, '線の下'); }
 });
 // §17-5 帯なしの横でノートを書いている間、タスクのバッジ（#B43C3C、x660〜678 y0〜18）がシートの上に出ない。
@@ -563,10 +579,12 @@ for (const [name, sar] of [['帯あり', 84], ['帯なし', 0]]) {
     const fr = await stopFrames(page); const bad = fr.filter((f) => f.overlap > 0.5);
     expect(bad.slice(0, 3).map((f) => ({ top: Math.round(f.paneTop), stage: f.stage, overlap: Math.round(f.overlap * 10) / 10 })), `重なったコマ ${bad.length}/${fr.length}`).toEqual([]);
   });
-  test(`§18-1 ${name}: 境目 170／166（ヒステリシス）。下から 168 では貼らない・172 で貼る・戻って 168 では貼ったまま・164 で外す`, async ({ page }) => {
+  test(`§18-5 ${name}: 境目 T／T−4（この日 ${sar ? '185／181' : '197／193'}、ヒステリシス）。下から T−2 では貼らない・T+2 で貼る・戻って T−2 では貼ったまま・T−6 で外す（170／166 は時刻つき 0 件の日。s11i-design-18-5）`, async ({ page }) => {
     await boot(page, { sar }); await toStage(page, 1);
+    /* §18-5（S11i、品質）: この日（時刻つき 7 件・終日なし・カード）は T＝185（帯あり）／197（帯なし）。段2（170）は貼らない */
+    const T = sar ? 185 : 197;
     const B = 678; const p = await grabTop(page); const seen = {};
-    for (const [lab, h, want] of [['下から168', 168, false], ['172', 172, true], ['上から168', 168, true], ['164', 164, false], ['もう一度168', 168, false], ['170', 170, true]]) {
+    for (const [lab, h, want] of [['下からT−2', T - 2, false], ['T+2', T + 2, true], ['上からT−2', T - 2, true], ['T−6', T - 6, false], ['もう一度T−2', T - 2, false], ['T', T, true]]) {
       const r = await holdAt(page, p, B - h); seen[lab] = { h: Math.round(r.h * 10) / 10, shown: r.shown, op: Math.round(r.op * 100) / 100, overlap: Math.round(r.overlap * 10) / 10 };
       expect(Math.abs(r.h - h), `${lab}: 高さを合わせられた（${r.h}）`).toBeLessThanOrEqual(1);
       expect.soft(r.shown, `${lab}: 貼って見える=${want} ${JSON.stringify(seen[lab])}`).toBe(want);
@@ -575,8 +593,9 @@ for (const [name, sar] of [['帯あり', 84], ['帯なし', 0]]) {
     await page.mouse.up();
     test.info().annotations.push({ type: 'hysteresis', description: JSON.stringify(seen) });
   });
-  test(`§18-1 ${name}: 段送り 1→2 で貼り付くとき、つまみと面を 0.15 秒 linear で出す（2→1 で消す）`, async ({ page }) => {
-    await boot(page, { sar }); await toStage(page, 1); await page.locator('.mgrab').focus();
+  test(`§18-1・§18-5 ${name}: 段送り 2→3 で貼り付くとき（T をまたぐ）、つまみと面を 0.15 秒 linear で出す（3→2 で消す）`, async ({ page }) => {
+    /* §18-5（S11i、品質）: この日（時刻つき 7 件・終日なし・カード）は T＝185（帯あり）／197（帯なし）。段2（170）は貼らない */
+    await boot(page, { sar }); await toStage(page, 2); await page.locator('.mgrab').focus();
     for (const [k, dir] of [['ArrowUp', 'in'], ['ArrowDown', 'out']]) {
       await page.evaluate(() => {
         window.__qaA = []; window.__qaStop = false; const seen = new Set(); const t0 = performance.now(); window.__qaT0 = t0;
@@ -636,3 +655,124 @@ test('§18-3 横・帯なし: シートを開いている間 (656,4)・(669,4) �
   const after = await page.evaluate(() => ({ cls: document.querySelector('.shell').className, pressed: document.querySelector('.cb.ctask')?.getAttribute('aria-pressed') }));
   expect(after.cls !== cls0 || after.pressed === 'true', `閉じたらタスクが押せる ${JSON.stringify(after)}`).toBe(true);
 });
+
+// ===== S11h（8960267）の QA で足した試験 =====
+// 押せる範囲を挙動で見る: 範囲の上端のすぐ内側（+3）から下へ引くと日の欄が B になり、すぐ外側（−3）からでは変わらない。帯なしは 56、帯ありは 44。
+for (const [name, f, hit] of [['縦・帯なし', FILL['縦・帯なし'], NB.hitP], ['横・帯なし', FILL['横・帯なし'], NB.hitL], ['縦・帯あり', FILL['縦・帯あり'], BAND.hitP], ['横・帯あり', FILL['横・帯あり'], BAND.hitL]]) {
+  test(`押せる範囲 ${name}: y${hit[0]}〜${hit[1]}（上端+3 から引くと B、上端−3 からでは変わらない）`, async ({ page }) => {
+    const pull = async (y) => { await bootForm(page, f); const x = f.fill[0] + 60; await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x, y + 70, { steps: 8 }); await page.mouse.up(); await page.waitForTimeout(500); return page.locator('.mday').first().getAttribute('data-dg'); };
+    // 日の欄の段（dayGrip）は保存されるので、変わらない方（外側）を先に見る
+    expect(await pull(hit[0] - 3), `y${hit[0] - 3} からでは変わらない`).toBe('A');
+    await page.goto('about:blank');
+    expect(await pull(hit[0] + 3), `y${hit[0] + 3} から引くと B`).toBe('B');
+  });
+}
+// §18-1 の fill:forwards の副作用: 段を 2→1 に戻して 0.4 秒後、つまみ・面が残らない（.gs・.stuck・アニメーションなし、不透明度 1、元の位置）。元の面の所のカードをたたくと開く（触れを奪わない）。
+for (const [name, sar] of [['帯あり', 84], ['帯なし', 0]]) {
+  test(`§18-1・§18-5 ${name}: 段3→2・2→3 のフェードのあと、つまみと面が残らない・アニメーションが残らない・触れを奪わない`, async ({ page }) => {
+    /* §18-5（S11i、品質）: この日（時刻つき 7 件・終日なし・カード）は T＝185（帯あり）／197（帯なし）。段2（170）は貼らない */
+    await boot(page, { sar }); await toStage(page, 2); await page.locator('.mgrab').focus();
+    const st = () => page.evaluate(() => { const d = document.querySelector('.mpull.browse .mday'), g = d.querySelector('.mdgrab'); return { stage: document.querySelector('.mpull').dataset.stage, gs: d.classList.contains('gs'), stuck: g.classList.contains('stuck'), anim: g.getAnimations().length, op: Number(getComputedStyle(g).opacity), pos: getComputedStyle(g).position, before: getComputedStyle(g, '::before').content }; });
+    await page.keyboard.press('ArrowUp'); await page.waitForTimeout(600);
+    const up = await st(); expect(up.stage).toBe('3'); expect(up.gs, '段3 は貼る').toBe(true); expect(up.anim, '2→3 のあとアニメーションが残らない').toBe(0); expect(up.op, '2→3 のあと不透明度 1').toBe(1);
+    await page.keyboard.press('ArrowDown'); await page.waitForTimeout(600);
+    const dn = await st();
+    expect(dn, '3→2 のあと').toMatchObject({ stage: '2', gs: false, stuck: false, anim: 0, op: 1 });
+    expect(dn.pos, '貼り付けない').not.toBe('sticky');
+    // 段3 で面があった所（y600 前後）に段2 で見えている物（カード）: つまみ・面に吸われない
+    const hit = await page.evaluate(() => { const e = document.elementFromPoint(150, 600); return { grab: !!e?.closest('.mdgrab'), cls: e?.className?.split?.(' ')[0] || e?.tagName }; });
+    expect(hit.grab && !(await page.evaluate(() => { const g = document.querySelector('.mday .mdgrab').getBoundingClientRect(); return g.top <= 600 && g.bottom >= 600; })), `段2 の y600 がつまみの面に吸われない ${JSON.stringify(hit)}`).toBe(false);
+  });
+  test(`§18-1・§18-5 ${name}: 2→3 のフェードの終わりのコマで不透明度が戻らない（WebKit の fill:forwards）`, async ({ page }) => {
+    /* §18-5（S11i、品質）: この日（時刻つき 7 件・終日なし・カード）は T＝185（帯あり）／197（帯なし）。段2（170）は貼らない */
+    await boot(page, { sar }); await toStage(page, 2); await page.locator('.mgrab').focus();
+    await page.evaluate(() => { window.__o = []; const t0 = performance.now(); const tick = () => { const g = document.querySelector('.mpull.browse .mday .mdgrab'); let op = 1; for (let e = g; e && e !== document.body; e = e.parentElement) op *= Number(getComputedStyle(e).opacity); window.__o.push([performance.now() - t0, op, g.classList.contains('stuck'), getComputedStyle(g, '::before').content !== 'none']); if (performance.now() - t0 < 800) requestAnimationFrame(tick); }; requestAnimationFrame(tick); });
+    await page.keyboard.press('ArrowUp'); await page.waitForTimeout(850);
+    const o = await page.evaluate(() => window.__o);
+    const k = o.findIndex(([, op, st]) => st && op >= 0.99); expect(k, '貼り付いて不透明度 1 になる').toBeGreaterThan(-1);
+    const after = o.slice(k).filter(([, op]) => op < 0.99);
+    expect(after.map(([t, op]) => [Math.round(t), Math.round(op * 100) / 100]), '1 になったあとで薄くなるコマ').toEqual([]);
+    expect(o.slice(k).every(([, , st, face]) => st && face), '1 になったあと面がある').toBe(true);
+  });
+}
+// §18-3 追加: シートを開いている間、y0〜8 のどの点も押せる物（ボタン・data-act・見出しの「今日へ」）に当たらない（inert の中は除く）。閉じたら見出しのボタンは押せる。
+test('§18-3・§18-6 横・帯なし: シートを開いている間 y0〜7 を x0〜678 で走査し、押せる物に当たらない（見出しの帯をすべて inert）', async ({ page }) => {
+  await boot(page, { sar: 0 }); await seedTask(page); await page.setViewportSize(GEO.landscape); await page.waitForTimeout(650);
+  await editNote(page);
+  const hits = await page.evaluate(() => { const out = []; for (const y of [1, 4, 7]) for (let x = 1; x < 678; x += 4) { const e = document.elementFromPoint(x, y); if (!e || e.closest('.nsheet')) continue; const b = e.closest('button, a, [data-act], [role="button"], [tabindex]:not([tabindex="-1"]), .mph, .stitle, #ctitle'); if (b && !b.closest('[inert]')) out.push([x, y, (b.className || b.tagName).toString().split(' ').slice(0, 2).join('.'), b.getAttribute('data-act')]); } return out; });
+  const uniq = [...new Map(hits.map((h) => [h[2] + h[3], h])).values()];
+  expect(uniq, `押せる物に当たる点（代表）／全 ${hits.length} 点`).toEqual([]);
+});
+// K-3（企画、必須）予定の多い日に段2 で止めたとき、時間のある予定のカードが「まるごと1枚見える」か「まったく見えない」のどちらか（端だけのぞくのは不可）。
+const cardVis = (page) => page.evaluate(() => {
+  const d = document.querySelector('.mpull.browse .mday') || document.querySelector('.mday'); const h = d.querySelector('.mdh').getBoundingClientRect(), g = d.querySelector('.mdgrab'); const gb = g.getBoundingClientRect(); const db = d.getBoundingClientRect();
+  const bs = getComputedStyle(g, '::before'); const faceTop = g.classList.contains('stuck') && bs.content !== 'none' ? gb.top + (parseFloat(bs.top) || 0) : gb.top;
+  const top = Math.max(h.bottom, db.top), bottom = Math.min(faceTop, gb.top, db.bottom);
+  return { stage: document.querySelector('.mpull')?.dataset.stage ?? null, pane: [db.top, db.bottom], hdrBottom: h.bottom, gripTop: gb.top, faceTop, stuck: g.classList.contains('stuck'), cards: [...d.querySelectorAll('.mdcard')].map((c) => { const r = c.getBoundingClientRect(); const v = Math.max(0, Math.min(r.bottom, bottom) - Math.max(r.top, top)); return { t: c.textContent.trim().slice(0, 12), h: Math.round(r.height * 10) / 10, vis: Math.round(v * 10) / 10 }; }).filter((c) => c.vis > 0) };
+});
+for (const [name, sar, land] of [['縦・帯あり', 84, false], ['縦・帯なし', 0, false], ['横・帯あり', 84, true], ['横・帯なし', 0, true]]) {
+  test(`K-3 ${name}${land ? '' : '・段2'}（予定 7 件）: 見えている時間の予定のカードは、まるごと見えるか見えないか。端だけのぞかない`, async ({ page }) => {
+    await boot(page, { sar }); if (land) { await page.setViewportSize(GEO.landscape); await page.waitForTimeout(650); } else await toStage(page, 2);
+    const v = await cardVis(page); test.info().annotations.push({ type: 'K-3', description: JSON.stringify(v) });
+    /* §18-5（S11i、品質）: この日（時刻つき 7 件・終日なし・カード）は T＝185（帯あり）／197（帯なし）。段2（170）は貼らない */
+    // 縦の段2 は貼らない。最初のカードがまるごと見え、次のカードは日の欄の下の端へ切れていく（§18-5「貼らないときの見え方」）。端だけのぞかないことは最初のカードで見る
+    if (!land) { expect(v.stuck, '§18-5 段2 は貼らない').toBe(false); expect(v.cards.length, '最初のカードが見える').toBeGreaterThan(0); }
+    const partial = v.cards.slice(0, 1).filter((c) => c.vis < c.h - 0.6);
+    expect(partial, `端だけ見えるカード ${JSON.stringify(v)}`).toEqual([]);
+    // 0 枚は QA の判定では可（企画 K-3 の「1枚も見えない」は設計の値待ち。数は annotations に残す）
+  });
+}
+
+const ALLDAY = [ev('ad1', '終日の予定', `${DAY}T00:00`, `${DAY}T23:59`, { all: true }), ev('ad2', '三日の旅行', '2026-11-11T00:00', '2026-11-13T23:59', { all: true })];
+for (const [name, sar] of [['縦・帯あり', 84], ['縦・帯なし', 0]]) {
+  test(`K-3 ${name}・段2（終日 2＋時間 7）: 時間の予定のカードが端だけのぞかない`, async ({ page }) => {
+    await boot(page, { sar }); await seed(page, [...EVENTS, ...ALLDAY]); await page.reload(); await page.waitForSelector('html[data-ready]'); await page.waitForTimeout(400); await toStage(page, 2);
+    const v = await cardVis(page); test.info().annotations.push({ type: 'K-3-allday', description: JSON.stringify(v) });
+    /* §18-5: 終日 1 行の日は T＝221（帯あり）／233（帯なし）。段2 は貼らず、最初のカードがまるごと見える */
+    expect(v.stuck, '§18-5 段2 は貼らない').toBe(false); expect(v.cards.length, '最初のカードが見える').toBeGreaterThan(0);
+    expect(v.cards.slice(0, 1).filter((c) => c.vis < c.h - 0.6), `端だけ見えるカード ${JSON.stringify(v)}`).toEqual([]);
+  });
+}
+
+// §18-3 追加（挙動）: シートを開いている間に 見出しの上の端（今日へ x318〜382 の y0〜8）と、左上の見えない「前の月」「次の月」（2×2）をたたいても、閉じたあとの月・選んだ日が変わらない。
+test('§18-3・§18-6 横・帯なし: シートの上の端で 今日へ・見えない前の月/次の月 が働かない（閉じたあとの月と選んだ日が同じ）', async ({ page }) => {
+  await boot(page, { sar: 0 }); await page.setViewportSize(GEO.landscape); await page.waitForTimeout(650);
+  // 12月へ送ってから日を選び、ノートを開く（今日へが働けば 11月に戻るので分かる）
+  await page.locator('.mph [data-act="next"]').first().evaluate((e) => e.click()); await page.waitForTimeout(450);
+  const snap = () => page.evaluate(() => ({ head: (document.querySelector('.mph h2, .mph h1, #ctitle, .stitle')?.textContent || '').trim(), sel: document.querySelector('.mgrid:not([data-leaving]) .day[aria-selected="true"], .mgrid:not([data-leaving]) .day.selected')?.dataset.date }));
+  await editNote(page); const s0 = await snap();
+  const pts = await page.evaluate(() => [...document.querySelectorAll('.mph [data-act="prev"], .mph [data-act="next"]')].map((b) => { const r = b.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }).filter(([, y]) => y < 8));
+  // 1点ずつ（どの点で変わったか分かるように）。見出しの帯（今日へ）→ 見えない前の月・次の月 の順
+  const changed = []; let cur = s0;
+  for (const [x, y, what] of [[350, 4, '見出し（今日へ）'], [373, 6, '見出し（今日へ）'], ...pts.map(([x, y]) => [x, y, '見えない前/次の月'])]) { await page.mouse.click(x, y); await page.waitForTimeout(350); const s1 = await snap(); if (JSON.stringify(s1) !== JSON.stringify(cur)) { changed.push({ x, y, what, ...s1 }); cur = s1; } }
+  await closeSheet(page); const s2 = await snap();
+  expect({ changed, after: s2 }, `見えない前/次の月の点 ${JSON.stringify(pts)}`).toEqual({ changed: [], after: s0 });
+});
+
+// ===== design/34 §18-6（2026-11-22 15:10、必須）帯なしの横でシートを開いている間、シートの外の見出しの帯をすべて inert。(350,4) 今日へ・(10,2)/(14,2) 月送りを含む。閉じたら働く =====
+for (const [name, want] of [['今日へ (350,4)', /11月/], ['見えない前の月', /11月/], ['見えない次の月', /1月/]]) {
+  test(`§18-6 横・帯なし: シートを開いている間 ${name} をたたいても月が変わらない。閉じたら働く（12月から ${want.source}）`, async ({ page }) => {
+    await boot(page, { sar: 0 }); await page.setViewportSize(GEO.landscape); await page.waitForTimeout(650);
+    await page.locator('.mph [data-act="next"]').first().evaluate((e) => e.click()); await page.waitForTimeout(450);
+    const head = () => page.evaluate(() => (document.querySelector('.mph h2, .mph h1, #ctitle, .stitle')?.textContent || '').trim());
+    const h0 = await head(); expect(h0, '前提: 12月').toMatch(/12月/);
+    const pt = async () => {
+      if (name.startsWith('今日へ')) return [350, 4];
+      const act = name.includes('前') ? 'prev' : 'next';
+      const p = await page.evaluate((act) => { const b = [...document.querySelectorAll(`.mph [data-act="${act}"]`)].map((e) => e.getBoundingClientRect()).find((r) => r.top + r.height / 2 < 8 && r.width > 0); return b && [b.left + b.width / 2, b.top + b.height / 2]; }, act);
+      expect(p, `前提: 見えない${act}が上の 8 にある`).toBeTruthy(); return p;
+    };
+    const [x, y] = await pt();
+    await editNote(page);
+    const under = await page.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return { inert: !!e?.closest('[inert]'), sheet: !!e?.closest('.nsheet'), cls: (e?.className || e?.tagName || '').toString().split(' ')[0] }; }, [x, y]);
+    await page.mouse.click(x, y); await page.waitForTimeout(450);
+    const h1 = await head(); await closeSheet(page); const h2 = await head();
+    expect.soft({ open: h1, closed: h2 }, `シート中に (${Math.round(x)},${Math.round(y)}) をたたく ${JSON.stringify(under)}`).toEqual({ open: h0, closed: h0 });
+    expect(await page.evaluate(() => !!document.querySelector('.mph[inert], .mph [inert], .chead[inert]')), '閉じたら inert を外す').toBe(false);
+    // シートの下で月が変わってしまった版（8960267）でも「閉じたら働く」を見られるよう、12月へ戻してから押す
+    for (let i = 0; i < 4 && !/12月/.test(await head()); i++) { const m = Number(((await head()).match(/(\d+)月/) || [])[1] || 12); await page.locator(`.mph [data-act="${m < 12 && m > 6 ? 'next' : 'prev'}"]`).first().evaluate((e) => e.click()); await page.waitForTimeout(450); }
+    expect(await head(), '前提: 12月に戻した').toMatch(/12月/);
+    await page.mouse.click(x, y); await page.waitForTimeout(500);
+    expect(await head(), `閉じたあと (${Math.round(x)},${Math.round(y)}) は働く`).toMatch(want);
+  });
+}
