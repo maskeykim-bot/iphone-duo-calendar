@@ -1430,10 +1430,11 @@ function dayGripT(el, g, nx) {
   if (!f) return tl ? 170 : Infinity; // 時刻つきの予定が 0 件: 時間軸は T＝170（§18-1 のまま貼る）。カード（終日だけ・予定なし）は貼らない（§18-6 の 4。つまみは終日の欄・「予定はありません」のすぐ下）
   return Math.round((y + Math.min(f.getBoundingClientRect().height, 56) + G + 41) * 100) / 100;
 }
-function dayGripStick(el = root.querySelector('.mpull.browse .mday'), pull = false) {
+// S11j（34 §18-7、M-1）: 遊び 4 は高さが動いている間（指・段送りのアニメーション）だけ。段に止まったとき（settle）は遊びなしの H ≧ T で決め直し、貼ったまま H ＜ T なら 0.15 秒 linear で消す（--gsb＝H−T。動きを減らす設定では一瞬）。止まっていれば、どの来かたでも .gs ⇔ H ≧ T
+function dayGripStick(el = root.querySelector('.mpull.browse .mday'), pull = false, settle = false) {
   const g = el?.querySelector('.mdgrab'), nx = g?.nextElementSibling; if (!g || !nx) return;
-  if (!pull || el._gsT == null) el._gsT = dayGripT(el, g, nx);
-  const T = el._gsT, same = GS.on && GS.T === T && (pull || el.classList.contains('gs')); // 遊び 4 は同じ T で貼っている間だけ（T が変わったら H ≧ T で決め直す）
+  if (!pull || settle || el._gsT == null) el._gsT = dayGripT(el, g, nx);
+  const T = el._gsT, same = !settle && GS.on && GS.T === T && (pull || el.classList.contains('gs')); // 遊び 4 は同じ T で貼っている間だけ（T が変わったら H ≧ T で決め直す）
   const h = el.getBoundingClientRect().height, want = h >= (same ? T - 4 : T) - 0.01;
   GS.T = T;
   const isStuck = () => getComputedStyle(g).position === 'sticky' && g.getBoundingClientRect().bottom < nx.getBoundingClientRect().top - 0.5;
@@ -1668,7 +1669,7 @@ function stageSnap(t) {
   const dur = over ? 0.22 : Math.abs(H1 - H0) > 200 ? 0.30 : 0.25;
   if (t !== ST.n) stageEnter(t, sec);
   ST.snapping = true;
-  const fin = () => { ST.snapping = false; stageApply(H1); saveUi(); dayGripStick(); if (n0 !== t) say(`月の大きさを${STG_NAME[t]}にしました。`); };
+  const fin = () => { ST.snapping = false; stageApply(H1); saveUi(); dayGripStick(undefined, true, true); if (n0 !== t) say(`月の大きさを${STG_NAME[t]}にしました。`); };
   if (reduced() || Math.abs(H1 - H0) < 0.01) { fin(); return; }
   const t0 = performance.now(), ease = over ? (x) => 1 - (1 - x) ** 3 : stgSnapEase; // 戻りは out の3乗 0.22 秒（§3）。寄せは (0.16,1,0.3,1)。時間は指を離した時から数える（S11f: 設計の決定で元に戻した。離した次のコマにはもう動いている。§3・Q-14）
   const f = (now) => {
@@ -1695,7 +1696,7 @@ function stageMove(ev) {
 function stageUp(ev) {
   const d = ST.drag; if (!d || ev.pointerId !== d.id) return;
   ST.drag = null; stagePullEnd(d);
-  if (!d.moved) return; // たたきは何もしない
+  if (!d.moved) { if (!ST.snapping && !ST.raf) dayGripStick(undefined, true, true); return; } // たたきは何もしない（段送りの途中を押さえて止めたときも、止まったので遊びなしで決め直す。S11j M-1）
   MP.swallow = performance.now() + 400;
   const w = d.pts.filter((p) => ev.timeStamp - p.t <= STG_VWIN); // 離す前 80ms の最初と最後の点（2つないときは v＝0）
   const v = w.length >= 2 && w[w.length - 1].t > w[0].t ? ((w[w.length - 1].y - w[0].y) / (w[w.length - 1].t - w[0].t)) * 1000 : 0;

@@ -108,9 +108,8 @@ for (const [form, mode, dayId, day] of MATRIX) for (const stage of FORMS[form].l
       expect(Math.abs(s.gripTop - s.aboveGrip), `つまみは終日の欄・予定なしのすぐ下（上の物の下端 ${s.aboveGrip}、つまみの上端 ${s.gripTop}）`).toBeLessThanOrEqual(8.6);
     } else if (s.H >= t.T) expect(s.gs, `H ${s.H} ≧ T ${t.T.toFixed(1)} なので貼る`).toBe(true);
     else if (s.H < t.T - 4) expect(s.gs, `H ${s.H} ＜ T−4 ${(t.T - 4).toFixed(1)} なので貼らない`).toBe(false);
-    // 開発の直し 1（S11i2。原本の中の食い違い）: 原本は横ならいつも .gs を求めるが、すぐ上の §18-6-4 の枝は カード・時刻つき 0 件で .gs なしを求めるので、横・A・時刻つき 0 件の 6 本はどう作っても通らない。
-    // §18-5 の「横はいつも貼る」は T（最大 297）＜ 466 から出る結果で、T のない カード・時刻つき 0 件 は §18-6-4（あとから出た答え）が優先 → この組だけ除く
-    if (f.land && !(!day.timed && mode === 'A')) expect(s.gs, '横はいつも貼る').toBe(true);
+    // 品質の判断（4bf2f81 の QA、(1)）: §18-5 の「横はいつも貼る」は T（最大 329）＜ 466 から出る結果。T のない カード・時刻つき 0 件 は §18-6-4（貼らない）が正しい。設計が違う答えを出したらそちらに従う
+    if (f.land && !(!day.timed && mode === 'A')) expect(s.gs, '横はいつも貼る（カード・時刻つき 0 件は §18-6-4 で貼らない）').toBe(true);
     if (stage === 2 && day.timed) expect(s.gs, '縦の段2 は予定のある日は貼らない').toBe(false);
     // 1・3: 貼っているとき、最初の予定は 見出しの下端 ≦ 上端、上端＋min(高さ,56) ≦ つまみの上端
     if (s.gs && s.stuck && day.timed) {
@@ -125,16 +124,22 @@ for (const [form, mode, dayId, day] of MATRIX) for (const stage of FORMS[form].l
       const lo = s.hdrBottom, hi = s.gs && s.stuck ? s.gripTop : s.paneBottom;
       const vis = s.evs.map((e) => ({ ...e, v: Math.max(0, Math.min(e.bottom, hi) - Math.max(e.top, lo)) })).filter((e) => e.v >= 1);
       const whole = vis.filter((e) => e.v >= e.h - 0.6), part = vis.filter((e) => e.v < e.h - 0.6);
-      // 開発の直し 2（S11i2。原本の中の食い違い）: 縦の段2（H170）・終日 2 行は D＝44＋72＝116 で、最初のカード（56）は 116〜172。96 行目が T＝257（D＋V＝172）を求めるので、まるごと見える（D＋56 ≦ 170.6）とは両立しない。
-      // 貼っていなくて最初のカードが日の欄に入り切らない（D＋高さ ＞ H）ときだけ、「最初のカードは上端から日の欄の下端まで全部見える（切れるのは下の端だけ＝§18-5 の貼らないときの見え方）・見える高さは 48 以上（8960267 の 4〜5 の切れ端ではない）」を見る。ほかは原本のまま
-      const f0 = s.evs[0];
-      if (!s.gs && f0.top - s.paneTop + f0.h > s.H + 0.6) {
-        near(vis[0]?.top ?? -1, f0.top, '見えている最初のカードは最初の予定');
-        near(vis[0].v, s.paneBottom - f0.top, '最初のカードは上端から日の欄の下端まで見える');
-        expect(vis[0].v, `最初のカードの見える高さ（${vis[0].v}／${f0.h}）`).toBeGreaterThanOrEqual(48);
+      // 開発の直し（S11j。設計 34 §18-7「貼らないときの一覧の切れ方」・レビュー 4bf2f81 の判断案 2）: 原本は「まるごと見えるカードが 1 枚以上」だけを見るので、縦・段2・終日 2 行（D 116＋56＝172 ＞ H 170。T 257 と両立しない）の 2 本がどう作っても落ちる。
+      // 設計の文のとおりに: 貼っていないとき、最初の予定は日の欄の下の端でだけ切れ（上端は見出しの下。つまみ・見出しでは切れない）、見える高さはカードなら 48 以上。貼っているときは原本のまま
+      if (!s.gs) {
+        const f0 = s.evs[0], v0 = Math.max(0, Math.min(f0.bottom, s.paneBottom) - f0.top);
+        expect(f0.top, '貼っていないとき、最初のカードの上端 ≧ 見出しの下端（上では切れない）').toBeGreaterThanOrEqual(s.hdrBottom - 0.6);
+        expect(s.gripTop, '貼っていないとき、つまみは最初のカードにかからない').toBeGreaterThanOrEqual(f0.bottom - 0.6);
+        expect(v0, `貼っていないとき、最初のカードの見える高さ（${v0}／${f0.h}）は 48 以上（切れるのは下の端だけ）`).toBeGreaterThanOrEqual(Math.min(48, f0.h) - 0.6);
       } else
       expect(whole.length, `まるごと見えるカードが 1 枚以上（見える ${JSON.stringify(vis.map((e) => [Math.round(e.top), Math.round(e.v)]))}）`).toBeGreaterThan(0);
       if (s.gs && s.stuck && (stage == null || stage >= 3)) { /* 2 枚目以降のつまみの上の切れは除く */ } else if (s.gs && s.stuck) expect(part, '貼っているのに端だけのぞくカード').toEqual([]);
+    }
+    // 開発の足し（S11j。設計 34 §18-7）: 貼っていない時間軸でも、最初の予定は下の端でだけ切れ、見える高さは min(描いた高さ, 20) 以上（C・段2 の 26 など）
+    if (day.timed && mode !== 'A' && !s.gs) {
+      const f0 = s.evs[0], v0 = Math.max(0, Math.min(f0.bottom, s.paneBottom) - f0.top);
+      expect(f0.top, '貼っていない時間軸: 最初の予定の上端 ≧ 見出しの下端').toBeGreaterThanOrEqual(s.hdrBottom - 0.6);
+      expect(v0, `貼っていない時間軸: 最初の予定の見える高さ（${v0}／${f0.h}）は min(高さ, 20) 以上`).toBeGreaterThanOrEqual(Math.min(f0.h, 20) - 0.6);
     }
     // 時間軸 B・C で予定がない日は §18-1 のまま（H ≧ 170 で貼る）
     if (!day.timed && mode !== 'A') expect(s.gs, `時間軸・予定なし: H ${s.H} ≧ 170 で貼る`).toBe(s.H >= 170);
@@ -207,8 +212,9 @@ for (const [form, dayId, from, dy, to, gs0, gs1, why] of [
   test(`§18-6-3 ${from}→${to}（${form}・段3・${dayId}）: つまみを引いて変えると 貼る・貼らない が一瞬で切り替わる（${why}）。アニメーション 0・途中の不透明度なし`, async ({ page }) => {
     await bootDay(page, form, from, DAYS[dayId].key, 3);
     const s0 = await state(page); expect(s0.dg, '前提: 始めの見せ方').toBe(from); expect.soft(s0.gs, `始め（${from}）`).toBe(gs0);
-    // 開発の直し 3（S11i2。原本の前提）: 貼っていない時間軸（B 273・C 285 ＞ 266）のつまみ（下）は時間軸の最後にあり、開いた位置では画面の外（§18-5「送り切ると出る」）。原本はそのまま画面の外を引くので B・C→A の 2 本は前提で落ちる（8960267 は段3 で貼っていたので引けた）。
-    // 貼っていないときは日の欄を送ってつまみ（下）を日の欄の中（上端から 120）に出してから引く。見ること（引いて変えたあと .gs・アニメーション 0・途中の不透明度 0）は原本のまま
+    // 品質の判断（4bf2f81 の QA、(3)）: 貼っていない時間軸 B のつまみ（下）は時間軸の最後（24:00 の下）にあり、開いた位置では画面の外（§18-5「送り切ると出る」）。
+    // B→A は日の欄を送ってつまみを日の欄の中（上端から 120）に出してから引く。見ること（.gs・アニメーション 0・途中の不透明度 0）は変えない
+    // 開発の直し（S11i2 から。S11j でも残す）: 原本は B のときだけ送るが、C（285 ＞ 266）も貼っていないので つまみ（下）は時間軸の最後（24:00 の下）で画面の外。原本のままでは C→A は画面の外を引いて何も起きない（前提「A まで引けた」で落ちる）。C も B と同じに送ってから引く。見ることは原本のまま
     if (!s0.gs) { await page.evaluate(() => { const d = document.querySelector('.mpull.browse .mday'), g = d.querySelector('.mdgrab'); d.scrollTop += g.getBoundingClientRect().top - d.getBoundingClientRect().top - 120; }); await page.waitForTimeout(200); }
     await countAnims(page); await pullDayGrip(page, dy);
     const s = await state(page); expect(s.dg, `前提: ${to} まで引けた`).toBe(to);
