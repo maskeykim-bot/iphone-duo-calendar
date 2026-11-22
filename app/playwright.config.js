@@ -20,6 +20,6 @@ export default defineConfig({
     // 全 spec（今の設定そのまま）
     { name: 'chromium' },
     // めくりの spec と R-70 の日本語変換テスト（S10）、S11d の設計レビュー M1〜M9（M1 の 0.5 の線は WebKit で 0.5 のまま出る）を WebKit でも回す（iOS の WebKit に近い描画・IME の確認）
-    { name: 'webkit', testMatch: /(curl-.*|note-ime-r70|s11b-design-m|s11d-design-14-15|s11g)\.spec\.js/, use: { browserName: 'webkit', launchOptions: {} } },
+    { name: 'webkit', testMatch: /(curl-.*|note-ime-r70|s11b-design-m|s11d-design-14-15|s11g|s11h)\.spec\.js/, use: { browserName: 'webkit', launchOptions: {} } },
   ],
 });

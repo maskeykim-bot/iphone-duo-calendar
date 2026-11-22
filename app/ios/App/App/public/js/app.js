@@ -596,6 +596,9 @@ const ICON_UNDO = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="
 const ICON_REDO = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="m15 7 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 11h-9a5 5 0 0 0 0 10h3" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const noteHist = () => { try { return NB.ed?.history?.() || { undo: 0, redo: 0 }; } catch { return { undo: 0, redo: 0 }; } };
 const MORE = { open: false }; // 閉じた画面の「…」のポップアップ
+// S11h（34 §18-3）: 帯がない横でシート（ノート。x0〜678・y8〜）を開いている間は、上の y0〜8 に端が残る見出しのボタン（タスク・…）を押せなくする（§17-5 でバッジを隠すのと同じ条件。見た目は変えない）
+const sheetOverHead = () => !POS.band && closedLand() && !!document.querySelector('body > .nsheet:not([hidden])');
+const sheetHeadSync = () => { const on = sheetOverHead(); for (const b of root.querySelectorAll('.shell.closed .cb.ctask, .shell.closed .cb.cmore')) b.inert = on; };
 const NE_HIDE = ' tabindex="-1" aria-hidden="true"'; // 書いている間は隠れている右の列のボタン（読み上げ・キーの順からも外す）
 let noteEditing = false; // 閉じた画面でノートを書いている間（右の列の「タスク」→「元に戻す」、「＋」は隠す）
 const CTL = {
@@ -603,7 +606,7 @@ const CTL = {
   search: () => `<button type="button" class="cb csearch" data-act="search" aria-label="${FOCUS_NOUN[POS.fmode] || '予定'}を検索"${posStyle(POS.search)}><span class="bi">${ICON_SEARCH}</span></button>`,
   task: () => {
     const n = stripTaskCount(), on = stripOn('task');
-    return `<button type="button" class="cb cstrip ctask${on ? ' on' : ''}" data-act="strip" data-strip="task"${noteEditing ? NE_HIDE : ''} aria-pressed="${on}" aria-label="${n ? `タスク、期限切れと今日 ${n}件` : 'タスク'}"${posStyle(POS.task)}><span class="bi">${ICON_TASK}${n ? `<span class="bdg" aria-hidden="true">${n > 99 ? '99+' : n}</span>` : ''}</span></button>`;
+    return `<button type="button" class="cb cstrip ctask${on ? ' on' : ''}" data-act="strip" data-strip="task"${noteEditing ? NE_HIDE : ''}${sheetOverHead() ? ' inert' : ''} aria-pressed="${on}" aria-label="${n ? `タスク、期限切れと今日 ${n}件` : 'タスク'}"${posStyle(POS.task)}><span class="bi">${ICON_TASK}${n ? `<span class="bdg" aria-hidden="true">${n > 99 ? '99+' : n}</span>` : ''}</span></button>`;
   },
   memo: () => {
     const on = stripOn('memo');
@@ -611,7 +614,7 @@ const CTL = {
   },
   tt: () => { const on = ttOn(); return `<button type="button" class="cb ctt${on ? ' on' : ''}" data-act="spreadtype" aria-pressed="${on}" aria-label="今日と明日の見開き"${posStyle(POS.tt)}><span class="bi">${ICON_TT}</span></button>`; },
   // 第19.2版 S11c（design/34 §9.1-14・§9.2・§9.3）: 閉じた画面の「…」と、ノートを書いている間の「元に戻す」
-  more: () => `<button type="button" class="cb cmore${MORE.open ? ' on' : ''}" data-act="more"${noteEditing ? NE_HIDE : ''} aria-label="その他" aria-haspopup="menu" aria-expanded="${MORE.open}"${posStyle(POS.more)}><span class="bi">${ICON_MORE}</span></button>`,
+  more: () => `<button type="button" class="cb cmore${MORE.open ? ' on' : ''}" data-act="more"${noteEditing ? NE_HIDE : ''}${sheetOverHead() ? ' inert' : ''} aria-label="その他" aria-haspopup="menu" aria-expanded="${MORE.open}"${posStyle(POS.more)}><span class="bi">${ICON_MORE}</span></button>`,
   // S11e（34 §15-②）: 帯があるとき、書いている間は タスク→元に戻す、…→やり直す（＋は隠す）。使えないときは記号 #C9C5BA（data-off。押しても何もしない）
   undo: () => `<button type="button" class="cb cundo" data-act="noteundo" aria-label="元に戻す" data-off="${noteHist().undo ? 0 : 1}"${noteEditing ? '' : ' tabindex="-1" aria-hidden="true"'}${posStyle(POS.task)}><span class="bi">${ICON_UNDO}</span></button>`,
   redo: () => `<button type="button" class="cb credo" data-act="noteredo" aria-label="やり直す" data-off="${noteHist().redo ? 0 : 1}"${noteEditing ? '' : ' tabindex="-1" aria-hidden="true"'}${posStyle(POS.more)}><span class="bi">${ICON_REDO}</span></button>`,
@@ -1394,10 +1397,34 @@ function dayAfterRender(el = root.querySelector('.mpull.browse .mday')) {
   if (tl) updateNow(el); // 今の時刻の赤い線
   dayGripStick(el);
 }
-// S11f（34 §16-1）: つまみ（下）は段2〜7で日の欄の下端に貼り付く（CSS の sticky）。貼り付いている間（元の位置＝「ノート ›」のすぐ上より上にある間）だけ、上の辺に 0.5 の線（.stuck）
-function dayGripStick(el = root.querySelector('.mpull.browse .mday')) {
+// S11f（34 §16-1）: つまみ（下）は日の欄の下端に貼り付く（CSS の sticky）。貼り付いている間（元の位置＝「ノート ›」のすぐ上より上にある間）だけ、上の辺に 0.5 の線と埋めた面（.stuck）
+// S11h（34 §18-1）: 貼るかどうかは段の番号でなく日の欄の高さで決める（.mday.gs）。170 以上で貼り、166 未満で外す（4 の遊び）。閉じた横はいつも 466 なので貼る。
+// 引き・段送り（pull）で変わるときは、つまみと埋めた面を不透明度 0↔1・0.15 秒・直線で出し入れする。消えていく間は高さが 170 を割った分だけ下へ逃がし（--gsb）、見出しに重ねない。日の欄の送り・描き直しで変わるときは一瞬
+const GS = { on: false, out: null };
+function dayGripStick(el = root.querySelector('.mpull.browse .mday'), pull = false) {
   const g = el?.querySelector('.mdgrab'), nx = g?.nextElementSibling; if (!g || !nx) return;
-  g.classList.toggle('stuck', getComputedStyle(g).position === 'sticky' && g.getBoundingClientRect().bottom < nx.getBoundingClientRect().top - 0.5);
+  const h = el.getBoundingClientRect().height, want = h >= (GS.on ? 166 : 170) - 0.01;
+  const isStuck = () => getComputedStyle(g).position === 'sticky' && g.getBoundingClientRect().bottom < nx.getBoundingClientRect().top - 0.5;
+  const fade = (to) => { const cur = Number(getComputedStyle(g).opacity); for (const a of g.getAnimations()) a.cancel(); return g.animate([{ opacity: cur }, { opacity: to }], { duration: 150, easing: 'linear', fill: 'forwards' }); };
+  const fading = GS.out && GS.out.el === el;
+  GS.on = want;
+  if (want) {
+    el.style.setProperty('--gsb', '0px');
+    if (fading) { GS.out = null; const a = fade(1); a.onfinish = () => a.cancel(); }
+    else if (!el.classList.contains('gs')) {
+      el.classList.add('gs');
+      if (pull && !reduced() && isStuck()) { for (const a of g.getAnimations()) a.cancel(); const a = g.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: 'linear', fill: 'forwards' }); a.onfinish = () => a.cancel(); } // fill なしだと WebKit は終わりの1コマで不透明度が 0 付近へ戻る（面が1コマ消える）
+    }
+  } else if (el.classList.contains('gs')) {
+    const off = () => { el.classList.remove('gs'); el.style.removeProperty('--gsb'); for (const a of g.getAnimations()) a.cancel(); g.classList.remove('stuck'); };
+    if (fading) el.style.setProperty('--gsb', `${Math.min(0, h - 170)}px`);
+    else if (pull && !reduced() && isStuck()) {
+      el.style.setProperty('--gsb', `${Math.min(0, h - 170)}px`);
+      const a = fade(0); GS.out = { el, a };
+      a.onfinish = () => { if (GS.out?.a !== a) return; GS.out = null; off(); };
+    } else off();
+  }
+  g.classList.toggle('stuck', isStuck());
 }
 root.addEventListener('scroll', (ev) => { if (ev.target instanceof Element && ev.target.matches('.mpull.browse .mday')) dayGripStick(ev.target); }, true);
 function paintDayPane(anim = false, keep = false) {
@@ -1442,7 +1469,7 @@ function dayGripSnap(hh1, toMode) {
 }
 root.addEventListener('pointerdown', (ev) => {
   const g = ev.target.closest?.('.mdgrab'); if (!g || !ev.isPrimary || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
-  { const r = g.getBoundingClientRect(); if (ev.clientY < r.top || ev.clientY >= r.bottom || ev.clientX < r.left || ev.clientX >= r.right) return; } // S11g（34 §17-1・§17-2）: 貼り付いている間に埋めた面（つまみの下 41・帯なしの上 12 と＋の下）は、たたいても引いても何もしない
+  { const r = g.getBoundingClientRect(); if (ev.clientY < r.top || ev.clientY >= r.bottom || ev.clientX < r.left || ev.clientX >= r.right) return; } // S11g（34 §17-1・§17-2）: 貼り付いている間に埋めた面（つまみの下 41・帯なしの＋の下）は、たたいても引いても何もしない（S11h §18-2: 帯なしの箱は 56 で、上の 12 も押せる所）
   cancelAnimationFrame(DG.raf);
   DG.drag = { id: ev.pointerId, y0: ev.clientY, mode0: dayMode(), hh0: DG.hh, moved: false, dy: 0 };
 });
@@ -1598,7 +1625,7 @@ function stageApply(H) {
     const n = stgOfH(H);
     if (n !== ST.n) stageEnter(n, sec);
   }
-  dayGripStick(sec.querySelector('.mday')); // 日の欄の高さが変わると、つまみ（下）が貼り付くかどうかも変わる
+  dayGripStick(sec.querySelector('.mday'), true); // 日の欄の高さが変わると、つまみ（下）が貼り付くかどうかも変わる（S11h §18-1: 高さで決め、0.15 秒で出し入れ）
 }
 function stageSnap(t) {
   cancelAnimationFrame(ST.raf);
@@ -3420,7 +3447,7 @@ async function closeNoteSheet() {
   if (ed) { ed.closeFs?.(false); const ok = await ed.leave(); if (ok === false) return false; }
   NB.sheet = null;
   SHEET_EL.classList.add('closing');
-  const fin = () => { if (NB.sheet) return; SHEET_EL.hidden = true; SHEET_EL.classList.remove('closing'); if (ed && SHEET_EL.contains(ed.el)) ed.el.remove(); };
+  const fin = () => { if (NB.sheet) return; SHEET_EL.hidden = true; SHEET_EL.classList.remove('closing'); if (ed && SHEET_EL.contains(ed.el)) ed.el.remove(); sheetHeadSync(); };
   setTimeout(fin, reduced() ? 150 : 250);
   invalidateNoteList(); NB.cur = null; render();
   document.activeElement?.blur?.();

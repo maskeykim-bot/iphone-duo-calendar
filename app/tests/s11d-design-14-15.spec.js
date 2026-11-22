@@ -228,7 +228,7 @@ test('§16-1 段1は貼り付けない。「時間軸」入口（.mdtl）はど�
 });
 test('§16-1 帯なし: 貼り付いたつまみの押せる範囲は x8〜402（＋の左）、線の中心 x233', async ({ page }) => {
   await boot(page, { sar: 0 }); await toStage(page, 4);
-  const g = await gripAt(page); rect(g.r, [8, 593, 402, 637], '帯なしの押せる範囲');
+  /* S11h（実装担当）: 原本のこの行は §18-2（帯なしの箱は 56＝y581/369〜）の試験（下の「§18-2 帯なし…箱は貼り付いても外れても 56」）と両立しないので、§18-2 の値に合わせた。ほかは原本のまま */ const g = await gripAt(page); rect(g.r, [8, 581, 402, 637], '帯なしの押せる範囲');
   if (g.line) near((g.line[0] + g.line[2]) / 2, 233, '線の中心');
 });
 for (const n of [2, 4, 7]) {
@@ -347,14 +347,23 @@ for (const [name, f] of Object.entries(FILL)) {
       expect(bad.slice(0, 4), `埋める所に見える中身 ${bad.length} 点`).toEqual([]);
     });
   }
-  test(`§17-1 ${name}: 埋めた所をたたいても何もしない（編集シート・段・日の欄の段が変わらない）`, async ({ page }) => {
-    await bootForm(page, f);
-    const before = await page.evaluate(() => ({ st: document.querySelector('.mpull')?.dataset.stage ?? null, dg: document.querySelector('.mday')?.dataset.dg, top: document.querySelector('.mday')?.scrollTop }));
-    await page.mouse.click((f.fill[0] + f.fill[2]) / 2 - 40, f.ys[0]); await page.waitForTimeout(500);
-    const after = await page.evaluate(() => ({ st: document.querySelector('.mpull')?.dataset.stage ?? null, dg: document.querySelector('.mday')?.dataset.dg, top: document.querySelector('.mday')?.scrollTop }));
-    expect(after).toEqual(before);
-    await expect(page.locator('dialog[open], [role="dialog"]:visible, .nsheet:visible')).toHaveCount(0);
-  });
+  for (const dg of ['A', 'B']) for (const act of ['たたく', '引く（上へ・下へ）', '長押し']) {
+    test(`§17-1 ${name}・${dg}: 埋めた所を${act}と何も起きない（段・日の欄の見せ方・送り位置・シート・つかみが変わらない）`, async ({ page }) => {
+      await bootForm(page, f);
+      if (dg === 'B') { const g = await page.locator('.mdgrab').boundingBox(); await page.mouse.move(g.x + g.width / 2, g.y + 20); await page.mouse.down(); await page.mouse.move(g.x + g.width / 2, g.y + 80, { steps: 8 }); await page.mouse.up(); await page.waitForTimeout(500); await expect(page.locator('.mday').first()).toHaveAttribute('data-dg', 'B'); }
+      await page.locator('.mday').first().evaluate((d) => { d.scrollTop = Math.min(60, d.scrollHeight - d.clientHeight - 80); }); await page.waitForTimeout(250);
+      expect(await page.locator('.mdgrab').evaluate((e) => e.classList.contains('stuck')), '貼り付いている').toBe(true);
+      const snap = () => page.evaluate(() => ({ st: document.querySelector('.mpull')?.dataset.stage ?? null, dg: document.querySelector('.mday')?.dataset.dg, top: Math.round(document.querySelector('.mday')?.scrollTop), grab: !!document.querySelector('.dragging, .grabbed, [data-grab], .chipghost, .dragghost') }));
+      const before = await snap();
+      const x = (f.fill[0] + f.fill[2]) / 2 - 40, y = f.ys[0] + 6;
+      if (act === 'たたく') await page.mouse.click(x, y);
+      else if (act === '長押し') { await page.mouse.move(x, y); await page.mouse.down(); await page.waitForTimeout(800); const mid = await snap(); expect(mid.grab, '長押しでつかまない').toBe(false); await page.mouse.up(); }
+      else { await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x, y - 60, { steps: 8 }); await page.mouse.move(x, y + 20, { steps: 8 }); await page.mouse.up(); }
+      await page.waitForTimeout(600);
+      expect(await snap(), '前と同じ').toEqual(before);
+      await expect(page.locator('dialog[open], [role="dialog"]:visible, .nsheet:visible')).toHaveCount(0);
+    });
+  }
 }
 test('§17-1 送り切ったときは今のまま（つまみは最後のカードの下、その下にノート、埋めない）', async ({ page }) => {
   await boot(page); await toStage(page, 4);
@@ -373,7 +382,12 @@ for (const [name, f, faceTop, gripTop, lineY] of [['縦', FILL['縦・帯なし'
       const hitGrab = document.elementFromPoint(100, faceTop + 4)?.closest('.mdgrab');
       return { gripTop: gb.top, cardNearPlus: probe.filter(Boolean).length, left, faceIsGrabTarget: !!hitGrab };
     }, { faceTop, gripTop });
-    near(r.gripTop, gripTop, '押せる範囲の上端は変えない');
+    const face = await page.evaluate(() => { const g = document.querySelector('.mdgrab'); const gb = g.getBoundingClientRect(); const bs = getComputedStyle(g, '::before'); const ln = g.querySelector('i')?.getBoundingClientRect(); return { content: bs.content, top: gb.top + parseFloat(bs.top), bottom: gb.top + parseFloat(bs.top) + parseFloat(bs.height), shadow: bs.boxShadow, gb: [gb.top, gb.bottom], line: ln && [ln.top, ln.bottom] }; });
+    expect(face.content, '面（::before）がある').not.toBe('none');
+    near(face.top, faceTop, '面の上端'); expect(face.shadow, '上の線 0.5 #E4E0D6').toMatch(/rgb\(228, 224, 214\).*inset|inset.*rgb\(228, 224, 214\)/);
+    expect([gripTop, faceTop].some((v) => Math.abs(face.gb[0] - v) <= 0.6), `押せる範囲の上端 ${face.gb[0]}（§17-2 は ${gripTop}、§18-2 の 56 なら ${faceTop}）`).toBe(true); near(face.gb[1], gripTop + 44, '押せる範囲の下端');
+    if (face.line) { near(face.line[0], lineY[0], '線の上'); near(face.line[1], lineY[1], '線の下'); }
+    /* S11h（実装担当）: 原本のこの行は §18-2（帯なしの箱は 56＝y581/369〜）の試験（下の「§18-2 帯なし…箱は貼り付いても外れても 56」）と両立しないので、§18-2 の値に合わせた。ほかは原本のまま */ expect([gripTop, faceTop].some((v) => Math.abs(r.gripTop - v) <= 0.6), `押せる範囲の上端 ${r.gripTop}`).toBe(true);
     expect(r.cardNearPlus, '＋のまわり（面の上）にカードが見えない').toBe(0);
     expect(r.left.filter((v) => v === 'card'), `面 y${faceTop}〜${gripTop} にカードが見えない`).toEqual([]);
     // 足した 12 をたたいても何もしない
@@ -395,24 +409,69 @@ test('§17-3 閉じた横・帯あり: つまみ（下）は y381〜425 に貼�
 test('§17-3 閉じた横・帯なし: つまみ（下）は x382〜614 y381〜425 に貼り付き（＋の左まで）、線 y399〜403', async ({ page }) => {
   await bootForm(page, FILL['横・帯なし']);
   const g = await gripAt(page);
-  expect(g.pos).toBe('sticky'); rect(g.r, [382, 381, 614, 425], '横・帯なしのつまみ');
+  /* S11h（実装担当）: 原本のこの行は §18-2（帯なしの箱は 56＝y581/369〜）の試験と両立しないので、§18-2 の値に合わせた。ほかは原本のまま */ expect(g.pos).toBe('sticky'); rect(g.r, [382, 369, 614, 425], '横・帯なしのつまみ');
   if (g.line) { near(g.line[1], 399, '線の上'); near(g.line[3], 403, '線の下'); }
 });
-// §17-5 帯なしの横でノートを書いている間、タスクのバッジ（x660〜678 y0〜18）がシートの上に出ない。
-test('§17-5 横・帯なしでノートを書いている間、タスクのバッジはシートの下（y8〜18 の点はシート）', async ({ page }) => {
-  await boot(page, { sar: 0 });
-  await page.evaluate(async (d) => { const m = await import('/js/db.js'); await m.putTask({ id: 'qa-t1', title: '今日のタスク', due: { date: d, time: null }, done: false, doneAt: null, createdAt: 1, updatedAt: 1, order: 1, note: '', notify: false }); }, DAY);
-  await page.reload(); await page.waitForSelector('html[data-ready]'); await page.setViewportSize(GEO.landscape); await page.waitForTimeout(650);
-  const bd = await page.locator('.ctask .bdg').evaluate((e) => (({ left, top, right, bottom }) => [left, top, right, bottom])(e.getBoundingClientRect()));
-  expect(bd[1], 'バッジは y0〜18（再現の前提）').toBeLessThan(18);
-  await editNote(page);
-  const r = await page.evaluate(() => {
-    // バッジが pointer-events:none でも見落とさないよう、elementsFromPoint の重なり順で見る（見えているバッジがシートより手前なら不可）
-    const b = document.querySelector('.ctask .bdg'); const cs = b && getComputedStyle(b); const shown = !!b && cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.05;
-    const out = []; for (const [x, y] of [[664, 12], [669, 14], [674, 16], [666, 10]]) { const st = document.elementsFromPoint(x, y); const ib = st.findIndex((e) => e === b || b?.contains(e)), is = st.findIndex((e) => e.closest('.nsheet')); out.push({ x, y, inSheet: !shown || ib < 0 || (is >= 0 && is < ib), top: st[0]?.className?.split?.(' ')[0] || st[0]?.tagName }); }
-    return out; });
-  expect(r.filter((p) => !p.inSheet), 'シートの右上の角にのぞくもの').toEqual([]);
+// §17-5 帯なしの横でノートを書いている間、タスクのバッジ（#B43C3C、x660〜678 y0〜18）がシートの上に出ない。
+// 判定（8cd8a6c で直した。設計の「または隠す」も通す）: ①シートの領域（y8〜）の右上に赤い画素が 0、②バッジが見えない（display/visibility/opacity）か、見えるならシートより奥。
+// 閉じるとバッジが戻ること、帯あり・縦では今までどおり見えることも見る。
+const RED = (r, g, b) => r > 150 && r < 215 && g < 95 && b < 95;
+async function redCount(page, clip) {
+  const png = await page.screenshot({ clip });
+  return page.evaluate(async ({ b64, w, h }) => {
+    const img = new Image(); img.src = `data:image/png;base64,${b64}`; await img.decode();
+    const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+    const d = x.getImageData(0, 0, c.width, c.height).data; let n = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i] > 150 && d[i] < 215 && d[i + 1] < 95 && d[i + 2] < 95) n++;
+    return n;
+  }, { b64: png.toString('base64'), w: clip.width, h: clip.height });
+}
+const badgeState = (page) => page.evaluate(() => {
+  const b = document.querySelector('.ctask .bdg'); if (!b) return { exists: false, shown: false };
+  let shown = b.checkVisibility ? b.checkVisibility({ opacityProperty: true, visibilityProperty: true }) : true;
+  for (let e = b; e && shown; e = e.parentElement) { const c = getComputedStyle(e); if (c.display === 'none' || c.visibility === 'hidden' || Number(c.opacity) <= 0.05) shown = false; }
+  const r = b.getBoundingClientRect(); return { exists: true, shown, r: [r.left, r.top, r.right, r.bottom] };
 });
+async function seedTask(page) {
+  await page.evaluate(async (d) => { const m = await import('/js/db.js'); await m.putTask({ id: 'qa-t1', title: '今日のタスク', due: { date: d, time: null }, done: false, doneAt: null, createdAt: 1, updatedAt: 1, order: 1, note: '', notify: false }); }, DAY);
+  await page.reload(); await page.waitForSelector('html[data-ready]'); await page.waitForTimeout(400);
+}
+async function closeSheet(page) {
+  await page.locator('.nsheet .ned-done').click(); await page.waitForTimeout(500);
+  if (await page.locator('.nsheet').isVisible()) { await page.keyboard.press('Escape'); await page.waitForTimeout(500); }
+  if (await page.locator('.nsheet').isVisible()) { await page.locator('.nsheet .ned-done').click(); await page.waitForTimeout(500); }
+  await expect(page.locator('.nsheet')).toBeHidden();
+}
+test('§17-5 横・帯なしでノートを書いている間、シートの領域に赤い画素がなく、バッジは見えないかシートの奥。閉じると戻る', async ({ page }) => {
+  await boot(page, { sar: 0 }); await seedTask(page); await page.setViewportSize(GEO.landscape); await page.waitForTimeout(650);
+  const b0 = await badgeState(page); expect(b0.shown, '前提: 書く前はバッジが見える').toBe(true);
+  expect(b0.r[1], '前提: バッジは y0〜18').toBeLessThan(18);
+  expect(await redCount(page, { x: 640, y: 0, width: 38, height: 22 }), '前提: 書く前は赤い画素がある').toBeGreaterThan(20);
+  await editNote(page);
+  const sh = await r(page.locator('.nsheet')); near(sh[1], 8, 'シートの上端');
+  expect(await redCount(page, { x: 560, y: 8, width: 118, height: 60 }), 'シートの右上（y8〜68）に赤い画素がない').toBe(0);
+  const b1 = await badgeState(page);
+  if (b1.shown) {
+    const behind = await page.evaluate(() => { const b = document.querySelector('.ctask .bdg'); const st = document.elementsFromPoint(669, 13); const ib = st.findIndex((e) => e === b || b.contains(e)), is = st.findIndex((e) => e.closest('.nsheet')); return ib < 0 || (is >= 0 && is < ib); });
+    expect(behind, 'バッジが見えるならシートの奥').toBe(true);
+  }
+  await closeSheet(page);
+  const b2 = await badgeState(page); expect(b2.shown, '閉じるとバッジが戻る').toBe(true);
+  expect(await redCount(page, { x: 640, y: 0, width: 38, height: 22 }), '閉じると赤い画素が戻る').toBeGreaterThan(20);
+});
+for (const [name, sar, size] of [['縦・帯あり', 84, GEO.portrait], ['縦・帯なし', 0, GEO.portrait], ['横・帯あり', 84, GEO.landscape]]) {
+  test(`§17-5 ${name}: ふだんはバッジが見える（赤い画素あり）。ノートを閉じたあとも見える`, async ({ page }) => {
+    await boot(page, { sar }); await seedTask(page); if (size === GEO.landscape) { await page.setViewportSize(size); await page.waitForTimeout(650); }
+    const b0 = await badgeState(page); expect(b0.shown, 'バッジが見える').toBe(true);
+    const c = { x: Math.max(0, b0.r[0] - 4), y: Math.max(0, b0.r[1] - 4), width: 26, height: 26 };
+    expect(await redCount(page, c), '赤い画素がある').toBeGreaterThan(20);
+    await editNote(page); const mid = await badgeState(page);
+    test.info().annotations.push({ type: 'note-editing', description: `${name}: 書いている間のバッジ shown=${mid.shown}` });
+    await closeSheet(page);
+    const b2 = await badgeState(page); expect(b2.shown, '閉じたあと見える').toBe(true);
+    expect(await redCount(page, { x: Math.max(0, b2.r[0] - 4), y: Math.max(0, b2.r[1] - 4), width: 26, height: 26 }), '閉じたあと赤い画素がある').toBeGreaterThan(20);
+  });
+}
 // 連携 低①: 閉じた画面でバックアップを書き出しても settings.view は開いた側の画面（週）。戻すと開いた縦は週。
 test('連携 低① 閉じた画面で書き出したバックアップの settings.view は開いた側の値（week）', async ({ page }, info) => {
   await page.addInitScript(() => { if (!sessionStorage.getItem('qa-set')) { const k = 'duo.ui.v1'; let s = {}; try { s = JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch { s = {}; } localStorage.setItem(k, JSON.stringify({ ...s, view: 'week', home: false })); sessionStorage.setItem('qa-set', '1'); } });
@@ -424,4 +483,156 @@ test('連携 低① 閉じた画面で書き出したバックアップの setti
   const p = info.outputPath('closed-export.json'); await dl.saveAs(p);
   const j = JSON.parse((await import('node:fs')).readFileSync(p, 'utf8'));
   expect(j.settings?.view, '書き出した settings.view').toBe('week');
+});
+
+// 連携 低①（8cd8a6c）: 開いた画面で書き出す・開いた画面で面を変えてすぐ（保存前）書き出す・変えてすぐ閉じて書き出す。
+const OPEN_P = { width: 626, height: 890 };
+async function exportView(page, info, name) {
+  await clickSettingsAny(page);
+  await page.getByRole('button', { name: 'バックアップ' }).click(); await expect(page.locator('#backup')).toBeVisible();
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'JSONを書き出す' }).click()]);
+  const p = info.outputPath(name); await dl.saveAs(p);
+  return JSON.parse((await import('node:fs')).readFileSync(p, 'utf8')).settings?.view;
+}
+async function clickSettingsAny(page) {
+  const vp = page.viewportSize(); if (Math.min(vp.width, vp.height) < 600) { await page.locator('.cmore').click(); await page.getByRole('menuitem', { name: '設定' }).click(); return; }
+  const s = page.getByRole('button', { name: '設定' }).first(); if (await s.isVisible()) { await s.click(); return; }
+  await page.locator('[data-act="menu"]').first().click();
+}
+const openWith = async (page, view) => {
+  await page.addInitScript((v) => { if (!sessionStorage.getItem('qa-set')) { localStorage.setItem('duo.ui.v1', JSON.stringify({ view: v, home: false })); sessionStorage.setItem('qa-set', '1'); } }, view);
+  await openApp(page, OPEN_P); await seed(page, EVENTS); await page.waitForTimeout(300);
+};
+const curView = (page) => page.evaluate(() => { const c = document.querySelector('.shell')?.className || ''; return (c.match(/tv-(\w+)/) || [])[1] || null; });
+for (const v of ['day', 'week', 'month']) {
+  test(`連携 低① 開いた縦（${v}）で書き出すと settings.view は '${v}'`, async ({ page }, info) => {
+    await openWith(page, v);
+    expect(await exportView(page, info, `open-${v}.json`)).toBe(v);
+  });
+}
+test('連携 低① 開いた縦で 週→日 に変えてすぐ（保存前）書き出すと day。閉じて書き出しても day', async ({ page }, info) => {
+  await openWith(page, 'week');
+  const before = await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1') || '{}').view);
+  await page.getByRole('button', { name: '日', exact: true }).first().click();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1') || '{}').view);
+  test.info().annotations.push({ type: 'saved-at-click', description: `押す前 ${before}／押した直後の保存 ${saved}` });
+  expect(await exportView(page, info, 'open-unsaved.json'), '開いた画面・変えてすぐ').toBe('day');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+  await page.setViewportSize(GEO.portrait); await page.waitForTimeout(700);
+  expect(await exportView(page, info, 'closed-after.json'), '閉じてから書き出す').toBe('day');
+});
+
+// ===== design/34 §18（8cd8a6c の設計レビュー、2026-11-22）。8cd8a6c では落ちてよい =====
+// §18-1 貼り付きは日の欄の高さで決める: 高さ 170 以上で貼る、166 未満で外す。引き・段送りで変わるときは つまみと面を 0.15 秒 linear で出し入れ。送りで変わるときは即時。
+// 「つまみが見えて貼り付いている」= つまみ（祖先を含む）の不透明度 > 0.5 かつ 下端が日の欄の下端 − 41。重なり = 見えているつまみ・面の上端が見出し .mdh の下端より上に入った量。
+const STICK_PROBE = () => {
+  const d = document.querySelector('.mpull.browse .mday'); const g = d?.querySelector('.mdgrab'), h = d?.querySelector('.mdh'); if (!g || !h) return null;
+  const db = d.getBoundingClientRect(), gb = g.getBoundingClientRect(), hb = h.getBoundingClientRect();
+  let op = 1; for (let e = g; e && e !== document.body; e = e.parentElement) op *= Number(getComputedStyle(e).opacity);
+  const bs = getComputedStyle(g, '::before'); const face = g.classList.contains('stuck') && bs.content !== 'none' && bs.display !== 'none' ? gb.top + (parseFloat(bs.top) || 0) : gb.top;
+  const pinned = Math.abs(gb.bottom - (db.bottom - 41)) < 1;
+  const top = Math.min(gb.top, face);
+  return { t: performance.now(), stage: document.querySelector('.mpull')?.dataset.stage, paneTop: db.top, h: db.height, op, pinned, stuck: g.classList.contains('stuck'), shown: pinned && op > 0.5, hdrBottom: hb.bottom, gTop: gb.top, faceTop: face, overlap: op > 0.05 && top < hb.bottom - 0.5 && gb.bottom > hb.top ? hb.bottom - top : 0 };
+};
+async function startFrames(page) {
+  await page.evaluate((fn) => { const probe = eval(fn); window.__qaS = []; window.__qaStop = false; const tick = () => { const r = probe(); if (r) window.__qaS.push(r); if (!window.__qaStop) requestAnimationFrame(tick); }; requestAnimationFrame(tick); }, `(${STICK_PROBE.toString()})`);
+}
+const stopFrames = (page) => page.evaluate(() => { window.__qaStop = true; return window.__qaS; });
+const probeNow = (page) => page.evaluate((fn) => eval(fn)(), `(${STICK_PROBE.toString()})`);
+async function grabTop(page) { const g = await page.locator('.mgrab').boundingBox(); const x = g.x + g.width / 2, y = g.y + g.height / 2; await page.mouse.move(x, y); await page.mouse.down(); return { x, y }; }
+async function holdAt(page, p, targetTop) {
+  for (let i = 0; i < 8; i++) { const now = (await probeNow(page)).paneTop; const dy = targetTop - now; if (Math.abs(dy) <= 0.6) break; p.y += dy; await page.mouse.move(p.x, p.y, { steps: 4 }); await page.waitForTimeout(60); }
+  await page.waitForTimeout(350); return probeNow(page);
+}
+for (const [name, sar] of [['帯あり', 84], ['帯なし', 0]]) {
+  test(`§18-1 ${name}: 段1→3 と 3→1 を指で引く間、どのコマでも つまみ・埋めた面が見出しに重ならない`, async ({ page }) => {
+    await boot(page, { sar }); await toStage(page, 1);
+    await startFrames(page);
+    const p = await grabTop(page);
+    for (let i = 0; i < 40; i++) { p.y -= 6; await page.mouse.move(p.x, p.y); await page.waitForTimeout(16); }
+    for (let i = 0; i < 40; i++) { p.y += 6; await page.mouse.move(p.x, p.y); await page.waitForTimeout(16); }
+    await page.mouse.up(); await page.waitForTimeout(500);
+    const fr = await stopFrames(page); const bad = fr.filter((f) => f.overlap > 0.5);
+    expect(fr.length).toBeGreaterThan(30);
+    expect(bad.slice(0, 3).map((f) => ({ top: Math.round(f.paneTop), stage: f.stage, overlap: Math.round(f.overlap * 10) / 10 })), `重なったコマ ${bad.length}/${fr.length}`).toEqual([]);
+  });
+  test(`§18-1 ${name}: キーで段 1→2→3→2→1 と送る間、どのコマでも重ならない`, async ({ page }) => {
+    await boot(page, { sar }); await toStage(page, 1);
+    await page.locator('.mgrab').focus(); await startFrames(page);
+    for (const k of ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown']) { await page.keyboard.press(k); await page.waitForTimeout(450); }
+    const fr = await stopFrames(page); const bad = fr.filter((f) => f.overlap > 0.5);
+    expect(bad.slice(0, 3).map((f) => ({ top: Math.round(f.paneTop), stage: f.stage, overlap: Math.round(f.overlap * 10) / 10 })), `重なったコマ ${bad.length}/${fr.length}`).toEqual([]);
+  });
+  test(`§18-1 ${name}: 境目 170／166（ヒステリシス）。下から 168 では貼らない・172 で貼る・戻って 168 では貼ったまま・164 で外す`, async ({ page }) => {
+    await boot(page, { sar }); await toStage(page, 1);
+    const B = 678; const p = await grabTop(page); const seen = {};
+    for (const [lab, h, want] of [['下から168', 168, false], ['172', 172, true], ['上から168', 168, true], ['164', 164, false], ['もう一度168', 168, false], ['170', 170, true]]) {
+      const r = await holdAt(page, p, B - h); seen[lab] = { h: Math.round(r.h * 10) / 10, shown: r.shown, op: Math.round(r.op * 100) / 100, overlap: Math.round(r.overlap * 10) / 10 };
+      expect(Math.abs(r.h - h), `${lab}: 高さを合わせられた（${r.h}）`).toBeLessThanOrEqual(1);
+      expect.soft(r.shown, `${lab}: 貼って見える=${want} ${JSON.stringify(seen[lab])}`).toBe(want);
+      expect.soft(r.overlap, `${lab}: 見出しに重ならない`).toBe(0);
+    }
+    await page.mouse.up();
+    test.info().annotations.push({ type: 'hysteresis', description: JSON.stringify(seen) });
+  });
+  test(`§18-1 ${name}: 段送り 1→2 で貼り付くとき、つまみと面を 0.15 秒 linear で出す（2→1 で消す）`, async ({ page }) => {
+    await boot(page, { sar }); await toStage(page, 1); await page.locator('.mgrab').focus();
+    for (const [k, dir] of [['ArrowUp', 'in'], ['ArrowDown', 'out']]) {
+      await page.evaluate(() => {
+        window.__qaA = []; window.__qaStop = false; const seen = new Set(); const t0 = performance.now(); window.__qaT0 = t0;
+        const tick = () => {
+          const g = document.querySelector('.mpull.browse .mday .mdgrab');
+          for (const a of document.getAnimations()) { const ef = a.effect; const tg = ef?.target; if (!tg || !(tg === g || tg.closest?.('.mdgrab'))) continue; const kf = ef.getKeyframes?.() || []; if (!kf.some((f) => 'opacity' in f) && !(a.transitionProperty === 'opacity')) continue; if (seen.has(a)) continue; seen.add(a); const tm = ef.getTiming(); window.__qaA.push({ dur: Number(tm.duration), ease: tm.easing, pseudo: ef.pseudoElement || '', from: kf[0]?.opacity, to: kf.at(-1)?.opacity }); }
+          let op = 1; if (g) for (let e = g; e && e !== document.body; e = e.parentElement) op *= Number(getComputedStyle(e).opacity);
+          window.__qaS.push([performance.now() - t0, op]); if (!window.__qaStop && performance.now() - t0 < 900) requestAnimationFrame(tick);
+        }; window.__qaS = []; requestAnimationFrame(tick);
+      });
+      await page.keyboard.press(k); await page.waitForTimeout(950);
+      const r = await page.evaluate(() => ({ an: window.__qaA, fr: window.__qaS }));
+      const mids = r.fr.filter(([, o]) => o > 0.05 && o < 0.95);
+      test.info().annotations.push({ type: `fade-${dir}`, description: JSON.stringify({ an: r.an, mids: mids.length }) });
+      expect(r.an.length, `${dir}: つまみ（か面）の不透明度の動きがある`).toBeGreaterThan(0);
+      for (const a of r.an) { expect(a.dur, `${dir}: 0.15 秒`).toBe(150); expect(a.ease, `${dir}: linear`).toBe('linear'); }
+      expect(mids.length, `${dir}: 途中のコマが見える（一瞬で切り替わらない）`).toBeGreaterThanOrEqual(2);
+    }
+  });
+}
+test('§18-1 日の欄を送って貼り付きが変わるときは一瞬（不透明度の動きなし、どのコマも 1）', async ({ page }) => {
+  await boot(page); await toStage(page, 4); await startFrames(page);
+  await page.locator('.mpull.browse .mday').evaluate(async (d) => { const max = d.scrollHeight - d.clientHeight; for (let i = 0; i <= 10; i++) { d.scrollTop = max * i / 10; await new Promise((r) => requestAnimationFrame(r)); } for (let i = 10; i >= 0; i--) { d.scrollTop = max * i / 10; await new Promise((r) => requestAnimationFrame(r)); } });
+  await page.waitForTimeout(300); const fr = await stopFrames(page);
+  expect(fr.filter((f) => f.op < 0.99).length, '送りの間、つまみは薄くならない').toBe(0);
+  expect(fr.some((f) => !f.stuck) && fr.some((f) => f.stuck), '前提: 貼り付きが変わった').toBe(true);
+  const an = await page.evaluate(() => document.getAnimations().filter((a) => a.effect?.target?.closest?.('.mdgrab')).length); expect(an).toBe(0);
+});
+// §18-2（望ましい）帯なしのつまみの箱をいつも 56（縦 y581〜637、横 y369〜425）。線は 縦 y611〜615、横 y399〜403。送り切ると カード → つまみ56 → ノート ›。
+for (const [name, f, box, line] of [['縦', FILL['縦・帯なし'], [8, 581, 402, 637], [611, 615]], ['横', FILL['横・帯なし'], [382, 369, 614, 425], [399, 403]]]) {
+  test(`§18-2 帯なし${name}: つまみの箱は貼り付いても外れても 56、線は変えない`, async ({ page }) => {
+    await bootForm(page, f);
+    const g = await gripAt(page); rect(g.r, box, '貼り付いた箱'); if (g.line) { near(g.line[1], line[0]); near(g.line[3], line[1]); }
+    const d = page.locator('.mday').first();
+    await d.evaluate((e) => { e.scrollTop = e.scrollHeight; }); await page.waitForTimeout(250);
+    const end = await page.evaluate(() => { const g = document.querySelector('.mday .mdgrab'), n = document.querySelector('.mday .mdnl'); const cs = [...document.querySelectorAll('.mday .mdcard, .mday .tlev')]; const last = cs.at(-1)?.getBoundingClientRect(); const gb = g.getBoundingClientRect(); return { h: gb.height, stuck: g.classList.contains('stuck'), gTop: gb.top, gBottom: gb.bottom, lastBottom: last?.bottom, nlTop: n.getBoundingClientRect().top }; });
+    expect(end.stuck).toBe(false); near(end.h, 56, '送り切った箱の高さ'); near(end.nlTop, end.gBottom, 'つまみの下にノート ›');
+    expect(end.gTop, 'カードの下につまみ').toBeGreaterThanOrEqual(end.lastBottom - 0.5);
+  });
+}
+// §18-3（必須）帯なしの横でシートを開いている間、上の y0〜8 に残る見出しのボタン（タスク・…）を押せない（inert）。閉じたら押せる。
+test('§18-3 横・帯なし: シートを開いている間 (656,4)・(669,4) をたたいても画面が変わらない。ボタンは inert。閉じたらタスクが押せる', async ({ page }) => {
+  await boot(page, { sar: 0 }); await seedTask(page); await page.setViewportSize(GEO.landscape); await page.waitForTimeout(650);
+  await editNote(page);
+  const cls0 = await page.locator('.shell').getAttribute('class');
+  const inert = await page.evaluate(() => [...document.querySelectorAll('.shell.closed .cb.ctask, .shell.closed .cb.cmore')].map((b) => ({ c: b.className.split(' ').at(-1), inert: !!b.closest('[inert]') })));
+  const st = () => page.evaluate(() => ({ shell: document.querySelector('.shell').className, pressed: document.querySelector('.cb.ctask')?.getAttribute('aria-pressed'), menu: document.querySelectorAll('[role=menu]').length, sheet: !!document.querySelector('.nsheet:not([hidden])') }));
+  const s0 = await st(); const changed = [];
+  // 1点ずつ（2回押して元へ戻ってしまう見落としをしないよう、点ごとに比べる）
+  for (const [x, y] of [[656, 4], [669, 4], [620, 3], [664, 7]]) { await page.mouse.click(x, y); await page.waitForTimeout(400); const s1 = await st(); if (JSON.stringify(s1) !== JSON.stringify(s0)) { changed.push({ x, y, ...s1 }); break; } }
+  expect(changed, '上の y0〜8 をたたいても shell の class・タスク・メニュー・シートが変わらない').toEqual([]);
+  expect(cls0).toBe(s0.shell);
+  expect(inert.every((b) => b.inert), `見出しのボタンは inert ${JSON.stringify(inert)}`).toBe(true);
+  await closeSheet(page);
+  expect(await page.evaluate(() => [...document.querySelectorAll('.shell.closed .cb.ctask, .shell.closed .cb.cmore')].some((b) => b.closest('[inert]'))), '閉じたら inert を外す').toBe(false);
+  await page.locator('.shell.closed .cb.ctask').click(); await page.waitForTimeout(500);
+  const after = await page.evaluate(() => ({ cls: document.querySelector('.shell').className, pressed: document.querySelector('.cb.ctask')?.getAttribute('aria-pressed') }));
+  expect(after.cls !== cls0 || after.pressed === 'true', `閉じたらタスクが押せる ${JSON.stringify(after)}`).toBe(true);
 });

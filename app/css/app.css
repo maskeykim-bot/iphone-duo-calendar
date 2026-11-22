@@ -2464,12 +2464,12 @@ body[data-layout=home] .toastbar,body[data-layout=browse] .toastbar{left:calc(va
 
 /* ===== 第19.2版 S11f（design/34 §16、設計レビュー 0568d18） ===== */
 /* §16-1: 段2〜7（と閉じた横）は、つまみ（下）を日の欄の下端（下の余白 41 の内側）に貼り付ける。押せる範囲 x8〜374・y593〜637、線 y611〜615。中身はつまみの面（#EFECE4）の下を流れる。段1 は貼り付けない（日の欄が 74 しかない） */
-.shell.closed .mpull.browse:not([data-stage="1"]) .mday .mdgrab{position:sticky;bottom:0;z-index:5;width:auto;margin:-8px -4px 0;background:#EFECE4}
+.shell.closed .mpull.browse .mday.gs .mdgrab{position:sticky;bottom:var(--gsb,0px);z-index:5;width:auto;margin:-8px -4px 0;background:#EFECE4}
 .shell.closed.land .mpull.browse .mday .mdgrab{margin:-8px -12px 0}
 /* 貼り付いている間だけ、上の辺に 0.5 の線（行の線と同じ色。ぼかしは使わない） */
 .shell.closed .mpull.browse .mday .mdgrab.stuck{box-shadow:inset 0 .5px 0 #E4E0D6}
 /* 帯がない画面: 下の余白 105 は送り切ったときの＋よけ。貼り付く位置は帯ありと同じ y593〜637（余白 41 の内側）。右下の＋（押せる x402〜458）にかからないよう x8〜402、線の中心は日の欄の中央 x233 */
-.shell.closed.fb .mpull.browse:not([data-stage="1"]) .mday .mdgrab{bottom:-64px;margin-right:52px;padding-left:56px}
+.shell.closed.fb .mpull.browse .mday.gs .mdgrab{bottom:calc(-64px + var(--gsb,0px));margin-right:52px;padding-left:56px}
 .shell.closed.land.fb .mpull.browse .mday .mdgrab{margin-right:52px;padding-left:64px}
 /* §16-2: 段2〜7（と閉じた横）は、カード（A）でも日の見出しを貼り付ける（B・C と同じ値。下に線は引かない）。段1 は貼らない */
 .shell.closed .mpull.browse:not([data-stage="1"]) .mday .mdh{position:sticky;top:0;z-index:6}
@@ -2478,17 +2478,26 @@ body[data-layout=home] .toastbar,body[data-layout=browse] .toastbar{left:calc(va
 /* 見出しを貼り付けても、日の欄の上 20 はつまみ（上）の押せる範囲のまま（§13-1: 格子の下端から 44）。B・C は見出しの右の「カード」（44）を押せるよう今のまま */
 .shell.closed .mpull.browse .mday[data-dg="A"]{isolation:isolate}
 /* 帯がない画面: 押せる範囲は＋の左までだが、つまみの面と上の線は日の欄の右端まで続ける（＋のまわりにカードがのぞかない。＋はこの上） */
-.shell.closed.fb .mpull.browse:not([data-stage="1"]) .mday .mdgrab::after{content:"";position:absolute;left:100%;top:0;width:56px;height:100%;background:#EFECE4;pointer-events:none}
-.shell.closed.fb .mpull.browse:not([data-stage="1"]) .mday .mdgrab.stuck::after{box-shadow:inset 0 .5px 0 #E4E0D6}
+.shell.closed.fb .mpull.browse .mday.gs .mdgrab::after{content:"";position:absolute;left:100%;top:0;width:56px;height:100%;background:#EFECE4;pointer-events:none}
+.shell.closed.fb .mpull.browse .mday.gs .mdgrab.stuck::after{box-shadow:inset 0 .5px 0 #E4E0D6}
 .shell.closed.land.fb .mpull.browse .mday .mdgrab::after{width:64px}
 
 /* ===== 第19.2版 S11g（design/34 §17、設計レビュー 61b9ce7） ===== */
 /* §17-1（K-1）: つまみ（下）が貼り付いている間だけ、つまみの下端から日の欄の下端まで（余白 41。ホームバーの帯も）を日の欄の地で埋める。カードを見せず、触れも下へ通さない（面はつまみの一部。つまみの引きは JS が始めない）。送り切り・元の位置では出さない */
 .shell.closed .mpull.browse .mday .mdgrab.stuck::before{content:"";position:absolute;z-index:-1;left:0;right:0;top:100%;height:41px;background:#EFECE4}
-/* 帯がない画面: 埋める面は＋の下も（日の欄の右端まで）。§17-2（K-2）: 貼り付いている間、面を＋の押せる所の上端まで 12 上げ（縦 y581〜、横 y369〜）、0.5 の線もそこへ。つまみの押せる所（44）と線は変えない */
-.shell.closed.fb .mpull.browse .mday .mdgrab.stuck::before{right:-56px;top:-12px;height:97px;box-shadow:inset 0 .5px 0 #E4E0D6}
+/* 帯がない画面: 埋める面は＋の下も（日の欄の右端まで）。§17-2（K-2）: 貼り付いている間の面は＋の押せる所の上端から（縦 y581〜、横 y369〜）、0.5 の線もそこ。S11h（§18-2）でつまみの箱そのものを 56 にしたので、面（::before）は箱の上端（top:0）から下の余白の端まで 97 */
+.shell.closed.fb .mpull.browse .mday .mdgrab.stuck::before{right:-56px;top:0;height:97px;box-shadow:inset 0 .5px 0 #E4E0D6}
 .shell.closed.land.fb .mpull.browse .mday .mdgrab.stuck::before{right:-64px}
-.shell.closed.fb .mpull.browse .mday .mdgrab.stuck,.shell.closed.fb .mpull.browse:not([data-stage="1"]) .mday .mdgrab.stuck::after{box-shadow:none}
-.shell.closed.fb .mpull.browse:not([data-stage="1"]) .mday .mdgrab.stuck::after{display:none}
+.shell.closed.fb .mpull.browse .mday .mdgrab.stuck,.shell.closed.fb .mpull.browse .mday.gs .mdgrab.stuck::after{box-shadow:none}
+.shell.closed.fb .mpull.browse .mday.gs .mdgrab.stuck::after{display:none}
 /* §17-5: 帯がない横で、シート（ノート。x0〜678・y8〜）を開いている間は、タスクのバッジ（x660〜678・y0〜18）もボタンと一緒にシートの下へ（シートの上の 8 と角丸にのぞかせない） */
 body:has(> .nsheet:not([hidden])) .shell.closed.land.fb .cb.ctask .bdg{visibility:hidden}
+
+/* ===== 第19.2版 S11h（design/34 §18、設計レビュー 8cd8a6c） ===== */
+/* §18-1: つまみ（下）を貼るかどうかは段の番号でなく日の欄の高さで決める（.mday.gs＝高さ 170 以上で付け、166 未満で外す。JS の dayGripStick）。上の S11f・S11g の貼り付けの決まりは .gs にかかる。
+   引き・段送りで外れるとき（0.15 秒・直線で消える間）は、--gsb（高さ−170。0 以下）だけ下へ逃がし、見出し（上端から 44）と重ねない */
+/* 帯なしの縦の段1 は下の余白が 41（S11e）なので、貼り付く位置の −64 を使わない（消えていく間だけ当たる） */
+.shell.closed.fb:not(.land) .mpull.browse[data-stage="1"] .mday.gs .mdgrab{bottom:var(--gsb,0px)}
+/* §18-2: 帯がない画面は、つまみの箱を貼り付きにかかわらず 56 にする（縦 y581〜637、横 y369〜425。上の余白 30、線は y611〜615・横 y399〜403 のまま）。押せる所も 56（§17-2 の「上に足した 12 は何もしない」はやめた）。
+   貼り付きが外れる境で面の上端（581）が動かないので、カードの 12 が跳んで出ない。送り切り: カード → つまみ 56 → ノート ›。帯ありは 44 のまま */
+.shell.closed.fb .mpull.browse .mday .mdgrab{height:56px;min-height:56px;padding-top:30px}
