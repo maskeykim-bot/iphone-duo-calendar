@@ -300,6 +300,7 @@ test.describe('9 変えないもの', () => {
 test.describe('10 どの段・どの日でも格子を流し切れる', () => {
   for (const [name, sar, sel] of [['帯あり・予定のない日', 84, EMPTY], ['帯あり・予定のある日', 84, DAY], ['帯なし・予定のない日', 0, EMPTY], ['帯なし・予定のある日', 0, DAY]]) {
     test(`10 ${name}: 段 1〜7 で格子を見出しの下まで流し切れ、選んだ日が出る。送り切ると最後のノートが下の端・右下の＋に隠れずに見える`, async ({ page }) => {
+      test.setTimeout(90000); // 段 1〜7 を順に見るので長い（1 本で 15 秒ほど。全体を並べて回すと 30 秒を越えることがある）
       await boot(page, { stage: 1, sar, sel });
       for (let n = 1; n <= 7; n++) {
         if (n > 1) { await setScroll(page, 0); await page.locator('.mgrab').focus(); await page.keyboard.press('ArrowUp'); await page.waitForTimeout(500); await page.evaluate(() => document.activeElement?.blur()); }

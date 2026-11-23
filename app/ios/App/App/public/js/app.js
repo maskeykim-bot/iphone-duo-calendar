@@ -1220,7 +1220,6 @@ root.addEventListener('pointerdown', (ev) => {
   MP.drag = { id: ev.pointerId, y0: ev.clientY, kind, form0: state.monthForm, h0: grid.getBoundingClientRect().height, moved: false, form: state.monthForm };
 });
 window.addEventListener('pointermove', (ev) => {
-  if (PULLC.c) stagePullMaybe(ev);
   if (ST.drag) { stageMove(ev); return; }
   const d = MP.drag; if (!d || ev.pointerId !== d.id) return;
   const dy = ev.clientY - d.y0;
@@ -1302,7 +1301,7 @@ function stageHead(ws = stageWeeks(stgKindNow())) {
   if (PS.on) return `<div class="mph pasting">${pasteBand()}</div>`;
   const d = parseKey(state.selected);
   // 第19.2版 S11c（design/34 §2.1・§9.1-1〜3・§12 Q-11）: ‹ ›・全部・今日は出さない。見出しをたたくと今日へ。今日が画面にないときだけ右端に「今日へ」
-  return `<div class="mph"${sheetOverHead() ? ' inert' : ''}><button type="button" class="vh" data-act="prev" aria-label="前の月">前の月</button><h2 id="ctitle">${d.getFullYear()}年${d.getMonth() + 1}月</h2><button type="button" class="vh" data-act="next" aria-label="次の月">次の月</button><button type="button" class="mptoday" data-act="mptoday" aria-label="今日へ"${ws.some((w) => w.includes(todayKey())) ? ' hidden' : ''}>今日へ</button></div>`;
+  return `<div class="mph${root.querySelector('.mpull.browse[data-stage] .mph.scrd') && !closedLand() ? ' scrd' : ''}"${sheetOverHead() ? ' inert' : ''}><button type="button" class="vh" data-act="prev" aria-label="前の月">前の月</button><h2 id="ctitle">${d.getFullYear()}年${d.getMonth() + 1}月</h2><button type="button" class="vh" data-act="next" aria-label="次の月">次の月</button>${closedLand() ? '' : `<span class="mpdate" aria-hidden="true">${d.getDate()}日<span class="mpdw">（${DOW[d.getDay()]}）</span></span>`}<button type="button" class="mptoday" data-act="mptoday" aria-label="今日へ"${ws.some((w) => w.includes(todayKey())) ? ' hidden' : ''}>今日へ</button></div>`; // 第19.3版: .mpdate＝格子が見出しの下へ流れ切ったときだけ出す「12日（木）」（design/33 §2。paintMpScroll）
 }
 function stageGridHtml(kind, H, ws = stageWeeks(kind)) {
   const sel = state.selected, today = todayKey(), cur = parseKey(sel).getMonth(), tk = monthTaskCounts('browse');
@@ -1316,11 +1315,11 @@ function stageHtml() {
   ST.n = n; ST.kind = kind; ST.H = H; ST.land = land;
   const ws = stageWeeks(kind);
   const grab = land ? '' : `<div class="mgrab" role="slider" tabindex="0" aria-label="月の大きさ。上下に引いて変える" aria-orientation="vertical" aria-valuemin="1" aria-valuemax="7" aria-valuenow="${n}" aria-valuetext="${STG_NAME[n]}"><i aria-hidden="true"></i></div>`;
-  return `<section class="calendar mpull browse${land ? ' land' : ''}" aria-label="カレンダー"${land ? ' data-land="1" data-form="month"' : ` data-stage="${n}" data-form="${STG_FORM[n]}"`} style="--H:${H}px;--chip-h:14px;--chip-fs:10px;--date-h:22px"><div class="mpfix">${stageHead(ws)}<button type="button" class="mrpick vh" data-act="pickrange">期間を選ぶ</button><div class="weekdays">${stageWdInner(kind, ws[0])}</div></div><div class="mgwrap">${stageGridHtml(kind, H, ws)}</div>${grab}${stageDayHtml()}</section>`;
+  return `<section class="calendar mpull browse${land ? ' land' : ''}" aria-label="カレンダー"${land ? ' data-land="1" data-form="month"' : ` data-stage="${n}" data-form="${STG_FORM[n]}" data-scroll="stg"`} style="--H:${H}px;--chip-h:14px;--chip-fs:10px;--date-h:22px"><div class="mpfix">${stageHead(ws)}<button type="button" class="mrpick vh" data-act="pickrange">期間を選ぶ</button><div class="weekdays">${stageWdInner(kind, ws[0])}</div></div><div class="mgwrap">${stageGridHtml(kind, H, ws)}</div>${grab}${stageDayHtml()}</section>`;
 }
 // ---- 閉じた7段の日の欄（design/34 §6）。見出し44・終日のベタ塗りチップ・高さ56のカード・つまみ（下）・ノート。開いた縦の pullDayHtml は変えない。
 const DAYGRIP = { toTimeline: 40, snapBC: 66 }; // spec-values.js DAYGRIP（design/34 §6.2）
-const DG = { mode: state.dayGrip, hh: state.dayGrip === 2 ? 88 : 44, drag: null, raf: 0, swap: 0, tlKey: '' }; // mode 0=A カード、1=B 時間軸、2=C 時間軸・広い。hh は1時間の高さ。段は state.dayGrip に覚える（S11d M8。日を選び直しても・閉じる⇄開く・読み込み直しのあとも同じ）
+const DG = { mode: state.dayGrip, hh: state.dayGrip === 2 ? 88 : 44, drag: null, raf: 0, swap: 0, tlKey: '', unfold: false }; // mode 0=A カード、1=B 時間軸、2=C 時間軸・広い。hh は1時間の高さ。段は state.dayGrip に覚える（S11d M8。日を選び直しても・閉じる⇄開く・読み込み直しのあとも同じ）
 const DG_EASE = STG_EASE(0.16, 1, 0.3, 1);
 const dayMode = () => DG.mode;
 const dayNth = (e, k) => { const n = Math.round((parseKey(dayOf(e.end)) - parseKey(dayOf(e.start))) / 864e5) + 1; return n > 1 ? `（${Math.round((parseKey(k) - parseKey(dayOf(e.start))) / 864e5) + 1}/${n}日目）` : ''; };
@@ -1356,7 +1355,8 @@ function stageDayHtml() {
   const grab = `<div class="mdgrab" role="slider" tabindex="0" aria-label="日の欄の見せ方。下へ引くと時間軸、上へ引くとカード" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="2" aria-valuenow="${mode}" aria-valuetext="${['カード', '時間軸', '時間軸・広い'][mode]}"><i aria-hidden="true"></i></div>`;
   const first = NB.first.get(k), n = NB.marks.get(k) || 0;
   const notes = `<button type="button" class="mdnl" data-act="notelist" aria-label="ノートの一覧"><span aria-hidden="true">ノート ›</span></button><button type="button" class="dnote mdnote" data-act="daynote" data-day="${k}" aria-label="${esc(dayLabel(k))}のノート${n ? `${n}件を開く` : 'を書く'}"><span class="dnt">${first ? richHtml(richLines(first), 'div') : '<span class="mdempty">たたいて書く</span>'}</span></button>`;
-  return `<div class="mday" data-scroll="mday" data-dg="${'ABC'[mode]}">${head}<div class="mdbody">${body}</div>${grab}${notes}</div>`;
+  // 第19.3版: 閉じた縦は .mpull が1本でスクロールする。.mday は「スクロール 0 で見えている日の欄」の箱（高さは今までどおり 画面−88−H）、中身は .mdin が持ち、箱の下へあふれて続く。閉じた横は .mdin を箱にしない（display:contents。今までどおり .mday の中がスクロール）
+  return `<div class="mday" data-scroll="mday" data-dg="${'ABC'[mode]}"><div class="mdin">${head}<div class="mdbody">${body}</div>${grab}${notes}</div></div>`;
 }
 // 終日のチップは2行まで。入りきらない分は最後に「+N」チップ（#E4E0D6）。時間軸のときは開いた最初の予定の1時間前を見出しのすぐ下へ。
 function dayAfterRender(el = root.querySelector('.mpull.browse .mday')) {
@@ -1387,17 +1387,48 @@ function dayAfterRender(el = root.querySelector('.mpull.browse .mday')) {
   }
   const tl = el.querySelector('.tl');
   // 時間軸を「開いたとき」（カードから切り替えた・日を選び直した・起動）だけ最初の予定の1時間前へ合わせる。同じ日・同じ時間軸の描き直し（閉じる⇄開く など）では、覚えている位置のまま（M8）
-  const tk = tl ? `${state.selected}|${state.loaded ? 1 : 0}` : ''; const fresh = tk !== DG.tlKey; DG.tlKey = tk;
-  if (tl && fresh && el.dataset.dgFresh !== '0') {
-    const k = state.selected, ms = eventsOnDay(occIn(k, k), k).filter((e) => !e.all && dayOf(e.start) === k).map((e) => hmOfIso(e.start));
-    const now = new Date(), min = ms.length ? Math.min(...ms) : (dkey(now) === k ? now.getHours() * 60 + now.getMinutes() : 9 * 60);
+  const tk = tl ? `${state.selected}|${state.loaded ? 1 : 0}|${ST.land ? 'L' : 'P'}` : ''; const fresh = tk !== DG.tlKey; DG.tlKey = tk; // 第19.3版: 縦⇔横で日の欄の作り（畳む／中で送る）が違うので、向きが変わったら開いた位置へ合わせ直す
+  if (tl && !ST.land) { // 第19.3版 閉じた縦: 日の欄は中でスクロールしない。開いたときは最初の予定の1時間前より上を畳む（dayFold）。同じ日・同じ時間軸の描き直しでは、開いたままなら開いたまま
+    if (fresh && el.dataset.dgFresh !== '0') DG.unfold = false;
+    dayFold(el);
+  } else if (tl && fresh && el.dataset.dgFresh !== '0') {
     const hh = DG.hh, top = tl.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
-    el.scrollTop = Math.max(0, top + Math.max(0, min - 60) / 60 * hh - 44);
+    el.scrollTop = Math.max(0, top + dayFoldMin() / 60 * hh - 44);
   }
   delete el._gsT; // 貼り付きの境（§18-5 の T）は描き直しのたびに測り直す
   if (tl) updateNow(el); // 今の時刻の赤い線
   dayGripStick(el);
 }
+// 時間軸を開いたときに一番上に見せる時刻（分）＝最初の時刻つきの予定の1時間前。予定がない日は今（今日）か 9:00 の1時間前
+function dayFoldMin() {
+  const k = state.selected, ms = eventsOnDay(occIn(k, k), k).filter((e) => !e.all && dayOf(e.start) === k).map((e) => hmOfIso(e.start));
+  const now = new Date(), min = ms.length ? Math.min(...ms) : (dkey(now) === k ? now.getHours() * 60 + now.getMinutes() : 9 * 60);
+  return Math.max(0, min - 60);
+}
+// 第19.3版（閉じた縦・時間軸 B・C）: 画面は1本のスクロールで、スクロール 0 では月が見えている。日の欄の中を送って合わせる代わりに、「最初の予定の1時間前」より上（終日の行と、それより前の時間）を畳んで見出しのすぐ下から始める
+//（v19.2 の開いた位置と同じ並び・同じ寸法。終日の行は自分の高さ --foldad だけ、時間軸の中身 .tlin は --foldm 分だけ上へずらし、.mdbody の上端で切る。1時間の高さ --hh が変わっても同じ時刻で切れる）。
+// 畳んだ分は、時間軸の右上の「前の時間」（終日の予定がある日は「終日・前の時間」）で開く（終日の行と 0:00 から。日を選び直す・カード⇔時間軸で畳み直す）。入れ子の縦スクロールは作らない
+function dayFold(el) {
+  const tl = el.querySelector('.tl'), body = el.querySelector('.mdbody'); if (!tl || !body) return;
+  const m = DG.unfold ? 0 : dayFoldMin(), ad = body.querySelector(':scope > .allday'), has = !!ad?.querySelector('.adpill, .adcol > *');
+  body.classList.remove('folded');
+  const ah = ad ? tl.getBoundingClientRect().top - ad.getBoundingClientRect().top : 0;
+  tl.style.setProperty('--foldm', String(m)); body.style.setProperty('--foldad', `${ah}px`);
+  body.classList.toggle('folded', !DG.unfold);
+  let b = el.querySelector('.mdfold');
+  if (DG.unfold || !(m > 0 || has)) { b?.remove(); return; }
+  if (!b) { b = document.createElement('div'); b.className = 'mdfold'; b.innerHTML = '<button type="button" data-act="dayunfold"></button>'; tl.before(b); }
+  const t = `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
+  b.firstElementChild.textContent = has ? '終日・前の時間' : '前の時間'; b.firstElementChild.setAttribute('aria-label', `${has ? '終日の予定と、' : ''}0:00 から ${t} までの時間軸も表示`);
+}
+function dayUnfold() {
+  const el = root.querySelector('.mpull.browse[data-stage] .mday'); if (!el || DG.unfold) return;
+  DG.unfold = true; dayFold(el); delete el._gsT; dayGripStick(el);
+  el.querySelector('.mdbody .adpill, .mdh .mdback')?.focus({ preventScroll: true });
+  say('0:00 からの時間軸を表示しました。');
+}
+// 日の欄の中身（見出し・本体・つまみ（下）・ノート）。第19.3版で .mdin に入れた
+const dayKids = (el) => [...(el.querySelector(':scope > .mdin') || el).children];
 // S11f（34 §16-1）: つまみ（下）は日の欄の下端に貼り付く（CSS の sticky）。貼り付いている間（元の位置＝「ノート ›」のすぐ上より上にある間）だけ、上の辺に 0.5 の線と埋めた面（.stuck）
 // S11h（34 §18-1）: 貼るかどうかは段の番号でなく日の欄の高さで決める（.mday.gs）。170 以上で貼り、166 未満で外す（4 の遊び）。閉じた横はいつも 466 なので貼る。
 // 引き・段送り（pull）で変わるときは、つまみと埋めた面を不透明度 0↔1・0.15 秒・直線で出し入れする。消えていく間は高さが 170 を割った分だけ下へ逃がし（--gsb）、見出しに重ねない。日の欄の送り・描き直しで変わるときは一瞬
@@ -1406,6 +1437,11 @@ function dayAfterRender(el = root.querySelector('.mpull.browse .mday')) {
 // 高さ H ≧ T で貼り、H ＜ T−4 で外す。時刻つきの予定が 0 件の日は T＝170（§18-1 のまま）。送った量は見ない（開いたときの位置で決める）。
 // 引き・段送りで T をまたぐときは §18-1 と同じフェード（逃がす量は H−T）。同じ高さのまま T が変わる（日を替える・カード⇔時間軸・予定を足す消す）ときは一瞬
 const GS = { on: false, out: null, T: 170 };
+// 日の欄の見えている高さ。閉じた縦（第19.3版・1本のスクロール）は 画面の下端 − max(日の欄の上端, 貼り付いた見出しの下端)。スクロール 0 では今までの日の欄の高さ（画面−88−H）と同じ。閉じた横は箱の高さ
+function dayPaneH(el) {
+  const er = el.getBoundingClientRect(), sec = el.closest('.mpull.browse[data-stage]'), fix = sec?.querySelector('.mpfix');
+  return fix ? sec.getBoundingClientRect().bottom - Math.max(er.top, fix.getBoundingClientRect().bottom) : er.height;
+}
 function dayGripT(el, g, nx) {
   const er = el.getBoundingClientRect(), G = g.getBoundingClientRect().height;
   let f = null, y = 0;
@@ -1415,7 +1451,12 @@ function dayGripT(el, g, nx) {
     if (ms.length) {
       const min = Math.min(...ms);
       f = [...el.querySelectorAll('.tlev[data-event]')].find((b) => Number(b.style.getPropertyValue('--m')) === min) || null;
-      if (f) { // 開いたときの位置（最初の予定の1時間前が見出しのすぐ下。0 時台で上へ送れないときは実際の位置）での上端
+      if (f && !ST.land) { // 第19.3版 閉じた縦: 畳んだ位置（＝開いたときの位置）での上端
+        const ad = el.querySelector('.mdbody > .allday'), ah = ad ? tl.getBoundingClientRect().top - ad.getBoundingClientRect().top : 0;
+        y = f.getBoundingClientRect().top - er.top;
+        if (DG.unfold) y -= dayFoldMin() / 60 * DG.hh + ah; // 開いているときも、畳んだ位置（開いたときの位置）で決める
+        if (ad && ad.querySelector('.adpill, .adcol > *')) y += ah; // §18-6 の 1: 終日の予定がある日は描いた終日の行の高さ（32）を D に足す
+      } else if (f) { // 開いたときの位置（最初の予定の1時間前が見出しのすぐ下。0 時台で上へ送れないときは実際の位置）での上端
         const top = tl.getBoundingClientRect().top - er.top + el.scrollTop, s0 = Math.max(0, top + Math.max(0, min - 60) / 60 * DG.hh - 44);
         y = f.getBoundingClientRect().top - er.top + el.scrollTop - s0;
         // §18-6 の 1: 時間軸でも、終日の予定がある日は描いた終日の行の高さ（行 28＋間 4＝32）を D に足す（開いた位置で見出しと最初の予定の間に見えていれば、もう入っている）
@@ -1435,7 +1476,7 @@ function dayGripStick(el = root.querySelector('.mpull.browse .mday'), pull = fal
   const g = el?.querySelector('.mdgrab'), nx = g?.nextElementSibling; if (!g || !nx) return;
   if (!pull || settle || el._gsT == null) el._gsT = dayGripT(el, g, nx);
   const T = el._gsT, same = !settle && GS.on && GS.T === T && (pull || el.classList.contains('gs')); // 遊び 4 は同じ T で貼っている間だけ（T が変わったら H ≧ T で決め直す）
-  const h = el.getBoundingClientRect().height, want = h >= (same ? T - 4 : T) - 0.01;
+  const h = dayPaneH(el), want = h >= (same ? T - 4 : T) - 0.01;
   GS.T = T;
   const isStuck = () => getComputedStyle(g).position === 'sticky' && g.getBoundingClientRect().bottom < nx.getBoundingClientRect().top - 0.5;
   const fade = (to) => { const cur = Number(getComputedStyle(g).opacity); for (const a of g.getAnimations()) a.cancel(); return g.animate([{ opacity: cur }, { opacity: to }], { duration: 150, easing: 'linear', fill: 'forwards' }); };
@@ -1476,13 +1517,13 @@ function daySwap(old, st0) {
   const tok = ++DG.swap, stNew = neu.querySelector('.tl') ? neu.scrollTop : 0; // 時間軸は合わせた位置（最初の予定の1時間前）、カードは一番上
   neu.replaceWith(old); old.scrollTop = st0; old.style.pointerEvents = 'none'; old.setAttribute('aria-hidden', 'true');
   // S11i（34 §18-5 品質の点 5）: つまみ（下）は入れ替えのフェードに入れない（日を替えて貼る⇔貼らないが変わるときも、つまみと面は一瞬で切り替わる。getAnimations 0）
-  const outs = [...old.children].filter((k) => !k.classList.contains('mdgrab')).map((k) => k.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 60, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'forwards' }).finished.catch(() => {}));
+  const outs = dayKids(old).filter((k) => !k.classList.contains('mdgrab')).map((k) => k.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 60, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'forwards' }).finished.catch(() => {}));
   Promise.all(outs).then(() => {
     if (!old.isConnected) return; // 途中で描き直された（次の描画が正しい中身を出している）
     if (tok !== DG.swap) { old.replaceWith(neu); return; }
     old.replaceWith(neu); neu.scrollTop = stNew; MP.scroll = neu.scrollTop;
     dayGripStick(neu);
-    for (const k of neu.children) if (!k.classList.contains('mdgrab')) k.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 90, easing: 'linear' });
+    for (const k of dayKids(neu)) if (!k.classList.contains('mdgrab')) k.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 90, easing: 'linear' });
   });
 }
 function setDayMode(mode, announce = true) {
@@ -1555,7 +1596,7 @@ function stageFit(g) {
     for (const p of w.querySelectorAll('.plus.dyn')) { const n = Number(p.dataset.hid) + hid[Number(p.dataset.col)]; p.textContent = n ? `+${n}` : ''; p.hidden = !n; }
   }
 }
-function stageAfterRender() { for (const g of root.querySelectorAll('.mpull.browse .mgrid')) stageFit(g); dayAfterRender(); paintRange(); stageTodaySync(); hintMaybe(); }
+function stageAfterRender() { for (const g of root.querySelectorAll('.mpull.browse .mgrid')) stageFit(g); dayAfterRender(); paintRange(); stageTodaySync(); hintMaybe(); paintMpScroll(root.querySelector('.mpull.browse[data-stage]')); }
 // 「今日へ」は今日が格子に出ていないときだけ（design/34 §2.1）。格子を入れ替えたあとにも合わせる
 function stageTodaySync() {
   const b = root.querySelector('.mpull.browse .mph .mptoday'); if (!b) return;
@@ -1568,6 +1609,7 @@ function stageToday() {
   MP.anchor = ''; MP.a1 = '';
   set({ selected: t });
   const md = root.querySelector('.mpull.browse .mday'); if (md) { md.scrollTop = 0; MP.scroll = 0; }
+  { const sec = root.querySelector('.mpull.browse[data-stage]'); if (sec) { sec.scrollTop = 0; stageScrolled(sec, true); } } // 第19.3版: 1本のスクロールも一番上へ（今日のマスが見える）
   if (off) {
     const dir = t < from ? -1 : 1, g = root.querySelector('.mpull.browse .mgrid'), wd = ST.kind === 'w1' ? root.querySelector('.mpull.browse .weekdays') : null;
     const kf = reduced() ? [{ opacity: 0 }, { opacity: 1 }] : [{ transform: `translateX(${dir * 32}px)`, opacity: 0 }, { transform: 'translateX(0)', opacity: 1 }];
@@ -1660,6 +1702,7 @@ function stageApply(H) {
     const n = stgOfH(H);
     if (n !== ST.n) stageEnter(n, sec);
   }
+  paintMpScroll(sec);
   dayGripStick(sec.querySelector('.mday'), true); // 日の欄の高さが変わると、つまみ（下）が貼り付くかどうかも変わる（S11h §18-1: 高さで決め、0.15 秒で出し入れ）
 }
 function stageSnap(t) {
@@ -1695,7 +1738,7 @@ function stageMove(ev) {
 }
 function stageUp(ev) {
   const d = ST.drag; if (!d || ev.pointerId !== d.id) return;
-  ST.drag = null; stagePullEnd(d);
+  ST.drag = null;
   if (!d.moved) { if (!ST.snapping && !ST.raf) dayGripStick(undefined, true, true); return; } // たたきは何もしない（段送りの途中を押さえて止めたときも、止まったので遊びなしで決め直す。S11j M-1）
   MP.swallow = performance.now() + 400;
   const w = d.pts.filter((p) => ev.timeStamp - p.t <= STG_VWIN); // 離す前 80ms の最初と最後の点（2つないときは v＝0）
@@ -1704,64 +1747,35 @@ function stageUp(ev) {
   const t = Math.min(Math.max(stgOfH(Hp, v < 0), Math.min(npos, d.n0 - 2)), Math.max(npos, d.n0 + 2)); // 1回のはらいで飛ぶのは最大2段（引いて着いた所まではそのまま）
   stageSnap(Math.min(7, Math.max(1, t)));
 }
-root.addEventListener('mousedown', (ev) => { if (ev.target.closest?.('.mgrab')) ev.preventDefault(); }, true); // S11i: マウスで引いている間、WebKit の「選びながら自動で送る」が日の欄（時間軸）を勝手に送らないように
+root.addEventListener('mousedown', (ev) => { if (ev.target.closest?.('.mgrab, .mpull.browse[data-stage] .mdgrab')) ev.preventDefault(); }, true); // 第19.3版: 閉じた縦のつまみ（下）も（画面の下の端の外まで引くと、WebKit が画面の1本を勝手に送る） // S11i: マウスで引いている間、WebKit の「選びながら自動で送る」が日の欄（時間軸）を勝手に送らないように
 root.addEventListener('dragstart', (ev) => { if (ev.target.closest?.('.mgrab')) ev.preventDefault(); }, true); // つまみを引いている途中で、選択中の文字の「ドラッグ」が始まって指の動きが切れないように
-function stageCancel() { const d = ST.drag; ST.drag = null; stagePullEnd(d); if (d?.moved) stageSnap(stgOfH(ST.H)); }
-// ---- M9（34 §3・§6.3・設計レビュー 7c9fb05）: つまみ以外でも段を引ける。格子のどこでも縦に引く／日の欄を一番上（scrollTop 0）から下へ引く。
-// 縦の動きが 6 を超え、横の 1.5 倍より大きいとき（33 §2 の判定）に、つまみと同じ処理（stageMove・stageUp）へ渡す。長押し 0.35 秒（チップの移動）が先に決まったら渡さない。横の払い（月送り）はそのまま。
-const PULLC = { c: null, sw: 0 };
-root.addEventListener('pointerdown', (ev) => {
-  PULLC.c = null;
-  if (!ev.isPrimary || (ev.pointerType === 'mouse' && ev.button !== 0) || ST.drag || DG.drag || ST.land) return; // 閉じた横は段を引かない（§14.2）
-  const t = ev.target; if (!(t instanceof Element) || !t.closest('.mpull.browse') || anyPanel()) return;
-  if (t.closest('.mgrab, .mdgrab, input, textarea, select, [contenteditable="true"]')) return;
-  const day = t.closest('.mgwrap') ? null : t.closest('.mday');
-  if (!day && !t.closest('.mgwrap')) return;
-  if (day && day.scrollTop > 0) return; // 日の欄は一番上にあるときだけ（送っている途中は普通のスクロール）
-  PULLC.c = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, day };
-});
-function stagePullMaybe(ev) {
-  const c = PULLC.c; if (!c || ev.pointerId !== c.id) return;
-  if (directCtl?.state === 'dragging' || GR.on || MR.mode === 'drag') { PULLC.c = null; return; } // 長押しが先に決まった（チップの移動）
-  const dx = ev.clientX - c.x, dy = ev.clientY - c.y, ax = Math.abs(dx), ay = Math.abs(dy);
-  if (ax > 6 && ay <= ax * 1.5) { PULLC.c = null; return; } // 横の払い（月送り）
-  if (!(ay > 6 && ay > ax * 1.5)) return;
-  PULLC.c = null;
-  if (c.day && (dy < 0 || !c.day.isConnected || c.day.scrollTop > 0)) return; // 日の欄を上へ送るのは中のスクロール（段は勝手に変えない。§6.3）
-  const sec = root.querySelector('.mpull.browse'); if (!sec) return;
-  directCtl?.cancel('pull'); swipeCtl.cancel();
-  cancelAnimationFrame(ST.raf); ST.raf = 0; ST.snapping = false;
-  ST.drag = { id: c.id, y0: c.y, yRef: c.y, moved: true, seen: true, H0: ST.H, n0: ST.n, pts: [], pull: true }; // 触れた位置から 1:1（つまみと同じ）
-  sec.classList.add('pulling'); // 引いている間はマスの押した地を出さない
-}
-function stagePullEnd(d) {
-  PULLC.c = null;
-  if (!d?.pull) return;
-  PULLC.sw = performance.now() + 400; // 引いたあとの click（マスの選択・カードを開く）は捨てる
-  root.querySelector('.mpull.browse')?.classList.remove('pulling');
-}
-window.addEventListener('pointerup', () => { PULLC.c = null; }, true);
-window.addEventListener('pointercancel', () => { PULLC.c = null; }, true);
-document.addEventListener('click', (ev) => { if (PULLC.sw && performance.now() < PULLC.sw) { PULLC.sw = 0; ev.stopPropagation(); ev.preventDefault(); } else PULLC.sw = 0; }, true);
-// iPhone: 日の欄は中がスクロールする。一番上から下へ引いたときは、スクロール（とゴムの伸び）を止めて指を段の引きへ渡す。格子は touch-action:none
-root.addEventListener('touchmove', (ev) => {
-  if (ST.drag?.pull) { if (ev.cancelable) ev.preventDefault(); return; }
-  const c = PULLC.c; if (!c?.day || ev.touches.length !== 1 || !ev.cancelable) return;
-  const t = ev.touches[0], dx = t.clientX - c.x, dy = t.clientY - c.y;
-  if (dy > 0 && dy > Math.abs(dx) * 1.5 && c.day.scrollTop <= 0) ev.preventDefault();
-}, { passive: false });
+function stageCancel() { const d = ST.drag; ST.drag = null; if (d?.moved) stageSnap(stgOfH(ST.H)); }
+// 第19.3版（征希さんの要望）: 段を変えられるのは つまみ（上）.mgrab だけ。M9（格子のどこでも縦に引く／日の欄を一番上から下へ引くと段が変わる。34 §3・§6.3）はやめた。
+// 格子・日の欄の縦の動きは画面（.mpull.browse[data-stage]）の1本のスクロール（touch-action:pan-y。iOS の慣性・端のはね返りもそのまま）。横の払い（月送り）・マスのタップ・チップの長押し移動（R-49）は今までどおり
 function stageKey(dir) { if (ST.land) return; const t = Math.min(7, Math.max(1, ST.n + dir)); if (t !== ST.n) stageSnap(t); }
 // 閉じた画面は画面全体を1本でスクロールする（design/33 §2）。月は縮めない。月が見出しの下へ流れ切ったら、見出しの右に今見ている日を出す（0.15秒）。
 // 開いた縦は日の部分だけがスクロールする（月は上の面に置いたまま）。
 function paintMpScroll(sec) {
-  const mph = sec?.querySelector('.mph'), fix = sec?.querySelector('.mpfix'), g = sec?.querySelector('.mgrid'); if (!mph || !fix || !g) return;
+  const mph = sec?.querySelector('.mph'), fix = sec?.querySelector('.mpfix'), g = sec?.querySelector('.mgwrap, .mgrid'); if (!mph || !fix || !g) return;
   mph.classList.toggle('scrd', g.getBoundingClientRect().bottom <= fix.getBoundingClientRect().bottom + 0.5);
 }
+// 第19.3版 閉じた縦の1本のスクロール: 送るたびに、見出しの右の日（格子が流れ切ったら出す）と、つまみ（下）の貼り付き（見えている高さで決める。S11h〜S11j の決まりのまま: 動いている間は遊び 4・フェード 0.15 秒、止まったら遊びなしで決め直す）を合わせる
+const SCR = { t: 0 };
+function stageScrolled(sec, settle = false) {
+  paintMpScroll(sec);
+  const md = sec.querySelector('.mday'); if (!md) return;
+  clearTimeout(SCR.t);
+  if (settle) { if (!ST.drag && !ST.snapping && !ST.raf) dayGripStick(md, true, true); return; }
+  dayGripStick(md, true);
+  SCR.t = setTimeout(() => { if (sec.isConnected) stageScrolled(sec, true); }, 140);
+}
+root.addEventListener('scrollend', (ev) => { const el = ev.target; if (el instanceof Element && el.matches('.mpull.browse[data-stage]')) stageScrolled(el, true); }, true);
 root.addEventListener('scroll', (ev) => {
   const el = ev.target;
   if (!(el instanceof Element)) return;
   if (el.classList.contains('allb')) { allSync(el); return; }
   if (el.classList.contains('mday')) { MP.scroll = el.scrollTop; const c0 = PULL_CFG.browse[state.monthForm]; if (el.scrollTop > 0) MP.cs = c0.rows * c0.h + 24 + el.scrollTop; }
+  else if (el.matches('.mpull.browse[data-stage]')) stageScrolled(el); // 閉じた縦: 位置は覚えない（開いた縦の MP.scroll にも触らない）
   else if (el.classList.contains('mpull') && pullKind() === 'browse') { const c0 = PULL_CFG.browse[state.monthForm]; MP.cs = el.scrollTop; MP.scroll = Math.max(0, el.scrollTop - (c0.rows * c0.h + 24)); paintMpScroll(el); }
 }, true);
 
@@ -3631,6 +3645,7 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'noteundo') { if (noteHist().undo) NB.ed?.undo(); }
   else if (d.act === 'noteredo') { if (noteHist().redo) NB.ed?.redo(); }
   else if (d.act === 'notelist') showNotePage();
+  else if (d.act === 'dayunfold') dayUnfold();
   else if (d.dg === 'list') { setDayMode(0); root.querySelector('.mpull.browse .mdgrab')?.focus({ preventScroll: true }); }
   else if (d.mday) { set({ monthDay: d.mday }); root.querySelector(`[data-mday="${d.mday}"]`)?.focus({ preventScroll: true }); }
   else if (d.event) openEditor(d.event, b);
@@ -6523,8 +6538,12 @@ function openNotifyTarget({ day, eventId }) {
     if (el.dataset.s) foldScrollTo(Math.max(0, (Number(el.dataset.s) * FOLD_HH) / 60 - FOLD_HH));
     els.forEach((b) => { b.classList.add('nhl'); setTimeout(() => b.classList.remove('nhl'), 1600); });
   } else if (el && paneB) { // 日の欄（.mday）が1本で送られる。貼り付いた見出し 44 の下に、その予定の少し上から見せる
-    const md = el.closest('.mday');
-    if (md && el.matches('.tlev')) md.scrollTop = Math.max(0, md.scrollTop + el.getBoundingClientRect().top - md.getBoundingClientRect().top - 44 - 40);
+    const md = el.closest('.mday'), sec = md?.closest('.mpull.browse[data-stage]');
+    if (sec && el.matches('.tlev')) { // 第19.3版 閉じた縦: 畳んだ所（最初の予定の1時間前より上）にあれば開き、画面に入っていなければ1本のスクロールで見出しの少し下へ
+      const tl = el.closest('.tl'); if (tl && Number(el.style.getPropertyValue('--m')) < (Number(tl.style.getPropertyValue('--foldm')) || 0)) dayUnfold();
+      const fb = sec.querySelector('.mpfix').getBoundingClientRect().bottom, r = el.getBoundingClientRect();
+      if (r.top < fb || r.bottom > sec.getBoundingClientRect().bottom - 85) sec.scrollTop = Math.max(0, sec.scrollTop + r.top - fb - 40);
+    } else if (md && el.matches('.tlev')) md.scrollTop = Math.max(0, md.scrollTop + el.getBoundingClientRect().top - md.getBoundingClientRect().top - 44 - 40);
     el.classList.add('nhl');
     setTimeout(() => el.classList.remove('nhl'), 1500);
   } else if (el) {
@@ -7042,11 +7061,12 @@ const edgeLoop = createFrameLoop((dt) => {
     const tl = o.sc; if (!GR.on || !tl?.isConnected) return;
     const rc = tl.getBoundingClientRect(); if (EG.x < rc.left || EG.x >= rc.right) { EG.carry = 0; return; }
     // 月タブの下の面: 上へ出たら（月の日へ向かう動き）は動かさない。下の端はタブの上まで（タブに隠れる所へ引いても進む）
-    const mdy = tl.classList.contains('mday'), bot = mdy ? Math.min(rc.bottom, cssPx('--tabs-y', rc.bottom)) : rc.bottom;
-    if (mdy && EG.y < rc.top) { EG.carry = 0; return; }
-    const v = edgeVelocity(EG.y, rc.top, bot); if (!v) { EG.carry = 0; return; }
+    const mdy = tl.classList.contains('mday'), one = mdy ? tl.closest('.mpull.browse[data-stage]') : null; // 第19.3版 閉じた縦: 日の欄は中でスクロールしない。動かすのは画面の1本（見えている日の欄＝貼り付いた見出しの下〜画面の下端 の上下 40）
+    const top = one ? Math.max(rc.top, one.querySelector('.mpfix').getBoundingClientRect().bottom) : rc.top, bot = one ? one.getBoundingClientRect().bottom : mdy ? Math.min(rc.bottom, cssPx('--tabs-y', rc.bottom)) : rc.bottom;
+    if (mdy && EG.y < top) { EG.carry = 0; return; }
+    const v = edgeVelocity(EG.y, top, bot); if (!v) { EG.carry = 0; return; }
     const d = v * dt + EG.carry, w = Math.trunc(d); EG.carry = d - w; if (!w) return;
-    const before = tl.scrollTop; tl.scrollTop = before + w; if (tl.scrollTop !== before) grabRecalc();
+    const scEl = one || tl, before = scEl.scrollTop; scEl.scrollTop = before + w; if (scEl.scrollTop !== before) grabRecalc();
     return;
   }
   if (!o || !(bm || (o.kind === 'time' && DF.mode === 'drag'))) return;
