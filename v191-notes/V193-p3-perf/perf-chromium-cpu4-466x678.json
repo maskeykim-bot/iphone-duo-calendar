@@ -1,0 +1,35 @@
+{
+ "event": {
+  "lift": 11,
+  "dropShown": 36,
+  "dropPainted": 47,
+  "undoShown": 31,
+  "undoPainted": 44,
+  "frameMax": 23,
+  "frameMean": 16,
+  "long": 1,
+  "moveMax": 0
+ },
+ "task": {
+  "lift": 13,
+  "dropShown": 40,
+  "dropPainted": 53,
+  "undoShown": 33,
+  "undoPainted": 46,
+  "frameMax": 18,
+  "frameMean": 16,
+  "long": 1,
+  "moveMax": 0
+ },
+ "note": {
+  "lift": 13,
+  "dropShown": 35,
+  "dropPainted": 47,
+  "undoShown": 25,
+  "undoPainted": 36,
+  "frameMax": 22,
+  "frameMean": 15.9,
+  "long": 2,
+  "moveMax": 0
+ }
+}
