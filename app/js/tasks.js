@@ -1,6 +1,7 @@
 // タスク（Duo 内保存）の型・検証・分類。DB には触れない（保存操作は db.js）。
 // Task = { id, title, due: {date:'YYYY-MM-DD', time?:'HH:mm'} | null, done, doneAt: Stamp|null, createdAt, updatedAt: ms, order, note, notify }
 import { isKey } from './util.js';
+import { validSource } from './note-tasks.js';
 
 export const TASK_NOTE_MAX = 10000;
 // 題名の保存上限（RS-20）。入力欄は 80 字のまま（LIMITS.title）。取り込みの長い題名を切らない。
@@ -37,6 +38,9 @@ export function validateTask(t) {
   const task = { id: t.id, title, due, done, doneAt: done ? doneAt : null, createdAt: t.createdAt, updatedAt: t.updatedAt, order: t.order, note, notify: due ? notify : false };
   // v19.3（征希さんの要望）: iOS リマインダーとの同期をやめた。昔のつながり（remItemId・remExternalId・remListId・remModifiedAt・syncState）は
   // ここで写さない（保存・バックアップの読み戻しのどちらでも復活しない）。任意の項目を足すときは、この下に「値があるときだけ写す」形で足す。
+  // v19.3 その2 F: ノートのチェック行とのつながり（任意の項目 source。無いタスクは今までの形のまま。形が合わなければ写さない＝つながりなし）
+  const source = validSource(t.source);
+  if (source) task.source = source;
   return { ok: true, task };
 }
 

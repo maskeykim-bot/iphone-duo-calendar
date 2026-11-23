@@ -2494,4 +2494,9 @@ body:has(> .nsheet:not([hidden])) .shell.closed.land.fb .cb.ctask .bdg{visibilit
 html.kbl[data-kbl=taskd] .ftask{display:block;position:static}
 html.kbl[data-kbl=taskd] .ftdn{position:fixed;left:0;right:0;top:var(--kl-ed-top);height:var(--kl-ed-h);z-index:5;box-sizing:border-box;padding-bottom:8px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:var(--paper)}
 html.kbl[data-kbl=taskd] .ftdn .rmadd,html.kbl[data-kbl=taskd] .ftdn .ftchips{display:none}
+/* ===== 第19.3版 その2 F（design/35 §8）: ノートの状態の行の知らせ「タスクに足しました（期限 11月12日）」。12/400 #68716A、0.15 秒で出し入れ、2 秒。シートの中でも出す（失敗の知らせは今までどおり） ===== */
+.ned-status.info{color:#68716A;font-weight:400;animation:morein .15s linear}
+.ned-status.info.out{opacity:0;transition:opacity .15s linear}
+.nsheet .ned-status.info{display:flex;position:absolute;left:20px;right:20px;bottom:8px;z-index:3;height:28px;padding:0 12px;box-sizing:border-box;align-items:center;border-radius:14px;background:#EFECE4;pointer-events:none}
+@media (prefers-reduced-motion:reduce){.ned-status.info{animation:none}}
 

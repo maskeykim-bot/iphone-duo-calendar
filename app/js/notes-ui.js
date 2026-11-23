@@ -379,10 +379,20 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
     else if (e?.failed && store.dirty(cur)) t = `${SAVE_FAILED}下書きは端末に残っています。`;
     else if (e?.draftFailed) t = DRAFT_FAILED;
     else if (others) t = `保存できていないノートが ${others} 件あります。下書きは端末に残っています。`;
-    status.hidden = !t; msg.textContent = t; retry.hidden = !t;
+    const info = !t && flashText ? flashText : ''; // 知らせ（「タスクに足しました」など）は、失敗の知らせが無いときだけ
+    status.hidden = !t && !info; msg.textContent = t || info; retry.hidden = !t; status.classList.toggle('info', !!info);
     root.dataset.state = !e ? 'idle' : t ? 'error' : store.dirty(cur) ? 'dirty' : 'saved';
   }
   const repaintLater = () => { if (!destroyed) paintStatus(); };
+  // v19.3 その2 F（design/35 §8）: 状態の行に短い知らせを ms の間だけ出す（12/400 #68716A。0.15 秒で出し入れ）
+  let flashText = '', flashT = 0;
+  function flash(text, ms = 2000) {
+    clearTimeout(flashT); flashText = String(text || ''); if (destroyed) return;
+    paintStatus();
+    flashT = setTimeout(() => { status.classList.add('out'); flashT = setTimeout(() => { flashText = ''; status.classList.remove('out'); if (!destroyed) paintStatus(); }, 150); }, ms);
+  }
+  // 開いているノートの本文を外から差し替える（タスクの完了に合わせてチェックを入れ替える）。キャレットは近い位置のまま、戻すに乗り、保存へ流す
+  function replaceBody(text) { const n = String(text ?? '').length; return applyEdit({ text: String(text ?? ''), selStart: Math.min(body.selectionStart, n), selEnd: Math.min(body.selectionEnd, n) }, true, document.activeElement !== body); }
 
   async function open(id) {
     if (cur && cur !== id) await leave();
@@ -554,5 +564,5 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
     window.removeEventListener('pagehide', onHide); document.removeEventListener('visibilitychange', onVis);
     root.remove();
   }
-  return { el: root, titleEl: title, bodyEl: body, fmtEl: fmt, topEl: top, doneEl: doneBtn, fsheetEl: fsheet, undo: doUndo, redo: doRedo, finish, closeFs, get fsOpen() { return fsOpen; }, history: () => ({ undo: undoSt.length, redo: redoSt.length }), gutterEl: gutter, open, create, leave, flushNow, sync, destroy, repaint: repaintLater, renderTrash, get id() { return cur; } };
+  return { el: root, titleEl: title, bodyEl: body, fmtEl: fmt, topEl: top, doneEl: doneBtn, fsheetEl: fsheet, undo: doUndo, redo: doRedo, finish, closeFs, flash, replaceBody, get fsOpen() { return fsOpen; }, history: () => ({ undo: undoSt.length, redo: redoSt.length }), gutterEl: gutter, open, create, leave, flushNow, sync, destroy, repaint: repaintLater, renderTrash, get id() { return cur; } };
 }

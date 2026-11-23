@@ -21,10 +21,11 @@ import { splitEvents, eveningFirst, homeTasks, dueText, tomorrowSummary, axisBar
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS, FOCUS_MODES, FOCUS_LABELS, normFocusMode, normSpreadType, normTtSplit } from './pages.js';
 import { noteStore, setNoteHook, recoverNoteDrafts, importLegacyMemoDrafts, folderOps, groupNotes, filterByFolder, FOLDER_NAME_MAX } from './notes.js';
 import { mountNoteEditor } from './notes-ui.js';
-import { richLines, viewOf, levelOfPre } from './note-lines.js';
+import { richLines, viewOf, levelOfPre, toggleCheck } from './note-lines.js';
+import { isNoteTask, planNoteSync, lineOfSource, baselineOf, tasksFollowingNote } from './note-tasks.js';
 import { titleOf, displayLine, displayText, noteDateOf, dateOccupants, dailyHeading, ensureDailyFolder } from './notes-model.js';
 import { DELETE_UNDO_MS, tasksHtml, focusTasksHtml, HIST_DAYS, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDeleteController, TASK_DELETED } from './reminders.js';
-import { liveTasks as liveTasksOf, dropOldLinks, LOCAL_LIST, TASK_STORE_TEXT, createTaskStore, createLocalCall, createLocalAddController, rowOf, createTaskDoneController, DONE_UNDO_MS, TASK_VIEWS, TASK_VIEW_LABELS, normTaskView, dueCounts, todayTasks, inheritTaskSettings, normTaskSettings } from './tasks.js';
+import { liveTasks as liveTasksOf, isTombstone as isTaskTombstone, TASK_TITLE_MAX, dropOldLinks, LOCAL_LIST, TASK_STORE_TEXT, createTaskStore, createLocalCall, createLocalAddController, rowOf, createTaskDoneController, DONE_UNDO_MS, TASK_VIEWS, TASK_VIEW_LABELS, normTaskView, dueCounts, todayTasks, inheritTaskSettings, normTaskSettings } from './tasks.js';
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
 import { call, hideKeyboardAccessoryBar, errCode, errReason, errText, haptic, listen, nativeAvailable } from './native.js';
 import { createDestPage, destRowsHtml } from './destination-ui.js';
@@ -2252,7 +2253,7 @@ function paintNoteHist() {
 function noteEditor() {
   if (!NB.ed) NB.ed = mountNoteEditor(document.createElement('div'), {
     store: noteStore,
-    onOpen: (id) => { db.setLastNote(id).catch(() => {}); },
+    onOpen: (id) => { db.setLastNote(id).catch(() => {}); noteTaskOpen(id); },
     onTrashChange: (id) => { if (id === NB.cur) { NB.cur = null; db.setLastNote(null).catch(() => {}); } invalidateNoteList(); render(); },
     onDone: () => { if (NB.sheet) closeNoteSheet(); else noteBack(); },
     onHistory: () => paintNoteHist(),
@@ -2537,12 +2538,12 @@ async function noteDateAct(d) {
     if (d.ndday) {
       const others = dateOccupants(await db.listNotes(), d.ndday, id);
       if (others.length) { NB.dp = { ym: NB.dp?.ym || '', confirm: { date: d.ndday, ids: others.map((n) => n.id) } }; return paintNoteMeta(); }
-      await noteStore.setMeta(id, { date: d.ndday }); NB.dp = null; say(`${dayLabel(d.ndday)}を付けました。`); return refresh();
+      await setNoteDate(id, d.ndday); NB.dp = null; say(`${dayLabel(d.ndday)}を付けました。`); return refresh();
     }
     const c = NB.dp?.confirm; if (!c) return;
     if (d.act === 'ndswap') {
       for (const oid of c.ids) await noteStore.setMeta(oid, { date: null }); // 相手の本体は消さない。日付だけ外す
-      await noteStore.setMeta(id, { date: c.date }); NB.dp = null; say(`${dayLabel(c.date)}を付け替えました。`); return refresh();
+      await setNoteDate(id, c.date); NB.dp = null; say(`${dayLabel(c.date)}を付け替えました。`); return refresh();
     }
     if (d.act === 'ndopen') {
       NB.dp = null;
@@ -2729,7 +2730,76 @@ function monthTaskCounts(kind) {
 // 保存されている同期の設定値（duo-rem-sync…）は消さない。書かない。「やめた知らせを出すか」の判定に読むだけ。
 const SYNC_KEY = `duo-rem-sync${suffix}`;
 const REM_END_KEY = `duo-rem-ended${suffix}`; // 'due'＝つながり／墓標があった（知らせを出す）、'shown'＝知らせを出した（もう出さない）。バックアップには入れない
-const taskStore = createTaskStore(db);
+const taskStore0 = createTaskStore(db);
+// ---------- v19.3 その2 F（征希さん「ノートにチェックボックスでタスクリストに追加する（ノートの日付けが期限）」）: ノートのチェック行 ⇄ タスク ----------
+// つながりはタスクの任意の項目 source（js/note-tasks.js。IndexedDB・バックアップは版 6 のまま。ノートの本文には何も足さない）。
+// ノート → タスク: ノートが保存されるたびに突き合わせる（noteTaskSync）。新しく作るのは、編集の画面で開いてから足した・直したチェック行だけ（NTK.base＝開いたときのチェック行の控え。
+//   起動時に全ノートを走査しない。保存済みの行（IME のごみの行を含む）はタスクにしない）。日付のないノートでは作らない。行を消す・普通の行に戻すと、タスクは消さずつながりだけ外す。
+// タスク → ノート: つながったタスクの完了が変わったら、ノートの行の「- [ ] 」「- [x] 」を入れ替える（noteLineFollow）。
+const NTK = { base: new Map(), flashed: new Set(), chain: Promise.resolve() };
+const taskStore = { ...taskStore0, async setDone(id, done, now) { const t = await taskStore0.setDone(id, done, now); noteLineFollow(t); return t; } };
+function noteTaskOpen(id) { // 編集の画面でノートを開いた: いまのチェック行を控える（ここから足した・直した行だけがタスクになる）
+  NTK.flashed.delete(id);
+  Promise.resolve(noteStore.loadNote(id)).then(() => { NTK.base.set(id, baselineOf(noteStore.get(id)?.text ?? '')); }).catch(() => {});
+}
+function noteTaskSync(id) {
+  NTK.chain = NTK.chain.then(async () => {
+    const e = noteStore.get(id); if (!e || !e.loaded || noteStore.dirty(id) || e.failed) return;
+    const base = NTK.base.get(id) ?? null;
+    const links = (await db.listTasks()).filter((t) => !isTaskTombstone(t) && isNoteTask(t, id));
+    if (!links.length && !base) return; // つながりも編集もないノート: 何もしない
+    const n = await db.getNote(id), meta = n && n.deletedAt == null ? await noteStore.getMeta(id) : null;
+    const plan = planNoteSync({ noteId: id, body: e.text, date: meta?.date ?? null, links, baseline: base });
+    let made = 0, changed = false; const now = Date.now();
+    for (const c of plan.create) {
+      const t = await db.addTask({ title: c.title.slice(0, TASK_TITLE_MAX), due: c.due, source: c.source }, now);
+      if (c.done) await taskStore0.setDone(t.id, true, now);
+      made++; changed = true;
+    }
+    for (const u of plan.update) {
+      const cur = await db.getTask(u.id); if (!cur || isTaskTombstone(cur)) continue;
+      if (u.patch.title != null || u.patch.source) await db.putTask({ ...cur, ...(u.patch.title != null ? { title: u.patch.title.slice(0, TASK_TITLE_MAX), updatedAt: now } : {}), ...(u.patch.source ? { source: u.patch.source } : {}) });
+      if ('done' in u.patch) await taskStore0.setDone(u.id, u.patch.done, now);
+      if (u.patch.title != null || 'done' in u.patch) changed = true;
+    }
+    for (const tid of plan.unlink) { const cur = await db.getTask(tid); if (!cur) continue; const { source: _s, ...rest } = cur; await db.putTask(rest); changed = true; } // タスクは消さない。つながりだけ外す
+    if (base) NTK.base.set(id, plan.baseline);
+    if (changed) { RM.mut++; RM.sig = ''; loadTasks(); scheduleTasks(); }
+    if (made && !NTK.flashed.has(id) && NB.ed?.id === id && meta?.date) { // design/35 §8: 1 回のシートで最初の 1 件だけ
+      NTK.flashed.add(id); const d = parseKey(meta.date), m = `タスクに足しました（期限 ${d.getMonth() + 1}月${d.getDate()}日）`;
+      NB.ed.flash(m); say(m);
+    }
+  }).catch(() => {});
+  return NTK.chain;
+}
+function noteLineFollow(t) {
+  if (!isNoteTask(t)) return;
+  NTK.chain = NTK.chain.then(async () => {
+    const id = t.source.noteId;
+    if (NB.ed?.id === id) NB.ed.sync?.();
+    await noteStore.flushNote(id); // 未保存の編集を先に書く
+    const n = await db.getNote(id); if (!n || n.deletedAt != null) return;
+    await noteStore.loadNote(id);
+    const body = noteStore.get(id)?.text ?? n.body ?? '';
+    const l = lineOfSource(body, t.source); if (!l || l.checked === !!t.done) return;
+    const r = toggleCheck(body, l.index); if (!r) return;
+    if (NB.ed?.id === id) NB.ed.replaceBody(r.text); else noteStore.setText(id, r.text); // 開いているノートは編集の画面ごと直す（戻すにも乗る）
+    await noteStore.flushNote(id); // 保存のあとの noteTaskSync が、行が動いた分のつながり（順）を直す
+  }).catch(() => {});
+}
+noteStore.subscribe((id) => { const e = noteStore.get(id); if (e && e.loaded && !noteStore.dirty(id) && !e.failed) noteTaskSync(id); });
+// ノートの日付を変える（付ける・付け替える）。design/35 §8・決定 7: 期限がまだノートの元の日付と同じ、つながったタスクだけ一緒に動かす（時刻はそのまま）。戻り値 { ok, moved:[{ id, due, prev }] }（その3 の「元に戻す」で使う）
+async function setNoteDate(id, date) {
+  const from = (await noteStore.getMeta(id))?.date ?? null;
+  const ok = await noteStore.setMeta(id, { date });
+  const moved = [];
+  if (ok && date && from && from !== date) {
+    const now = Date.now();
+    for (const m of tasksFollowingNote((await db.listTasks()).filter((t) => !isTaskTombstone(t)), id, from, date)) { const cur = await db.getTask(m.id); if (!cur) continue; await db.putTask({ ...cur, due: m.due, updatedAt: now }); moved.push(m); }
+    if (moved.length) { RM.mut++; RM.sig = ''; loadTasks(); scheduleTasks(); }
+  }
+  return { ok, moved };
+}
 const localCall = createLocalCall(taskStore); // 完了・削除・編集の controller の口（Duo 内保存へ）
 const addCtl = createLocalAddController(taskStore);
 // 完了の丸: 押すと表示だけ即変え、1.5秒後に最後の状態を1回保存して完了段へ移す。6秒は「元に戻す」。失敗は表示を戻して理由を出す。

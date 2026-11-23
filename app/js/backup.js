@@ -74,7 +74,7 @@ const exportMemo = (m) => {
 };
 const taskCmp = (a, b) => a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 // v19.3: リマインダーとのつながり（rem*・syncState）は書き出さない・読み戻さない（validateTask が写さない）。墓標は出さない。
-const exportTask = (t) => { const r = validateTask(t); const x = r.ok ? r.task : t; return { id: x.id, title: x.title, due: x.due ? { ...x.due } : null, done: x.done, doneAt: x.doneAt, createdAt: x.createdAt, updatedAt: x.updatedAt, order: x.order, note: x.note, notify: x.notify }; };
+const exportTask = (t) => { const r = validateTask(t); const x = r.ok ? r.task : t; return { id: x.id, title: x.title, due: x.due ? { ...x.due } : null, done: x.done, doneAt: x.doneAt, createdAt: x.createdAt, updatedAt: x.updatedAt, order: x.order, note: x.note, notify: x.notify, ...(x.source ? { source: { ...x.source } } : {}) }; }; // v19.3 その2 F: ノートのチェック行とのつながり（任意の項目。あるときだけ書く。版は 6 のまま）
 // ノート有効時用の書出。notes: 現在のノート一覧（db.listNotes({includeDeleted:true})）、folders: db.listFolders()。
 // notes が配列のとき（ノート有効）は tasks+notes+folders を出し memos は出さない。null（既定）なら従来どおり memos+tasks。
 const exportNote = (n) => {
