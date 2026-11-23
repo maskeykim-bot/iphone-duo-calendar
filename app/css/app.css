@@ -2501,3 +2501,42 @@ body:has(> .nsheet:not([hidden])) .shell.closed.land.fb .cb.ctask .bdg{visibilit
 /* §18-2: 帯がない画面は、つまみの箱を貼り付きにかかわらず 56 にする（縦 y581〜637、横 y369〜425。上の余白 30、線は y611〜615・横 y399〜403 のまま）。押せる所も 56（§17-2 の「上に足した 12 は何もしない」はやめた）。
    貼り付きが外れる境で面の上端（581）が動かないので、カードの 12 が跳んで出ない。送り切り: カード → つまみ 56 → ノート ›。帯ありは 44 のまま */
 .shell.closed.fb .mpull.browse .mday .mdgrab{height:56px;min-height:56px;padding-top:30px}
+
+/* ===== 第19.3版（征希さんの要望: 閉じた画面。段はつまみ（上）だけ・月ごとスクロール） ===== */
+/* 閉じた縦（data-stage がある形）は .mpull が1本の縦スクロール。上に残るのは見出し 44＋曜日 20（.mpfix）だけで、格子・つまみ（上）・日の欄はひと続きで流れる。閉じた横（.land）・開いた縦は今までどおり */
+.shell.closed .mpull.browse[data-stage]{overflow-x:hidden;overflow-y:auto;overflow-anchor:none;scrollbar-width:none;touch-action:pan-y;-webkit-overflow-scrolling:touch}
+.shell.closed .mpull.browse[data-stage]::-webkit-scrollbar{display:none}
+/* 見出しと曜日は貼り付け、地色で下を流れる格子を隠す。地は #app と同じ光（左上からの白 50%→60% で透明。#app の箱＝画面いっぱい）を、同じ位置・同じ大きさで描く（background-attachment:fixed に頼らない） */
+.shell.closed .mpull.browse[data-stage] .mpfix{position:sticky;top:0;background:radial-gradient(ellipse 141.4214vw 141.4214vh at calc(-8px - var(--sal,0px)) calc(0px - var(--sat,0px)),#ffffff80,transparent 60%),var(--paper)}
+@supports (height:1dvh){.shell.closed .mpull.browse[data-stage] .mpfix{background:radial-gradient(ellipse 141.4214vw 141.4214dvh at calc(-8px - var(--sal,0px)) calc(0px - var(--sat,0px)),#ffffff80,transparent 60%),var(--paper)}}
+/* 段を引けるのは つまみ（上）だけ（M9 をやめた）。格子の縦の動きは画面のスクロール、横の払いは JS の月送り */
+.shell.closed .mpull.browse[data-stage] .mgwrap,.shell.closed .mpull.browse[data-stage] .mgwrap *{touch-action:pan-y}
+/* 日の欄: .mday は「スクロール 0 で見えている所」の箱（高さ＝画面−88−H。今までと同じ）。中身（.mdin）は箱の下へあふれて画面のスクロールに続く（入れ子の縦スクロールは作らない）。
+   .mdin の最小の高さ＝箱＋H＝画面−88（見出し 64＋つまみ 24）: どの日・どの段でも格子を見出しの下まで流し切れる。下の余白は 帯あり 41・帯なし 105（最後のノートがホームバーの帯・右下の＋に隠れない） */
+.shell.closed .mpull.browse[data-stage] .mday,.shell.closed.fb:not(.land) .mpull.browse[data-stage="1"] .mday{overflow:visible;padding:0;overscroll-behavior:auto}
+.shell.closed .mpull.browse[data-stage] .mdin{box-sizing:border-box;min-height:calc(100% + var(--H));padding:0 4px 41px;background:#EFECE4}
+.shell.closed.fb .mpull.browse[data-stage] .mdin{padding-bottom:105px}
+.shell.closed.land .mpull.browse .mdin{display:contents}
+/* 日の見出しは貼り付けない（上に残るのは年月と曜日だけ。格子が流れ切ったら年月の右に選んだ日を出す） */
+.shell.closed .mpull.browse[data-stage] .mday .mdh,.shell.closed .mpull.browse[data-stage] .mday[data-dg] .mdh{position:relative;top:auto;z-index:auto}
+/* つまみ（下）の貼り付き: 画面の下端から 41 上（y593〜637。帯なしは箱 56 で y581〜637）。決まり（T・遊び 4・0.15 秒 linear・埋めた面）は S11f〜S11j のまま、見えている高さで決める */
+.shell.closed .mpull.browse[data-stage] .mday.gs .mdgrab,.shell.closed.fb:not(.land) .mpull.browse[data-stage] .mday.gs .mdgrab{bottom:calc(41px + var(--gsb,0px))}
+/* 見出しの右の「12日（木）」: 格子が見出しの下へ流れ切ったら 0.15 秒で出す（design/33 §2。13/400 #68716A）。「今日へ」があるときはその左 */
+.shell.closed .mpull.browse .mph .mpdate{display:block;position:absolute;top:0;right:4px;margin:0;font:400 13px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#68716A;white-space:nowrap;opacity:0;transition:opacity .15s linear;pointer-events:none}
+.shell.closed .mpull.browse .mph.scrd .mpdate{opacity:1}
+.shell.closed .mpull.browse .mph:has(.mptoday:not([hidden])) .mpdate{right:52px}
+.shell.closed.fb .mpull.browse .mph .mpdate{right:96px}
+.shell.closed.fb .mpull.browse .mph:has(.mptoday:not([hidden])) .mpdate{right:140px}
+.shell.closed.fb .mpull.browse .mph:has(.mptoday:not([hidden])) .mpdate .mpdw{display:none}
+@media (prefers-reduced-motion:reduce){.shell.closed .mpull.browse .mph .mpdate{transition:none}}
+/* 時間軸 B・C: 開いたときは最初の予定の1時間前より上（終日の行 --foldad と、時間軸の --foldm 分）を畳む（v19.2 の開いた位置と同じ並び）。畳んだ分は「前の時間」で開く。日の欄の中はスクロールしない */
+.shell.closed .mpull.browse[data-stage] .mday .mdbody.folded{display:flow-root;overflow-x:visible;overflow-y:clip;clip-path:inset(0 -400px -4000px -400px)}
+.shell.closed .mpull.browse[data-stage] .mday .mdbody.folded > .allday{margin-top:calc(var(--foldad,0px) * -1)}
+.shell.closed .mpull.browse[data-stage] .mday .mdbody.folded .tl{display:flow-root}
+.shell.closed .mpull.browse[data-stage] .mday .mdbody.folded .tlin{margin-top:calc(var(--foldm,0) * var(--hh) / -60)}
+.mpull.browse .mdfold{position:relative;z-index:3;flex:none;height:0}
+.mpull.browse .mdfold button{position:absolute;right:0;top:0;height:44px;min-height:44px;min-width:44px;padding:0 8px;border-radius:0;background:none;font:400 11px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#294E42;white-space:nowrap}
+.shell.closed.fb .mpull.browse .mdfold button{right:56px}
+/* v19.3: 貼り付けた見出し＋曜日（.mpfix）は、流れてくる格子の中の z-index を持つ部品（＋・選んだ日の枠など）より上に描く。格子は自分の中で重なりを閉じる（isolation）。曜日の行の下から日付が透けないように */
+.shell.closed .mpull.browse[data-stage] .mpfix{z-index:6}
+.shell.closed .mpull.browse[data-stage] .mgwrap{isolation:isolate}

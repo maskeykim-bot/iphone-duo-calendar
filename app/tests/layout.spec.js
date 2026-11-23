@@ -60,7 +60,7 @@ test.describe('レイアウト（4サイズ）', () => {
     await tab(page, '月').click();
     await setStyle(page, '予定名');
     await expect(page.locator('.calendar .legend')).toHaveCount(0);
-    const sc = page.locator('.mday'); // design/34 §6.3: 閉じた画面は日の欄の中だけが流れる（下の余白 41。タブがなくなるまでは、タブの帯にも重ならない範囲で見る）
+    const sc = page.locator('.mpull.browse'); // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 閉じた縦は日の欄の中ではなく画面（.mpull.browse）が1本で流れる（前: .mday を送る → 後: .mpull.browse を送る）。送り切ると末尾（ノート）が下の端に隠れず出るのは同じ
     await sc.evaluate((el) => { el.scrollTop = el.scrollHeight; });
     const last = await box(page.locator('.mdnote'));
     expect(last.y + last.height).toBeLessThanOrEqual(678 - 41 + 0.5);

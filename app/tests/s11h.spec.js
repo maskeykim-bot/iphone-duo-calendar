@@ -131,9 +131,10 @@ for (const sar of [84, 0]) {
         expect(s.gs).toBe(true); expect(s.stuck).toBe(true); expect(s.op).toBe(1); expect(s.anims).toBe(0); expect(s.ov).toBe(0);
         expect(s.ft).toBeCloseTo(faceTop, 0); expect(s.gt).toBeCloseTo(faceTop, 0); expect(s.gb).toBeCloseTo(637, 0); expect(s.line[0]).toBeCloseTo(611, 0); expect(s.line[1]).toBeCloseTo(615, 0);
       }
-      await page.evaluate(() => { const m = document.querySelector('.mday'); m.scrollTop = m.scrollHeight; }); await page.waitForTimeout(60);
+      // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 閉じた縦で送るのは日の欄の中ではなく画面（.mpull.browse）の1本。前→後: .mday.scrollTop → 画面の scrollTop（見ること＝送り切りで外れ・戻すと貼る・フェードなし は同じ）
+      await page.evaluate(() => { const m = document.querySelector('.mpull.browse[data-stage]') || document.querySelector('.mday'); m.scrollTop = m.scrollHeight; }); await page.waitForTimeout(60);
       let s = await snap(page); expect(s.stuck).toBe(false); expect(s.gs).toBe(true); expect(s.op).toBe(1); expect(s.anims).toBe(0);
-      await page.evaluate(() => { document.querySelector('.mday').scrollTop = 0; }); await page.waitForTimeout(60);
+      await page.evaluate(() => { (document.querySelector('.mpull.browse[data-stage]') || document.querySelector('.mday')).scrollTop = 0; }); await page.waitForTimeout(60);
       s = await snap(page); expect(s.stuck).toBe(true); expect(s.op).toBe(1); expect(s.anims).toBe(0);
     });
     test('動きを減らす設定: フェードなしで切り替わる。重ならない', async ({ page }) => {
@@ -165,9 +166,10 @@ test.describe('S11h §18-1 閉じた横: 段を使わないので、いつも貼
 test.describe('S11h §18-2 帯なし: つまみ（下）の箱はいつも 56', () => {
   // 1pt ずつ送る。cut＝カードが切れて見える高さ（貼り付いている間は面の上端、外れたら最後のカードの下端）。送り 1pt で 1pt より大きく動かなければ、跳びはない
   const scan = async (page) => {
-    const max = await page.evaluate(() => { const m = document.querySelector('.mday'); return m.scrollHeight - m.clientHeight; });
+    // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 閉じた縦で送るのは日の欄の中ではなく画面（.mpull.browse）の1本（閉じた横は今までどおり .mday）。1pt ずつ送って跳びがないことを見るのは同じ
+    const max = await page.evaluate(() => { const m = document.querySelector('.mpull.browse[data-stage]') || document.querySelector('.mday'); return m.scrollHeight - m.clientHeight; });
     const out = [];
-    for (let t = 0; t <= max; t++) out.push(await page.evaluate(([t, src]) => { const m = document.querySelector('.mday'); m.scrollTop = t; m.dispatchEvent(new Event('scroll')); return new Function(`return (${src})()`)(); }, [t, SNAP.toString()]));
+    for (let t = 0; t <= max; t++) out.push(await page.evaluate(([t, src]) => { const m = document.querySelector('.mpull.browse[data-stage]') || document.querySelector('.mday'); m.scrollTop = t; m.dispatchEvent(new Event('scroll')); return new Function(`return (${src})()`)(); }, [t, SNAP.toString()]));
     return out;
   };
   for (const land of [false, true]) {
@@ -190,7 +192,7 @@ test.describe('S11h §18-2 帯なし: つまみ（下）の箱はいつも 56', 
       expect(seq.h).toBeCloseTo(56, 1); expect(e.gt - e.cb).toBeCloseTo(0, 1); // カード → つまみ 56 → ノート ›
       expect(Math.abs(seq.gap)).toBeLessThanOrEqual(0.5);
       // 押せる所も 56: 上の 12（面の上端のすぐ下）から下へ引くと時間軸
-      await page.evaluate(() => { const m = document.querySelector('.mday'); m.scrollTop = 0; m.dispatchEvent(new Event('scroll')); }); await page.waitForTimeout(100);
+      await page.evaluate(() => { const m = document.querySelector('.mpull.browse[data-stage]') || document.querySelector('.mday'); m.scrollTop = 0; m.dispatchEvent(new Event('scroll')); }); await page.waitForTimeout(100);
       const gx = land ? 488 : 200;
       await page.mouse.move(gx, top + 5); await page.mouse.down(); await page.mouse.move(gx, top + 45, { steps: 8 }); await page.mouse.up(); await page.waitForTimeout(600);
       await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B');
@@ -199,9 +201,9 @@ test.describe('S11h §18-2 帯なし: つまみ（下）の箱はいつも 56', 
   test('帯あり: 今までどおり 44（縦 y593〜637、横 y381〜425）。最後のカードとつまみの間は 0 のまま', async ({ page }) => {
     await boot(page, { sar: 84 }); await toStage(page, 4); await page.waitForTimeout(250);
     let s = await snap(page); expect(s.ft).toBeCloseTo(593, 0); expect(s.gb).toBeCloseTo(637, 0); expect(s.line).toEqual([611, 615]);
-    await page.evaluate(() => { const m = document.querySelector('.mday'); m.scrollTop = m.scrollHeight; }); await page.waitForTimeout(100);
+    await page.evaluate(() => { const m = document.querySelector('.mpull.browse[data-stage]') || document.querySelector('.mday'); /* v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 送るのは画面の1本 */ m.scrollTop = m.scrollHeight; }); await page.waitForTimeout(100);
     s = await snap(page); expect(s.stuck).toBe(false); expect(s.gt - s.cb).toBeCloseTo(0, 1);
-    await page.evaluate(() => { document.querySelector('.mday').scrollTop = 0; });
+    await page.evaluate(() => { (document.querySelector('.mpull.browse[data-stage]') || document.querySelector('.mday')).scrollTop = 0; });
     await page.setViewportSize({ width: 678, height: 466 }); await page.waitForTimeout(600);
     s = await snap(page); expect(s.ft).toBeCloseTo(381, 0); expect(s.gb).toBeCloseTo(425, 0);
   });

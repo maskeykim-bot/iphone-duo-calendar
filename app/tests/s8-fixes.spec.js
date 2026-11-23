@@ -96,16 +96,18 @@ test.describe('N-02 閉じた日・週の送り切り：24:00 の線がバーの
         // N-02 の趣旨（最後の時間がバーに隠れず、23:00 の予定が見えて押せる）を、この形で見る: 23:00 の予定と 24:00 の線を、貼り付いたつまみ（y593〜637）の上まで送れる。送り切ったとき、最後の中身はバー（y645）の 8 上
         const md = page.locator('.mpull.browse .mday'); await expect(md).toHaveAttribute('data-dg', 'B');
         const hh = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.mday .tl')).getPropertyValue('--hh')));
-        await page.locator('.mday .tlev', { hasText: '深夜の指標' }).evaluate((e, hh) => { const md = e.closest('.mday'); md.scrollTop += e.getBoundingClientRect().top + hh - 580; }, hh); await page.waitForTimeout(300);
+        // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 閉じた縦は日の欄の中ではなく画面（.mpull.browse）の1本を送る（前: .mday.scrollTop → 後: .mpull.browse.scrollTop。最後の中身は .mdin の子で見る）。見ること（24:00 の線・23:00 の予定・送り切りの下端）は同じ
+        await page.locator('.mday .tlev', { hasText: '深夜の指標' }).evaluate((e, hh) => { const md = e.closest('.mpull.browse'); md.scrollTop += e.getBoundingClientRect().top + hh - 580; }, hh); await page.waitForTimeout(300);
         const e = await boxOf(page.locator('.mday .tlev', { hasText: '深夜の指標' })), g = await boxOf(page.locator('.mday .mdgrab'));
-        near(e.y + hh, 580, 1.5, `24:00 の線 ${e.y + hh}`);
+        // v19.3: 開いたときは最初の予定（23:00）の1時間前から始まる（畳む）ので、24:00 の線は送らなくても見えている（y318。前は日の欄の中を送って y580 に合わせた）。580 より下（つまみの裏）にないことを見る
+        expect(e.y + hh, `24:00 の線 ${e.y + hh} は 580 以下`).toBeLessThanOrEqual(580 + 1.5); expect(e.y, '23:00 の予定は年月と曜日（y64）より下').toBeGreaterThanOrEqual(64);
         expect(e.y + hh, '24:00 の線がつまみ（下）の上').toBeLessThanOrEqual(g.y);
         expect(g.b, 'つまみ（下）はバー上端 645 の 8 上まで').toBeLessThanOrEqual(645 - 8 + 0.5);
         const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('.tlev')?.textContent ?? null, [e.x + e.w / 2, e.y + e.h / 2]);
         expect(hit, '予定の中心を押すとその予定に当たる').toContain('深夜の指標');
-        await md.evaluate((m) => { m.scrollTop = m.scrollHeight; }); await page.waitForTimeout(300);
-        const last = await page.evaluate(() => Math.max(...[...document.querySelectorAll('.mday > *')].map((x) => x.getBoundingClientRect().bottom)));
-        near(last, 645 - 8, 1, `送り切ったときの最後の中身の下端 ${last}`);
+        await md.evaluate((m) => { const s = m.closest('.mpull.browse'); s.scrollTop = s.scrollHeight; }); await page.waitForTimeout(300);
+        const last = await page.evaluate(() => Math.max(...[...document.querySelectorAll('.mday > .mdin > *')].map((x) => x.getBoundingClientRect().bottom)));
+        expect(last, `送り切ったときの最後の中身の下端 ${last} はバー上端 645 の 8 上まで`).toBeLessThanOrEqual(645 - 8 + 1); // v19.3: 23:00 からだけ見せる日は中身が短く、日の欄の最小の高さ（格子を流し切るための 画面−88）の中で上に寄る（前は ≈637）。バーに隠れないことを見る
         return;
       }
       const tl = page.locator('.tl[data-pane=closed]').first();

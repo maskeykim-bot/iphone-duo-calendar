@@ -1,7 +1,7 @@
 // 第13版 PR4: iPhone の予定（ext）の編集・削除の画面。window.Capacitor を偽装して JS 側の動きを検査する。
 // 偽装は Swift の実動作の証明ではない（契約は design/IMPL_PLAN_V13.md PR1〜PR3）。
 import { test, expect } from '@playwright/test';
-import { openApp, tab, dbEvents, pickDest, enableCalendars, fillDateTime } from './helpers.js';
+import { openApp, tab, dbEvents, pickDest, enableCalendars, fillDateTime, dayUnfold } from './helpers.js';
 
 const CALS = [
   { id: 'cal-1', title: '家族', color: '#d93025', sourceId: 's-g', source: 'Google', sourceType: 'caldav', allowsModify: true, isDefault: true },
@@ -74,7 +74,8 @@ async function setup(page, cfg) {
   await enableCalendars(page);
   await tab(page, '日').click();
 }
-const pop = (page, name) => page.locator('.mdcard.ext, .mdallday.ext, .tlev.ext, .adpill.ext', { hasText: name }).first().click(); // 終日は終日段のピル
+// v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 閉じた縦の時間軸では終日の行は畳んである（前は日の欄の中を送った先）。終日のピルを押す前に「前の時間」で開く（helpers.dayUnfold）
+const pop = async (page, name) => { const l = page.locator('.mdcard.ext, .mdallday.ext, .tlev.ext, .adpill.ext', { hasText: name }).first(); if (await l.evaluate((e) => !!e.closest('.mpull.browse[data-stage] .mdbody.folded > .allday')).catch(() => false)) await dayUnfold(page); await l.click(); }; // 終日は終日段のピル
 const XD = (page) => page.locator('#xdetail');
 async function edit(page, name) {
   await pop(page, name);

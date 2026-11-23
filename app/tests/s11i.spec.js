@@ -29,6 +29,9 @@ async function toMode(page, m) {
   const want = 'ABC'.indexOf(m);
   for (let i = 0; i < 4 && (await cur()) !== want; i++) { await page.locator('.mpull.browse .mdgrab').focus(); await page.keyboard.press((await cur()) < want ? 'ArrowDown' : 'ArrowUp'); await page.waitForTimeout(450); }
   await page.evaluate(() => document.activeElement?.blur()); await page.waitForTimeout(150);
+  // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 閉じた縦は画面（.mpull.browse）が1本で流れる。貼っていないつまみ（下）へ focus() すると画面がそこまで送られる（前は日の欄の中が送られ、見せ方を替えると日の欄ごと一番上へ戻っていた）。
+  // この spec は「開いたときの位置（スクロール 0）」の形を見るので、替えたあと画面を一番上へ戻してから測る（止まってから決め直す 0.14 秒＋フェード 0.15 秒を待つ）
+  if (await page.evaluate(() => { const s = document.querySelector('.mpull.browse[data-stage]'); if (!s || !s.scrollTop) return false; s.scrollTop = 0; return true; })) await page.waitForTimeout(400);
 }
 // 1コマ分の測り。first＝最初の時刻つきの予定（カードは .mdcard の先頭、時間軸はいちばん早い .tlev）。vis＝見出しの下端〜（貼り付いていれば面の上端、いなければ日の欄の下端）に見える高さ
 const SNAP = () => {

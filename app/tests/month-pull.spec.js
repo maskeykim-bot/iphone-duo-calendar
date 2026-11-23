@@ -134,12 +134,13 @@ test.describe('閉じた画面 466×678', () => {
     await expect(page.locator('#ctitle')).toHaveText('2026年12月');
   });
 
-  test('日の欄の中だけが流れ、格子は動かない・縮まない（段1・4・7。design/34 §6.3 で置き換え）。固定は見出し 44＋曜日 20', async ({ page }) => {
+  // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 前→後: 「日の欄の中だけが流れ、格子は動かない。見出しの右の日付は出さない」→「画面（.mpull.browse）が1本で流れ、格子も月ごと上へ流れる（縮まない）。流れ切ったら見出しの右に選んだ日（design/33 §2）」。固定は見出し 44＋曜日 20 のまま
+  test('画面が1本で流れ、格子は月ごと流れる・縮まない（段1・4・7。v19.3）。固定は見出し 44＋曜日 20', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await seed(page, Array.from({ length: 14 }, (_, i) => ev(`m${i}`, `長い日${i}`, `2026-11-12T${String(8 + i).padStart(2, '0')}:00`, `2026-11-12T${String(8 + i).padStart(2, '0')}:30`)));
     await tab(page, '月').click();
     await band(page);
-    const md = page.locator('.mday');
+    const md = page.locator('.mpull.browse');
     for (const [n, H] of [[1, 516], [4, 172], [7, 86]]) {
       await grab(page).focus();
       for (let i = 0; i < 8 && Number(await page.locator('.mpull').getAttribute('data-stage')) !== n; i++) { await page.keyboard.press(Number(await page.locator('.mpull').getAttribute('data-stage')) < n ? 'ArrowUp' : 'ArrowDown'); }
@@ -149,18 +150,19 @@ test.describe('閉じた画面 466×678', () => {
       const g0 = await box(page.locator('.mgrid'));
       await md.evaluate((e) => { e.scrollTop = e.scrollHeight; });
       await page.waitForTimeout(250);
-      expect(await md.evaluate((e) => e.scrollTop)).toBeGreaterThan(0);
-      expect(await box(page.locator('.mgrid'))).toEqual(g0); // 格子は動かない
+      const st = await md.evaluate((e) => e.scrollTop); expect(st).toBeGreaterThanOrEqual(H); // 格子を流し切れる
+      const g1 = await box(page.locator('.mgrid')); expect(near(g1.y, g0.y - st) && near(g1.x, g0.x) && near(g1.width, g0.width) && near(g1.height, g0.height)).toBe(true); // 格子は送った分だけ上へ流れる
       expect(near(await gridH(page), H)).toBe(true); // 縮まない
+      expect(await page.locator('.mday').evaluate((e) => e.scrollTop), '日の欄の中は流れない').toBe(0);
       const mph = await box(page.locator('.mph')), wd = await box(page.locator('.weekdays'));
       expect(near(mph.y, 0) && near(mph.height, 44) && near(wd.y, 44) && near(wd.height, 20)).toBe(true);
-      await expect(page.locator('.mph .mpdate')).toHaveCount(0); // 見出しの右の日付は出さない（34 §6.3）
+      await expect(page.locator('.mph.scrd .mpdate')).toHaveText('12日（木）'); // 格子が流れ切ったら見出しの右に選んだ日（design/33 §2）
       expect((await ui(page)).stage ?? 1).toBe(n); // 段1は既定（まだ動かしていなければ保存はない）
       await md.evaluate((e) => { e.scrollTop = 0; });
     }
   });
 
-  test('閉じた画面の月（段1。design/34 §2.2 で置き換え）: 日の見出し y604〜648（17/600）、日の欄は y604〜678 でその中だけが流れる、一番下の余白 41。タブとその上のぼかしはない', async ({ page }) => {
+  test('閉じた画面の月（段1。design/34 §2.2 で置き換え）: 日の見出し y604〜648（17/600）、日の欄は（スクロール 0 で）y604〜678、一番下の余白 41。タブとその上のぼかしはない', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await seed(page, FIVE.slice(0, 1));
     await page.addInitScript(() => localStorage.setItem('duo.ui.v1', JSON.stringify({ ...JSON.parse(localStorage.getItem('duo.ui.v1') || '{}'), monthForm: 'month', stage: 1, monthDay: 'list' })));
@@ -178,7 +180,7 @@ test.describe('閉じた画面 466×678', () => {
     // 日の欄は y604〜678。流し切ると、最後の行の下に余白 41
     const md = page.locator('.mday');
     const dd = await box(md); expect(near(dd.y, 604) && near(dd.y + dd.height, 678)).toBe(true);
-    expect(await md.evaluate((e) => getComputedStyle(e).paddingBottom)).toBe('41px');
+    expect(await md.locator('.mdin').evaluate((e) => getComputedStyle(e).paddingBottom)).toBe('41px'); // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 下の余白は日の欄の中身の箱 .mdin が持つ（.mday は中でスクロールしない。前: .mday → 後: .mday .mdin）
     // 34 §6.1・§9.1-9（S11c）: 下のタブと、その上 24（y575〜599）のぼかしは閉じた画面にない
     await expect(page.locator('.tabs')).toHaveCount(0);
     expect(await page.locator('.tabfade').evaluateAll((es) => es.filter((e) => getComputedStyle(e).display !== 'none').length)).toBe(0);
@@ -320,14 +322,13 @@ test('開いても閉じても同じ型・同じ切り替え・同じスクロ�
   // S11d（34 §5・M8・品質レビュー 7c9fb05 中）: 日の欄を時間軸にする。S11b で外した時間軸の確かめを戻す（閉じた画面の段はつまみ（下）。開いた縦の「予定｜時間軸」とは別に覚える）
   await page.locator('.mdgrab').focus(); await page.keyboard.press('ArrowDown');
   await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B');
-  // 閉じた画面は日の欄（.mday）の中だけが流れる（design/34 §6.3）。日の部分のずれ 300 を覚える
-  await page.locator('.mday').evaluate((e) => { e.scrollTop = 300; });
-  await page.waitForTimeout(100);
+  // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 閉じた縦は日の欄の中でスクロールしない（画面の1本。位置は覚えない）。前→後: 「閉じた画面で日の欄を 300 送り、開いた縦と同じ位置で出る」→「開いた縦で日の部分を 300 送る（1回目）。閉じる⇄開くのあとも開いた縦は同じ位置、閉じた縦はいつも一番上（日の欄の中も画面も 0）」。型・日・段・日の欄の段が同じなのは変えない
   for (let i = 0; i < 5; i++) {
     await page.setViewportSize(SIZES.openPortrait669);
     await expect.poll(() => page.evaluate(() => document.body.dataset.layout)).toBe('open');
     expect(await form(page)).toBe('one');
     await expect(page.locator('[data-date="2026-11-12"]')).toHaveAttribute('aria-pressed', 'true');
+    if (i === 0) { await page.locator('.mday').evaluate((e) => { e.scrollTop = 300; }); await page.waitForTimeout(100); }
     expect(near(await page.locator('.mday').evaluate((e) => e.scrollTop), 300, 2)).toBe(true);
     await page.setViewportSize(SIZES.closedPortrait);
     await expect.poll(() => page.evaluate(() => document.body.dataset.layout)).toBe('browse');
@@ -335,6 +336,6 @@ test('開いても閉じても同じ型・同じ切り替え・同じスクロ�
     await expect(page.locator('.mpull')).toBeVisible();
     await expect(page.locator('.mpull')).toHaveAttribute('data-stage', '7'); // 段も
     await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B'); // 日の欄の段（時間軸）も、閉じる⇄開くのあと同じ
-    expect(near(await page.locator('.mday').evaluate((e) => e.scrollTop), 300, 2)).toBe(true); // 閉じた画面でも同じ位置
+    expect(await page.evaluate(() => document.querySelector('.mday').scrollTop + document.querySelector('.mpull.browse').scrollTop)).toBe(0); // 閉じた縦はいつも一番上から（v19.3）
   }
 });

@@ -51,12 +51,13 @@ const pointAt = (page, min, nth = 0, sel = '.tlcol') => page.locator(sel).nth(nt
   const tl = c.closest('.tl'), h = parseFloat(getComputedStyle(tl).getPropertyValue('--hh'));
   tl.scrollTop = Math.max(0, 12 + min * h / 60 - tl.clientHeight / 2);
   // 第19.2版 S11e（design/34 §15-④）: 閉じた画面の「日」は日の欄（.mday）の時間軸 B。時間軸そのものは送れず、日の欄が1本で送られるので、日の欄を送って見出し 44 と下のつまみ（S11f §16-1）の間の中央へ持ってくる
+  // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 閉じた縦の日の欄は中でスクロールしない（画面 .mpull.browse の1本）。開いたときは最初の予定の1時間前より上を畳んでいるので、その時刻が畳んだ所なら「前の時間」で開いてから、画面を送って貼り付いた見出し（年月＋曜日 64）と下のつまみの間の中央へ持ってくる（前: .mday.scrollTop を送る）
   const md = c.closest('.mpull.browse .mday');
-  if (md) { const y0 = c.getBoundingClientRect().top + 12 + min * h / 60 + 1, m = md.getBoundingClientRect(); md.scrollTop += y0 - (m.top + 44 + (m.height - 44 - 85) / 2); }
+  if (md) { const sec = md.closest('.mpull.browse'); if (min < (Number(tl.style.getPropertyValue('--foldm')) || 0)) md.querySelector('.mdfold button')?.click(); const y0 = c.getBoundingClientRect().top + 12 + min * h / 60 + 1, s = sec.getBoundingClientRect(); sec.scrollTop += y0 - (s.top + 64 + (s.height - 64 - 85) / 2); }
   const r = c.getBoundingClientRect();
   return { x: r.left + r.width / 2, y: r.top + 12 + min * h / 60 + 1 };
 }, min);
-async function scrollTo(page, sel, top) { await page.locator(sel).first().evaluate((e, t) => { e.scrollTop = t; const md = e.closest('.mpull.browse .mday'); if (md) md.scrollTop = t; /* 閉じた画面の日の欄の時間軸は .mday が送られる */ }, top); }
+async function scrollTo(page, sel, top) { await page.locator(sel).first().evaluate((e, t) => { e.scrollTop = t; const md = e.closest('.mpull.browse .mday'); if (md) { if (!t) md.querySelector('.mdfold button')?.click(); md.closest('.mpull.browse').scrollTop = t; } /* v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 閉じた縦は画面（.mpull.browse）の1本が送られる。一番上（0）は、畳んである終日の行・早い時刻を「前の時間」で開いた上で画面の一番上（前: .mday.scrollTop） */ }, top); }
 async function press(page, p, ms = 420) { await page.mouse.move(p.x, p.y); await page.mouse.down(); await page.waitForTimeout(ms); }
 const dbCount = (page) => page.evaluate(async () => (await (await import('./js/db.js')).listEvents()).length);
 

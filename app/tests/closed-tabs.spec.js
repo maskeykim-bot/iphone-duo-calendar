@@ -136,13 +136,15 @@ for (const size of CLOSED) {
       await tab(page, '月').click();
       // 34: 閉じた画面は格子を固定し、日の欄（.mday）の中だけが流れる。タブがなくなったので下の余白は 87 → 41（34 §10「33 全体」）
       const g0 = await box(page.locator('.mgrid'));
-      const sc = page.locator('.mday');
-      await sc.evaluate((el) => { el.scrollTop = el.scrollHeight; });
-      const last = await box(page.locator('.mday .mdnote'));
+      // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 閉じた縦は格子を固定しない。画面（.mpull.browse）が1本で流れ、格子も一緒に流れる。日の欄 .mday はスクロール 0 で見えている箱（下端＝画面の下端）、中身と下の余白は .mdin が持つ。
+      // 前→後（縦だけ。横は今までどおり）: 送る口 .mday → .mpull.browse／下の余白 段1 の 41 → 105（どの段でも最後のノートを右下の＋の上まで送れる）で .mdin が持つ／「格子は流れない」→「格子は送った分だけ上へ流れる」
+      const sc = page.locator('.mday'), one = size.width < size.height, scr = one ? page.locator('.mpull.browse') : sc, padEl = one ? page.locator('.mday .mdin') : sc;
       const paneBottom = (await box(sc)).b;
+      await scr.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+      const last = await box(page.locator('.mday .mdnote'));
       // S11e（品質の指示13）: 横の確かめを戻した。34 §14: 閉じた横は格子 x8〜374・y64〜424、日の欄は x382 から右・全部の高さ（y0〜466）。この試験は safe=0（帯なし）なので下の余白は 105（§14.5）。縦の段1は日の欄が 74 しかないので 41
-      const land = size.width > size.height, pad = land ? 105 : 41;
-      expect(await sc.evaluate((el) => parseFloat(getComputedStyle(el).paddingBottom))).toBe(pad);
+      const land = size.width > size.height, pad = 105;
+      expect(await padEl.evaluate((el) => parseFloat(getComputedStyle(el).paddingBottom))).toBe(pad);
       expect(Math.abs(paneBottom - size.height)).toBeLessThan(0.6); // 日の欄は画面の下端まで
       if (land) {
         const pane = await box(sc);
@@ -151,8 +153,9 @@ for (const size of CLOSED) {
         expect(last.l).toBeGreaterThanOrEqual(382 + 12 - 0.6); // 日の欄の中身は格子（x382 より左）に出ない
       }
       expect(last.b).toBeLessThanOrEqual(paneBottom - pad + 1);
-      if (await sc.evaluate((el) => el.scrollHeight > el.clientHeight + 1)) expect(last.b).toBeGreaterThanOrEqual(paneBottom - pad - 1); // 中身が日の欄より短いとき（横は日の欄が全部の高さ）は送れないので、上の「余白の上」だけを見る
-      expect(Math.abs((await box(page.locator('.mgrid'))).t - g0.t)).toBeLessThan(0.3);
+      if (one ? await padEl.evaluate((el) => el.getBoundingClientRect().height > el.closest('.mpull.browse').clientHeight - 88 + 1) : await sc.evaluate((el) => el.scrollHeight > el.clientHeight + 1)) expect(last.b).toBeGreaterThanOrEqual(paneBottom - pad - 1); // 中身が日の欄より短いとき（横は日の欄が全部の高さ。縦は .mdin が最小の高さ＝画面−88 のまま）は、上の「余白の上」だけを見る
+      const st = one ? await scr.evaluate((el) => el.scrollTop) : 0; if (one) expect(st).toBeGreaterThan(0);
+      expect(Math.abs((await box(page.locator('.mgrid'))).t - (g0.t - st))).toBeLessThan(0.6); // 横: 格子は流れない。縦: 送った分だけ上へ
     });
   });
 }
@@ -178,7 +181,7 @@ test('閉じた縦 466×678（safe=0・帯なし）: 本文は全幅。見出し
   expect([more.l, more.w, task.l, task.w, add.l, add.w].map(Math.round)).toEqual([370, 44, 414, 44, 402, 56]);
   expect([more.t, more.h, task.t, task.h].map(Math.round)).toEqual([0, 44, 0, 44]);
   expect(Math.round(add.t + add.h / 2)).toBe(609);
-  expect(await page.locator('.mday').evaluate((e) => parseFloat(getComputedStyle(e).paddingBottom))).toBe(105); // 日の欄の下の余白 105（最後のカードを＋の上まで送れる）
+  expect(await page.locator('.mday .mdin').evaluate((e) => parseFloat(getComputedStyle(e).paddingBottom))).toBe(105); // 日の欄の下の余白 105（最後のカードを＋の上まで送れる）。v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 余白は日の欄の中身の箱 .mdin が持つ（.mday → .mday .mdin）
 });
 
 test('閉じた縦で、月の表現は設定の「月の表現」から選ぶ。全部・手帳が保存され、リロード後も復元される', async ({ page }) => {
@@ -409,8 +412,9 @@ test('S11e 閉じた画面の日: ホームの「タイムライン ›」→ �
   const hl = await page.locator('.mday .hl:not(.half)').evaluateAll((els) => els.slice(0, 3).map((e) => e.getBoundingClientRect().top));
   expect(near(hl[1] - hl[0], 44) && near(hl[2] - hl[1], 44)).toBe(true);
   // 最初の時刻つきの予定の1時間前が、貼り付いた見出し（44）のすぐ下
-  const m = await page.evaluate(() => { const md = document.querySelector('.mday'), tl = md.querySelector('.tl'), ev = [...md.querySelectorAll('.tlev[data-event]')].map((e) => e.getBoundingClientRect().top).sort((a, b) => a - b)[0]; return { ev, head: md.querySelector('.mdh').getBoundingClientRect().bottom, st: md.scrollTop }; });
-  expect(m.st).toBeGreaterThan(0);
+  // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 日の欄は中でスクロールしない。前→後: 「日の欄の中を送ってある（scrollTop > 0）」→「1時間前より上を畳んである（.mdbody.folded）。日の欄も画面も送っていない」。最初の予定が見出しの下 1時間＋12 にあるのは同じ
+  const m = await page.evaluate(() => { const md = document.querySelector('.mday'), tl = md.querySelector('.tl'), ev = [...md.querySelectorAll('.tlev[data-event]')].map((e) => e.getBoundingClientRect().top).sort((a, b) => a - b)[0]; return { ev, head: md.querySelector('.mdh').getBoundingClientRect().bottom, st: md.scrollTop + md.closest('.mpull.browse').scrollTop, folded: !!md.querySelector('.mdbody.folded') }; });
+  expect(m.st).toBe(0); expect(m.folded).toBe(true);
   expect(m.ev - m.head).toBeGreaterThan(44 - 2); expect(m.ev - m.head).toBeLessThan(44 + 14); // 1時間（44）＋時間軸の上のあき 12
   await expect(page.locator('.mpane .hcard, .mpane .rmrow, .mpane [data-page="task"], .mpane [data-page="memo"]')).toHaveCount(0);
   // 段4 から開くと、段は覚えている段のまま

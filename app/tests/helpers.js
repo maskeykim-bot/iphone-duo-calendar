@@ -77,6 +77,9 @@ export async function loadSample(page) {
 }
 // 第19.2版 S11c（design/34 §9.1-9・§9.2）: 閉じた画面に下のタブはない。月＝カレンダー（‹ カレンダーで戻る）、ホームと週の時間軸は「…」から、
 // 日の時間軸はホームの「タイムライン ›」から。開いた縦・横のタブは今までどおり（本物のボタンを返す）。
+// v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 閉じた縦の日の欄の時間軸（B・C）は中でスクロールしない。開いたときは最初の予定の1時間前より上（終日の行も）を畳んでいる（v19.2 までは日の欄の中を送った先に隠れていて、Playwright が送って出していた）。
+// 畳んだ所にある物（終日のピル・早い時刻）を押す前に、時間軸の右上の「前の時間」で開く
+export async function dayUnfold(page) { const b = page.locator('.mpull.browse[data-stage] .mdfold button'); if (await b.count()) { await b.click(); await page.waitForTimeout(150); } }
 export const isClosedSize = (page) => { const v = page.viewportSize(); return !!v && Math.min(v.width, v.height) < 600; };
 export async function openMore(page) { await page.locator('.cmore').click(); await expect(page.getByRole('menu')).toBeVisible(); }
 export async function moreGo(page, name) { await openMore(page); await page.getByRole('menuitem', { name }).click(); }

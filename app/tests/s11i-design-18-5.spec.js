@@ -215,7 +215,8 @@ for (const [form, dayId, from, dy, to, gs0, gs1, why] of [
     const s0 = await state(page); expect(s0.dg, '前提: 始めの見せ方').toBe(from); expect.soft(s0.gs, `始め（${from}）`).toBe(gs0);
     // 品質の判断（4bf2f81 の QA、(3)）: 貼っていない時間軸 B のつまみ（下）は時間軸の最後（24:00 の下）にあり、開いた位置では画面の外（§18-5「送り切ると出る」）。
     // B→A・C→A は日の欄を送ってつまみを日の欄の中（上端から 120）に出してから引く（設計 §18-7「送り切ってつまみを引いても」）。見ること（.gs・アニメーション 0・途中の不透明度 0）は変えない
-    if (from !== 'A' && !s0.gs) { await page.evaluate(() => { const d = document.querySelector('.mpull.browse .mday'), g = d.querySelector('.mdgrab'); d.scrollTop += g.getBoundingClientRect().top - d.getBoundingClientRect().top - 120; }); await page.waitForTimeout(200); }
+    // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 閉じた縦は日の欄の中ではなく画面（.mpull.browse）の1本を送る。つまみ（下）を画面の y300 に出してから引く（見ることは変えない）
+    if (from !== 'A' && !s0.gs) { await page.evaluate(() => { const d = document.querySelector('.mpull.browse .mday'), g = d.querySelector('.mdgrab'); d.closest('.mpull.browse').scrollTop += g.getBoundingClientRect().top - 300; }); await page.waitForTimeout(200); }
     await countAnims(page); await pullDayGrip(page, dy);
     const s = await state(page); expect(s.dg, `前提: ${to} まで引けた`).toBe(to);
     expect.soft(s.gs, `${to} のあと`).toBe(gs1);

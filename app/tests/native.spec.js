@@ -1,6 +1,6 @@
 // 第7版: iPhone カレンダー連携。window.Capacitor を偽装して、DuoNative の契約どおりに呼ばれ表示されることを確認する。
 import { test, expect } from '@playwright/test';
-import { notifyOn, openApp, SIZES, tab, seed, ev, dbEvents, setStyle, openMenu, pickDest, enableCalendars, fillDateTime, setDateUi, clickSettings, clickSearch, closedStage } from './helpers.js';
+import { notifyOn, openApp, SIZES, tab, seed, ev, dbEvents, setStyle, openMenu, pickDest, enableCalendars, fillDateTime, setDateUi, clickSettings, clickSearch, closedStage, dayUnfold } from './helpers.js';
 import { VERSION as BACKUP_VERSION } from '../js/backup.js';
 // 新規予定のカレンダー選択: 種別の先頭を選ぶ（第15版 PR5）
 const pickKind = async (page, type) => { await page.locator('#f-dest').click(); await page.locator(`#dest-pop .dopt[data-dtype="${type}"]`).first().click(); };
@@ -410,6 +410,7 @@ test.describe('ネイティブ（偽装）', () => {
     await tab(page, '月').click();
     await closedStage(page, 1); // S11e（34 §15-④）: 閉じた画面の「日」は段7（1週）にするので、11/23 の見える段1（月）へ戻す
     await page.locator('[data-date="2026-11-23"]').click({ position: { x: 12, y: 10 } });
+    await dayUnfold(page); // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 閉じた縦の時間軸では終日の行は畳んである（前は日の欄の中を送った先）。「前の時間」で開いてから押す
     await page.locator('.mdcard.ext, .mdallday.ext, .tlev.ext, .adpill.ext', { hasText: '勤労感謝' }).click();
     await expect(d).toContainText('終日');
     await expect(d).toContainText('場所なし');

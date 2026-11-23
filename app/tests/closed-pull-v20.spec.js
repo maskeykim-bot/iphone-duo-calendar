@@ -107,7 +107,8 @@ test.describe('A. 7段の寸法（§2.2）', () => {
   });
   test('[未実装] 日の欄の下の余白 41（送り切ったとき、最後の中身の下端が 678−41 より上）', async ({ page }) => {
     await boot(page); await toStage(page, 1);
-    const r = await page.locator(SEL.day).evaluate((d) => { d.scrollTop = d.scrollHeight; const kids = [...d.querySelectorAll('*')].filter((e) => e.offsetParent && e.getBoundingClientRect().height); return { last: Math.max(...kids.map((e) => e.getBoundingClientRect().bottom)), pad: d.scrollHeight - d.clientHeight }; });
+    // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 送るのは日の欄の中ではなく画面（.mpull.browse）の1本。前→後: d.scrollTop → 画面の scrollTop。最後の中身は日の欄の中身の箱（.mdin。下の余白 41 を持つ）の子で見る
+    const r = await page.locator(SEL.day).evaluate((d) => { const sc = d.closest('.mpull.browse'); sc.scrollTop = sc.scrollHeight; const kids = [...d.querySelectorAll('.mdin *')].filter((e) => e.offsetParent && e.getBoundingClientRect().height); return { last: Math.max(...kids.map((e) => e.getBoundingClientRect().bottom)), pad: sc.scrollHeight - sc.clientHeight }; });
     expect(r.last).toBeLessThanOrEqual(S.SCREEN.h - S.DAYLIST.bottomPad + S.TOL);
   });
   test('[未実装] 今日の数字は丸の中央（x+13, y+11）。今日以外の日は左 4（§12 Q-2）', async ({ page }) => {
@@ -664,13 +665,15 @@ test.describe('I. 変えないもの・戻らないもの', () => {
       expect(now.buttons).toEqual(was.buttons);
     });
   }
-  test('[未実装] R-62（月を狭くしすぎない・下へ送れる）を 34 の形で: 段1の行 86（≥64）、日の欄の中だけが流れ、格子は動かない', async ({ page }) => {
+  // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 月は固定しない。前→後: 「日の欄の中だけが流れ、格子は動かない」→「画面（.mpull.browse）が1本で流れ、格子も一緒に上へ流れる（行の高さは変わらない）」
+  test('R-62（月を狭くしすぎない・下へ送れる）を v19.3 の形で: 段1の行 86（≥64）、画面が1本で流れ、格子も月ごと上へ流れる', async ({ page }) => {
     await boot(page); await toStage(page, 1);
     const rowH = await page.locator(`${SEL.grid} .week`).first().evaluate((w) => w.getBoundingClientRect().height); near(rowH, S.ROW[4]); expect(rowH).toBeGreaterThanOrEqual(64);
     const g0 = await box(page.locator(SEL.grid));
-    const sc = await page.locator(SEL.day).evaluate((d) => { d.scrollTop = 200; return { st: d.scrollTop, can: d.scrollHeight > d.clientHeight }; });
-    expect(sc.can).toBe(true); expect(sc.st).toBeGreaterThan(0);
-    const g1 = await box(page.locator(SEL.grid)); near(g1.y, g0.y, '格子は流れない');
+    const sc = await page.locator(SEL.day).evaluate((d) => { const s = d.closest('.mpull.browse'); s.scrollTop = 200; return { st: s.scrollTop, can: s.scrollHeight > s.clientHeight, inner: d.scrollTop }; });
+    expect(sc.can).toBe(true); expect(sc.st).toBe(200); expect(sc.inner, '日の欄の中は流れない').toBe(0);
+    const g1 = await box(page.locator(SEL.grid)); near(g1.y, g0.y - 200, '格子も月ごと流れる'); near(g1.h, g0.h, '格子の高さは変わらない');
+    const rowH1 = await page.locator(`${SEL.grid} .week`).first().evaluate((w) => w.getBoundingClientRect().height); near(rowH1, S.ROW[4]);
   });
   test('[守り] ★の項目（34 で変わらないもの）は既存の spec で見る: このひな形の外で全件を流すこと', async () => {
     // 34 で置き換わらない★: 3-1・3-2・3-6（開いた横）、4-1・4-2（ノート）、6-1（R-49）、7-1、8-1、9-1、10-1。対応する spec は verify-v20-closed.md §6。

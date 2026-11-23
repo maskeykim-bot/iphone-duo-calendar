@@ -71,21 +71,27 @@ test.describe('S11d M5 の足し', () => {
 });
 
 test.describe('S11d M9 の足し（格子・日の欄の縦の引き）', () => {
-  test('格子を上へ 150 引く: 段1→段3、触覚ログは境をまたいだ 2 件（段2・段3）。引いたあとの click で日は選ばれない', async ({ page }) => {
+  // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 段を引けるのは つまみ（上）だけ（M9 をやめた）。前→後: 格子のマスから上へ 150 →「段3」だったのを、格子からは「段1 のまま・触覚ログ 0」、同じ 150 を つまみ（上）から引くと「段3・ログ 2 件」
+  test('格子を上へ 150 引いても段は変わらない（v19.3）。つまみ（上）を上へ 150 引く: 段1→段3、触覚ログは境をまたいだ 2 件（段2・段3）。引いたあとの click で日は選ばれない', async ({ page }) => {
     await boot(page);
     const sel0 = await selected(page);
     await page.evaluate(() => { window.__duoHapticLog.length = 0; });
     const b = await page.locator(cell('2026-11-04')).boundingBox();
     await drag(page, b.x + 27, b.y + 60, b.x + 27, b.y + 60 - 150);
+    expect(await stageOf(page), '格子からは変わらない').toBe(1); expect(await page.evaluate(() => window.__duoHapticLog.length)).toBe(0); expect(await selected(page)).toBe(sel0);
+    await page.locator('.mpull.browse').evaluate((e) => { e.scrollTop = 0; });
+    const gb = await page.locator('.mgrab').boundingBox();
+    await drag(page, b.x + 27, gb.y + 12, b.x + 27, gb.y + 12 - 150);
     expect(await stageOf(page)).toBe(3); // 引いた量 150 は境 144 を越えた所（34 §3）
     expect((await page.evaluate(() => window.__duoHapticLog)).map((h) => h.stage)).toEqual([2, 3]);
     expect(await selected(page)).toBe(sel0);
     const H = await page.locator('.mgwrap').evaluate((e) => e.getBoundingClientRect().height);
     expect(Math.abs(H - S.STAGES[3].H)).toBeLessThanOrEqual(S.TOL);
   });
-  test('引いている間、格子の高さは指に 1:1（触れた位置から）。押した地は出さない', async ({ page }) => {
+  // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 前→後: 引き始めを格子のマス → つまみ（上）に（1:1・押した地が出ないことを見るのは同じ）
+  test('つまみ（上）を引いている間、格子の高さは指に 1:1（触れた位置から）。押した地は出さない', async ({ page }) => {
     await boot(page);
-    const b = await page.locator(cell('2026-11-04')).boundingBox(); const x = b.x + 27, y = b.y + 60;
+    const b = await page.locator('.mgrab').boundingBox(); const x = b.x + 27, y = b.y + 12;
     await page.mouse.move(x, y); await page.mouse.down();
     for (const dy of [-10, -30, -60, -100]) {
       await page.mouse.move(x, y + dy); await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
@@ -109,14 +115,15 @@ test.describe('S11d M9 の足し（格子・日の欄の縦の引き）', () => 
     expect(await stageOf(page)).toBe(1);
     expect(await selected(page)).toBe('2026-11-04');
   });
-  test('チップの上で長押し 0.35 秒より先に縦へ動いたら、引く方が優先（つかまない）', async ({ page }) => {
+  // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 前→後: 先に縦へ動いたら「段の引き（段が進む）」→「つかまない・段は変わらない（縦の動きは画面のスクロール）」
+  test('チップの上で長押し 0.35 秒より先に縦へ動いたら、つかまない（段も変わらない）', async ({ page }) => {
     await boot(page);
     const c = await page.locator(`${cell('2026-11-18')} .strip.chip.timed`).first().boundingBox(); const x = c.x + c.width / 2, y = c.y + c.height / 2;
     await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x, y - 80, { steps: 6 });
     await page.waitForTimeout(450); // 長押しの時間を過ぎても
     await expect(page.locator('.chip.grabbed')).toHaveCount(0);
     await page.mouse.move(x, y - 150, { steps: 4 }); await page.mouse.up(); await page.waitForTimeout(500);
-    expect(await stageOf(page)).toBeGreaterThan(1);
+    expect(await stageOf(page)).toBe(1);
     expect((await page.evaluate(async () => (await (await import('/js/db.js')).getEvent('x1')).start))).toBe('2026-11-18T13:00'); // 予定は動いていない
   });
   test('チップを 0.35 秒つかんでから縦へ動かしたら、チップの移動（段は変わらない）', async ({ page }) => {
@@ -139,22 +146,21 @@ test.describe('S11d M9 の足し（格子・日の欄の縦の引き）', () => 
     await drag(page, 200, d.y + 200, 200, d.y + 80);
     expect(await stageOf(page), '一番上から上へ').toBe(4);
   });
-  test('日の欄: 一番上から下へ 120 引くと段4→段が戻り、触覚ログは境の数だけ。カードは開かない', async ({ page }) => {
+  // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 前→後: 日の欄を一番上から下へ 120 引くと「段が戻る・触覚ログは境の数」→「段4 のまま・触覚ログ 0」（M9b をやめた）。引いたあとの click でカードが開かないのは同じ
+  test('日の欄: 一番上から下へ 120 引いても段4 のまま、触覚ログは 0 件。カードは開かない', async ({ page }) => {
     await boot(page); await toStage(page, 4);
     await page.evaluate(() => { window.__duoHapticLog.length = 0; });
     const c = await page.locator('.mday .mdcard').first().boundingBox();
     await drag(page, c.x + 150, c.y + 20, c.x + 150, c.y + 140);
-    const n = await stageOf(page);
-    expect(n).toBeLessThan(4);
-    const log = (await page.evaluate(() => window.__duoHapticLog)).map((h) => h.stage);
-    expect(log.length).toBeGreaterThanOrEqual(1); expect(log.at(-1)).toBe(n);
-    for (let i = 1; i < log.length; i++) expect(Math.abs(log[i] - log[i - 1])).toBe(1); // 1段ずつ
+    expect(await stageOf(page)).toBe(4);
+    expect(await page.evaluate(() => window.__duoHapticLog.length)).toBe(0);
     await expect(page.locator('#editor')).toBeHidden(); // 引いたあとの click でカードは開かない
   });
-  test('段1でさらに下へ引くとゴム（最大 24）。離すと段1へ戻り、触覚ログは 0 件', async ({ page }) => {
+  // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 前→後: 引き始めを格子のマス → つまみ（上）に（ゴム 24・戻り・ログ 0 を見るのは同じ）
+  test('段1でつまみ（上）をさらに下へ引くとゴム（最大 24）。離すと段1へ戻り、触覚ログは 0 件', async ({ page }) => {
     await boot(page);
     await page.evaluate(() => { window.__duoHapticLog.length = 0; });
-    const b = await page.locator(cell('2026-11-04')).boundingBox(); const x = b.x + 27, y = b.y + 30;
+    const b = await page.locator('.mgrab').boundingBox(); const x = b.x + 27, y = b.y + 12;
     await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x, y + 120, { steps: 8 });
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
     const H = await page.locator('.mgwrap').evaluate((e) => e.getBoundingClientRect().height);

@@ -68,7 +68,7 @@ test.describe('S11g §17-1（K-1）・§17-2（K-2） 貼り付いたつまみ�
       await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B');
       await page.locator('.mdgrab').focus(); await page.keyboard.press('ArrowUp'); await page.waitForTimeout(400);
       // 送り切り: つまみは元の位置（最後のカードのすぐ下）。埋めない・線もない
-      await page.evaluate(() => { const m = document.querySelector('.mday'); m.scrollTop = m.scrollHeight; }); await page.waitForTimeout(200);
+      await page.evaluate(() => { const m = document.querySelector('.mpull.browse[data-stage]') || document.querySelector('.mday'); /* v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 閉じた縦で送るのは日の欄の中ではなく画面（.mpull.browse）の1本。閉じた横は今までどおり .mday */ m.scrollTop = m.scrollHeight; }); await page.waitForTimeout(200);
       const e = await measure(page, []);
       expect(e.stuck).toBe(false); expect(e.fill).toBeNull(); expect(e.sh).toBe('none');
     });

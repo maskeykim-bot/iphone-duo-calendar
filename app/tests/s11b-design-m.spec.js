@@ -118,7 +118,7 @@ test.describe('S11b 設計レビュー 必須（M1〜M9）', () => {
         window.__qaAn.push(rec); a.finished.then(() => { rec.end = performance.now(); }, () => { rec.end = -1; }); return a;
       };
       const t0 = performance.now(); window.__qaT0 = t0;
-      const tick = () => { const ms = [...document.querySelectorAll('.mpull.browse .mday')]; const kids = ms.flatMap((m) => [...m.children]); window.__qaFr.push([performance.now() - t0, ms.length, Math.min(1, ...kids.map((k) => Number(getComputedStyle(k).opacity)))]); if (performance.now() - t0 < 700) requestAnimationFrame(tick); };
+      const tick = () => { const ms = [...document.querySelectorAll('.mpull.browse .mday')]; const kids = ms.flatMap((m) => [...(m.querySelector(':scope > .mdin') || m).children]); /* v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 日の欄の中身（見出し・本体・つまみ・ノート）は .mday > .mdin の子になった（.mday はスクロール 0 で見えている箱）。見ること（中身が一度消えきる）は同じ */ window.__qaFr.push([performance.now() - t0, ms.length, Math.min(1, ...kids.map((k) => Number(getComputedStyle(k).opacity)))]); if (performance.now() - t0 < 700) requestAnimationFrame(tick); };
       requestAnimationFrame(tick);
     });
     await page.locator(cell('2026-11-18')).click({ position: { x: 30, y: 70 } }); await page.waitForTimeout(700);
@@ -217,18 +217,27 @@ test.describe('S11b 設計レビュー 必須（M1〜M9）', () => {
     });
   }
 
-  test('M9 格子のどこを縦に引いても段が変わる（つまみと同じ）', async ({ page }) => {
+  // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: M9（格子のどこでも縦に引くと段が変わる）はやめた。段を変えるのは つまみ（上）だけ。前→後: 格子を上へ 150 引くと「段が進む」→「段は変わらない・触覚ログ 0」。つまみを同じだけ引くと進むことも見る
+  test('M9（v19.3 でやめた）格子を縦に引いても段は変わらない。つまみ（上）を引くと変わる', async ({ page }) => {
     await boot(page);
+    await page.evaluate(() => { window.__duoHapticLog.length = 0; });
     await page.mouse.move(200, 300); await page.mouse.down(); await page.mouse.move(200, 150, { steps: 12 }); await page.mouse.up(); await page.waitForTimeout(500);
-    expect(await stageOf(page), '段1で格子を上へ 150 → 段が進む').toBeGreaterThan(1);
+    expect(await stageOf(page), '段1で格子を上へ 150 → 段は変わらない').toBe(1);
+    expect(await page.evaluate(() => window.__duoHapticLog.length), '触覚ログ 0').toBe(0);
+    await page.locator('.mpull.browse').evaluate((e) => { e.scrollTop = 0; });
+    const g = await page.locator('.mgrab').boundingBox();
+    await page.mouse.move(200, g.y + 12); await page.mouse.down(); await page.mouse.move(200, g.y + 12 - 150, { steps: 12 }); await page.mouse.up(); await page.waitForTimeout(500);
+    expect(await stageOf(page), 'つまみ（上）を上へ 150 → 段が進む').toBeGreaterThan(1);
   });
 
-  test('M9b 日の欄を一番上まで戻した状態で下へ引くと段が戻る', async ({ page }) => {
+  // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: M9b（日の欄を一番上から下へ引くと段が戻る）はやめた。前→後: 「段が戻る」→「段は変わらない・触覚ログ 0」
+  test('M9b（v19.3 でやめた）日の欄を一番上から下へ引いても段は変わらない', async ({ page }) => {
     await boot(page); await toStage(page, 3);
     const d = await page.locator('.mday').boundingBox();
-    await page.locator('.mday').evaluate((e) => { e.scrollTop = 0; });
+    await page.evaluate(() => { window.__duoHapticLog.length = 0; });
     await page.mouse.move(200, d.y + 60); await page.mouse.down(); await page.mouse.move(200, d.y + 180, { steps: 12 }); await page.mouse.up(); await page.waitForTimeout(500);
-    expect(await stageOf(page), '段3で日の欄を下へ 120 → 段が戻る').toBeLessThan(3);
+    expect(await stageOf(page), '段3で日の欄を下へ 120 → 段は変わらない').toBe(3);
+    expect(await page.evaluate(() => window.__duoHapticLog.length), '触覚ログ 0').toBe(0);
   });
 
   test('§13-1 つまみ（上）の押せる範囲は格子の下端から高さ 44（4件目のチップにかからない）', async ({ page }) => {
