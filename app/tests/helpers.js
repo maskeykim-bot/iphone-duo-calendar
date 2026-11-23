@@ -495,3 +495,7 @@ export async function clickEvent(page, id) {
   const tag = await first.evaluate((e) => e.tagName);
   if (tag === 'BUTTON') await first.click(); else await clickChip(page, first);
 }
+
+// その日のノートを開く入口。v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更: 閉じた画面の日の欄は「ノートの欄」（daynote）ではなくカード。
+// その日のノートがあればそのカード、無ければ「＋ ノート」（新しいノート。1 行目が題名で、日付の見出しは足さない）。開いた画面は今までどおり日のページ・日の部分のノートの欄
+export const dayNoteEntry = (page, day = '') => page.locator(`[data-act="daynote"]${day ? `[data-day="${day}"]` : ''}:visible, .dnote:visible, .mpull.browse .mday .mdcard[data-note]:visible, .mpull.browse .mday [data-act="addnote"]:visible`).first();

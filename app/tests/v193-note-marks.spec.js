@@ -3,7 +3,7 @@
 // C: 箇条書き・チェックの行の字下げ（Tab／Shift+Tab、指で右／左へ払う）。保存は行頭の空白 2 つで1段、最大 4 段。
 // 「模型」= note-ime-r70.spec.js と同じ作り（合成イベントで iPhone の WebKit の変換を真似る）。Chromium と WebKit の両方で回す。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES } from './helpers.js';
+import { openApp, SIZES, dayNoteEntry } from './helpers.js';
 
 const DAY = '2026-11-12';
 const SHOTS = '/workspace/cal-v191-shots/V193';
@@ -26,7 +26,7 @@ async function boot(page, { size = SIZES.closedPortrait, sar = 0 } = {}) {
   await openApp(page, size);
   const m = page.getByRole('button', { name: '月', exact: true }); if (await m.isVisible()) { await m.click(); await page.waitForTimeout(300); }
 }
-const tapDay = async (page) => { const dn = page.locator(`[data-act="daynote"][data-day="${DAY}"]`).filter({ visible: true }).first(); await dn.scrollIntoViewIfNeeded(); await dn.click(); await expect(ned(page)).toBeVisible(); await page.waitForTimeout(300); };
+const tapDay = async (page) => { const dn = dayNoteEntry(page, DAY); await dn.scrollIntoViewIfNeeded(); await dn.click(); await expect(ned(page)).toBeVisible(); await page.waitForTimeout(300); };
 // 新しいその日のノート（本文は空）
 async function openFresh(page, opts) { await boot(page, opts); await tapDay(page); await ned(page).click(); }
 // 本文つきのノート（題名は「題」）
@@ -393,6 +393,9 @@ test.describe('C: 見るだけの欄（日のノート）にも段が出る・�
     expect(await rowsOf(page)).toEqual(['bullet:親', 'bullet1:子', 'check2:孫']);
     await done(page);
     expect((await getNote(page, 'v193-m')).body).toBe('題\n- 親\n  - 子\n    - [ ] 孫');
+    // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更: 閉じた画面の日の欄にノートの「見るだけの欄」（.dnt）は無くなった（ノートはカード）。見るだけの欄が残っている開いた縦の日の部分で確かめる
+    await page.setViewportSize(SIZES.openPortrait669); await page.waitForTimeout(700);
+    if (!(await page.locator('.dnt .nl').count())) { const m = page.getByRole('button', { name: '月', exact: true }); if (await m.isVisible()) { await m.click(); await page.waitForTimeout(400); } }
     const lv = await page.evaluate(() => [...document.querySelectorAll('.dnt .nl')].filter((n) => n.offsetParent).map((n) => `${n.dataset.k}${n.dataset.lv || ''}:${n.textContent}:${parseFloat(getComputedStyle(n).paddingLeft)}`));
     expect(lv, '日の欄のノート（.dnt）の行: 種類＋段:文字:左の余白（24＋段×16）。日の欄の作りが変わってここに .dnt が出なくなったら、見るだけの欄の出る所に合わせて直す').toEqual(['plain:題:0', 'bullet:親:24', 'bullet1:子:40', 'check2:孫:56']);
     await tapDay(page);

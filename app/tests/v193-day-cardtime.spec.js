@@ -150,7 +150,7 @@ test('A-10 その1の決まり: 時間でも画面は1本のスクロール（�
   const sec = await page.locator(SEC).evaluate((e) => ({ max: e.scrollHeight - e.clientHeight }));
   expect(sec.max > 1000).toBe(true);
   await setScroll(page, sec.max);
-  const note = await rect(page, '.mday .mdnote'); expect(note.b <= 678 - 33 + 1).toBe(true);
+  const note = await rect(page, '.mday .mdadd'); expect(note.b <= 678 - 33 + 1).toBe(true); // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更: 日の欄の末尾は「ノートの欄」→「＋ タスク」「＋ ノート」の行
   await setScroll(page, 0);
   // つまみ（上）を 86 上へ → 段が進む（小さい月へ）。時間の幅（dayGrip 2）はそのまま
   const g = await rect(page, '.mgrab');
@@ -252,7 +252,7 @@ for (const [name, sar, size] of [['縦・帯あり', 84, SIZES.closedPortrait], 
         if (dgv) { expect(st.gpos, tag).toBe('relative'); expect(st.fillH <= 44.5, tag).toBe(true); expect(st.anims, tag).toBe(0); }
       }
       if (dgv === 0) { // 送り切り: 最後のカード（下の間 8）のすぐ下が「ノート ›」。間につまみの箱（44／56）は無い
-        const gap = await page.evaluate(() => { const c = [...document.querySelectorAll('.mday .mdcard')].pop().getBoundingClientRect(), n = document.querySelector('.mday .mdnl').getBoundingClientRect(); return n.top - c.bottom; });
+        const gap = await page.evaluate(() => { const c = [...document.querySelectorAll('.mday .mdbody .mdcard')].pop().getBoundingClientRect(), n = document.querySelector('.mday .mdrest').getBoundingClientRect(); return n.top - c.bottom; }); // v19.3 その3 で仕様変更: 最後の予定のカードのすぐ下（間 8）は「ノート ›」→ 区画（タスク・ノート・「＋」の行）の箱 .mdrest
         expect(near(gap, 8), `${name} 段${stage}: カード→ノート › の間 ${gap}`).toBe(true);
       }
     }

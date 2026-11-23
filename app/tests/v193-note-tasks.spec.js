@@ -2,7 +2,7 @@
 // 品質 qa/verify-v19-3-cards.md §7 の N-1〜N-8・N-11、§8 の B-1・B-3・B-4。design/35 §9 の N-1・N-2 は tests/v193-design35-s9.spec.js にも置いた。
 // つながりはタスクの任意の項目 source（js/note-tasks.js）。IndexedDB・バックアップは版 6 のまま。ノートの本文には何も足さない。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES } from './helpers.js';
+import { openApp, SIZES, dayNoteEntry } from './helpers.js';
 
 import { DAY, OTHER, putNote, notes, dayNote, tasks, ned, val, base, boot, openDayNote, check, closeSheet, saved, typeList } from './v193-note-lib.js';
 
@@ -55,7 +55,7 @@ test('N-2 両方向: ノートでチェック → タスクが完了。タスク
   expect(ts.length).toBe(2); // 往復しても増えない
   // ノートを開き直すと、同じチェックの状態で出る
   await page.locator('.cback').click(); await openDayNote(page);
-  expect(await val(page)).toBe((await dayNote(page)).body); // 本文の欄は 2 行目から（1 行目＝題名の欄）
+  expect(await val(page)).toBe((await dayNote(page)).body.split('\n').slice(1).join('\n')); // 本文の欄は 2 行目から（1 行目＝題名の欄）。v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更: 「＋ ノート」の新しいノートは 1 行目が題名「買い物」（前は 1 行目が日付の見出しで、「買い物」も本文の欄にあった）
 });
 
 test('N-3 二重に足されない: 開き直し・ほかの行の編集・完了の往復・読み込み直しのあとも 1 行 1 件', async ({ page }) => {
@@ -67,7 +67,8 @@ test('N-3 二重に足されない: 開き直し・ほかの行の編集・完�
   let ts = await tasks(page); expect(ts.length).toBe(1); expect(ts[0].title).toBe('牛乳！！');
   await page.reload(); await page.waitForSelector('html[data-ready]'); await page.waitForTimeout(600);
   expect((await tasks(page)).length).toBe(1);
-  await openDayNote(page); await page.keyboard.press('Control+Home'); await page.keyboard.type('今日の'); await saved(page); await closeSheet(page);
+  // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更: 「買い物」は題名の欄（1 行目）にある。ほかの行（題名）を直しても、チェック行のタスクは増えない・変わらない
+  await openDayNote(page); await page.locator('.nsheet .ned-title').focus(); await page.keyboard.press('Control+Home'); await page.keyboard.type('今日の'); await saved(page); await closeSheet(page);
   ts = await tasks(page); expect(ts.length).toBe(1); expect(ts[0].title).toBe('牛乳！！');
   expect((await dayNote(page)).body).toBe('今日の買い物\n- [ ] 牛乳！！');
 });
@@ -137,8 +138,9 @@ test('N-7 行を消す／普通の行に戻す → タスクは残り、つな�
   expect(ts.length).toBe(2); expect(ts.find((t) => t.title === '卵').source).toBe(null); expect(ts.find((t) => t.title === '牛乳').source).not.toBe(null);
   expect(ts.find((t) => t.title === '卵').keys).not.toContain('source');
   // 「牛乳」の行を消す
-  await ned(page).evaluate((b) => { const i = b.value.indexOf('\n- [ ] 牛乳'); b.focus(); b.setSelectionRange(i, i + '\n- [ ] 牛乳\n'.length); }); await page.keyboard.press('Backspace'); await saved(page);
-  expect((await dayNote(page)).body).toBe('買い物卵');
+  // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更: 本文の欄は「- [ ] 牛乳」から始まる（「買い物」は題名の欄）。牛乳の行だけを消す → 題名「買い物」と「卵」が残る
+  await ned(page).evaluate((b) => { const i = b.value.indexOf('- [ ] 牛乳'); b.focus(); b.setSelectionRange(i, i + '- [ ] 牛乳\n'.length); }); await page.keyboard.press('Backspace'); await saved(page);
+  expect((await dayNote(page)).body).toBe('買い物\n卵');
   ts = await tasks(page);
   expect(ts.map((t) => t.title).sort()).toEqual(['卵', '牛乳']); expect(ts.every((t) => t.source === null)).toBe(true);
   await closeSheet(page);
@@ -146,7 +148,7 @@ test('N-7 行を消す／普通の行に戻す → タスクは残り、つな�
   await page.locator('.cb.ctask').click();
   await page.locator('.rmrow', { hasText: '牛乳' }).locator('.rmckb').click(); await page.waitForTimeout(2200);
   expect((await tasks(page)).find((t) => t.title === '牛乳').done).toBe(true);
-  expect((await dayNote(page)).body).toBe('買い物卵');
+  expect((await dayNote(page)).body).toBe('買い物\n卵');
 });
 
 test('N-8 保存済みの行（IME のごみの行を含む）は、起動しても・開いても・ほかの行を直してもタスクにしない。足した行だけタスクになる。保存済みの行の文字は 1 文字も変えない', async ({ page }) => {
@@ -197,7 +199,7 @@ for (const [name, size] of [['閉じた横', SIZES.closedLandscape], ['開いた
     await page.reload(); await page.waitForSelector('html[data-ready]'); await page.waitForTimeout(400);
     await page.evaluate(async () => { const m = await import('/js/app.js').catch(() => null); void m; });
     // ノートを編集の画面で開く（姿勢ごとの入口は問わず、その日のノートの欄から）
-    const dn = page.locator('[data-act="daynote"]:visible, .dnote:visible').first();
+    const dn = dayNoteEntry(page);
     test.skip(!(await dn.count()), 'この姿勢の初めの画面にノートの欄がない');
     await dn.click();
     const body = page.locator('.ned-body:visible').first();

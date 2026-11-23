@@ -36,12 +36,13 @@ test.describe('ノートのシート（開いた横）', () => {
     const s = await box(sheet(page));
     near(s.x, 8); near(s.r, 465.5); near(s.y, 64); near(s.b, 669);
     const top = await box(page.locator('.nsheet .ned-top'));
-    near(top.y, 72); near(top.h, 44);
+    near(top.y, 116); near(top.h, 44); // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更（design/35 §4.3・R2）: シートの一番上に日付の行 44 が入り、上の帯は y72〜116 → y116〜160
+    { const dr = await box(page.locator('.nsheet .nsdate')); near(dr.y, 64); near(dr.h, 44); await expect(page.locator('.nsheet .nsdcap')).toHaveText('11月12日（木）'); }
     const g = await box(page.locator('.nsheet .ned-gundo')); near(g.x, 20); near(g.w, 96);
     const t = await box(page.locator('.nsheet .ned-gtools')); near(t.x, 128); near(t.w, 140);
     const d = await box(page.locator('.nsheet .ned-done')); near(d.r, 456); near(d.w, 44);
     const b = await box(page.locator('.nsheet .ned-bodywrap')); near(b.x + 8, 24); near(b.r - 8, 449.5);
-    near(b.y, 146, 1); // 題名の行（30）は窓の外に固定。設計は y120〜（題名も紙の中）。差 26 は報告
+    near(b.y, 190, 1); // 題名の行（30）は窓の外に固定。v19.3 その3: 日付の行 44 のぶん 146 → 190
   });
   test('明日（右）を書く: シート x485.5〜951、戻す x497.5〜593.5、完了 x895〜939、本文 x501.5〜835。キーボードがあっても帯は動かず、窓は kbTop−8 まで', async ({ page }) => {
     await fakeVv(page); await landTT(page);
@@ -78,7 +79,8 @@ test.describe('ノートのシート（開いた縦・閉じた画面）', () =>
     await btn.click(); await expect(sheet(page)).toBeVisible(); await page.waitForTimeout(400);
     const s = await box(sheet(page)); near(s.y, 130); near(s.x, 0); near(s.w, 669);
     expect(s.b).toBeLessThanOrEqual(467.5);
-    const top = await box(page.locator('.nsheet .ned-top')); near(top.y, 138);
+    const top = await box(page.locator('.nsheet .ned-top')); near(top.y, 182); // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更（design/35 §4.3・R2）: シートの一番上に日付の行 44 が入り、上の帯は y138〜182 → y182〜226
+    { const dr = await box(page.locator('.nsheet .nsdate')); near(dr.y, 130); near(dr.h, 44); }
     const g = await box(page.locator('.nsheet .ned-gundo')); near(g.x, 16); near(g.r, 112);
     const d = await box(page.locator('.nsheet .ned-done')); near(d.r, 653);
     const b = await box(page.locator('.nsheet .ned-bodywrap')); near(b.x + 8, 28); near(b.r - 8, 641);
@@ -86,12 +88,14 @@ test.describe('ノートのシート（開いた縦・閉じた画面）', () =>
   test('閉じた画面: シート y152〜、帯 y160〜204（戻す x12〜108、完了 x410〜454）、本文 x20〜362', async ({ page }) => {
     await preset(page, { selected: '2026-11-12' });
     await openApp(page, SIZES.closedPortrait);
-    let btn = page.locator('[data-act="daynote"]:visible').first();
-    if (!(await btn.count())) { await tab(page, '月').click(); btn = page.locator('[data-act="daynote"]:visible').first(); }
+    // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更: 閉じた画面の日の欄は「ノートの欄」ではなくカード。その日のノートを書く入口は「＋ ノート」。シートの一番上に日付の行 44 が入り、上の帯は y160〜204 → y196〜240（design/35 §4.3）
+    let btn = page.locator('.mday [data-act="addnote"]:visible').first();
+    if (!(await btn.count())) { await tab(page, '月').click(); btn = page.locator('.mday [data-act="addnote"]:visible').first(); }
     await expect(btn).toBeVisible();
     await btn.click(); await expect(sheet(page)).toBeVisible(); await page.waitForTimeout(400);
     const s = await box(sheet(page)); near(s.y, 152); near(s.x, 0); near(s.w, 466);
-    const top = await box(page.locator('.nsheet .ned-top')); near(top.y, 160);
+    const top = await box(page.locator('.nsheet .ned-top')); near(top.y, 196); near(top.b ?? top.y + top.h, 240);
+    const dr = await box(page.locator('.nsheet .nsdate')); near(dr.y, 152); near(dr.h, 44);
     const g = await box(page.locator('.nsheet .ned-gundo')); near(g.x, 12); near(g.r, 108);
     const d = await box(page.locator('.nsheet .ned-done')); near(d.r, 454);
     const b = await box(page.locator('.nsheet .ned-bodywrap')); near(b.x + 8, 20); near(b.r - 8, 362);

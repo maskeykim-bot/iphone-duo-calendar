@@ -141,7 +141,7 @@ for (const size of CLOSED) {
       const sc = page.locator('.mday'), one = size.width < size.height, scr = one ? page.locator('.mpull.browse') : sc, padEl = one ? page.locator('.mday .mdin') : sc;
       const paneBottom = (await box(sc)).b;
       await scr.evaluate((el) => { el.scrollTop = el.scrollHeight; });
-      const last = await box(page.locator('.mday .mdnote'));
+      const last = await box(page.locator('.mday .mdadd')); // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更: 日の欄の末尾は「ノートの欄」（.mdnote）→「＋ タスク」「＋ ノート」の行（.mdadd）
       // S11e（品質の指示13）: 横の確かめを戻した。34 §14: 閉じた横は格子 x8〜374・y64〜424、日の欄は x382 から右・全部の高さ（y0〜466）。この試験は safe=0（帯なし）なので下の余白は 105（§14.5）。縦の段1は日の欄が 74 しかないので 41
       const land = size.width > size.height, pad = 105;
       expect(await padEl.evaluate((el) => parseFloat(getComputedStyle(el).paddingBottom))).toBe(pad);

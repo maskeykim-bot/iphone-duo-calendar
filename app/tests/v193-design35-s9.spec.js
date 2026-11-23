@@ -448,8 +448,12 @@ test('35 §9 K-10 並び: 終日 → 予定（時刻順）→「タスク ›」
 test('35 §9 K-11 区画の見出し: 中身のない区画は見出しごと出ない。ある区画は高さ 32・13/600 #68716A・押せる高さ 44。「タスク ›」はタスクのページ、「ノート ›」はノートの一覧', async ({ page }) => {
   await P3.boot(page);
   await page.locator(cell(D16)).first().click(); await page.waitForTimeout(350); // 何もない日: 見出しごと出ない。「予定はありません」と「＋ タスク」「＋ ノート」だけ
-  await expect(page.locator('.mday .mdnone2')).toHaveText('予定はありません'); await expect(page.locator('.mday .mdsh')).toHaveCount(0); await expect(page.locator('.mday .mdadd button')).toHaveCount(2);
+  await expect(page.locator('.mday .mdnone2')).toHaveText('予定はありません'); await expect(page.locator('.mday .mdsh')).toHaveCount(0);
+  // ノートの無い日は、ノートの一覧の入口「ノート ›」（閉じた画面ではここだけ。34 §9.1-7）を「＋」の行の右端に置く（区画の見出しではない）。ノートのある日は区画の見出しが入口なので、行の右端には出ない
+  expect(await page.locator('.mday .mdadd button').allTextContents()).toEqual(['＋ タスク', '＋ ノート', 'ノート ›']);
+  { const l = await r3(page, '.mday .mdadd .mdnlx'), row = await r3(page, '.mday .mdadd'); expect(near(l.h, 44) && near(l.r, row.r)).toBe(true); expect(await c3(page, '.mday .mdadd .mdnlx', 'color')).toBe('rgb(104, 113, 106)'); }
   await page.locator(cell(D12)).first().click(); await page.waitForTimeout(350);
+  await expect(page.locator('.mday .mdadd button')).toHaveCount(2); await expect(page.locator('.mday .mdnl')).toHaveCount(1);
   for (const sel of ['.mday .mdtsh', '.mday .mdnl']) {
     const r = await r3(page, sel); expect(near(r.h, 32)).toBe(true); expect(near(r.x, 12)).toBe(true);
     expect(await c3(page, sel, 'fontSize')).toBe('13px'); expect(await c3(page, sel, 'fontWeight')).toBe('600'); expect(await c3(page, sel, 'color')).toBe('rgb(104, 113, 106)'); expect(await c3(page, sel, 'paddingLeft')).toBe('4px');

@@ -32,10 +32,10 @@ test.describe('S11g §17-5 帯なしの横で、ノートのシートの上に�
     await expect(bdg).toBeVisible();
     const b = await bdg.boundingBox(); expect(b.x).toBeCloseTo(660, 0); expect(b.y).toBeCloseTo(0, 0); expect(b.width).toBeCloseTo(18, 0);
     await page.evaluate(() => { const m = document.querySelector('.mday'); m.scrollTop = m.scrollHeight; }); await page.waitForTimeout(150);
-    await page.locator('.mday [data-act="daynote"]').click(); await page.waitForTimeout(600);
+    await page.locator('.mday [data-act="addnote"]').click(); await page.waitForTimeout(600); // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更: 日の欄の「ノートの欄」→「＋ ノート」
     const sh = await page.locator('.nsheet').boundingBox(); expect(sh.y).toBeCloseTo(8, 0); expect(sh.x + sh.width).toBeCloseTo(678, 0);
     await expect(bdg).toBeHidden();
-    await page.getByRole('button', { name: '完了' }).click();
+    await page.getByRole('button', { name: '完了', exact: true }).click(); // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更: タスクのカードの読み上げ「タスク、未完了、…」も『完了』を含むので、ノートの「完了」は完全一致で選ぶ
     await expect(page.locator('.nsheet')).toBeHidden();
     await expect(bdg).toBeVisible();
   });

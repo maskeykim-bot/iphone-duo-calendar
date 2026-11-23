@@ -5,7 +5,7 @@
 //   変換中の文字ノードを1つ持ち、つながっていれば中身を差し替え、切り離されたら今のキャレットの位置に入れ直す。
 // 「CDP」= Chromium の本物の IME（Input.imeSetComposition / Input.insertText）。Chromium だけで動く。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES } from './helpers.js';
+import { openApp, SIZES, dayNoteEntry } from './helpers.js';
 
 const DAY = '2026-11-12';
 const KANA = ['き', 'きょ', 'きょう', 'きょうの', 'きょうのの', 'きょうののー', 'きょうののーと'];
@@ -25,9 +25,13 @@ async function boot(page, size = SIZES.closedPortrait) {
 }
 async function openDaySheet(page, size = SIZES.closedPortrait) {
   await boot(page, size);
-  const dn = page.locator(`[data-act="daynote"][data-day="${DAY}"]`).filter({ visible: true }).first();
+  // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更: 閉じた画面の日の欄は「ノートの欄」ではなくカードで、「＋ ノート」の新しいノートは 1 行目に日付の見出しを足さない。
+  // この試験は「その日のノート（題名＝日付の見出し・本文は空）」の本文の変換を見るので、今までの形のノートを先に置いて、そのカードから開く
+  if (!(await getNote(page, 'r70-day'))) { await putNote(page, { id: 'r70-day', body: '2026年11月12日（木）\n', createdAt: 5, updatedAt: 10, folderId: null, pinned: false, pinnedAt: null, date: DAY, deletedAt: null }); await page.reload(); await page.waitForSelector('html[data-ready]'); await page.waitForTimeout(300); }
+  const dn = dayNoteEntry(page, DAY);
   await dn.scrollIntoViewIfNeeded(); await dn.click();
   await expect(ned(page)).toBeVisible(); await page.waitForTimeout(300);
+  await ned(page).evaluate((b) => { b.focus(); const n = b.value.length; b.setSelectionRange(n, n); }); // 今までの「新しいその日のノート」と同じく、本文の末尾にキャレット
 }
 // 本文の DOM の変化を数える（本文の直下の子の出し入れ = 行の作り直し）
 // 本文の行を作り直した回数（変換中だけ）。ブラウザが文字ノードを入れるのは数えず、行を取り除いたもの（= アプリの作り直し）だけ数える。
@@ -192,7 +196,7 @@ test.describe('R-70 ノートの変換（Chromium の本物の IME）', () => {
     await boot(page);
     await putNote(page, { id: 'r70-g', body: GARBAGE, createdAt: 5, updatedAt: 10, folderId: null, pinned: false, pinnedAt: null, date: DAY, deletedAt: null });
     await page.reload(); await page.waitForSelector('html[data-ready]');
-    const dn = page.locator(`[data-act="daynote"][data-day="${DAY}"]`).filter({ visible: true }).first();
+    const dn = dayNoteEntry(page, DAY);
     await dn.scrollIntoViewIfNeeded(); await dn.click(); await expect(ned(page)).toBeVisible(); await page.waitForTimeout(300);
     await page.locator('.nsheet .ned-done').click(); await page.waitForTimeout(800);
     expect((await getNote(page, 'r70-g')).body).toBe(GARBAGE);
@@ -210,7 +214,7 @@ test.describe('R-70 の直しで戻ってはいけないもの（S8 の決まり
     await boot(page);
     await putNote(page, { id: 'r70-s', body, createdAt: 5, updatedAt: 10, folderId: null, pinned: false, pinnedAt: null, date: DAY, deletedAt: null });
     await page.reload(); await page.waitForSelector('html[data-ready]');
-    const dn = page.locator(`[data-act="daynote"][data-day="${DAY}"]`).filter({ visible: true }).first();
+    const dn = dayNoteEntry(page, DAY);
     await dn.scrollIntoViewIfNeeded(); await dn.click(); await expect(ned(page)).toBeVisible(); await page.waitForTimeout(300);
   };
   const done = async (page) => { await page.locator('.nsheet .ned-done').click(); await page.waitForTimeout(800); return (await getNote(page, 'r70-s')).body; };

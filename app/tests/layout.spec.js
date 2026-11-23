@@ -62,7 +62,7 @@ test.describe('レイアウト（4サイズ）', () => {
     await expect(page.locator('.calendar .legend')).toHaveCount(0);
     const sc = page.locator('.mpull.browse'); // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 閉じた縦は日の欄の中ではなく画面（.mpull.browse）が1本で流れる（前: .mday を送る → 後: .mpull.browse を送る）。送り切ると末尾（ノート）が下の端に隠れず出るのは同じ
     await sc.evaluate((el) => { el.scrollTop = el.scrollHeight; });
-    const last = await box(page.locator('.mdnote'));
+    const last = await box(page.locator('.mday .mdadd')); // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更: 日の欄の末尾は「ノートの欄」（.mdnote）→「＋ タスク」「＋ ノート」の行（.mdadd）
     expect(last.y + last.height).toBeLessThanOrEqual(678 - 41 + 0.5);
   });
 

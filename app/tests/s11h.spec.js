@@ -40,7 +40,7 @@ const frames = (page, ms) => page.evaluate(([src, ms]) => new Promise((res) => {
 test.describe('S11h §18-3 シートを開いている間、上に残る見出しのボタンを押せなくする', () => {
   const openSheet = async (page) => {
     await page.evaluate(() => { const m = document.querySelector('.mday'); m.scrollTop = m.scrollHeight; }); await page.waitForTimeout(150);
-    await page.locator('.mday [data-act="daynote"]').click(); await page.waitForTimeout(600);
+    await page.locator('.mday [data-act="addnote"]').click(); await page.waitForTimeout(600); // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更: 日の欄の「ノートの欄」→「＋ ノート」
     await expect(page.locator('.nsheet')).toBeVisible();
   };
   // §18-6: 見出しの帯ごと inert にしてよいので、ボタン自身の inert でなく 祖先を含めて見る

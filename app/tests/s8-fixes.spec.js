@@ -191,6 +191,8 @@ test.describe('N-05/Q1 選んだ今日のマス：+N は右 4、ノートの印�
       });
       expect(r, '選んだ今日のマスがある').not.toBeNull();
       if (r.plusR != null) near(r.cellR - r.plusR, 4, 1, '+N の右');
+      // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更（design/35 §2.4・決定 5）: 閉じた画面の月のマスは、ノートの印（緑／白の線）の代わりに名前のチップを出す。線の位置の確かめは開いた画面だけ
+      if (!open) { expect(r.ml, '閉じた画面のマスにノートの線は出ない').toBeUndefined(); return; }
       expect(r.ml, 'ノートの印がある').toBeTruthy();
       expect(r.ml[4]).toBe('rgb(255, 255, 255)'); near(r.ml[2], 8, 0.5); near(r.ml[3], 1.5, 0.1);
       // Q1（設計 fc56bc9）: 閉じ・横は x+7〜15・y+15〜16.5

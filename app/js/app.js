@@ -1460,7 +1460,9 @@ function stageDayHtml() {
   // 35 §5.2・§5.3: カードにバーは出さない（要素ごと無い）。時間のときだけ、見出しのすぐ下に「時間の幅」のバー
   const grab = mode ? `<div class="mdgrab" role="slider" tabindex="0" aria-label="時間の幅。下へ引くと広がり、上へ引くと戻る" aria-orientation="vertical" aria-valuemin="1" aria-valuemax="2" aria-valuenow="${mode}" aria-valuetext="${mode === 2 ? '詳細' : '最低限'}"><i aria-hidden="true"></i></div>` : '';
   // 35 §3: 予定 →「タスク ›」→ タスクのカード →「ノート ›」→ ノートのカード →「＋ タスク」「＋ ノート」（中身のない区画は見出しごと出さない。時間のときも、時間軸の下に同じ区画）
-  const rest = `<div class="mdrest">${dayTaskCards(k)}${dayNoteCards(k)}<div class="mdadd"><button type="button" data-act="addtask" data-day="${k}" aria-label="${esc(dayLabel(k))}が期限のタスクを足す">＋ タスク</button><button type="button" data-act="addnote" data-day="${k}" aria-label="${esc(dayLabel(k))}のノートを足す">＋ ノート</button></div></div>`;
+  // ノートの一覧の入口（34 §9.1-7 の「ノート ›」）: 閉じた画面ではここだけが入口。その日にノートが無くて区画の見出しを出さないときは、同じ「ノート ›」を「＋」の行の右端に置く（いつも 1 つだけ出る）
+  const nc = dayNoteCards(k);
+  const rest = `<div class="mdrest">${dayTaskCards(k)}${nc}<div class="mdadd"><button type="button" data-act="addtask" data-day="${k}" aria-label="${esc(dayLabel(k))}が期限のタスクを足す">＋ タスク</button><button type="button" data-act="addnote" data-day="${k}" aria-label="${esc(dayLabel(k))}のノートを足す">＋ ノート</button>${nc ? '' : '<button type="button" class="mdnl mdnlx" data-act="notelist" aria-label="ノートの一覧"><span aria-hidden="true">ノート ›</span></button>'}</div></div>`;
   // 第19.3版: 閉じた縦は .mpull が1本でスクロールする。.mday は「スクロール 0 で見えている日の欄」の箱（高さは今までどおり 画面−88−H）、中身は .mdin が持ち、箱の下へあふれて続く。閉じた横は .mdin を箱にしない（display:contents。今までどおり .mday の中がスクロール）
   return `<div class="mday" data-scroll="mday" data-dg="${'ABC'[mode]}"><div class="mdin">${head}${grab}<div class="mdbody">${body}</div>${rest}</div></div>`;
 }

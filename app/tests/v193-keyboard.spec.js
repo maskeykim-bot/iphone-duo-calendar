@@ -3,7 +3,7 @@
 //（実機はプラグインが WKWebView のキーボードの通知の購読を外すので、こちらの形になることがある。v19.2 まではこの形でシートがキーボードの下に残った）。
 // 4 つの姿勢（閉じた縦 466×678・閉じた横 678×466・開いた縦 669×951・開いた横 951×669）で、予定のメモ欄・ノートの本文・書式のシート・タスクのメモ欄を見る。
 import { test, expect } from '@playwright/test';
-import { openApp, SIZES } from './helpers.js';
+import { openApp, SIZES, dayNoteEntry } from './helpers.js';
 import { T, seedTasks } from './task-helpers.js';
 
 const POST = [
@@ -92,7 +92,7 @@ for (const [name, key, size, kbTop] of POST) for (const how of ['vv', 'native'])
 // ノートを開く（閉じた画面は日の欄のノート、開いた縦は日の部分のノートの欄、開いた横は手帳の見開き（左右とも日）の左のノートの欄）
 const NOTE_UI = (key) => (key === 'openl' ? { selected: '2026-11-12', spreadType: 'tt' } : null);
 async function openNote(page) {
-  await page.locator('.dpage.lp .dnote:visible, [data-act="daynote"]:visible, .dnote:visible').first().click();
+  await dayNoteEntry(page).click();
   await expect(page.locator('.ned-body:visible').first()).toBeVisible(); await page.waitForTimeout(450);
   await page.locator('.ned-body:visible').first().click(); await page.waitForTimeout(150);
 }

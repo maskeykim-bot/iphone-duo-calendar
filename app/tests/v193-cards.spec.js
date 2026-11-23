@@ -34,7 +34,7 @@ test('C-2「＋ ノート」: その日の新しいノートを題名から書�
   await page.locator('.mday [data-act="addnote"]').click(); await page.waitForTimeout(600);
   await page.keyboard.type('議事メモ'); await page.waitForTimeout(1300);
   await page.locator('.nsheet .ned-done').click(); await page.waitForTimeout(800);
-  expect(await page.locator('.mday .mdk-note strong').allTextContents()).toEqual(['買い物', '議事メモ']);
+  expect((await page.locator('.mday .mdk-note strong').allTextContents()).sort()).toEqual(['買い物', '議事メモ'].sort()); // 並びは作った順（この試験は時計を止めているので作った時刻が同じ＝順は問わない）
   expect(await page.locator('.nsheet .ned-title').count() ? await page.locator('.ned-title').first().getAttribute('placeholder') : '新規ノート').toBe('新規ノート'); // シートを閉じたら元の言葉に戻す
 });
 
@@ -172,7 +172,7 @@ test('D-5 予定を開いて開始の日を変えて保存: 今のシートの�
   await page.locator('#f-start').click(); await page.locator(`#dpop [data-day="${D14}"]`).click();
   await page.locator('#save').click(); await page.waitForTimeout(500);
   const e = (await dbEvs(page)).find((x) => x.id === 'e1'); expect([e.start, e.end]).toEqual([`${D14}T09:00`, `${D14}T10:00`]);
-  await expect(page.locator(cardSel('event', 'e1'))).toHaveCount(0); await expect(page.locator(`${cell(D14)} .chip[data-event="e1"]`)).toHaveCount(1);
+  await expect(page.locator(`${cardSel('event', 'e1')}[data-sday="${DAY}"]`)).toHaveCount(0); await expect(page.locator(`${cell(D14)} .chip[data-event="e1"]`)).toHaveCount(1); // 12 日の欄からは消え、14 日のマスに出る（今のシートは、保存した予定の日を選ぶ）
 });
 test('ノートのシートの「日付を外す」: その日の日の欄からカードが消える（date: null。sourceDate には戻さない）。6 秒は元に戻せる', async ({ page }) => {
   const old = note('memo-2026-11-12', '2026年11月12日（木）\n旧メモ', DAY, { sourceDate: DAY, sourceHeading: true });
@@ -237,9 +237,11 @@ async function bootNative(page, o = {}) {
   await expect(page.locator('.mday .mdcard.ext', { hasText: '歯医者' })).toHaveCount(1);
   await page.evaluate(() => { window.__mock.calls.length = 0; window.__duoMoveLog = []; });
 }
+// iPhone の予定のカード（id はネイティブの予定の id と回の日時からできている）
+const extCard = async (page, title) => `.mday .mdcard.ext[data-event="${(await page.locator('.mday .mdcard.ext', { hasText: title }).getAttribute('data-event')).replace(/"/g, '\\"')}"]`;
 test('iPhone の予定のカード: 長押しで 14 へ → updateExternalEvent（その回だけ・日付と時刻だけ。題名とメモは送らない）。表示は先に変わり、カレンダー側と同じ日時になる。元に戻すも同じ経路', async ({ page }) => {
   await bootNative(page);
-  const src = '.mday .mdcard.ext[data-event^="x1"]';
+  const src = await extCard(page, '歯医者');
   expect(await page.locator(src).getAttribute('aria-label')).toBe('予定、15時00分、16時00分まで、歯医者、iPhone、家族');
   await carry(page, src, cell(D14));
   await expect(page.locator('.gchip.on .gcl')).toHaveCount(1); expect(await css(page, '.gchip .gcl', 'backgroundColor')).toBe('rgb(217, 48, 37)'); // 印の線はカレンダーの色
@@ -261,7 +263,7 @@ test('iPhone の予定のカード: 長押しで 14 へ → updateExternalEvent�
 });
 test('M-17 読み取り専用の iPhone の予定: 見た目は変えず、長押しで持ち上がらない。理由を出して、書き込み 0', async ({ page }) => {
   await bootNative(page);
-  const ro = '.mday .mdcard.ext[data-event^="h1"]';
+  const ro = await extCard(page, '祝日の予定');
   await hold(page, await P3.center(page, ro), 520);
   await expect(page.locator('.gchip, .ghole, .lifted')).toHaveCount(0);
   await expect(toast(page)).toBeVisible(); expect((await toast(page).locator('span').textContent()).length > 4).toBe(true); // 理由の文（今の REASON_TEXT）
@@ -271,7 +273,7 @@ test('M-17 読み取り専用の iPhone の予定: 見た目は変えず、長�
 });
 test('M-24 iPhone への書き込みが断られた: 先に変えた表示を元へ戻し、「移せませんでした。」。カードは元の日に残る', async ({ page }) => {
   await bootNative(page, { fail: true });
-  const src = '.mday .mdcard.ext[data-event^="x1"]';
+  const src = await extCard(page, '歯医者');
   await dropOn(page, src, cell(D14), { settle: 500 });
   await expect(toast(page).locator('span')).toHaveText('移せませんでした。'); await expect(toast(page).locator('button')).toHaveCount(0);
   await expect(page.locator(src)).toHaveCount(1); await expect(page.locator(`${cell(D14)} .chip`, { hasText: '歯医者' })).toHaveCount(0);
@@ -298,8 +300,9 @@ test('保存の形は変えない: IndexedDB の版 6・ストアの並びは同
   const meta = () => page.evaluate(async () => { const name = (await indexedDB.databases()).find((d) => d.name.startsWith('duo-calendar')); const db = await new Promise((res) => { const r = indexedDB.open(name.name); r.onsuccess = () => res(r.result); }); const o = { version: db.version, stores: [...db.objectStoreNames].sort(), idx: Object.fromEntries([...db.objectStoreNames].map((s) => [s, [...db.transaction(s).objectStore(s).indexNames].sort()])) }; db.close(); return o; });
   const m0 = await meta(); expect(m0.version).toBe(6);
   const b = { e: await dbEvs(page), t: await dbTasks(page), n: await dbNotes(page) };
-  await dropOn(page, cardSel('note', old.id), cell(D14)); await dropOn(page, cardSel('note', 'n1'), cell(D14));
-  await dropOn(page, cardSel('task', 't1'), cell(D14)); await dropOn(page, cardSel('event', 'e1'), cell(D14));
+  const noToast = () => page.evaluate(() => document.querySelector('#native-toast')?.remove()); // 下の札が、日の欄の下の方のカードに重なるので片づけてから次をつかむ
+  await dropOn(page, cardSel('note', old.id), cell(D14)); await noToast(); await dropOn(page, cardSel('note', 'n1'), cell(D14)); await noToast();
+  await dropOn(page, cardSel('task', 't1'), cell(D14)); await noToast(); await dropOn(page, cardSel('event', 'e1'), cell(D14));
   expect(await meta()).toEqual(m0); // 版・ストア・索引は同じ
   const a = { e: await dbEvs(page), t: await dbTasks(page), n: await dbNotes(page) };
   for (const n0 of b.n) { const n1 = a.n.find((x) => x.id === n0.id); expect(n1).toEqual({ ...n0, date: D14 }); expect(n1.body).toBe(n0.body); }
@@ -358,13 +361,13 @@ for (const [name, size] of [['閉じた縦', SIZES.closedPortrait], ['閉じた�
 // ---------- 速さ（追記7） ----------
 // 測り方: 画面の中で pointerdown／pointerup／「元に戻す」の click の時刻（performance.now）を控え、アプリの記録（window.__duoMoveLog）の
 //   lift（持ち上げの動き始め）・shown（先の日の DOM が出来た）・painted（その次の描画のコマ）との差を取る。3 回の中央の値で見る（ゆらぎで落ちないように）。
-//   持ち上げは「0.35 秒の長押し待ち」を引いた値。上限: 動き始め 100ms・落としてから表示 300ms（実機の基準。ここでは試験機の値）。
-async function perfHooks(page) {
-  await page.evaluate(() => {
+//   時刻は、起動より前に window の capture に仕込んだ受け口で控える（アプリの受け口より先）。持ち上げは「0.35 秒の長押し待ち」を引いた値。上限: 動き始め 100ms・落としてから表示 300ms（実機の基準。ここでは試験機の値）。
+async function perfHooks(page) { // 起動より前に仕込む（window の capture で、アプリの受け口より先に時刻を控える）
+  await page.addInitScript(() => {
     const T = window.__pt = { down: 0, up: 0, click: 0, frames: [], long: 0, moveMax: 0 };
-    document.addEventListener('pointerdown', () => { T.down = performance.now(); }, true);
-    document.addEventListener('pointerup', () => { T.up = performance.now(); }, true);
-    document.addEventListener('click', (e) => { if (e.target.closest?.('#native-toast button')) T.click = performance.now(); }, true);
+    window.addEventListener('pointerdown', () => { T.down = performance.now(); }, true);
+    window.addEventListener('pointerup', () => { T.up = performance.now(); }, true);
+    window.addEventListener('click', (e) => { if (e.target.closest?.('#native-toast button')) T.click = performance.now(); }, true);
     try { new PerformanceObserver((l) => { T.long += l.getEntries().length; }).observe({ type: 'longtask', buffered: false }); } catch { /* WebKit には無い */ }
     try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (e.name === 'pointermove') T.moveMax = Math.max(T.moveMax, e.processingEnd - e.processingStart); }).observe({ type: 'event', durationThreshold: 16 }); } catch { /* */ }
   });
@@ -373,7 +376,7 @@ const med = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
 async function measure(page, kind, id) {
   const sel = cardSel(kind, id), out = { lift: [], dropShown: [], dropPainted: [], undoShown: [], undoPainted: [], frameMax: [], frameMean: [] };
   for (let i = 0; i < 3; i++) {
-    await page.evaluate(() => { window.__duoMoveLog = []; window.__pt.frames = []; });
+    await page.evaluate(() => { window.__duoMoveLog = []; window.__pt.frames = []; document.querySelector('#native-toast')?.remove(); }); // 前の回の札（下の端）がカードに重ならないよう片づける
     const a = await P3.center(page, sel), b = await P3.center(page, cell(D14));
     await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.waitForTimeout(520);
     await page.evaluate(() => { const T = window.__pt; let last = performance.now(); T.run = true; const f = (t) => { if (!T.run) return; T.frames.push(t - last); last = t; requestAnimationFrame(f); }; requestAnimationFrame((t) => { last = t; requestAnimationFrame(f); }); });
@@ -385,6 +388,7 @@ async function measure(page, kind, id) {
     out.lift.push(at(r.L, 'lift') - r.T.down - 350);
     out.dropShown.push(at(r.L, 'shown', r.T.up) - r.T.up); out.dropPainted.push(at(r.L, 'painted', r.T.up) - r.T.up);
     const fr = r.T.frames.slice(1); out.frameMax.push(Math.max(...fr)); out.frameMean.push(fr.reduce((s, v) => s + v, 0) / fr.length);
+    if (!(await toast(page).getByRole('button', { name: '元に戻す' }).count())) throw new Error(`落とせていない ${kind} ${i}: ${JSON.stringify({ a, b, log: r.L.map((x) => x.ev), toast: await toast(page).count() ? await toast(page).innerText() : '', top: await page.evaluate(() => document.elementFromPoint(191, 566)?.className) })}`);
     await toast(page).getByRole('button', { name: '元に戻す' }).click(); await page.waitForTimeout(450);
     r = await page.evaluate(() => ({ T: { ...window.__pt }, L: window.__duoMoveLog.map((x) => ({ ev: x.ev, t: x.t })) }));
     out.undoShown.push(at(r.L, 'shown', r.T.click) - r.T.click); out.undoPainted.push(at(r.L, 'painted', r.T.click) - r.T.click);
@@ -397,29 +401,31 @@ const savePerf = (name, data) => { const dir = process.env.V193_PERF; if (!dir) 
 for (const [name, size] of [['閉じた縦', SIZES.closedPortrait], ['閉じた横', SIZES.closedLandscape]]) {
   test(`速さ（${name}）: 持ち上げ・落とす・元に戻すの動き始めは 100ms 以内、落としてから先の日に表示され終わるまで 300ms 以内。運んでいる間に長いタスクなし（予定・タスク・ノート）`, async ({ page }, info) => {
     test.setTimeout(120000);
-    // カードの多い日（予定 6・タスク 6・ノート 6）と、ほかの日にも予定を入れた月で測る
-    const many = { events: Array.from({ length: 6 }, (_, i) => ev(`e${i + 1}`, `予定${i + 1}`, `${DAY}T${String(9 + i).padStart(2, '0')}:00`, `${DAY}T${String(9 + i).padStart(2, '0')}:30`)).concat(Array.from({ length: 40 }, (_, i) => ev(`o${i}`, `ほか${i}`, `2026-11-${String(1 + (i % 28)).padStart(2, '0')}T10:00`, `2026-11-${String(1 + (i % 28)).padStart(2, '0')}T11:00`))),
-      tasks: Array.from({ length: 6 }, (_, i) => task(`t${i + 1}`, `タスク${i + 1}`, { date: DAY }, { createdAt: i })), notes: Array.from({ length: 6 }, (_, i) => note(`n${i + 1}`, `ノート${i + 1}\n本文`, DAY, { createdAt: i })) };
-    await P3.boot(page, { size, stage: size.width > size.height ? 4 : 5, ...many });
+    // カードのある日（予定 2・タスク 2・ノート 6＝10 枚。3 種類の 1 枚目が画面に入る数）と、ほかの日にも予定 40 件・タスク 20 件・ノート 20 件を入れた月で測る
+    const d2 = (i) => { const d = 1 + (i % 28); return `2026-11-${String(d === 12 ? 13 : d).padStart(2, '0')}`; }; // 12 日（カードを測る日）は除く
+    const many = { events: Array.from({ length: 2 }, (_, i) => ev(`e${i + 1}`, `予定${i + 1}`, `${DAY}T${String(9 + i).padStart(2, '0')}:00`, `${DAY}T${String(9 + i).padStart(2, '0')}:30`)).concat(Array.from({ length: 40 }, (_, i) => ev(`o${i}`, `ほか${i}`, `${d2(i)}T10:00`, `${d2(i)}T11:00`))),
+      tasks: Array.from({ length: 2 }, (_, i) => task(`t${i + 1}`, `タスク${i + 1}`, { date: DAY }, { createdAt: i })).concat(Array.from({ length: 20 }, (_, i) => task(`ot${i}`, `ほかのタスク${i}`, { date: d2(i + 15) }))),
+      notes: Array.from({ length: 6 }, (_, i) => note(`n${i + 1}`, `ノート${i + 1}\n本文`, DAY, { createdAt: i })).concat(Array.from({ length: 20 }, (_, i) => note(`on${i}`, `ほかのノート${i}\n本文の行`, d2(i + 16), { createdAt: 20 + i }))) };
     await perfHooks(page);
+    await P3.boot(page, { size, stage: size.width > size.height ? 4 : 7, ...many });
+    await page.evaluate(() => { window.__pt.long = 0; });
     const res = {};
     for (const [k, id] of [['event', 'e1'], ['task', 't1'], ['note', 'n1']]) {
-      await page.locator(cardSel(k, id)).evaluate((e) => e.scrollIntoView({ block: 'nearest' })); if (size.width < size.height) await page.locator(SEC).evaluate((e) => { e.scrollTop = 0; });
-      if (!(await rect(page, cardSel(k, id))) || (await rect(page, cardSel(k, id))).cy > size.height - 20) continue; // 画面に入っていないカードは測らない
+      if (size.width > size.height) await page.locator(cardSel(k, id)).evaluate((e) => e.scrollIntoView({ block: 'center' })); // 閉じた横: 日の欄の中を送ってカードを出す（左の月は動かない）
       const m = res[k] = await measure(page, k, id);
       expect(m.lift, `${k} 持ち上げ`).toBeLessThanOrEqual(100); expect(m.dropShown, `${k} 落とす`).toBeLessThanOrEqual(100); expect(m.undoShown, `${k} 元に戻す`).toBeLessThanOrEqual(100);
       expect(m.dropPainted, `${k} 落としてから表示`).toBeLessThanOrEqual(300); expect(m.undoPainted, `${k} 元に戻してから表示`).toBeLessThanOrEqual(300);
       if (info.project.name === 'chromium') expect(m.long, `${k} 長いタスク`).toBe(0);
     }
-    expect(Object.keys(res).length >= 1).toBe(true);
+    expect(Object.keys(res).length).toBe(3);
     savePerf(`${info.project.name}-${size.width}x${size.height}`, res);
   });
 }
 test('速さ（CPU を 4 倍に落とした Chromium）: 落としてから先の日に表示され終わるまで 300ms 以内、動き始めは 100ms 以内（閉じた縦・予定・タスク・ノート）', async ({ page, browserName }, info) => {
   test.skip(browserName !== 'chromium', 'CDP の Emulation.setCPUThrottlingRate は Chromium だけ');
   test.setTimeout(180000);
-  await P3.boot(page, { stage: 5, events: [...P3.EVENTS, ...Array.from({ length: 40 }, (_, i) => ev(`o${i}`, `ほか${i}`, `2026-11-${String(1 + (i % 28)).padStart(2, '0')}T10:00`, `2026-11-${String(1 + (i % 28)).padStart(2, '0')}T11:00`))] });
   await perfHooks(page);
+  await P3.boot(page, { stage: 7, events: [...P3.EVENTS, ...Array.from({ length: 40 }, (_, i) => ev(`o${i}`, `ほか${i}`, `2026-11-${String(1 + (i % 28)).padStart(2, '0')}T10:00`, `2026-11-${String(1 + (i % 28)).padStart(2, '0')}T11:00`))] });
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   const res = {};

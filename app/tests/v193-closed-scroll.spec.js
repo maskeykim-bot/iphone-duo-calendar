@@ -39,7 +39,7 @@ const raf2 = (page) => page.evaluate(() => new Promise((r) => requestAnimationFr
 const geo = (page) => page.evaluate(() => {
   const r = (s) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height, b: b.bottom, r: b.right }; };
   const sec = document.querySelector('.mpull.browse');
-  return { st: sec.scrollTop, max: sec.scrollHeight - sec.clientHeight, sec: r('.mpull.browse'), fix: r('.mpfix'), mph: r('.mph'), title: r('#ctitle'), wd: r('.weekdays'), wrap: r('.mgwrap'), grab: r('.mgrab'), day: r('.mday'), mdh: r('.mdh'), dgrab: r('.mdgrab'), note: r('.mdnote'), stage: Number(sec.dataset.stage) };
+  return { st: sec.scrollTop, max: sec.scrollHeight - sec.clientHeight, sec: r('.mpull.browse'), fix: r('.mpfix'), mph: r('.mph'), title: r('#ctitle'), wd: r('.weekdays'), wrap: r('.mgwrap'), grab: r('.mgrab'), day: r('.mday'), mdh: r('.mdh'), dgrab: r('.mdgrab'), note: r('.mday .mdadd'), /* v19.3 その3 で仕様変更: 日の欄の末尾は「ノートの欄」（.mdnote）→「＋ タスク」「＋ ノート」の行（.mdadd） */ stage: Number(sec.dataset.stage) };
 });
 // hold: 離す前に止める時間（ms）。120 以上なら はらいの速さ 0（離す前 80ms の動きがない）＝着いた所の段に寄る
 async function mouseDrag(page, x0, y0, x1, y1, steps = 12, hold = 0) { await page.mouse.move(x0, y0); await page.mouse.down(); await page.mouse.move(x1, y1, { steps }); if (hold) await page.waitForTimeout(hold); await page.mouse.up(); await page.waitForTimeout(550); }
@@ -272,8 +272,9 @@ test.describe('9 変えないもの', () => {
     await page.setViewportSize(SIZES.closedLandscape); await page.waitForTimeout(700);
     const s = await page.evaluate(() => { const sec = document.querySelector('.mpull.browse'), d = sec.querySelector('.mday'), cs = (e) => getComputedStyle(e); const r = (e) => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.width, b.height].map((v) => Math.round(v * 2) / 2); }; return { stage: sec.dataset.stage ?? null, land: sec.dataset.land, secOv: cs(sec).overflowY, secCan: sec.scrollHeight > sec.clientHeight + 1, fixPos: cs(sec.querySelector('.mpfix')).position, dayOv: cs(d).overflowY, dayPos: cs(d).position, mdin: cs(d.querySelector('.mdin')).display, mdh: cs(d.querySelector('.mdh')).position, wrap: r(sec.querySelector('.mgwrap')), day: r(d), grab: !!sec.querySelector('.mgrab'), mpdate: !!sec.querySelector('.mpdate'), fold: !!sec.querySelector('.mdfold') }; });
     expect(s).toEqual({ stage: null, land: '1', secOv: 'hidden', secCan: false, fixPos: 'relative', dayOv: 'auto', dayPos: 'absolute', mdin: 'contents', mdh: 'sticky', wrap: [8, 64, 366, 360], day: [382, 0, 212, 466], grab: false, mpdate: false, fold: false });
-    await page.locator('.mday').evaluate((e) => { e.scrollTop = 80; }); await page.waitForTimeout(200);
-    expect(await page.locator('.mday').evaluate((e) => e.scrollTop), '日の欄の中がスクロールする').toBe(80);
+    // v19.3 その3 で仕様変更: 日の欄の下の「ノートの欄」（最小 88）が無くなり、日の欄の中身が短くなった（送れる量 66）。送る量を 80 → 60 に
+    await page.locator('.mday').evaluate((e) => { e.scrollTop = 60; }); await page.waitForTimeout(200);
+    expect(await page.locator('.mday').evaluate((e) => e.scrollTop), '日の欄の中がスクロールする').toBe(60);
     near(await page.locator('.mday .mdh').evaluate((e) => e.getBoundingClientRect().top), 0, '日の見出しは貼り付く');
     await page.setViewportSize(SIZES.closedPortrait); await page.waitForTimeout(700);
     expect(await stageOf(page)).toBe(3); expect(await haptics(page)).toEqual([]);
@@ -317,7 +318,7 @@ test.describe('10 どの段・どの日でも格子を流し切れる', () => {
         expect(g2.note.y, `段${n}: ノートの上端は見出しより下`).toBeGreaterThanOrEqual(g2.fix.b - 0.5);
         if (sar) expect(g2.note.r, '右の列にかからない').toBeLessThanOrEqual(S.SCREEN.railX + 0.5);
         else { const add = await page.locator('.cb.cadd').boundingBox(); const over = g2.note.b > add.y + 0.5 && g2.note.r > add.x + 0.5; expect(over, `段${n}: 右下の＋（y${add.y}〜）にかからない`).toBe(false); }
-        const top = await page.evaluate(() => { const n = document.querySelector('.mdnote'), b = n.getBoundingClientRect(); return !!document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)?.closest('.mdnote'); });
+        const top = await page.evaluate(() => { const n = document.querySelector('.mday .mdadd'), b = n.getBoundingClientRect(); return !!document.elementFromPoint(b.left + 30, b.top + b.height / 2)?.closest('.mdadd'); }); // v19.3 その3 で仕様変更: 日の欄の末尾は「ノートの欄」（.mdnote）→「＋ タスク」「＋ ノート」の行（.mdadd）
         expect(top, `段${n}: ノートの真ん中が何にも隠れていない`).toBe(true);
       }
       expect(await haptics(page), 'キーの段送り 6 回だけ').toEqual([2, 3, 4, 5, 6, 7]);

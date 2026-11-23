@@ -23,7 +23,8 @@ async function boot(page,{sar=GEO.rail,fresh=false,data=true}={}){
 }
 async function toStage(page,n){const g=page.locator('.mgrab');await g.focus();for(let i=0;i<8;i++){const s=Number(await page.locator('.mpull').getAttribute('data-stage'));if(s===n)break;await page.keyboard.press(s<n?'ArrowUp':'ArrowDown');}await page.waitForTimeout(450);}
 async function moreGo(page,name){await page.locator('.cmore').click();await page.getByRole('menuitem',{name}).click();await page.waitForTimeout(500);}
-async function editNote(page){await page.locator('[data-act="daynote"]:visible').first().click();await page.waitForTimeout(450);await page.locator('.nsheet .ned-body').click();await page.waitForTimeout(200);}
+// v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更: 閉じた画面の日の欄は「ノートの欄」（daynote）ではなくカード。その日のノートを書く入口は「＋ ノート」
+async function editNote(page){await page.locator('.mday [data-act="addnote"]:visible').first().evaluate((e)=>e.scrollIntoView({block:'center'}));await page.locator('.mday [data-act="addnote"]:visible').first().click();await page.waitForTimeout(450);await page.locator('.nsheet .ned-body').click();await page.waitForTimeout(200);}
 const visRects=(page,selector)=>page.locator(selector).evaluateAll(es=>es.filter(e=>{const c=getComputedStyle(e),b=e.getBoundingClientRect();return c.visibility!=='hidden'&&Number(c.opacity)>.05&&b.width>0&&b.height>0;}).map(e=>{const b=e.getBoundingClientRect();return [b.left,b.top,b.right,b.bottom];}));
 
 test('§14 帯あり横: 格子 x8〜374 y64〜424・行60×6・2件、日の欄 x382〜594・つまみ（上）なし（つまみ（下）は §17-3 で使う）',async({page})=>{

@@ -205,8 +205,9 @@ test.describe('閉じた画面 466×678', () => {
     await openApp(page, SIZES.closedPortrait);
     await seedTasks(page, [T('t1', { title: '十二日が期限', due: { date: '2026-11-12' } }), T('t2', { title: '別の日', due: { date: '2026-11-20' } })]);
     await tab(page, '月').click();
-    await expect(page.locator('.mdtask')).toHaveCount(0); // 34 §9.1 の 11: 日の欄の下のタスクは出さない（右の列の「タスク」へ）
-    await expect(page.locator('.mdnl')).toBeVisible(); await expect(page.locator('.mdnote')).toBeVisible(); // 「ノート ›」と下の欄
+    // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更（「タスクもカード表示できれば自由に移動できる」）: 前「日の欄の下にタスクは出さない・ノート › と下の欄がある」→ 後「その日が期限のタスクはカードで出る（開いた縦の行 .mdtask は無い）。ノートの欄（.mdnote）は無く、ノートの一覧への『ノート ›』と『＋ タスク』『＋ ノート』がある」
+    await expect(page.locator('.mdtask')).toHaveCount(0); await expect(page.locator('.mday .mdcard.mdk-task')).toHaveCount(1); await expect(page.locator('.mday .mdcard.mdk-task strong')).toHaveText('十二日が期限');
+    await expect(page.locator('.mdnl')).toBeVisible(); await expect(page.locator('.mdnote')).toHaveCount(0); await expect(page.locator('.mday .mdadd button')).toHaveCount(3);
     await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'A'); // 初めはカード
     await page.locator('.mday .mdct [data-dg="time"]').click(); // 見出しの右の「時間」
     await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B');

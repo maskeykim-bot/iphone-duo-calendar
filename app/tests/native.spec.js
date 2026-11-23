@@ -462,7 +462,7 @@ test.describe('ネイティブ（偽装）', () => {
     await tab(page, '月').click();
     await page.locator('[data-date="2026-11-20"]').click({ position: { x: 12, y: 10 } });
     await expect(page.locator('.mdcard, .tlev', { hasText: '会食' })).toHaveCount(1);
-    await expect(page.locator('.mdcard, .tlev', { hasText: '会食' })).toHaveAttribute('aria-label', /iPhoneにも追加済み/);
+    await expect(page.locator('.mdcard, .tlev', { hasText: '会食' })).toHaveAttribute('aria-label', /iPhone ?にも追加済み/); // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更: カードの読み上げは design/35 §2.3 の文「…、iPhone にも追加済み」（空白あり）
     // 編集には案内
     await page.locator('.mdcard, .tlev', { hasText: '会食' }).click();
     await expect(page.locator('#xlinked')).toContainText('iPhoneにも追加済み。Duo で変えた内容は iPhone のカレンダーにも反映されます。');
@@ -1714,7 +1714,8 @@ test.describe('第15版 PR6: 既存予定のカレンダー移動', () => {
     await page.locator('[data-date="2026-11-12"]').click({ position: { x: 12, y: 10 } });
     const blk = page.locator('.mdcard, .tlev', { hasText: '会食' });
     await expect(blk).toHaveAttribute('style', /--cat:#d93025/);
-    await expect(blk).toHaveAttribute('aria-label', /家族/);
+    // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更: 閉じた画面のカードの読み上げは design/35 §2.3 の決まった形（種類、時刻、題名、添え）で、保存先のカレンダー名は入らない（前: /家族/ を含む）。色は保存先カレンダーのもの（上）、つながりは「iPhone にも追加済み」
+    await expect(blk).toHaveAttribute('aria-label', /^予定、.*会食、iPhone にも追加済み$/);
   });
 
   test('移動の選択肢を選んだだけの途中で閉じると破棄確認。元に戻せば確認なし', async ({ page }) => {

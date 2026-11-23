@@ -343,7 +343,7 @@ test.describe('ベル', () => {
     await expect(bell).toHaveCount(1);
     const r = await bell.boundingBox();
     expect(Math.round(r.width)).toBe(12);
-    await expect(page.locator('.mdcard[data-event="a1"]')).toHaveAttribute('aria-label', /通知 30分前、1日前/);
+    await expect(page.locator('.mdcard[data-event="a1"]')).toHaveAttribute('aria-label', /30分前に通知、1日前に通知/); // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更: カードの読み上げは design/35 §2.3 の順と言い方（「予定、時刻、題名、…、10分前に通知」）。前「通知 30分前、1日前」
     await expect(page.locator('.mdcard[data-event="b1"] .bell')).toHaveCount(0);
     const o = await page.evaluate(() => ({ sw: document.scrollingElement.scrollWidth, cw: document.scrollingElement.clientWidth }));
     expect(o.sw).toBeLessThanOrEqual(o.cw);

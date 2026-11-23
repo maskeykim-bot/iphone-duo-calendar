@@ -213,7 +213,8 @@ for (const [name, size, setup2] of [
       await press(page, { x: b.x + b.width / 2, y: b.y + b.height / 2 });
       await expect(page.locator('.dbox')).toHaveCount(0);
       // S11e（34 §15-④）: 閉じた画面の「日」はカレンダーの日の欄なので月のマスが同じ画面に見えるが、閉じた画面で長押しでつかめるのは格子のチップだけ（grabAllowed は開いた画面だけ。0568d18 から変えていない）。日の欄の枠は今までどおり離すと編集シート
-      if (name !== '閉じた縦の日' && await page.locator('.week .day[data-date]').first().isVisible().catch(() => false)) { // PR8: 月と同じ画面ではつかむ。月の日の上でなく同じ場所で離すので取りやめ（編集シートも開かない）
+      // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更（「カードはそのままカレンダーの別日に移動できる」）: 閉じた画面の日の欄の枠・カードも長押しでつかめるようになった（前: 閉じた縦の日は離すと編集シートが開く → 後: 月が見えていればつかむ。同じ場所で離せば取りやめ）
+      if (await page.locator('.week .day[data-date]').first().isVisible().catch(() => false)) { // PR8: 月と同じ画面ではつかむ。月の日の上でなく同じ場所で離すので取りやめ（編集シートも開かない）
         await expect(page.locator('.gchip')).toHaveCount(1);
         await page.mouse.up();
         await expect(page.locator('#editor')).toBeHidden();
