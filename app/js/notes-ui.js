@@ -392,7 +392,13 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
     flashT = setTimeout(() => { status.classList.add('out'); flashT = setTimeout(() => { flashText = ''; status.classList.remove('out'); if (!destroyed) paintStatus(); }, 150); }, ms);
   }
   // 開いているノートの本文を外から差し替える（タスクの完了に合わせてチェックを入れ替える）。キャレットは近い位置のまま、戻すに乗り、保存へ流す
-  function replaceBody(text) { const n = String(text ?? '').length; return applyEdit({ text: String(text ?? ''), selStart: Math.min(body.selectionStart, n), selEnd: Math.min(body.selectionEnd, n) }, true, document.activeElement !== body); }
+  function replaceBody(text) { // text は保存の文字（1 行目＝題名の行を含む全文）。本文の欄（2 行目から）だけを差し替える。題名の行まで違うときは全部を出し直す
+    const t = String(text ?? ''), cur = value(); if (t === cur) return false;
+    const i = t.indexOf('\n'), ci = cur.indexOf('\n');
+    if (i < 0 || ci < 0 || t.slice(0, i) !== cur.slice(0, ci) || /\r/.test(t)) { show(t); sync(); paintUndo(); return true; }
+    const rest = t.slice(i + 1), n = rest.length;
+    return applyEdit({ text: rest, selStart: Math.min(body.selectionStart, n), selEnd: Math.min(body.selectionEnd, n) }, true, document.activeElement !== body);
+  }
 
   async function open(id) {
     if (cur && cur !== id) await leave();

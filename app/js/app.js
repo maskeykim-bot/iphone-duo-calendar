@@ -295,7 +295,7 @@ let caretRaf = 0;
 const caretFollow = () => { cancelAnimationFrame(caretRaf); caretRaf = requestAnimationFrame(() => { const a = document.activeElement; if (a?.classList?.contains('ned-body')) { if (de.classList.contains('kbl') || de.dataset.kb) revealCaret(a); } else if (a?.matches?.('textarea') && de.dataset.kb) reveal(a); }); }; // v19.3 その2 D: ノートのシート（kbl でない形）と、予定・タスクのメモ欄（textarea）も、キーボードが出ている間は打っている行を追う
 document.addEventListener('selectionchange', caretFollow);
 document.addEventListener('input', (ev) => { if (ev.target?.classList?.contains('ned-body') || ev.target?.matches?.('textarea')) caretFollow(); }, true);
-let vpRaf = 0;
+let vpRaf = 0, revealT = 0;
 let directCtl = null; // 直接入力の制御（回転で取り消す）
 function vpSchedule() { cancelAnimationFrame(vpRaf); vpRaf = requestAnimationFrame(vpTick); }
 function vpTick() {
@@ -311,7 +311,7 @@ function vpTick() {
   if (kb && isTextEl(a)) {
     const d = a.closest('dialog');
     const mh = d ? parseFloat(getComputedStyle(d).maxHeight) : NaN;
-    if (d && Number.isFinite(mh) && mh < 160) { a.blur(); say('入力欄を表示するためキーボードを閉じました。'); } else reveal(a);
+    if (d && Number.isFinite(mh) && mh < 160) { a.blur(); say('入力欄を表示するためキーボードを閉じました。'); } else { reveal(a); clearTimeout(revealT); revealT = setTimeout(() => { const b = document.activeElement; if (de.dataset.kb && isTextEl(b)) reveal(b); }, 90); } // v19.3 その2 D: シートの並べ直し（溝よけ）が済んだあとにもう一度（WebKit は並べ直しが 1 コマ遅い）
   }
 }
 

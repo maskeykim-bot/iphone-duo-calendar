@@ -4,7 +4,9 @@
 // その3 で足す行: K-1〜K-12・V-1〜V-3・D-1〜D-3・M-1〜M-13・M-30〜M-38・N-20〜N-22（カードと別の日への移動）。
 // 数字は getBoundingClientRect と getComputedStyle で、差 1 まで（35 §9）。閉じた縦 466×678・右の帯 84。
 import { test, expect } from '@playwright/test';
-import { SIZES } from './helpers.js';
+import { SIZES, openApp, reloadKeep } from './helpers.js';
+import { T, seedTasks } from './task-helpers.js';
+import { boot as bootNote, openDayNote, typeList, saved, closeSheet, tasks as dbTasks } from './v193-note-lib.js';
 import { boot, DAY, SEC, stageOf, haptics, ui, scTop, setScroll, rect, hourGap, lineY, toTime, toCard, barPt, mouseDrag, touchDrag, near } from './v193-p2-lib.js';
 
 const css = (page, sel, prop) => page.evaluate(([s, p]) => getComputedStyle(document.querySelector(s))[p], [sel, prop]);
@@ -215,3 +217,74 @@ for (const [id, name, size] of [['O-1', '開いた縦', SIZES.openPortrait669], 
     expect((await ui(page)).dayGrip).toBe(2); // 閉じた画面の覚えは開いている間も変わらない
   });
 }
+
+// ---- K-14・R-20（項目 E。くわしい試験は tests/v193-tasks-local.spec.js）、N-1・N-2（項目 F。くわしい試験は tests/v193-note-tasks.spec.js） ----
+
+for (const [name, size] of [['閉じた縦', SIZES.closedPortrait], ['開いた横', SIZES.openLandscape951]]) {
+  test(`35 §9 K-14 タスクのページの四角（${name}）: 20×20・角丸 4・線 1.75。押せる範囲は 44 のまま`, async ({ page }) => {
+    await openApp(page, size, '', { home: false });
+    await seedTasks(page, [T('a', { title: '未完了' }), T('c', { title: '完了', done: true, doneAt: '2026-11-12T09:00', order: 3 })]);
+    if (size.width < 600) await page.locator('.cb.ctask').click(); else await page.locator('.pgl [data-pick="task"]').first().click();
+    await expect(page.locator('.rmck:visible').first()).toBeVisible();
+    const list = await page.locator('.rmck').evaluateAll((l) => l.filter((e) => e.getBoundingClientRect().width > 0).map((e) => {
+      const r = e.getBoundingClientRect(), c = getComputedStyle(e), b = e.closest('.rmckb').getBoundingClientRect();
+      let decl = ''; for (const sh of document.styleSheets) { let rules = []; try { rules = [...sh.cssRules]; } catch { /* */ } for (const ru of rules) { const v = ru.selectorText && ru.style ? ru.style.getPropertyValue('border') || ru.style.getPropertyValue('border-width') : ''; if (v && e.matches(ru.selectorText)) decl = v; } }
+      return { w: r.width, h: r.height, rad: c.borderTopLeftRadius, decl, hit: [b.width, b.height] };
+    }));
+    expect(list.length).toBeGreaterThanOrEqual(1);
+    for (const m of list) {
+      expect(near(m.w, 20, 0.01) && near(m.h, 20, 0.01)).toBe(true); expect(m.rad).toBe('4px');
+      expect(m.decl).toContain('1.75px'); // 等倍の画面では計算値が 1px に丸まるので、効いている宣言の値で見る（実機 3 倍では 5 画素）
+      expect(m.hit[0] >= 44 && m.hit[1] >= 44).toBe(true);
+    }
+  });
+}
+
+test('35 §9 R-20 リマインダー停止の知らせ: 同期をオンにしていた端末で版を上げて起動すると、閉じた縦でシート y378〜678・後ろが暗い・見出しに焦点。OK で閉じ、2 回目の起動では出ない。一度もオンにしていない端末では出ない', async ({ page }) => {
+  await page.addInitScript(() => document.addEventListener('DOMContentLoaded', () => document.documentElement.style.setProperty('--sar', '84px')));
+  await openApp(page, SIZES.closedPortrait, '', { home: false });
+  const sheet = page.locator('#remend');
+  await expect(sheet).toBeHidden(); // 一度もオンにしていない端末
+  await reloadKeep(page); await expect(sheet).toBeHidden();
+  await page.evaluate(() => localStorage.setItem('duo-rem-sync', JSON.stringify({ enabled: true, everEnabled: true, duoListId: 'L1', duoListTitle: 'Duo', lists: [], addTo: '', declined: [], syncedAt: 1 })));
+  await reloadKeep(page);
+  await expect(sheet).toBeVisible(); await page.waitForTimeout(400);
+  const r = await rect(page, '#remend');
+  expect(near(r.x, 0) && near(r.r, 466) && near(r.y, 378) && near(r.b, 678)).toBe(true);
+  await expect(sheet.locator('h2')).toHaveText('iPhone のリマインダーとの同期をやめました');
+  expect(await sheet.innerText()).not.toMatch(/許可|権限/);
+  const st = await sheet.evaluate((d) => ({ modal: d.matches(':modal'), back: getComputedStyle(d, '::backdrop').backgroundColor, focusIn: d.contains(document.activeElement) }));
+  expect(st.modal).toBe(true); expect(st.back).toBe('rgba(28, 31, 29, 0.24)'); expect(st.focusIn).toBe(true);
+  await sheet.locator('#remend-ok').click();
+  await expect(sheet).toBeHidden();
+  await reloadKeep(page); await page.waitForTimeout(400);
+  await expect(sheet).toBeHidden(); // 2 回目の起動では出ない
+});
+
+test('35 §9 N-1 ノート→タスク: 日付のノートで「- [ ] 牛乳」→ 状態の行に「タスクに足しました（期限 11月12日）」（シートで最初の 1 件だけ）。閉じるとタスクに「牛乳」（期限 11/12）。日の欄のカードと副題「ノート「…」から」は その3', async ({ page }) => {
+  await bootNote(page);
+  await openDayNote(page);
+  await typeList(page, ['牛乳']);
+  await expect(page.locator('.nsheet .ned-status.info > span')).toHaveText('タスクに足しました（期限 11月12日）', { timeout: 4000 });
+  await expect(page.locator('.nsheet .ned-status.info')).toHaveCount(0, { timeout: 3500 });
+  await page.keyboard.press('Enter'); await page.keyboard.type('卵'); await saved(page);
+  await expect(page.locator('.nsheet .ned-status.info')).toHaveCount(0);
+  await closeSheet(page);
+  expect((await dbTasks(page)).map((t) => [t.title, t.due?.date, t.due?.time ?? null]).sort()).toEqual([['卵', '2026-11-12', null], ['牛乳', '2026-11-12', null]]);
+  await page.locator('.cb.ctask').click();
+  await expect(page.locator('.rmrow .rmt', { hasText: '牛乳' })).toHaveCount(1);
+});
+
+test('35 §9 N-2 両方向: タスクの四角をたたく → ノートの行が「- [x] 」。ノートで四角をたたく → タスクが完了', async ({ page }) => {
+  await bootNote(page);
+  await openDayNote(page);
+  await typeList(page, ['牛乳', '卵']); await saved(page);
+  await page.locator('.nsheet .ned-chk').first().click(); await saved(page); // ノート側で「牛乳」
+  expect((await dbTasks(page)).find((t) => t.title === '牛乳').done).toBe(true);
+  await closeSheet(page);
+  await page.locator('.cb.ctask').click();
+  await page.locator('.rmrow', { hasText: '卵' }).locator('.rmckb').click(); // タスク側で「卵」
+  const body = () => page.evaluate(async () => (await (await import('/js/db.js')).listNotes()).find((n) => n.date === '2026-11-12').body);
+  await expect.poll(body, { timeout: 6000 }).toMatch(/- \[x\] 牛乳\n- \[x\] 卵$/);
+  expect((await dbTasks(page)).every((t) => t.done)).toBe(true);
+});

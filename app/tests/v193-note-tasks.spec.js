@@ -4,43 +4,16 @@
 import { test, expect } from '@playwright/test';
 import { openApp, SIZES } from './helpers.js';
 
-const DAY = '2026-11-12', OTHER = '2026-11-18';
-const putNote = (page, n) => page.evaluate(async (n) => (await import('/js/db.js')).putNote(n), n);
-const notes = (page) => page.evaluate(async () => (await (await import('/js/db.js')).listNotes({ includeDeleted: true })).map((n) => ({ id: n.id, body: n.body, date: n.date ?? null, sourceDate: n.sourceDate ?? null, deletedAt: n.deletedAt ?? null })));
-const dayNote = async (page, day = DAY) => (await notes(page)).find((n) => n.date === day && !n.deletedAt) || null;
-export const tasks = (page) => page.evaluate(async () => (await (await import('/js/db.js')).listTasks()).map((t) => ({ id: t.id, title: t.title, due: t.due, done: t.done, source: t.source ?? null, notify: t.notify, keys: Object.keys(t).sort().join(',') })));
-const ned = (page) => page.locator('.nsheet .ned-body');
-const val = (page) => ned(page).evaluate((b) => b.value);
-const base = (id, body, date, extra = {}) => ({ id, body, createdAt: 5, updatedAt: 10, folderId: null, pinned: false, pinnedAt: null, date, deletedAt: null, ...extra });
-
-export async function boot(page, { size = SIZES.closedPortrait, sar = 84 } = {}) {
-  await page.addInitScript((v) => document.addEventListener('DOMContentLoaded', () => document.documentElement.style.setProperty('--sar', `${v}px`)), Math.min(size.width, size.height) < 600 ? sar : 0);
-  await page.addInitScript(() => { const k = 'duo.ui.v1'; if (sessionStorage.getItem('v193nt')) return; sessionStorage.setItem('v193nt', '1'); const s = JSON.parse(localStorage.getItem(k) || '{}'); localStorage.setItem(k, JSON.stringify({ ...s, monthDay: 'list', home: false, stage: 7 })); localStorage.setItem('duo.hint.pull', '1'); localStorage.setItem('duo.hint.daybar', '1'); });
-  await openApp(page, size, '', { home: false });
-}
-// その日のノートを開く（閉じた画面は日の欄のノート）
-export async function openDayNote(page, day = DAY) {
-  const dn = page.locator(`[data-act="daynote"][data-day="${day}"]`).filter({ visible: true }).first();
-  await dn.scrollIntoViewIfNeeded(); await dn.click(); await expect(ned(page)).toBeVisible(); await page.waitForTimeout(350); await ned(page).click();
-}
-const check = (page) => page.locator('.nsheet .ned-top [data-fmt="check"]').click();
-export const closeSheet = async (page) => { await page.locator('.nsheet .ned-done').click(); await page.waitForTimeout(700); };
-// 保存（1 秒の間あき）と突き合わせが済むまで待つ
-export const saved = (page) => page.waitForTimeout(1500);
-// 「買い物」＋チェック行（lines）を打つ
-export async function typeList(page, lines, title = '買い物') {
-  await page.keyboard.type(title); await page.keyboard.press('Enter');
-  await check(page);
-  for (const [i, l] of lines.entries()) { await page.keyboard.type(l); if (i < lines.length - 1) await page.keyboard.press('Enter'); }
-}
+import { DAY, OTHER, putNote, notes, dayNote, tasks, ned, val, base, boot, openDayNote, check, closeSheet, saved, typeList } from './v193-note-lib.js';
 
 test('N-1 日付のあるノートでチェック行に文字を入れる → 同じ題名・期限＝ノートの日付（時刻なし）のタスクが 1 件。状態の行に「タスクに足しました（期限 11月12日）」が 2 秒（シートで最初の 1 件だけ）。本文には何も足さない', async ({ page }) => {
   await boot(page);
   await openDayNote(page);
   await typeList(page, ['牛乳']);
-  const st = page.locator('.nsheet .ned-status.info');
+  const st = page.locator('.nsheet .ned-status.info > span');
   await expect(st).toHaveText('タスクに足しました（期限 11月12日）', { timeout: 4000 });
   expect(await st.evaluate((e) => { const c = getComputedStyle(e); return [c.color, c.fontSize, c.fontWeight]; })).toEqual(['rgb(104, 113, 106)', '12px', '400']);
+  await expect(page.locator('.nsheet .ned-status.info .ned-retry')).toBeHidden();
   await expect(st).toHaveCount(0, { timeout: 3500 }); // 2 秒で消える
   const ts = await tasks(page);
   expect(ts.length).toBe(1);
@@ -64,7 +37,7 @@ test('N-2 両方向: ノートでチェック → タスクが完了。タスク
   await openDayNote(page);
   await typeList(page, ['牛乳', '卵']); await saved(page);
   // ノートで「牛乳」をチェック（左の四角）
-  await page.locator('.nsheet .ned-ck').first().click(); await saved(page);
+  await page.locator('.nsheet .ned-chk').first().click(); await saved(page);
   let ts = await tasks(page);
   expect(ts.find((t) => t.title === '牛乳').done).toBe(true); expect(ts.find((t) => t.title === '卵').done).toBe(false);
   expect((await dayNote(page)).body).toBe('買い物\n- [ ] 卵\n- [x] 牛乳'); // チェックした行は下へ（今までの決まり）
@@ -72,17 +45,17 @@ test('N-2 両方向: ノートでチェック → タスクが完了。タスク
   // タスクの一覧で「卵」を完了 → ノートの行が - [x]
   await page.locator('.cb.ctask').click();
   await page.locator('.rmrow', { hasText: '卵' }).locator('.rmckb').click();
-  await expect.poll(async () => (await dayNote(page)).body, { timeout: 6000 }).toBe('買い物\n- [x] 卵\n- [x] 牛乳');
+  await expect.poll(async () => (await dayNote(page)).body, { timeout: 6000 }).toBe('買い物\n- [x] 牛乳\n- [x] 卵'); // 完了にした行は、チェック済みの並びの最後へ（今までの決まり）
   expect((await tasks(page)).every((t) => t.done)).toBe(true);
-  // 完了を戻す → - [ ]
-  await page.locator('.rmrow', { hasText: '牛乳' }).locator('.rmckb').click();
-  await expect.poll(async () => (await dayNote(page)).body, { timeout: 6000 }).toMatch(/- \[ \] 牛乳/);
+  // 完了を戻す（知らせの「元に戻す」）→ - [ ]
+  await page.getByRole('button', { name: '元に戻す' }).click();
+  await expect.poll(async () => (await dayNote(page)).body, { timeout: 6000 }).toMatch(/- \[ \] 卵/);
   ts = await tasks(page);
-  expect(ts.find((t) => t.title === '牛乳').done).toBe(false); expect(ts.find((t) => t.title === '卵').done).toBe(true);
+  expect(ts.find((t) => t.title === '卵').done).toBe(false); expect(ts.find((t) => t.title === '牛乳').done).toBe(true);
   expect(ts.length).toBe(2); // 往復しても増えない
   // ノートを開き直すと、同じチェックの状態で出る
   await page.locator('.cback').click(); await openDayNote(page);
-  expect(await val(page)).toBe((await dayNote(page)).body);
+  expect(await val(page)).toBe((await dayNote(page)).body); // 本文の欄は 2 行目から（1 行目＝題名の欄）
 });
 
 test('N-3 二重に足されない: 開き直し・ほかの行の編集・完了の往復・読み込み直しのあとも 1 行 1 件', async ({ page }) => {
@@ -121,7 +94,7 @@ test('N-4 同じ題名・似た題名の行が 2 本: タスクも 2 件。片�
   let ts = await tasks(page);
   expect(ts.map((t) => t.title).sort()).toEqual(['牛乳', '牛乳', '牛乳パック']);
   expect(new Set(ts.map((t) => t.id)).size).toBe(3);
-  await page.locator('.nsheet .ned-ck').nth(1).click(); await saved(page);
+  await page.locator('.nsheet .ned-chk').nth(1).click(); await saved(page);
   ts = await tasks(page);
   expect(ts.filter((t) => t.title === '牛乳').map((t) => t.done).sort()).toEqual([false, true]);
   expect(ts.find((t) => t.title === '牛乳パック').done).toBe(false);
@@ -137,7 +110,7 @@ test('N-5 日付のないノートでは作らない。あとから別のノー�
   const body = page.locator('.ned-body:visible').first();
   await expect(body).toBeVisible(); await body.click(); await page.keyboard.press('Control+End'); await page.keyboard.press('Enter');
   await page.locator('.ned-fmt:visible [data-fmt="check"]').first().click(); await page.keyboard.type('日付なしの行'); await saved(page);
-  expect((await notes(page)).find((n) => n.id === 'free-1').body).toBe('覚え書き\n- [ ] 日付なしの行');
+  expect((await notes(page)).find((n) => n.id === 'free-1').body).toMatch(/^覚え書き\n+- \[ \] 日付なしの行$/);
   expect(await tasks(page)).toEqual([]);
 });
 
@@ -164,7 +137,7 @@ test('N-7 行を消す／普通の行に戻す → タスクは残り、つな�
   expect(ts.length).toBe(2); expect(ts.find((t) => t.title === '卵').source).toBe(null); expect(ts.find((t) => t.title === '牛乳').source).not.toBe(null);
   expect(ts.find((t) => t.title === '卵').keys).not.toContain('source');
   // 「牛乳」の行を消す
-  await ned(page).evaluate((b) => { b.focus(); b.setSelectionRange(3, 12); }); await page.keyboard.press('Backspace'); await saved(page);
+  await ned(page).evaluate((b) => { const i = b.value.indexOf('\n- [ ] 牛乳'); b.focus(); b.setSelectionRange(i, i + '\n- [ ] 牛乳\n'.length); }); await page.keyboard.press('Backspace'); await saved(page);
   expect((await dayNote(page)).body).toBe('買い物卵');
   ts = await tasks(page);
   expect(ts.map((t) => t.title).sort()).toEqual(['卵', '牛乳']); expect(ts.every((t) => t.source === null)).toBe(true);
@@ -192,7 +165,7 @@ test('N-8 保存済みの行（IME のごみの行を含む）は、起動して
   const n = (await notes(page)).find((x) => x.id === 'memo-2026-11-12');
   expect(n.body).toBe(`${OLD}追記\n- [ ] 新しい行`); expect(n.sourceDate).toBe(DAY);
   // 前からある行をチェックしても、タスクは増えない（つながっていない行）
-  await page.locator('.nsheet .ned-ck').nth(1).click(); await saved(page);
+  await page.locator('.nsheet .ned-chk').nth(1).click(); await saved(page);
   expect((await tasks(page)).map((t) => t.title)).toEqual(['新しい行']);
 });
 
@@ -203,11 +176,12 @@ test('ノートの日付を付け替えると、期限がまだ元の日付と�
   const n = await dayNote(page);
   // 「牛乳」だけ、タスクの側で期限を 20 日に変えておく
   await page.evaluate(async () => { const db = await import('/js/db.js'); const t = (await db.listTasks()).find((x) => x.title === '牛乳'); await db.putTask({ ...t, due: { date: '2026-11-20' } }); });
-  await page.reload(); await page.waitForSelector('html[data-ready]'); await page.waitForTimeout(500);
-  await openDayNote(page);
-  await page.locator('.nsheet [data-act="notedate"], .nsheet .ndbtn, .nsheet [data-act="ndopen"]').first().click().catch(() => {});
-  const cell = page.locator(`[data-ndday="${OTHER}"]`).first();
-  test.skip(!(await cell.count()), 'この画面の日付の付け替えの入口は その3（メモのシートの日付の行）で入る');
+  // ノートの一覧から開き、見出しの日付（今の日付の付け替えの入口）で 18 日へ
+  await page.locator('.mdnl').click();
+  await page.locator(`[data-nrw="${n.id}"] .mrow`).click();
+  await page.locator('[data-act="ndate"]:visible').first().click();
+  const cell = page.locator(`[data-ndday="${OTHER}"]:visible`).first();
+  await expect(cell).toBeVisible();
   await cell.click(); await page.waitForTimeout(600);
   const ts = await tasks(page);
   expect((await notes(page)).find((x) => x.id === n.id).date).toBe(OTHER);
@@ -227,12 +201,12 @@ for (const [name, size] of [['閉じた横', SIZES.closedLandscape], ['開いた
     test.skip(!(await dn.count()), 'この姿勢の初めの画面にノートの欄がない');
     await dn.click();
     const body = page.locator('.ned-body:visible').first();
-    await expect(body).toBeVisible(); await page.waitForTimeout(400); await body.click();
-    await page.keyboard.press('Control+End'); await page.keyboard.press('Enter');
+    await expect(body).toBeVisible(); await page.waitForTimeout(400);
+    const has = await body.evaluate((b) => { b.focus(); const n = b.value.length; b.setSelectionRange(n, n); return n > 0; }); if (has) await page.keyboard.press('Enter'); // 題名（1 行目）は別の欄。本文の欄が空ならそのまま 2 行目になる
     await page.locator('.ned-fmt:visible [data-fmt="check"]').first().click(); await page.keyboard.type('牛乳'); await saved(page);
     let ts = await tasks(page);
     expect(ts.map((t) => [t.title, t.due?.date, t.done])).toEqual([['牛乳', DAY, false]]);
-    await page.locator('.ned-ck:visible').first().click(); await saved(page);
+    await page.locator('.ned-chk:visible').first().click(); await saved(page);
     ts = await tasks(page);
     expect(ts.map((t) => [t.title, t.done])).toEqual([['牛乳', true]]);
     expect((await notes(page)).find((x) => x.id === 'n-post').body).toBe('買い物\n- [x] 牛乳');
