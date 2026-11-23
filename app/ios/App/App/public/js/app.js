@@ -889,8 +889,8 @@ function weekInner(w, { mode, cur, sel, today, cap, time, tk = null, lt = LANE_T
     const dots = mode === 'simple' ? `<span class="dots">${es.slice(0, cap).map((e) => `<i class="dot ${catCls(e)}"${catSty(e)}></i>`).join('')}</span>` : '';
     const ps = PS.on ? PS.days.includes(k) : false, pSrc = PS.on && k === PS.srcDay;
     const extra = mode === 'simple' ? es.length - cap : hidden[col] + xhid[col];
-    const kinds = dyn ? ([es.length ? `予定${es.length}件${xCount(es)}` : '', xn[col].t ? `タスク${xn[col].t}件` : '', xn[col].n ? `ノート${xn[col].n}件` : ''].filter(Boolean).join('、') || '予定0件') : ''; // 35 §2.3: 件数を種類ごとに（0 件の種類は言わない。何もない日だけ「予定0件」）
-    html += `<button type="button" class="day${extra > 0 && k === sel ? ' selplus' : ''}${cur !== null && d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}${dow === 6 ? ' sat' : dow === 0 ? ' sun' : ''}${state.holidayRed && holName(k) ? ' hol' : ''}${ps ? ' psel' : ''}${pSrc ? ' psrc' : ''}" data-date="${k}" aria-label="${dyn ? dynDayLabel(k) : `${dayLabel(k)}${holSpoken(k)}${r ? `、${r.name}` : ''}`}、${dyn ? kinds : `予定${es.length}件${xCount(es)}`}${es.length ? `：${es.map((x) => xname(x) + spokenAt(x, k) + x.title).join('、')}` : ''}${!dyn && NB.marks.has(k) ? '、ノートあり' : ''}${tn ? `、未完了のタスク${tn}件` : ''}${PS.on ? `${pSrc ? '、コピー元' : ''}、${ps ? '選択中。この日を外す' : 'この日を選ぶ'}` : ''}" aria-pressed="${PS.on ? ps : k === sel}"${dyn ? ` aria-selected="${k === sel}"` : ''}>${pSrc ? '<span class="pcsrc" aria-hidden="true">コピー元</span>' : ''}${ps ? '<i class="pck" aria-hidden="true">✓</i>' : ''}${r ? `<span class="rk" aria-hidden="true">${r.name}</span>` : ''}<span class="num${state.rokuyo && d.getDate() === 1 ? ' sd' : ''}">${label}</span>${tn ? `<span class="tkn" aria-hidden="true">✓${tn}</span>` : ''}${NB.marks.has(k) && !dyn ? '<i class="mline" aria-hidden="true"></i>' : ''}${dots}${inCell[col]}</button>`;
+    const kinds = dyn ? ([es.length ? `予定${es.length}件${xCount(es)}` : '', xn[col].t ? `タスク${xn[col].t}件` : '', xn[col].n ? `ノート${xn[col].n}件` : ''].filter(Boolean).join('、')) : ''; // 35 §2.3: 件数を種類ごとに（0 件の種類は言わない。何もない日は日付だけ。品質 L-2）
+    html += `<button type="button" class="day${extra > 0 && k === sel ? ' selplus' : ''}${cur !== null && d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}${dow === 6 ? ' sat' : dow === 0 ? ' sun' : ''}${state.holidayRed && holName(k) ? ' hol' : ''}${ps ? ' psel' : ''}${pSrc ? ' psrc' : ''}" data-date="${k}" aria-label="${dyn ? dynDayLabel(k) : `${dayLabel(k)}${holSpoken(k)}${r ? `、${r.name}` : ''}`}${dyn ? (kinds ? `、${kinds}` : '') : `、予定${es.length}件${xCount(es)}`}${es.length ? `：${es.map((x) => xname(x) + spokenAt(x, k) + x.title).join('、')}` : ''}${!dyn && NB.marks.has(k) ? '、ノートあり' : ''}${tn ? `、未完了のタスク${tn}件` : ''}${PS.on ? `${pSrc ? '、コピー元' : ''}、${ps ? '選択中。この日を外す' : 'この日を選ぶ'}` : ''}" aria-pressed="${PS.on ? ps : k === sel}"${dyn ? ` aria-selected="${k === sel}"` : ''}>${pSrc ? '<span class="pcsrc" aria-hidden="true">コピー元</span>' : ''}${ps ? '<i class="pck" aria-hidden="true">✓</i>' : ''}${r ? `<span class="rk" aria-hidden="true">${r.name}</span>` : ''}<span class="num${state.rokuyo && d.getDate() === 1 ? ' sd' : ''}">${label}</span>${tn ? `<span class="tkn" aria-hidden="true">✓${tn}</span>` : ''}${NB.marks.has(k) && !dyn ? '<i class="mline" aria-hidden="true"></i>' : ''}${dots}${inCell[col]}</button>`;
     if (dyn) html += `<span class="plus dyn" data-plus="${k}" data-col="${col}" data-hid="${Math.max(0, extra)}" style="right:calc(${6 - col} * 100% / 7 + 4px)" aria-hidden="true" hidden></span>`;
     else if (extra > 0 && plusLane >= 0) html += `<span class="plus pn" data-plus="${k}" style="${colPos(col, col)};top:${lt + plusLane * ls}px" aria-hidden="true">+${extra + dropped[col]}</span>`;
     else if (extra > 0) html += `<span class="plus${k === sel ? ' onsel' : ''}" data-plus="${k}" style="right:calc(${6 - col} * 100% / 7)" aria-hidden="true">+${extra}</span>`;
@@ -1232,7 +1232,7 @@ function pullDayTasks(k) {
   const pend = doneCtl.pending();
   const rows = all.filter((r) => r?.due?.date === k).map((r) => {
     const done = pend.has(r.itemId) ? pend.get(r.itemId) === true : !!r.done;
-    return `<div class="htask mdtask${done ? ' done' : ''}"><button type="button" class="rmckb" data-act="remck" data-id="${esc(r.itemId)}" role="checkbox" aria-checked="${done}" aria-label="${done ? '未完了に戻す' : '完了にする'}：${esc(r.title || '')}"${r.readOnly ? ' disabled' : ''}><span class="rmck" aria-hidden="true"></span></button><span class="htt">${esc(r.title || '')}</span>${r.due.time ? `<small class="hdue">${esc(r.due.time)}</small>` : ''}</div>`;
+    return `<div class="htask mdtask${done ? ' done' : ''}"><button type="button" class="rmckb" data-act="remck" data-id="${esc(r.itemId)}" role="checkbox" aria-checked="${done}" aria-label="${done ? '未完了に戻す' : '完了にする'}、${esc(r.title || '')}"${r.readOnly ? ' disabled' : ''}><span class="rmck" aria-hidden="true"></span></button><span class="htt">${esc(r.title || '')}</span>${r.due.time ? `<small class="hdue">${esc(r.due.time)}</small>` : ''}</div>`;
   });
   return `<section class="mdsec mdtasks" aria-label="タスク"><h4>タスク</h4>${rows.join('') || '<p class="mdempty">この日が期限のタスクはありません</p>'}</section>`;
 }
@@ -1852,7 +1852,7 @@ function homeTasksCard() {
   const T = homeTasks(all, today, doneCtl.pending());
   const rows = T.items.map((r) => {
     const done = doneCtl.pending().get(r.itemId) === true, du = dueText(r.due, today), od = r.due.date < today;
-    return `<div class="htask${done ? ' done' : ''}"><button type="button" class="rmckb" data-act="remck" data-id="${esc(r.itemId)}" role="checkbox" aria-checked="${done}" aria-label="${done ? '未完了に戻す' : '完了にする'}：${esc(r.title || '')}"${r.readOnly ? ' disabled' : ''}><span class="rmck" aria-hidden="true"></span></button><span class="htt">${esc(r.title || '')}</span>${du ? `<small class="hdue${od ? ' od' : ''}">${esc(du)}</small>` : ''}</div>`;
+    return `<div class="htask${done ? ' done' : ''}"><button type="button" class="rmckb" data-act="remck" data-id="${esc(r.itemId)}" role="checkbox" aria-checked="${done}" aria-label="${done ? '未完了に戻す' : '完了にする'}、${esc(r.title || '')}"${r.readOnly ? ' disabled' : ''}><span class="rmck" aria-hidden="true"></span></button><span class="htt">${esc(r.title || '')}</span>${du ? `<small class="hdue${od ? ' od' : ''}">${esc(du)}</small>` : ''}</div>`;
   }).join('');
   // 閉じたホーム: 「＋ タスクを追加」はカードの見出しのすぐ下（1行目、設計 2026-11-20 4:05 ★1-10。最初の画面でタブの下に隠れない）。ほかの姿勢は従来どおり下
   const first = Math.min(L.w, L.h) < 600; // 閉じた画面
@@ -1920,7 +1920,7 @@ function pvTasksHtml() {
   const T = homeTasks(all, today, doneCtl.pending());
   const rows = T.items.map((r) => {
     const done = doneCtl.pending().get(r.itemId) === true, du = dueText(r.due, today), od = r.due.date < today;
-    return `<div class="htask${done ? ' done' : ''}"><button type="button" class="rmckb" data-act="remck" data-id="${esc(r.itemId)}" role="checkbox" aria-checked="${done}" aria-label="${done ? '未完了に戻す' : '完了にする'}：${esc(r.title || '')}"${r.readOnly ? ' disabled' : ''}><span class="rmck" aria-hidden="true"></span></button><span class="htt">${esc(r.title || '')}</span>${du ? `<small class="hdue${od ? ' od' : ''}">${esc(du)}</small>` : ''}</div>`;
+    return `<div class="htask${done ? ' done' : ''}"><button type="button" class="rmckb" data-act="remck" data-id="${esc(r.itemId)}" role="checkbox" aria-checked="${done}" aria-label="${done ? '未完了に戻す' : '完了にする'}、${esc(r.title || '')}"${r.readOnly ? ' disabled' : ''}><span class="rmck" aria-hidden="true"></span></button><span class="htt">${esc(r.title || '')}</span>${du ? `<small class="hdue${od ? ' od' : ''}">${esc(du)}</small>` : ''}</div>`;
   }).join('');
   return `<section class="pv-tasks htasks" aria-label="タスク">${head(T.total)}${rows || '<p class="small hempty">今日のタスクはありません</p>'}<button type="button" class="hadd" data-pv="taskadd">＋ タスクを追加</button></section>`;
 }
@@ -6946,6 +6946,7 @@ function grabRecalc() {
 function grabClear() {
   grabPaintDrop('');
   GR.chip?.remove(); GR.chip = null; GR.hole?.remove(); GR.hole = null;
+  if (GR.inert) { GR.inert.inert = false; GR.inert = null; }
   root.querySelectorAll('.grabbed, .lifted, .liftrel').forEach((n) => n.classList.remove('grabbed', 'lifted', 'liftrel'));
   document.documentElement.removeAttribute('data-grab');
   GR.on = false; GR.o = null; GR.ext = null; GR.off = 0; GR.gen++; GR.asChip = false; GR.cells = null; GR.ckey = ''; GR.acc = 0;
@@ -6967,6 +6968,9 @@ function grabRefuse(msg) { // つかめない予定: 軽く震えて戻す
   feel('warning'); directCtl?.cancel('refuse');
   if (msg) notice(msg, null, 3000);
 }
+// 運ぶ間は文字を選ばせない（品質 Q-1）。入力中の欄のキャレットは外さない
+function grabNoSelect() { try { const a = document.activeElement; if (!(a && (a.isContentEditable || /^(INPUT|TEXTAREA)$/.test(a.tagName)))) getSelection()?.removeAllRanges(); } catch { /* */ } }
+document.addEventListener('selectstart', (ev) => { if (GR.on && ev.cancelable) ev.preventDefault(); }, true);
 function grabStart(o, x, y) {
   GR.o = o;
   const g = grabInfo();
@@ -6985,8 +6989,10 @@ function grabStart(o, x, y) {
   }
   Object.assign(GR, { on: true, drop: '', off: 0, x0: x, y0: y, s0: o.tl?.scrollTop ?? 0, asChip: false, cells: null, ckey: '', cw: 0, acc: 0, geo: grabGeo() });
   if (o.el === document.activeElement) o.el.blur(); // 開いた横のノートの題名の行: つかんだら文字の入力には入らない
+  if (o.el.matches('.ned-title')) { GR.inert = o.el.closest('.ned') || o.el; GR.inert.inert = true; } // 運ぶ間はノートの編集の欄（題名・本文）をフォーカス・選択の外に置く（WebKit はマウスで押したまま動かすと、題名の欄へフォーカスを戻し、本文をなぞって選んでしまう。品質 Q-1）。grabClear で戻す
   if (PRS.cell) { PRS.cell.classList.add('grabd'); PRS.cell.classList.remove('prs'); } // D1（34 §16-2）: つかんだ瞬間に、元のマスの地を 0.10 秒で戻す（元の場所は破線の枠で分かる）
   document.documentElement.dataset.grab = '1';
+  grabNoSelect(); // 品質 Q-1: つかんだら、残っている文字の選択を外す（運ぶ間は selectstart も止める）
   const chip = document.createElement('div'); chip.className = 'gchip'; chip.setAttribute('aria-hidden', 'true');
   chip.style.setProperty('--cat', getComputedStyle(o.el).getPropertyValue('--cat') || '#294E42');
   document.body.append(chip); GR.chip = chip;

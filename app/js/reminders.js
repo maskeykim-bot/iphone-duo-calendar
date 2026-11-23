@@ -68,7 +68,7 @@ export function taskRowHtml(r, color, overdue) {
   const c = safeColor(r.readOnly ? '#C9C6BC' : color);
   const id = escH(r.itemId), ti = escH(r.title || '（題名なし）');
   return `<div class="rmrow${hasDue ? ' two' : ''}${r.done ? ' done' : ''}${ro}" data-key="rm:${id}" role="listitem" style="--rc:${c}">`
-    + `<button type="button" class="rmckb" data-act="remck" data-id="${id}" role="checkbox" aria-checked="${r.done ? 'true' : 'false'}" aria-label="${r.done ? '未完了に戻す' : '完了にする'}：${ti}"${r.readOnly ? ' disabled' : ''}><span class="rmck" aria-hidden="true"></span></button>`
+    + `<button type="button" class="rmckb" data-act="remck" data-id="${id}" role="checkbox" aria-checked="${r.done ? 'true' : 'false'}" aria-label="${r.done ? '未完了に戻す' : '完了にする'}、${ti}"${r.readOnly ? ' disabled' : ''}><span class="rmck" aria-hidden="true"></span></button>`
     + `<button type="button" class="rmbody" data-act="remedit" data-id="${id}"><span class="rmt">${pri}${ti}</span>${hasDue ? `<span class="rmd${overdue ? ' late' : ''}">${escH(dt)}</span>` : ''}</button>`
     + `${r.readOnly ? '<span class="rmro">読み取り専用</span>' : ''}</div>`;
 }

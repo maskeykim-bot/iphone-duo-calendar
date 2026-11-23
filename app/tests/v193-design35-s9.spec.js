@@ -502,7 +502,7 @@ test('35 §9 V-2 読み上げ（四角・マス）: 「完了にする、見積�
   expect(await page.locator(`${cardSel('task', 't1')} .mdck`).getAttribute('role')).toBe('checkbox');
   expect(await page.locator(cell(D12)).first().getAttribute('aria-label')).toMatch(/^11月12日 木曜日、予定2件、タスク1件、ノート1件：/);
   expect(await page.locator(cell(D13)).first().getAttribute('aria-label')).toBe('11月13日 金曜日、ノート1件'); // 予定・タスクが 0 件: 言わない
-  expect(await page.locator(cell(D14)).first().getAttribute('aria-label')).toBe('11月14日 土曜日、予定0件'); // 何もない日
+  expect(await page.locator(cell(D14)).first().getAttribute('aria-label')).toBe('11月14日 土曜日'); // 何もない日: 0 件の種類は言わない（35 §2.3。品質 L-2）
   await page.locator(`${cardSel('task', 't1')} .mdck`).click(); await page.waitForTimeout(150);
   expect(await page.locator(`${cardSel('task', 't1')} .mdck`).getAttribute('aria-label')).toBe('未完了に戻す、見積もりを送る');
 });
@@ -969,6 +969,9 @@ test('35 §9 M-36 タスクの通知: 通知オン・期限 12 日 18:00 のタ�
 });
 
 // M-37・M-38: 開いた画面（見た目は変えず、長押しを足すだけ）
+// 品質 Q-1: 運ぶ間、画面のどの文字も選ばれない
+const selNow = (page) => page.evaluate(() => { const g = getSelection(); return { text: g.toString(), ranges: g.rangeCount }; });
+const NOSEL = { text: '', ranges: 0 };
 async function bootOpen(page, size, o = {}) {
   await P3.boot(page, { size, sar: 0, ui: { view: 'month', focusMode: 'calendar', pages: { left: 'month', right: size.width > size.height ? 'memo' : 'time', portraitBottom: 'time', portraitShown: false }, spreadType: 'pages', monthTasks: true }, ...o });
 }
@@ -981,10 +984,15 @@ test('35 §9 M-37 開いた縦のメモ・タスク（R7）: 日の欄のタス�
   await expect.poll(() => c3(page, row, 'transform'), { timeout: 2000 }).toBe(LIFT); expect(await c3(page, row, 'boxShadow')).toBe('rgba(0, 0, 0, 0.1) 0px 4px 12px 0px');
   expect(await c3(page, '.ghole', 'borderTopStyle')).toBe('dashed'); expect(await c3(page, '.ghole', 'borderTopColor')).toBe('rgb(168, 171, 164)');
   expect(await page.locator('#status').textContent()).toBe('見積もりを送るをつかみました。月の日へ落とします。');
+  await page.waitForTimeout(200); { const r = await r3(page, row); expect(r.x >= 0 && r.r <= 669).toBe(true); } // 品質 L-1: 持ち上げた行（1.03 倍）は画面の左右からはみ出さない
+  expect(await selNow(page)).toEqual(NOSEL); // Q-1: 持ち上げたとき、選択は空
   const c = await P3.center(page, cell(D14)); await page.mouse.move(c.x, c.y, { steps: 8 }); await page.waitForTimeout(200);
   const g = await r3(page, '.gchip'); expect(near(g.h, 32) && near(g.b, c.y - 24) && near(g.cx, c.x)).toBe(true);
   expect(await page.locator('.gchip .gcd').textContent()).toBe('→ 14日（土）'); await expect(page.locator('.gchip .gcb')).toHaveCount(1);
+  expect(await selNow(page)).toEqual(NOSEL); // Q-1: 運ぶ間、選択は空
+  expect(await page.evaluate((s) => { const c = getComputedStyle(document.querySelector(s)); return [c.userSelect || c.webkitUserSelect, c.webkitTouchCallout ?? 'none']; }, row)).toEqual(['none', 'none']);
   await page.mouse.up(); await page.waitForTimeout(350);
+  expect(await selNow(page)).toEqual(NOSEL);
   expect((await p3Tasks(page))[0].due).toEqual({ date: D14, time: '18:00' });
   await expect(toast(page).locator('span')).toHaveText('14日（土）へ移しました');
   await toast(page).getByRole('button', { name: '元に戻す' }).click(); await page.waitForTimeout(350);
@@ -999,6 +1007,7 @@ test('35 §9 M-37 開いた縦のメモ・タスク（R7）: 日の欄のタス�
   await scrollTo(page, title);
   await carry(page, title, cell(D14), { ms: 570 });
   await expect(page.locator('.gchip .gcp')).toHaveCount(1); expect(await page.locator('.gchip .gct').textContent()).toBe('買い物');
+  expect(await selNow(page)).toEqual(NOSEL); // Q-1
   await page.mouse.up(); await page.waitForTimeout(400);
   expect((await p3Notes(page))[0].date).toBe(D14);
   await expect(toast(page).locator('span')).toHaveText('14日（土）へ移しました');
@@ -1030,7 +1039,10 @@ test('35 §9 M-37 開いた横のノート（R7）: ノートのページの題�
   const c = await P3.center(page, cell(D14)); await page.mouse.move(c.x, c.y, { steps: 10 }); await page.waitForTimeout(200);
   await expect(page.locator('.gchip.on .gcp')).toHaveCount(1); expect(await page.locator('.gchip .gcd').textContent()).toBe('→ 14日（土）');
   expect(await page.locator(cell(D14)).first().evaluate((e) => e.classList.contains('mdrop'))).toBe(true);
+  expect(await selNow(page)).toEqual(NOSEL); // Q-1: 開いた横のノートの題名の行を運ぶ間、選択は空
+  expect(await page.locator(title).evaluate((e) => [e.selectionStart === e.selectionEnd, document.activeElement !== e])).toEqual([true, true]);
   await page.mouse.up(); await page.waitForTimeout(400);
+  expect(await selNow(page)).toEqual(NOSEL);
   expect((await p3Notes(page))[0].date).toBe(D14); expect((await p3Notes(page))[0].body).toBe('買い物\n牛乳・卵');
   await expect(toast(page).locator('span')).toHaveText('14日（土）へ移しました');
   // タスクのページの行: つかめない（月が見えていても）

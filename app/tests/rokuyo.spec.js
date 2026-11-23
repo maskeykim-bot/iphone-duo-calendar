@@ -19,7 +19,7 @@ for (const [name, size] of POSTURES) {
     const cell = (d) => page.locator(`[data-date="${d}"]`);
     if (name === 'closed' || name === 'closedL') { // 第19.2版 S11b（34 §6.1・§9.1 の10）: 閉じた画面は六曜をマスに出さず、日の見出し「月 大安」に出す。マスの読み上げにも六曜は入れない
       await expect(page.locator('.mgrid .rk').filter({ visible: true })).toHaveCount(0);
-      await expect(cell('2026-11-16').first()).toHaveAttribute('aria-label', /^11月16日 月曜日、予定0件/);
+      await expect(cell('2026-11-16').first()).toHaveAttribute('aria-label', /^11月16日 月曜日$/);
       await cell('2026-11-16').first().click();
       await expect(page.locator('.mdh .hdw')).toHaveText(/月\s*大安/);
       await expect(cell('2026-11-01').first().locator('.num')).toContainText('1');

@@ -2584,3 +2584,10 @@ html[data-grab] .mpull.browse,html[data-grab] .mpull.browse *{touch-action:none!
 .mpull.browse .mdadd .mdnl.mdnlx{display:block;width:auto;min-width:72px;height:44px;min-height:44px;margin:0 0 0 auto;padding:0 4px 0 12px;font:600 13px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#68716A;text-align:right}
 /* 開いた横のノートの題名の行（入力欄）をつかんだとき: 元の場所の破線の枠（入力欄は outline を消してあるので明示する） */
 .ned .ned-title.grabbed{outline:1.5px dashed #A8ABA4!important;outline-offset:-1.5px;border-radius:8px}
+/* 第19.3版 その4（品質 Q-1）: 開いた画面の持ち上げ口（R7。開いた縦のタスクの行・ノートの題名の行、開いた横のノートの題名の行）は、カードと同じく長押しを文字の選択・吹き出しと取り合わせない。ノートの本文には付けない（本文の長押しは文字の選択のまま）。題名の欄は入力中（:focus）は今までどおり選べる */
+.mpull:not(.browse) .mday .mdtask,.mpull:not(.browse) .mday .mdnotes .dnote .nl:first-child{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.page[data-page="memo"] .ned-title:not(:focus){-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+/* 運んでいる間は、画面のどの文字も選ばせない */
+html[data-grab],html[data-grab] *{-webkit-touch-callout:none!important;-webkit-user-select:none!important;user-select:none!important}
+/* 品質 L-1: 開いた縦で持ち上げたタスクの行は、1.03 倍のぶん（幅の 1.5%）だけ左右を内へ寄せて、画面の端からはみ出させない（中身の位置はほぼそのまま） */
+.mpull:not(.browse) .mday .mdtask.lifted{margin-left:9px;margin-right:9px}

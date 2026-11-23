@@ -200,8 +200,12 @@ for (const [name, size] of [['閉じた横', SIZES.closedLandscape], ['開いた
     await page.evaluate(async () => { const m = await import('/js/app.js').catch(() => null); void m; });
     // ノートを編集の画面で開く（姿勢ごとの入口は問わず、その日のノートの欄から）
     const dn = dayNoteEntry(page);
-    test.skip(!(await dn.count()), 'この姿勢の初めの画面にノートの欄がない');
-    await dn.click();
+    if (await dn.count()) await dn.click();
+    else { // 開いた横: 初めの画面にノートの欄が無いので、右のページをノートにして一覧の行から開く（品質 L-8。とばさない）
+      const pick = page.locator('.pgr [data-pick="memo"]:visible').first();
+      if (await pick.count()) { await pick.click(); await page.waitForTimeout(400); }
+      await page.locator('.page.rp .mrow', { hasText: '買い物' }).first().click();
+    }
     const body = page.locator('.ned-body:visible').first();
     await expect(body).toBeVisible(); await page.waitForTimeout(400);
     const has = await body.evaluate((b) => { b.focus(); const n = b.value.length; b.setSelectionRange(n, n); return n > 0; }); if (has) await page.keyboard.press('Enter'); // 題名（1 行目）は別の欄。本文の欄が空ならそのまま 2 行目になる
