@@ -1,6 +1,7 @@
 // タスク（Duo 内保存）の型・検証・分類。DB には触れない（保存操作は db.js）。
 // Task = { id, title, due: {date:'YYYY-MM-DD', time?:'HH:mm'} | null, done, doneAt: Stamp|null, createdAt, updatedAt: ms, order, note, notify }
 import { isKey } from './util.js';
+import { validSource } from './note-tasks.js';
 
 export const TASK_NOTE_MAX = 10000;
 // 題名の保存上限（RS-20）。入力欄は 80 字のまま（LIMITS.title）。取り込みの長い題名を切らない。
@@ -35,40 +36,37 @@ export function validateTask(t) {
   if (!isMs(t.createdAt) || !isMs(t.updatedAt)) return { ok: false, error: 'タスクの日時が不正です。' };
   if (!(typeof t.order === 'number' && Number.isFinite(t.order))) return { ok: false, error: 'タスクの順序が不正です。' };
   const task = { id: t.id, title, due, done, doneAt: done ? doneAt : null, createdAt: t.createdAt, updatedAt: t.updatedAt, order: t.order, note, notify: due ? notify : false };
-  // リマインダーとのつながり（版 6）。無いタスクには足さない（未リンクのまま）。墓標は同じ tasks に syncState:'tombstone'。
-  for (const k of ['remItemId', 'remExternalId', 'remListId']) {
-    if (t[k] == null) continue;
-    if (typeof t[k] !== 'string' || !t[k] || t[k].length > 512) return { ok: false, error: 'タスクのリマインダーとのつながりが不正です。' };
-    task[k] = t[k];
-  }
-  if (t.remModifiedAt != null) {
-    if (!isMs(t.remModifiedAt)) return { ok: false, error: 'タスクのリマインダーとのつながりが不正です。' };
-    task.remModifiedAt = t.remModifiedAt;
-  }
-  if (t.syncState != null) {
-    if (typeof t.syncState !== 'string' || !t.syncState || t.syncState.length > 32) return { ok: false, error: 'タスクのリマインダーとのつながりが不正です。' };
-    task.syncState = t.syncState;
-  }
+  // v19.3（征希さんの要望）: iOS リマインダーとの同期をやめた。昔のつながり（remItemId・remExternalId・remListId・remModifiedAt・syncState）は
+  // ここで写さない（保存・バックアップの読み戻しのどちらでも復活しない）。任意の項目を足すときは、この下に「値があるときだけ写す」形で足す。
+  // v19.3 その2 F: ノートのチェック行とのつながり（任意の項目 source。無いタスクは今までの形のまま。形が合わなければ写さない＝つながりなし）
+  const source = validSource(t.source);
+  if (source) task.source = source;
   return { ok: true, task };
 }
 
-// リマインダーとのつながり（版 6）。リンクあり＝remItemId か remExternalId がある。墓標は一覧・件数・通知・検索に出さない。
-export const isLinked = (t) => !!t && !!(t.remItemId || t.remExternalId) && t.syncState !== 'tombstone';
+// ---------- v19.3: iOS リマインダーとの同期をやめた（征希さんの要望）。昔のつながりを外すための口だけ残す ----------
+// 墓標（syncState:'tombstone'）＝同期していた頃に Duo で消した跡。一覧・件数・通知・検索・バックアップに出さない。
 export const isTombstone = (t) => !!t && t.syncState === 'tombstone';
 export const liveTasks = (list) => (Array.isArray(list) ? list : []).filter((t) => !isTombstone(t));
-export const LINK_KEYS = ['remItemId', 'remExternalId', 'remListId', 'remModifiedAt'];
-// つながりを外す（題名・期限・完了・メモ・updatedAt は触らない）。state は 'local'（連携なし）か 'listMissing'。
-export function unlinkTask(t, state = 'local') {
+export const LINK_KEYS = ['remItemId', 'remExternalId', 'remListId', 'remModifiedAt', 'syncState'];
+export const hasOldLink = (t) => !!t && LINK_KEYS.some((k) => t[k] != null);
+// つながりの項目だけを外す（題名・期限・完了・メモ・notify・並び・createdAt・updatedAt は触らない）。
+export function unlinkTask(t) {
   const o = { ...t };
   for (const k of LINK_KEYS) delete o[k];
-  o.syncState = state;
   return o;
 }
-// 消すとき、つながりがあれば墓標にする（remListId を「リマインダーからの削除待ち」の印にする。消せたら外す）。
-export function tombstoneOf(t, now) {
-  const o = { ...t, syncState: 'tombstone', updatedAt: now };
-  if (!o.remListId) o.remListId = 'pending';
-  return o;
+// 版を上げた最初の起動で 1 回通す（何度通しても同じ）。生きているタスクはつながりだけ外し、墓標（もう一覧に出ない削除の跡）は片づける。
+// iOS のリマインダー側には何もしない。db: { listTasks, putTask, deleteTask }。戻り値は外した件数（知らせを出すかの判定に使う）。
+export async function dropOldLinks(db) {
+  const out = { unlinked: 0, tombstones: 0, failed: 0 };
+  for (const t of await db.listTasks()) {
+    if (!hasOldLink(t)) continue;
+    try {
+      if (isTombstone(t)) { await db.deleteTask(t.id); out.tombstones++; } else { await db.putTask(unlinkTask(t)); out.unlinked++; }
+    } catch { out.failed++; } // 1 件が書けなくても残りは続ける（次の起動でもう一度）
+  }
+  return out;
 }
 
 let seq = 0;
@@ -92,7 +90,7 @@ export function classifyTasks(list) {
 export const LOCAL_LIST = { id: 'duo', title: 'タスク', color: '#68716A', allowsModify: true, isDefault: true, source: 'Duo' };
 const pad2 = (n) => String(n).padStart(2, '0');
 export const stampNow = (d = new Date()) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-export const rowOf = (t) => ({ itemId: t.id, listId: isLinked(t) && t.remListId ? t.remListId : LOCAL_LIST.id, title: t.title, notes: t.note, due: t.due, done: t.done, doneAt: t.doneAt, alarms: t.notify ? [{}] : [], alarmsExtra: 0, priority: 0, recurring: false, createdAt: t.createdAt, modifiedAt: t.updatedAt, readOnly: false, ...(t.syncState ? { syncState: t.syncState } : {}), ...(isLinked(t) ? { linked: true } : {}) });
+export const rowOf = (t) => ({ itemId: t.id, listId: LOCAL_LIST.id, title: t.title, notes: t.note, due: t.due, done: t.done, doneAt: t.doneAt, alarms: t.notify ? [{}] : [], alarmsExtra: 0, priority: 0, recurring: false, createdAt: t.createdAt, modifiedAt: t.updatedAt, readOnly: false });
 const fail = (code, e) => Object.assign(new Error(e?.message || code), { code });
 // 保存の失敗は理由を分けて表示できるよう code にする（容量超過は STORAGE_FULL、それ以外は STORE_FAILED）。
 const storeErr = (e) => (e && (e.code === 'INVALID_ARGUMENT' || e.code === 'NOT_FOUND') ? e : fail(/quota/i.test(`${e?.name} ${e?.message}`) ? 'STORAGE_FULL' : /^(タスク|題名)/.test(e?.message || '') ? 'INVALID_ARGUMENT' : 'STORE_FAILED', e));
@@ -127,20 +125,15 @@ export function validateTaskPatch(p) {
   return { ok: true, patch: out };
 }
 
-// opts: { syncOn(): 同期がオンか, onWrite(kind, id): Duo に書けたあとの通知（同期の書き出しのきっかけ） }
-export function createTaskStore(db, { syncOn = () => false, onWrite = () => {} } = {}) {
-  // Duo 側の書き込み。つながりのある件は pending（リマインダーへ書く待ち）にする。つながりのない既存の件には足さない。
-  const mark = (t) => (isLinked(t) && t.syncState !== 'listMissing' ? { ...t, syncState: 'pending' } : t);
-  const wrote = (kind, id) => { try { onWrite(kind, id); } catch { /* 無視 */ } };
+// v19.3: リマインダーへの書き出しのきっかけ（syncOn・onWrite・pending の印）は外した。保存は Duo の中だけ。
+export function createTaskStore(db) {
   return {
     async list() { try { return liveTasks(await db.listTasks()); } catch (e) { throw storeErr(e); } },
     async listAll() { try { return await db.listTasks(); } catch (e) { throw storeErr(e); } },
     // id は呼び出し側が決める（同じ要求の再試行は同じ id → db.addTask が重複させない）。
-    async add({ id, title, due = null, notify = false, note = '', listId = '' }) {
+    async add({ id, title, due = null, notify = false, note = '' }) {
       try {
-        const t = await db.addTask({ id, title, due, notify, note, ...(syncOn() ? { syncState: 'pending', ...(listId ? { remListId: listId } : {}) } : {}) });
-        wrote('add', t.id);
-        return t;
+        return await db.addTask({ id, title, due, notify, note });
       } catch (e) { throw storeErr(e); }
     },
     // patch: { title?, note?, due?, notify? }。変えていない項目は保持する。
@@ -152,27 +145,21 @@ export function createTaskStore(db, { syncOn = () => false, onWrite = () => {} }
         if (!cur || isTombstone(cur)) throw fail('NOT_FOUND');
         const p = v.patch, due = 'due' in p ? p.due : cur.due;
         // 期限なしは通知なし。期限だけの変更では通知を ON にしない（notify は触らない）。
-        const r = await db.putTask(mark({ ...cur, ...('title' in p ? { title: p.title } : {}), ...('note' in p ? { note: p.note } : {}), due, ...('notify' in p ? { notify: p.notify } : {}), updatedAt: now }));
-        wrote('update', id);
-        return r;
+        return await db.putTask({ ...cur, ...('title' in p ? { title: p.title } : {}), ...('note' in p ? { note: p.note } : {}), due, ...('notify' in p ? { notify: p.notify } : {}), updatedAt: now });
       } catch (e) { throw storeErr(e); }
     },
     async setDone(id, done, now = Date.now()) {
       try {
         const cur = await db.getTask(id);
         if (!cur || isTombstone(cur)) throw fail('NOT_FOUND');
-        const r = await db.putTask(mark({ ...cur, done: !!done, doneAt: done ? stampNow(new Date(now)) : null, updatedAt: now }));
-        wrote('done', id);
-        return r;
+        return await db.putTask({ ...cur, done: !!done, doneAt: done ? stampNow(new Date(now)) : null, updatedAt: now });
       } catch (e) { throw storeErr(e); }
     },
-    // つながりのある件は墓標を残す（その外部 id を取り込み直さない。リマインダー側の削除は同期が行う）。
     async remove(id, now = Date.now()) {
       try {
         const cur = await db.getTask(id);
         if (!cur || isTombstone(cur)) return { missing: !cur };
-        if (isLinked(cur)) await db.putTask(tombstoneOf(cur, now)); else await db.deleteTask(id);
-        wrote('delete', id);
+        await db.deleteTask(id);
         return { missing: false };
       } catch (e) { throw storeErr(e); }
     },
@@ -206,14 +193,14 @@ export function createLocalAddController(store) {
   const rid = () => `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
   return {
     get busy() { return busy; },
-    async submit({ title, due = null, time = '', notify, listId = '' }) {
+    async submit({ title, due = null, time = '', notify }) {
       if (busy) return { ok: false, busy: true };
       const t = String(title ?? '').trim();
       if (!t) return { ok: false, empty: true };
       const dueV = due ? (time ? { date: due, time } : { date: due }) : null;
       const nv = !!dueV && notify === true;
-      const fp = JSON.stringify([t, dueV, nv, listId]);
-      if (!pend || pend.fp !== fp) pend = { id: rid(), fp, args: { title: t, due: dueV, notify: nv, ...(listId ? { listId } : {}) } };
+      const fp = JSON.stringify([t, dueV, nv]);
+      if (!pend || pend.fp !== fp) pend = { id: rid(), fp, args: { title: t, due: dueV, notify: nv } };
       const req = pend;
       busy = true;
       try {

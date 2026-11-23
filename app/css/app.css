@@ -2499,4 +2499,6 @@ html.kbl[data-kbl=taskd] .ftdn .rmadd,html.kbl[data-kbl=taskd] .ftdn .ftchips{di
 .ned-status.info.out{opacity:0;transition:opacity .15s linear}
 .nsheet .ned-status.info{display:flex;position:absolute;left:20px;right:20px;bottom:8px;z-index:3;height:28px;padding:0 12px;box-sizing:border-box;align-items:center;border-radius:14px;background:#EFECE4;pointer-events:none}
 @media (prefers-reduced-motion:reduce){.ned-status.info{animation:none}}
+/* キーボードが出ていないとき（シートの下端＝画面の下端）は、ホームバーの帯（33）の上へ */
+html:not([data-kb]) .shell.closed ~ .nsheet .ned-status.info,html:not([data-kb]) body[data-layout=browse] .nsheet .ned-status.info,html:not([data-kb]) body[data-layout=home] .nsheet .ned-status.info{bottom:41px}
 

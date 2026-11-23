@@ -109,6 +109,41 @@ export function onEnter(text, selStart, selEnd) {
   return { text: joinLines(out, oe), selStart: pos, selEnd: pos };
 }
 
+// ---- 第19.3版 C: 箇条書き・チェックの行の字下げ（段） ----
+// 保存の形は今のまま: 行頭の空白 2 つで1段（`^\s*- ` で読める）。段は 0〜INDENT_MAX。記号のない行・見出しは変えない。
+export const INDENT_UNIT = '  ';
+export const INDENT_MAX = 4;
+// 行頭の空白 → 段（タブは空白 2 つと数える。半端な空白は切り捨て。上限 INDENT_MAX）
+export const indentLevel = (indent) => Math.min(INDENT_MAX, Math.floor(String(indent || '').replace(/\t/g, INDENT_UNIT).length / INDENT_UNIT.length));
+// 行頭の記号の文字（viewOf の pre）→ 段
+export const levelOfPre = (pre) => indentLevel(/^\s*/.exec(String(pre || ''))[0]);
+// 選択にかかる行（only を渡せばその行だけ）のうち、箇条書き・チェックの行を dir（+1＝下げる／-1＝上げる）だけ動かす。
+// 戻り値: { text, selStart, selEnd }（端で動かなければ text は元のまま）。対象に記号の行が1つもなければ null（Tab の元の動きに任せる）。
+// 触るのは行頭の空白だけ。記号・チェックの状態・文字・改行の形・ほかの行は1文字も変えない。
+export function indentLines(text, selStart, selEnd, dir, only = null) {
+  const { texts, eols, starts } = splitLines(text);
+  let a = lineAt(text, selStart), b = lineAt(text, selEnd);
+  if (selEnd > selStart && b > a && starts[b] === selEnd) b -= 1;
+  if (only != null) { if (only < 0 || only >= texts.length) return null; a = b = only; }
+  const out = texts.slice(), was = texts.map(() => 0), now = texts.map(() => 0);
+  let marked = false;
+  for (let i = a; i <= b; i++) {
+    const p = parseLine(texts[i]);
+    if (p.kind !== 'check' && p.kind !== 'bullet') continue;
+    marked = true;
+    const lv = indentLevel(p.indent), nv = Math.max(0, Math.min(INDENT_MAX, lv + (dir < 0 ? -1 : 1)));
+    was[i] = now[i] = p.indent.length;
+    if (nv === lv) continue;
+    const ni = INDENT_UNIT.repeat(nv);
+    out[i] = ni + texts[i].slice(p.indent.length); now[i] = ni.length;
+  }
+  if (!marked) return null;
+  const t = joinLines(out, eols);
+  const { starts: ns } = splitLines(t);
+  const map = (pos) => { const li = lineAt(text, pos), col = pos - starts[li]; return ns[li] + (col <= was[li] ? Math.min(col, now[li]) : col + now[li] - was[li]); };
+  return { text: t, selStart: map(selStart), selEnd: map(selEnd) };
+}
+
 // 連続するチェック行（同じ連続ブロック）の範囲 [s, e]
 function blockOf(parsed, i) {
   let s = i, e = i;

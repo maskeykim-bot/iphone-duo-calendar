@@ -126,3 +126,20 @@ test('ノートを動かしたとき: 期限がまだノートの元の日付と
   assert.deepEqual(tasksFollowingNote(ts, N, D, D), []);
   assert.deepEqual(tasksFollowingNote(ts, N, null, D), []);
 });
+
+// バックアップ（版 6 のまま）: つながりはタスクの任意の項目 source として書き出し、読み戻す。無いタスクは今までの形のまま。形の合わない source は捨てる（つながりなし）
+import { validateTask } from '../js/tasks.js';
+import { buildBackup, validateBackup, VERSION } from '../js/backup.js';
+test('保存とバックアップ: source はあるときだけ写す。版は 6 のまま。往復でつながりが戻る。形の合わない source は捨てる', () => {
+  const t = { id: 't1', title: '牛乳', due: { date: D }, done: false, doneAt: null, createdAt: 1, updatedAt: 2, order: 0, note: '', notify: false };
+  assert.equal('source' in validateTask(t).task, false);
+  assert.deepEqual(validateTask({ ...t, source: { ...src('牛乳', 0, 1), junk: 1 } }).task.source, src('牛乳', 0, 1));
+  assert.equal('source' in validateTask({ ...t, source: { type: 'other' } }).task, false);
+  const bk = JSON.parse(JSON.stringify(buildBackup([], {}, new Date(2026, 10, 23), [], [], [{ ...t, source: src('牛乳', 0, 1) }, { ...t, id: 't2' }])));
+  assert.equal(bk.version, 6); assert.equal(VERSION, 6);
+  assert.deepEqual(bk.tasks[0].source, src('牛乳', 0, 1)); assert.equal('source' in bk.tasks[1], false);
+  const r = validateBackup(JSON.stringify(bk));
+  assert.equal(r.ok, true);
+  const back = (r.data?.tasks ?? r.tasks ?? []).find((x) => x.id === 't1');
+  assert.deepEqual(back?.source, src('牛乳', 0, 1));
+});
