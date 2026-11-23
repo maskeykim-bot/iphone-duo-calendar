@@ -18,10 +18,16 @@ export async function boot(page, { size = SIZES.closedPortrait, sar = 84 } = {})
   await page.addInitScript(() => { const k = 'duo.ui.v1'; if (sessionStorage.getItem('v193nt')) return; sessionStorage.setItem('v193nt', '1'); const s = JSON.parse(localStorage.getItem(k) || '{}'); localStorage.setItem(k, JSON.stringify({ ...s, monthDay: 'list', home: false, stage: 7 })); localStorage.setItem('duo.hint.pull', '1'); localStorage.setItem('duo.hint.daybar', '1'); });
   await openApp(page, size, '', { home: false });
 }
-// その日のノートを開く（閉じた画面は日の欄のノート）
+// その日のノートを開く。開いた画面は日のページのノートの欄。
+// v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更: 閉じた画面の日の欄は「ノートの欄」ではなくノートのカード。その日のノートがあればそのカードをたたき、無ければ「＋ ノート」で新しく作る
+//（新しいノートは 1 行目が題名。キャレットは題名にある＝そのまま題名を打って Enter で本文へ）
 export async function openDayNote(page, day = DAY) {
   const dn = page.locator(`[data-act="daynote"][data-day="${day}"]`).filter({ visible: true }).first();
-  await dn.scrollIntoViewIfNeeded(); await dn.click(); await expect(ned(page)).toBeVisible(); await page.waitForTimeout(350); await ned(page).click();
+  if (await dn.count()) { await dn.scrollIntoViewIfNeeded(); await dn.click(); await expect(ned(page)).toBeVisible(); await page.waitForTimeout(350); await ned(page).click(); return; }
+  const card = page.locator(`.mpull.browse .mday .mdcard[data-note][data-sday="${day}"]`).first();
+  if (await card.count()) { await card.evaluate((e) => e.scrollIntoView({ block: 'center' })); await card.click(); await expect(ned(page)).toBeVisible(); await page.waitForTimeout(350); await ned(page).click(); return; }
+  const add = page.locator(`.mpull.browse .mday [data-act="addnote"][data-day="${day}"]`);
+  await add.evaluate((e) => e.scrollIntoView({ block: 'center' })); await add.click(); await expect(ned(page)).toBeVisible(); await page.waitForTimeout(350);
 }
 export const check = (page) => page.locator('.nsheet .ned-top [data-fmt="check"]').click();
 export const closeSheet = async (page) => { await page.locator('.nsheet .ned-done').click(); await page.waitForTimeout(700); };

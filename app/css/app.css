@@ -1617,11 +1617,20 @@ dialog.panel.tface-open{overflow:visible}
 .fold .fgv{display:none}
 
 /* 第19版 PR8: 予定を長押しでつかんで別の日へ落とす（design/21 §1.3）。元の場所は点線の空き枠、落とす先の日は緑の枠2＋薄い緑の地 */
-.grabbed{background:transparent!important;box-shadow:none!important;outline:1.5px dashed var(--cat,#294E42);outline-offset:-1.5px;color:transparent!important;filter:none!important}
+.grabbed{background:transparent!important;box-shadow:none!important;outline:1.5px dashed #A8ABA4;outline-offset:-1.5px;color:transparent!important;filter:none!important}
 .grabbed *{opacity:.0}
-.gchip{position:fixed;left:0;top:0;z-index:99998;max-width:220px;padding:6px 10px;border-radius:8px;background:var(--cat,#294E42);color:#fff;font-size:13px;font-weight:600;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;box-shadow:0 8px 20px #0003}
+.gchip{position:fixed;left:0;top:0;z-index:99998;display:flex;align-items:center;gap:6px;box-sizing:border-box;height:32px;max-width:calc(100vw - 16px);padding:0 10px;border-radius:8px;background:#fff;color:#1C1F1D;font:600 13px/32px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;white-space:nowrap;overflow:hidden;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.10);opacity:0;will-change:transform}
+.gchip.on{opacity:1}
+.gchip .gct{flex:0 1 auto;min-width:0;max-width:200px;overflow:hidden;text-overflow:ellipsis}
+.gchip .gct.rec{max-width:140px}
+.gchip .gcl{flex:none;width:3px;height:16px;border-radius:1.5px;background:var(--cat,#294E42)}
+.gchip .gcb{flex:none;box-sizing:border-box;width:14px;height:14px;border:1.75px solid #68716A;border-radius:3px}
+.gchip .gcb.on{background:#294E42;border-color:#294E42}
+.gchip .gcp{flex:none;display:block}
+.gchip .gcr{flex:none;box-sizing:border-box;height:20px;padding:0 6px;border-radius:8px;background:#EFECE4;color:#68716A;font:600 11px/20px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif}
+.gchip .gcd{flex:none;color:#294E42}
 .week .day.mdrop{background:#E5EEE9}
-.week .day.mdrop::after{content:"";position:absolute;inset:0;border:2px solid #294E42;border-radius:8px;pointer-events:none;z-index:3}
+.week .day.mdrop::after{content:"";position:absolute;inset:1px;box-sizing:border-box;border:2px solid #294E42;border-radius:4px;pointer-events:none;z-index:3}
 html[data-grab] .tl,html[data-grab] .tlx{touch-action:none}
 
 /* 第19版 PR9: ノート第1段（design/27）。上の帯・書式のシート・下へ伸びる紙・ノートのシート */
@@ -2365,7 +2374,7 @@ body[data-layout=home] .toastbar,body[data-layout=browse] .toastbar{left:calc(va
 .shell.closed .mpull.browse .week .day.selected:not(.msel):not(.psel):not(.mdrop)::after{content:"";position:absolute;inset:1px;box-sizing:border-box;border:2px solid #294E42;border-radius:4px;z-index:4;pointer-events:none}
 /* M3（34 §9.4）: 閉じた7段の時刻つきチップは、押しても・つかんでも紺のベタにしない。つかんだ元は破線の枠だけ（R-49） */
 .mpull.browse .week .day .strip.chip:active{background-color:transparent!important;filter:none!important}
-.mpull.browse .week .day .chip.grabbed,.mpull.browse .week .day .chip.grabbed:active{background:transparent!important;background-color:transparent!important;filter:none!important;outline:1.5px dashed var(--cat,#294E42);outline-offset:-1.5px}
+.mpull.browse .week .day .chip.grabbed,.mpull.browse .week .day .chip.grabbed:active{background:transparent!important;background-color:transparent!important;filter:none!important;outline:1.5px dashed #A8ABA4;outline-offset:-1.5px}
 /* M9（34 §3・§6.3）: 格子は自分ではスクロールしない。縦の引きを指に渡す（横の払いは JS の月送り） */
 .shell.closed .mpull.browse .mgwrap,.shell.closed .mpull.browse .mgwrap *{touch-action:none}
 /* 設計レビュー D4: つまみのキーの焦点の枠は区域の中に収める */
@@ -2481,7 +2490,7 @@ body:has(> .nsheet:not([hidden])) .shell.closed.land.fb .cb.ctask .bdg{visibilit
 .shell.closed .mpull.browse .mdgrab::before{content:"";position:absolute;left:0;right:0;top:-10px;bottom:-10px}
 .mpull.browse .mdgrab i{position:relative;display:block;width:36px;height:4px;border-radius:2px;background:#B9B4A8}
 .mpull.browse .mdgrab:active i{background:#68716A}
-.shell.closed .mpull.browse .mday .mdgrab ~ .mdbody,.shell.closed .mpull.browse .mday .mdgrab ~ .mdnl,.shell.closed .mpull.browse .mday .mdgrab ~ .mdnote{transform:translateY(var(--dgrub,0px))}
+.shell.closed .mpull.browse .mday .mdgrab ~ .mdbody,.shell.closed .mpull.browse .mday .mdgrab ~ .mdrest{transform:translateY(var(--dgrub,0px))}
 /* 帯がない画面: バーの押せる所は右下の＋（縦）・右の列（横）にかけない */
 .shell.closed.fb:not(.land) .mpull.browse .mdgrab::before{right:52px}
 /* 時間: 開いたときは時間軸の「最初の予定の1時間前」より上（--foldm 分）を畳む。終日の行は畳まない（バーのすぐ下に見える）。畳んだ分は「前の時間」で開く。日の欄の中を送って合わせない */
@@ -2502,3 +2511,71 @@ html.kbl[data-kbl=taskd] .ftdn .rmadd,html.kbl[data-kbl=taskd] .ftdn .ftchips{di
 /* キーボードが出ていないとき（シートの下端＝画面の下端）は、ホームバーの帯（33）の上へ */
 html:not([data-kb]) .shell.closed ~ .nsheet .ned-status.info,html:not([data-kb]) body[data-layout=browse] .nsheet .ned-status.info,html:not([data-kb]) body[data-layout=home] .nsheet .ned-status.info{bottom:41px}
 
+
+/* ===== 第19.3版 その3（design/35 §1〜§4・§6）: カード（予定・タスク・ノート）と、別の日へ動かす ===== */
+/* 箱は3種類で同じ（高さ 56・角丸 14・白・間 8。題名は左 68・上 8、副題は左 68・上 30）。種類は印の列（x12〜48）の形で分ける: 予定＝時刻2行＋色の線、タスク＝四角 20、ノート＝角の折れた紙 16×20 */
+.mpull.browse .mdcard{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;transition:transform .15s cubic-bezier(.2,.8,.2,1),box-shadow .15s cubic-bezier(.2,.8,.2,1),background-color .10s linear}
+.mpull.browse .mdallday{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.mpull.browse button.mdcard:active:not(:disabled),.mpull.browse .mdk-task:has(.mdopen:active){background-color:#F5F3EC!important;filter:none}
+@media (hover:hover){.mpull.browse button.mdcard:hover{background-color:#fff}}
+.mpull.browse .mdcard .mdnt{color:#A8ABA4;font-weight:400}
+.mpull.browse .mdk-task .mdopen{position:absolute;inset:0;display:block;box-sizing:border-box;width:100%;height:56px;min-height:56px;margin:0;padding:0;border:0;border-radius:14px;background:transparent!important;text-align:left;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.mpull.browse .mdk-task .mdck{position:absolute;left:0;top:0;z-index:1;width:52px;min-width:52px;height:56px;min-height:56px;margin:0;padding:0;border:0;border-radius:14px 0 0 14px;background:transparent!important}
+.mpull.browse .mdk-task .mdck .rmck{position:absolute;left:20px;top:18px;--rc:#68716A;background:#fff}
+.mpull.browse .mdk-task.over .mdck .rmck{--rc:#B43C3C}
+.mpull.browse .mdk-task.done .mdck .rmck{--rc:#294E42;background:#294E42}
+.mpull.browse .mdk-task.done .mdck .rmck::after{content:"";position:absolute;left:4.5px;top:1.5px;width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);box-sizing:border-box}
+.mpull.browse .mdk-task.done strong{color:#A8ABA4;font-weight:400;text-decoration:line-through}
+.mpull.browse .mdcard .mdover{color:#B43C3C;font-weight:400}
+.mpull.browse .mdcard strong .bell{margin-left:4px;vertical-align:-1px}
+.mpull.browse .mdk-note .mdpaper{position:absolute;left:22px;top:18px;display:block}
+/* 区画の見出し「タスク ›」「ノート ›」: 高さ 32・13/600 #68716A・左 4。押せる範囲は上下に 6 ずつ足して 44 */
+.mpull.browse .mdsh,.mpull.browse .mdnl.mdsh{position:relative;display:flex;align-items:center;width:auto;min-width:96px;height:32px;min-height:32px;margin:0;padding:0 12px 0 4px;border:0;border-radius:8px;background:none;font:600 13px/32px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#68716A;text-align:left}
+.mpull.browse .mdsh::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+.mpull.browse .mdrest{position:relative}
+.mpull.browse .mdbody + .mdrest > .mdsh:first-child{margin-top:0}
+.mpull.browse .mday[data-dg="B"] .mdrest,.mpull.browse .mday[data-dg="C"] .mdrest{margin-top:8px}
+/* 「＋ タスク」「＋ ノート」: 13/600 #294E42、押せる高さ 44、左 x16 と x112 */
+.mpull.browse .mdadd{display:flex;height:44px;padding-left:4px}
+.mpull.browse .mdadd button{flex:none;box-sizing:border-box;width:96px;min-width:0;height:44px;min-height:44px;margin:0;padding:0;border:0;border-radius:8px;background:none;font:600 13px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#294E42;text-align:left}
+.shell.closed.land .mpull.browse .mdadd button{width:88px}
+/* 月のマスの名前のチップ（閉じた画面だけ。35 §2.4）: タスク＝四角 8×8・角丸 2（完了は塗り）、ノート＝紙 8×10。文字は印の 10 ぶん右から */
+.mpull.browse .week .day .strip.xk{background:transparent;color:#293B35;border-radius:0;padding:0 0 0 12px}
+.mpull.browse .week .day .cbox{position:absolute;left:2px;top:3px;box-sizing:border-box;width:8px;height:8px;border:1.25px solid #68716A;border-radius:2px}
+.mpull.browse .week .day .cbox.on{background:#68716A}
+.mpull.browse .week .day .cpaper{position:absolute;left:2px;top:2px;width:8px;height:10px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 10'%3E%3Cpath d='M.625.625h4.25l2.5 2.5v6.25H.625z' fill='%23F7F4ED' stroke='%2368716A' stroke-width='1.25' stroke-linejoin='round'/%3E%3Cpath d='M4.875.625v2.5h2.5' fill='none' stroke='%2368716A' stroke-width='1'/%3E%3C/svg%3E") no-repeat center/8px 10px}
+/* 持ち上げ（35 §6.1）: 1.03 倍・影 段2（0 4 12 / 10%）・地は白、0.15 秒。元の場所に同じ大きさの破線の枠（1.5 #A8ABA4）。視差効果を減らすときは拡大しない（影は付ける） */
+.lifted{transform:scale(1.03);box-shadow:0 4px 12px rgba(0,0,0,.10)!important;background-color:#fff!important;z-index:7;transition:transform .15s cubic-bezier(.2,.8,.2,1),box-shadow .15s cubic-bezier(.2,.8,.2,1)}
+.liftrel{position:relative}
+.ghole{position:absolute;z-index:0;box-sizing:border-box;margin:0;border:1.5px dashed #A8ABA4;background:transparent;pointer-events:none}
+@media (prefers-reduced-motion:reduce){.lifted{transform:none;transition:none}}
+html[data-grab] .mpull.browse,html[data-grab] .mpull.browse *{touch-action:none!important}
+/* 着地（35 §6.5）: 先の日のマスの #E5EEE9 を 0.25 秒残して 0.15 秒で消す */
+@keyframes mland{0%,62.5%{background-color:#E5EEE9}}
+.week .day.mland{animation:mland .4s linear}
+/* ノートのシートの日付の行 44（35 §4.3・決定 4・R2）。カプセル 高さ 32・角丸 8・#EFECE4・14/400 #293B35。閉じた縦は上の帯がすぐ下（y196〜240）、ほかは今までどおり 8 あけて上の帯 */
+.nsheet{padding-top:0}
+.nsheet .nsdate{flex:none;display:flex;align-items:center;box-sizing:border-box;height:44px;padding:0 calc(var(--ns-bml,8px) + 8px)}
+.nsheet .nsdcap{position:relative;flex:none;width:auto;min-width:0;height:32px;min-height:32px;padding:0 8px;border:0;border-radius:8px;background:#EFECE4;font:400 14px/32px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#293B35;white-space:nowrap}
+.nsheet .nsdcap::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+.nsheet .nsdcap.open{background:#294E42;color:#fff}
+.nsheet .ned{margin-top:8px}
+.nsheet[data-cp="1"] .ned{margin-top:0}
+.nsheet > .dpop{position:absolute;left:12px;top:44px;z-index:6;box-sizing:border-box;width:min(360px,calc(100% - 24px));max-height:calc(100% - 52px);overflow-y:auto;margin:0;padding:8px 8px 10px;border:0;border-radius:14px;background:#FFFDFA;box-shadow:0 12px 32px rgba(0,0,0,.16)}
+/* 読み上げの操作「日付を移す」のシート（35 §6.8） */
+.cmv{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-end;justify-content:center;background:rgba(28,31,29,.24)}
+.cmvin{box-sizing:border-box;width:100%;max-width:480px;max-height:100%;overflow-y:auto;padding:20px 20px calc(20px + var(--sab,0px));border-radius:24px 24px 0 0;background:#FFFDFA;box-shadow:0 12px 32px rgba(0,0,0,.16)}
+.cmvin h3{margin:0 0 12px;font:600 17px/24px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1C1F1D;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;outline:none}
+.cmvin .cmvrow{display:flex;align-items:center;height:44px}
+.cmvin .cmvrow .dcap{flex:none;width:auto;min-width:130px}
+.cmvin .cmvx{display:block;width:100%;height:44px;margin-top:12px;border:0;border-radius:14px;background:#EFECE4;font:600 15px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#293B35}
+/* タスクのシートの「ノート「買い物」 ›」（35 §8）: 44・13/400 緑 */
+.tksrc{display:flex;align-items:center;width:100%;height:44px;min-height:44px;margin:0;padding:0;border:0;background:none;font:400 13px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#294E42;text-align:left}
+/* 持ち上げたら地は白に戻す（押した色・土日の地より強く）。落とせる日の地 #E5EEE9 は、土日・今日・選んだ日の地より強く */
+.mpull.browse .mdcard.lifted,.mpull.browse button.mdcard.lifted:active:not(:disabled),.mpull.browse .mdk-task.lifted:has(.mdopen:active){background-color:#fff!important}
+.shell.closed .mpull.browse .week .day.mdrop,.shell.closed .mpull.browse .week .day.mdrop:active{background-color:#E5EEE9!important}
+/* 読み上げだけの操作（日付を移す・1日前へ・1日後へ）: 見た目には出さない・場所も取らない */
+.mpull.browse .mdacts{display:block;position:absolute;width:1px;height:1px;overflow:hidden}
+.mpull.browse .mdacts .vh{min-width:0;min-height:0;padding:0;border:0;margin:0}
+/* 繰り返しの回を移した札「13日（金）へ移しました（この回だけ）」は 1 行（35 §6.9） */
+.toastbar.mvonly span{flex:1 1 auto;min-width:0;font-size:13px;font-feature-settings:"palt";white-space:nowrap;overflow:hidden}

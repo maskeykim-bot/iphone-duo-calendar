@@ -90,7 +90,7 @@ export function classifyTasks(list) {
 export const LOCAL_LIST = { id: 'duo', title: 'タスク', color: '#68716A', allowsModify: true, isDefault: true, source: 'Duo' };
 const pad2 = (n) => String(n).padStart(2, '0');
 export const stampNow = (d = new Date()) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-export const rowOf = (t) => ({ itemId: t.id, listId: LOCAL_LIST.id, title: t.title, notes: t.note, due: t.due, done: t.done, doneAt: t.doneAt, alarms: t.notify ? [{}] : [], alarmsExtra: 0, priority: 0, recurring: false, createdAt: t.createdAt, modifiedAt: t.updatedAt, readOnly: false });
+export const rowOf = (t) => ({ itemId: t.id, listId: LOCAL_LIST.id, title: t.title, notes: t.note, due: t.due, done: t.done, doneAt: t.doneAt, alarms: t.notify ? [{}] : [], alarmsExtra: 0, priority: 0, recurring: false, createdAt: t.createdAt, modifiedAt: t.updatedAt, readOnly: false, ...(t.source ? { source: t.source } : {}) }); // source＝ノートのチェック行とのつながり（v19.3。日の欄のカードの副題「ノート「…」から」に使う）
 const fail = (code, e) => Object.assign(new Error(e?.message || code), { code });
 // 保存の失敗は理由を分けて表示できるよう code にする（容量超過は STORAGE_FULL、それ以外は STORE_FAILED）。
 const storeErr = (e) => (e && (e.code === 'INVALID_ARGUMENT' || e.code === 'NOT_FOUND') ? e : fail(/quota/i.test(`${e?.name} ${e?.message}`) ? 'STORAGE_FULL' : /^(タスク|題名)/.test(e?.message || '') ? 'INVALID_ARGUMENT' : 'STORE_FAILED', e));

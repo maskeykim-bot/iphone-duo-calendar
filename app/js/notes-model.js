@@ -45,6 +45,20 @@ export function titleOf(body) {
   return cps.length > TITLE_MAX ? cps.slice(0, TITLE_MAX).join('') : first;
 }
 
+// 第19.3版 その3（design/35 §1.2・§1.3）: 日の欄のノートのカードに出す題名と副題。
+// 題名はノートの題名（本文の1行目。titleOf と同じ 100 字・絵文字を割らない）。空なら ''（画面は「新規ノート」を薄く出す）。
+// ただし1行目が日付の見出し「2026年11月12日（木）」（旧・日ごとのメモ／「この日のノート」が足す行）のノートは、その行を飛ばして次の空でない行を題名にする
+//（征希さん「日付は紐づけるだけで開いた時に表示する」＝カードの面に日付を出さない。保存の文字は変えない）。副題は題名の次の空でない行（記号は外す）。
+const DATE_HEAD_RE = /^\d{4}年\d{1,2}月\d{1,2}日[（(][日月火水木金土][）)]$/;
+export function cardTextOf(body) {
+  const lines = String(body ?? '').slice(0, 2000).split('\n').map(displayLine);
+  let i = 0;
+  if (lines.length && DATE_HEAD_RE.test(lines[0])) { i = 1; while (i < lines.length && !lines[i]) i++; }
+  const cps = Array.from(lines[i] || ''), title = cps.length > TITLE_MAX ? cps.slice(0, TITLE_MAX).join('') : cps.join('');
+  let sub = ''; for (let j = i + 1; j < lines.length; j++) if (lines[j]) { sub = lines[j].slice(0, 200); break; }
+  return { title, sub };
+}
+
 // 最初の行（改行の形式つき）と残り。
 const splitFirst = (text) => {
   const i = text.indexOf('\n');
