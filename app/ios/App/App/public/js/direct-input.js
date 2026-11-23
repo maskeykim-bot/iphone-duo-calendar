@@ -202,6 +202,7 @@ export function initDirectInput({ root, classify, swipe, onStart, onMove, onEnd,
   document.addEventListener('click', (ev) => {
     if (!clickSup) return;
     clickSup = false; clearTimeout(supTimer);
+    if (ev.target instanceof Node && !root.contains(ev.target)) return; // 第19.3版 その3: 画面の外に出した札（「元に戻す」など）のタップは捨てない（指の下の画面の誤タップだけを止める）
     ev.stopPropagation(); ev.preventDefault();
   }, true);
   // 2本目の指は root 外でも検知して中止。

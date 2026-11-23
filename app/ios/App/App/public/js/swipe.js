@@ -10,6 +10,7 @@ export function initSwipe({ root, canStart, onSwipe }) {
   document.addEventListener('click', (ev) => {
     if (!suppress) return;
     suppress = false; clearTimeout(suppressTimer);
+    if (ev.target instanceof Node && !root.contains(ev.target)) return; // 第19.3版 その3: 画面の外に出した札の「元に戻す」は捨てない（運んで落とした直後でもすぐ押せる）
     ev.stopPropagation(); ev.preventDefault();
   }, true);
 

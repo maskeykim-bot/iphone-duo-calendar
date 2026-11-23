@@ -2582,3 +2582,5 @@ html[data-grab] .mpull.browse,html[data-grab] .mpull.browse *{touch-action:none!
 /* ノートの無い日の「ノート ›」（ノートの一覧の入口）: 「＋」の行の右端。区画の見出しと同じ字（13/600 #68716A）、押せる高さ 44 */
 .mpull.browse .mdadd{flex-wrap:wrap}
 .mpull.browse .mdadd .mdnl.mdnlx{display:block;width:auto;min-width:72px;height:44px;min-height:44px;margin:0 0 0 auto;padding:0 4px 0 12px;font:600 13px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#68716A;text-align:right}
+/* 開いた横のノートの題名の行（入力欄）をつかんだとき: 元の場所の破線の枠（入力欄は outline を消してあるので明示する） */
+.ned .ned-title.grabbed{outline:1.5px dashed #A8ABA4!important;outline-offset:-1.5px;border-radius:8px}

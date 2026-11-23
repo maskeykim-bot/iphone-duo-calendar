@@ -23,7 +23,7 @@ import { noteStore, setNoteHook, recoverNoteDrafts, importLegacyMemoDrafts, fold
 import { mountNoteEditor } from './notes-ui.js';
 import { richLines, viewOf, levelOfPre, toggleCheck } from './note-lines.js';
 import { isNoteTask, planNoteSync, lineOfSource, baselineOf, tasksFollowingNote } from './note-tasks.js';
-import { titleOf, displayLine, displayText, noteDateOf, dateOccupants, dailyHeading, ensureDailyFolder } from './notes-model.js';
+import { titleOf, displayLine, displayText, noteDateOf, dateOccupants, dailyHeading, ensureDailyFolder, EMPTY_TITLE, cardTextOf } from './notes-model.js';
 import { DELETE_UNDO_MS, tasksHtml, focusTasksHtml, HIST_DAYS, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDeleteController, TASK_DELETED } from './reminders.js';
 import { liveTasks as liveTasksOf, isTombstone as isTaskTombstone, TASK_TITLE_MAX, dropOldLinks, LOCAL_LIST, TASK_STORE_TEXT, createTaskStore, createLocalCall, createLocalAddController, rowOf, createTaskDoneController, DONE_UNDO_MS, TASK_VIEWS, TASK_VIEW_LABELS, normTaskView, dueCounts, todayTasks, inheritTaskSettings, normTaskSettings } from './tasks.js';
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
@@ -862,6 +862,24 @@ function weekInner(w, { mode, cur, sel, today, cap, time, tk = null, lt = LANE_T
   let html = '';
   const inCell = Array(7).fill('');
   if (dyn) for (const b of items) for (const pc of dynChipPieces(b, days, lt, ls, time)) inCell[pc.col] += pc.html; // 閉じた7段: チップは日のボタンの中（R-75。どこをたたいても日になる）
+  // 第19.3版 その3（design/35 §2.4・決定 5）: 閉じた画面のマスに、タスクとノートの名前のチップも出す（予定の下の空いた段へ タスク → ノート の順。入りきらない分は +N に数える）。
+  // 印は形で分ける: タスク＝四角 8×8・角丸 2（完了は塗り）、ノート＝角の折れた紙 8×10。件数（.tkn）と緑の線（.mline）は閉じた画面では出さない
+  const xhid = Array(7).fill(0), xn = days.map(() => ({ t: 0, n: 0 }));
+  if (dyn) {
+    const occ = Array.from({ length: cap }, () => Array(7).fill(false));
+    for (const b of items) if (b.lane < cap) for (let i = b.sc; i <= b.ec; i++) occ[b.lane][i] = true;
+    const pend = doneCtl.pending();
+    days.forEach((k, col) => {
+      const ts = dayTaskRows(k), ns = NB.cards.get(k) || []; xn[col] = { t: ts.length, n: ns.length };
+      const put = (attr, mark, title) => {
+        const lane = occ.findIndex((row) => !row[col]); if (lane < 0) { xhid[col]++; return; }
+        occ[lane][col] = true;
+        inCell[col] += `<span class="strip chip xk" data-lane="${lane}" data-lead="1" data-sc="${col}" data-ec="${col}" ${attr} data-sday="${k}" style="top:${lt + lane * ls}px;left:1px;width:calc(100% - 2px);z-index:3" aria-hidden="true">${mark}<span class="st">${esc(title)}</span></span>`;
+      };
+      for (const r of ts) { const done = pend.has(r.itemId) ? pend.get(r.itemId) === true : !!r.done; put(`data-task="${esc(r.itemId)}"`, `<i class="cbox${done ? ' on' : ''}"></i>`, r.title || '（題名なし）'); }
+      for (const c of ns) put(`data-note="${esc(c.id)}"`, '<i class="cpaper"></i>', c.title || EMPTY_TITLE);
+    });
+  }
   const full = dyn ? assignSharedLanes(wev, days, 99).items : null; // 閉じた7段の読み上げはマスの段の順（品質⑤）
   days.forEach((k, col) => {
     const es = eventsOnDay(wev, k), d = parseKey(k), dow = d.getDay();
@@ -870,8 +888,9 @@ function weekInner(w, { mode, cur, sel, today, cap, time, tk = null, lt = LANE_T
     const tn = tk?.get(k) || 0; // 月にタスクの件数（開いた画面だけ。タスク名は出さない）
     const dots = mode === 'simple' ? `<span class="dots">${es.slice(0, cap).map((e) => `<i class="dot ${catCls(e)}"${catSty(e)}></i>`).join('')}</span>` : '';
     const ps = PS.on ? PS.days.includes(k) : false, pSrc = PS.on && k === PS.srcDay;
-    const extra = mode === 'simple' ? es.length - cap : hidden[col];
-    html += `<button type="button" class="day${extra > 0 && k === sel ? ' selplus' : ''}${cur !== null && d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}${dow === 6 ? ' sat' : dow === 0 ? ' sun' : ''}${state.holidayRed && holName(k) ? ' hol' : ''}${ps ? ' psel' : ''}${pSrc ? ' psrc' : ''}" data-date="${k}" aria-label="${dyn ? dynDayLabel(k) : `${dayLabel(k)}${holSpoken(k)}${r ? `、${r.name}` : ''}`}、予定${es.length}件${xCount(es)}${es.length ? `：${es.map((x) => xname(x) + spokenAt(x, k) + x.title).join('、')}` : ''}${NB.marks.has(k) ? '、ノートあり' : ''}${tn ? `、未完了のタスク${tn}件` : ''}${PS.on ? `${pSrc ? '、コピー元' : ''}、${ps ? '選択中。この日を外す' : 'この日を選ぶ'}` : ''}" aria-pressed="${PS.on ? ps : k === sel}"${dyn ? ` aria-selected="${k === sel}"` : ''}>${pSrc ? '<span class="pcsrc" aria-hidden="true">コピー元</span>' : ''}${ps ? '<i class="pck" aria-hidden="true">✓</i>' : ''}${r ? `<span class="rk" aria-hidden="true">${r.name}</span>` : ''}<span class="num${state.rokuyo && d.getDate() === 1 ? ' sd' : ''}">${label}</span>${tn ? `<span class="tkn" aria-hidden="true">✓${tn}</span>` : ''}${NB.marks.has(k) ? '<i class="mline" aria-hidden="true"></i>' : ''}${dots}${inCell[col]}</button>`;
+    const extra = mode === 'simple' ? es.length - cap : hidden[col] + xhid[col];
+    const kinds = dyn ? ([es.length ? `予定${es.length}件${xCount(es)}` : '', xn[col].t ? `タスク${xn[col].t}件` : '', xn[col].n ? `ノート${xn[col].n}件` : ''].filter(Boolean).join('、') || '予定0件') : ''; // 35 §2.3: 件数を種類ごとに（0 件の種類は言わない。何もない日だけ「予定0件」）
+    html += `<button type="button" class="day${extra > 0 && k === sel ? ' selplus' : ''}${cur !== null && d.getMonth() !== cur ? ' out' : ''}${k === sel ? ' selected' : ''}${k === today ? ' today' : ''}${dow === 6 ? ' sat' : dow === 0 ? ' sun' : ''}${state.holidayRed && holName(k) ? ' hol' : ''}${ps ? ' psel' : ''}${pSrc ? ' psrc' : ''}" data-date="${k}" aria-label="${dyn ? dynDayLabel(k) : `${dayLabel(k)}${holSpoken(k)}${r ? `、${r.name}` : ''}`}、${dyn ? kinds : `予定${es.length}件${xCount(es)}`}${es.length ? `：${es.map((x) => xname(x) + spokenAt(x, k) + x.title).join('、')}` : ''}${!dyn && NB.marks.has(k) ? '、ノートあり' : ''}${tn ? `、未完了のタスク${tn}件` : ''}${PS.on ? `${pSrc ? '、コピー元' : ''}、${ps ? '選択中。この日を外す' : 'この日を選ぶ'}` : ''}" aria-pressed="${PS.on ? ps : k === sel}"${dyn ? ` aria-selected="${k === sel}"` : ''}>${pSrc ? '<span class="pcsrc" aria-hidden="true">コピー元</span>' : ''}${ps ? '<i class="pck" aria-hidden="true">✓</i>' : ''}${r ? `<span class="rk" aria-hidden="true">${r.name}</span>` : ''}<span class="num${state.rokuyo && d.getDate() === 1 ? ' sd' : ''}">${label}</span>${tn ? `<span class="tkn" aria-hidden="true">✓${tn}</span>` : ''}${NB.marks.has(k) && !dyn ? '<i class="mline" aria-hidden="true"></i>' : ''}${dots}${inCell[col]}</button>`;
     if (dyn) html += `<span class="plus dyn" data-plus="${k}" data-col="${col}" data-hid="${Math.max(0, extra)}" style="right:calc(${6 - col} * 100% / 7 + 4px)" aria-hidden="true" hidden></span>`;
     else if (extra > 0 && plusLane >= 0) html += `<span class="plus pn" data-plus="${k}" style="${colPos(col, col)};top:${lt + plusLane * ls}px" aria-hidden="true">+${extra + dropped[col]}</span>`;
     else if (extra > 0) html += `<span class="plus${k === sel ? ' onsel' : ''}" data-plus="${k}" style="right:calc(${6 - col} * 100% / 7)" aria-hidden="true">+${extra}</span>`;
@@ -1379,10 +1398,50 @@ function stageLaneRank(k) {
   const col = days.indexOf(k);
   return new Map(assignSharedLanes(occIn(days[0], days[6]), days, 99).items.filter((b) => b.sc <= col && b.ec >= col).map((b) => [b.e.id, b.lane]));
 }
+// ---- 第19.3版 その3（征希さん「メモもカードで分ける」「タスクもカード表示できれば自由に移動できる」・design/35 §1〜§3）: 日の欄のカード
+// 予定・タスク・ノートは同じ箱（高さ 56・角丸 14・白・間 8、題名は左 68）。種類は印の形（時刻2行と色の線／四角 20／角の折れた紙 16×20）・区画の見出しの文字・読み上げの頭の語で分ける（色だけに頼らない）。
+// カードの面に日付は出さない（予定の時刻は出す）。読み上げは「種類、状態、時刻・期限、題名、添え」（35 §2.3）。
+const hmSpoken = (t) => String(t).replace(/(\d{1,2}):(\d\d)/g, (_, h, m) => `${Number(h)}時${m}分`).replace(/^翌 /, '翌日');
+const PAPER_SVG = '<svg class="mdpaper" viewBox="0 0 16 20" width="16" height="20" aria-hidden="true"><path d="M1.625 1.625h8.75l4 4v12.75H1.625z" fill="#F7F4ED" stroke="#68716A" stroke-width="1.25" stroke-linejoin="round"/><path d="M10.375 1.625v4h4" fill="none" stroke="#68716A" stroke-width="1.25" stroke-linejoin="round"/><path d="M4.5 10.5h7M4.5 14h7" stroke="#68716A" stroke-width="1"/></svg>';
+function evCardLabel(e, k, memo) {
+  const al = hasBell(e) ? (Array.isArray(e.alarms) ? alarmsAria(e.alarms).replace(/^通知 /, '').split('、').map((x) => `${x}に通知`) : ['通知']) : [];
+  return ['予定', hmSpoken(dayOf(e.start) < k ? '0:00' : t0(e.start.slice(11, 16))), `${hmSpoken(dayEndText(e, k))}まで`, e.title || '題名なし', memo, e.recurring ? '繰り返し' : '', ...al, e.nativeLink?.state === 'linked' ? 'iPhone にも追加済み' : '', isX(e) ? `iPhone、${e.calName}` : ''].filter(Boolean).join('、');
+}
+function evAllLabel(e, k) {
+  const n = Math.round((parseKey(dayOf(e.end)) - parseKey(dayOf(e.start))) / 864e5) + 1, i = Math.round((parseKey(k) - parseKey(dayOf(e.start))) / 864e5) + 1;
+  return ['予定', '終日', e.title || '題名なし', n > 1 ? `${n}日間のうち${i}日目` : '', e.recurring ? '繰り返し' : '', e.nativeLink?.state === 'linked' ? 'iPhone にも追加済み' : '', isX(e) ? `iPhone、${e.calName}` : ''].filter(Boolean).join('、');
+}
+// その日が期限のタスク（削除待ちを除く）。未完了（時刻つきが先・時刻順 → 作った順）→ 完了（一番下。完了の 1.5 秒の待ちの間は元の位置のまま）
+function dayTaskRows(k) {
+  const all = homeTaskList(); if (!all) return [];
+  const key = (r) => `${r.done ? 1 : 0}${r.due.time ? `0${r.due.time}` : '1'}`;
+  return all.filter((r) => r?.due?.date === k).sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : (a.createdAt || 0) - (b.createdAt || 0)));
+}
+const noteCardById = (id) => { for (const [day, l] of NB.cards) { const c = l.find((x) => x.id === id); if (c) return { ...c, day }; } return null; };
+const taskSrcText = (r) => { if (!r.source) return ''; const c = noteCardById(r.source.noteId); return c ? `ノート「${c.title || EMPTY_TITLE}」から` : ''; };
+// 読み上げだけの操作（35 §6.8。VoiceOver のカスタムアクションの代わりに、カードのすぐ後ろへ隠したボタン 3 つ）
+const cardActs = (kind, id, k, rec = false) => `<span class="mdacts">${[['pick', rec ? 'この回の日付を移す' : '日付を移す'], ['prev', rec ? 'この回を1日前へ' : '1日前へ'], ['next', rec ? 'この回を1日後へ' : '1日後へ']].map(([h, l]) => `<button type="button" class="vh" data-act="cardmv" data-how="${h}" data-kind="${kind}" data-id="${esc(id)}" data-day="${k}">${l}</button>`).join('')}</span>`;
+function dayTaskCards(k) {
+  const rows = dayTaskRows(k); if (!rows.length) return '';
+  const pend = doneCtl.pending(), today = todayKey();
+  const cs = rows.map((r) => {
+    const done = pend.has(r.itemId) ? pend.get(r.itemId) === true : !!r.done, over = !done && k < today;
+    const src = taskSrcText(r), memo = (r.notes || '').split('\n').find((x) => x.trim()) || '';
+    const sub = [r.due.time ? `${t0(r.due.time)} まで` : '', src].filter(Boolean).join('・') || memo.trim();
+    const lab = ['タスク', done ? '完了' : '未完了', over ? '期限切れ' : '', r.title || '題名なし', r.due.time ? `${hmSpoken(t0(r.due.time))}まで` : '', src].filter(Boolean).join('、');
+    const id = esc(r.itemId);
+    return `<div class="mdcard mdk-task${done ? ' done' : ''}${over ? ' over' : ''}" role="listitem" data-task="${id}" data-sday="${k}"><button type="button" class="mdopen" data-act="remedit" data-id="${id}" aria-label="${esc(lab)}"><strong${r.title ? '' : ' class="mdnt"'}>${r.title ? esc(r.title) : '（題名なし）'}${r.alarms?.length ? BELL : ''}</strong>${sub || over ? `<small>${over ? `<b class="mdover">期限切れ</b>${sub ? ' ' : ''}` : ''}${esc(sub)}</small>` : ''}</button><button type="button" class="mdck rmckb" data-act="remck" data-id="${id}" role="checkbox" aria-checked="${done}" aria-label="${done ? '未完了に戻す' : '完了にする'}、${esc(r.title || '題名なし')}"><span class="rmck" aria-hidden="true"></span></button></div>${cardActs('task', r.itemId, k)}`;
+  }).join('');
+  return `<button type="button" class="mdsh mdtsh" data-act="tasklist" aria-label="タスクのページを開く"><span aria-hidden="true">タスク ›</span></button><div class="mdcards mdtasks" role="list" aria-label="タスク">${cs}</div>`;
+}
+function dayNoteCards(k) {
+  const list = NB.cards.get(k) || []; if (!list.length) return '';
+  const cs = list.map((c) => `<button type="button" class="mdcard mdk-note" role="listitem" data-act="cardnote" data-note="${esc(c.id)}" data-sday="${k}" aria-label="${esc(['ノート', c.title || EMPTY_TITLE, c.sub].filter(Boolean).join('、'))}">${PAPER_SVG}<strong${c.title ? '' : ' class="mdnt"'}>${esc(c.title || EMPTY_TITLE)}</strong>${c.sub ? `<small>${esc(c.sub)}</small>` : ''}</button>${cardActs('note', c.id, k)}`).join('');
+  return `<button type="button" class="mdsh mdnl" data-act="notelist" aria-label="ノートの一覧"><span aria-hidden="true">ノート ›</span></button><div class="mdcards mdnotes2" role="list" aria-label="ノート">${cs}</div>`;
+}
 function stageDayHtml() {
   const k = state.selected, d = parseKey(k), mode = dayMode(), r = rkOf(k), hn = holName(k);
   const list = eventsOnDay(occIn(k, k), k);
-  const lab = (e) => esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${e.title}${e.recurring ? ' 繰り返し' : ''}${isX(e) ? '' : `、${tagText(e)}`}${e.nativeLink?.state === 'linked' ? '、iPhoneにも追加済み' : ''}${alLabel(e)}`); // 時間軸の枠と同じ読み上げ（分類・iPhone にも追加済み）
   const land = closedLand();
   const sw = `<div class="mdsw mdct" role="group" aria-label="日の見せ方">${[['card', 'カード', !mode], ['time', '時間', !!mode]].map(([v, l, on]) => `<button type="button" data-dg="${v}" aria-pressed="${on}">${l}</button>`).join('')}</div>`;
   const head = `<div class="mdh"><h3><span class="hdt${isRed(k) ? ' hol' : ''}">${d.getMonth() + 1}月${d.getDate()}日</span><span class="hdw">${DOW[d.getDay()]}${hn ? ` ${esc(hn)}` : ''}${r ? ` ${r.name}` : ''}</span></h3>${land ? '' : sw}</div>${land ? `<div class="mdctrow">${sw}</div>` : ''}`; // 第19.3版 その2（35 §5.1）: 見出しの右に「カード｜時間」（132×32、押せる 66×44）。閉じた横は見出しの下の行（幅いっぱい×32、押せる高さ 44）
@@ -1391,19 +1450,21 @@ function stageDayHtml() {
   else {
     const rank = stageLaneRank(k), rk2 = (e) => (rank?.has(e.id) ? rank.get(e.id) : 999);
     const alls = list.filter((e) => e.all).sort((a, b) => rk2(a) - rk2(b)), cards = list.filter((e) => !e.all).sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
-    const chips = alls.map((e) => { const col = catColorOf(e); return `<button type="button" class="mdallday ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}background:${col};color:${onSolid(col)}" aria-label="${lab(e)}">${xi(e)}${rep(e)}<span class="mdat">${esc(e.title)}</span>${dayNth(e, k) ? `<small>${dayNth(e, k)}</small>` : ''}</button>`; }).join('');
+    const chips = alls.map((e) => { const col = catColorOf(e); return `<button type="button" class="mdallday ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}background:${col};color:${onSolid(col)}" aria-label="${esc(evAllLabel(e, k))}">${xi(e)}${rep(e)}<span class="mdat">${esc(e.title)}</span>${dayNth(e, k) ? `<small>${dayNth(e, k)}</small>` : ''}</button>`; }).join('');
     const cs = cards.map((e) => {
       const memo = (e.notes || '').split('\n').find((x) => x.trim()) || '';
-      return `<button type="button" class="mdcard ${catCls(e)}" role="listitem" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}" aria-label="${lab(e)}"><span class="mdt1">${dayOf(e.start) < k ? '0:00' : t0(e.start.slice(11, 16))}</span><span class="mdt2">${dayEndText(e, k)}</span><i class="mdln" aria-hidden="true"></i><strong>${xi(e)}${rep(e)}${esc(e.title)}${bell(e)}</strong>${memo ? `<small>${esc(memo)}</small>` : ''}</button>`;
+      return `<button type="button" class="mdcard mdk-event ${catCls(e)}" role="listitem" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}" aria-label="${esc(evCardLabel(e, k, memo.trim()))}"><span class="mdt1">${dayOf(e.start) < k ? '0:00' : t0(e.start.slice(11, 16))}</span><span class="mdt2">${dayEndText(e, k)}</span><i class="mdln" aria-hidden="true"></i><strong${e.title ? '' : ' class="mdnt"'}>${xi(e)}${rep(e)}${e.title ? esc(e.title) : '（題名なし）'}${bell(e)}</strong>${memo ? `<small>${esc(memo)}</small>` : ''}</button>${cardActs('event', e.id, k, !!e.recurring)}`;
     }).join('');
-    body = `${chips ? `<div class="mdad">${chips}</div>` : ''}${cs ? `<div class="mdcards" role="list">${cs}</div>` : ''}${list.length ? '' : '<p class="mdnone2">予定はありません</p>'}`;
+    body = `${chips ? `<div class="mdad">${chips}</div>` : ''}${cs ? `<div class="mdcards mdevs" role="list" aria-label="予定">${cs}</div>` : ''}${list.length ? '' : '<p class="mdnone2">予定はありません</p>'}`;
   }
   // 35 §5.2・§5.3: カードにバーは出さない（要素ごと無い）。時間のときだけ、見出しのすぐ下に「時間の幅」のバー
   const grab = mode ? `<div class="mdgrab" role="slider" tabindex="0" aria-label="時間の幅。下へ引くと広がり、上へ引くと戻る" aria-orientation="vertical" aria-valuemin="1" aria-valuemax="2" aria-valuenow="${mode}" aria-valuetext="${mode === 2 ? '詳細' : '最低限'}"><i aria-hidden="true"></i></div>` : '';
-  const first = NB.first.get(k), n = NB.marks.get(k) || 0;
-  const notes = `<button type="button" class="mdnl" data-act="notelist" aria-label="ノートの一覧"><span aria-hidden="true">ノート ›</span></button><button type="button" class="dnote mdnote" data-act="daynote" data-day="${k}" aria-label="${esc(dayLabel(k))}のノート${n ? `${n}件を開く` : 'を書く'}"><span class="dnt">${first ? richHtml(richLines(first), 'div') : '<span class="mdempty">たたいて書く</span>'}</span></button>`;
+  // 35 §3: 予定 →「タスク ›」→ タスクのカード →「ノート ›」→ ノートのカード →「＋ タスク」「＋ ノート」（中身のない区画は見出しごと出さない。時間のときも、時間軸の下に同じ区画）
+  // ノートの一覧の入口（34 §9.1-7 の「ノート ›」）: 閉じた画面ではここだけが入口。その日にノートが無くて区画の見出しを出さないときは、同じ「ノート ›」を「＋」の行の右端に置く（いつも 1 つだけ出る）
+  const nc = dayNoteCards(k);
+  const rest = `<div class="mdrest">${dayTaskCards(k)}${nc}<div class="mdadd"><button type="button" data-act="addtask" data-day="${k}" aria-label="${esc(dayLabel(k))}が期限のタスクを足す">＋ タスク</button><button type="button" data-act="addnote" data-day="${k}" aria-label="${esc(dayLabel(k))}のノートを足す">＋ ノート</button>${nc ? '' : '<button type="button" class="mdnl mdnlx" data-act="notelist" aria-label="ノートの一覧"><span aria-hidden="true">ノート ›</span></button>'}</div></div>`;
   // 第19.3版: 閉じた縦は .mpull が1本でスクロールする。.mday は「スクロール 0 で見えている日の欄」の箱（高さは今までどおり 画面−88−H）、中身は .mdin が持ち、箱の下へあふれて続く。閉じた横は .mdin を箱にしない（display:contents。今までどおり .mday の中がスクロール）
-  return `<div class="mday" data-scroll="mday" data-dg="${'ABC'[mode]}"><div class="mdin">${head}${grab}<div class="mdbody">${body}</div>${notes}</div></div>`;
+  return `<div class="mday" data-scroll="mday" data-dg="${'ABC'[mode]}"><div class="mdin">${head}${grab}<div class="mdbody">${body}</div>${rest}</div></div>`;
 }
 // 終日のチップは2行まで。入りきらない分は最後に「+N」チップ（#E4E0D6）。時間軸のときは開いた最初の予定の1時間前を見出しのすぐ下へ。
 function dayAfterRender(el = root.querySelector('.mpull.browse .mday')) {
@@ -2241,7 +2302,7 @@ function timeBody(side, w) {
 // ---------- ノート（旧「日ごとのメモ」。左右ページ・縦の下パネル・閉じた画面の帯で同じ一覧と同じエディタ。保存は notes.js） ----------
 // 画面からは旧 memos へ一切書かない。旧メモは起動時にノートへ複製済み（db.js の移行）。
 let noteComposing = false, renderPending = false, rendering = false;
-const NB = { marks: new Map(), first: new Map(), day: null, dp: null, cur: null, rows: null, q: { left: '', right: '', bottom: '', closed: '' }, seq: 0, failed: false, blocked: false, ed: null, opening: null, focusNew: false, said: false, folders: null, sel: 'all', menu: null, swallow: 0, sheet: null };
+const NB = { marks: new Map(), first: new Map(), cards: new Map(), cardSig: '[]', firstId: new Map(), bodies: new Map(), day: null, dp: null, cur: null, rows: null, q: { left: '', right: '', bottom: '', closed: '' }, seq: 0, failed: false, blocked: false, ed: null, opening: null, focusNew: false, said: false, folders: null, sel: 'all', menu: null, swallow: 0, sheet: null };
 const noteHead = (side) => `<div class="rhead dh"><h2 class="rdate">ノート</h2>${side === 'right' ? rctl() : ''}<div class="sctl">${side === 'left' ? gearBtn() : ''}</div></div>`;
 // 右の列の「元に戻す」「やり直す」の使える・使えないを、ノートの履歴に合わせる（34 §15-②）
 function paintNoteHist() {
@@ -2398,20 +2459,28 @@ root.addEventListener('input', (ev) => {
   nqTimer = setTimeout(() => { if (seq !== nqSeq) return; root.querySelectorAll('[data-mlist]').forEach((el) => { el.scrollTop = 0; }); paintNoteLists(); }, 150);
 });
 // 月の印: 日付のあるノート（削除済みを除く）の件数。1日に複数あっても線は1本。保存の変更のたびに取り直す。
+// 第19.3版 その3（design/35 §1.2・§1.3）: 日ごとのノートの「カード」（id・題名・副題）も一緒に作る（NB.cards）。並びは作った順（動かしたカードは、その日の作った順の位置に入る）。
+// カードの題名と副題の決まりは notes-model.js の cardTextOf（1行目が日付の見出しのノートは、その行を飛ばす）。
+const noteCardOf = (n) => ({ id: n.id, ...cardTextOf(n.body), c: n.createdAt || 0, u: n.updatedAt || 0 });
+const noteCardCmp = (a, b) => a.c - b.c || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 let marksSeq = 0;
 async function refreshNoteMarks() {
   const seq = ++marksSeq;
   try {
-    const m = new Map(), fb = new Map(), best = new Map();
+    const m = new Map(), fb = new Map(), best = new Map(), cards = new Map(), bodies = new Map();
     for (const n of await db.listNotes()) {
       if (n.deletedAt != null) continue;
       const k = noteDateOf(n); if (!k) continue;
       m.set(k, (m.get(k) || 0) + 1);
       const b = best.get(k); if (!b || n.updatedAt > b.updatedAt) { best.set(k, n); fb.set(k, String(n.body ?? '').slice(0, 800)); } // 1日ページのノート欄に出す「1件目」（いちばん新しいもの）
+      if (!cards.has(k)) cards.set(k, []);
+      cards.get(k).push(noteCardOf(n)); bodies.set(n.id, String(n.body ?? '').slice(0, 800));
     }
     if (seq !== marksSeq) return;
-    const same = m.size === NB.marks.size && [...m].every(([k, v]) => NB.marks.get(k) === v) && fb.size === NB.first.size && [...fb].every(([k, v]) => NB.first.get(k) === v);
-    NB.marks = m; NB.first = fb;
+    for (const l of cards.values()) l.sort(noteCardCmp);
+    const sig = JSON.stringify([...cards].sort((a, b) => (a[0] < b[0] ? -1 : 1)));
+    const same = m.size === NB.marks.size && [...m].every(([k, v]) => NB.marks.get(k) === v) && fb.size === NB.first.size && [...fb].every(([k, v]) => NB.first.get(k) === v) && sig === NB.cardSig;
+    NB.marks = m; NB.first = fb; NB.cards = cards; NB.cardSig = sig; NB.bodies = bodies; NB.firstId = new Map([...best].map(([k, n]) => [k, n.id]));
     if (!same) render();
   } catch { /* 印が出ないだけ */ }
 }
@@ -2424,12 +2493,12 @@ async function filterNotesByDay(day) {
 // 「この日のノート」: 0件=日ごとのメモに新規（1行目は日付見出し）、1件=開く、複数=その日に絞った一覧。
 let dayNoteBusy = false;
 // その日の新しいノート（日ごとのメモのフォルダ、1行目は日付見出し）を作って id を返す。
-async function createDayNote(day) {
+async function createDayNote(day, plain = false) { // plain＝日の欄の「＋ ノート」（その3）: 1行目に日付の見出しを足さない（1行目が題名。日付はシートの上の日付の行に出す）
   let fid = null;
   try { const r = ensureDailyFolder(await db.listFolders()); if (r.created) await db.putFolder(r.folder); fid = r.folder.id; invalidateNoteList(); NB.folders = null; } catch { /* フォルダなしで作る */ }
   const id = noteStore.newNote();
   await noteStore.setMeta(id, { date: day, ...(fid ? { folderId: fid } : {}) });
-  noteStore.setText(id, `${dailyHeading(day)}\n`);
+  if (!plain) noteStore.setText(id, `${dailyHeading(day)}\n`);
   return id;
 }
 async function openDayNote(day) {
@@ -2809,7 +2878,8 @@ const doneCtl = createTaskDoneController(taskStore, {
     RM.mut++;
     if (result && RM.data) RM.data = { ...RM.data, reminders: RM.data.reminders.map((x) => (x.itemId === id ? rowOf(result) : x)) };
     RM.sig = '';
-    render(); scheduleTasks();
+    { const fl = dayFlipCapture(); render(); dayFlipPlay(fl); } // 35 §3: 完了したタスクは、1.5 秒後に区画の一番下へ 0.25 秒（寄せ）で移る
+    scheduleTasks();
     if (failed) {
       const m = taskErrText(errCode(err), '完了の変更はもとに戻しました。');
       notice(m); say(m);
@@ -3257,6 +3327,7 @@ function render() {
     if (cl && state.view === 'day' && !state.monthExpand) state.view = 'month';
   }
   const kind = layoutKind(), prevKind = lastKind;
+  if (GR.on && GR.geo !== grabGeo()) directCtl?.cancel('layout'); // つかんだまま閉じる・開く・回す: やめたと同じ（35 §6.5）
   if (state.strip && (!['closed', 'spread'].includes(fam(kind)) || (lastKind && fam(lastKind) !== fam(kind)))) state.strip = null; // 開閉・回転で姿勢が変わったら元の表示へ
   if (MORE.open && fam(kind) !== 'closed') MORE.open = false;
   if (noteEditing && (fam(kind) !== 'closed' || !safeBandNow())) noteEditing = false;
@@ -3318,6 +3389,7 @@ function render() {
   syncExt();
   applyKbLayout();
   ttCurl?.sync(); // 寸法が変わった・今日＋明日でなくなった：めくりを止めて絵と canvas を捨てる（めくり中の再描画では何もしない）
+  landPaint(); // 別の日へ落とした直後の着地（マスの色・新しいチップ）を、描き直しをまたいで続ける
 }
 
 // ---------- 操作 ----------
@@ -3383,24 +3455,70 @@ function placeNoteSheet() {
   st.setProperty('--ns-pl', `${g.pl}px`); st.setProperty('--ns-pr', `${g.pr}px`); st.setProperty('--ns-bml', `${g.bml}px`); st.setProperty('--ns-bmr', `${g.bmr}px`);
   st.setProperty('--ns-pb', de.dataset.kb && kbTopNow() !== null ? '8px' : '0px'); // キーボードが出ているとき本文の窓の下端は kbTop の 8 上（20 §3）
   SHEET_EL.dataset.kind = g.kind; SHEET_EL.dataset.side = NB.sheet.side;
+  if ((g.kind === 'home' || g.kind === 'browse') && L.w <= L.h) SHEET_EL.dataset.cp = '1'; else delete SHEET_EL.dataset.cp; // 閉じた縦: 日付の行のすぐ下が上の帯（35 §4.3）
   if (g.rail) SHEET_EL.dataset.rail = '1'; else delete SHEET_EL.dataset.rail; // 帯があるとき（閉じた画面）: 戻す群は右の列だけ（34 §15-②）
   const fs = NB.ed?.fsheetEl; if (fs) { fs.style.setProperty('--ns-x', `${g.x}px`); fs.style.setProperty('--ns-w', `${g.w}px`); }
 }
-async function openNoteSheet(id, day, side) {
+async function openNoteSheet(id, day, side, { plain = false } = {}) {
   sheetBusy = true;
   try {
     if (NB.ed && NB.cur) { const ok = await NB.ed.leave(); if (ok === false) return; NB.cur = null; NB.dp = null; }
     const fresh = id == null;
-    if (fresh) id = await createDayNote(day);
+    if (fresh) id = await createDayNote(day, plain);
     const ed = noteEditor();
-    NB.sheet = { id, day, side, fs: null };
+    NB.sheet = { id, day, side, fs: null, date: day || null };
+    sheetDateRow();
     SHEET_EL.hidden = false; SHEET_EL.classList.remove('closing'); SHEET_EL.append(ed.el);
+    ed.titleEl.placeholder = plain && fresh ? '題名' : EMPTY_TITLE; // 35 §4.3: 新しいメモは、空のあいだ1行目に「題名」を薄く出す
     placeNoteSheet();
     render(); // 週の帯・ノート欄の描き直し（シートの外はそのまま見える）
     await ed.open(id);
-    if (fresh) { ed.bodyEl.focus({ preventScroll: true }); const n = ed.bodyEl.value.length; ed.bodyEl.setSelectionRange(n, n); }
+    noteStore.getMeta(id).then((m) => { if (NB.sheet?.id === id) { NB.sheet.date = m?.date ?? null; SHEET_DATE.ui?.render(); } }).catch(() => {});
+    if (fresh && plain) ed.titleEl.focus({ preventScroll: true });
+    else if (fresh) { ed.bodyEl.focus({ preventScroll: true }); const n = ed.bodyEl.value.length; ed.bodyEl.setSelectionRange(n, n); }
     say('ノートを開きました。');
   } finally { sheetBusy = false; }
+}
+// ---- 第19.3版 その3（design/35 §4.3・決定 4・R2）: ノートのシートの一番上に「日付の行」44。カプセル「11月12日（木）」（今年でない日だけ年つき。六曜は出さない）をたたくと小さな月（予定・タスクの日付と同じ部品）。
+// 日をたたくと、その日へ移す（長押しで落としたときと同じ扱い＝同じ札・同じ読み上げ・元に戻す。ノートがある日でも確かめない）。「日付を外す」は小さな月の下
+const SHEET_DATE = { row: null, cap: null, ui: null };
+function sheetDateRow() {
+  if (!SHEET_DATE.row) {
+    const row = document.createElement('div'); row.className = 'nsdate';
+    const cap = document.createElement('button'); cap.type = 'button'; cap.className = 'dcap nsdcap'; cap.setAttribute('aria-haspopup', 'true'); cap.setAttribute('aria-expanded', 'false');
+    row.append(cap); SHEET_DATE.row = row; SHEET_DATE.cap = cap;
+    SHEET_EL.prepend(row);
+    SHEET_DATE.ui = createDateField(cap, {
+      after: row, scope: SHEET_EL, label: 'ノートの日付', empty: '日付なし', holiday: holidayMemo, buzz: () => { haptic('light').catch(() => {}); },
+      get: () => NB.sheet?.date || '',
+      set: (k) => sheetSetDate(k),
+      clear: { label: '日付を外す', on: () => sheetSetDate(null) },
+    });
+  }
+  if (SHEET_EL.firstElementChild !== SHEET_DATE.row) SHEET_EL.prepend(SHEET_DATE.row);
+  SHEET_DATE.ui.close(); SHEET_DATE.ui.render();
+}
+function sheetDateSync(id, date) { if (NB.sheet?.id === id) { NB.sheet.date = date; SHEET_DATE.ui?.render(); } }
+async function sheetSetDate(k) {
+  const sh = NB.sheet; if (!sh) return;
+  const id = sh.id, from = sh.date;
+  if (k === from) return;
+  NB.ed?.sync?.(); await noteStore.flushNote(id).catch(() => {}); // 打っている途中の文字を先に書く
+  await refreshNoteMarks();
+  if (k && from && noteCardById(id)) { sh.date = k; SHEET_DATE.ui.render(); mvLog('drop', { day: k }); await moveNoteCard(id, k); if (noteCardById(id)?.day !== k) { sh.date = from; SHEET_DATE.ui.render(); } return; }
+  try { const r = await setNoteDate(id, k); if (!r.ok) throw new Error('note'); } catch { SHEET_DATE.ui.render(); moveFail(k ? '移せませんでした。' : '日付を外せませんでした。'); return; }
+  sh.date = k; SHEET_DATE.ui.render(); await refreshNoteMarks(); if (NB.rows) invalidateNoteList();
+  if (k) { notice(`${DOW_P(k)}を付けました`, null, 3000); say(`${dayLabel(k)}を付けました。`); }
+  else { // 日付を外す: その日の日の欄からカードが消える（date: null。sourceDate には戻さない）。6 秒は元に戻せる
+    const rec = { kind: 'note', id, from, to: null, tasks: [] };
+    mvDropUndo(); MV.rec = rec; MV.timer = setTimeout(() => { if (MV.rec === rec) MV.rec = null; }, UNDO_MS);
+    notice('日付を外しました', { label: '元に戻す', fn: undoMove }, UNDO_MS); say('日付を外しました。');
+  }
+}
+// 日の欄のノートのカードをたたく・「＋ ノート」: ノートのシートを下から出す（27 §2）
+async function openCardNote(id, day, btn) {
+  if (!day || NB.blocked || dayNoteBusy || NB.sheet || sheetBusy || curlBusyNow()) return;
+  await openNoteSheet(id || null, day, 'right', { plain: true });
 }
 async function closeNoteSheet() {
   const sh = NB.sheet; if (!sh) return true;
@@ -3408,6 +3526,7 @@ async function closeNoteSheet() {
   if (ed) { ed.closeFs?.(false); const ok = await ed.leave(); if (ok === false) return false; }
   NB.sheet = null;
   SHEET_EL.classList.add('closing');
+  SHEET_DATE.ui?.close(); if (ed) ed.titleEl.placeholder = EMPTY_TITLE;
   const fin = () => { if (NB.sheet) return; SHEET_EL.hidden = true; SHEET_EL.classList.remove('closing'); if (ed && SHEET_EL.contains(ed.el)) ed.el.remove(); sheetHeadSync(); };
   setTimeout(fin, reduced() ? 150 : 250);
   invalidateNoteList(); NB.cur = null; render();
@@ -3552,6 +3671,11 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'noteundo') { if (noteHist().undo) NB.ed?.undo(); }
   else if (d.act === 'noteredo') { if (noteHist().redo) NB.ed?.redo(); }
   else if (d.act === 'notelist') showNotePage();
+  else if (d.act === 'tasklist') toggleStrip('task');
+  else if (d.act === 'cardnote') openCardNote(d.note, d.sday, b);
+  else if (d.act === 'addnote') openCardNote(null, d.day, b);
+  else if (d.act === 'addtask') openNewTask(d.day, b);
+  else if (d.act === 'cardmv') { if (d.how === 'pick') openCardDate(d.kind, d.id, d.day, b); else cardMoveById(d.kind, d.id, d.day, addDays(d.day, d.how === 'prev' ? -1 : 1)); }
   else if (d.act === 'dayunfold') dayUnfold();
   else if (d.dg === 'card' || d.dg === 'time') dayTab(d.dg);
   else if (d.mday) { set({ monthDay: d.mday }); root.querySelector(`[data-mday="${d.mday}"]`)?.focus({ preventScroll: true }); }
@@ -4325,7 +4449,7 @@ function tkUi() {
   tkNotifyUi();
   const lock = !!TK.ed.lock, gone = TK.gone;
   $('#tk-save').hidden = lock || gone;
-  $('#tk-del').hidden = lock || gone;
+  $('#tk-del').hidden = lock || gone || !!TK.fresh;
   $('#tk-del').disabled = TK.busy;
   $('#tk-save').disabled = TK.busy;
   $('#tk-err').textContent = TK.ed.err || '';
@@ -4363,9 +4487,27 @@ function openTask(id, from) {
   TK = { ed: openTaskEditor(r, RM.data.lists), busy: false, gone: false, notify: undefined }; tkKey = r.itemId;
   $('#tk-body').innerHTML = taskEditorHtml(TK.ed);
   tkFields();
+  tkSourceRow(r);
   tkUi();
   openPanel(taskDlg, from);
   const t = $('#tk-title'); (t.disabled ? $('#tk-close') : t).focus({ preventScroll: true });
+}
+// 第19.3版 その3（design/35 §3）: 日の欄の「＋ タスク」。その日を期限にした新しいタスクを、同じシートで題名から書く（保存を押すまで何も作らない）
+function openNewTask(day, from) {
+  if (!RM.data || anyPanel()) { if (!RM.data) say('タスクを読み込んでいます。'); return; }
+  const r = { itemId: '', listId: LOCAL_LIST.id, title: '', notes: '', due: day ? { date: day } : null, done: false, alarms: [], readOnly: false, recurring: false };
+  TK = { ed: openTaskEditor(r, RM.data.lists), busy: false, gone: false, notify: undefined, fresh: true }; tkKey = '';
+  $('#tk-body').innerHTML = taskEditorHtml(TK.ed);
+  tkFields(); tkUi();
+  openPanel(taskDlg, from);
+  $('#tk-title').focus({ preventScroll: true });
+}
+// タスクのシートの「ノート「買い物」 ›」（35 §8）: ノートのチェック行からできたタスクは、期限の下の行からそのノートを開ける
+function tkSourceRow(r) {
+  const c = r?.source ? noteCardById(r.source.noteId) : null; if (!c) return;
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'tksrc'; b.textContent = `ノート「${c.title || EMPTY_TITLE}」 ›`; b.setAttribute('aria-label', `ノート「${c.title || EMPTY_TITLE}」を開く`);
+  b.addEventListener('click', () => { if (taskIsDirty()) { openDiscard(taskDlg); return; } const day = c.day; fadeClose(taskDlg, closeTask); setTimeout(() => { if (!NB.sheet) openNoteSheet(c.id, day, 'right'); }, 260); });
+  $('#tk-timerow')?.after(b);
 }
 let tkKey = '';
 tkDrop = () => { if (taskDlg.open) closeTask(); };
@@ -4388,13 +4530,29 @@ $('#tk-save').addEventListener('click', async () => {
   if (!TK || TK.busy || TK.ed.lock) return;
   const t = TK, orig = t.ed.orig;
   t.busy = true; t.ed.err = ''; tkUi();
+  if (t.fresh) { // 新しいタスク（日の欄の「＋ タスク」）
+    const f = tkForm(), a = await addCtl.submit({ title: f.title, due: f.date || null, time: f.date ? f.time || '' : '', notify: f.notify === true });
+    if (TK !== t) return;
+    t.busy = false;
+    if (!a.ok) { t.ed.err = a.empty ? '題名を入力してください。' : a.busy ? '' : taskErrText(a.code, 'もう一度お試しください。'); tkUi(); if (t.ed.err) say(t.ed.err); return; }
+    let row = a.reminder;
+    if (f.notes) { try { row = rowOf(await taskStore.update(row.itemId, { note: f.notes })); } catch { /* メモだけ保存できなかった: タスクは残す */ } }
+    RM.mut++;
+    const list = RM.data?.reminders || [];
+    RM.data = { lists: [LOCAL_LIST], reminders: [...list.filter((x) => x.itemId !== row.itemId), row] }; RM.sig = ''; render(); scheduleTasks();
+    if (row.alarms?.length) askNotifyPerm();
+    fadeClose(taskDlg, closeTask); say('タスクを追加しました。');
+    return;
+  }
   const r = await saveTask(localCall, orig, tkForm());
   if (TK !== t) return;
   t.busy = false;
   if (r.ok) {
     if (!r.noop && RM.data) { RM.data = { ...RM.data, reminders: RM.data.reminders.map((x) => (x.itemId === orig.itemId ? r.reminder : x)) }; RM.sig = ''; render(); scheduleTasks(); if (r.reminder.alarms?.length) askNotifyPerm(); }
     fadeClose(taskDlg, closeTask);
-    if (!r.noop) say('タスクを保存しました。');
+    const d0 = orig.due?.date, d1 = r.reminder?.due?.date;
+    if (!r.noop && d0 && d1 && d0 !== d1) { landStart(d1, cardSel('task', orig.itemId)); landPaint(); moveDone(d1, null, { kind: 'task', id: orig.itemId, prev: orig.due, to: r.reminder.due, from: d0, stamp: r.reminder.modifiedAt }, { title: r.reminder.title || '題名なし' }); } // 35 §4.1: 開いて期限の日を変えたら、動かしたのと同じ扱い（札「14日（土）へ移しました｜元に戻す」。戻すのは期限だけ）
+    else if (!r.noop) say('タスクを保存しました。');
     return;
   }
   t.ed.err = r.invalid || taskErrText(r.code, 'もう一度お試しください。');
@@ -6675,17 +6833,49 @@ const moveDays = () => [...root.querySelectorAll('.week .day[data-date]')].filte
 const grabMonthOk = () => grabAllowed({ layout: layoutKind(), tt: ttOn(), pasting: PS.on, monthDays: moveDays().length });
 function grabOrigin(t) {
   if (!grabMonthOk() || t.closest('.tabs, .mmenu, .tlmenu, .dbox')) return null;
+  // 第19.3版 その3（design/35 §7.1・R7）: 開いた画面のタスクとノートも、今ある行から持ち上げて月のマスへ落とせる（見た目は変えず、長押しを足すだけ）。
+  //   開いた縦＝日の欄のタスクの行と、ノートの欄の題名の行（1行目）。開いた横＝ノートのページで開いているノートの題名の行（書いている最中＝題名にキャレットがある間は文字の選択のまま）。
+  //   ノートの本文・タスクのページ・ノートの一覧・マスの件数と緑の線からは持ち上げない。
+  const tr = t.closest('.mpull:not(.browse) .mday .mdtask');
+  if (tr) { const id = tr.querySelector('[data-id]')?.dataset.id; return id ? { kind: 'grab', ck: 'task', id, el: tr, from: state.selected, tl: null, sc: tr.closest('.mday') } : null; }
+  const nl = t.closest('.mpull:not(.browse) .mday .mdnotes .dnote .nl');
+  if (nl) { if (nl.previousElementSibling) return null; const day = nl.closest('[data-day]')?.dataset.day, id = NB.firstId.get(day); return id ? { kind: 'grab', ck: 'note', id, el: nl, from: day, tl: null, sc: nl.closest('.mday') } : null; }
+  const nt = t.closest('.page[data-page="memo"] .ned-title');
+  if (nt) { const c = layoutKind() === 'spread' && nt !== document.activeElement && NB.cur ? noteCardById(NB.cur) : null; return c ? { kind: 'grab', ck: 'note', id: c.id, el: nt, from: c.day, tl: null, sc: null } : null; }
   const el = t.closest(GRAB_SEL); if (!el?.dataset.event) return null;
   const from = el.dataset.sday || el.closest('[data-day]')?.dataset.day || null;
   const md = el.closest('.mday'); // 開いた縦の月タブの下の面: 日の部分（.mday）が1本でスクロールする。時刻は動かさず（日だけ移す）、端のスクロールは .mday を動かす（R-49）
   const tl = !md && el.matches('.tlev') ? el.closest('.tl') : null;
-  return { kind: 'grab', id: el.dataset.event, el, from, tl, sc: md || tl };
+  return { kind: 'grab', ck: 'event', id: el.dataset.event, el, from, tl, sc: md || tl };
+}
+// 閉じた画面の日の欄: 予定・タスク・ノートのカード（と終日の帯、「時間」のときの枠）を長押しで持ち上げて、月のマスへ落とす（35 §6）
+function cardOrigin(t) {
+  const md = t.closest('.mpull.browse .mday'); if (!md || PS.on) return null;
+  const el = t.closest('.mdcard, .mdallday, .tlev:not(.fev), .adpill'); if (!el) return null;
+  const sc = closedLand() ? md : md.closest('.mpull.browse'), from = el.dataset.sday || el.closest('[data-day]')?.dataset.day || state.selected;
+  if (el.dataset.task) return { kind: 'grab', ck: 'task', id: el.dataset.task, el, from, tl: null, sc };
+  if (el.dataset.note) return { kind: 'grab', ck: 'note', id: el.dataset.note, el, from, tl: null, sc };
+  return el.dataset.event ? { kind: 'grab', ck: 'event', id: el.dataset.event, el, from, tl: null, sc } : null;
 }
 const dayDiffKeys = (a, b) => Math.round((parseKey(a) - parseKey(b)) / 864e5);
 const hmOfIso = (iso) => Number(iso.slice(11, 13)) * 60 + Number(iso.slice(14, 16));
 const isoPlusMin = (iso, m) => { const t = hmOfIso(iso) + m; return `${iso.slice(0, 10)}T${pad(Math.floor(t / 60))}:${pad(t % 60)}`; };
-const GR = { on: false, o: null, chip: null, drop: '', off: 0, y0: 0, s0: 0, ext: null, gen: 0 };
+const grabGeo = () => `${layoutKind()}|${window.innerWidth}x${window.innerHeight}`;
+const GR = { on: false, o: null, chip: null, drop: '', off: 0, y0: 0, s0: 0, ext: null, gen: 0, asChip: false, hole: null, cw: 0, ckey: '', cells: null, acc: 0 };
+// 速さの記録（追記7。品質の試験が見る口）: 持ち上げ・札・落とす・表示・元に戻す の時刻（performance.now）と触覚
+const mvLog = (ev, extra) => { try { const l = (window.__duoMoveLog = window.__duoMoveLog || []); l.push({ ev, t: performance.now(), ...extra }); if (l.length > 400) l.splice(0, 200); } catch { /* */ } };
+const mvFeel = (kind) => { feel(kind); mvLog('haptic', { kind }); };
+// 閉じた画面: つかんでいる間は、マスの矩形を1回だけ測って使い回す（指が動くたびに 42 マスを測り直さない。画面を送った・描き直したら測り直す）
+function grabCells() {
+  const sec = root.querySelector('.mpull.browse'); if (!sec) return null;
+  const st = sec.scrollTop, c = GR.cells;
+  if (c && c.rev === renderRev && c.st === st && c.sec === sec) return c;
+  const fix = sec.matches('[data-stage]') ? sec.querySelector('.mpfix')?.getBoundingClientRect().bottom ?? 0 : 0; // 閉じた縦: 貼り付いた年月・曜日の下に流れ込んだマスには落とせない
+  const list = [...sec.querySelectorAll('.mgrid:not([data-leaving]) .day[data-date]')].map((d) => { const r = d.getBoundingClientRect(); return { k: d.dataset.date, l: r.left, t: r.top, r: r.right, b: r.bottom }; });
+  return (GR.cells = { rev: renderRev, st, sec, fix, list });
+}
 function moveDayAt(x, y) {
+  if (GR.on && closedSize()) { const c = grabCells(); if (c) { if (y < c.fix) return null; for (const d of c.list) if (x >= d.l && x < d.r && y >= d.t && y < d.b) return d.k; return null; } }
   const sd = stgDayAt(x, y); if (sd) return sd.dataset.date; // 閉じた7段（帯は左端のマスの子なので位置で決める）
   for (const n of document.elementsFromPoint(x, y)) { const d = n.closest?.('.week .day[data-date]'); if (d) return d.dataset.date; }
   return null;
@@ -6696,49 +6886,82 @@ function grabPaintDrop(k) {
   GR.drop = k || '';
   if (k) root.querySelectorAll(`.week .day[data-date="${k}"]`).forEach((n) => n.classList.add('mdrop'));
 }
-// つかんだ予定の情報（Duo は回を解いた形、iPhone は表示用）。時刻を動かせるのは Duo の時刻つき・1日内の予定の時間軸の枠だけ。
-function grabInfo() {
-  const o = GR.o, ext = visExt().find((x) => x.id === o.id);
-  if (ext) return { ext, title: ext.title, shift: false };
-  const cur = resolve(o.id); if (!cur) return null;
+// つかんだカードの情報（予定＝Duo は回を解いた形・iPhone は表示用、タスク、ノート）。時刻を動かせるのは Duo の時刻つき・1日内の予定の時間軸の枠だけ。rec＝繰り返しの回（「この回だけ」。35 §6.9）
+function grabInfoOf(ck, id, tl = null) {
+  if (ck === 'task') { const r = RM.data?.reminders.find((x) => x.itemId === id); return r?.due?.date ? { task: r, title: r.title || '（題名なし）', shift: false, day: r.due.date } : null; }
+  if (ck === 'note') { const c = noteCardById(id); return c ? { note: c, title: c.title || EMPTY_TITLE, shift: false, day: c.day } : null; }
+  const ext = visExt().find((x) => x.id === id);
+  if (ext) return { ext, title: ext.title, shift: false, rec: !!ext.recurring };
+  const cur = resolve(id); if (!cur) return null;
   const occ = cur.occ, one = !occ.all && dayOf(occ.start) === dayOf(occ.end);
-  return { cur, title: occ.title, shift: !!o.tl && one, sMin: one ? hmOfIso(occ.start) : 0, eMin: one ? hmOfIso(occ.end) : 0 };
+  return { cur, title: occ.title, shift: !!tl && one, sMin: one ? hmOfIso(occ.start) : 0, eMin: one ? hmOfIso(occ.end) : 0, rec: !!cur.occKey };
+}
+const grabInfo = () => grabInfoOf(GR.o.ck || 'event', GR.o.id, GR.o.tl);
+const DOW_P = (k) => `${parseKey(k).getDate()}日（${DOW[parseKey(k).getDay()]}）`;
+// 札（35 §6.2）: 高さ 32・角丸 8・白・影 段2。左に種類の印（予定＝色の線 3×16、タスク＝四角 14、ノート＝紙 12×14）＋題名＋（繰り返しの回は「この回だけ」）＋行き先「→ 14日（土）」。
+// 中身は変わったときだけ作り直す（指が動くたびには作らない。動かすのは transform だけ）
+function grabChipPaint(g) {
+  const key = `${g?.title}|${GR.off}|${GR.drop}`; if (key === GR.ckey || !GR.chip) return; GR.ckey = key;
+  if (!g) { GR.chip.textContent = ''; GR.cw = GR.chip.offsetWidth; return; }
+  const ck = GR.o.ck || 'event';
+  const mark = ck === 'task' ? `<i class="gcb${g.task.done ? ' on' : ''}"></i>` : ck === 'note' ? PAPER_SVG.replace('class="mdpaper"', 'class="gcp"').replace('width="16" height="20"', 'width="12" height="14"') : '<i class="gcl"></i>';
+  GR.chip.innerHTML = `${mark}<span class="gct${g.rec ? ' rec' : ''}">${g.rec ? '↻ ' : ''}${esc(g.title)}${g.shift ? ` ${hmText(g.sMin + GR.off)}〜${hmText(g.eMin + GR.off)}` : ''}</span>${g.rec ? '<span class="gcr">この回だけ</span>' : ''}${GR.drop ? `<span class="gcd">→ ${DOW_P(GR.drop)}</span>` : ''}`;
+  GR.cw = GR.chip.offsetWidth;
+}
+// 札の位置: 指の真上（下の端＝指の y−24、横の中心＝指の x。画面の端から 8 内）
+const grabChipPos = () => { const w = GR.cw || 0, x = Math.round(Math.min(Math.max(8, window.innerWidth - 8 - w), Math.max(8, EG.x - w / 2))), y = Math.round(Math.max(4, EG.y - 56)); return `translate(${x}px, ${y}px)`; };
+// 持ち上げたカードを札に縮める（指から 24 動いたか、指が月の格子に入ったとき。0.15 秒）。元の場所には破線の枠が残る
+function grabToChip() {
+  if (GR.asChip || !GR.chip) return;
+  GR.asChip = true;
+  const el = GR.o.el; el.classList.remove('lifted'); el.classList.add('grabbed');
+  GR.hole?.remove(); GR.hole = null;
+  GR.chip.classList.add('on');
+  GR.chip.animate(reduced() ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, scale: 1.25 }, { opacity: 1, scale: 1 }], { duration: 150, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+  mvLog('chip');
 }
 function grabRecalc() {
   if (!GR.on) return;
-  if (!GR.o.el.isConnected) { // 描き直されたら、同じ予定の要素へ点線の枠を付け直す
-    const n = root.querySelector(`[data-event="${CSS.escape(GR.o.id)}"]${GR.o.from && GR.o.el.dataset.sday ? `[data-sday="${GR.o.from}"]` : ''}`);
-    if (n) { GR.o.el = n; n.classList.add('grabbed'); }
+  if (!GR.o.el.isConnected) { // 描き直されたら、同じカードの要素へ破線の枠を付け直す
+    const o = GR.o, ck = o.ck || 'event', q = ck === 'task' ? `[data-task="${CSS.escape(o.id)}"]` : ck === 'note' ? `[data-note="${CSS.escape(o.id)}"]` : `[data-event="${CSS.escape(o.id)}"]${o.from && o.el.dataset.sday ? `[data-sday="${o.from}"]` : ''}`;
+    const n = root.querySelector(q);
+    if (n) { o.el = n; n.classList.add(GR.asChip ? 'grabbed' : 'lifted'); }
   }
-  GR.chip.style.transform = `translate(${EG.x + 12}px, ${EG.y - 18}px)`;
   const tl = GR.o.tl, g = grabInfo();
   if (tl?.isConnected && g?.shift) {
     const rc = tl.getBoundingClientRect(), er = GR.o.el.getBoundingClientRect(); // 時刻は、つかんだ枠の列の中で引いている間だけ動く（月へ向かう横の動きでは変わらない）
     if (Math.abs(EG.x - GR.x0) <= 24 && EG.x >= er.left && EG.x < er.right && EG.y >= rc.top && EG.y < rc.bottom) {
       const hh = hhOf(paneOf(tl)), dm = ((EG.y - GR.y0) + (tl.scrollTop - GR.s0)) / hh * 60;
       const off = Math.min(1440 - g.eMin, Math.max(-g.sMin, Math.round(dm / 15) * 15));
-      if (off !== GR.off) { GR.off = off; feel('light'); }
+      if (off !== GR.off) { GR.off = off; mvFeel('light'); }
     }
   }
-  const d0 = moveDayAt(EG.x, EG.y), d = d0 && !GR.off && g && d0 === (GR.o.from || dayOf(g.ext ? g.ext.start : g.cur.occ.start)) ? null : d0; // 元の日は落とす先として光らせない（落とせば取り消し。34 §16-4）
-  if (d !== (GR.drop || null)) { grabPaintDrop(d); if (d) feel('light'); }
-  GR.chip.textContent = g ? `${g.title}${g.shift ? ` ${hmText(g.sMin + GR.off)}〜${hmText(g.eMin + GR.off)}` : ''}` : '';
+  const d0 = moveDayAt(EG.x, EG.y), from = g ? (GR.o.from || g.day || dayOf(g.ext ? g.ext.start : g.cur.occ.start)) : null;
+  if (!GR.asChip && (d0 || Math.hypot(EG.x - GR.x0, EG.y - GR.y0) >= 24)) grabToChip();
+  const d = d0 && !GR.off && g && d0 === from ? null : d0; // 元の日は落とす先として光らせない（落とせば取り消し。34 §16-4）
+  if (d !== (GR.drop || null)) { grabPaintDrop(d); if (d) mvFeel('light'); }
+  grabChipPaint(g);
+  GR.chip.style.transform = grabChipPos();
 }
 function grabClear() {
   grabPaintDrop('');
-  GR.chip?.remove(); GR.chip = null;
-  root.querySelectorAll('.grabbed').forEach((n) => n.classList.remove('grabbed'));
+  GR.chip?.remove(); GR.chip = null; GR.hole?.remove(); GR.hole = null;
+  root.querySelectorAll('.grabbed, .lifted, .liftrel').forEach((n) => n.classList.remove('grabbed', 'lifted', 'liftrel'));
   document.documentElement.removeAttribute('data-grab');
-  GR.on = false; GR.o = null; GR.ext = null; GR.off = 0; GR.gen++;
+  GR.on = false; GR.o = null; GR.ext = null; GR.off = 0; GR.gen++; GR.asChip = false; GR.cells = null; GR.ckey = ''; GR.acc = 0;
 }
-// 34 §16-4: 元の日へ落とした。浮いた札を 0.20 秒で元の場所へ戻して消す（知らせ・触覚・保存は出さない）
+// やめた（落とせない所で離す・元の日で離す・指がキャンセルされた。35 §6.5）: 札をカードの大きさに戻しながら、元の場所へ 0.22 秒（out の3乗）。知らせ・触覚・保存は出さない。視差効果を減らすときは 0.15 秒のフェードだけ
+const BACK_MS = 220, BACK_EASE = 'cubic-bezier(0.33, 1, 0.68, 1)';
 function grabBack() {
-  const chip = GR.chip, el = GR.o?.el; GR.chip = null; grabClear();
+  const chip = GR.chip, el = GR.o?.el, was = GR.asChip; GR.chip = null; grabClear();
+  mvLog('back');
   if (!chip) return;
-  if (reduced() || !el?.isConnected) { chip.remove(); return; }
-  const r = el.getBoundingClientRect(); el.classList.add('grabbed');
+  if (!was || !el?.isConnected) { chip.remove(); return; } // 持ち上げただけ（札になる前）: カードは CSS の 0.15 秒で元の大きさへ戻る
+  const r = el.getBoundingClientRect(), c = chip.getBoundingClientRect(); el.classList.add('grabbed');
   const done = () => { chip.remove(); if (!GR.on || GR.o?.el !== el) el.classList.remove('grabbed'); };
-  chip.animate([{ transform: chip.style.transform }, { transform: `translate(${r.left}px, ${r.top}px)` }], { duration: 200, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'forwards' }).finished.then(done, done);
+  if (reduced()) { chip.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, easing: 'linear', fill: 'forwards' }).finished.then(done, done); return; }
+  chip.style.transformOrigin = '0 0';
+  chip.animate([{ transform: chip.style.transform, opacity: 1 }, { transform: `translate(${r.left}px, ${r.top}px) scale(${r.width / Math.max(1, c.width)}, ${r.height / Math.max(1, c.height)})`, opacity: 0.25 }], { duration: BACK_MS, easing: BACK_EASE, fill: 'forwards' }).finished.then(done, done);
 }
 function grabRefuse(msg) { // つかめない予定: 軽く震えて戻す
   feel('warning'); directCtl?.cancel('refuse');
@@ -6760,75 +6983,262 @@ function grabStart(o, x, y) {
       if (!ed.editable) grabRefuse(REASON_TEXT[ed.reason] || null);
     }).catch(() => { if (gen === GR.gen && GR.ext) { GR.ext.status = 'no'; grabRefuse('この予定は取得できませんでした。'); } });
   }
-  Object.assign(GR, { on: true, drop: '', off: 0, x0: x, y0: y, s0: o.tl?.scrollTop ?? 0 });
-  o.el.classList.add('grabbed');
+  Object.assign(GR, { on: true, drop: '', off: 0, x0: x, y0: y, s0: o.tl?.scrollTop ?? 0, asChip: false, cells: null, ckey: '', cw: 0, acc: 0, geo: grabGeo() });
+  if (o.el === document.activeElement) o.el.blur(); // 開いた横のノートの題名の行: つかんだら文字の入力には入らない
   if (PRS.cell) { PRS.cell.classList.add('grabd'); PRS.cell.classList.remove('prs'); } // D1（34 §16-2）: つかんだ瞬間に、元のマスの地を 0.10 秒で戻す（元の場所は破線の枠で分かる）
   document.documentElement.dataset.grab = '1';
   const chip = document.createElement('div'); chip.className = 'gchip'; chip.setAttribute('aria-hidden', 'true');
   chip.style.setProperty('--cat', getComputedStyle(o.el).getPropertyValue('--cat') || '#294E42');
   document.body.append(chip); GR.chip = chip;
-  feel('medium');
+  if (o.el.matches('.week .chip, .week .strip, .week .bar')) { o.el.classList.add('grabbed'); GR.asChip = true; chip.classList.add('on'); mvLog('chip'); } // 月のマスのチップは持ち上げず、すぐ札になる（35 §6.1）
+  else { // 持ち上げる（35 §6.1）: カードを 1.03 倍・影 段2（0 4 12 / 10%）、0.15 秒。元の場所に同じ大きさの破線の枠（1.5 #A8ABA4）
+    const hole = document.createElement('div'); // 破線の枠はカードと同じ親の中（カードのすぐ前。カードの下に描かれ、画面を送っても一緒に流れる）
+    hole.className = 'ghole'; hole.setAttribute('aria-hidden', 'true');
+    hole.style.cssText = `left:${o.el.offsetLeft}px;top:${o.el.offsetTop}px;width:${o.el.offsetWidth}px;height:${o.el.offsetHeight}px;border-radius:${getComputedStyle(o.el).borderTopLeftRadius}`;
+    o.el.before(hole); GR.hole = hole;
+    if (getComputedStyle(o.el).position === 'static') o.el.classList.add('liftrel');
+    o.el.classList.add('lifted');
+  }
+  mvLog('lift', { kind: o.ck || 'event' });
+  mvFeel('medium');
   if (o.sc) edgeLoop.start();
   grabRecalc();
-  say(`${g.title}をつかみました。月の日へ落とします。`);
+  say(`${g.title}をつかみました。${g.rec ? 'この回だけ移します。' : ''}月の日へ落とします。`);
 }
-// ---- 落とす
+// ---- 落とす（35 §6.5・§6.6）。予定・タスク・ノートで同じ流れ: 表示を先に変える → 保存（失敗したら「移せませんでした。」で元へ）→ 札「14日（土）へ移しました｜元に戻す」6 秒
 const MV = { rec: null, timer: 0 };
+const LANDING = { day: '', t0: 0, sel: '', until: 0 };
 const mvDropUndo = () => { clearTimeout(MV.timer); MV.rec = null; };
 const dayText = (k) => `${parseKey(k).getMonth() + 1}月${parseKey(k).getDate()}日`;
-function moveDone(toDay, note, rec) {
+const dayLong = (k) => `${dayText(k)}${DOW_LONG[parseKey(k).getDay()]}曜日`;
+function moveDone(toDay, note, rec, { title = '', only = false, tasks = 0 } = {}) {
   mvDropUndo();
   MV.rec = rec; MV.timer = setTimeout(() => { if (MV.rec === rec) MV.rec = null; }, UNDO_MS);
-  const msg = `${dayText(toDay)}へ移しました。${note || ''}`;
-  notice(msg, { label: '元に戻す', fn: undoMove }, UNDO_MS);
-  say(msg);
+  const tail = note ? `。${note}` : '';
+  notice(`${tasks ? `ノートとタスク ${tasks} 件を移しました` : `${DOW_P(toDay)}へ移しました${only ? '（この回だけ）' : ''}`}${tail}`, { label: '元に戻す', fn: undoMove }, UNDO_MS);
+  if (only && !tail) { const t = document.querySelector('#native-toast'), sp = t?.querySelector('span'); if (sp) { t.classList.add('mvonly'); if (sp.scrollWidth > sp.clientWidth + 0.5) sp.textContent = `${parseKey(toDay).getDate()}日へ移しました（この回だけ）`; } } // 1 行に収める（13pt・詰め）。それでも入らないときは「（この回だけ）」を残し、曜日を省く（35 §6.9）
+  say(`${tasks ? `${title}と、つながったタスク${tasks}件を` : `${title}${only ? 'のこの回だけ' : ''}を`}${dayLong(toDay)}へ移しました${tail}`);
+}
+// 移せなかった（計画が作れない・保存が断られた。35 §6.6・§6.7）: 「移せませんでした。」3 秒、触覚 warning。カードは元の場所へ 0.22 秒で戻す
+function moveFail(msg = '移せませんでした。', back = null) {
+  mvFeel('warning'); mvLog('fail');
+  notice(msg, null, 3000); say(msg);
+  if (back) cardReturn(back);
+}
+// 着地（35 §6.5）: 先の日のマスの #E5EEE9 を 0.25 秒残して 0.15 秒で消す。新しいチップは 0.15 秒で出す。描き直しをまたいで続ける（landPaint は render の終わりにも呼ぶ）
+function landStart(day, sel) { Object.assign(LANDING, { day, sel, t0: performance.now(), until: performance.now() + 400, fresh: true }); }
+function landPaint() {
+  if (!LANDING.day) return;
+  const el = performance.now() - LANDING.t0;
+  if (el >= 400) { LANDING.day = ''; return; }
+  for (const c of root.querySelectorAll(`.week .day[data-date="${LANDING.day}"]`)) {
+    c.classList.add('mland'); c.style.animationDelay = `${-Math.round(el)}ms`;
+    const chip = LANDING.sel && el < 150 ? c.querySelector(LANDING.sel) : null;
+    if (chip) chip.animate([{ opacity: 0 }, { opacity: getComputedStyle(chip).opacity }], { duration: 150 - el, easing: 'linear' });
+  }
+  clearTimeout(LANDING.timer); LANDING.timer = setTimeout(() => { root.querySelectorAll('.day.mland').forEach((c) => { c.classList.remove('mland'); c.style.removeProperty('animation-delay'); }); LANDING.day = ''; }, 400 - el + 20);
+}
+const cardSel = (ck, id) => (ck === 'task' ? `[data-task="${CSS.escape(id)}"]` : ck === 'note' ? `[data-note="${CSS.escape(id)}"]` : `[data-event^="${CSS.escape(id)}"]`); // 予定は繰り返しの回（親の id で始まる）も拾う
+// 日の欄の並びが変わるときの動き（落とした後に元の破線の枠が閉じて下のカードが上がる・完了したタスクが区画の下へ移る。0.25 秒・寄せ）
+const DAYFLIP_SEL = '.mdcard, .mdallday, .mdsh, .mdadd, .mdnone2';
+const flipKey = (n) => n.dataset.task || n.dataset.note || n.dataset.event || n.className;
+function dayFlipCapture() {
+  const md = root.querySelector('.mpull.browse .mday'); if (!md || reduced()) return null;
+  return new Map([...md.querySelectorAll(DAYFLIP_SEL)].map((n) => [flipKey(n), n.getBoundingClientRect().top]));
+}
+function dayFlipPlay(m) {
+  if (!m) return;
+  for (const n of root.querySelectorAll(`.mpull.browse .mday :is(${DAYFLIP_SEL})`)) {
+    const y0 = m.get(flipKey(n)); if (y0 == null) continue;
+    const dy = y0 - n.getBoundingClientRect().top;
+    if (Math.abs(dy) >= 1 && Math.abs(dy) < 600) n.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 250, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
+  }
+}
+// 表示を先に変える（落としてから先の日に出るまでを短く。追記7）。fn＝メモリの中身を変える。描き直して、着地の動きを始める
+function moveShow(toDay, ck, id, fn) {
+  const fl = dayFlipCapture();
+  fn(); landStart(toDay, cardSel(ck, id)); render(); dayFlipPlay(fl);
+  mvLog('shown', { day: toDay }); requestAnimationFrame(() => mvLog('painted', { day: toDay }));
+}
+// 保存に失敗して元へ戻したカードを、落とした日のマスの所から元の場所へ 0.22 秒で戻す
+function cardReturn({ ck, id, day }) {
+  const el = root.querySelector(`.mday ${cardSel(ck, id)}`) || root.querySelector(`.week ${cardSel(ck, id)}`), cell = root.querySelector(`.week .day[data-date="${day}"]`);
+  if (!el || !cell || reduced()) return;
+  const a = el.getBoundingClientRect(), b = cell.getBoundingClientRect();
+  el.animate([{ transform: `translate(${b.left + b.width / 2 - a.left - a.width / 2}px, ${b.top + b.height / 2 - a.top - a.height / 2}px) scale(0.5)`, opacity: 0.25 }, { transform: 'none', opacity: 1 }], { duration: BACK_MS, easing: BACK_EASE });
+  mvLog('return', { ms: BACK_MS });
+}
+// 予定の保存: 表示（state.events）を先に変えて描き直し、そのあと IndexedDB と送信待ちへ書く（今までの commit と同じ経路）。失敗したら表示を元へ戻して投げる
+async function commitFast(plan, { ops = [] } = {}, show = (fn) => { fn(); render(); }) {
+  const gone = new Set([...plan.dels, ...plan.puts.map((e) => e.id)]), before = state.events.filter((e) => gone.has(e.id));
+  show(() => { state.events = [...state.events.filter((e) => !gone.has(e.id)), ...plan.puts]; bumpRevision(); });
+  try {
+    if (window.__duoMoveFail === 'save') throw new Error('test'); // 試験用（保存の失敗を起こす口。品質 M-24・M-32）
+    if (ops.length) OBX.items = await db.applyChangesWithOutbox({ ...plan, outbox: (cur) => mergeOps(cur, ops, OBX.inflight) });
+    else await db.applyChanges(plan);
+  } catch (err) {
+    state.events = [...state.events.filter((e) => !gone.has(e.id)), ...before]; bumpRevision(); render();
+    throw err;
+  }
+  requestNotifySync('edit');
+  if (ops.some((o) => o.kind !== 'drop')) requestFlush();
+  if (plan.puts.some(hasDuoAlarms)) askNotifyPerm();
 }
 async function moveGrabbed(g, fromDay, toDay, off, st) {
+  if (g.task) return moveTaskCard(g.task.itemId, toDay);
+  if (g.note) return moveNoteCard(g.note.id, toDay);
   if (g.ext) return moveExt(g, fromDay, toDay, st);
   const { p, occKey, occ } = g.cur;
   const eff = addDays(dayOf(occ.start), dayDiffKeys(toDay, fromDay || dayOf(occ.start)));
   if (eff === dayOf(occ.start) && !off) return; // 34 §16-4: 同じ日・同じ時刻なら何もしない（保存・知らせ・触覚なし。繰り返しの回に overrides を作らない）
   const occ2 = off ? { ...occ, start: isoPlusMin(occ.start, off), end: isoPlusMin(occ.end, off) } : occ;
-  const m = planMoveDuo(p, occ2, occKey, eff, newId, !!off);
-  if (!m) return;
+  const m = window.__duoMoveFail === 'plan' ? null : planMoveDuo(p, occ2, occKey, eff, newId, !!off); // __duoMoveFail＝試験用（計画が作れない場合を起こす口。35 §9 M-32）
+  if (!m) { moveFail(); return; } // 計画が作れない: 黙って終わらせない（連携 第20弾 §1.3）
   const scope = occKey ? 'only' : 'all';
   const form = { title: occ.title, categoryId: occ.categoryId, all: !!occ.all, place: occ.place || '', notes: occ.notes || '', ...(occ.alarms !== undefined ? { alarms: occ.alarms } : {}), recurrence: p.recurrence || null, start: m.after.start, end: m.after.end };
   const { ops, plan } = planOps(p, { puts: m.puts, dels: m.dels }, scope, occKey, form);
-  try { await commit(plan, { ops }); } catch { feel('error'); say(SAVE_FAIL); notice(SAVE_FAIL); return; }
+  const to = dayOf(m.after.start), sameDay = to === dayOf(occ.start); // 同じ日の中で時刻だけ動かした（開いた画面の時間軸）ときは、着地の動きは出さない
+  try { await commitFast(plan, { ops }, sameDay ? undefined : (fn) => moveShow(to, 'event', p.id, fn)); } catch { moveFail('移せませんでした。', { ck: 'event', id: p.id, day: to }); return; }
+  mvFeel('light');
   const moved = plan.puts.find((e) => e.id === p.id);
-  render();
-  moveDone(dayOf(m.after.start), m.note, { kind: 'duo', id: p.id, occKey, scope, start: occ.start, end: occ.end, stamp: moved.updatedAt });
+  moveDone(to, m.note, { kind: 'duo', id: p.id, occKey, scope, start: occ.start, end: occ.end, stamp: moved.updatedAt }, { title: occ.title, only: !!occKey });
 }
+// iPhone の予定: 表示（読み込んである一覧の中のその回）を先に先の日へ変え、updateExternalEvent（span:'this'）で書く。断られたら読み直して元へ
+function extShow(e, start, end, toDay, show = true) {
+  const c = X.cache; if (!c) return null;
+  const patch = () => { X.cache = { ...c, events: c.events.map((x) => (x.id === e.id ? { ...x, start, end } : x)) }; };
+  if (show) moveShow(toDay, 'event', e.id, patch); else { patch(); render(); }
+  return c;
+}
+const extUnshow = (c) => { if (c && X.cache && X.cache.loadedAt === c.loadedAt) { X.cache = c; render(); } };
 async function moveExt(g, fromDay, toDay, st) {
   const e = g.ext;
   if (toDay === (fromDay || dayOf(e.start))) return; // 34 §16-4: 同じ日なら何もしない（getEvent も呼ばない。iPhone へ書かない）
+  const n = dayDiffKeys(toDay, fromDay || dayOf(e.start)), sh = (iso) => `${addDays(dayOf(iso), n)}${iso.slice(10)}`;
+  const prevC = extShow(e, sh(e.start), sh(e.end), addDays(dayOf(e.start), n)), back = { ck: 'event', id: e.id, day: toDay };
   if (!st || st.status === 'loading') {
-    try { const d = await call('getEvent', extTarget(e)); const cal = X.calendars.find((c) => c.id === e.calId); st = { detail: d, cal, ed: extEditable(e, cal, d), before: { ...toDisplay(d, cal), id: e.id } }; } catch { feel('warning'); notice('この予定は取得できませんでした。'); return; }
+    try { const d = await call('getEvent', extTarget(e)); const cal = X.calendars.find((c) => c.id === e.calId); st = { detail: d, cal, ed: extEditable(e, cal, d), before: { ...toDisplay(d, cal), id: e.id } }; } catch { extUnshow(prevC); moveFail('この予定は取得できませんでした。', back); return; }
   }
-  if (st.status === 'no' || !st.ed?.editable) { feel('warning'); notice(REASON_TEXT[st.ed?.reason] || XD_NOTE); return; }
+  if (st.status === 'no' || !st.ed?.editable) { extUnshow(prevC); moveFail(REASON_TEXT[st.ed?.reason] || XD_NOTE, back); return; }
   const eff = addDays(dayOf(st.before.start), dayDiffKeys(toDay, fromDay || dayOf(st.before.start)));
-  const mv = buildMoveExtArgs(st.before, eff, st.detail);
-  if (!mv) return;
+  const mv = window.__duoMoveFail === 'plan' ? null : buildMoveExtArgs(st.before, eff, st.detail);
+  if (!mv) { extUnshow(prevC); moveFail('移せませんでした。', back); return; }
   let r;
   try { r = await call('updateExternalEvent', mv.args); } catch (err) {
-    feel('error');
     const code = errCode(err);
-    notice(code === 'NOT_FOUND' ? 'この予定は iPhone のカレンダーで削除されています。' : code === 'NOT_EDITABLE' || code === 'READ_ONLY' ? (REASON_TEXT[errReason(err)] || errText(err, SAVE_FAIL_X)) : SAVE_FAIL_X);
+    extUnshow(prevC);
+    moveFail(code === 'NOT_FOUND' ? 'この予定は iPhone のカレンダーで削除されています。' : code === 'NOT_EDITABLE' || code === 'READ_ONLY' ? (REASON_TEXT[errReason(err)] || errText(err, '移せませんでした。')) : '移せませんでした。', back);
     loadExt(true); return;
   }
   loadExt(true);
-  moveDone(dayOf(mv.after.start), mv.note, { kind: 'ext', before: st.before, moved: mv, reply: r, detail: st.detail });
+  mvFeel('light');
+  moveDone(dayOf(mv.after.start), mv.note, { kind: 'ext', before: st.before, moved: mv, reply: r, detail: st.detail }, { title: e.title, only: !!e.recurring });
+}
+// タスク: due.date だけ変える（時刻・通知の設定・ノートとのつながりはそのまま。EventKit には書かない）。通知はアプリの予約を入れ直す（先の日の同じ時刻。日付だけは 8:00）
+const taskRowPatch = (id, row) => { if (RM.data) RM.data = { ...RM.data, reminders: RM.data.reminders.map((x) => (x.itemId === id ? row : x)) }; RM.mut++; RM.sig = ''; };
+const taskSaveDue = async (id, due) => { if (window.__duoMoveFail === 'save') throw new Error('test'); return taskStore.update(id, { due }); };
+async function moveTaskCard(id, toDay) {
+  const r = RM.data?.reminders.find((x) => x.itemId === id); if (!r?.due?.date || r.due.date === toDay) return; // 同じ日なら何もしない
+  const due = r.due.time ? { date: toDay, time: r.due.time } : { date: toDay }, from = r.due.date;
+  moveShow(toDay, 'task', id, () => taskRowPatch(id, { ...r, due }));
+  let t;
+  try { t = await taskSaveDue(id, due); } catch { taskRowPatch(id, r); render(); loadTasks(); moveFail('移せませんでした。', { ck: 'task', id, day: toDay }); return; }
+  taskRowPatch(id, rowOf(t)); scheduleTasks();
+  mvFeel('light');
+  moveDone(toDay, null, { kind: 'task', id, prev: r.due, to: due, from, stamp: t.updatedAt }, { title: r.title || '題名なし' });
+}
+// ノート: date だけ変える（id・sourceDate・本文・updatedAt はそのまま。旧メモ由来も同じ）。期限がまだノートの元の日と同じ、つながったタスクだけ一緒に動かす（35 §8・決定 7）
+const noteCardsSig = () => JSON.stringify([...NB.cards].sort((a, b) => (a[0] < b[0] ? -1 : 1)));
+function noteCardShift(id, toDay) { // メモリの中のカードを先に動かす（保存のあと refreshNoteMarks が正を読み直す）
+  const c = noteCardById(id); if (!c) return;
+  const from = c.day, l0 = (NB.cards.get(from) || []).filter((x) => x.id !== id);
+  if (l0.length) NB.cards.set(from, l0); else NB.cards.delete(from);
+  if (toDay) { const { day: _d, ...card } = c; NB.cards.set(toDay, [...(NB.cards.get(toDay) || []), card].sort(noteCardCmp)); }
+  for (const k of [from, toDay]) { // その日の件数と「1件目」（いちばん新しいノート）を、動かしたあとの並びから作り直す（refreshNoteMarks と同じ決まり）
+    if (!k) continue;
+    const l = NB.cards.get(k) || [];
+    if (!l.length) { NB.marks.delete(k); NB.first.delete(k); NB.firstId.delete(k); continue; }
+    const best = l.reduce((a, b) => (b.u > a.u ? b : a));
+    NB.marks.set(k, l.length); NB.first.set(k, NB.bodies.get(best.id) ?? ''); NB.firstId.set(k, best.id);
+  }
+  NB.cardSig = noteCardsSig();
+}
+const noteSaveDate = async (id, date) => { if (window.__duoMoveFail === 'save') throw new Error('test'); const r = await setNoteDate(id, date); if (!r.ok) throw new Error('note'); return r; };
+async function moveNoteCard(id, toDay) {
+  const c = noteCardById(id); if (!c || c.day === toDay) return; // 同じ日なら何もしない
+  const from = c.day, rows0 = RM.data?.reminders || [], follow = rows0.filter((x) => x.source?.noteId === id && x.due?.date === from);
+  moveShow(toDay, 'note', id, () => {
+    noteCardShift(id, toDay);
+    if (follow.length && RM.data) { const ids = new Set(follow.map((x) => x.itemId)); RM.data = { ...RM.data, reminders: RM.data.reminders.map((x) => (ids.has(x.itemId) ? { ...x, due: x.due.time ? { date: toDay, time: x.due.time } : { date: toDay } } : x)) }; RM.mut++; RM.sig = ''; }
+  });
+  let res;
+  try { res = await noteSaveDate(id, toDay); } catch { await refreshNoteMarks(); RM.mut++; RM.sig = ''; await loadTasks(); render(); moveFail('移せませんでした。', { ck: 'note', id, day: toDay }); return; }
+  sheetDateSync(id, toDay);
+  refreshNoteMarks(); if (NB.rows) invalidateNoteList();
+  mvFeel('light');
+  moveDone(toDay, null, { kind: 'note', id, from, to: toDay, tasks: res.moved }, { title: c.title || EMPTY_TITLE, tasks: res.moved.length });
+}
+// 読み上げの操作・開いた画面の日付の欄から（35 §4・§6.8）。長押しで落としたときと同じ扱い（同じ札・同じ読み上げ・元に戻す）
+async function cardMoveById(ck, id, fromDay, toDay) {
+  const g = grabInfoOf(ck, id); if (!g || !toDay) return;
+  if (g.ext) { const cal = X.calendars.find((c) => c.id === g.ext.calId), pre = preReason(cal); if (pre) { grabRefuse(REASON_TEXT[pre]); return; } }
+  mvLog('drop', { day: toDay });
+  await moveGrabbed(g, fromDay || g.day || null, toDay, 0, null);
+}
+// 読み上げの操作「日付を移す」（35 §6.8）: 小さな月（予定・タスクの日付と同じ部品）のシート。見出し「〈題名〉の日付」。日を選ぶと、落としたときと同じに移す
+let cardDateEl = null;
+function closeCardDate(focus = null) { if (!cardDateEl) return; const el = cardDateEl; cardDateEl = null; el.remove(); document.removeEventListener('keydown', cardDateKey, true); focus?.focus?.({ preventScroll: true }); }
+function cardDateKey(ev) { if (ev.key === 'Escape' && cardDateEl) { ev.preventDefault(); ev.stopPropagation(); closeCardDate(cardDateEl._from); } }
+function openCardDate(ck, id, day, from) {
+  closeCardDate();
+  const g = grabInfoOf(ck, id); if (!g) return;
+  const el = document.createElement('div'); el.className = 'cmv'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', `${g.title}の日付`); el._from = from;
+  el.innerHTML = `<div class="cmvin"><h3 tabindex="-1">${esc(g.title)}の日付</h3><div class="cmvrow"><button type="button" class="dcap" aria-haspopup="true" aria-expanded="false"></button></div><button type="button" class="cmvx">閉じる</button></div>`;
+  document.body.append(el); cardDateEl = el;
+  const cap = el.querySelector('.dcap');
+  const ui = createDateField(cap, { after: el.querySelector('.cmvrow'), scope: el, label: g.rec ? 'この回の日付' : '日付', holiday: holidayMemo, get: () => day, set: (k) => { closeCardDate(); cardMoveById(ck, id, day, k); } });
+  ui.render(); cap.focus({ preventScroll: true }); cap.click(); // 小さな月を開いた形で出す（焦点は日付のカプセル。見出しはシートの名前として読まれる）
+  el.querySelector('.cmvx').addEventListener('click', () => closeCardDate(from));
+  el.addEventListener('pointerdown', (ev) => { if (ev.target === el) closeCardDate(from); });
+  document.addEventListener('keydown', cardDateKey, true);
 }
 async function undoMove() {
   const rec = MV.rec; if (!rec) return;
   mvDropUndo(); document.querySelector('#native-toast')?.remove();
+  mvLog('undo');
+  if (rec.kind === 'task') { // 表示を先に戻してから保存
+    const r = RM.data?.reminders.find((x) => x.itemId === rec.id);
+    if (!r || r.modifiedAt !== rec.stamp) { notice('変更されていたため、そのままにしました。'); return; }
+    moveShow(rec.from, 'task', rec.id, () => taskRowPatch(rec.id, { ...r, due: rec.prev }));
+    try { const t = await taskSaveDue(rec.id, rec.prev); taskRowPatch(rec.id, rowOf(t)); scheduleTasks(); } catch { taskRowPatch(rec.id, r); render(); loadTasks(); mvFeel('error'); notice('元に戻せませんでした。もう一度お試しください。'); return; }
+    notice('元に戻しました。'); say('元に戻しました。'); return;
+  }
+  if (rec.kind === 'note') { // ノートと、一緒に動いたタスクをまとめて元へ（35 §8）。単独で動かしたタスクは対象外
+    const c = noteCardById(rec.id), ids = new Map(rec.tasks.map((m) => [m.id, m.prev]));
+    if (c && c.day !== rec.to) { notice('変更されていたため、そのままにしました。'); return; }
+    moveShow(rec.from, 'note', rec.id, () => {
+      if (c) noteCardShift(rec.id, rec.from);
+      if (ids.size && RM.data) { RM.data = { ...RM.data, reminders: RM.data.reminders.map((x) => (ids.has(x.itemId) && x.due?.date === rec.to ? { ...x, due: ids.get(x.itemId) } : x)) }; RM.mut++; RM.sig = ''; }
+    });
+    try {
+      if (window.__duoMoveFail === 'save') throw new Error('test');
+      const ok = await noteStore.setMeta(rec.id, { date: rec.from }); if (!ok) throw new Error('note');
+      const now = Date.now();
+      for (const m of rec.tasks) { const cur = await db.getTask(m.id); if (cur && !isTaskTombstone(cur) && cur.due?.date === rec.to) await db.putTask({ ...cur, due: m.prev, updatedAt: now }); }
+    } catch { await refreshNoteMarks(); RM.mut++; RM.sig = ''; await loadTasks(); render(); mvFeel('error'); notice('元に戻せませんでした。もう一度お試しください。'); return; }
+    sheetDateSync(rec.id, rec.from);
+    refreshNoteMarks(); if (NB.rows) invalidateNoteList(); RM.mut++; RM.sig = ''; loadTasks(); scheduleTasks();
+    notice('元に戻しました。'); say('元に戻しました。'); return;
+  }
   if (rec.kind === 'ext') {
+    const cur0 = visExt().find((x) => x.start === rec.moved.after.start && (x.id === rec.before.id || x.title === rec.before.title));
+    const prevC = cur0 ? extShow(cur0, rec.before.start, rec.before.end, dayOf(rec.before.start)) : null;
     try {
       const cur = await call('getEvent', extTarget({ ...rec.before, start: rec.moved.after.start, occurrenceDate: rec.before.occurrenceDate || rec.before.start }));
-      if (!extUndoAllowed(rec.reply?.modifiedAt, cur?.modifiedAt)) { notice(UNDO_CONFLICT_TEXT); return; }
+      if (!extUndoAllowed(rec.reply?.modifiedAt, cur?.modifiedAt)) { extUnshow(prevC); notice(UNDO_CONFLICT_TEXT); loadExt(true); return; }
       const args = buildUndoExtArgs(rec.before, rec.moved, rec.reply, rec.detail);
       if (args) await call('updateExternalEvent', args);
-    } catch { feel('error'); notice(UNDO_CONFLICT_TEXT); loadExt(true); return; }
+    } catch { extUnshow(prevC); feel('error'); notice(UNDO_CONFLICT_TEXT); loadExt(true); return; }
     loadExt(true); notice('元に戻しました。'); return;
   }
   const p2 = state.events.find((e) => e.id === rec.id);
@@ -6837,8 +7247,8 @@ async function undoMove() {
   const u = planMoveDuoUndo(p2, occ2, { occKey: rec.occKey, start: rec.start, end: rec.end }, newId);
   const form = { title: occ2.title, categoryId: occ2.categoryId, all: !!occ2.all, place: occ2.place || '', notes: occ2.notes || '', ...(occ2.alarms !== undefined ? { alarms: occ2.alarms } : {}), recurrence: p2.recurrence || null, start: rec.start, end: rec.end };
   const { ops, plan } = planOps(p2, { puts: u.puts, dels: u.dels }, rec.scope, rec.occKey, form);
-  try { await commit(plan, { ops }); } catch { feel('error'); notice('元に戻せませんでした。もう一度お試しください。'); MV.rec = rec; MV.timer = setTimeout(() => { if (MV.rec === rec) MV.rec = null; }, UNDO_MS); return; }
-  render(); notice('元に戻しました。');
+  try { await commitFast(plan, { ops }, (fn) => moveShow(dayOf(rec.start), 'event', rec.id, fn)); } catch { feel('error'); notice('元に戻せませんでした。もう一度お試しください。'); MV.rec = rec; MV.timer = setTimeout(() => { if (MV.rec === rec) MV.rec = null; }, UNDO_MS); return; }
+  notice('元に戻しました。');
 }
 document.addEventListener('visibilitychange', () => { if (document.hidden) mvDropUndo(); });
 
@@ -6850,7 +7260,9 @@ const stgDayAt = (x, y) => { // 閉じた7段のマス（入れ替えで消え�
 };
 function chipAtPoint(t, ev) {
   const wk = t.closest?.('.week'); if (!wk || !ev || ev.clientX == null) return null;
-  for (const c of wk.querySelectorAll('.strip[data-event], .bar[data-event], .bar[data-cont]')) {
+  const vis = Number(wk.closest('.mgrid')?.dataset.vis ?? 99); // 閉じた7段: +N に入って見えていない段のチップは、押す的にしない（35 §6.1）
+  for (const c of wk.querySelectorAll('.strip[data-event], .bar[data-event], .bar[data-cont], .strip[data-task], .strip[data-note]')) {
+    if (c.dataset.lane != null && Number(c.dataset.lane) >= vis) continue;
     const r = c.getBoundingClientRect();
     if (ev.clientX >= r.left && ev.clientX < r.right && ev.clientY >= r.top && ev.clientY < r.bottom) return c;
   }
@@ -6885,9 +7297,11 @@ root.addEventListener('pointerdown', (ev) => {
 function directOrigin(t, ev) {
   if (anyPanel() || !(t instanceof Element)) return null;
   if (t.closest('.pvwk')) return null; // 開いた縦ホームの今週の帯: 長押しで期間選択・メニューは出さない（たたくと日タブ）
+  { const co = cardOrigin(t); if (co) return co; } // 閉じた画面の日の欄のカード（予定・タスク・ノート）: 長押しで持ち上げて月のマスへ（35 §6）
   if (!PS.on && t.closest('.mpull.browse .week')) { // 閉じた7段: チップの長押しは別の日へ落とす（R-49 の処理をそのまま。34 §12 Q-13）
     const c = chipAtPoint(t, ev), dd = ev?.clientX != null ? stgDayAt(ev.clientX, ev.clientY) : t.closest('.day[data-date]');
-    if (c) return { kind: 'grab', id: c.dataset.event || c.dataset.cont, el: c, from: dd?.dataset.date || c.dataset.sday || null, tl: null, sc: null };
+    const sc = closedLand() ? null : t.closest('.mpull.browse'); // 閉じた縦: 札を上の端へ運ぶと画面が送られて月が出る（35 §6.4）
+    if (c) return { kind: 'grab', ck: c.dataset.task ? 'task' : c.dataset.note ? 'note' : 'event', id: c.dataset.task || c.dataset.note || c.dataset.event || c.dataset.cont, el: c, from: dd?.dataset.date || c.dataset.sday || null, tl: null, sc };
     return null; // チップのない所の長押しは何もしない（34 §9.4・設計レビュー M4）。期間を選ぶのは読み上げ用の隠れたボタンだけ
   }
   const chip = !PS.on && PASTE_ENTRY ? chipAtPoint(t, ev) : null; // 月のチップ（長押しでコピー・編集・削除のメニュー）。チップは押す的ではないので、押した位置から探す
@@ -6908,6 +7322,7 @@ const dragAt = (y, o) => { const col = colOf(o.pane, o.day); return col ? minAtY
 const DIR = { anchor: 0 };
 // 端スクロール（PR27）。時間軸＝上下40ptで毎秒120pt、月＝上下40ptに600ms滞在で前後の月。タイマー・rAF は終了・取消・回転で必ず解放する。
 const EG = { x: 0, y: 0, tl: null, carry: 0, origin: null };
+const EDGE_BAND = 40;
 const feel = (kind = 'light') => { haptic(kind).catch(() => {}); };
 const monthBounds = () => {
   const ws = [...monthScope().querySelectorAll('.week')].map((w) => w.getBoundingClientRect()).filter((r) => r.height > 0);
@@ -6925,12 +7340,23 @@ const edgeLoop = createFrameLoop((dt) => {
     const tl = o.sc; if (!GR.on || !tl?.isConnected) return;
     const rc = tl.getBoundingClientRect(); if (EG.x < rc.left || EG.x >= rc.right) { EG.carry = 0; return; }
     // 月タブの下の面: 上へ出たら（月の日へ向かう動き）は動かさない。下の端はタブの上まで（タブに隠れる所へ引いても進む）
-    const mdy = tl.classList.contains('mday'), one = mdy ? tl.closest('.mpull.browse[data-stage]') : null; // 第19.3版 閉じた縦: 日の欄は中でスクロールしない。動かすのは画面の1本（見えている日の欄＝貼り付いた見出しの下〜画面の下端 の上下 40）
-    const top = one ? Math.max(rc.top, one.querySelector('.mpfix').getBoundingClientRect().bottom) : rc.top, bot = one ? one.getBoundingClientRect().bottom : mdy ? Math.min(rc.bottom, cssPx('--tabs-y', rc.bottom)) : rc.bottom;
+    const mdy = tl.classList.contains('mday'), one = tl.matches('.mpull.browse[data-stage]') ? tl : mdy ? tl.closest('.mpull.browse[data-stage]') : null; // 第19.3版 閉じた縦: 日の欄は中でスクロールしない。動かすのは画面の1本
+    if (one) { // その3（35 §6.4）: 札を上の端（曜日の行の下 y64 から 40 の帯）へ運ぶと、画面を上へ送って月を出す。速さは帯に入った深さに比例して毎秒 120〜480、最初の 0.2 秒は 0 から加速。スクロール位置 0 で止まる。下の端 40 は毎秒 120 で下へ
+      const fixB = one.querySelector('.mpfix').getBoundingClientRect().bottom, botB = one.getBoundingClientRect().bottom;
+      let v1 = 0;
+      if (EG.y < fixB + EDGE_BAND && one.scrollTop > 0) v1 = -(120 + 360 * Math.min(1, Math.max(0, (fixB + EDGE_BAND - EG.y) / EDGE_BAND)));
+      else if (EG.y > botB - EDGE_BAND && one.scrollTop < one.scrollHeight - one.clientHeight - 0.5) v1 = 120;
+      if (!v1) { EG.carry = 0; GR.acc = 0; return; }
+      GR.acc = Math.min(1, GR.acc + dt / 0.2);
+      const d1 = v1 * GR.acc * dt + EG.carry, w1 = Math.trunc(d1); EG.carry = d1 - w1; if (!w1) return;
+      const b1 = one.scrollTop; one.scrollTop = b1 + w1; if (one.scrollTop !== b1) grabRecalc();
+      return;
+    }
+    const top = rc.top, bot = mdy ? Math.min(rc.bottom, cssPx('--tabs-y', rc.bottom)) : rc.bottom;
     if (mdy && EG.y < top) { EG.carry = 0; return; }
     const v = edgeVelocity(EG.y, top, bot); if (!v) { EG.carry = 0; return; }
     const d = v * dt + EG.carry, w = Math.trunc(d); EG.carry = d - w; if (!w) return;
-    const scEl = one || tl, before = scEl.scrollTop; scEl.scrollTop = before + w; if (scEl.scrollTop !== before) grabRecalc();
+    const before = tl.scrollTop; tl.scrollTop = before + w; if (tl.scrollTop !== before) grabRecalc();
     return;
   }
   if (!o || !(bm || (o.kind === 'time' && DF.mode === 'drag'))) return;
@@ -7005,10 +7431,18 @@ directCtl = initDirectInput({
     stopEdge();
     if (o.kind === 'grab') {
       if (!GR.on) return;
+      EG.x = x; EG.y = y;
       const day = moveDayAt(x, y), g = grabInfo(), off = GR.off, st = GR.ext;
-      if (day && g && !off && day === (o.from || dayOf(g.ext ? g.ext.start : g.cur.occ.start))) { grabBack(); return; } // 34 §16-4: 元の日へ落としたら取り消し（0.20 秒で戻すだけ。知らせ・触覚・保存なし）
+      const from = g ? (o.from || g.day || dayOf(g.ext ? g.ext.start : g.cur.occ.start)) : null;
+      if (!g || !day || (!off && day === from)) { grabBack(); return; } // やめた（月の日以外・溝の上・元の日で離した。34 §16-4・35 §6.5）: 0.22 秒で元へ戻すだけ（知らせ・触覚・保存なし）
+      mvLog('drop', { day });
+      { // 落とした（35 §6.5）: 札を行き先のマスの中心へ 0.15 秒で吸い込む（0.5 倍・透明へ）。視差効果を減らすときはフェードだけ
+        const chip = GR.chip, cell = day ? root.querySelector(`.week .day[data-date="${day}"]`) : null; GR.chip = null;
+        if (chip && cell && !reduced()) { const r = cell.getBoundingClientRect(), c = chip.getBoundingClientRect(); chip.animate([{ transform: chip.style.transform, opacity: 1 }, { transform: `translate(${r.left + r.width / 2 - c.width / 2}px, ${r.top + r.height / 2 - c.height / 2}px) scale(0.5)`, opacity: 0 }], { duration: 150, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'forwards' }).finished.then(() => chip.remove(), () => chip.remove()); }
+        else if (chip) chip.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, easing: 'linear', fill: 'forwards' }).finished.then(() => chip.remove(), () => chip.remove());
+      }
       grabClear();
-      if (day && g) moveGrabbed(g, o.from, day, off, st); // 月の日以外・溝の上で離したら取りやめ（元のまま）
+      moveGrabbed(g, o.from || from, day, off, st);
       return;
     }
     if (o.kind === 'month') {
@@ -7023,10 +7457,11 @@ directCtl = initDirectInput({
     const m = dragAt(y, o); if (m != null) Object.assign(DF, dragRange(DIR.anchor, m));
     openDraft();
   },
-  onCancel: () => { stopEdge(); if (GR.on) grabClear(); if (DF.mode === 'drag') clearDraftBox(); if (MR.mode === 'drag') clearRange(); },
+  onCancel: ({ reason } = {}) => { stopEdge(); if (GR.on) { if (['rotate', 'layout', 'pagehide', 'refuse', 'gone'].includes(reason)) grabClear(); else grabBack(); } if (DF.mode === 'drag') clearDraftBox(); if (MR.mode === 'drag') clearRange(); }, // つかんだまま閉じる・開く・回す: やめたと同じ（何も保存しない。新しい画面に札も破線も残さない。35 §6.5）
 });
 // 回転・ページ破棄では入力中の枠を取り消す（指の下の座標系が変わるため）。
 window.addEventListener('orientationchange', () => directCtl?.cancel('rotate'));
+window.addEventListener('resize', () => { if (GR.on && GR.geo !== grabGeo()) directCtl?.cancel('layout'); }); // つかんだまま閉じる・開く・回す（画面の寸法が変わった）: やめたと同じ（35 §6.5）
 window.addEventListener('pagehide', () => directCtl?.cancel('pagehide'));
 
 // ---------- 月の期間入力（PR26）。MR は描画だけの状態（DB・native へは書かない） ----------
