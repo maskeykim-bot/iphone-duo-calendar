@@ -304,7 +304,7 @@ test('S11e 画面の記憶は別々: 閉じた画面でどの面を見ていて�
   for (const name of ['週', '日', 'ホーム', '月']) {
     await tab(page, name).click();
     expect(await closedShown(page)).toBe(name);
-    if (name === '日') { await page.locator('.mday .mdback').click(); await tab(page, '月').click(); continue; } // 日の欄を時間軸 B にしたまま次へ進むと「月」の面も B なので、カードへ戻す
+    if (name === '日') { await page.locator('.mday .mdct [data-dg="card"]').click(); /* v19.3 征希さん『カード・時間で分けるだけ』で仕様変更: 前 .mdback → 後「カード｜時間」の「カード」 */ await tab(page, '月').click(); continue; } // 日の欄を時間軸 B にしたまま次へ進むと「月」の面も B なので、カードへ戻す
     for (let i = 0; i < 5; i++) {
       await page.setViewportSize(SIZES.openPortrait669);
       await expect.poll(() => layout(page)).toBe('open');
@@ -326,7 +326,7 @@ test('S11e 閉じた画面で起動すると、開いた縦・横で保存して
   await page.locator('.mgrid .day[data-date="2026-10-20"]').click({ position: { x: 8, y: 8 } });
   await page.locator('.mgrab').focus(); await page.keyboard.press('ArrowUp');
   await expect(page.locator('.mpull')).toHaveAttribute('data-stage', '2');
-  await page.locator('.mdgrab').focus(); await page.keyboard.press('ArrowDown');
+  await page.locator('.mday .mdct [data-dg="time"]').click(); // v19.3 征希さん『カード・時間で分けるだけ』で仕様変更: 前「つまみ（下）にキー ↓」→ 後「見出しの右の『時間』」
   await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B');
   await moreGo(page, '週の時間軸');
   await expect.poll(async () => { const u = await uiRaw(page); return { selected: u.selected, stage: u.stage, dayGrip: u.dayGrip }; }).toEqual({ selected: '2026-10-20', stage: 2, dayGrip: 1 }); // S11f: 品質 B-2 の形（一番上の stage・selected・dayGrip）
@@ -395,7 +395,8 @@ test('PR5 閉じた画面の週: 見出し 48・日付の行 42・終日 24・�
 });
 
 // 第19.2版 S11e（34 §15-④）: 閉じた画面に日の時間軸の画面（28 §1。時間軸 y80〜）はもうない。ホームの「タイムライン ›」は、カレンダーの日の欄の時間軸 B（1時間 44）を開く
-test('S11e 閉じた画面の日: ホームの「タイムライン ›」→ カレンダーの日の欄の時間軸 B（1時間 44）。段1〜3 は段7、段4〜7 はそのまま。最初の予定の1時間前が見出しの下', async ({ page }) => {
+// v19.3 征希さん『カード・時間で分けるだけ』で仕様変更: 時間（B）の1時間は 44 → 28（最低限）。見出しの下にバー 24（と終日の行）が入るので、最初の予定は「見出しの下 44＋12」→「時間軸の上端から 28＋12」。カードへ戻すのは「カード」（前 .mdback）
+test('S11e 閉じた画面の日: ホームの「タイムライン ›」→ カレンダーの日の欄の時間 B（1時間 28）。段1〜3 は段7、段4〜7 はそのまま。最初の予定の1時間前が見出しの下', async ({ page }) => {
   await openApp(page, SIZES.closedPortrait);
   await setSafeRight(page, 84);
   await loadSample(page);
@@ -408,17 +409,18 @@ test('S11e 閉じた画面の日: ホームの「タイムライン ›」→ �
   await expect(md).toHaveAttribute('data-dg', 'B');
   const pane = await box(md);
   expect(near(pane.t, 174) && near(pane.b, 678), JSON.stringify(pane)).toBe(true);
-  expect(await page.locator('.mday .tl').evaluate((e) => parseFloat(getComputedStyle(e).getPropertyValue('--hh')))).toBe(44);
+  expect(await page.locator('.mday .tl').evaluate((e) => parseFloat(getComputedStyle(e).getPropertyValue('--hh')))).toBe(28);
   const hl = await page.locator('.mday .hl:not(.half)').evaluateAll((els) => els.slice(0, 3).map((e) => e.getBoundingClientRect().top));
-  expect(near(hl[1] - hl[0], 44) && near(hl[2] - hl[1], 44)).toBe(true);
+  expect(near(hl[1] - hl[0], 28) && near(hl[2] - hl[1], 28)).toBe(true);
   // 最初の時刻つきの予定の1時間前が、貼り付いた見出し（44）のすぐ下
   // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 日の欄は中でスクロールしない。前→後: 「日の欄の中を送ってある（scrollTop > 0）」→「1時間前より上を畳んである（.mdbody.folded）。日の欄も画面も送っていない」。最初の予定が見出しの下 1時間＋12 にあるのは同じ
-  const m = await page.evaluate(() => { const md = document.querySelector('.mday'), tl = md.querySelector('.tl'), ev = [...md.querySelectorAll('.tlev[data-event]')].map((e) => e.getBoundingClientRect().top).sort((a, b) => a - b)[0]; return { ev, head: md.querySelector('.mdh').getBoundingClientRect().bottom, st: md.scrollTop + md.closest('.mpull.browse').scrollTop, folded: !!md.querySelector('.mdbody.folded') }; });
+  const m = await page.evaluate(() => { const md = document.querySelector('.mday'), tl = md.querySelector('.tl'), ev = [...md.querySelectorAll('.tlev[data-event]')].map((e) => e.getBoundingClientRect().top).sort((a, b) => a - b)[0]; return { ev, head: tl.getBoundingClientRect().top, bar: md.querySelector('.mdgrab').getBoundingClientRect().top - md.querySelector('.mdh').getBoundingClientRect().bottom, st: md.scrollTop + md.closest('.mpull.browse').scrollTop, folded: !!md.querySelector('.mdbody.folded') }; });
   expect(m.st).toBe(0); expect(m.folded).toBe(true);
-  expect(m.ev - m.head).toBeGreaterThan(44 - 2); expect(m.ev - m.head).toBeLessThan(44 + 14); // 1時間（44）＋時間軸の上のあき 12
+  expect(m.bar).toBe(0); // バーは見出しのすぐ下
+  expect(m.ev - m.head).toBeGreaterThan(28 - 2); expect(m.ev - m.head).toBeLessThan(28 + 14); // 時間軸の上端から 1時間（28）＋上のあき 12
   await expect(page.locator('.mpane .hcard, .mpane .rmrow, .mpane [data-page="task"], .mpane [data-page="memo"]')).toHaveCount(0);
   // 段4 から開くと、段は覚えている段のまま
-  await page.locator('.mday .mdback').click();
+  await page.locator('.mday .mdct [data-dg="card"]').click();
   await page.locator('.mgrab').focus(); for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowDown');
   await expect(page.locator('.mpull')).toHaveAttribute('data-stage', '4');
   await tab(page, 'ホーム').click(); await tab(page, '日').click();

@@ -128,7 +128,7 @@
       <button type="button" class="srow" data-go="display"><span class="sic"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="16" height="12" rx="2"/><path d="M8 19h6M11 16v3"/></svg></span><span class="sname">表示形式</span><span class="shint">月の表現・文字・時間軸</span><span class="sch" aria-hidden="true">›</span></button>
       <button type="button" class="srow" id="m-notify" data-m="notify" hidden><span class="sic"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 16h12M6.5 16V10a4.5 4.5 0 0 1 9 0v6"/><path d="M9.5 19h3"/></svg></span><span class="sname">通知</span><span class="sch" aria-hidden="true">›</span></button>
       <button type="button" class="srow" data-go="calendar"><span class="sic"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="16" height="14" rx="2"/><path d="M3 9h16M7.5 3v3M14.5 3v3"/></svg></span><span class="sname">カレンダー</span><span class="sch" aria-hidden="true">›</span></button>
-      <button type="button" class="srow" data-go="reminders" id="m-reminders" hidden><span class="sic"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="15" height="15" rx="3"/><path d="M7.5 11.5l2.5 2.5 4.5-5"/></svg></span><span class="sname">タスク</span><span class="ssub" id="m-rssub"></span><span class="sch" aria-hidden="true">›</span></button>
+      <button type="button" class="srow" data-go="reminders" id="m-reminders" hidden><span class="sic"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="15" height="15" rx="3"/><path d="M7.5 11.5l2.5 2.5 4.5-5"/></svg></span><span class="sname">タスク</span><span class="sch" aria-hidden="true">›</span></button>
       <hr class="ssep">
       <button type="button" class="srow" data-go="google"><span class="sic"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="M3 11h16M11 3c-3 2.5-3 13.5 0 16M11 3c3 2.5 3 13.5 0 16"/></svg></span><span class="sname">Google カレンダー</span><span class="sch" aria-hidden="true">›</span></button>
       <button type="button" class="srow" data-m="backup"><span class="sic"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8l1.5-4h11L18 8M4 8h14v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V8zM9 12h4"/></svg></span><span class="sname">バックアップ</span><span class="sch" aria-hidden="true">›</span></button>
@@ -159,22 +159,12 @@
       <div id="m-legend" class="mlegend" hidden></div>
     </div>
     <div class="menurows" data-screen="reminders" hidden>
-      <div id="m-rs" hidden>
-        <button type="button" data-m="rssw" id="m-rssw" class="swrow rsrow" role="switch" aria-checked="false"><span>iPhone のリマインダーと同期</span><i class="rkswitch" aria-hidden="true"></i></button>
-        <p id="m-rsat" class="swnote" hidden></p>
-        <div id="m-rsdeny" class="rsdeny" role="note" hidden><p>リマインダーの許可がありません。<br>設定アプリでオンにできます。</p><button type="button" id="m-rsopen">設定を開く</button></div>
-        <div id="m-rson" hidden>
-          <button type="button" id="m-rsdest" class="swrow rsrow rsgo" data-m="rsdest"><span>新しいタスクの追加先</span><b id="m-rsdestv"></b><em aria-hidden="true">›</em></button>
-          <h3 class="rsh">取り込むリスト</h3>
-          <div id="m-rslists" role="group" aria-label="取り込むリスト"></div>
-          <p class="rsnote">共有のリストを選ぶと、ほかの人のタスクも Duo とバックアップに入ります。</p>
-        </div>
-      </div>
       <div id="m-tk" hidden>
         <button type="button" data-m="tkmonth" id="m-tkmonth" class="swrow" role="switch" aria-checked="false" aria-describedby="m-tkmonth-d"><span>月にタスクを表示</span><i class="rkswitch" aria-hidden="true"></i></button>
         <p id="m-tkmonth-d" class="swnote">開いた画面の月に、期限の日の未完了の数（✓2）を出します。</p>
         <div class="swrow fixrow"><span>完了したタスク</span><b id="m-tkwin">30日分を表示</b></div>
         <p class="swnote">完了したタスクは30日間、一覧に残ります。古い完了も自動では削除せず、検索で見つかります。</p>
+        <p class="swnote" id="m-tknosync">リマインダーとの同期は行いません。</p>
       </div>
     </div>
     <div class="menurows" data-screen="google" hidden>
@@ -246,7 +236,7 @@
     <div class="xdact"><button type="button" id="tk-del" class="danger">削除</button><button type="button" id="tk-save" class="primary">保存</button></div>
   </div>
 </dialog>
-<dialog id="rsheet" class="rsheet" aria-labelledby="rs-h"></dialog>
+<dialog id="remend" aria-labelledby="remend-h" aria-modal="true"><div class="remend-in"><h2 id="remend-h" tabindex="-1">iPhone のリマインダーとの同期をやめました</h2><p>Duo のタスクは、これまでどおり Duo の中に残ります。題名、期限、完了の状態は変わりません。</p><p>リマインダー側に残っている項目は、Duo からは消しません。ただし、これからの変更は互いに反映されません。Siri やリマインダーで新しく作った項目も、Duo には入りません。</p><span aria-hidden="true"></span><button type="button" id="remend-ok">OK</button></div></dialog>
 <dialog id="xretry" aria-labelledby="xr-title">
   <h2 id="xr-title">iPhoneのカレンダーに追加できませんでした</h2>
   <p id="xr-msg">Duoに保存しました。iPhoneのカレンダーには追加できませんでした。</p>

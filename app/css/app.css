@@ -781,9 +781,9 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .rmckb{flex:none;width:44px;height:48px;margin:0 -8px 0 -10px;padding:0;border:0;background:none;display:flex;align-items:center;justify-content:center}
 .rmckb:disabled{opacity:.6}
 .rmbody{border:0;background:none;padding:0;text-align:left;font:inherit;color:inherit;min-height:44px;justify-content:center}
-.rmck{flex:none;width:22px;height:22px;border-radius:8px;border:2px solid var(--rc);box-sizing:border-box}
+.rmck{flex:none;width:20px;height:20px;border-radius:4px;border:1.75px solid var(--rc);box-sizing:border-box}
 .rmrow.done .rmck{background:var(--rc);position:relative}
-.rmrow.done .rmck::after{content:'✓';position:absolute;inset:0;color:#fff;font-size:15px;line-height:18px;text-align:center}
+.rmrow.done .rmck::after{content:'✓';position:absolute;inset:0;color:#fff;font-size:14px;line-height:16.5px;text-align:center}
 .rmbody{flex:1;min-width:0;display:flex;flex-direction:column}
 .rmt{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rmrow.done .rmt{color:#A8ABA4;text-decoration:line-through}
@@ -1162,7 +1162,7 @@ dialog#menu #m-destpop{border-radius:inherit}
 .htask{display:flex;align-items:center;gap:4px;min-height:48px}
 .htask .rmck{--rc:#68716A}
 .htask.done .rmck{background:var(--rc);position:relative}
-.htask.done .rmck::after{content:'✓';position:absolute;inset:0;color:#fff;font-size:15px;line-height:18px;text-align:center}
+.htask.done .rmck::after{content:'✓';position:absolute;inset:0;color:#fff;font-size:14px;line-height:16.5px;text-align:center}
 .htask .htt{flex:1;min-width:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .htask.done .htt{text-decoration:line-through;color:#8a8f88}
 .hdue{font-size:13px;color:#68716A}.hdue.od{color:#B43C3C}
@@ -1205,6 +1205,14 @@ dialog#menu #m-destpop{border-radius:inherit}
 .dnt .nl[data-k=check][data-c="1"]::after, .pvnote .nl[data-k=check][data-c="1"]::after { content: '✓'; position: absolute; left: 3px; top: 7px; width: 10px; font-size: 11px; line-height: 16px; color: #fff; text-decoration: none; }
 .dnt .nl[data-k=bullet]::before, .pvnote .nl[data-k=bullet]::before { left: 4px; top: 12px; width: 5px; height: 5px; }
 .dnt .nl[data-k=bullet], .dnt .nl[data-k=check], .pvnote .nl[data-k=bullet], .pvnote .nl[data-k=check] { padding-left: 24px; }
+/* 第19.3版 C: 箇条書き・チェックの字下げ（段）。1段 20（見るだけの欄は 16）。--lv は行の style（保存の文字は行頭の空白 2 つで1段） */
+.ned-body .nl[data-lv] { padding-left: calc(28px + var(--lv, 0) * 20px); }
+.ned-body .nl[data-k=bullet][data-lv]::before { left: calc(13px + var(--lv, 0) * 20px); }
+.ned-body .nl[data-k=bullet], .ned-body .nl[data-k=check] { touch-action: pan-y; }
+.dnt .nl[data-lv], .pvnote .nl[data-lv] { padding-left: calc(24px + var(--lv, 0) * 16px); }
+.dnt .nl[data-k=check][data-lv]::before, .pvnote .nl[data-k=check][data-lv]::before { left: calc(var(--lv, 0) * 16px); }
+.dnt .nl[data-k=check][data-c="1"][data-lv]::after, .pvnote .nl[data-k=check][data-c="1"][data-lv]::after { left: calc(3px + var(--lv, 0) * 16px); }
+.dnt .nl[data-k=bullet][data-lv]::before, .pvnote .nl[data-k=bullet][data-lv]::before { left: calc(4px + var(--lv, 0) * 16px); }
 .dnt .dnt-ph { display: block; font-size: 15px; line-height: 30px; color: #A8ABA4; }
 .ned-body[data-empty]::before { content: attr(data-ph); position: absolute; left: 8px; top: 0; color: #A8ABA4; pointer-events: none; }
 .ned-bodywrap { position: relative; flex: 1; min-height: 0; overflow-y: auto; }
@@ -1660,100 +1668,38 @@ html.kbl[data-kbl=note][data-kbe=dn] .nhost{height:calc(var(--kl-ed-h) + var(--k
 .ned .ned-title{min-height:30px}
 .ned .ned-body{min-height:90px}
 
-/* ---------- 第19版 PR10: タスクの画面（リストの部品・設定 › タスク・説明シート・確認の一覧） ---------- */
-.ldot{display:inline-block;flex:none;width:8px;height:8px;border-radius:50%;background:#68716A}
-.lchips{display:flex;gap:8px;align-items:center;height:44px;margin:0 0 4px;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;touch-action:pan-x}
-.lchips::-webkit-scrollbar{display:none}
-.lchip{flex:none;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:14px;border:0;background:#F0EDE5;color:#293B35;font-size:13px;position:relative;white-space:nowrap}
-.lchip::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
-.lchip i{width:8px;height:8px;border-radius:50%;flex:none}
-.lchip.on{background:var(--green);color:#fff}
-.stalled{display:block;width:100%;height:28px;margin:0 0 6px;padding:0 12px;border:0;border-radius:14px;background:#F0EDE5;color:#68716A;font-size:13px;text-align:left;position:relative}
-.stalled::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
-.dcap2{flex:none;margin-left:auto;display:inline-flex;align-items:center;gap:4px;height:28px;max-width:104px;padding:0 8px;border-radius:14px;border:1.5px solid var(--lc,#68716A);background:#fff;color:#293B35;font-size:13px;font-weight:600;position:relative}
-.dcap2::before{content:"";position:absolute;left:-4px;right:-4px;top:-8px;bottom:-8px}
-.dcap2 i{width:8px;height:8px;border-radius:50%;background:var(--lc,#68716A);flex:none}
-.dcap2 span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dcap2 b{flex:none;font-weight:400;color:#68716A}
-.rmlist{flex:none;align-self:flex-end;margin-bottom:6px;display:inline-flex;align-items:center;gap:4px;max-width:38%;font-size:13px;color:#68716A;white-space:nowrap}
-.rmlist i{width:8px;height:8px;border-radius:50%;flex:none}
-.rmlist{overflow:hidden;text-overflow:ellipsis}
-.rmwait{font-size:11px;color:#68716A;margin-right:2px}
-.rmgone{font-size:11px;color:#68716A}
-.rmrow.gone .rmt{color:#68716A}
-.rmrow.fresh{animation:rmfresh 1s ease-out}
-@keyframes rmfresh{0%,90%{background:#E5EEE9}100%{background:transparent}}
-.rmrow.fresh,.rmrow.two{transition:none}
-@media (prefers-reduced-motion:reduce){.rmrow.fresh{animation:none}}
-/* 設定 › タスク */
-.menurows .rsrow{min-height:48px;height:48px}
-.menurows .rsgo b{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-weight:400;font-size:15px;color:#68716A}
-.menurows .rsgo em{font-style:normal;color:#A8ABA4;font-size:20px}
-.menurows .rsgo{gap:8px}
-.menurows .rsgo span{flex:1}
-.ssub{font-size:13px;color:#68716A;margin-right:2px}
-.rsdeny{margin:4px 12px 8px;padding:10px 12px;border-radius:10px;background:#FBF0DC;color:#6E4A12;font-size:13px;line-height:1.5}
-.rsdeny p{margin:0 0 6px}
-.rsdeny button{display:block;width:112px!important;min-height:24px!important;height:24px;padding:0;border:0;border-radius:12px;background:#E9C98A;color:#4A3208;font-size:13px;text-align:center!important;position:relative}
-.rsdeny button::before{content:"";position:absolute;left:0;right:0;top:-10px;bottom:-10px}
-.rsh{margin:12px 20px 4px;font-size:13px;font-weight:400;color:#68716A}
-.rslist{display:flex!important;align-items:center;gap:10px;height:40px;min-height:40px!important;padding:0 20px!important;border:0;background:none;font-size:15px;text-align:left}
-.rslist .ldot{width:14px;height:14px}
-.rslist .rsn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rslist small{font-size:11px;color:#68716A}
-.rslist b{width:18px;text-align:right;color:var(--green);font-weight:600;margin-right:0}
-.rslist.fixed b{color:#A8ABA4}
-.rsnote{margin:0;padding:4px 20px 8px;font-size:11px;line-height:1.5;color:#68716A}
-/* シート */
-dialog#rsheet{z-index:13;padding:0;border:0;border-radius:24px;background:#fff;box-shadow:0 12px 32px #00000029;max-width:none;max-height:none;height:auto;overflow:hidden}
-dialog#rsheet[open]{display:flex;flex-direction:column}
-.rshead{flex:none;display:flex;align-items:center;justify-content:space-between;padding:16px 8px 8px 24px}
-.rshead h2{font:600 17px/22px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif}
-.rsx{width:44px;height:44px;border:0;background:none;font-size:18px;color:#68716A}
-.rsbody{flex:1;min-height:0;overflow:auto;padding:0 24px}
-.rsbody p{margin:0 0 8px;font-size:13px;line-height:1.6;color:#68716A}
-.rsmain{flex:none;display:block;margin:12px 24px;height:50px;border:0;border-radius:12px;background:var(--green);color:#fff;font-size:15px;font-weight:600}
-.rsmain:disabled{opacity:.6}
-.rsacts{flex:none;display:flex;gap:12px;padding:12px 24px 20px}
-.rsacts button{flex:1;height:44px;border-radius:12px;border:1px solid var(--line);background:#fff;font-size:15px}
-.rsacts .danger{background:var(--danger);color:#fff;border-color:var(--danger)}
-.rsscroll{flex:1;min-height:0;overflow:auto;padding:0 24px}
-.rsscroll h3{margin:12px 0 4px;font-size:13px;color:#68716A;font-weight:600}
-.rsrow40{display:flex;align-items:center;gap:8px;min-height:40px}
-.rsrow40 .rst{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px}
-.rsrow40 small{flex:none;font-size:13px;color:#68716A}
-.rsmore{margin:0;font-size:13px;color:#68716A}
-.rsmaybe{padding-bottom:6px}
-.rsseg{display:flex;gap:2px;padding:2px;height:32px;border-radius:16px;background:#e6e9e4}
-.rsseg button{flex:1;min-width:0;height:28px;border:0;border-radius:14px;background:transparent;font-size:13px;position:relative}
-.rsseg button::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
-.rsseg button[aria-pressed=true]{background:#fff;color:var(--green);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.12)}
-.rslater{flex:none;display:block;margin:0 24px 16px;min-height:44px;border:0;background:none;color:#68716A;font-size:13px}
-.rsdone{flex:none;margin:8px 24px 0;font-size:13px;color:var(--green)}
-.rspage{flex:1;min-height:0;overflow:auto;padding:0 8px 16px}
-.rsrowp{display:flex;align-items:center;gap:12px;width:100%;height:44px;padding:0 16px;border:0;background:none;font-size:15px;text-align:left}
-.rsrowp .ldot{width:12px;height:12px}
-.rsrowp span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rsrowp b{width:18px;color:var(--green)}
-.tklist{margin-top:8px}
-.tklistb{display:flex;align-items:center;gap:8px;width:100%;height:44px;padding:0 4px;border:0;background:none;font-size:15px;text-align:left}
-.tklistb .dtk{flex:1}
-.tklv{display:inline-flex;align-items:center;gap:6px;color:#68716A}
-.tklistb b{color:#A8ABA4;font-weight:400}
-.stalled{min-height:28px;height:28px;padding-top:0;padding-bottom:0}
-.lchip,.rsseg button{min-height:0}
-.dcap2{min-height:28px;height:28px;padding-top:0;padding-bottom:0}
-.undobar.rstoast{height:44px;min-height:44px;border-radius:12px;box-sizing:border-box}
-.undobar.rstoast{background:#1f2724}
+/* ---------- v19.3（征希さんの要望）: リマインダーとの同期をやめた。第19版 PR10 のリストの部品・設定の同期の段・説明/確認のシートの CSS は外した ---------- */
 .menurows .fixrow{padding:0 12px}
-dialog#rsheet[data-kind=explain] .rsmain{margin-bottom:26px}
-.rspk{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:0 4px;border:0;background:none;font-size:15px;text-align:left}
-.rspk .rst{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rspk small{flex:none;font-size:13px;color:#68716A}
-.rspk::before{content:"";flex:none;width:20px;height:20px;box-sizing:border-box;border:2px solid #9aa39c;border-radius:4px;background:#fff}
-.rspk[role=radio]::before{border-radius:50%}
-.rspk[aria-checked=true]::before{border-color:var(--green);background:var(--green);box-shadow:inset 0 0 0 3px #fff}
-.rspk .ldot{width:12px;height:12px}
+/* 設定 › タスクの常設の一文（注の形 13/400 #68716A のまま、上の注と段を分ける） */
+.menurows #m-tknosync{margin-top:12px}
+/* 1 回だけの知らせ（設計 35 §8.1）。下からのシート。後ろは ::backdrop で暗くする（モーダル） */
+dialog#remend{position:fixed;inset:auto 0 0 0;margin:0;width:auto;max-width:none;max-height:none;box-sizing:border-box;padding:24px 24px max(24px,var(--sab,0px));border:0;border-radius:24px 24px 0 0;background:#FFFDFA;color:#293B35;box-shadow:0 12px 32px rgba(0,0,0,.16);overflow:visible;touch-action:none;-webkit-user-select:none;user-select:none;transition:transform .2s var(--sheet-ease)}
+dialog#remend[open]{display:flex;flex-direction:column;animation:sheetin .25s var(--sheet-ease)}
+dialog#remend::backdrop{background:rgba(28,31,29,.24);animation:sheetfadein .25s var(--sheet-ease)}
+dialog#remend.out{animation:sheetout .2s var(--sheet-ease) forwards;pointer-events:none}
+dialog#remend.out::backdrop{animation:sheetfadeout .2s var(--sheet-ease) forwards}
+#remend h2{margin:0;font:600 17px/24px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1C1F1D;outline:none}
+#remend p{margin:12px 0 0;font-size:15px;line-height:22px;font-weight:300;color:#293B35}
+#remend-ok{flex:none;display:block;width:100%;height:48px;min-height:48px;margin:24px 0 0;padding:0;border:0;border-radius:14px;background:#294E42;color:#fff;font-size:15px;font-weight:600;transition:background-color .1s}
+#remend-ok:active{background:#1F3D33}
+#remend .remend-in{display:flex;flex-direction:column;flex:1;min-height:0;width:100%;margin:0 auto}
+#remend .remend-in>span{flex:1 0 0}
+/* 閉じた縦: x0〜466（帯の上も覆う）・y378〜678（高さ 300） */
+body:is([data-layout=home],[data-layout=browse]) dialog#remend{min-height:300px}
+/* 閉じた横: x0〜594・y166〜466。中身は幅 420 で真ん中（x87〜507） */
+@media (orientation:landscape){
+ body:is([data-layout=home],[data-layout=browse]) dialog#remend{right:84px;padding-left:0;padding-right:0}
+ body:is([data-layout=home],[data-layout=browse]) #remend .remend-in{width:420px;max-width:100%}
+}
+/* 開いた縦: 下の内側 34（ホームバーを避ける）。開いた横・卓上: 右のページだけ（折り目に掛けない） */
+body[data-layout=open] dialog#remend{padding-bottom:max(34px,var(--sab,0px))}
+body:is([data-layout=spread],[data-layout=desk]) dialog#remend{left:calc(50% + 9px)}
+@media (prefers-reduced-motion:reduce){
+ dialog#remend[open]{animation:sheetfadein .15s ease-out}
+ dialog#remend.out{animation:sheetfadeout .15s ease-out forwards}
+ dialog#remend::backdrop,dialog#remend.out::backdrop{animation-duration:.15s}
+ dialog#remend{transition:none}
+}
 
 /* ===== 第19.1版 S1: 閉じた画面の月は1本でスクロール（design/33 §5）・タブの上のぼかし（M-18）・日付の行（H-05/H-06/M-19） ===== */
 /* タブの上 24（y575〜599）に地色 #F7F4ED の 0→100% のぼかし。閉じた画面のホーム・日・週・月すべて。右の帯は避ける。 */
@@ -1931,7 +1877,7 @@ body[data-posture=portrait] .mscreens{scrollbar-gutter:stable}
 #editor .hbtn:active::before{filter:brightness(.92);transition-duration:.10s}
 #editor .hbtn.hok:active::before{filter:brightness(.88)}
 /* 緑の塗りのボタン */
-:is(.add,.next,.primary,.card>button.solid,button[aria-pressed=true],.deskbtn[aria-pressed=true],.sw[aria-checked=true],.mseg[aria-pressed=true],.nchip.on,.lchip.on,.rmchip[aria-pressed=true],.dchip[aria-pressed=true],.menurows button[aria-pressed=true],.tlmenu button[aria-checked=true],.tcell[aria-pressed=true],.dcap.open,.tcap.open,.rsmain,.rembtn,.xdact .primary,.mrbar button[data-mr=ok],.mmc.sel,.tlhd[aria-pressed=true],.undobar button):active:where(:not(:disabled)){background-color:var(--green)!important;filter:brightness(.88);transition-duration:.10s}
+:is(.add,.next,.primary,.card>button.solid,button[aria-pressed=true],.deskbtn[aria-pressed=true],.sw[aria-checked=true],.mseg[aria-pressed=true],.nchip.on,.rmchip[aria-pressed=true],.dchip[aria-pressed=true],.menurows button[aria-pressed=true],.tlmenu button[aria-checked=true],.tcell[aria-pressed=true],.dcap.open,.tcap.open,.rsmain,.rembtn,.xdact .primary,.mrbar button[data-mr=ok],.mmc.sel,.tlhd[aria-pressed=true],.undobar button):active:where(:not(:disabled)){background-color:var(--green)!important;filter:brightness(.88);transition-duration:.10s}
 :is(.tabs,.pgsw,.pswitch) button[aria-pressed=true]:active:where(:not(:disabled)),.allbtn[aria-pressed=true]:active{background-color:transparent!important;filter:none}
 /* 地の色つきの札（予定の札・時間軸の予定・終日の札・ホームの帯） */
 .strip:active,.fold .fev:active{background-color:var(--cat)!important;filter:brightness(.88);transition-duration:.10s}
@@ -1954,11 +1900,11 @@ body[data-posture=portrait] .mscreens{scrollbar-gutter:stable}
 @keyframes sheetfadein{from{opacity:0}to{opacity:1}}
 @keyframes sheetfadeout{to{opacity:0}}
 @keyframes dimin{from{box-shadow:0 0 0 100vmax #1a302d00,0 12px 32px #00000029}}
-dialog#editor[open],dialog#xdetail[open],dialog#taskdlg[open],dialog#menu[open],dialog#search[open],dialog#cats[open],dialog#notify[open],dialog#backup[open],dialog#confirm[open],dialog#scope[open],dialog#discard[open],dialog#xretry[open],dialog#rsheet[open]{animation:sheetin .25s var(--sheet-ease)}
+dialog#editor[open],dialog#xdetail[open],dialog#taskdlg[open],dialog#menu[open],dialog#search[open],dialog#cats[open],dialog#notify[open],dialog#backup[open],dialog#confirm[open],dialog#scope[open],dialog#discard[open],dialog#xretry[open]{animation:sheetin .25s var(--sheet-ease)}
 body:not([data-layout=home]):not([data-layout=browse]) dialog#search[open]{animation:sheetin .25s var(--sheet-ease),dimin .25s var(--sheet-ease)}
 dialog.sheet-out{animation:sheetout .25s var(--sheet-ease) forwards!important;pointer-events:none}
 @media (prefers-reduced-motion:reduce){
- dialog#editor[open],dialog#xdetail[open],dialog#taskdlg[open],dialog#menu[open],dialog#search[open],dialog#cats[open],dialog#notify[open],dialog#backup[open],dialog#confirm[open],dialog#scope[open],dialog#discard[open],dialog#xretry[open],dialog#rsheet[open],body:not([data-layout=home]):not([data-layout=browse]) dialog#search[open]{animation:sheetfadein .15s ease-out}
+ dialog#editor[open],dialog#xdetail[open],dialog#taskdlg[open],dialog#menu[open],dialog#search[open],dialog#cats[open],dialog#notify[open],dialog#backup[open],dialog#confirm[open],dialog#scope[open],dialog#discard[open],dialog#xretry[open],body:not([data-layout=home]):not([data-layout=browse]) dialog#search[open]{animation:sheetfadein .15s ease-out}
  dialog.sheet-out{animation:sheetfadeout .15s ease-out forwards!important}
  #scrim:not([hidden]){animation-duration:.15s}
  #scrim{transition-duration:.15s}
@@ -2114,7 +2060,7 @@ body :is(.dchip)[aria-pressed=true]:active:not(:disabled){filter:brightness(.92)
 .ned .ned-done:active:not(:disabled)::before{opacity:.7;transform:scale(.94);transition-duration:.10s}
 /* V-15・中-3: 月の日のタスクの行（閉じた 月・2週・1週）。押せる範囲は x8〜52 の 44×44（左へ出さない）、四角 20×20 は x12〜32、題名は x44 */
 .mdtask .rmckb{width:44px;height:44px;margin:0 -12px 0 0;padding:0 0 0 4px;justify-content:flex-start;position:relative;z-index:1}
-.mdtask .rmck{width:20px;height:20px;border-radius:8px}
+.mdtask .rmck{width:20px;height:20px;border-radius:4px}
 .mdtask.done .rmck::after{font-size:14px;font-weight:600;line-height:16px}
 
 /* ===== 第19.1版 S7b（レビュー後の直し・設計の高 V-01〜V-10）===== */
@@ -2235,10 +2181,10 @@ body:not([data-layout=spread]):not([data-layout=desk]) :is(dialog#cats,dialog#no
 /* N-03（設計 2026-11-20）: 開いた横で予定の編集・iPhone の予定・タスクのシート（時刻のダイヤルの面も編集シートの中）を開いている間、右ページの見出しの行と両方の .pgsw（下のタブ）を
    シートと同じ 0.25s・--sheet-ease で消し、閉じたら同じ秒数で戻す。消えている間は visibility:hidden で押せない・読み上げにも出ない。reduced motion は 0.15s のフェード */
 .spread .rp .rhead,.spread .dpage.rp .dph,.spread .pgsw{transition:opacity .25s var(--sheet-ease),visibility 0s linear 0s}
-body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#taskdlg[open],dialog#rsheet[open]) :is(.spread .rp .rhead,.spread .dpage.rp .dph,.spread .pgsw){opacity:0;visibility:hidden;transition:opacity .25s var(--sheet-ease),visibility 0s linear .25s}
+body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#taskdlg[open]) :is(.spread .rp .rhead,.spread .dpage.rp .dph,.spread .pgsw){opacity:0;visibility:hidden;transition:opacity .25s var(--sheet-ease),visibility 0s linear .25s}
 @media (prefers-reduced-motion:reduce){
   .spread .rp .rhead,.spread .dpage.rp .dph,.spread .pgsw{transition:opacity .15s ease-out,visibility 0s linear 0s}
-  body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#taskdlg[open],dialog#rsheet[open]) :is(.spread .rp .rhead,.spread .dpage.rp .dph,.spread .pgsw){transition:opacity .15s ease-out,visibility 0s linear .15s}
+  body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#taskdlg[open]) :is(.spread .rp .rhead,.spread .dpage.rp .dph,.spread .pgsw){transition:opacity .15s ease-out,visibility 0s linear .15s}
 }
 /* N-04（設計 2026-11-20・1:20 の決め）: 月の日の一覧の予定名は 15/400（タスク .htt・ホームの行と同じ） */
 .mdev strong,.portrait .mdev strong{font-weight:400}
@@ -2324,8 +2270,6 @@ body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#tas
 .mpull.browse .mdh h3{display:flex;align-items:baseline;gap:8px;margin:0;font:600 17px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1C1F1D}
 .mpull.browse .mdh .hdw{font:400 13px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#68716A}
 .mpull.browse .mdh .hdt.hol{color:#B43C3C}
-.mpull.browse .mdback{min-height:44px;height:44px;padding:0 8px;background:none;border-radius:0;font:400 11px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#294E42}
-.mpull.browse .mday[data-dg="B"] .mdh,.mpull.browse .mday[data-dg="C"] .mdh{position:sticky;top:0;z-index:6}
 .mpull.browse .mdad{display:flex;flex-wrap:wrap;gap:8px;padding:0;margin:0 0 8px;max-height:64px;overflow:hidden}
 .mpull.browse .mdallday{display:inline-flex;align-items:center;gap:4px;box-sizing:border-box;height:28px;min-height:28px;max-width:100%;padding:0 12px;border-radius:14px;font:600 13px/28px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;border:0;overflow:hidden;white-space:nowrap;text-align:left}
 .mpull.browse .mdallday .mdat{overflow:hidden;text-overflow:ellipsis}
@@ -2342,9 +2286,6 @@ body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#tas
 .mpull.browse .mdcard strong{position:absolute;left:68px;right:12px;top:8px;font:600 15px/20px -apple-system,'Hiragino Sans',sans-serif;color:#1C1F1D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mpull.browse .mdcard small{position:absolute;left:68px;right:12px;top:30px;font:400 11px/16px -apple-system,'Hiragino Sans',sans-serif;color:#68716A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mpull.browse .mdnone2{margin:0;padding:0;height:44px;font:400 13px/44px -apple-system,'Hiragino Sans',sans-serif;color:#68716A}
-.shell.closed .mpull.browse .mdgrab{position:relative;display:flex;justify-content:center;align-items:flex-start;box-sizing:border-box;width:100%;height:44px;min-height:44px;margin:-8px 0 0;padding-top:18px;touch-action:none;cursor:ns-resize;-webkit-user-select:none;user-select:none}
-.mpull.browse .mdgrab i{display:block;width:36px;height:4px;border-radius:2px;background:#B9B4A8}
-.mpull.browse .mdgrab:active i{background:#68716A}
 .mpull.browse .mdnl{display:flex;align-items:center;width:100%;height:44px;min-height:44px;margin:0;padding:0;border:0;border-radius:0;background:none;font:600 13px/44px -apple-system,'Hiragino Sans',sans-serif;color:#68716A;text-align:left}
 .mpull.browse .mdnote{display:block;box-sizing:border-box;width:100%;min-height:88px;margin:0;padding:8px 12px;border-radius:14px;background:#fff;text-align:left}
 .mpull.browse .mdnote .mdempty{font:400 13px/20px -apple-system,'Hiragino Sans',sans-serif;color:#A8ABA4}
@@ -2427,12 +2368,10 @@ body[data-layout=home] .toastbar,body[data-layout=browse] .toastbar{left:calc(va
 .mpull.browse .week .day .chip.grabbed,.mpull.browse .week .day .chip.grabbed:active{background:transparent!important;background-color:transparent!important;filter:none!important;outline:1.5px dashed var(--cat,#294E42);outline-offset:-1.5px}
 /* M9（34 §3・§6.3）: 格子は自分ではスクロールしない。縦の引きを指に渡す（横の払いは JS の月送り） */
 .shell.closed .mpull.browse .mgwrap,.shell.closed .mpull.browse .mgwrap *{touch-action:none}
-.mpull.browse .mdback[hidden]{display:none}
 /* 設計レビュー D4: つまみのキーの焦点の枠は区域の中に収める */
 /* M6: 日付（17/44）は見出し 44 の上端から置く（中心 y+22）。曜日（13/44）は baseline でそろえる */
 .shell.closed .mpull.browse .mdh h3{align-self:flex-start}
 /* 帯がない画面（ブラウザ）: 見出しの右の「カード」「時間軸」は、右下の＋（x410〜458）にかからない所へ */
-.shell.closed.fb .mpull.browse .mdh .mdback{margin-right:56px}
 
 /* ===== 第19.2版 S11e（design/34 §14・§15、設計レビュー 7207f8a、企画・品質の指示） ===== */
 /* 閉じた横（678×466）の帯の仮の値。右の帯 84（x594〜678）、ホームバーの帯 33（y433〜466）。実機（D-16）で測って、ここ1か所を置き換える（JS は closedLandVals() で読む） */
@@ -2443,7 +2382,6 @@ body[data-layout=home] .toastbar,body[data-layout=browse] .toastbar{left:calc(va
 .shell.closed.land .mpull.browse .mgwrap{width:366px;margin:0 0 0 8px}
 .shell.closed.land .mpull.browse .mday{position:absolute;left:382px;right:0;top:0;bottom:0;padding:0 12px var(--cl-day-pb,41px)}
 .shell.closed.land.fb .mpull.browse .mdh{padding-right:84px}
-.shell.closed.land.fb .mpull.browse .mdh .mdback{margin-right:0}
 /* §15-③・§14.5: 帯がない画面。日の欄の下の余白は 105（最後のカードを右下の＋の上まで送れる）。「…」とタスクは丸を描かず、押したときだけ地 #E2DDD2 の丸 36。＋は見える 48・押せる 56、影は段2 */
 .shell.closed.fb .mpull.browse .mday{padding-bottom:105px}
 .shell.closed.fb .cb.ctask:active .bi,.shell.closed.fb .cb.cmore:active .bi{background:#E2DDD2;transition:background-color .10s linear}
@@ -2464,32 +2402,19 @@ body[data-layout=home] .toastbar,body[data-layout=browse] .toastbar{left:calc(va
 
 /* ===== 第19.2版 S11f（design/34 §16、設計レビュー 0568d18） ===== */
 /* §16-1: 段2〜7（と閉じた横）は、つまみ（下）を日の欄の下端（下の余白 41 の内側）に貼り付ける。押せる範囲 x8〜374・y593〜637、線 y611〜615。中身はつまみの面（#EFECE4）の下を流れる。段1 は貼り付けない（日の欄が 74 しかない） */
-.shell.closed .mpull.browse .mday.gs .mdgrab{position:sticky;bottom:var(--gsb,0px);z-index:5;width:auto;margin:-8px -4px 0;background:#EFECE4}
-.shell.closed.land .mpull.browse .mday .mdgrab{margin:-8px -12px 0}
 /* 貼り付いている間だけ、上の辺に 0.5 の線（行の線と同じ色。ぼかしは使わない） */
-.shell.closed .mpull.browse .mday .mdgrab.stuck{box-shadow:inset 0 .5px 0 #E4E0D6}
 /* 帯がない画面: 下の余白 105 は送り切ったときの＋よけ。貼り付く位置は帯ありと同じ y593〜637（余白 41 の内側）。右下の＋（押せる x402〜458）にかからないよう x8〜402、線の中心は日の欄の中央 x233 */
-.shell.closed.fb .mpull.browse .mday.gs .mdgrab{bottom:calc(-64px + var(--gsb,0px));margin-right:52px;padding-left:56px}
-.shell.closed.land.fb .mpull.browse .mday .mdgrab{margin-right:52px;padding-left:64px}
 /* §16-2: 段2〜7（と閉じた横）は、カード（A）でも日の見出しを貼り付ける（B・C と同じ値。下に線は引かない）。段1 は貼らない */
 .shell.closed .mpull.browse:not([data-stage="1"]) .mday .mdh{position:sticky;top:0;z-index:6}
 /* §16-2 D1: つかんだ瞬間に、元のマスの地を 0.10 秒（標準の緩急）で戻す */
 .shell.closed .mpull.browse .week .day.grabd,.shell.closed .mpull.browse .week .day.grabd:active{background-color:var(--rest,transparent)!important;transition:background-color .10s cubic-bezier(.2,.8,.2,1)}
 /* 見出しを貼り付けても、日の欄の上 20 はつまみ（上）の押せる範囲のまま（§13-1: 格子の下端から 44）。B・C は見出しの右の「カード」（44）を押せるよう今のまま */
-.shell.closed .mpull.browse .mday[data-dg="A"]{isolation:isolate}
+/* v19.3 その2: 見出しの右の「カード｜時間」（押せる 44）は、つまみ（上）の押せる範囲（格子の下端から 44。日の欄の上 20 に重なる）より上に置く（.mdct の z-index:4）。見出しのほかの所の上 20 は、つまみ（上）のまま */
 /* 帯がない画面: 押せる範囲は＋の左までだが、つまみの面と上の線は日の欄の右端まで続ける（＋のまわりにカードがのぞかない。＋はこの上） */
-.shell.closed.fb .mpull.browse .mday.gs .mdgrab::after{content:"";position:absolute;left:100%;top:0;width:56px;height:100%;background:#EFECE4;pointer-events:none}
-.shell.closed.fb .mpull.browse .mday.gs .mdgrab.stuck::after{box-shadow:inset 0 .5px 0 #E4E0D6}
-.shell.closed.land.fb .mpull.browse .mday .mdgrab::after{width:64px}
 
 /* ===== 第19.2版 S11g（design/34 §17、設計レビュー 61b9ce7） ===== */
 /* §17-1（K-1）: つまみ（下）が貼り付いている間だけ、つまみの下端から日の欄の下端まで（余白 41。ホームバーの帯も）を日の欄の地で埋める。カードを見せず、触れも下へ通さない（面はつまみの一部。つまみの引きは JS が始めない）。送り切り・元の位置では出さない */
-.shell.closed .mpull.browse .mday .mdgrab.stuck::before{content:"";position:absolute;z-index:-1;left:0;right:0;top:100%;height:41px;background:#EFECE4}
 /* 帯がない画面: 埋める面は＋の下も（日の欄の右端まで）。§17-2（K-2）: 貼り付いている間の面は＋の押せる所の上端から（縦 y581〜、横 y369〜）、0.5 の線もそこ。S11h（§18-2）でつまみの箱そのものを 56 にしたので、面（::before）は箱の上端（top:0）から下の余白の端まで 97 */
-.shell.closed.fb .mpull.browse .mday .mdgrab.stuck::before{right:-56px;top:0;height:97px;box-shadow:inset 0 .5px 0 #E4E0D6}
-.shell.closed.land.fb .mpull.browse .mday .mdgrab.stuck::before{right:-64px}
-.shell.closed.fb .mpull.browse .mday .mdgrab.stuck,.shell.closed.fb .mpull.browse .mday.gs .mdgrab.stuck::after{box-shadow:none}
-.shell.closed.fb .mpull.browse .mday.gs .mdgrab.stuck::after{display:none}
 /* §17-5: 帯がない横で、シート（ノート。x0〜678・y8〜）を開いている間は、タスクのバッジ（x660〜678・y0〜18）もボタンと一緒にシートの下へ（シートの上の 8 と角丸にのぞかせない） */
 body:has(> .nsheet:not([hidden])) .shell.closed.land.fb .cb.ctask .bdg{visibility:hidden}
 
@@ -2497,10 +2422,8 @@ body:has(> .nsheet:not([hidden])) .shell.closed.land.fb .cb.ctask .bdg{visibilit
 /* §18-1: つまみ（下）を貼るかどうかは段の番号でなく日の欄の高さで決める（.mday.gs＝高さ 170 以上で付け、166 未満で外す。JS の dayGripStick）。上の S11f・S11g の貼り付けの決まりは .gs にかかる。
    引き・段送りで外れるとき（0.15 秒・直線で消える間）は、--gsb（高さ−170。0 以下）だけ下へ逃がし、見出し（上端から 44）と重ねない */
 /* 帯なしの縦の段1 は下の余白が 41（S11e）なので、貼り付く位置の −64 を使わない（消えていく間だけ当たる） */
-.shell.closed.fb:not(.land) .mpull.browse[data-stage="1"] .mday.gs .mdgrab{bottom:var(--gsb,0px)}
 /* §18-2: 帯がない画面は、つまみの箱を貼り付きにかかわらず 56 にする（縦 y581〜637、横 y369〜425。上の余白 30、線は y611〜615・横 y399〜403 のまま）。押せる所も 56（§17-2 の「上に足した 12 は何もしない」はやめた）。
    貼り付きが外れる境で面の上端（581）が動かないので、カードの 12 が跳んで出ない。送り切り: カード → つまみ 56 → ノート ›。帯ありは 44 のまま */
-.shell.closed.fb .mpull.browse .mday .mdgrab{height:56px;min-height:56px;padding-top:30px}
 
 /* ===== 第19.3版（征希さんの要望: 閉じた画面。段はつまみ（上）だけ・月ごとスクロール） ===== */
 /* 閉じた縦（data-stage がある形）は .mpull が1本の縦スクロール。上に残るのは見出し 44＋曜日 20（.mpfix）だけで、格子・つまみ（上）・日の欄はひと続きで流れる。閉じた横（.land）・開いた縦は今までどおり */
@@ -2520,7 +2443,6 @@ body:has(> .nsheet:not([hidden])) .shell.closed.land.fb .cb.ctask .bdg{visibilit
 /* 日の見出しは貼り付けない（上に残るのは年月と曜日だけ。格子が流れ切ったら年月の右に選んだ日を出す） */
 .shell.closed .mpull.browse[data-stage] .mday .mdh,.shell.closed .mpull.browse[data-stage] .mday[data-dg] .mdh{position:relative;top:auto;z-index:auto}
 /* つまみ（下）の貼り付き: 画面の下端から 41 上（y593〜637。帯なしは箱 56 で y581〜637）。決まり（T・遊び 4・0.15 秒 linear・埋めた面）は S11f〜S11j のまま、見えている高さで決める */
-.shell.closed .mpull.browse[data-stage] .mday.gs .mdgrab,.shell.closed.fb:not(.land) .mpull.browse[data-stage] .mday.gs .mdgrab{bottom:calc(41px + var(--gsb,0px))}
 /* 見出しの右の「12日（木）」: 格子が見出しの下へ流れ切ったら 0.15 秒で出す（design/33 §2。13/400 #68716A）。「今日へ」があるときはその左 */
 .shell.closed .mpull.browse .mph .mpdate{display:block;position:absolute;top:0;right:4px;margin:0;font:400 13px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#68716A;white-space:nowrap;opacity:0;transition:opacity .15s linear;pointer-events:none}
 .shell.closed .mpull.browse .mph.scrd .mpdate{opacity:1}
@@ -2530,13 +2452,46 @@ body:has(> .nsheet:not([hidden])) .shell.closed.land.fb .cb.ctask .bdg{visibilit
 .shell.closed.fb .mpull.browse .mph:has(.mptoday:not([hidden])) .mpdate .mpdw{display:none}
 @media (prefers-reduced-motion:reduce){.shell.closed .mpull.browse .mph .mpdate{transition:none}}
 /* 時間軸 B・C: 開いたときは最初の予定の1時間前より上（終日の行 --foldad と、時間軸の --foldm 分）を畳む（v19.2 の開いた位置と同じ並び）。畳んだ分は「前の時間」で開く。日の欄の中はスクロールしない */
-.shell.closed .mpull.browse[data-stage] .mday .mdbody.folded{display:flow-root;overflow-x:visible;overflow-y:clip;clip-path:inset(0 -400px -4000px -400px)}
-.shell.closed .mpull.browse[data-stage] .mday .mdbody.folded > .allday{margin-top:calc(var(--foldad,0px) * -1)}
-.shell.closed .mpull.browse[data-stage] .mday .mdbody.folded .tl{display:flow-root}
-.shell.closed .mpull.browse[data-stage] .mday .mdbody.folded .tlin{margin-top:calc(var(--foldm,0) * var(--hh) / -60)}
 .mpull.browse .mdfold{position:relative;z-index:3;flex:none;height:0}
 .mpull.browse .mdfold button{position:absolute;right:0;top:0;height:44px;min-height:44px;min-width:44px;padding:0 8px;border-radius:0;background:none;font:400 11px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#294E42;white-space:nowrap}
 .shell.closed.fb .mpull.browse .mdfold button{right:56px}
 /* v19.3: 貼り付けた見出し＋曜日（.mpfix）は、流れてくる格子の中の z-index を持つ部品（＋・選んだ日の枠など）より上に描く。格子は自分の中で重なりを閉じる（isolation）。曜日の行の下から日付が透けないように */
 .shell.closed .mpull.browse[data-stage] .mpfix{z-index:6}
 .shell.closed .mpull.browse[data-stage] .mgwrap{isolation:isolate}
+
+/* ===== 第19.3版 その2（征希さん「閉じた時の表示は『カード・時間』で分けるだけ」・design/35 §5） ===== */
+/* 見出しの右の「カード｜時間」: 132×32・角丸 8・地 #E4E0D6（日の欄の地 #EFECE4 より1段濃い）。1つ 66、押せる範囲 66×44。選んでいる側は白の玉（角丸 6）13/600 #293B35、選んでいない側 #68716A */
+.mpull.browse .mdh h3{flex:1 1 auto;min-width:0;overflow:hidden;white-space:nowrap}
+.mpull.browse .mdh .hdw{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.mpull.browse .mdct{position:relative;z-index:4;display:grid;grid-template-columns:1fr 1fr;align-items:center;box-sizing:border-box;width:132px;height:32px;flex:none;margin:0;padding:0;border-radius:8px;background:#E4E0D6}
+.mpull.browse .mdct button{box-sizing:border-box;height:44px;min-height:44px;min-width:0;margin:-6px 0;padding:0;border:solid transparent;border-width:8px 2px;border-radius:8px;background:transparent;background-clip:padding-box;box-shadow:none;filter:none;font:600 13px/28px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#68716A;-webkit-tap-highlight-color:transparent}
+.mpull.browse .mdct button[aria-pressed=true]{background-color:#fff;color:#293B35;filter:drop-shadow(0 1px 1px rgba(0,0,0,.15))}
+@media (hover:hover){.mpull.browse .mdct button:hover{color:#68716A;background-color:transparent}.mpull.browse .mdct button[aria-pressed=true]:hover{color:#293B35;background-color:#fff}}
+.mpull.browse .mdct button:active:where(:not(:disabled)){filter:none}
+.mpull.browse .mdct button[aria-pressed=true]:active{filter:drop-shadow(0 1px 1px rgba(0,0,0,.15))}
+.mpull.browse .mdct button:focus-visible{outline:2px solid #2F6B4F;outline-offset:-8px}
+/* 帯がない画面（ブラウザ）: 切り替えは右下の＋・右の列にかからない所へ（右に 56 空ける） */
+.shell.closed.fb .mpull.browse .mdh .mdct{margin-right:56px}
+/* 閉じた横: 見出し 44 の下に切り替えの行 44。「カード｜時間」は幅いっぱい（帯あり 188）×32、1つの押せる範囲は半分×44 */
+.mpull.browse .mdctrow{display:flex;align-items:center;height:44px;flex:none}
+.mpull.browse .mdctrow .mdct{width:100%}
+.shell.closed.land.fb .mpull.browse .mdctrow{padding-right:84px}
+/* 時間の幅のバー（35 §5.3）: 見出しのすぐ下。区域 24、線 36×4・角丸 2・#B9B4A8（区域の上から 10〜14）。押している間 #68716A。押せる範囲は全幅×44（区域の上下に 10 ずつ）。貼り付けない（画面と一緒に流れる） */
+.shell.closed .mpull.browse .mdgrab{position:relative;z-index:1;display:flex;justify-content:center;align-items:flex-start;box-sizing:border-box;width:100%;height:24px;min-height:24px;margin:0;padding:10px 0 0;touch-action:none;cursor:ns-resize;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;transform:translateY(var(--dgrub,0px))}
+.shell.closed .mpull.browse .mdgrab::before{content:"";position:absolute;left:0;right:0;top:-10px;bottom:-10px}
+.mpull.browse .mdgrab i{position:relative;display:block;width:36px;height:4px;border-radius:2px;background:#B9B4A8}
+.mpull.browse .mdgrab:active i{background:#68716A}
+.shell.closed .mpull.browse .mday .mdgrab ~ .mdbody,.shell.closed .mpull.browse .mday .mdgrab ~ .mdnl,.shell.closed .mpull.browse .mday .mdgrab ~ .mdnote{transform:translateY(var(--dgrub,0px))}
+/* 帯がない画面: バーの押せる所は右下の＋（縦）・右の列（横）にかけない */
+.shell.closed.fb:not(.land) .mpull.browse .mdgrab::before{right:52px}
+/* 時間: 開いたときは時間軸の「最初の予定の1時間前」より上（--foldm 分）を畳む。終日の行は畳まない（バーのすぐ下に見える）。畳んだ分は「前の時間」で開く。日の欄の中を送って合わせない */
+.shell.closed .mpull.browse .mday .mdbody.folded .tl{display:flow-root;overflow-x:visible;overflow-y:clip;clip-path:inset(0 -400px -4000px -400px)}
+.shell.closed .mpull.browse .mday .mdbody.folded .tlin{margin-top:calc(var(--foldm,0) * var(--hh) / -60)}
+/* 初めて「時間」にしたときの札（1行）。バーのすぐ下・日の欄の中央 */
+.mpull.browse .mday .mdin{position:relative}
+.mhint.mbarhint{position:absolute;left:calc(50% - 135px);top:auto;margin-top:8px;height:34px;padding:8px 0}
+/* ===== 第19.3版 その2 D: 開いた縦の「タスク」の詳細（題名・期限・メモ）を打っている間は、詳細の欄をキーボードの上の空きへ置く（追加欄の配置で詳細ごと隠さない）。JS の applyKbLayout（taskd） ===== */
+html.kbl[data-kbl=taskd] .ftask{display:block;position:static}
+html.kbl[data-kbl=taskd] .ftdn{position:fixed;left:0;right:0;top:var(--kl-ed-top);height:var(--kl-ed-h);z-index:5;box-sizing:border-box;padding-bottom:8px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:var(--paper)}
+html.kbl[data-kbl=taskd] .ftdn .rmadd,html.kbl[data-kbl=taskd] .ftdn .ftchips{display:none}
+

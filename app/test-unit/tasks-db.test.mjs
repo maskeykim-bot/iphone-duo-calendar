@@ -173,14 +173,42 @@ test('v6 移行が abort されたら v5 のまま', async () => {
   assert.deepEqual(i.idx.tasks, ['dueDate', 'order', 'updatedAt']);
   assert.equal((await dump(name, 'tasks')).length, 1);
 });
-test('つながりの項目と墓標は保存・往復で落ちない。無いタスクには足さない', async () => {
+// v19.3 征希さんの要望（リマインダー同期をやめる）で仕様変更: 前は「つながりの項目（rem*・syncState）と墓標が保存の往復で落ちない」ことを見ていた。
+// 今は putTask（validateTask）がつながりの項目を写さない。昔のレコードは dropOldLinks が一度だけ片づける（題名・期限・完了・メモ・notify・並び・時刻は変えない）。
+const rawPut = (name, rec) => new Promise((res, rej) => { const r = indexedDB.open(name); r.onsuccess = () => { const d = r.result, tx = d.transaction('tasks', 'readwrite'); tx.objectStore('tasks').put(rec); tx.oncomplete = () => { d.close(); res(); }; tx.onerror = () => rej(tx.error); }; r.onerror = () => rej(r.error); });
+test('v19.3: putTask はつながりの項目を書かない。無いタスクには足さない', async () => {
   const m = await fresh();
   const base = { title: 'a', due: null, done: false, doneAt: null, createdAt: 1, updatedAt: 2, order: 0, note: '', notify: false };
   await m.putTask({ id: 'l1', ...base, remItemId: 'R1', remExternalId: 'X1', remListId: 'L1', remModifiedAt: 5, syncState: 'synced' });
-  await m.putTask({ id: 'l2', ...base, remExternalId: 'X2', syncState: 'tombstone' });
   await m.putTask({ id: 'l3', ...base });
   const g = Object.fromEntries((await m.listTasks()).map((t) => [t.id, t]));
-  assert.deepEqual([g.l1.remItemId, g.l1.remExternalId, g.l1.remListId, g.l1.remModifiedAt, g.l1.syncState], ['R1', 'X1', 'L1', 5, 'synced']);
-  assert.equal(g.l2.syncState, 'tombstone');
-  assert.ok(!('remItemId' in g.l3) && !('syncState' in g.l3));
+  assert.deepEqual(g.l1, { id: 'l1', ...base });
+  assert.deepEqual(g.l3, { id: 'l3', ...base });
+});
+test('v19.3 R-3/R-12: dropOldLinks は生きているタスクのつながりだけ外し、墓標を片づける。本文と時刻は変えない。2 回目は何も書かない', async () => {
+  const m = await fresh();
+  const { dropOldLinks } = await import('../js/tasks.js');
+  const name = `duo-calendar-t${n}`;
+  const body = { title: '牛乳を買う', due: { date: '2026-11-25', time: '18:00' }, done: false, doneAt: null, createdAt: 100, updatedAt: 200, order: 3, note: 'メモ', notify: true };
+  const doneB = { title: '済み', due: { date: '2026-11-20' }, done: true, doneAt: '2026-11-20T09:00', createdAt: 101, updatedAt: 201, order: 4, note: '', notify: false };
+  await m.listTasks(); // DB を作る
+  await rawPut(name, { id: 'a', ...body, remItemId: 'R1', remExternalId: 'X1', remListId: 'L1', remModifiedAt: 5, syncState: 'linked' });
+  await rawPut(name, { id: 'b', ...doneB, remExternalId: 'X2', syncState: 'pending' });
+  await rawPut(name, { id: 'c', ...body, order: 5, syncState: 'local' }); // 連携を外した印だけ残っている件
+  await rawPut(name, { id: 'd', ...body, order: 6 }); // もともとつながりなし
+  await rawPut(name, { id: 'z', ...body, order: 7, remExternalId: 'X9', remListId: 'pending', syncState: 'tombstone' }); // 墓標
+  const r1 = await dropOldLinks(m);
+  assert.deepEqual(r1, { unlinked: 3, tombstones: 1, failed: 0 });
+  const g = Object.fromEntries((await m.listTasks()).map((t) => [t.id, t]));
+  assert.deepEqual(Object.keys(g).sort(), ['a', 'b', 'c', 'd']);
+  assert.deepEqual(g.a, { id: 'a', ...body });
+  assert.deepEqual(g.b, { id: 'b', ...doneB });
+  assert.deepEqual(g.c, { id: 'c', ...body, order: 5 });
+  assert.deepEqual(g.d, { id: 'd', ...body, order: 6 });
+  let writes = 0;
+  const r2 = await dropOldLinks({ listTasks: m.listTasks, putTask: (t) => { writes++; return m.putTask(t); }, deleteTask: (id) => { writes++; return m.deleteTask(id); } });
+  assert.deepEqual(r2, { unlinked: 0, tombstones: 0, failed: 0 }); assert.equal(writes, 0);
+  const i = await info(name);
+  assert.equal(i.version, 6); // 版もスキーマ（remExternalId の索引）もそのまま
+  assert.deepEqual(i.idx.tasks, ['dueDate', 'order', 'remExternalId', 'updatedAt']);
 });

@@ -86,9 +86,9 @@ const excluded = (e) => e.origin === 'iphone' || e.nativeLink?.state === 'linked
 // タスクの通知候補（第16版 PR21）。notify が真・未完了・期限ありだけ。時刻ありは期限ちょうど、日付だけは当日 8:00。
 export const TASK_ID_PREFIX = 'duo.task.';
 export const TASK_ALL_DAY_AT = '08:00';
-// つながっている件（リマインダー側の EKAlarm が鳴らす）と墓標は Duo の候補に入れない（RS-23）。連携を外した件（syncState 'local' など）は入る。
-export const taskLinkedForNotify = (t) => !!t && (!!(t.remItemId || t.remExternalId) || t.syncState === 'tombstone');
-export const taskFireAt = (t) => (t && !taskLinkedForNotify(t) && !t.done && t.notify === true && t.due && typeof t.due.date === 'string' ? `${t.due.date}T${t.due.time || TASK_ALL_DAY_AT}` : null);
+// v19.3（征希さんの要望）: リマインダーとの同期をやめたので、昔つながっていた件（remItemId などが残っていても）も Duo が鳴らす。
+// 墓標（同期していた頃の削除の跡）だけは鳴らさない。同じタスクの予約は id（duo.task.<id>）で 1 つ。
+export const taskFireAt = (t) => (t && t.syncState !== 'tombstone' && !t.done && t.notify === true && t.due && typeof t.due.date === 'string' ? `${t.due.date}T${t.due.time || TASK_ALL_DAY_AT}` : null);
 function taskCandidates(tasks, now, limit, showTitle) {
   const out = [];
   for (const t of Array.isArray(tasks) ? tasks : []) {

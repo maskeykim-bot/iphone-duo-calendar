@@ -125,3 +125,66 @@ test('richLines: 先頭から n 行・空行を飛ばす・記号は text に出
   assert.equal(richLines(null).length, 1);
   for (const v of richLines(t)) assert.ok(!/^(#+ |- )/.test(v.text));
 });
+
+// ---- 第19.3版 C: 箇条書き・チェックの行の字下げ（保存の形は行頭の空白 2 つで1段。最大 4 段） ----
+test('indentLevel / levelOfPre: 空白 2 つで1段、タブは空白 2 つ、半端は切り捨て、上限 4', async () => {
+  const { indentLevel, levelOfPre, INDENT_MAX, INDENT_UNIT } = await import('../js/note-lines.js');
+  assert.equal(INDENT_UNIT, '  '); assert.equal(INDENT_MAX, 4);
+  assert.deepEqual(['', ' ', '  ', '   ', '    ', '\t', '\t\t ', '            '].map(indentLevel), [0, 0, 1, 1, 2, 1, 2, 4]);
+  assert.deepEqual(['- ', '  - ', '    - [ ] ', '  - [x] ', '# ', ''].map(levelOfPre), [0, 1, 2, 1, 0, 0]);
+});
+test('indentLines: 記号の行だけ動く。触るのは行頭の空白だけ（記号・チェック・文字・CRLF・ほかの行はそのまま）', async () => {
+  const { indentLines, parseLine } = await import('../js/note-lines.js');
+  const T = '題\r\n- 一\r\n本文\r\n  - [x] 二\r\n# 見出し\r\n- [ ] 三';
+  const r = indentLines(T, 0, T.length, 1);
+  assert.equal(r.text, '題\r\n  - 一\r\n本文\r\n    - [x] 二\r\n# 見出し\r\n  - [ ] 三');
+  assert.deepEqual([r.selStart, r.selEnd], [0, r.text.length]);
+  const back = indentLines(r.text, 0, r.text.length, -1);
+  assert.equal(back.text, T);
+  // 読み取りは今の形（^\s*- ）のまま
+  assert.deepEqual(r.text.split('\r\n').map((l) => parseLine(l).kind), ['plain', 'bullet', 'plain', 'check', 'heading', 'check']);
+  assert.equal(parseLine('    - [x] 二').checked, true);
+});
+test('indentLines: キャレットは文字の位置のまま。記号の行が無ければ null（Tab の元の動き）。端では文字が変わらない', async () => {
+  const { indentLines } = await import('../js/note-lines.js');
+  assert.deepEqual(indentLines('- abc', 4, 4, 1), { text: '  - abc', selStart: 6, selEnd: 6 });
+  assert.deepEqual(indentLines('  - abc', 6, 6, -1), { text: '- abc', selStart: 4, selEnd: 4 });
+  assert.deepEqual(indentLines('  - abc', 1, 1, -1), { text: '- abc', selStart: 0, selEnd: 0 }); // 行頭の空白の中にいたら行の頭へ
+  assert.equal(indentLines('本文\n# 見出し', 0, 8, 1), null);
+  assert.equal(indentLines('', 0, 0, 1), null);
+  assert.equal(indentLines('- a', 3, 3, -1).text, '- a');
+  let t = '- a'; for (let i = 0; i < 7; i++) t = indentLines(t, t.length, t.length, 1).text;
+  assert.equal(t, '        - a'); // 最大 4 段 = 空白 8 つ
+  for (let i = 0; i < 7; i++) t = indentLines(t, t.length, t.length, -1).text;
+  assert.equal(t, '- a');
+});
+test('indentLines: only（払った行）だけ動かす。選択が次の行の頭に触れただけなら次の行は含めない。半端な字下げは段にそろう', async () => {
+  const { indentLines } = await import('../js/note-lines.js');
+  const T = '- a\n- b\n- c';
+  assert.deepEqual(indentLines(T, 0, 0, 1, 2), { text: '- a\n- b\n  - c', selStart: 0, selEnd: 0 });
+  assert.deepEqual(indentLines(T, 9, 9, 1, 0), { text: '  - a\n- b\n- c', selStart: 11, selEnd: 11 });
+  assert.equal(indentLines(T, 0, 0, 1, 9), null);
+  assert.equal(indentLines('本文\n- b', 0, 0, 1, 0), null);
+  assert.equal(indentLines(T, 0, 4, 1).text, '  - a\n- b\n- c');
+  assert.equal(indentLines('   - a', 0, 0, 1).text, '    - a'); // 空白 3 つ（1段）→ 2段
+  assert.equal(indentLines('\t- a', 0, 0, -1).text, '- a');
+});
+test('字下げしても checkLines（チェック行の一覧: 行番号・状態・文字・順）はそのまま取れる', async () => {
+  const { indentLines, checkLines } = await import('../js/note-lines.js');
+  const T = '- [ ] 牛乳\n- [x] たまご\nメモ\n- [ ] パン';
+  const before = checkLines(T);
+  const r = indentLines(T, 0, T.length, 1);
+  assert.deepEqual(checkLines(r.text), before);
+  assert.deepEqual(before, [{ index: 0, checked: false, text: '牛乳' }, { index: 1, checked: true, text: 'たまご' }, { index: 3, checked: false, text: 'パン' }]);
+});
+test('applyFormat: 文字の入った行の記号を付ける・替える・外す（文字と字下げはそのまま、キャレットは文字の位置）', async () => {
+  const { applyFormat } = await import('../js/note-lines.js');
+  assert.deepEqual(applyFormat('買い物', 2, 2, 'bullet'), { text: '- 買い物', selStart: 4, selEnd: 4 });
+  assert.deepEqual(applyFormat('- 買い物', 4, 4, 'check'), { text: '- [ ] 買い物', selStart: 8, selEnd: 8 });
+  assert.deepEqual(applyFormat('- [x] 買い物', 8, 8, 'bullet'), { text: '- 買い物', selStart: 4, selEnd: 4 });
+  assert.deepEqual(applyFormat('- [ ] 買い物', 8, 8, 'plain'), { text: '買い物', selStart: 2, selEnd: 2 });
+  assert.equal(applyFormat('  - 子', 5, 5, 'check').text, '  - [ ] 子');
+  assert.equal(applyFormat('a\nb\nc', 0, 5, 'check').text, '- [ ] a\n- [ ] b\n- [ ] c');
+  assert.equal(applyFormat('- [ ] a\n- [ ] b\n- [ ] c', 0, 23, 'bullet').text, '- a\n- b\n- c');
+  assert.equal(applyFormat('- a\n- b\n- c', 0, 11, 'plain').text, 'a\nb\nc');
+});

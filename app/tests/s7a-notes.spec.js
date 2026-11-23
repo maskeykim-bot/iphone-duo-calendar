@@ -202,7 +202,7 @@ test.describe('S7a 閉じた月のタスクのチェック欄（V-15・中-3）'
         return { hit: R(b), box: R(b.querySelector('.rmck')), tx: rng.getClientRects()[0].x, top: hit === b || b.contains(hit) };
       }));
       expect(rows.length).toBeGreaterThanOrEqual(2);
-      for (const r of rows) { near(r.hit[0], 6); near(r.hit[1], 44); expect(r.hit[2]).toBeGreaterThanOrEqual(44); near(r.hit[2], 48); near(r.box[0], 17); near(r.box[1], 22); near(r.box[2], 22); near(r.tx, 54); expect(r.hit[0]).toBeGreaterThanOrEqual(0); expect(r.top, '押せる範囲の左端で受けるのはチェック欄').toBe(true); }
+      for (const r of rows) { near(r.hit[0], 6); near(r.hit[1], 44); expect(r.hit[2]).toBeGreaterThanOrEqual(44); near(r.hit[2], 48); near(r.box[0], 18); near(r.box[1], 20); near(r.box[2], 20); /* v19.3 征希さんの要望（設計 35 §2.1・§9 K-14: タスクの四角 20×20）で仕様変更。前は x17・22×22。押せる範囲 44 と題名の位置 54 は同じ */ near(r.tx, 54); expect(r.hit[0]).toBeGreaterThanOrEqual(0); expect(r.top, '押せる範囲の左端で受けるのはチェック欄').toBe(true); }
     });
   }
 });

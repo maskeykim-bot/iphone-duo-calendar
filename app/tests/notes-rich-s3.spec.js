@@ -213,17 +213,19 @@ test.describe('ノートの寸法（開いた横 951×669、右の帯 84）', ()
     const m = await page.evaluate(() => {
       const tr = document.querySelector('.ned-title').getBoundingClientRect();
       const tx = (l) => { const r = document.createRange(); r.selectNodeContents(l); return r.getClientRects()[0].x; };
-      const L = [...document.querySelectorAll('.ned-body .nl')].map((l) => ({ k: l.dataset.k, x: tx(l), h: l.getBoundingClientRect().height, fs: getComputedStyle(l).fontSize, fw: getComputedStyle(l).fontWeight, lh: getComputedStyle(l).lineHeight }));
-      const boxes = [...document.querySelectorAll('.ned-chk')].map((b) => { const a = b.getBoundingClientRect(), x = b.querySelector('.ned-box').getBoundingClientRect(); return { hw: a.width, hh: a.height, bx: x.x, bw: x.width, bh: x.height }; });
+      const L = [...document.querySelectorAll('.ned-body .nl')].map((l) => ({ k: l.dataset.k, lv: Number(l.dataset.lv || 0), x: tx(l), h: l.getBoundingClientRect().height, fs: getComputedStyle(l).fontSize, fw: getComputedStyle(l).fontWeight, lh: getComputedStyle(l).lineHeight }));
+      const boxes = [...document.querySelectorAll('.ned-chk')].map((b) => { const a = b.getBoundingClientRect(), x = b.querySelector('.ned-box').getBoundingClientRect(); return { hw: a.width, hh: a.height, bx: x.x, bw: x.width, bh: x.height, lv: Number(document.querySelectorAll('.ned-body .nl')[Number(b.dataset.line)].dataset.lv || 0) }; });
       return { titleX: tr.x + 8, L, boxes };
     });
     const near = (a, b, t = 1) => expect(Math.abs(a - b), `${a} ≈ ${b}`).toBeLessThanOrEqual(t);
     for (const l of m.L) {
       if (l.k === 'plain' || l.k === 'h1' || l.k === 'h2') near(l.x, m.titleX); // 本文の頭 = 題と同じ x
-      else near(l.x, m.titleX + 28); // 箇条書き・チェックの文字 = +28（四角 20 + 間 8）
+      // v19.3 征希さんの要望（行頭記号はタブ・スワイプで段落を変えられるようにする）で仕様変更: 字下げの行（「  - [X] 字下げ」）は、文字も四角も1段 20 ずつ右へ（前は字下げを画面に出さず、どの段も +28 だった）
+      else near(l.x, m.titleX + 28 + 20 * l.lv); // 箇条書き・チェックの文字 = +28（四角 20 + 間 8）＋段×20
     }
     const h1 = m.L.find((l) => l.k === 'h1'); expect([h1.fs, h1.fw, h1.lh]).toEqual(['20px', '600', '26px']);
-    for (const b of m.boxes) { near(b.bx, m.titleX); near(b.bw, 20); near(b.bh, 20); expect(b.hw).toBeGreaterThanOrEqual(44); expect(b.hh).toBeGreaterThanOrEqual(44); }
+    expect(m.L.map((l) => l.lv)).toEqual([0, 0, 0, 0, 0, 0, 1, 0, 0]); expect(m.boxes.map((b) => b.lv)).toEqual([0, 0, 1]);
+    for (const b of m.boxes) { near(b.bx, m.titleX + 20 * b.lv); near(b.bw, 20); near(b.bh, 20); expect(b.hw).toBeGreaterThanOrEqual(44); expect(b.hh).toBeGreaterThanOrEqual(44); }
     expect(m.boxes.length).toBe(3);
   });
 });

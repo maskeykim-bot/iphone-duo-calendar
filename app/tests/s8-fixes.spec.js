@@ -98,11 +98,10 @@ test.describe('N-02 閉じた日・週の送り切り：24:00 の線がバーの
         const hh = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.mday .tl')).getPropertyValue('--hh')));
         // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 閉じた縦は日の欄の中ではなく画面（.mpull.browse）の1本を送る（前: .mday.scrollTop → 後: .mpull.browse.scrollTop。最後の中身は .mdin の子で見る）。見ること（24:00 の線・23:00 の予定・送り切りの下端）は同じ
         await page.locator('.mday .tlev', { hasText: '深夜の指標' }).evaluate((e, hh) => { const md = e.closest('.mpull.browse'); md.scrollTop += e.getBoundingClientRect().top + hh - 580; }, hh); await page.waitForTimeout(300);
-        const e = await boxOf(page.locator('.mday .tlev', { hasText: '深夜の指標' })), g = await boxOf(page.locator('.mday .mdgrab'));
+        const e = await boxOf(page.locator('.mday .tlev', { hasText: '深夜の指標' })), g = await boxOf(page.locator('.mday .mdnl')); // v19.3 征希さん『カード・時間で分けるだけ』で仕様変更: つまみ（下）は時間軸の下に無い（時間のバーは見出しのすぐ下）。時間軸のすぐ下は「ノート ›」（前: .mdgrab → 後: .mdnl）
         // v19.3: 開いたときは最初の予定（23:00）の1時間前から始まる（畳む）ので、24:00 の線は送らなくても見えている（y318。前は日の欄の中を送って y580 に合わせた）。580 より下（つまみの裏）にないことを見る
         expect(e.y + hh, `24:00 の線 ${e.y + hh} は 580 以下`).toBeLessThanOrEqual(580 + 1.5); expect(e.y, '23:00 の予定は年月と曜日（y64）より下').toBeGreaterThanOrEqual(64);
-        expect(e.y + hh, '24:00 の線がつまみ（下）の上').toBeLessThanOrEqual(g.y);
-        expect(g.b, 'つまみ（下）はバー上端 645 の 8 上まで').toBeLessThanOrEqual(645 - 8 + 0.5);
+        expect(e.y + hh, '24:00 の線が「ノート ›」の上').toBeLessThanOrEqual(g.y);
         const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('.tlev')?.textContent ?? null, [e.x + e.w / 2, e.y + e.h / 2]);
         expect(hit, '予定の中心を押すとその予定に当たる').toContain('深夜の指標');
         await md.evaluate((m) => { const s = m.closest('.mpull.browse'); s.scrollTop = s.scrollHeight; }); await page.waitForTimeout(300);

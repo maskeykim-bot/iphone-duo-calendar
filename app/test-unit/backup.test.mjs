@@ -356,17 +356,23 @@ test('READABLE は 1 から VERSION までの整数が全部入っている（�
 });
 
 // ---- D6: 版 6 ----
-test('D6: つながりの項目が書き出し・読み込みで残る（v6 の往復）。v5 のタスクは未リンクのまま', () => {
-  const t = { id: 't1', title: 'a', due: null, done: false, doneAt: null, createdAt: 1, updatedAt: 2, order: 0, note: '', notify: false };
+// v19.3 征希さんの要望（リマインダー同期をやめる）で仕様変更: 前は「つながりの項目（rem*・syncState）と墓標が v6 の往復で残る」ことを見ていた。
+// 今は逆に、書き出しにも読み戻しにも rem*・syncState が出ず、墓標は生きたタスクとして復活しない（品質 B-6）。版は 6 のまま。
+test('D6→v19.3 B-6: つながりの項目は書き出し・読み戻しで復活しない。墓標は出さない・読み戻さない。版は 6 のまま', () => {
+  const t = { id: 't1', title: 'a', due: { date: '2026-11-20', time: '09:00' }, done: false, doneAt: null, createdAt: 1, updatedAt: 2, order: 0, note: 'm', notify: true };
   const linked = { ...t, remItemId: 'R', remExternalId: 'X', remListId: 'L', remModifiedAt: 9, syncState: 'synced' };
   const tomb = { ...t, id: 't2', remExternalId: 'X2', syncState: 'tombstone' };
   const bk = JSON.parse(JSON.stringify(buildBackup([], {}, new Date(2026, 10, 19), [], [], [linked, tomb, { ...t, id: 't3' }])));
-  assert.equal(bk.version, VERSION);
-  const r = validateBackup(JSON.stringify(bk));
+  assert.equal(bk.version, VERSION); assert.equal(VERSION, 6);
+  assert.deepEqual(bk.tasks.map((x) => x.id), ['t1', 't3']); // 墓標は書き出さない
+  assert.deepEqual(bk.tasks[0], t); // 題名・期限・完了・メモ・notify・並び・時刻はそのまま、つながりだけ無い
+  // v19.2 までに作った（rem* と墓標が入った）版 6 のバックアップを読み戻す
+  const old = { app: 'duo-calendar', version: 6, exportedAt: '2026-11-19T10:00:00+09:00', events: [], tasks: [linked, tomb, { ...t, id: 't3' }] };
+  const r = validateBackup(JSON.stringify(old));
   assert.equal(r.ok, true);
-  assert.deepEqual(r.data.tasks.find((x) => x.id === 't1'), linked);
-  assert.equal(r.data.tasks.find((x) => x.id === 't2').syncState, 'tombstone');
-  assert.ok(!('remItemId' in r.data.tasks.find((x) => x.id === 't3')));
+  assert.deepEqual(r.data.tasks.map((x) => x.id), ['t1', 't3']);
+  assert.deepEqual(r.data.tasks[0], t);
+  for (const x of r.data.tasks) for (const k of ['remItemId', 'remExternalId', 'remListId', 'remModifiedAt', 'syncState']) assert.ok(!(k in x), k);
   const v5f = validateBackup(JSON.stringify({ app: 'duo-calendar', version: 5, exportedAt: '2026-11-17T10:00:00+09:00', events: [], tasks: [t] }));
   assert.equal(v5f.ok, true); assert.ok(!('remItemId' in v5f.data.tasks[0]));
 });

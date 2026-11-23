@@ -28,11 +28,9 @@ async function toStage(page, n) {
   await page.waitForTimeout(400);
   expect(await stageOf(page)).toBe(n);
 }
-// 日の欄のつまみ（下）を下へ引いて時間軸 B へ
+// v19.3 征希さん『カード・時間で分けるだけ』で仕様変更: 前「日の欄のつまみ（下）を下へ引いて時間軸 B へ」→ 後「見出しの右の『カード｜時間』の『時間』」（design/35 §5.1）
 async function dayGripToB(page) {
-  const g = page.locator('.mdgrab'); await g.scrollIntoViewIfNeeded(); await page.waitForTimeout(150);
-  const b = await g.boundingBox(); const x = b.x + b.width / 2, y = b.y + b.height / 2;
-  await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x, y + S.DAYGRIP.toTimeline + 6, { steps: 6 }); await page.mouse.up(); await page.waitForTimeout(500);
+  await page.locator('.mday .mdct [data-dg="time"]').click(); await page.waitForTimeout(500);
   await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B');
 }
 
@@ -159,23 +157,23 @@ test.describe('S11b 設計レビュー 必須（M1〜M9）', () => {
     expect(Math.abs(s.cy - 626), `日付の中心 ${s.cy}`).toBeLessThanOrEqual(1);
   });
 
-  test('M7（34 §13-2）つまみ（下）の押せる範囲は「ノート ›」にかからない。押せる範囲は最後のカードの下端から 44、「ノート ›」は区域の下 12 から', async ({ page }) => {
+  // v19.3 征希さん『カード・時間で分けるだけ』で仕様変更: M7（34 §13-2）は「つまみ（下）の押せる範囲（最後のカードの下端から 44）が『ノート ›』にかからない」だった。カードにつまみ（下）は無くなった（design/35 §5.2）ので、
+  // 前→後: 「つまみの箱 44・線は上から 18・箱の下 ≦ ノート ›」→「つまみの要素が無い。最後のカード（下の間 8）のすぐ下が『ノート ›』で、上端をたたくと『ノート ›』」
+  test('M7（v19.3）カードにつまみ（下）は無い。最後のカードのすぐ下が「ノート ›」で、上端をたたくと「ノート ›」', async ({ page }) => {
     await boot(page);
     for (const n of [1, 4, 7]) {
       await toStage(page, n);
+      await expect(page.locator('.mday .mdgrab'), `段${n}`).toHaveCount(0);
       const m = await page.evaluate(() => {
-        const g = document.querySelector('.mdgrab'), nl = document.querySelector('.mday [data-act="notelist"]');
-        const cards = [...document.querySelectorAll('.mday .mdcard, .mday .mdnone2')]; // 開発の写しの直し（QA 採用）: 「予定はありません」の class は .mdnone2。.mdempty はノートの欄（つまみより下）の「たたいて書く」で、カードではない（34 §13-2 は「最後のカード（予定がない日は『予定はありません』）の下端から」）
-        const last = cards.at(-1); const lastBottom0 = last ? last.getBoundingClientRect().bottom : null; /* 開発の写しの直し（QA 採用）: 最後のカードの下端は、つまみと同じく送る前に測る（原本は送ったあとに測っていて、送った量だけずれる） */ const gr = g.getBoundingClientRect(), nr = nl.getBoundingClientRect(), line = g.querySelector('i, ::before') ? g.querySelector('i').getBoundingClientRect() : null;
-        /* 開発の写しの直し（QA 採用）: 段1は日の欄が y604〜678 しかなく、center だと「ノート ›」の上端が y619 で、つまみ（上）の押せる範囲（格子の下端から 44＝y580〜624。34 §13-1）の下になる。日の欄の下端へ寄せて、つまみ（下）にかからないことだけを見る */ nl.scrollIntoView({ block: 'end' }); const nr2 = nl.getBoundingClientRect();
+        const nl = document.querySelector('.mday [data-act="notelist"]');
+        const cards = [...document.querySelectorAll('.mday .mdcard, .mday .mdnone2')];
+        const last = cards.at(-1); const lastBottom0 = last ? last.getBoundingClientRect().bottom : null, isCard = !!last?.classList.contains('mdcard'); const nr = nl.getBoundingClientRect();
+        nl.scrollIntoView({ block: 'end' }); const nr2 = nl.getBoundingClientRect();
         const hit = document.elementFromPoint(nr2.left + nr2.width / 2, nr2.top + 2);
-        return { gTop: gr.top, gBottom: gr.bottom, gH: gr.height, nlTop: nr.top, lastBottom: lastBottom0, hitIsNote: !!hit && (hit === nl || nl.contains(hit)), lineTop: line ? line.top - gr.top : null };
+        return { nlTop: nr.top, lastBottom: lastBottom0, isCard, hitIsNote: !!hit && (hit === nl || nl.contains(hit)) };
       });
       expect(m.hitIsNote, `段${n}「ノート ›」の上端をたたくと「ノート ›」`).toBe(true);
-      expect(m.gBottom, `段${n} 押せる範囲の下 ≤ ノート › の上`).toBeLessThanOrEqual(m.nlTop + 0.25);
-      if (m.lastBottom != null) expect(Math.abs(m.gTop - m.lastBottom), `段${n} 押せる範囲は最後のカードの下端から`).toBeLessThanOrEqual(0.5);
-      expect(Math.abs(m.gH - 44)).toBeLessThanOrEqual(0.5);
-      if (m.lineTop != null) expect(Math.abs(m.lineTop - 18), `段${n} 線は押せる範囲の上から 18（間 8＋区域の上 10）`).toBeLessThanOrEqual(0.5);
+      if (m.lastBottom != null) expect(Math.abs(m.nlTop - m.lastBottom - (m.isCard ? 8 : 0)), `段${n} 最後のカードのすぐ下（カードの下の間 8）が「ノート ›」`).toBeLessThanOrEqual(0.5);
     }
   });
 
@@ -198,7 +196,8 @@ test.describe('S11b 設計レビュー 必須（M1〜M9）', () => {
       await expect(page.locator('.mpull.browse .mday .tl')).toHaveCount(0);
     });
   }
-  for (const [v, dg, hh] of [[1, 'B', 44], [2, 'C', 88]]) {
+  // v19.3 征希さん『カード・時間で分けるだけ』で仕様変更: 保存値 1（B）の1時間は 44 → 28（時間・最低限。design/35 §5.3）。保存の形・値の範囲は同じ
+  for (const [v, dg, hh] of [[1, 'B', 28], [2, 'C', 88]]) {
     test(`M8 保存値 dayGrip=${v} は ${dg} で起動し、閉じる⇄開く・読み込み直しのあとも ${dg}（保存値も ${v} のまま）`, async ({ page }) => {
       await page.addInitScript((v) => { if (!sessionStorage.getItem('qa-dg')) { const k = 'duo.ui.v1'; let s = {}; try { s = JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch { s = {}; } localStorage.setItem(k, JSON.stringify({ ...s, dayGrip: v })); sessionStorage.setItem('qa-dg', '1'); } }, v);
       await boot(page);

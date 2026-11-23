@@ -110,7 +110,7 @@ test('タスクの完了: ✓と打消線は即、1.5秒後に1回だけ保存�
   const b = await ck.boundingBox();
   expect(b.height).toBeGreaterThanOrEqual(44); expect(b.width).toBeGreaterThanOrEqual(44); // S8 ★1-10: 閉じたホームのタスクの行は 44（旧 48）
   const bx = await page.locator('.htask .rmck').first().boundingBox();
-  expect(Math.round(bx.width)).toBe(22);
+  expect(Math.round(bx.width)).toBe(20); // v19.3 征希さんの要望（設計 35 §2.1・§9 K-14: タスクの四角を 20×20・角丸 4・線 1.75 にそろえる）で仕様変更。前は 22
   await ck.click();
   await expect(page.locator('.htask.done')).toHaveCount(1);
   expect((await dbTasks(page)).find((t) => t.id === 'c').done).toBe(false); // まだ保存しない

@@ -60,45 +60,24 @@ function dueText(r) {
   if (r.recurring) parts.push('繰り返し');
   return parts.join('・');
 }
-// rl: リストの部品の見え方（同期オンのときだけ。app.js の listUi）。{ active, lists:[{id,title,color}], gone: bool }
-export const listOf = (rl, r) => (rl?.lists || []).find((l) => l.id === r.listId || (r.listId === 'duo' && l.duo)) || null;
-export function taskRowHtml(r, color, overdue, rl = null) {
+// v19.3（征希さんの要望）: リマインダーとの同期をやめたので、リストの部品（チップ・保存先のカプセル・止まっている 1 行・「Duo だけに残しています」）は外した。
+export function taskRowHtml(r, color, overdue) {
   const dt = dueText(r), hasDue = !!dt;
   const pri = r.priority > 0 ? '<span class="rmpri" aria-label="優先度あり">!</span>' : '';
   const ro = r.readOnly ? ' ro' : '';
-  const L = rl?.multi ? listOf(rl, r) : null;
-  const gone = !!rl?.gone && r.syncState === 'local';
-  const c = safeColor(gone ? '#C9C6BC' : r.readOnly ? '#C9C6BC' : L?.color || color);
+  const c = safeColor(r.readOnly ? '#C9C6BC' : color);
   const id = escH(r.itemId), ti = escH(r.title || '（題名なし）');
-  const wait = rl?.active && r.syncState === 'pending' ? '<span class="rmwait" role="button" tabindex="0" data-act="remwait" aria-label="リマインダーへ送れていません">↻</span>' : '';
-  const sub = gone ? '<span class="rmgone">Duo だけに残しています</span>' : '';
-  const lab = L ? `<span class="rmlist" data-list="${escH(L.id)}">${wait}<i style="background:${safeColor(L.color)}" aria-hidden="true"></i>${escH(L.title)}</span>` : (wait ? `<span class="rmlist">${wait}</span>` : '');
-  const two = hasDue || !!lab || gone;
-  return `<div class="rmrow${two ? ' two' : ''}${r.done ? ' done' : ''}${ro}${gone ? ' gone' : ''}${r.fresh ? ' fresh' : ''}" data-key="rm:${id}" role="listitem" style="--rc:${c}">`
+  return `<div class="rmrow${hasDue ? ' two' : ''}${r.done ? ' done' : ''}${ro}" data-key="rm:${id}" role="listitem" style="--rc:${c}">`
     + `<button type="button" class="rmckb" data-act="remck" data-id="${id}" role="checkbox" aria-checked="${r.done ? 'true' : 'false'}" aria-label="${r.done ? '未完了に戻す' : '完了にする'}：${ti}"${r.readOnly ? ' disabled' : ''}><span class="rmck" aria-hidden="true"></span></button>`
-    + `<button type="button" class="rmbody" data-act="remedit" data-id="${id}"><span class="rmt">${pri}${ti}</span>${hasDue ? `<span class="rmd${overdue ? ' late' : ''}">${escH(dt)}</span>` : ''}${sub}</button>`
-    + `${lab}${r.readOnly ? '<span class="rmro">読み取り専用</span>' : ''}</div>`;
+    + `<button type="button" class="rmbody" data-act="remedit" data-id="${id}"><span class="rmt">${pri}${ti}</span>${hasDue ? `<span class="rmd${overdue ? ' late' : ''}">${escH(dt)}</span>` : ''}</button>`
+    + `${r.readOnly ? '<span class="rmro">読み取り専用</span>' : ''}</div>`;
 }
-// リストのチップ（同期オンでリストが 2 つ以上）。sel: 'all' | リストの id
-export function listChipsHtml(rl) {
-  if (!rl?.active || (rl.lists || []).length < 2) return '';
-  const chip = (id, t, color, on) => `<button type="button" class="lchip${on ? ' on' : ''}" data-act="lchip" data-list="${escH(id)}" aria-pressed="${on}">${color ? `<i style="background:${safeColor(color)}" aria-hidden="true"></i>` : ''}<span>${escH(t)}</span></button>`;
-  return `<div class="lchips" role="group" aria-label="リスト">${chip('all', 'すべて', '', rl.sel === 'all')}${rl.lists.map((l) => chip(l.id, l.title, l.color, rl.sel === l.id)).join('')}</div>`;
-}
-// 止まっている 1 行（一度でも同期をオンにして、今は許可が拒否・制限のとき）
-export const stalledHtml = (rl) => (rl?.stalled ? '<button type="button" class="stalled" data-act="stalled">リマインダーとの同期が止まっています <span aria-hidden="true">›</span></button>' : '');
-// 保存先のカプセル「● Duo ›」（同期オン）
-export const capsuleHtml = (rl) => {
-  if (!rl?.active || !rl.dest) return '';
-  const d = rl.dest;
-  return `<button type="button" class="dcap2" data-act="remdest" style="--lc:${safeColor(d.color)}" aria-label="保存先のリスト: ${escH(d.title)}"><i aria-hidden="true"></i><span>${escH(d.title)}</span><b aria-hidden="true">›</b></button>`;
-};
 // ui: { doneOpen, histDays }。loading（初回）/ error は呼び出し側が渡す。
-export function tasksHtml(data, { selected, now = new Date(), doneOpen = false, histDays = HIST_DAYS, loading = false, error = false, busyMore = false, add = null, pending = null, rl = null } = {}) {
+export function tasksHtml(data, { selected, now = new Date(), doneOpen = false, histDays = HIST_DAYS, loading = false, error = false, busyMore = false, add = null, pending = null } = {}) {
   if (!data) return `<div class="pagewait padb taskl" data-wait="task"><p class="remtx pad">${error ? 'タスクを読み込めませんでした。' : loading ? '読み込み中…' : ''}</p></div>`;
   const colors = new Map((data.lists || []).map((l) => [l.id, l.color]));
   const g = groupReminders(data.reminders, { now, selected, histDays });
-  const row = (r, late) => taskRowHtml(pending?.has(r.itemId) ? { ...r, done: pending.get(r.itemId) } : r, colors.get(r.listId), late, rl);
+  const row = (r, late) => taskRowHtml(pending?.has(r.itemId) ? { ...r, done: pending.get(r.itemId) } : r, colors.get(r.listId), late);
   const sec = (key, title, arr, late) => (arr.length ? `<section class="rmsec" data-sec="${key}"><h3 class="rmh${late ? ' late' : ''}">${escH(title)}</h3><div role="list">${arr.map((r) => row(r, late)).join('')}</div></section>` : '');
   const todayD = nowS0(now), dh = (k) => mdFull(k, todayD);
   const beforeH = [...new Set(g.before.map((r) => r.due.date))].map((k) => sec(`before:${k}`, dh(k), g.before.filter((r) => r.due.date === k), false)).join('');
@@ -106,8 +85,8 @@ export function tasksHtml(data, { selected, now = new Date(), doneOpen = false, 
   const doneHead = `<button type="button" class="rmdonebtn" data-act="remdone" aria-expanded="${doneOpen}">完了（${g.done.length}） <span aria-hidden="true">${doneOpen ? '⌄' : '›'}</span></button>`;
   h += `<section class="rmsec" data-sec="done">${doneHead}${doneOpen ? `<div role="list">${g.done.map((r) => row(r, false)).join('')}</div><button type="button" class="rmmore" data-act="remmore"${busyMore ? ' disabled' : ''}>もっと前を表示</button>` : ''}</section>`;
   if (!g.overdue.length && !g.before.length && !g.selected.length && !g.upcoming.length && !g.nodue.length) h = `<p class="remtx pad rmempty">未完了のタスクはありません。</p>${h}`;
-  const addH = add ? addRowHtml(add.draft, { selected, noList: add.noList === true, capsule: capsuleHtml(rl) }) : '';
-  return `<div class="pagewait padb taskl" data-wait="task">${stalledHtml(rl)}${listChipsHtml(rl)}${addH}${h}</div>`;
+  const addH = add ? addRowHtml(add.draft, { selected, noList: add.noList === true }) : '';
+  return `<div class="pagewait padb taskl" data-wait="task">${addH}${h}</div>`;
 }
 
 // ---- 第14版 PR17: タスクを続けて追加する（追加先の選び方・排他・再試行。本文は保存しない） ----
@@ -117,7 +96,7 @@ function pickAddList(lists) {
   return (ok.find((l) => l.isDefault) || ok[0] || null)?.id ?? null;
 }
 // 追加の行。draft: { open, title, due(日付キー|null|undefined=選択日に従う), busy, err }。入力値は描画後に呼び出し側が入れる。
-export function addRowHtml(d, { selected, noList = false, capsule = '' } = {}) {
+export function addRowHtml(d, { selected, noList = false } = {}) {
   if (noList) return `<div class="rmadd off"><button type="button" class="rmaddbtn" disabled aria-describedby="rmaddwhy">＋ タスクを追加</button><p class="rmwhy" id="rmaddwhy">書き込めるリストがないため、追加できません。</p></div>`;
   const due = d.due === undefined ? selected : d.due;
   const time = due ? d.time || '' : '';
@@ -129,7 +108,7 @@ export function addRowHtml(d, { selected, noList = false, capsule = '' } = {}) {
   const nchip = due
     ? `<button type="button" class="rmchip rmnote${on ? ' on' : ''}" data-act="remnote" role="switch" aria-checked="${on}" aria-label="通知">${on ? '通知あり' : '通知なし'}</button>`
     : '';
-  return `<div class="rmadd open"><div class="rmaddin"><input type="text" class="remin" enterkeyhint="done" autocomplete="off" aria-label="タスクの題名" placeholder="タスクを入力"${d.busy ? ' readonly aria-busy="true"' : ''}>${chip}${nchip}${capsule}<button type="button" class="rmaddgo" data-act="remsubmit" aria-label="タスクを追加"${d.busy ? ' disabled' : ''}>追加</button></div>`
+  return `<div class="rmadd open"><div class="rmaddin"><input type="text" class="remin" enterkeyhint="done" autocomplete="off" aria-label="タスクの題名" placeholder="タスクを入力"${d.busy ? ' readonly aria-busy="true"' : ''}>${chip}${nchip}<button type="button" class="rmaddgo" data-act="remsubmit" aria-label="タスクを追加"${d.busy ? ' disabled' : ''}>追加</button></div>`
     + (d.pop ? addDuePopHtml(d, due, time) : '')
     + `<p class="rmwhy" id="rmnotewhy">${due ? (on ? (time ? '期限の時刻に通知します。' : '期限の日の 8:00 に通知します。') : '通知しません。') : '期限がないタスクは通知されません。'}</p>`
     + `${d.err ? `<p class="rmwhy err" role="alert">${escH(d.err)}</p>` : ''}</div>`;
@@ -189,7 +168,6 @@ export function taskEditorHtml(ed) {
   const f = ed.form, dis = ed.lock ? ' disabled' : '';
   const r = ed.orig;
   const meta = '';
-  const lr = ed.listRow ? `<div class="tkrow tklist"><button type="button" id="tk-list" class="tklistb" aria-haspopup="dialog"><span class="dtk">リスト</span><span class="tklv"><i class="ldot" style="background:${safeColor(ed.listRow.color)}" aria-hidden="true"></i>${escH(ed.listRow.title)}</span><b aria-hidden="true">›</b></button></div>` : '';
   const why = ed.lock === 'ro' ? '<p class="small" role="note">読み取り専用のリストのため変更できません。</p>' : ed.lock === 'rec' ? '<p class="small" role="note">繰り返しのタスクは完了だけ変更できます。</p>' : '';
   return `<div class="tkwrap"><label>題名<input id="tk-title" maxlength="200" value="${escH(f.title)}"${dis}></label>`
     + `<div class="dtrow tkrow" id="tk-daterow"><span class="dtk">期限</span><button type="button" id="tk-date" class="dcap" aria-haspopup="true" aria-expanded="false" value="${escH(f.date)}"${dis}></button></div>`
@@ -197,7 +175,6 @@ export function taskEditorHtml(ed) {
     + `<div class="tknote"><label class="tkck"><input id="tk-notify" type="checkbox"${dis}> 通知する</label><p class="small" id="tk-notewhy" role="note"></p>`
     + `</div>`
     + `<label>メモ<textarea id="tk-notes"${dis}>${escH(f.notes)}</textarea></label>`
-    + lr
     + (meta ? `<p class="small tkmeta">${meta}</p>` : '') + why + '</div>';
 }
 
@@ -302,12 +279,12 @@ export function dueCounts(reminders, shown, doneOverride) {
 
 // ---- 第16版 PR33: 開いた縦の集中タスク（上面＝四つの見方の一覧、下面＝追加と選んだタスクの詳細） ----
 // ui: { view, sel(選んだ id), olderOpen, add: { draft }, selected(選んでいる日=チップ初期値だけ), pending }
-export function focusTasksHtml(data, { view = 'today', sel = null, olderOpen = false, selected, now = new Date(), pending = null, add = null, loading = false, error = false, rl = null } = {}) {
+export function focusTasksHtml(data, { view = 'today', sel = null, olderOpen = false, selected, now = new Date(), pending = null, add = null, loading = false, error = false } = {}) {
   if (!data) return `<div class="ftask"><div class="ftup"><p class="remtx pad">${error ? 'タスクを読み込めませんでした。' : loading ? '読み込み中…' : ''}</p></div></div>`;
   view = normTaskView(view);
   const colors = new Map((data.lists || []).map((l) => [l.id, l.color]));
   const v = taskViews(data.reminders, { now });
-  const row = (r, late) => taskRowHtml(pending?.has(r.itemId) ? { ...r, done: pending.get(r.itemId) } : r, colors.get(r.listId), late, rl).replace('class="rmrow', `class="rmrow${r.itemId === sel ? ' sel' : ''}`);
+  const row = (r, late) => taskRowHtml(pending?.has(r.itemId) ? { ...r, done: pending.get(r.itemId) } : r, colors.get(r.listId), late).replace('class="rmrow', `class="rmrow${r.itemId === sel ? ' sel' : ''}`);
   const sec = (key, title, arr, late) => (arr.length ? `<section class="rmsec" data-sec="${key}"><h3 class="rmh${late ? ' late' : ''}">${escH(title)}</h3><div role="list">${arr.map((r) => row(r, late)).join('')}</div></section>` : '');
   const empty = (t) => `<p class="remtx pad rmempty">${t}</p>`;
   let body = '';
@@ -327,8 +304,8 @@ export function focusTasksHtml(data, { view = 'today', sel = null, olderOpen = f
   const nextK = (() => { const d = new Date(now); d.setDate(d.getDate() + 1); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; })();
   const todayK = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
   const chips = add ? `<div class="ftchips" role="group" aria-label="期限">${dchip('today', '今日', dueSel === todayK)}${dchip('tomorrow', '明日', dueSel === nextK)}${dchip('none', '日付なし', dueSel === null)}</div>` : '';
-  return `<div class="ftask" data-view="${view}"><div class="ftup">${stalledHtml(rl)}${listChipsHtml(rl)}<div class="tvseg" role="group" aria-label="タスクの見方">${seg}</div><div class="ftlist" data-scroll="ftl">${body}</div></div>`
-    + `<div class="ftdn">${add ? addRowHtml(add.draft, { selected, capsule: capsuleHtml(rl) }) : ''}${chips}${picked ? taskDetailHtml(picked, pending) : `<div class="ftcard ftnone"><h3 class="rmh">期限なし</h3><div role="list">${v.nodue.map((r) => row(r, false)).join('') || '<p class="remtx pad">期限なしのタスクはありません。</p>'}</div></div>`}</div></div>`;
+  return `<div class="ftask" data-view="${view}"><div class="ftup"><div class="tvseg" role="group" aria-label="タスクの見方">${seg}</div><div class="ftlist" data-scroll="ftl">${body}</div></div>`
+    + `<div class="ftdn">${add ? addRowHtml(add.draft, { selected }) : ''}${chips}${picked ? taskDetailHtml(picked, pending) : `<div class="ftcard ftnone"><h3 class="rmh">期限なし</h3><div role="list">${v.nodue.map((r) => row(r, false)).join('') || '<p class="remtx pad">期限なしのタスクはありません。</p>'}</div></div>`}</div></div>`;
 }
 // 選んだタスクの詳細。入力は data-ft で識別し、変更は共通の保存（saveTask）へ流す。
 function taskDetailHtml(r, pending) {

@@ -191,33 +191,32 @@ test.describe('S11d 品質レビュー 7c9fb05 ⑤ 終日の並び', () => {
   });
 });
 
-// S11f（design/34 §16-1）: ⑥ の「見出しの右の『時間軸』」はやめた。段2〜7 は、つまみ（下）を日の欄の下端に貼り付ける（押せる y593〜637）。.mdtl はない
-test.describe('S11d 品質レビュー 7c9fb05 ⑥ → S11f §16-1 予定の多い日のつまみ（下）', () => {
-  test('予定の多い日（段4）: 見出しの右に「時間軸」（.mdtl）はない。つまみ（下）は日の欄の下端に貼り付いていて、そのまま引くと時間軸、「カード」で戻る', async ({ page }) => {
+// v19.3 征希さん『カード・時間で分けるだけ』で仕様変更: S11f §16-1「段2〜7 は、つまみ（下）を日の欄の下端に貼り付ける（押せる y593〜637）。引くと時間軸、『カード』で戻る」と「予定1件の日はつまみが最後のカードのすぐ下」の 2 本を、
+// 「カードにつまみ（下）は無い。時間へは見出しの右の『カード｜時間』」（design/35 §5.1・§5.2）に置き換えた。.mdtl が無い・日の欄を一番上から下へ引いてもカードのまま、は同じ
+test.describe('S11d 品質レビュー 7c9fb05 ⑥ → v19.3 予定の多い日の「カード｜時間」', () => {
+  test('予定の多い日（段4）: 見出しの右に「時間軸」（.mdtl）はなく、つまみ（下）もない。「時間」で時間軸、「カード」で戻る', async ({ page }) => {
     await boot(page); await toStage(page, 4);
     await expect(page.locator('.mdtl')).toHaveCount(0);
     await expect(page.getByRole('button', { name: '時間軸にする' })).toHaveCount(0);
-    const m = await page.evaluate(() => { const g = document.querySelector('.mdgrab'), b = g.getBoundingClientRect(), last = [...document.querySelectorAll('.mday .mdcard')].at(-1).getBoundingClientRect(); return { r: [b.left, b.top, b.right, b.bottom], last: last.bottom, pos: getComputedStyle(g).position, stuck: g.classList.contains('stuck') }; });
-    expect(m.pos).toBe('sticky'); expect(m.stuck).toBe(true);
-    expect(m.last).toBeGreaterThan(593); // 最後のカードは見える範囲の下（元の位置は画面の外）
-    m.r.forEach((v, i) => expect(Math.abs(v - [8, 593, 374, 637][i])).toBeLessThanOrEqual(0.6)); // 押せる範囲 x8〜374・y593〜637（ホームバーの帯 y645 の 8 上まで）
-    await drag(page, 191, 615, 191, 615 + 40); // 貼り付いたつまみを下へ 40 → 時間軸 B
+    await expect(page.locator('.mday .mdgrab')).toHaveCount(0);
+    await page.locator('.mday .mdct [data-dg="time"]').click();
     await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B');
     await expect(page.locator('.mday .tlev')).not.toHaveCount(0);
-    await page.getByRole('button', { name: 'カードの一覧に戻す' }).click();
+    await page.locator('.mday .mdct [data-dg="card"]').click();
     await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'A');
-    // M9b では時間軸へは行かない（段が戻る）: 一番上から下へ引く
+    // 日の欄を一番上から下へ引いても、時間軸へは行かない（段も変わらない）
     const d = await page.locator('.mday').boundingBox();
     await drag(page, 200, d.y + 60, 200, d.y + 110);
     await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'A');
   });
-  test('どの段・どの日にも .mdtl はない。予定1件の日はつまみ（下）が貼り付かず、最後のカードのすぐ下（上の線なし）', async ({ page }) => {
+  test('どの段・どの日にも .mdtl はない。予定1件の日も、最後のカードのすぐ下（間 8）が「ノート ›」', async ({ page }) => {
     await boot(page);
     for (const n of [7, 4, 1]) { await toStage(page, n); await expect(page.locator('.mdtl'), `段${n}`).toHaveCount(0); }
     await toStage(page, 4);
     await page.locator(cell('2026-11-18')).click({ position: { x: 30, y: 70 } }); await page.waitForTimeout(400);
     await expect(page.locator('.mdtl')).toHaveCount(0);
-    const m = await page.evaluate(() => { const g = document.querySelector('.mdgrab'), last = [...document.querySelectorAll('.mday .mdcard, .mday .mdnone2')].at(-1).getBoundingClientRect(); return { top: g.getBoundingClientRect().top, last: last.bottom, stuck: g.classList.contains('stuck'), sh: getComputedStyle(g).boxShadow }; });
-    expect(Math.abs(m.top - m.last)).toBeLessThanOrEqual(0.5); expect(m.stuck).toBe(false); expect(m.sh).toBe('none');
+    await expect(page.locator('.mday .mdgrab')).toHaveCount(0);
+    const m = await page.evaluate(() => { const nl = document.querySelector('.mday .mdnl'), last = [...document.querySelectorAll('.mday .mdcard, .mday .mdnone2')].at(-1); return { top: nl.getBoundingClientRect().top, last: last.getBoundingClientRect().bottom, card: last.classList.contains('mdcard') }; });
+    expect(Math.abs(m.top - m.last - (m.card ? 8 : 0))).toBeLessThanOrEqual(0.5);
   });
 });

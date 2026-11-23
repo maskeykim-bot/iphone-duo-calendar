@@ -187,13 +187,16 @@ for (const [name, size, setup2] of [
       // 丸の中心の下 30pt（16pt より内側）から引くと移動
       const hs = await page.locator('.hdl-s').boundingBox();
       const sx = hs.x + 7, sy = hs.y + 7;
-      await page.mouse.move(sx, sy + 30); await page.mouse.down(); await page.mouse.move(sx, sy + 30 + hh / 2, { steps: 5 }); await page.mouse.up();
+      // v19.3 征希さん『カード・時間で分けるだけ』で仕様変更: 閉じた日の「時間・最低限」は1時間 28（前 44）で、1時間の仮枠の高さが 28。丸の真下 30 は枠の外になるので、枠の中央（どちらの丸からも 16 より遠い内側）から引く（前: 丸の中心の下 30 → 後: 1時間が 40 未満のときは枠の中央）。見ること（内側から引くと移動）は同じ
+      const bx = await page.locator('.dbox').boundingBox(), [mx, my] = hh < 40 ? [bx.x + bx.width / 2, bx.y + bx.height / 2] : [sx, sy + 30];
+      await page.mouse.move(mx, my); await page.mouse.down(); await page.mouse.move(mx, my + hh / 2, { steps: 5 }); await page.mouse.up();
       await expect(page.locator('.dbox .ds')).toHaveText('14:45〜15:45（1時間）');
       await page.waitForTimeout(500);
       // 丸の中心から引くと長さ
       const hs2 = await page.locator('.hdl-s').boundingBox();
       const o2 = hh < 60 ? -6 : 0; // 短い枠（1時間 44）は取っ手の押せる範囲が枠の外側
-      await page.mouse.move(hs2.x + 7, hs2.y + 7 + o2); await page.mouse.down(); await page.mouse.move(hs2.x + 7, hs2.y + 7 + o2 + hh / 2, { steps: 5 }); await page.mouse.up();
+      const e2 = hh < 40 ? 0 : o2; // v19.3 征希さん『カード・時間で分けるだけ』で仕様変更: 閉じた日の時間・最低限は1時間 28。外側から押した 6 は 13 分ぶんで 15 分刻みを 1 つ食うので、離す所は丸の中心から 30 分ぶん下（前: 押した所から 30 分ぶん下）
+      await page.mouse.move(hs2.x + 7, hs2.y + 7 + o2); await page.mouse.down(); await page.mouse.move(hs2.x + 7, hs2.y + 7 + e2 + hh / 2, { steps: 5 }); await page.mouse.up();
       await expect(page.locator('.dbox .ds')).toHaveText('15:15〜15:45（30分）');
       await page.waitForTimeout(500);
       // ✕で取り消し（シートは開かない）

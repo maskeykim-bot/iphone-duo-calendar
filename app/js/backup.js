@@ -4,7 +4,7 @@ import { expand, normRule } from './recur.js';
 import { alarmsOk, okAllDay, okTimed } from './alarms.js';
 import { normNotify } from './notify.js';
 import { PAGE_IDS, BOTTOM_IDS, normalizePages } from './pages.js';
-import { validateTask } from './tasks.js';
+import { validateTask, liveTasks } from './tasks.js';
 import { noteCharLimit, titleOf, noteFromMemo, memoTextOf, ensureDailyFolder, noteDateOf } from './notes-model.js';
 import { CAT_IDS, DEFAULTS_NEW, LEGACY, UNCATEGORIZED, legacyToId, validateCategory } from './categories.js';
 
@@ -73,8 +73,8 @@ const exportMemo = (m) => {
   return o;
 };
 const taskCmp = (a, b) => a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-const linkOf = (x) => { const o = {}; for (const k of ['remItemId', 'remExternalId', 'remListId', 'remModifiedAt', 'syncState']) if (x[k] != null) o[k] = x[k]; return o; };
-const exportTask = (t) => { const r = validateTask(t); const x = r.ok ? r.task : t; return { id: x.id, title: x.title, due: x.due ? { ...x.due } : null, done: x.done, doneAt: x.doneAt, createdAt: x.createdAt, updatedAt: x.updatedAt, order: x.order, note: x.note, notify: x.notify, ...linkOf(x) }; };
+// v19.3: リマインダーとのつながり（rem*・syncState）は書き出さない・読み戻さない（validateTask が写さない）。墓標は出さない。
+const exportTask = (t) => { const r = validateTask(t); const x = r.ok ? r.task : t; return { id: x.id, title: x.title, due: x.due ? { ...x.due } : null, done: x.done, doneAt: x.doneAt, createdAt: x.createdAt, updatedAt: x.updatedAt, order: x.order, note: x.note, notify: x.notify }; };
 // ノート有効時用の書出。notes: 現在のノート一覧（db.listNotes({includeDeleted:true})）、folders: db.listFolders()。
 // notes が配列のとき（ノート有効）は tasks+notes+folders を出し memos は出さない。null（既定）なら従来どおり memos+tasks。
 const exportNote = (n) => {
@@ -96,12 +96,12 @@ export function buildBackup(events, settings = {}, now = new Date(), categories 
   { const { version, ...n } = normNotify(settings.notify); void version; s.notify = n; } // 未保存でも既定込みで常に出す
   const out = { app: APP, version: VERSION, schema: SCHEMA, exportedAt: localIso(now), categories: categories.map((c) => deepClean(c)), events: events.map(exportEvent) };
   if (Array.isArray(notes)) {
-    out.tasks = [...tasks].sort(taskCmp).map(exportTask);
+    out.tasks = liveTasks(tasks).sort(taskCmp).map(exportTask);
     out.notes = [...notes].sort(idCmp).map(exportNote);
     out.folders = [...(folders || [])].sort((a, b) => a.order - b.order || idCmp(a, b)).map(exportFolder);
   } else {
     out.memos = [...memos].sort((a, b) => (a.date < b.date ? -1 : 1)).map(exportMemo);
-    out.tasks = [...tasks].sort(taskCmp).map(exportTask);
+    out.tasks = liveTasks(tasks).sort(taskCmp).map(exportTask);
   }
   out.settings = s;
   return out;
@@ -238,6 +238,7 @@ function checkTasks(list) {
   for (const [i, t] of list.entries()) {
     const where = `タスク${i + 1}件目`;
     if (!isObj(t)) return { error: `${where}: 形式が不正です` };
+    if (t.syncState === 'tombstone') continue; // v19.3: 同期していた頃の削除の跡は読み戻さない（生きたタスクとして復活させない）
     const r = validateTask(t);
     if (!r.ok) return { error: `${where}: ${r.error}` };
     if (t.done !== undefined && typeof t.done !== 'boolean') return { error: `${where}: 完了状態が不正です` };

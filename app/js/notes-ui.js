@@ -2,7 +2,7 @@
 // 通常の画面入口にはまだ接続しない（PR28）。DOM は textContent で作り、利用者の文字を HTML として扱わない。
 import { noteStore, SAVE_FAILED, DRAFT_FAILED } from './notes.js';
 import { titleOf, markOf, EMPTY_TITLE } from './notes-model.js';
-import { applyFormat, onEnter, toggleCheck, lineAt, splitLines, viewOf } from './note-lines.js';
+import { applyFormat, onEnter, toggleCheck, lineAt, splitLines, viewOf, indentLines, levelOfPre, INDENT_MAX } from './note-lines.js';
 import { inkElement } from './note-ink.js';
 
 export const UNDO_MAX = 50; // 戻す・やり直すは新しい方から 50 回（保存しない。完了で捨てる）
@@ -21,7 +21,7 @@ export function splitBody(text) {
 export const isCrlf = (text) => /\r\n/.test(text) && !/(^|[^\r])\n/.test(text);
 export const joinBody = ({ title, rest, nl, eol, crlf }) => (nl || rest !== '' ? title + eol + (crlf ? rest.replace(/\n/g, '\r\n') : rest) : title);
 
-export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, onTrashChange = () => {}, onDone = () => {}, onFormatSheet = () => {}, onHistory = () => {}, loadInk = null } = {}) {
+export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, onTrashChange = () => {}, onDone = () => {}, onFormatSheet = () => {}, onHistory = () => {}, kbHeight: kbHeightOpt = null, loadInk = null } = {}) {
   const root = el('section', 'ned'); root.dataset.noteEditor = '';
   const title = el('textarea', 'ned-title'); title.rows = 1; title.setAttribute('aria-label', '題名'); title.placeholder = EMPTY_TITLE; title.enterKeyHint = 'next';
   // 本文は行ごとの div（contenteditable）。記号（「# 」「- 」「- [ ] 」）は画面に出さず、行の種類で描く。
@@ -80,27 +80,60 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
   const mkLine = (raw) => {
     const v = viewOf(raw); const d = el('div', 'nl'); d.dataset.k = v.kind; d.dataset.pre = v.pre;
     if (v.kind === 'check') d.dataset.c = v.checked ? '1' : '0';
+    if (v.kind === 'check' || v.kind === 'bullet') { const lv = levelOfPre(v.pre); if (lv) { d.dataset.lv = String(lv); d.style.setProperty('--lv', String(lv)); } } // 第19.3版 C: 字下げの段（1段 20）。保存の文字（行頭の空白）は data-pre にそのまま
     if (v.text) d.textContent = v.text; else d.append(document.createElement('br'));
     return d;
   };
   const sane = () => [...body.childNodes].every((n) => n.nodeType === 1 && n.tagName === 'DIV' && n.classList.contains('nl') && [...n.childNodes].every((c) => c.nodeType === 3 || (c.nodeType === 1 && c.tagName === 'BR')));
   const rows = () => { const out = []; let pos = 0; for (const c of body.children) { const pre = c.dataset.pre || '', text = c.textContent; out.push({ el: c, start: pos, pre, text }); pos += pre.length + text.length + 1; } return out; };
-  const flat = () => { // 想定外の DOM（ブラウザが作った入れ子など）を、文字だけ拾って行に直す
-    const out = [];
-    for (const c of body.childNodes) {
-      if (c.nodeType === 3) out.push(c.data);
-      else if (c.tagName === 'BR') out.push('');
-      else if (c.tagName === 'DIV') out.push((c.classList.contains('nl') ? c.dataset.pre || '' : '') + c.textContent);
-      else out.push(c.textContent); // R-70: span など想定外の要素の文字を捨てない
+  // 第19.3版 B（征希さん「ノートに言葉を入れると行頭記号が無くなる」）: 記号の行（箇条書き・チェック）で入力が始まる直前に、その行を覚える（guard）。
+  // 空の記号の行に打った文字を、ブラウザが行の div の外に置いたり（キャレットが本文の直下へ外れていた）、行の div ごと作り替えたり（変換の確定で空になった行を消して入れ直す）しても、
+  // 読み取りで記号（data-pre）をその文字へ引き継ぐ。覚えるのは入力の間だけ（作り直し・入力の終わりで捨てる）。保存済みの行には使わない（開いただけの行は触らない）。
+  let guard = null;
+  const isLine = (c) => c.nodeType === 1 && c.tagName === 'DIV' && c.classList.contains('nl');
+  const lineOfNode = (n) => { while (n && n.parentNode !== body) n = n.parentNode; return n && isLine(n) ? n : null; };
+  // 想定外の DOM（ブラウザが作った入れ子・行の外の文字など）を、文字だけ拾って行に直す。caret = 今のキャレットの通し位置（記号つきの文字の上。作り直しのあとに戻すため。R-70）
+  const scan = () => {
+    const kids = [...body.childNodes];
+    const gd = guard, gone = !!gd && gd.el.parentNode !== body, hollow = !!gd && !gone && gd.el.textContent === '';
+    let heir = null; // 記号を引き継ぐ相手: 行でない子で文字のあるもの。行が消えたときは元の前後の行の間、行が空のまま残っているときは最初の1つ
+    if (gone || hollow) {
+      let on = !gone || !(gd.prev && gd.prev.parentNode === body);
+      for (const c of kids) { if (gone && c === gd.next) break; if (on && !isLine(c) && c.textContent) { heir = c; break; } if (gone && c === gd.prev) on = true; }
     }
-    return out.join('\n');
+    const items = []; // { node, pre, text }
+    const textOf = (c) => (c.nodeType === 3 ? c.data : c.tagName === 'BR' ? '' : c.textContent);
+    for (const c of kids) {
+      if (c === heir && hollow) continue; // 空の記号の行の所へ移す（下で入れる）
+      if (c === heir) items.push({ node: c, pre: gd.pre, text: textOf(c) });
+      else if (hollow && heir && c === gd.el) items.push({ node: heir, pre: gd.pre, text: textOf(heir), also: c });
+      else if (isLine(c)) items.push({ node: c, pre: c.dataset.pre || '', text: c.textContent });
+      else items.push({ node: c, pre: '', text: textOf(c) }); // R-70: span など想定外の要素の文字を捨てない
+    }
+    if (gone && !heir) { // 行だけ消えて文字がまだ無い（変換の途中・取り消し）: 記号の行は空のまま残す
+      let at = gd.prev && gd.prev.parentNode === body ? items.findIndex((x) => x.node === gd.prev) + 1 : gd.next && gd.next.parentNode === body ? items.findIndex((x) => x.node === gd.next) : 0;
+      if (at < 0) at = 0;
+      items.splice(at, 0, { node: null, pre: gd.pre, text: '' });
+    }
+    const text = items.map((x) => x.pre + x.text).join('\n');
+    let caret = null; const g = getSelection();
+    if (g && g.rangeCount && body.contains(g.anchorNode)) {
+      let pos = 0; caret = -1;
+      for (const x of items) {
+        const hit = x.node && (x.node === g.anchorNode || x.node.contains(g.anchorNode)) ? x.node : x.also && (x.also === g.anchorNode || x.also.contains(g.anchorNode)) ? x.also : null;
+        if (hit) { let n = 0; if (hit === x.node) { const rg = document.createRange(); rg.selectNodeContents(hit); try { rg.setEnd(g.anchorNode, g.anchorOffset); } catch { /* */ } n = rg.toString().length; } caret = pos + x.pre.length + Math.min(n, x.text.length); break; }
+        if (g.anchorNode === body && x.node && kids[g.anchorOffset] === x.node) { caret = pos; break; }
+        pos += x.pre.length + x.text.length + 1;
+      }
+      if (caret < 0) caret = Math.max(0, pos - 1);
+    }
+    return { text, caret };
   };
-  // R-70: 今のキャレット位置を、文字（記号つき）の通し位置に直す。作り直しのあとに戻すために使う。
-  const flatCaret = () => { const g = getSelection(); if (!g || !g.rangeCount || !body.contains(g.anchorNode)) return null; let pos = 0; const kids = [...body.childNodes]; for (let i = 0; i < kids.length; i++) { const c = kids[i]; const len = c.nodeType === 3 ? c.data.length : c.tagName === 'BR' ? 0 : c.tagName === 'DIV' ? ((c.classList.contains('nl') ? c.dataset.pre || '' : '') + c.textContent).length : c.textContent.length; if (g.anchorNode === body && g.anchorOffset === i) return pos; if (c === g.anchorNode || c.contains(g.anchorNode)) { const rg = document.createRange(); rg.selectNodeContents(c); try { rg.setEnd(g.anchorNode, g.anchorOffset); } catch { /* */ } return pos + (c.nodeType === 1 && c.classList?.contains('nl') ? (c.dataset.pre || '').length : 0) + rg.toString().length; } if (c.nodeType === 3 || c.tagName === 'BR' || c.tagName === 'DIV' || c.nodeType === 1) pos += len + 1; } return Math.max(0, pos - 1); };
+  const flat = () => scan().text;
   const paintEmpty = () => { const one = body.children.length <= 1 && !body.textContent; if (one) body.dataset.empty = '1'; else delete body.dataset.empty; };
-  function renderValue(text) { body.replaceChildren(...splitLines(text).texts.map(mkLine)); paintEmpty(); }
+  function renderValue(text) { guard = null; want = null; body.replaceChildren(...splitLines(text).texts.map(mkLine)); paintEmpty(); }
   // R-70: 変換中（IME composing）は作り直さず読むだけ。確定後に作り直すときはキャレットを文字の位置へ戻す（頭に飛ばさない）。
-  function readValue() { if (composing && (!body.firstChild || !sane())) return flat(); if (!body.firstChild) renderValue(''); else if (!sane()) { const c = flatCaret(); renderValue(flat()); if (c != null && document.activeElement === body) setRange(c, c); } return rows().map((r) => r.pre + r.text).join('\n'); }
+  function readValue() { if (composing && (!body.firstChild || !sane())) return flat(); if (!body.firstChild && !guard) renderValue(''); else if (!body.firstChild || !sane()) { const f = scan(); renderValue(f.text); if (f.caret != null && document.activeElement === body) setRange(f.caret, f.caret); } return rows().map((r) => r.pre + r.text).join('\n'); }
   const rawAt = (R, node, off) => {
     if (!R.length) return 0;
     if (node === body) { const r = R[Math.min(off, R.length - 1)]; return off >= R.length ? r.start + r.pre.length + r.text.length : r.start + r.pre.length; }
@@ -117,11 +150,15 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
     return [row.el, 0];
   };
   let selCache = { s: 0, e: 0, d: 'none' };
+  // 第19.3版 B: アプリが置いたキャレット（setRange）を覚える。ブラウザがそれを本文の頭（行の外）へ戻してしまっても、次の入力は置いた行へ入れる。指・キーで動かしたら忘れる。
+  let want = null;
   const selNow = () => {
     const g = window.getSelection();
     if (!g || !g.rangeCount || !body.contains(g.anchorNode) || !body.contains(g.focusNode)) return selCache;
     if (!sane()) { if (composing) return selCache; readValue(); } // R-70: 変換中は作り直さない
+    if (want && g.isCollapsed && g.anchorNode === body && g.anchorOffset === 0) { selCache = { s: want.s, e: want.e, d: 'none' }; return selCache; }
     const R = rows(); const a = rawAt(R, g.anchorNode, g.anchorOffset), f = rawAt(R, g.focusNode, g.focusOffset);
+    if (want && (a !== want.s || f !== want.e)) want = null;
     selCache = { s: Math.min(a, f), e: Math.max(a, f), d: a === f ? 'none' : a < f ? 'forward' : 'backward' };
     return selCache;
   };
@@ -130,7 +167,7 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
     const R = rows(); const g = window.getSelection(); if (!g) return;
     const [an, ao] = domAt(R, s), [fn, fo] = domAt(R, e);
     try { if (dir === 'backward') g.setBaseAndExtent(fn, fo, an, ao); else g.setBaseAndExtent(an, ao, fn, fo); } catch { /* 無視 */ }
-    selCache = { s, e, d: dir || 'none' };
+    selCache = { s, e, d: dir || 'none' }; want = s === e ? { s, e } : null;
   }
   Object.defineProperties(body, {
     value: { get: readValue, set(v) { renderValue(String(v ?? '')); const n = readValue().length; selCache = { s: n, e: n, d: 'none' }; }, configurable: true },
@@ -157,26 +194,34 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
     renderValue(nv); const c = caret ?? s0 + str.length; setRange(c, c);
     body.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: type }));
   }
+  let softBreak = false; // 直前の keydown が Shift+Return（行の中の改行。次の項目を続けない）
+  const setGuard = (rowEl) => { guard = rowEl && rowEl.dataset.pre ? { el: rowEl, pre: rowEl.dataset.pre, prev: rowEl.previousElementSibling, next: rowEl.nextElementSibling } : null; };
   body.addEventListener('beforeinput', (ev) => {
     const t = ev.inputType || '';
     if (composing || ev.isComposing || /Composition/.test(t)) return;
     if (t === 'historyUndo') { ev.preventDefault(); doUndo(); return; }
     if (t === 'historyRedo') { ev.preventDefault(); doRedo(); return; }
-    readValue(); const R = rows(); const { s, e } = selNow();
+    readValue(); let R = rows(); const { s, e } = selNow();
+    let off = false; { const g = getSelection(); if (s === e && g && g.rangeCount && g.isCollapsed && g.anchorNode === body) { off = true; setRange(s, e); R = rows(); } } // B: キャレットが行の外（本文の直下）なら、打つ前に行の中へ入れる
     const ia = rowIndexOf(R, s), ib = rowIndexOf(R, e), A = R[ia];
+    setGuard(A.el);
     const col = s - A.start - A.pre.length;
     const s2 = ia !== ib && col === 0 ? A.start : s; // 行の頭から複数行を選んで消す・打つとき、頭の行の記号も一緒に消える（全選択して消すと空のノート）
     const data = ev.data ?? ev.dataTransfer?.getData('text/plain') ?? '';
     const norm = (x) => String(x).replace(/\r\n?/g, '\n');
     if (t === 'insertParagraph' || t === 'insertLineBreak') {
       ev.preventDefault();
+      // B: 箇条書き・チェックの行の改行は、ここでも次の項目を続ける（keydown が来ない・変換の確定の直後で keydown を見送ったときも、次の行の記号を落とさない）
+      // （plaintext-only の本文では Return も insertLineBreak で来る。Shift+Return だけは続けない）
+      if (!softBreak) { const r = onEnter(readValue(), s, e); if (r) { applyEdit(r); return; } }
       if (s === e && col === 0 && A.pre) { editRaw(A.start, A.start, '\n', A.start + 1 + A.pre.length, t); return; } // 行頭で改行: 記号の行は下へ押し下げる
       editRaw(s, e, '\n', null, t); return;
     }
     if (t === 'insertFromPaste' || t === 'insertFromDrop' || t === 'insertFromYank' || (t === 'insertReplacementText' && ia !== ib)) {
       ev.preventDefault(); editRaw(s2, e, norm(data), null, t); return;
     }
-    if (t === 'insertText' && (ia !== ib || /\n/.test(data))) { ev.preventDefault(); editRaw(s2, e, norm(data), null, t); return; }
+    if (t === 'insertText' && (ia !== ib || /\n/.test(data) || off)) { // off: 行の外にいたキャレットの分は、ブラウザに任せず自分で行へ入れる（WebKit は beforeinput で動かした選択を使わない）
+       ev.preventDefault(); editRaw(s2, e, norm(data), null, t); return; }
     if (/^delete/.test(t)) {
       if (ia !== ib) { ev.preventDefault(); editRaw(s2, e, '', s2, t); return; }
       if (s !== e) { if (t === 'deleteByCut') { ev.preventDefault(); editRaw(s, e, '', s, t); } return; } // 1行の中の選択の削除は任せる
@@ -230,6 +275,7 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
   }
   function fit() { title.style.height = 'auto'; title.style.height = `${title.scrollHeight}px`; fitBody(); }
   function fitBody() { paintEmpty(); paintGutter(); }
+  const LV_STEP = 20; // 字下げ1段の見た目（css の --lv × 20px と同じ）
   // チェック行の四角の押せる範囲（44×44）。行の div の位置から直接置く（折り返しがあっても1行目の真ん中）
   function paintGutter() {
     const kids = [...body.children]; const list = kids.filter((c) => c.dataset.k === 'check');
@@ -240,16 +286,17 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
       const b = el('button', 'ned-chk'); b.type = 'button'; b.dataset.line = String(kids.indexOf(c)); b.dataset.checked = c.dataset.c === '1' ? '1' : '0';
       b.setAttribute('role', 'checkbox'); b.setAttribute('aria-checked', c.dataset.c === '1' ? 'true' : 'false'); b.setAttribute('aria-label', c.textContent || '項目');
       b.style.top = `${c.offsetTop + 15 - 22}px`;
+      if (c.dataset.lv) b.style.left = `${Number(c.dataset.lv) * LV_STEP}px`; // 第19.3版 C: 四角も段のぶん右へ
       b.append(el('i', 'ned-box', c.dataset.c === '1' ? '✓' : ''));
       gutter.append(b);
     }
   }
   // 書式操作の共通: 本文を差し替え、選択を保ち、保存へ流す
-  function applyEdit(r, undoable = true) {
+  function applyEdit(r, undoable = true, quiet = false) { // quiet: 本文にフォーカスが無ければ、選択を DOM に置かない（払いの字下げでキーボードを出さない）
     if (!r || r.text === body.value) return false;
     closeGroup(); if (!last) last = snap();
     if (undoable) { undoSt.push(last); if (undoSt.length > UNDO_MAX) undoSt.shift(); redoSt = []; }
-    body.value = r.text; body.setSelectionRange(r.selStart, r.selEnd);
+    body.value = r.text; if (quiet && document.activeElement !== body) { const g = getSelection(); if (g && g.rangeCount && body.contains(g.anchorNode)) g.removeAllRanges(); selCache = { s: r.selStart, e: r.selEnd, d: 'none' }; } else body.setSelectionRange(r.selStart, r.selEnd); // quiet: 本文に残った古い選択（作り直す前の位置）は外し、覚えた位置だけを正にする
     last = snap();
     sync(); fitBody(); paintStatus(); paintUndo(); markFormats();
     return true;
@@ -264,21 +311,35 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
   }
   // 書式のシート。開いている間はキーボードと同じ高さで入れ替える（シートの下端 kbTop は app 側で止める）。
   let fsOpen = false;
-  function kbHeight() { const vv = window.visualViewport; return vv ? Math.max(0, Math.round(window.innerHeight - (vv.offsetTop + vv.height))) : 0; }
+  // v19.3 その2 D（征希さん「テキストの詳細がキーボードに隠れるから使えない」）: 実機は visualViewport がキーボードで縮まないことがある（app.js の NKB の説明）。そのときキーボードの高さが 0 と読め、
+  // キーボードを下げずに書式のシートを画面の下端へ出して、キーボードの裏に隠れていた。直し: ① 高さは app 側の測り（visualViewport と、プラグインが知らせた keyboardHeight の大きい方）で読む。
+  // ② 本文にキャレットがあれば、測れた高さにかかわらず必ずキーボードを下げる（blur）。③ シートから書式を変えても本文へフォーカスを戻さない（キーボードを出し直さない）。
+  // ④ それでもキーボードが出ている・出直したときは、シートをキーボードの上端の上へ持ち上げる（裏に残さない）
+  function kbHeight() {
+    if (kbHeightOpt) { const v = Number(kbHeightOpt()); if (Number.isFinite(v)) return Math.max(0, Math.round(v)); }
+    const vv = window.visualViewport; return vv ? Math.max(0, Math.round(window.innerHeight - (vv.offsetTop + vv.height))) : 0;
+  }
+  let fsLiftT = 0;
+  const fsLift = () => { if (!fsOpen) return; const kb = kbHeight(); fsheet.style.bottom = kb > 120 ? `${kb}px` : ''; if (kb > 120) fsheet.dataset.lift = '1'; else delete fsheet.dataset.lift; };
+  const fsLiftSoon = () => { clearTimeout(fsLiftT); if (fsOpen) fsLiftT = setTimeout(fsLift, 60); };
   function openFs() {
     if (fsOpen) return;
-    const kb = kbHeight();
+    const kb = kbHeight(), hadFocus = document.activeElement === body || body.contains(document.activeElement);
     fsheet.style.setProperty('--ned-fs-h', `${kb > 120 ? kb : 216 + 34}px`);
+    fsheet.style.bottom = ''; delete fsheet.dataset.lift;
     fsOpen = true; fsheet.hidden = false; root.dataset.fs = '1'; markFormats();
     onFormatSheet(true, kb > 120);
-    if (kb > 120) document.activeElement?.blur?.();
+    if (kb > 120 || hadFocus) { selCache = { s: body.selectionStart, e: body.selectionEnd, d: 'none' }; document.activeElement?.blur?.(); }
+    clearTimeout(fsLiftT); fsLiftT = setTimeout(fsLift, 500); // キーボードが下がりきる（約 0.3 秒）のを待ってから、まだ出ていれば上へ
   }
   function closeFs(refocus = true) {
     if (!fsOpen) return;
-    fsOpen = false; fsheet.hidden = true; delete root.dataset.fs;
+    fsOpen = false; fsheet.hidden = true; delete root.dataset.fs; clearTimeout(fsLiftT); fsheet.style.bottom = ''; delete fsheet.dataset.lift;
     onFormatSheet(false, false);
-    if (refocus) body.focus({ preventScroll: true });
+    if (refocus) { const c = { ...selCache }, had = document.activeElement === body; body.focus({ preventScroll: true }); if (!had) body.setSelectionRange(c.s, c.e); } // シートを開く前（シートで書式を変えたあと）のキャレットの位置へ戻す
   }
+  for (const n of ['keyboardDidShow', 'keyboardDidHide']) window.addEventListener(n, fsLiftSoon);
+  window.visualViewport?.addEventListener?.('resize', fsLiftSoon);
   // 今の行の書式を押された形で見せる
   function markFormats() {
     if (!fsOpen) return;
@@ -294,7 +355,7 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
   fsheet.addEventListener('click', (ev) => {
     const b = ev.target.closest('button'); if (!b) return;
     if (b.dataset.act === 'fsclose') { closeFs(); return; }
-    if (b.dataset.fset) { if (b.dataset.fset !== 'bullet' && b.dataset.fset !== 'check' && b.getAttribute('aria-pressed') === 'true') return; applyEdit(applyFormat(body.value, body.selectionStart, body.selectionEnd, b.dataset.fset)); }
+    if (b.dataset.fset) { if (b.dataset.fset !== 'bullet' && b.dataset.fset !== 'check' && b.getAttribute('aria-pressed') === 'true') return; applyEdit(applyFormat(body.value, body.selectionStart, body.selectionEnd, b.dataset.fset), true, true); } // quiet: シートから変えたときは本文へフォーカスを戻さない（キーボードを出し直してシートを隠さない。v19.3 その2 D）
   });
   doneBtn.addEventListener('click', () => { finish(); });
   function finish() { closeFs(false); document.activeElement?.blur?.(); sync(); resetHistory(); onDone(cur); }
@@ -354,8 +415,11 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
   async function flushNow() { sync(); const r = await store.flushAll(); paintStatus(); return r.every((x) => x !== false); }
 
   title.addEventListener('compositionstart', () => { composing = true; });
-  body.addEventListener('compositionstart', () => { composing = true; });
-  const endComp = () => { composing = false; compEndAt = Date.now(); if (document.activeElement === body) reconcile(); sync(); fit(); paintStatus(); noteChange(true); };
+  body.addEventListener('compositionstart', () => { // B: 変換が始まる行を覚える（変換中は DOM もキャレットも触らない。R-70）
+    if (!composing && body.firstChild && sane()) { const g = getSelection(); let ln = g && g.rangeCount && body.contains(g.anchorNode) ? lineOfNode(g.anchorNode) : null; if (!ln) { const R = rows(); ln = R[rowIndexOf(R, (want ?? selCache).s)]?.el; } setGuard(ln); }
+    composing = true;
+  });
+  const endComp = () => { composing = false; compEndAt = Date.now(); if (document.activeElement === body) reconcile(); sync(); guard = null; fit(); paintStatus(); noteChange(true); };
   title.addEventListener('compositionend', endComp);
   body.addEventListener('compositionend', endComp);
   title.addEventListener('input', (ev) => {
@@ -371,15 +435,67 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
   title.addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && !ev.isComposing && ev.keyCode !== 229) { ev.preventDefault(); shape.nl = true; body.focus(); body.setSelectionRange(0, 0); sync(); }
   });
-  body.addEventListener('input', (ev) => { if (!ev.isComposing && !composing) reconcile(); fitBody(); noteChange(/insertLineBreak|insertParagraph/.test(ev.inputType || '')); markFormats(); if (!ev.isComposing && !composing) { sync(); paintStatus(); } });
+  body.addEventListener('input', (ev) => { if (!ev.isComposing && !composing) { reconcile(); guard = null; } fitBody(); noteChange(/insertLineBreak|insertParagraph/.test(ev.inputType || '')); markFormats(); if (!ev.isComposing && !composing) { sync(); paintStatus(); } });
   // Return: チェック／箇条書きの行で次の項目を続ける。変換確定の Return と Shift+Return は触らない。keydown だけで処理し二重に入れない。
   body.addEventListener('keydown', (ev) => {
+    // 第19.3版 C: 箇条書き・チェックの行で Tab＝1段下げ、Shift+Tab＝1段上げ。記号の行が選択に無ければ Tab の元の動きのまま。
+    if (ev.key === 'Enter') softBreak = ev.shiftKey;
+    if (ev.key === 'Tab' && !ev.altKey && !ev.metaKey && !ev.ctrlKey && !ev.isComposing && !composing && ev.keyCode !== 229) {
+      const r = indentLines(body.value, body.selectionStart, body.selectionEnd, ev.shiftKey ? -1 : 1);
+      if (r) { ev.preventDefault(); applyEdit(r); }
+      return;
+    }
     if (ev.key !== 'Enter' || ev.isComposing || composing || ev.keyCode === 229 || ev.shiftKey || ev.altKey || ev.metaKey || ev.ctrlKey) return;
     if (Date.now() - compEndAt < 50) return;
     const r = onEnter(body.value, body.selectionStart, body.selectionEnd);
     if (!r) return;
     ev.preventDefault(); applyEdit(r);
   });
+  // 第19.3版 C: iPhone は箇条書き・チェックの行を右へ払うと1段下げ、左へ払うと1段上げ。
+  // 決まり: 指（touch）だけ。動き出し 8 で向きを決め、横が縦の 1.5 倍を超えるときだけ始める（縦はスクロールに任せる）。0.35 秒より長く押してからの動きは文字の選択・拡大鏡に任せる。
+  // 離したとき横 24 以上・横が縦の 1.5 倍を超えていれば1段動かす。指には 1/3 だけ追い（最大 20＝1段）、端（0 段・最大段）では 1/10 だけ。離したら 0.18 秒で段へ寄せる。
+  // 本文を編集中（フォーカス中）か、ノートのシートの中だけ（ページの上の読むだけの本文では、今までどおりページのめくり・横すべりが先）。変換中は始めない。
+  const SWIPE = { slop: 8, min: 24, ratio: 1.5, hold: 350, follow: 1 / 3, edge: 0.1, cap: 60 };
+  let sw = null;
+  const reduced = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const swNodes = (ln) => { const i = [...body.children].indexOf(ln); return [ln, i < 0 ? null : gutter.querySelector(`.ned-chk[data-line="${i}"]`)].filter(Boolean); };
+  const swPaint = (nodes, x, anim) => { for (const n of nodes) { n.style.transition = anim && !reduced() ? 'transform .18s ease-out' : 'none'; n.style.transform = x ? `translateX(${x}px)` : ''; } };
+  const swOffset = (dx, lv) => { const dir = dx > 0 ? 1 : -1, can = dir > 0 ? lv < INDENT_MAX : lv > 0; return dir * Math.min(Math.abs(dx), SWIPE.cap) * (can ? SWIPE.follow : SWIPE.edge); };
+  body.addEventListener('pointerdown', (ev) => {
+    want = null; sw = null;
+    if (ev.pointerType !== 'touch' || ev.isPrimary === false || composing) return;
+    if (document.activeElement !== body && !root.closest('.nsheet')) return;
+    const ln = lineOfNode(ev.target); if (!ln || (ln.dataset.k !== 'bullet' && ln.dataset.k !== 'check')) return;
+    sw = { id: ev.pointerId, el: ln, x: ev.clientX, y: ev.clientY, t: ev.timeStamp, on: false, dx: 0, dy: 0, lv: Number(ln.dataset.lv || 0), nodes: [] };
+  });
+  const swMove = (ev) => {
+    if (!sw || ev.pointerId !== sw.id) return;
+    const dx = ev.clientX - sw.x, dy = ev.clientY - sw.y;
+    if (!sw.on) {
+      if (Math.hypot(dx, dy) < SWIPE.slop) return;
+      if (ev.timeStamp - sw.t > SWIPE.hold || Math.abs(dx) <= Math.abs(dy) * SWIPE.ratio || composing || !sw.el.isConnected) { sw = null; return; }
+      sw.on = true; sw.nodes = swNodes(sw.el); root.dataset.indenting = '1';
+    }
+    sw.dx = dx; sw.dy = dy;
+    swPaint(sw.nodes, swOffset(dx, sw.lv), false);
+    if (ev.cancelable) ev.preventDefault();
+  };
+  const swEnd = (ev) => {
+    if (!sw || ev.pointerId !== sw.id) return;
+    const g = sw; sw = null; if (!g.on) return;
+    delete root.dataset.indenting;
+    const ok = ev.type === 'pointerup' && Math.abs(g.dx) >= SWIPE.min && Math.abs(g.dx) > Math.abs(g.dy) * SWIPE.ratio && g.el.isConnected && !composing;
+    const idx = [...body.children].indexOf(g.el), dir = g.dx > 0 ? 1 : -1, off = swOffset(g.dx, g.lv);
+    let nodes = g.nodes, from = off;
+    if (ok && idx >= 0 && applyEdit(indentLines(body.value, body.selectionStart, body.selectionEnd, dir, idx), true, true)) {
+      const ln = body.children[idx]; nodes = ln ? swNodes(ln) : []; from = off - dir * LV_STEP; // 段が動いたぶんを引いて、指の位置から段へ寄せる
+    }
+    swPaint(nodes, from, false); if (nodes[0]) void nodes[0].offsetWidth; swPaint(nodes, 0, true);
+  };
+  document.addEventListener('pointermove', swMove, { passive: false });
+  document.addEventListener('pointerup', swEnd);
+  document.addEventListener('pointercancel', swEnd);
+  body.addEventListener('keyup', (ev) => { if (ev.key === 'Enter' || ev.key === 'Shift') softBreak = false; });
   // カーソルだけ動いたら、文字の1まとまりを区切る
   const onSel = () => {
     if (destroyed || !last) return;
@@ -434,7 +550,7 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
   document.addEventListener('visibilitychange', onVis);
 
   function destroy() {
-    destroyed = true; unsub?.(); ro?.disconnect(); document.removeEventListener('selectionchange', onSel); clearTimeout(groupTimer);
+    destroyed = true; unsub?.(); ro?.disconnect(); document.removeEventListener('selectionchange', onSel); document.removeEventListener('pointermove', swMove); document.removeEventListener('pointerup', swEnd); document.removeEventListener('pointercancel', swEnd); clearTimeout(groupTimer);
     window.removeEventListener('pagehide', onHide); document.removeEventListener('visibilitychange', onVis);
     root.remove();
   }

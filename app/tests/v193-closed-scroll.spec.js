@@ -325,56 +325,6 @@ test.describe('10 どの段・どの日でも格子を流し切れる', () => {
   }
 });
 
-test.describe('つまみ（下）の貼り付きと時間軸（1本のスクロールでの形）', () => {
-  const grip = (page) => page.evaluate(() => { const sec = document.querySelector('.mpull.browse'), d = sec.querySelector('.mday'), g = d.querySelector('.mdgrab'), fix = sec.querySelector('.mpfix').getBoundingClientRect(), db = d.getBoundingClientRect(), gb = g.getBoundingClientRect(); let op = 1; for (let e = g; e && e !== document.body; e = e.parentElement) op *= Number(getComputedStyle(e).opacity); return { st: sec.scrollTop, H: sec.getBoundingClientRect().bottom - Math.max(db.top, fix.bottom), gs: d.classList.contains('gs'), stuck: g.classList.contains('stuck'), top: gb.top, bottom: gb.bottom, op, T: Number(d._gsT ?? NaN), anims: g.getAnimations().length }; });
-  test('つまみ（下）: スクロール 0 では今までと同じ（段4 は y593〜637 に貼る・段1 は貼らない）。送って「見えている高さ」が T 以上になると 0.15 秒 linear で出て、止まっていれば .gs ⇔ 見えている高さ ≧ T', async ({ page }) => {
-    await boot(page, { stage: 4 });
-    const a = await grip(page); expect(a.gs).toBe(true); expect(a.stuck).toBe(true); near(a.top, 593, '段4 の貼ったつまみ'); near(a.H, 418, '見えている高さ＝日の欄の箱');
-    await page.locator('.mgrab').focus(); for (let i = 0; i < 3; i++) { await page.keyboard.press('ArrowDown'); await page.waitForTimeout(500); } await page.evaluate(() => document.activeElement?.blur());
-    const b = await grip(page); expect(await stageOf(page)).toBe(1); near(b.H, 74, '段1 の日の欄'); expect(b.gs, '段1・スクロール 0 は貼らない').toBe(false);
-    const T = b.T; expect(T, 'T（カード・終日 1 行・帯あり）').toBeGreaterThan(170);
-    // 少しずつ送る: 動いている間は遊び 4、止まったら遊びなし。フェードは 0.15 秒 linear
-    await page.evaluate(() => { window.__an = []; window.__stop = false; const seen = new Set(); const tick = () => { const g = document.querySelector('.mpull.browse .mday .mdgrab'); if (g) for (const x of g.getAnimations()) if (!seen.has(x)) { seen.add(x); const tm = x.effect.getTiming(); window.__an.push({ dur: Number(tm.duration), ease: tm.easing }); } if (!window.__stop) requestAnimationFrame(tick); }; requestAnimationFrame(tick); });
-    for (const st of [60, T - 74 - 10, T - 74 + 6, 300, T - 74 - 10, 0]) {
-      await page.locator(SEC).evaluate((e, y) => { e.scrollTop = y; }, st); await page.waitForTimeout(450);
-      const s = await grip(page);
-      expect(s.gs, `スクロール ${st}: 見えている高さ ${s.H} ${s.H >= T ? '≧' : '＜'} T ${T}`).toBe(s.H >= T - 0.01);
-      expect(s.op, '止まったら途中の不透明度ではない').toBe(1);
-      if (s.gs && s.stuck) near(s.top, 593, `スクロール ${st}: 貼ったつまみの上端`);
-    }
-    const an = await page.evaluate(() => { window.__stop = true; return window.__an; });
-    expect(an.length, '出し入れのフェードがある').toBeGreaterThan(0);
-    for (const x of an) { expect(x.dur).toBe(150); expect(x.ease).toBe('linear'); }
-  });
-  test('つまみ（下）: 送り切ると元の位置（ノート › のすぐ上）に着いて貼り付きが外れ、埋めた面は出ない', async ({ page }) => {
-    await boot(page, { stage: 4 });
-    await setScroll(page, 99999);
-    const s = await grip(page); expect(s.stuck).toBe(false);
-    const nl = await page.locator('.mdnl').evaluate((e) => e.getBoundingClientRect().top); near(s.bottom, nl, 'つまみの下端＝ノート › の上端');
-  });
-  for (const [mode, dg, hhv] of [['B', 1, 44], ['C', 2, 88]]) {
-    test(`時間軸 ${mode}: スクロール 0 で月が見え、v19.2 の開いた位置と同じく最初の予定の1時間前（8:00）から始まる（それより上は畳む）。日の欄は中でスクロールしない。「終日・前の時間」で終日の行と 0:00 から`, async ({ page }) => {
-      await boot(page, { stage: 4, dg });
-      const s = await page.evaluate(() => { const d = document.querySelector('.mpull.browse .mday'), b = (e) => e.getBoundingClientRect(); const vis = (e) => { const r = b(e); return !!document.elementFromPoint(r.left + 4, r.top + 7)?.closest(`.${e.classList[0]}`); }; const first = [...d.querySelectorAll('.tlev')].map(b).sort((x, y) => x.top - y.top)[0]; const lab = [...d.querySelectorAll('.hlab')].map((e) => ({ t: e.textContent, top: b(e).top, vis: vis(e) })); return { dg: d.dataset.dg, ov: getComputedStyle(d).overflowY, hdr: b(d.querySelector('.mdh')).bottom, adVis: vis(d.querySelector('.mdbody .adpill')), tlTop: b(d.querySelector('.tl')).top, first: first.top, lab, fold: d.querySelector('.mdfold button')?.textContent, st: document.querySelector('.mpull.browse').scrollTop, wrap: b(document.querySelector('.mgwrap')).top }; });
-      expect(s.dg).toBe(mode); expect(s.ov).toBe('visible'); expect(s.st).toBe(0); near(s.wrap, 64, '格子は見えている');
-      near(s.tlTop, s.hdr, '時間軸は見出しのすぐ下から'); near(s.first, s.hdr + 12 + hhv, '最初の予定（9:00）は見出しの下 12＋1時間（v19.2 の開いた位置と同じ）', 1.5);
-      expect(s.lab.filter((l) => l.vis).map((l) => l.t)[0], '見えている最初の時刻').toBe('8:00');
-      expect(s.lab.filter((l) => !l.vis && Number(l.t.split(':')[0]) < 8).length, '0:00〜7:00 は畳んである').toBe(8);
-      expect(s.adVis, '終日の行も畳んである').toBe(false);
-      expect(s.fold).toBe('終日・前の時間');
-      const fb = await page.locator('.mdfold button').boundingBox(); expect(fb.height).toBeGreaterThanOrEqual(44); expect(fb.width).toBeGreaterThanOrEqual(44);
-      await page.locator('.mdfold button').click(); await page.waitForTimeout(300);
-      const u = await page.evaluate(() => { const d = document.querySelector('.mpull.browse .mday'), b = (e) => e.getBoundingClientRect(); const lab = [...d.querySelectorAll('.hlab')].map((e) => ({ t: e.textContent, vis: !!document.elementFromPoint(b(e).left + 4, b(e).top + 7)?.closest('.hlab'), top: b(e).top })); const ad = d.querySelector('.mdbody .adpill'), ar = b(ad); return { first: lab.filter((l) => l.vis)[0], fold: !!d.querySelector('.mdfold'), st: document.querySelector('.mpull.browse').scrollTop, adTop: b(d.querySelector('.mdbody > .allday')).top, hdr: b(d.querySelector('.mdh')).bottom, adVis: !!document.elementFromPoint(ar.left + 4, ar.top + 7)?.closest('.adpill') }; });
-      expect(u.first.t, '開くと 0:00 から').toBe('0:00'); expect(u.fold).toBe(false); expect(u.st, '画面は動かさない').toBe(0);
-      near(u.adTop, u.hdr, '終日の行は見出しのすぐ下'); expect(u.adVis, '終日の予定が見える').toBe(true);
-      // 日を選び直すと畳み直す
-      await page.locator('.mgrid:not([data-leaving]) .day[data-date="2026-11-13"]').click({ position: { x: 20, y: 12 } }); await page.waitForTimeout(500);
-      await page.locator('.mgrid:not([data-leaving]) .day[data-date="2026-11-12"]').click({ position: { x: 20, y: 12 } }); await page.waitForTimeout(500);
-      await expect(page.locator('.mdfold button')).toHaveCount(1);
-      // 1本のスクロールで時間軸の終わり（23:00）とノートまで行ける
-      await setScroll(page, 99999);
-      const e = await page.evaluate(() => { const b = (s) => document.querySelector(s).getBoundingClientRect(); const l23 = [...document.querySelectorAll('.mday .hlab')].find((x) => x.textContent === '23:00').getBoundingClientRect(); return { note: b('.mdnote').bottom, l23: l23.top, fix: b('.mpfix').bottom }; });
-      expect(e.note).toBeLessThanOrEqual(645.5); expect(e.l23, '23:00 が見出しより下に見える').toBeGreaterThan(e.fix);
-    });
-  }
-});
+// v19.3 征希さん『カード・時間で分けるだけ』で仕様変更: その1 の describe「つまみ（下）の貼り付きと時間軸（1本のスクロールでの形）」（貼り付き 2 本＋時間軸 B・C 2 本）は外した。
+// カードにつまみ（下）は無く、時間のバーは見出しのすぐ下で貼り付けない。終日の行は畳まない（design/35 §5.2〜§5.4）。
+// 代わりの試験: tests/v193-design35-s9.spec.js の S-2・S-3・S-7、tests/v193-day-cardtime.spec.js の A-9・A-10・A-16

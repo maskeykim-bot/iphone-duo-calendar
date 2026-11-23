@@ -562,11 +562,11 @@ test.describe('G. 消したものへ、移した先からたどり着ける（§
     const days = await page.locator(`${SEL.grid}:not([data-leaving]) .day`).evaluateAll((ds) => ds.map((d) => d.dataset.date));
     expect(days[0]).toBe(DAY);
   });
-  test('[未実装] 4 予定｜時間軸 → 日の欄のつまみ（下）を下へ 40 で時間軸', async ({ page }) => {
+  // v19.3 征希さん『カード・時間で分けるだけ』で仕様変更: 前「日の欄のつまみ（下）を下へ 40 で時間軸」→ 後「見出しの右の『カード｜時間』の『時間』」（design/35 §5.1。開いた縦の [data-mday] が閉じた画面に無いのは同じ）
+  test('[未実装] 4 予定｜時間軸 → 日の見出しの右の「カード｜時間」の「時間」', async ({ page }) => {
     await boot(page); await toStage(page, 4);
     await expect(page.locator('[data-mday]')).toHaveCount(0);
-    await page.locator(SEL.dayGrab).scrollIntoViewIfNeeded(); await page.waitForTimeout(150); // 品質 11/21: 段4・予定7件ではつまみ（下）がカードの下 y≈724 で画面の外（7c9fb05 で確認）。先に見える所へ送る
-    const d = await box(page.locator(SEL.dayGrab)); await page.mouse.move(d.x + d.w / 2, d.y + d.h / 2); await page.mouse.down(); await page.mouse.move(d.x + d.w / 2, d.y + d.h / 2 + S.DAYGRIP.toTimeline + 6, { steps: 6 }); await page.mouse.up(); await page.waitForTimeout(400);
+    await page.locator(`${SEL.day} .mdct [data-dg="time"]`).click(); await page.waitForTimeout(400);
     await expect(page.locator(`${SEL.day} .tlev, ${SEL.day} .timeline`).first()).toBeVisible();
   });
   test('[未実装] 5 設定 → 「…」→「設定」', async ({ page }) => { await boot(page); await openMore(page); await page.getByRole('menuitem', { name: '設定' }).click(); await expect(page.locator('#menu, [aria-label="設定"]').first()).toBeVisible(); });
