@@ -1,4 +1,5 @@
 import * as db from './db.js';
+import { elasticHours, elasticMap, solveHh } from './elastic.js';
 import { isoFromInput, stateFromInput, setStartDate, pickEndDate, setStartTime, setEndTime, setDuration, setAll } from './datetime.js';
 import { createTimeUi, createDateUi, createDateField, createTimeField, fireInput, monthOf, withHm } from './datetime-ui.js';
 import { SAMPLE } from './sample.js';
@@ -1428,7 +1429,10 @@ function stageHtml() {
 // ---- 閉じた7段の日の欄（design/34 §6）。見出し44・終日のベタ塗りチップ・高さ56のカード・つまみ（下）・ノート。開いた縦の pullDayHtml は変えない。
 // 第19.3版 その2（征希さん「閉じた時の表示は『カード・時間』で分けるだけ」・design/35 §5）: 日の欄は見出しの右の「カード｜時間」でたたいて切り替える。つまみ（下）の A→B→C の3段と、下の端への貼り付き（S11f〜S11j の T の境）はやめた。
 // 時間のときだけ、見出しのすぐ下にグレーのバー（.mdgrab）を置き、下へ引くと1時間の高さが 28（最低限）→88（詳細）に広がる（指に 1:1 の半分＝引いた量×0.5。離すと 58 を境に近い方へ 0.25 秒）。バーは貼り付けず、画面と一緒に流れる
-const DAYBAR = { min: 28, max: 88, snap: 58, rate: 0.5, rubber: 0.3, rubberMax: 24, flick: 300 }; // design/35 §5.3（flick＝離す前 80ms の速さがこれ（毎秒）を超えたら払った向きへ）
+// 第19.5版（征希さん「時間で表示した時は本家仕様にする」）: 時間は本家の手帳の形。目盛りは 3 時間ごとの数字（間の時間は点）、予定は白いカード（始まり・終わり・色の線・題名・メモ）、
+// つまみは時間軸の下（下へ引くと指についてきて広がる）。1時間の高さは 14（詰めた形）⇄ 56（広げた形）。カードが 44 より低くなる時間だけ、その時間を広げる（js/elastic.js。予定のない時間は詰まったまま）。
+// 見せる範囲は 9:00（それより早い予定があればその時刻）〜 18:00（遅い予定があればその終わり）の 1 時間後まで。残りは「すべての時間」で開く
+const DAYBAR = { min: 14, max: 56, snap: 35, rubber: 0.3, rubberMax: 24, flick: 300, dots: 22 }; // design/35 §5.3（flick＝離す前 80ms の速さがこれ（毎秒）を超えたら払った向きへ）
 const DG = { mode: state.dayGrip, hh: state.dayGrip === 2 ? DAYBAR.max : DAYBAR.min, last: state.dayGrip || 1, drag: null, raf: 0, swap: 0, tlKey: '', unfold: false }; // mode 0=A カード、1=B 時間・最低限（1時間 28）、2=C 時間・詳細（88）。hh は1時間の高さ。state.dayGrip に覚える（保存の形・値の範囲 0〜2 は v19.2 のまま。古い 1 は「時間・最低限」として読む）。last＝最後に見ていた時間の段（「時間」をたたいたときに戻る先。覚えるのはこの起動の間だけ）
 const DG_EASE = STG_EASE(0.16, 1, 0.3, 1);
 const dayMode = () => DG.mode;
@@ -1493,11 +1497,12 @@ function stageDayHtml() {
   const sw = `<div class="mdsw mdct" role="group" aria-label="日の見せ方">${[['card', 'カード', !mode], ['time', '時間', !!mode]].map(([v, l, on]) => `<button type="button" data-dg="${v}" aria-pressed="${on}">${l}</button>`).join('')}</div>`;
   const head = `<div class="mdh"><h3><span class="hdt${isRed(k) ? ' hol' : ''}">${d.getMonth() + 1}月${d.getDate()}日</span><span class="hdw">${DOW[d.getDay()]}${hn ? ` ${esc(hn)}` : ''}${r ? ` ${r.name}` : ''}</span></h3>${land ? '' : sw}</div>${land ? `<div class="mdctrow">${sw}</div>` : ''}`; // 第19.3版 その2（35 §5.1）: 見出しの右に「カード｜時間」（132×32、押せる 66×44）。閉じた横は見出しの下の行（幅いっぱい×32、押せる高さ 44）
   let body;
-  if (mode) body = timelineHtml([k], Math.max(0, (closedLand() && POS.land ? POS.land.dayW : safeW() - 24) - 50), 'mday', DG.hh);
+  const rank = stageLaneRank(k), rk2 = (e) => (rank?.has(e.id) ? rank.get(e.id) : 999);
+  const alls = list.filter((e) => e.all).sort((a, b) => rk2(a) - rk2(b)), cards = list.filter((e) => !e.all).sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
+  const chips0 = alls.map((e) => { const cs = catSet(e); return `<button type="button" class="mdallday ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${setVars(cs)}--cat-edge:${cs.edge}" aria-label="${esc(evAllLabel(e, k))}">${xi(e)}${rep(e)}<span class="mdat">${esc(e.title)}</span>${dayNth(e, k) ? `<small>${dayNth(e, k)}</small>` : ''}</button>`; }).join('');
+  const chips = chips0; // 第19.5版: 終日の札は「時間」でも同じ形で見出しのすぐ下（時間軸に「終日」の行は作らない）
+  if (mode) body = `${chips ? `<div class="mdad">${chips}</div>` : ''}${timelineHtml([k], 0, 'mday', DG.hh, false, true)}`;
   else {
-    const rank = stageLaneRank(k), rk2 = (e) => (rank?.has(e.id) ? rank.get(e.id) : 999);
-    const alls = list.filter((e) => e.all).sort((a, b) => rk2(a) - rk2(b)), cards = list.filter((e) => !e.all).sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
-    const chips = alls.map((e) => { const cs = catSet(e); return `<button type="button" class="mdallday ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${setVars(cs)}--cat-edge:${cs.edge}" aria-label="${esc(evAllLabel(e, k))}">${xi(e)}${rep(e)}<span class="mdat">${esc(e.title)}</span>${dayNth(e, k) ? `<small>${dayNth(e, k)}</small>` : ''}</button>`; }).join('');
     const cs = cards.map((e) => {
       const memo = (e.notes || '').split('\n').find((x) => x.trim()) || '';
       return `<button type="button" class="mdcard mdk-event ${catCls(e)}" role="listitem" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}" aria-label="${esc(evCardLabel(e, k, memo.trim()))}"><span class="mdt1">${dayOf(e.start) < k ? '0:00' : t0(e.start.slice(11, 16))}</span><span class="mdt2">${dayEndText(e, k)}</span><i class="mdln" aria-hidden="true"></i><strong${e.title ? '' : ' class="mdnt"'}>${xi(e)}${rep(e)}${e.title ? esc(e.title) : '（題名なし）'}${bell(e)}</strong>${memo ? `<small>${esc(memo)}</small>` : ''}</button>${cardActs('event', e.id, k, !!e.recurring)}`;
@@ -1511,7 +1516,7 @@ function stageDayHtml() {
   const nc = dayNoteCards(k);
   const rest = `<div class="mdrest">${dayTaskCards(k)}${nc}<div class="mdadd"><button type="button" data-act="addtask" data-day="${k}" aria-label="${esc(dayLabel(k))}が期限のタスクを足す">＋ タスク</button><button type="button" data-act="addnote" data-day="${k}" aria-label="${esc(dayLabel(k))}のノートを足す">＋ ノート</button>${nc ? '' : '<button type="button" class="mdnl mdnlx" data-act="notelist" aria-label="ノートの一覧"><span aria-hidden="true">ノート ›</span></button>'}</div></div>`;
   // 第19.3版: 閉じた縦は .mpull が1本でスクロールする。.mday は「スクロール 0 で見えている日の欄」の箱（高さは今までどおり 画面−88−H）、中身は .mdin が持ち、箱の下へあふれて続く。閉じた横は .mdin を箱にしない（display:contents。今までどおり .mday の中がスクロール）
-  return `<div class="mday" data-scroll="mday" data-dg="${'ABC'[mode]}"><div class="mdin">${head}${grab}<div class="mdbody">${body}</div>${rest}</div></div>`;
+  return `<div class="mday" data-scroll="mday" data-dg="${'ABC'[mode]}"><div class="mdin">${head}<div class="mdbody">${body}</div>${grab}${rest}</div></div>`; // 第19.5版: つまみは時間軸の下
 }
 // 終日のチップは2行まで。入りきらない分は最後に「+N」チップ（#E4E0D6）。時間軸のときは開いた最初の予定の1時間前を見出しのすぐ下へ。
 function dayAfterRender(el = root.querySelector('.mpull.browse .mday')) {
@@ -1535,7 +1540,7 @@ function dayAfterRender(el = root.querySelector('.mpull.browse .mday')) {
   if (el.dataset.dg === 'C') { // 時間軸・広い: 題名の下に「14:00〜15:00」
     const k = state.selected, list = eventsOnDay(occIn(k, k), k);
     for (const b of el.querySelectorAll('.tlev[data-event]')) {
-      if (b.querySelector('.tr')) continue;
+      if (b.querySelector('.tr') || b.classList.contains('fsev')) continue;
       const e = list.find((x) => x.id === b.dataset.event); if (!e) continue;
       const sp = document.createElement('span'); sp.className = 'tr'; sp.textContent = `${t0(e.start.slice(11, 16))}〜${t0(e.end.slice(11, 16))}`; b.append(sp);
     }
@@ -1550,24 +1555,49 @@ function dayAfterRender(el = root.querySelector('.mpull.browse .mday')) {
   }
 }
 // 時間軸を開いたときに一番上に見せる時刻（分）＝最初の時刻つきの予定の1時間前。予定がない日は今（今日）か 9:00 の1時間前
-function dayFoldMin() {
-  const k = state.selected, ms = eventsOnDay(occIn(k, k), k).filter((e) => !e.all && dayOf(e.start) === k).map((e) => hmOfIso(e.start));
-  const now = new Date(), min = ms.length ? Math.min(...ms) : (dkey(now) === k ? now.getHours() * 60 + now.getMinutes() : 9 * 60);
-  return Math.max(0, min - 60);
+function dayFoldMin() { return fsRange(state.selected).from; }
+// 第19.5版: 伸び縮みする時間軸（閉じた画面の日の欄「時間」だけ。.tl[data-fs]）。分→位置は FSC.map（js/elastic.js）。
+// 今までの CSS（top = 12 + --m × --hh / 60）をそのまま使うため、要素の --m・--d には「位置から逆算した分」を入れる（本当の分は data-rm・data-rd）
+const FSC = { min: 44, map: null, hh: 0, from: 0, to: 1440 };
+function fsRange(k) {
+  const bs = dayBlocks(k, 1);
+  const first = bs.length ? Math.min(...bs.map((b) => b.s)) : 9 * 60, last = bs.length ? Math.max(...bs.map((b) => b.en)) : 18 * 60;
+  return { bs, from: Math.min(9, Math.floor(first / 60)) * 60, to: Math.min(1440, Math.max(18, Math.ceil(last / 60)) * 60 + 60) };
+}
+const fsTl = () => root.querySelector('.mpull.browse .mday .tl[data-fs]');
+const fsOn = (pane) => pane === 'mday' && !!FSC.map && !!fsTl();
+function fsVis(hh) { const { bs } = fsRange(state.selected), m = elasticMap(elasticHours(bs, hh, FSC.min)); return m.y(FSC.to) - m.y(FSC.from); }
+function fsLayout(tl = fsTl(), hh = DG.hh) {
+  if (!tl) { FSC.map = null; return; }
+  const { bs, from, to } = fsRange(state.selected);
+  const map = elasticMap(elasticHours(bs, hh, FSC.min)), f = DG.unfold ? 0 : from, t = DG.unfold ? 1440 : to;
+  Object.assign(FSC, { map, hh, from: f, to: t });
+  const eff = (m) => map.y(m) * 60 / hh;
+  for (const el of tl.querySelectorAll('[data-rm]')) {
+    const m = Number(el.dataset.rm); el.style.setProperty('--m', String(eff(m)));
+    if (el.dataset.rd) el.style.setProperty('--d', String(eff(m + Number(el.dataset.rd)) - eff(m)));
+    else el.hidden = m > t || m < f;
+  }
+  const nl = tl.querySelector('.nowl'); if (nl) { const nm = nowMin(); nl.style.setProperty('--m', String(eff(nm))); nl.style.visibility = nm < f || nm > t ? 'hidden' : ''; }
+  tl.querySelector('.tlin').style.height = `${map.y(t) + 24}px`;
+  tl.style.setProperty('--foldm', String(eff(f)));
+  tl.classList.toggle('fsdots', hh >= DAYBAR.dots);
 }
 // 第19.3版（閉じた画面の「時間」）: 画面は1本のスクロールで、スクロール 0 では月が見えている。日の欄の中を送って合わせる代わりに、時間軸の「最初の予定の1時間前」より上を畳んで、バー・終日の行のすぐ下から始める
 //（時間軸の中身 .tlin を --foldm 分だけ上へずらし、.tl の上端で切る。1時間の高さ --hh が変わっても同じ時刻で切れる＝バーで幅を変えている間、バーのすぐ下の時刻の線は動かない。35 §5.3「伸ばす中心」）。
 // その2（35 §5.3・品質 §11-1）: 終日の行は畳まない（バーのすぐ下に、開いた位置で必ず見える）。畳んだ分は、時間軸の右上の「前の時間」で開く（0:00 から。日を選び直す・カード⇔時間で畳み直す）。入れ子の縦スクロールは作らない
 function dayFold(el) {
   const tl = el.querySelector('.tl'), body = el.querySelector('.mdbody'); if (!tl || !body) return;
+  const fs = tl.matches('[data-fs]');
+  if (fs) fsLayout(tl);
   const m = DG.unfold ? 0 : dayFoldMin();
-  tl.style.setProperty('--foldm', String(m));
+  if (!fs) tl.style.setProperty('--foldm', String(m));
   body.classList.toggle('folded', !DG.unfold);
   let b = el.querySelector('.mdfold');
-  if (DG.unfold || !(m > 0)) { b?.remove(); return; }
-  if (!b) { b = document.createElement('div'); b.className = 'mdfold'; b.innerHTML = '<button type="button" data-act="dayunfold"></button>'; tl.before(b); }
+  if (DG.unfold || !(fs || m > 0)) { b?.remove(); return; }
+  if (!b) { b = document.createElement('div'); b.className = 'mdfold'; b.innerHTML = '<button type="button" data-act="dayunfold"></button>'; if (fs) tl.after(b); else tl.before(b); } // 第19.5版: 「すべての時間」は時間軸の下（つまみの行の右）
   const t = `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
-  b.firstElementChild.textContent = '前の時間'; b.firstElementChild.setAttribute('aria-label', `0:00 から ${t} までの時間軸も表示`);
+  b.firstElementChild.textContent = fs ? 'すべての時間' : '前の時間'; b.firstElementChild.setAttribute('aria-label', fs ? '0:00 から 24:00 までの時間軸を表示' : `0:00 から ${t} までの時間軸も表示`);
 }
 function dayUnfold() {
   const el = root.querySelector('.mpull.browse .mday'); if (!el || DG.unfold) return;
@@ -1643,6 +1673,7 @@ function dayBarApply(hh, rub = 0) {
   const md = root.querySelector('.mpull.browse .mday'), tl = md?.querySelector('.tl'); if (!tl) return;
   const was = DG.hh; DG.hh = hh;
   tl.style.setProperty('--hh', `${hh}px`);
+  if (tl.matches('[data-fs]')) { fsLayout(tl, hh); hideNearNow(md); }
   if (rub) md.style.setProperty('--dgrub', `${rub}px`); else md.style.removeProperty('--dgrub');
   const g = md.querySelector('.mdgrab'), n = hh >= DAYBAR.snap ? 2 : 1;
   if ((was >= DAYBAR.snap) !== (hh >= DAYBAR.snap)) {
@@ -1663,7 +1694,7 @@ function dayGripSnap(toMode) {
 root.addEventListener('pointerdown', (ev) => {
   const g = ev.target.closest?.('.mdgrab'); if (!g || !ev.isPrimary || (ev.pointerType === 'mouse' && ev.button !== 0) || !dayMode()) return;
   cancelAnimationFrame(DG.raf); DG.raf = 0;
-  DG.drag = { id: ev.pointerId, y0: ev.clientY, hh0: DG.hh, moved: false, dy: 0, pts: [] };
+  DG.drag = { id: ev.pointerId, y0: ev.clientY, hh0: DG.hh, vis0: fsVis(DG.hh), moved: false, dy: 0, pts: [] };
 });
 window.addEventListener('pointermove', (ev) => {
   const d = DG.drag; if (!d || ev.pointerId !== d.id) return;
@@ -1671,8 +1702,10 @@ window.addEventListener('pointermove', (ev) => {
   d.pts.push({ t: ev.timeStamp, y: ev.clientY }); if (d.pts.length > 24) d.pts.shift();
   if (!d.moved && Math.abs(dy) < 6) return;
   d.moved = true;
-  const raw = d.hh0 + dy * DAYBAR.rate, hh = Math.min(DAYBAR.max, Math.max(DAYBAR.min, raw));
-  const over = (raw - hh) / DAYBAR.rate; // 端を超えた引き（指の量）
+  // 第19.5版: つまみは時間軸の下。見えている時間軸の高さ＝始めの高さ＋引いた量（指に 1:1 でついてくる）になる 1時間の高さを探す
+  const target = d.vis0 + dy, lo = fsVis(DAYBAR.min), hi = fsVis(DAYBAR.max);
+  const hh = solveHh(fsRange(state.selected).bs, FSC.min, FSC.from, FSC.to, target, DAYBAR.min, DAYBAR.max);
+  const over = target < lo ? target - lo : target > hi ? target - hi : 0; // 端を超えた引き（指の量）
   dayBarApply(hh, Math.sign(over) * Math.min(DAYBAR.rubberMax, Math.abs(over) * DAYBAR.rubber));
 });
 const dayGripEnd = (ev) => {
@@ -2177,6 +2210,11 @@ function tlBlock({ e, s, en, col, n }, k, cw = false) {
   const t = e.title, sub = t0(hhmm(s));
   return `<button type="button" class="tlev ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}--m:${s};--d:${en - s};left:calc(${col} * 100% / ${n} + 1px);width:calc(100% / ${n} - 2px)" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${t}${e.recurring ? ' 繰り返し' : ''}${isX(e) ? '' : `、${tagText(e)}`}${e.nativeLink?.state === 'linked' ? '、iPhoneにも追加済み' : ''}${alLabel(e)}`)}">${cw ? `<span class="tn">${esc(t)}</span>` : `<span class="tt">${sub}${bell(e)}</span><span class="tn">${esc(t)}</span>`}</button>`; // 閉じた週（cw）は枠に時刻を出さず題名だけ（H-07）
 }
+// 第19.5版: 閉じた画面の日の欄「時間」の予定＝白いカード（始まり・終わり・色の線・題名・メモ。カードの表示と同じ並び）。読み上げは今までの時間軸の枠と同じ
+function fsBlock({ e, s, en, col, n }, k) {
+  const t = e.title, memo = (e.notes || '').split('\n').find((x) => x.trim()) || '';
+  return `<button type="button" class="tlev fsev${n > 1 ? ' nar' : ''} ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" data-rm="${s}" data-rd="${en - s}" style="${catVar(e)}--m:${s};--d:${en - s};left:calc(${col} * 100% / ${n} + 1px);width:calc(100% / ${n} - 2px)" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${t}${e.recurring ? ' 繰り返し' : ''}${isX(e) ? '' : `、${tagText(e)}`}${e.nativeLink?.state === 'linked' ? '、iPhoneにも追加済み' : ''}${alLabel(e)}`)}"><span class="ft1">${dayOf(e.start) < k ? '0:00' : t0(e.start.slice(11, 16))}</span><span class="ft2">${dayEndText(e, k)}</span><i class="fln" aria-hidden="true"></i><span class="tn${t ? '' : ' mdnt'}">${xi(e)}${rep(e)}${t ? esc(t) : '（題名なし）'}${bell(e)}</span>${memo ? `<small class="fmemo">${esc(memo)}</small>` : ''}</button>`;
+}
 // 終日段: 11px「終日」＋カテゴリの淡色地・本色12px太字のピル。最大3件（3日表示は各日1件）、幅不足なら減らして +N（その日の一覧へ）。
 // 第19.1版 S3（M-07）: ノートの札は見出しの行から外して、終日の行の右へ（押せる 44）。札の分の幅は終日のピルから引く。
 const noteChipW = () => { const n = NB.marks.get(state.selected) || 0; return n ? 82 + 6 * (String(n).length - 1) : 60; }; // 札の幅＋左の間 8（実測 73.4＋8）
@@ -2213,16 +2251,17 @@ function allDayWeek(ks) {
   const h = Math.max(24, 2 + lanes.length * 18 + (more ? 14 : 0) + 2);
   return `<div class="allday adweek" aria-label="終日の予定" style="height:${h}px"><span class="adl">終日</span><div class="adcols">${bars}${plus}</div></div>`;
 }
-function timelineHtml(ks, avail, pane = 'right', fixedHh = 0, chip = false) {
+function timelineHtml(ks, avail, pane = 'right', fixedHh = 0, chip = false, fs = false) {
   const cwk = pane === 'closed' && ks.length > 1; // 閉じた週: 曜日 10pt と日付 13pt の2段（M-08）
   const heads = ks.length > 1 ? `<div class="tlheads"><span class="tlh0"></span>${ks.map((k) => { const d = parseKey(k); return `<button type="button" class="tlhd${k === state.selected ? ' sel' : ''}${k === todayKey() ? ' today' : ''}" data-tlday="${k}" aria-pressed="${k === state.selected}" aria-label="${dayLabel(k)}を選ぶ">${cwk ? `<span class="dw">${DOW[d.getDay()]}</span><span class="dd">${d.getDate()}</span>` : `${d.getDate()}（${DOW[d.getDay()]}）`}${rkSpan(k, 'wrk')}</button>`; }).join('')}</div>` : '';
   let lines = '';
   for (let h = 0; h <= 24; h++) {
+    if (fs) { lines += `<i class="hl${h % 3 ? '' : ' h3'}" style="--m:${h * 60}" data-rm="${h * 60}"></i>${h < 24 ? `<span class="hlab hour${h % 3 ? ' dot' : ''}" style="--m:${h * 60}" data-rm="${h * 60}">${h % 3 ? '' : h}</span>` : ''}`; continue; } // 第19.5版: 数字は 3 時間ごと、間の時間は点
     lines += `<i class="hl" style="--m:${h * 60}"></i>`;
     if (h < 24) lines += `<span class="hlab${pane === 'mday' ? ' hour' : ''}" style="--m:${h * 60}">${h}:00</span><i class="hl half" style="--m:${h * 60 + 30}"></i>`;
   }
-  const cols = ks.map((k) => `<div class="tlcol" data-day="${k}">${dayBlocks(k).map((b) => tlBlock(b, k, cwk)).join('')}</div>`).join('');
-  return `${pane === 'closed' ? `${heads}${cwk ? allDayWeek(ks) : allDayRow(ks, avail)}` : `${allDayRow(ks, avail, chip)}${heads}`}<div class="tl" data-scroll="tl" data-pane="${pane}" style="--hh:${fixedHh || TLP[pane].hh}px"><div class="tlin" data-pane="${pane}" data-days="${ks.join(',')}">${lines}<div class="tlcols">${cols}</div><div class="nowl" hidden><span class="nowt"></span></div></div></div>`;
+  const cols = ks.map((k) => `<div class="tlcol" data-day="${k}">${fs ? dayBlocks(k, 1).map((b) => fsBlock(b, k)).join('') : dayBlocks(k).map((b) => tlBlock(b, k, cwk)).join('')}</div>`).join('');
+  return `${fs ? '' : pane === 'closed' ? `${heads}${cwk ? allDayWeek(ks) : allDayRow(ks, avail)}` : `${allDayRow(ks, avail, chip)}${heads}`}<div class="tl" data-scroll="tl" data-pane="${pane}"${fs ? ' data-fs="1"' : ''} style="--hh:${fixedHh || TLP[pane].hh}px"><div class="tlin" data-pane="${pane}" data-days="${ks.join(',')}">${lines}<div class="tlcols">${cols}</div><div class="nowl" hidden><span class="nowt"></span></div></div></div>`;
 }
 // 右ページの日見出し（11月14日（土））＋ 1日／3日の切替（見た目 60×32・押せる範囲の高さ 44）。帯がないときは 今日・検索・＋ も見出しへ。
 const rctl = () => (POS.band ? '' : `<div class="rctl"><button type="button" class="rbtn s44 rtoday" data-act="today" aria-label="今日に戻る"><span aria-hidden="true">${todayLabel()}</span></button><button type="button" class="rbtn s44 rsearch" data-act="search" aria-label="予定を検索">${ICON_SEARCH}</button><button type="button" class="rbtn s44 radd" data-act="add" aria-label="予定を追加"><span aria-hidden="true">＋</span></button></div>`);
@@ -3135,6 +3174,7 @@ function updateNow(scope = root) {
     el.style.setProperty('--n', String(ks.length));
     el.querySelector('.nowt').textContent = t0(hhmm(nowMin()));
   });
+  if (fsTl()) fsLayout();
   hideNearNow(scope);
 }
 // 今の時刻の札から上下 12 以内の時刻ラベルは出さない（H-08）。札の半分の高さ＋12。
@@ -3220,7 +3260,7 @@ const lastCatOk = () => (state.categories.some((c) => c.id === lastCat) ? lastCa
 const colOf = (pane, day) => (pane === 'fold' ? [...root.querySelectorAll('.fl.ft .tlcol')] : [...root.querySelectorAll(`.tl[data-pane="${pane}"] .tlcol`)]).find((c) => c.dataset.day === day) || null;
 const hhOf = (pane) => (pane === 'fold' ? FOLD_HH : pane === 'mday' ? DG.hh : ttOn() ? 60 : TLP[pane]?.hh ?? 60); // v19.3 その2: 閉じた日の欄の時間（mday）は、バーで決めた今の1時間の高さ（28〜88）
 // 開いた縦（fold）は2つの窓。指の高さを紙の時刻へ（折り目の間は境の時刻で止まる）
-const minAtY = (y, col, pane) => (pane === 'fold' ? Math.min(1440, Math.max(0, snap15(rawMinutesAt(FD.g, FD.s, y)))) : minutesAt(y, col.getBoundingClientRect().top, TL_PAD, hhOf(pane)));
+const minAtY = (y, col, pane) => (fsOn(pane) ? Math.min(1440, Math.max(0, snap15(FSC.map.min(y - col.getBoundingClientRect().top - TL_PAD)))) : pane === 'fold' ? Math.min(1440, Math.max(0, snap15(rawMinutesAt(FD.g, FD.s, y)))) : minutesAt(y, col.getBoundingClientRect().top, TL_PAD, hhOf(pane)));
 function paintDraft() {
   root.querySelectorAll('.dbox, .dtag').forEach((n) => n.remove());
   if (!DF.mode) return;
@@ -3230,8 +3270,10 @@ function paintDraft() {
   const box = document.createElement('div');
   box.className = 'dbox'; box.dataset.mode = DF.mode;
   box.setAttribute('style', `${colorVars(cat.color)}--m:${DF.start};--d:${DF.end - DF.start}`);
+  const fsd = fsOn(DF.pane), yOf = (m) => (fsd ? FSC.map.y(m) : m * hhOf(DF.pane) / 60); // 第19.5版: 伸び縮みする時間軸では位置を FSC.map から
+  if (fsd) { box.dataset.rm = String(DF.start); box.dataset.rd = String(DF.end - DF.start); }
   box.innerHTML = `<b class="dt">新しい予定</b><span class="ds">${spanText(DF)}</span>${DF.mode === 'temp' ? '<i class="hdl hdl-s" data-h="start"></i><i class="hdl hdl-e" data-h="end"></i><button type="button" class="dx" aria-label="仮の枠を取り消す">✕</button>' + DRAFT_ACTIONS.map(([k, l]) => `<button type="button" class="vh" data-nudge="${k}">${l}</button>`).join('') : ''}`;
-  if ((DF.end - DF.start) * hhOf(DF.pane) / 60 < 60) box.dataset.short = '';
+  if (yOf(DF.end) - yOf(DF.start) < 60) box.dataset.short = '';
   if (DF.mode === 'temp') {
     box.tabIndex = 0; box.setAttribute('role', 'group'); box.setAttribute('aria-label', `新しい予定の仮枠 ${spanText(DF)}`);
   }
@@ -3245,12 +3287,13 @@ function paintDraft() {
     return;
   }
   col.append(box);
-  const inner = col.closest('.tlin'), hh = hhOf(DF.pane);
+  if (fsd) fsLayout();
+  const inner = col.closest('.tlin');
   [['s', DF.start], ['e', DF.end]].forEach(([k, m], i) => {
     const t = document.createElement('span');
     t.className = `dtag dtag-${k}`; t.textContent = hmText(m);
-    const top = TL_PAD + m * hh / 60 - 9;
-    t.style.top = `${i ? Math.max(top, TL_PAD + DF.start * hh / 60 - 9 + 18) : top}px`;
+    const top = TL_PAD + yOf(m) - 9;
+    t.style.top = `${i ? Math.max(top, TL_PAD + yOf(DF.start) - 9 + 18) : top}px`;
     inner.append(t);
   });
 }
@@ -3294,7 +3337,7 @@ function tlTap(ev, col) {
 // 仮枠の本体（取っ手の外側）を押したまま上下に引くと、同じ日の中で枠ごと動く（15分刻み）。8pt 以下の動きはたたき（click→openDraft）。
 const BOXMOVE_SLOP = 8, BOXMOVE_EDGE = 48;
 const BM = { on: false, id: 0, y0: 0, raw0: 0, r0: null, moved: false };
-const rawAt = (y, col, pane) => (pane === 'fold' ? rawMinutesAt(FD.g, FD.s, y) : ((y - col.getBoundingClientRect().top - TL_PAD) / hhOf(pane)) * 60);
+const rawAt = (y, col, pane) => (fsOn(pane) ? FSC.map.min(y - col.getBoundingClientRect().top - TL_PAD) : pane === 'fold' ? rawMinutesAt(FD.g, FD.s, y) : ((y - col.getBoundingClientRect().top - TL_PAD) / hhOf(pane)) * 60);
 function boxMoveRecalc(y) {
   const col = colOf(DF.pane, DF.day); if (!col) return;
   const r = moveBox(BM.r0, BM.r0.start + rawAt(y, col, DF.pane) - BM.raw0);
@@ -7034,7 +7077,7 @@ function grabRecalc() {
   if (tl?.isConnected && g?.shift) {
     const rc = tl.getBoundingClientRect(), er = GR.o.el.getBoundingClientRect(); // 時刻は、つかんだ枠の列の中で引いている間だけ動く（月へ向かう横の動きでは変わらない）
     if (Math.abs(EG.x - GR.x0) <= 24 && EG.x >= er.left && EG.x < er.right && EG.y >= rc.top && EG.y < rc.bottom) {
-      const hh = hhOf(paneOf(tl)), dm = ((EG.y - GR.y0) + (tl.scrollTop - GR.s0)) / hh * 60;
+      const hh = hhOf(paneOf(tl)), dy = (EG.y - GR.y0) + (tl.scrollTop - GR.s0), dm = fsOn(paneOf(tl)) ? FSC.map.min(FSC.map.y(g.sMin) + dy) - g.sMin : dy / hh * 60;
       const off = Math.min(1440 - g.eMin, Math.max(-g.sMin, Math.round(dm / 15) * 15));
       if (off !== GR.off) { GR.off = off; mvFeel('light'); }
     }

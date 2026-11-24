@@ -2495,7 +2495,7 @@ body:has(> .nsheet:not([hidden])) .shell.closed.land.fb .cb.ctask .bdg{visibilit
 .shell.closed .mpull.browse .mdgrab::before{content:"";position:absolute;left:0;right:0;top:-10px;bottom:-10px}
 .mpull.browse .mdgrab i{position:relative;display:block;width:36px;height:4px;border-radius:2px;background:#B9B4A8}
 .mpull.browse .mdgrab:active i{background:var(--muted)}
-.shell.closed .mpull.browse .mday .mdgrab ~ .mdbody,.shell.closed .mpull.browse .mday .mdgrab ~ .mdrest{transform:translateY(var(--dgrub,0px))}
+.shell.closed .mpull.browse .mday .mdgrab ~ .mdrest{transform:translateY(var(--dgrub,0px))}
 /* 帯がない画面: バーの押せる所は右下の＋（縦）・右の列（横）にかけない */
 .shell.closed.fb:not(.land) .mpull.browse .mdgrab::before{right:52px}
 /* 時間: 開いたときは時間軸の「最初の予定の1時間前」より上（--foldm 分）を畳む。終日の行は畳まない（バーのすぐ下に見える）。畳んだ分は「前の時間」で開く。日の欄の中を送って合わせない */
@@ -2642,3 +2642,29 @@ html:not([data-theme=dark]) .shell.spread .week .strip.outm::before,html:not([da
 html:not([data-theme=dark]) .shell.spread .page.lp .week .strip.outm,html:not([data-theme=dark]) .shell.spread .page.lp .week .bar.outm{color:#59655F}
 /* 望ましい8: 開いた画面の曜日（月〜金）は #5D6963。土・日は案 A の色のまま */
 .shell.open .weekdays,.shell.spread .weekdays{color:var(--outc)}
+
+/* ---- 第19.5版（征希さん「時間で表示した時は本家仕様にする」）: 閉じた画面の日の欄「時間」＝手帳の形。
+   目盛りは 3 時間ごとの数字（間の時間は点。広げたときだけ見える）、線は数字の所だけ。予定は白いカード（始まり・終わり・色の線・題名・メモ）。つまみは時間軸の下。位置は js/elastic.js（--m・--d は位置から逆算した分） ---- */
+.mpull.browse .mday .tl[data-fs]{--lw:32px}
+.mpull.browse .mday .tl[data-fs] .hl{display:none}
+.mpull.browse .mday .tl[data-fs] .hl.h3{display:block;border-top:.5px solid var(--line2)}
+.mpull.browse .mday .tl[data-fs] .hl[hidden],.mpull.browse .mday .tl[data-fs] .hlab[hidden]{display:none}
+.mpull.browse .mday .tl[data-fs] .hlab{left:0;width:22px;text-align:right;color:#8F958F;font:400 11px/14px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;font-variant-numeric:tabular-nums}
+.mpull.browse .mday .tl[data-fs] .hlab.dot::before{content:"";position:absolute;right:5px;top:5.5px;width:3px;height:3px;border-radius:50%;background:#C4C0B5;opacity:0;transition:opacity .15s linear}
+.mpull.browse .mday .tl[data-fs].fsdots .hlab.dot::before{opacity:1}
+.mpull.browse .mday .tl[data-fs] .tlev.fsev{display:block;box-sizing:border-box;height:max(44px,calc(var(--d) * var(--hh) / 60 - 2px));min-height:44px;padding:0;border-radius:10px;background:#fff;box-shadow:0 .5px 2px rgba(38,42,39,.12);overflow:hidden;text-align:left;white-space:nowrap;filter:none}
+.mpull.browse .mday .tl[data-fs] .fsev .ft1,.mpull.browse .mday .tl[data-fs] .fsev .ft2{position:absolute;left:10px;width:38px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mpull.browse .mday .tl[data-fs] .fsev .ft1{top:5px;font:600 13px/17px -apple-system,'Hiragino Sans',sans-serif;color:var(--ink2)}
+.mpull.browse .mday .tl[data-fs] .fsev .ft2{top:22px;font:400 13px/17px -apple-system,'Hiragino Sans',sans-serif;color:var(--muted)}
+.mpull.browse .mday .tl[data-fs] .fsev .fln{position:absolute;left:53px;top:6px;bottom:6px;width:3px;border-radius:1.5px;background:var(--cat-mark)}
+.mpull.browse .mday .tl[data-fs] .fsev .tn{position:absolute;left:64px;right:10px;top:5px;display:block;font:600 15px/17px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink2);overflow:hidden;text-overflow:ellipsis}
+.mpull.browse .mday .tl[data-fs] .fsev .tn.mdnt{color:#A8ABA4;font-weight:400}
+.mpull.browse .mday .tl[data-fs] .fsev .fmemo{position:absolute;left:64px;right:10px;top:23px;font:400 11px/16px -apple-system,'Hiragino Sans',sans-serif;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+.mpull.browse .mday .tl[data-fs] .fsev.nar .ft2,.mpull.browse .mday .tl[data-fs] .fsev.nar .fmemo{display:none}
+.mpull.browse .mday .tl[data-fs] .fsev.nar .tn{top:23px;left:10px}
+.mpull.browse .mday .tl[data-fs] .fsev.nar .fln{left:auto;right:0;top:0;bottom:0;border-radius:0}
+.mpull.browse .mday .tl[data-fs] .tlev.fsev:active{background-color:#F5F3EC!important;filter:none}
+@media (hover:hover){.mpull.browse .mday .tl[data-fs] .tlev.fsev:hover{background-color:#fff!important;filter:none}}
+.mpull.browse .mday[data-dg="B"] .mdad,.mpull.browse .mday[data-dg="C"] .mdad{margin-bottom:0}
+.mpull.browse .mday .tl[data-fs] + .mdfold button{top:0;height:24px;min-height:24px;line-height:24px;color:var(--muted)}
+.mpull.browse .mday .tl[data-fs] + .mdfold button::after{content:"";position:absolute;left:0;right:0;top:-10px;bottom:-10px}
