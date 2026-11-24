@@ -861,20 +861,32 @@ const DOW_LONG = ['日', '月', '火', '水', '木', '金', '土'];
 const dynDayLabel = (k) => { const d = parseKey(k); return `${d.getMonth() + 1}月${d.getDate()}日 ${DOW_LONG[d.getDay()]}曜日${holSpoken(k)}`; };
 // 閉じた7段のチップ（design/34 §7、第19.4版 design/36 §15.3）。時刻つき単日＝地なし＋左の線 2.5×10。終日・複数日＝ごく薄い地＋左の線＋墨の文字（週をまたいで続く側だけ角丸 0。週の頭ごとに線と題名）。
 // 帯は見た目は週の中の1本。作りは、またぐマスごとに1片（どの片も自分のマスの子なので、たたいた所のマスが日になる）。題名は先頭の片だけが持ち、右のマスの上へも続けて見せる。
-function dynChipPieces(b, days, lt, ls, time) {
+// 第19.4版 レビュー直し（設計 必須1・2）: 帯の題名は帯の地の中で切る（左 7＋右 2）。選んだ日の枠（閉じた縦は マスの内側 1・線 2）との重なり順は「1日のチップ ＜ 枠 ＜ 複数日の帯」。
+// 選んだマスの 1 日のチップは左右 5.5 ずつ内側。複数日の帯は枠の上を通し、題名は枠の線の 1 手前で切る（SEL_FRAME は枠の線の外の縁・内の縁までのマスの端からの距離）
+const SEL_FRAME = { dyn: { lo: 1, li: 3, ri: 3 }, open: { lo: 0, li: 2, ri: 3 } }, SEL_INSET = 5.5;
+function dynChipPieces(b, days, lt, ls, time, sel = null) {
   const { e } = b, top = lt + b.lane * ls, n = b.ec - b.sc + 1;
   const cutL = dayOf(e.start) < days[0], cutR = dayOf(e.end) > days[6];
+  const one = n === 1 && !cutL && !cutR, sc = sel ? days.indexOf(sel) : -1; // one＝その日だけのチップ（終日 1 日も入る）
   const out = [];
   for (let col = b.sc; col <= b.ec; col++) {
-    const lead = col === b.sc, last = col === b.ec, gl = lead && !cutL ? 1 : 0, gr = last && !cutR ? 1 : 0;
+    const lead = col === b.sc, last = col === b.ec, ins = one && col === sc, gl = ins ? SEL_INSET : lead && !cutL ? 1 : 0, gr = ins ? SEL_INSET : last && !cutR ? 1 : 0;
     const at = `data-lane="${b.lane}" ${lead ? `data-lead="1" data-sc="${b.sc}" data-ec="${b.ec}" data-event="${esc(e.id)}"` : `data-cont="${esc(e.id)}"`} data-sday="${days[b.sc]}"`;
     const ov = b.band && !lead ? 3 : 0; // つづきの片は左へ 3 重ねて、角丸の隅を前の片（同じ色）で埋める（継ぎ目に欠けが出ない）
-    const pos = `top:${top}px;left:${gl - ov}px;width:calc(100% - ${gl + gr}px + ${ov}px);z-index:${lead ? 3 : 2}`;
+    const pos = `top:${top}px;left:${gl - ov}px;width:calc(100% - ${gl + gr}px + ${ov}px);z-index:${one ? (lead ? 3 : 2) : lead ? 6 : 5}`; // 枠は z-index 4
     const title = esc(e.title);
-    if (!b.band) { out.push({ col, html: `<span class="strip chip timed ${catCls(e)}" ${at} style="${catVar(e)}${pos}" aria-hidden="true"><i class="cline"></i><span class="st">${time ? `${chipTime(e.start)} ` : ''}${title}</span></span>` }); continue; }
-    const txt = lead ? `<span class="bt" style="width:calc(${n} * 100% - ${gl + 1}px)"><span class="st">${title}</span></span>` : '';
+    if (!b.band) { out.push({ col, html: `<span class="strip chip timed${ins ? ' insel' : ''} ${catCls(e)}" ${at} style="${catVar(e)}${pos}" aria-hidden="true"><i class="cline"></i><span class="st">${time ? `${chipTime(e.start)} ` : ''}${title}</span></span>` }); continue; }
+    let txt = '';
+    if (lead) {
+      // 題名の幅（.bt は片の左から 7 で始まる）。マスの幅 C＝100%＋c0。帯の終わりの 2 手前まで。選んだ日にかかる帯は、枠の線の 1 手前まで
+      const grLast = n === 1 ? gr : cutR ? 0 : 1, c0 = gl + (n === 1 ? gr : 0), F = SEL_FRAME.dyn;
+      let k = n, px = n * c0 - gl - grLast - 9;
+      if (!one && sc === b.sc) { k = 1; px = c0 - gl - F.ri - 1 - 7; }
+      else if (!one && sc > b.sc && sc <= b.ec) { k = sc - b.sc; px = k * c0 - gl + F.lo - 1 - 7; }
+      txt = `<span class="bt" style="width:calc(${k} * 100% ${px < 0 ? '-' : '+'} ${Math.abs(px)}px)"><span class="st">${title}</span></span>`;
+    }
     const rl = (lead && !cutL) || ov ? 3 : 0, rr = last && !cutR ? 3 : 0;
-    out.push({ col, html: `<span class="bar chip ${e.all ? 'all' : 'multi'} ${catCls(e)}" ${at}${e.all ? ' data-all="1"' : ''} style="${catVar(e)}${pos};border-radius:${rl}px ${rr}px ${rr}px ${rl}px" aria-hidden="true">${lead ? '<i class="cline"></i>' : ''}${txt}</span>` });
+    out.push({ col, html: `<span class="bar chip ${e.all ? 'all' : 'multi'}${one ? ' one' : ''}${ins ? ' insel' : ''} ${catCls(e)}" ${at}${e.all ? ' data-all="1"' : ''} style="${catVar(e)}${pos};border-radius:${rl}px ${rr}px ${rr}px ${rl}px" aria-hidden="true">${lead ? '<i class="cline"></i>' : ''}${txt}</span>` });
   }
   return out;
 }
@@ -888,7 +900,7 @@ function weekInner(w, { mode, cur, sel, today, cap, time, tk = null, lt = LANE_T
   if (plusLane >= 0) items = items.filter((b) => { if (b.sc === b.ec && b.lane === plusLane && hidden[b.sc] > 0) { dropped[b.sc]++; return false; } return true; });
   let html = '';
   const inCell = Array(7).fill('');
-  if (dyn) for (const b of items) for (const pc of dynChipPieces(b, days, lt, ls, time)) inCell[pc.col] += pc.html; // 閉じた7段: チップは日のボタンの中（R-75。どこをたたいても日になる）
+  if (dyn) for (const b of items) for (const pc of dynChipPieces(b, days, lt, ls, time, sel)) inCell[pc.col] += pc.html; // 閉じた7段: チップは日のボタンの中（R-75。どこをたたいても日になる）
   // 第19.3版 その3（design/35 §2.4・決定 5）: 閉じた画面のマスに、タスクとノートの名前のチップも出す（予定の下の空いた段へ タスク → ノート の順。入りきらない分は +N に数える）。
   // 印は形で分ける: タスク＝四角 8×8・角丸 2（完了は塗り）、ノート＝角の折れた紙 8×10。件数（.tkn）と緑の線（.mline）は閉じた画面では出さない
   const xhid = Array(7).fill(0), xn = days.map(() => ({ t: 0, n: 0 }));
@@ -901,7 +913,8 @@ function weekInner(w, { mode, cur, sel, today, cap, time, tk = null, lt = LANE_T
       const put = (attr, mark, title) => {
         const lane = occ.findIndex((row) => !row[col]); if (lane < 0) { xhid[col]++; return; }
         occ[lane][col] = true;
-        inCell[col] += `<span class="strip chip xk" data-lane="${lane}" data-lead="1" data-sc="${col}" data-ec="${col}" ${attr} data-sday="${k}" style="top:${lt + lane * ls}px;left:1px;width:calc(100% - 2px);z-index:3" aria-hidden="true">${mark}<span class="st">${esc(title)}</span></span>`;
+        const g = k === sel ? SEL_INSET : 1;
+        inCell[col] += `<span class="strip chip xk${k === sel ? ' insel' : ''}" data-lane="${lane}" data-lead="1" data-sc="${col}" data-ec="${col}" ${attr} data-sday="${k}" style="top:${lt + lane * ls}px;left:${g}px;width:calc(100% - ${2 * g}px);z-index:3" aria-hidden="true">${mark}<span class="st">${esc(title)}</span></span>`;
       };
       for (const r of ts) { const done = pend.has(r.itemId) ? pend.get(r.itemId) === true : !!r.done; put(`data-task="${esc(r.itemId)}"`, `<i class="cbox${done ? ' on' : ''}"></i>`, r.title || '（題名なし）'); }
       for (const c of ns) put(`data-note="${esc(c.id)}"`, '<i class="cpaper"></i>', c.title || EMPTY_TITLE);
@@ -924,16 +937,21 @@ function weekInner(w, { mode, cur, sel, today, cap, time, tk = null, lt = LANE_T
   });
   if (mode === 'simple') return html;
   html += pasteGhostHtml(w, cap, lt, ls);
+  // 開いた画面（チップは週の子）。レビュー直し 必須2: 選んだマスの 1 日のチップは枠の内側（左右 5.5）、複数日の帯は枠の上を通し、題名は枠の線の 1 手前で切る（閉じた縦と同じ決まり）
+  const selCol = sel ? days.indexOf(sel) : -1;
   if (!dyn) for (const b of items) {
     const { e } = b, top = `top:${lt + b.lane * ls}px`;
     if (b.band) {
       const when = dayOf(e.start) === dayOf(e.end) ? `${dayLabel(dayOf(e.start))} 終日` : `${dayOf(e.start)}から${dayOf(e.end)}`;
-      const bl = dayOf(e.start) < days[0] ? 0 : 1.5, br = dayOf(e.end) > days[6] ? 0 : 1.5; // 始まりと終わりの側だけ、時刻つきのチップと同じ 1.5 の内寄せ（週をまたいで続く側は端まで）
+      const n = b.ec - b.sc + 1, cutL = dayOf(e.start) < days[0], cutR = dayOf(e.end) > days[6], one = n === 1 && !cutL && !cutR, ins = one && selCol === b.sc;
+      const bl = ins ? SEL_INSET : cutL ? 0 : 1.5, br = ins ? SEL_INSET : cutR ? 0 : 1.5; // 始まりと終わりの側だけ、時刻つきのチップと同じ 1.5 の内寄せ（週をまたいで続く側は端まで）
       const o1 = cur !== null && parseKey(days[b.sc]).getMonth() !== cur && parseKey(days[b.ec]).getMonth() !== cur;
-      html += `<span class="bar ${catCls(e)}${o1 ? ' outm' : ''}${dayOf(e.start) < days[0] ? ' cl' : ''}${dayOf(e.end) > days[6] ? ' cr' : ''}" data-lane=""${b.lane}" data-sc="${b.sc}" data-ec="${b.ec}" data-event="${esc(e.id)}" style="${catVar(e)}left:calc(${b.sc} * 100% / 7 + ${bl}px);width:calc(${b.ec - b.sc + 1} * 100% / 7 - ${bl + br}px);${top}" aria-hidden="true" title="${esc(`${e.title} ${when}`)}"><span class="bt"><span class="st">${esc(e.title)}</span></span></span>`;
+      const F = SEL_FRAME.open, C = `(100% + ${bl + br}px) / ${n}`; // C＝マスの幅（帯の幅から戻す）
+      const mw = one || selCol < b.sc || selCol > b.ec ? '' : selCol === b.sc ? ` style="max-width:calc(${C} - ${bl + F.ri + 1}px)"` : ` style="max-width:calc(${selCol - b.sc} * ${C} - ${bl - F.lo + 1}px)"`;
+      html += `<span class="bar ${catCls(e)}${one ? ' one' : ''}${ins ? ' insel' : ''}${o1 ? ' outm' : ''}${cutL ? ' cl' : ''}${cutR ? ' cr' : ''}" data-lane="${b.lane}" data-sc="${b.sc}" data-ec="${b.ec}" data-event="${esc(e.id)}" style="${catVar(e)}left:calc(${b.sc} * 100% / 7 + ${bl}px);width:calc(${n} * 100% / 7 - ${bl + br}px);${top}" aria-hidden="true" title="${esc(`${e.title} ${when}`)}"><span class="bt"${mw}><span class="st">${esc(e.title)}</span></span></span>`;
     } else {
-      const k = days[b.sc];
-      html += `<span class="strip ${catCls(e)}${cur !== null && parseKey(k).getMonth() !== cur ? ' outm' : ''}" data-lane=""${b.lane}" data-sc="${b.sc}" data-ec="${b.ec}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}${colPos(b.sc, b.ec)};${top}" aria-hidden="true"><span class="st">${time ? `${chipTime(e.start)} ` : ''}${esc(e.title)}</span></span>`;
+      const k = days[b.sc], ins = selCol === b.sc && b.sc === b.ec;
+      html += `<span class="strip ${catCls(e)}${ins ? ' insel' : ''}${cur !== null && parseKey(k).getMonth() !== cur ? ' outm' : ''}" data-lane="${b.lane}" data-sc="${b.sc}" data-ec="${b.ec}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}${ins ? `left:calc(${b.sc} * 100% / 7 + ${SEL_INSET}px);width:calc(100% / 7 - ${2 * SEL_INSET}px)` : colPos(b.sc, b.ec)};${top}" aria-hidden="true"><span class="st">${time ? `${chipTime(e.start)} ` : ''}${esc(e.title)}</span></span>`;
     }
   }
   return html;
@@ -7794,10 +7812,24 @@ function openColorStrip(id, anchor, after) {
   m.className = 'cmenu colorstrip'; m.setAttribute('role', 'group'); m.setAttribute('aria-label', '色'); m.dataset.colorstrip = id;
   const sw = (cid, name, txt) => `<button type="button" class="cso" data-cs="${cid}" aria-pressed="${cur === cid}" aria-label="${esc(name)}${cur === cid ? '、選択中' : ''}"><i class="csw lg" style="${swVars(cid || null, base)}" aria-hidden="true">${txt}</i></button>`;
   m.innerHTML = `<p class="csn" aria-live="polite">${esc(cur ? flickName(cur) : `${iph ? 'カレンダー' : 'カテゴリ'}の色`)}</p><div class="csr">${sw('', `${iph ? 'カレンダー' : 'カテゴリ'}の色に戻す`, '<b>分類</b>')}${FLICK.map((f) => sw(f.id, f.name, '')).join('')}</div>`;
-  const r = anchor.getBoundingClientRect(), W = Math.min(336, window.innerWidth - 16), H = 78;
+  // 置き場所（レビュー直し 必須3）: 開いた横は、押した所のあるページの中に左右 8 空けて収める（折り目の溝 --fold-x±--fold-keepout にかけない）。
+  // 開いた縦は、上下が溝（--groove-avoid-y0〜y1）にかかるならチップの上側へ（それもかかるなら溝のすぐ下）
+  const r = anchor.getBoundingClientRect(), H = 78, cx = r.left + r.width / 2;
+  const rs = getComputedStyle(document.documentElement), px = (n) => { const v = parseFloat(rs.getPropertyValue(n)); return Number.isFinite(v) ? v : null; };
+  let lo = 8, hi = window.innerWidth - 8;
+  if (document.querySelector('.shell.spread')) {
+    const a = px('--left-start'), b = px('--left-end'), c = px('--right-start'), d = px('--right-end');
+    if (a !== null && b !== null && c !== null && d !== null && b > a && d > c) { if (cx < (b + c) / 2) { lo = a + 8; hi = b - 8; } else { lo = c + 8; hi = d - 8; } }
+  }
+  const W = Math.min(336, hi - lo);
   m.style.width = `${W}px`;
-  m.style.left = `${Math.round(Math.min(Math.max(8, r.left + r.width / 2 - W / 2), window.innerWidth - W - 8))}px`;
-  m.style.top = `${Math.round(r.bottom + 4 + H > window.innerHeight - 8 ? Math.max(8, r.top - H - 4) : r.bottom + 4)}px`;
+  m.style.left = `${Math.max(Math.ceil(lo), Math.floor(Math.min(Math.max(lo, cx - W / 2), hi - W)))}px`; // 端数は内側へ（右端が hi を越えない）
+  const g0 = px('--groove-avoid-y0'), g1 = px('--groove-avoid-y1'), vh = window.innerHeight;
+  const hitsGroove = (y) => g0 !== null && g1 !== null && g1 > g0 && y < g1 && y + H > g0, fits = (y) => y >= 8 && y + H <= vh - 8;
+  const below = r.bottom + 4, above = r.top - H - 4;
+  let top = fits(below) && !hitsGroove(below) ? below : fits(above) && !hitsGroove(above) ? above : fits(below) ? below : Math.max(8, above);
+  if (hitsGroove(top)) { const under = g1 + 4, over = g0 - H - 4; top = fits(under) ? under : fits(over) ? over : top; }
+  m.style.top = `${Math.round(top)}px`;
   m.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-cs]');
     if (!b) return;

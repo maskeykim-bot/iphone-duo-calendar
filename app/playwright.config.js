@@ -20,6 +20,6 @@ export default defineConfig({
     // 全 spec（今の設定そのまま）
     { name: 'chromium' },
     // めくりの spec と R-70 の日本語変換テスト（S10）、S11d の設計レビュー M1〜M9（M1 の 0.5 の線は WebKit で 0.5 のまま出る）を WebKit でも回す（iOS の WebKit に近い描画・IME の確認）。第19.3版: v193-closed-scroll（段はつまみだけ・1本のスクロール）も。第19.4版: v194-colors（くすみ色・予定ごとの色。計算済みスタイルからコントラスト比を測る）も。その2: s11i・s11j・s11i-design-18-5（つまみ（下）の貼り付き §18-5〜§18-7）は、征希さん「カード・時間で分けるだけ」（design/35 §5.4 で捨てた決まり）でファイルごと外した
-    { name: 'webkit', testMatch: /(curl-.*|note-ime-r70|s11b-design-m|s11d-design-14-15|s11g|s11h|v193-closed-scroll|v193-day-cardtime|v193-design35-s9|v193-keyboard|v193-note-tasks|v193-note-marks|v193-tasks-local|v193-cards|v194-colors)\.spec\.js/, use: { browserName: 'webkit', launchOptions: {} } },
+    { name: 'webkit', testMatch: /(curl-.*|note-ime-r70|s11b-design-m|s11d-design-14-15|s11g|s11h|v193-closed-scroll|v193-day-cardtime|v193-design35-s9|v193-keyboard|v193-note-tasks|v193-note-marks|v193-tasks-local|v193-cards|v194-colors|v194-review-fix)\.spec\.js/, use: { browserName: 'webkit', launchOptions: {} } },
   ],
 });
