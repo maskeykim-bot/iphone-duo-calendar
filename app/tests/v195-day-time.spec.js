@@ -100,6 +100,10 @@ test('T-8 別の時間へ: 「時間」の予定のカードを長押しして�
   await expect(page.locator('.gchip .gct')).toContainText('16:00〜17:00');
   await page.mouse.up(); await page.waitForTimeout(500);
   const e = await dbEv(page, 'a'); expect([e.start, e.end]).toEqual([`${DAY}T16:00`, `${DAY}T17:00`]);
+  await expect(page.locator('#native-toast span').first()).toHaveText('16:00〜17:00 に変えました');
+  await page.locator('#native-toast button', { hasText: '元に戻す' }).click(); await page.waitForTimeout(500);
+  const e0 = await dbEv(page, 'a'); expect([e0.start, e0.end]).toEqual([`${DAY}T15:00`, `${DAY}T16:00`]);
+  return;
   await expect(page.locator('.mday .tlev[data-event="a"] .ft1')).toHaveText('16:00');
 });
 

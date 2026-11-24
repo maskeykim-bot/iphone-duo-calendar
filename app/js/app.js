@@ -7192,13 +7192,13 @@ const LANDING = { day: '', t0: 0, sel: '', until: 0 };
 const mvDropUndo = () => { clearTimeout(MV.timer); MV.rec = null; };
 const dayText = (k) => `${parseKey(k).getMonth() + 1}月${parseKey(k).getDate()}日`;
 const dayLong = (k) => `${dayText(k)}${DOW_LONG[parseKey(k).getDay()]}曜日`;
-function moveDone(toDay, note, rec, { title = '', only = false, tasks = 0 } = {}) {
+function moveDone(toDay, note, rec, { title = '', only = false, tasks = 0, time = '' } = {}) { // time（第19.5版）: 同じ日のまま時刻だけ変えたときの「11:00〜12:00」
   mvDropUndo();
   MV.rec = rec; MV.timer = setTimeout(() => { if (MV.rec === rec) MV.rec = null; }, UNDO_MS);
   const tail = note ? `。${note}` : '';
-  notice(`${tasks ? `ノートとタスク ${tasks} 件を移しました` : `${DOW_P(toDay)}へ移しました${only ? '（この回だけ）' : ''}`}${tail}`, { label: '元に戻す', fn: undoMove }, UNDO_MS);
-  if (only && !tail) { const t = document.querySelector('#native-toast'), sp = t?.querySelector('span'); if (sp) { t.classList.add('mvonly'); if (sp.scrollWidth > sp.clientWidth + 0.5) sp.textContent = `${parseKey(toDay).getDate()}日へ移しました（この回だけ）`; } } // 1 行に収める（13pt・詰め）。それでも入らないときは「（この回だけ）」を残し、曜日を省く（35 §6.9）
-  say(`${tasks ? `${title}と、つながったタスク${tasks}件を` : `${title}${only ? 'のこの回だけ' : ''}を`}${dayLong(toDay)}へ移しました${tail}`);
+  notice(`${tasks ? `ノートとタスク ${tasks} 件を移しました` : time ? `${time} に変えました${only ? '（この回だけ）' : ''}` : `${DOW_P(toDay)}へ移しました${only ? '（この回だけ）' : ''}`}${tail}`, { label: '元に戻す', fn: undoMove }, UNDO_MS);
+  if (only && !tail && !time) { const t = document.querySelector('#native-toast'), sp = t?.querySelector('span'); if (sp) { t.classList.add('mvonly'); if (sp.scrollWidth > sp.clientWidth + 0.5) sp.textContent = `${parseKey(toDay).getDate()}日へ移しました（この回だけ）`; } } // 1 行に収める（13pt・詰め）。それでも入らないときは「（この回だけ）」を残し、曜日を省く（35 §6.9）
+  say(`${tasks ? `${title}と、つながったタスク${tasks}件を` : `${title}${only ? 'のこの回だけ' : ''}を`}${time ? `${time} に変えました` : `${dayLong(toDay)}へ移しました`}${tail}`);
 }
 // 移せなかった（計画が作れない・保存が断られた。35 §6.6・§6.7）: 「移せませんでした。」3 秒、触覚 warning。カードは元の場所へ 0.22 秒で戻す
 function moveFail(msg = '移せませんでした。', back = null) {
@@ -7282,7 +7282,7 @@ async function moveGrabbed(g, fromDay, toDay, off, st) {
   try { await commitFast(plan, { ops }, sameDay ? undefined : (fn) => moveShow(to, 'event', p.id, fn)); } catch { moveFail('移せませんでした。', { ck: 'event', id: p.id, day: to }); return; }
   mvFeel('light');
   const moved = plan.puts.find((e) => e.id === p.id);
-  moveDone(to, m.note, { kind: 'duo', id: p.id, occKey, scope, start: occ.start, end: occ.end, stamp: moved.updatedAt }, { title: occ.title, only: !!occKey });
+  moveDone(to, m.note, { kind: 'duo', id: p.id, occKey, scope, start: occ.start, end: occ.end, stamp: moved.updatedAt }, { title: occ.title, only: !!occKey, time: sameDay ? `${t0(m.after.start.slice(11, 16))}〜${t0(m.after.end.slice(11, 16))}` : '' });
 }
 // iPhone の予定: 表示（読み込んである一覧の中のその回）を先に先の日へ変え、updateExternalEvent（span:'this'）で書く。断られたら読み直して元へ
 function extShow(e, start, end, toDay, show = true) {
@@ -7313,7 +7313,7 @@ async function moveExt(g, fromDay, toDay, st, off = 0) {
   }
   loadExt(true);
   mvFeel('light');
-  moveDone(dayOf(mv.after.start), mv.note, { kind: 'ext', before: st.before, moved: mv, reply: r, detail: st.detail }, { title: e.title, only: !!e.recurring });
+  moveDone(dayOf(mv.after.start), mv.note, { kind: 'ext', before: st.before, moved: mv, reply: r, detail: st.detail }, { title: e.title, only: !!e.recurring, time: n === 0 && off ? `${t0(mv.after.start.slice(11, 16))}〜${t0(mv.after.end.slice(11, 16))}` : '' });
 }
 // タスク: due.date だけ変える（時刻・通知の設定・ノートとのつながりはそのまま。EventKit には書かない）。通知はアプリの予約を入れ直す（先の日の同じ時刻。日付だけは 8:00）
 const taskRowPatch = (id, row) => { if (RM.data) RM.data = { ...RM.data, reminders: RM.data.reminders.map((x) => (x.itemId === id ? row : x)) }; RM.mut++; RM.sig = ''; };
