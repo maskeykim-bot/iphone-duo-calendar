@@ -2674,3 +2674,10 @@ html:not([data-theme=dark]) .shell.spread .page.lp .week .strip.outm,html:not([d
 .dhrow{cursor:default}
 .dhrow .dhsel{display:flex;align-items:center;gap:6px;margin-left:auto}
 .dhrow select{height:32px;padding:0 8px;border:1px solid var(--line2);border-radius:8px;background:#fff;color:var(--ink2);font:400 15px/30px -apple-system,'Hiragino Sans',sans-serif}
+/* 征希さん「移動先が選定しづらい」: 時刻を動かしている間の落とす先の枠（カードと同じ並び・色の線の色で縁取り）。指についてくる札は、その間だけ隠す */
+.mpull.browse .mday .tl[data-fs] .fsghost{position:absolute;z-index:6;box-sizing:border-box;top:calc(12px + var(--m) * var(--hh) / 60);height:max(44px,calc(var(--d) * var(--hh) / 60 - 2px));border:2px solid var(--cat-mark,#294E42);border-radius:10px;background:var(--cat-tint,#EFECE4);box-shadow:0 4px 12px rgba(0,0,0,.14);pointer-events:none;overflow:hidden;white-space:nowrap}
+.mpull.browse .mday .tl[data-fs] .fsghost .g1{position:absolute;left:8px;top:3px;font:600 13px/17px -apple-system,'Hiragino Sans',sans-serif;color:var(--ink2);font-variant-numeric:tabular-nums}
+.mpull.browse .mday .tl[data-fs] .fsghost .g2{position:absolute;left:8px;top:20px;font:400 13px/17px -apple-system,'Hiragino Sans',sans-serif;color:var(--ink2);font-variant-numeric:tabular-nums}
+.mpull.browse .mday .tl[data-fs] .fsghost .g3{position:absolute;left:62px;right:8px;top:3px;font:600 15px/17px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink2);overflow:hidden;text-overflow:ellipsis}
+.mpull.browse .mday .tl[data-fs] .fsgtag{z-index:7}
+html[data-grabtime] .gchip{opacity:0!important}

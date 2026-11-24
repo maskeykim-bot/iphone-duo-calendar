@@ -7102,13 +7102,15 @@ function grabRecalc() {
   if (tl?.isConnected && g?.shift) {
     const rc = tl.getBoundingClientRect(), er = GR.o.el.getBoundingClientRect(); // 時刻は、つかんだ枠の列の中で引いている間だけ動く（月へ向かう横の動きでは変わらない）
     const fsg = fsOn(paneOf(tl)); // 第19.5版（征希さん「別の時間へのドラッグにも対応」）: 閉じた画面の「時間」は、指が時間軸の中にある間は時刻が動く（横にずれてもよい）。時間軸の外（月のマスへ向かう）では時刻は元のまま
-    if (fsg && !(EG.x >= rc.left && EG.x < rc.right && EG.y >= rc.top && EG.y < rc.bottom)) { if (GR.off) { GR.off = 0; mvFeel('light'); } }
+    if (fsg && !(EG.x >= rc.left && EG.x < rc.right && EG.y >= rc.top && EG.y < rc.bottom)) { if (GR.off) { GR.off = 0; mvFeel('light'); } fsGhostOff(); }
     else if (fsg || (Math.abs(EG.x - GR.x0) <= 24 && EG.x >= er.left && EG.x < er.right && EG.y >= rc.top && EG.y < rc.bottom)) {
       const hh = hhOf(paneOf(tl)), dy = (EG.y - GR.y0) + (tl.scrollTop - GR.s0), ct = tl.querySelector('.tlcol').getBoundingClientRect().top + TL_PAD;
-      if (fsg && GR.m0 == null) GR.m0 = FSC.map.min(GR.y0 - ct); // つかんだ所の時刻（画面を送っても、指の下の時刻との差で決める）
-      const dm = fsg ? (Math.abs(EG.y - GR.y0) < 12 && !GR.off ? 0 : FSC.map.min(EG.y - ct) - GR.m0) : dy / hh * 60;
+      // 征希さん「移動先が選定しづらい（どうしてもズレる）」: 落とす先を、時間軸の上の枠（.fsghost）と左の時刻の札で見せる。枠の上端は、つかんだカードの上端が指についてくる位置（指とカードの上端の間隔 GR.m0 を保つ）を 15 分に丸めた所
+      if (fsg && GR.m0 == null) GR.m0 = ct + FSC.map.y(g.sMin) - GR.y0;
+      const dm = fsg ? (Math.abs(EG.y - GR.y0) < 8 && !GR.off ? 0 : FSC.map.min(EG.y + GR.m0 - ct) - g.sMin) : dy / hh * 60;
       const off = Math.min(1440 - g.eMin, Math.max(-g.sMin, Math.round(dm / 15) * 15));
       if (off !== GR.off) { GR.off = off; mvFeel('light'); }
+      if (fsg && (GR.asChip || GR.off)) fsGhost(tl, g, GR.off);
     }
   }
   const d0 = moveDayAt(EG.x, EG.y), from = g ? (GR.o.from || g.day || dayOf(g.ext ? g.ext.start : g.cur.occ.start)) : null;
@@ -7118,7 +7120,22 @@ function grabRecalc() {
   grabChipPaint(g);
   GR.chip.style.transform = grabChipPos();
 }
+// 第19.5版: 時刻を動かしている間の「落とす先」の枠（始まり・終わりの時刻と題名）と、左の時刻の札
+function fsGhost(tl, g, off) {
+  const col = tl.querySelector('.tlcol'), inner = tl.querySelector('.tlin'); if (!col || !inner) return;
+  let gh = col.querySelector('.fsghost'), tag = inner.querySelector('.fsgtag');
+  if (!gh) { gh = document.createElement('div'); gh.className = 'fsghost'; gh.setAttribute('aria-hidden', 'true'); gh.innerHTML = '<b class="g1"></b><b class="g2"></b><span class="g3"></span>'; gh.setAttribute('style', GR.o.el.getAttribute('style') || ''); gh.style.left = '1px'; gh.style.width = 'calc(100% - 2px)'; col.append(gh); }
+  if (!tag) { tag = document.createElement('span'); tag.className = 'dtag fsgtag'; tag.setAttribute('aria-hidden', 'true'); inner.append(tag); }
+  const s = g.sMin + off, e = g.eMin + off, key = `${s}|${e}`; if (gh.dataset.k === key) return; gh.dataset.k = key;
+  gh.dataset.rm = String(s); gh.dataset.rd = String(e - s);
+  gh.querySelector('.g1').textContent = hmText(s); gh.querySelector('.g2').textContent = hmText(e); gh.querySelector('.g3').textContent = g.title;
+  fsLayout(tl);
+  tag.textContent = hmText(s); tag.style.top = `${TL_PAD + FSC.map.y(s) - 9}px`;
+  document.documentElement.dataset.grabtime = '1'; // 枠が出ている間、指についてくる札は隠す（落とす先は枠が示す）
+}
+function fsGhostOff() { root.querySelectorAll('.fsghost, .fsgtag').forEach((n) => n.remove()); delete document.documentElement.dataset.grabtime; }
 function grabClear() {
+  fsGhostOff();
   grabPaintDrop('');
   GR.chip?.remove(); GR.chip = null; GR.hole?.remove(); GR.hole = null;
   if (GR.inert) { GR.inert.inert = false; GR.inert = null; }

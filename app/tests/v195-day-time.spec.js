@@ -127,3 +127,28 @@ test('T-10 仮の枠の取っ手は左の時刻の札と重ならない（始ま
   expect(near(r.s.left - r.box.left, 72 + 2, 3) && near(r.box.right - r.e.right, 48 + 2, 3)).toBe(true);
   for (const t of r.tags) { expect(r.s.left - 15 > t).toBe(true); expect(r.e.left - 15 > t).toBe(true); } // 押せる範囲（中心から 22）の左端が札の右より外…までは求めず、丸と札が 15 以上離れる
 });
+
+test('T-11 時刻を動かしている間、落とす先が枠で見える: 枠の上端はカードの上端＋引いた量（15分に丸める）。左に始まりの時刻の札。指についてくる札は隠れる。時間軸の外へ出ると枠は消えて札が戻る', async ({ page }) => {
+  await boot(page, { dg: 2, stage: 4, data: [ev('a', '会議', `${DAY}T15:00`, `${DAY}T16:00`)] });
+  await page.locator('.mpull.browse').evaluate((e) => { e.scrollTop = 420; }); await page.waitForTimeout(250);
+  const c = await rect(page, '.mday .tlev[data-event="a"]');
+  await hold(page, c.x + 120, c.y + 30);
+  await page.mouse.move(c.x + 160, c.y + 30 + 40, { steps: 6 }); await page.waitForTimeout(80); // 40 下へ＝43 分 → 15 分に丸めて 45 分
+  const g = await rect(page, '.mday .fsghost');
+  expect(near(g.y, c.y + 42, 1.5)).toBe(true); expect(near(g.h, 54, 1.5)).toBe(true);
+  expect(await page.locator('.mday .fsghost').innerText()).toMatch(/15:45[\s\S]*16:45[\s\S]*会議/);
+  await expect(page.locator('.mday .fsgtag')).toHaveText('15:45');
+  expect(await page.locator('.gchip').evaluate((e) => getComputedStyle(e).opacity)).toBe('0');
+  const head = await rect(page, '.mday .mdh'); // 時間軸の外（日の見出しの上）
+  await page.mouse.move(c.x + 160, head.y + 10, { steps: 8 }); await page.waitForTimeout(80);
+  await expect(page.locator('.mday .fsghost')).toHaveCount(0);
+  expect(await page.locator('.gchip').evaluate((e) => getComputedStyle(e).opacity)).toBe('1');
+  await page.mouse.move(c.x + 160, c.y + 30 + 40, { steps: 8 }); await page.waitForTimeout(80);
+  // 見出しの近くでは画面が自動で送られるので、戻った所の時刻は枠に出ている時刻で確かめる（枠の時刻＝保存される時刻）
+  const shown = await page.evaluate(() => [document.querySelector('.mday .fsghost .g1').textContent, document.querySelector('.mday .fsghost .g2').textContent]);
+  expect(shown[0]).not.toBe('15:00');
+  await page.mouse.up(); await page.waitForTimeout(500);
+  await expect(page.locator('.fsghost, .fsgtag')).toHaveCount(0);
+  const pad = (t) => t.padStart(5, '0');
+  const e = await dbEv(page, 'a'); expect([e.start, e.end]).toEqual([`${DAY}T${pad(shown[0])}`, `${DAY}T${pad(shown[1])}`]);
+});
