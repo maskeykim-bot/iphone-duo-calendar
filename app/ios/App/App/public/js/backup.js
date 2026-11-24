@@ -7,6 +7,9 @@ import { PAGE_IDS, BOTTOM_IDS, normalizePages } from './pages.js';
 import { validateTask, liveTasks } from './tasks.js';
 import { noteCharLimit, titleOf, noteFromMemo, memoTextOf, ensureDailyFolder, noteDateOf } from './notes-model.js';
 import { CAT_IDS, DEFAULTS_NEW, LEGACY, UNCATEGORIZED, legacyToId, validateCategory } from './categories.js';
+import { validColorId } from './colors.js';
+import { checkEventColors } from './event-colors.js';
+export { checkEventColors };
 
 export const APP = 'duo-calendar';
 export const VERSION = 6;
@@ -89,7 +92,8 @@ const exportNote = (n) => {
 };
 const exportFolder = (f) => ({ id: f.id, name: f.name, order: f.order, createdAt: f.createdAt, updatedAt: f.updatedAt });
 const idCmp = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-export function buildBackup(events, settings = {}, now = new Date(), categories = [], memos = [], tasks = [], notes = null, folders = null) {
+// eventColors（第19.4版 design/37 §4.2）: iPhone の予定に付けた色の表（xcExport の結果）。配列のときだけ最上位に出す。VERSION は 6 のまま（古い版は黙って捨てる）。
+export function buildBackup(events, settings = {}, now = new Date(), categories = [], memos = [], tasks = [], notes = null, folders = null, eventColors = null) {
   const s = { view: settings.view, style: settings.style, desk: !!settings.desk, monthExpand: !!settings.monthExpand, rokuyo: settings.rokuyo !== false, holidayRed: settings.holidayRed !== false, pages: normalizePages(settings.pages) };
   if (settings.weekStart === 0 || settings.weekStart === 1) s.weekStart = settings.weekStart;
   s.tasks = { monthTasks: settings.tasks?.monthTasks === true };
@@ -103,6 +107,7 @@ export function buildBackup(events, settings = {}, now = new Date(), categories 
     out.memos = [...memos].sort((a, b) => (a.date < b.date ? -1 : 1)).map(exportMemo);
     out.tasks = liveTasks(tasks).sort(taskCmp).map(exportTask);
   }
+  if (Array.isArray(eventColors)) out.eventColors = eventColors.map((r) => ({ key: r.key, colorId: r.colorId, calId: r.calId || '', title: r.title || '', lastStart: r.lastStart || '' }));
   out.settings = s;
   return out;
 }
@@ -154,6 +159,9 @@ function checkOptional(o) {
   let dropped = 0;
   if (o.alarms !== undefined && !alarmsOk(o.alarms)) { delete o.alarms; dropped++; }
   if (o.nativeLink !== undefined && !linkOk(o.nativeLink)) { delete o.nativeLink; dropped++; }
+  // 予定ごとの色（design/37 §4.1）: 40 字以内の文字列なら通す（知らない ID は値を残してカテゴリの色で出す）。null は「なし」と同じ。それ以外はその項目だけ捨てる
+  if (o.colorId === null) delete o.colorId;
+  else if (o.colorId !== undefined && !validColorId(o.colorId)) { delete o.colorId; dropped++; }
   return dropped;
 }
 
@@ -309,6 +317,9 @@ export function validateBackup(text, current = {}) {
   if (obj.events.length > MAX_EVENTS) return { ok: false, reason: `予定が多すぎます（上限${MAX_EVENTS}件）` };
   if (typeof obj.exportedAt !== 'string' || Number.isNaN(Date.parse(obj.exportedAt))) return { ok: false, reason: '書き出し日時が不正です' };
   const report = { dropped: 0, fallbackCount: 0, legacyAdded: 0, retargeted: 0, ink: Array.isArray(obj.ink) ? obj.ink.length : 0 };
+  // iPhone の予定の色の表。null = ファイルに項目がない（置換でも今の表を残す）。不正な 1 件だけ捨てる（全体は拒否しない）
+  let eventColors = null;
+  if (obj.eventColors !== undefined) { const r = checkEventColors(obj.eventColors); eventColors = r.eventColors; report.dropped += r.dropped; report.colorsDropped = r.dropped; }
   let settings = null;
   if (obj.settings != null) {
     const r = checkSettings(obj.settings);
@@ -419,7 +430,7 @@ export function validateBackup(text, current = {}) {
   for (const key of legacyUsed) if (!have.has(LEGACY[key].id)) { addCat(LEGACY[key]); report.legacyAdded++; }
   if (usedOther && !have.has(CAT_IDS.other)) addCat(DEFAULTS_NEW.find((d) => d.id === CAT_IDS.other));
   if (usedNone && !have.has(CAT_IDS.none)) addCat(UNCATEGORIZED);
-  return { ok: true, data: { version: obj.version, exportedAt: obj.exportedAt, events, memos, tasks, notes, folders, settings, categories, hasCategories }, report };
+  return { ok: true, data: { version: obj.version, exportedAt: obj.exportedAt, events, memos, tasks, notes, folders, settings, categories, hasCategories, eventColors }, report };
 }
 // 読み込み時に cat / categoryId を分ける前の複製（runtime・危険キーを除く）。
 const shapeIn = (o) => stripRuntime(o);

@@ -1,0 +1,54 @@
+
+Running 21 tests using 1 worker
+
+(node:1583005) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › tests/closed-pull-v20.spec.js:272:3 › C. 段が変わる位置と吸い付き（§3・§5） › [未実装] 指に 1:1: 毎フレーム、H の変化と指の縦の動きの差が 1pt 以内、遅れは 1 フレーム（16.7ms）以内（§12 Q-14） (2.4s)
+  ✓   2 [chromium] › tests/layout-metrics.spec.js:224:3 › 月の文字「大」・時刻の出し入れ › 「月の文字: 大」は 11px・各姿勢で1件減り、再読み込み後も保たれる (1.3s)
+  ✓   3 [chromium] › tests/layout.spec.js:116:5 › レイアウト（4サイズ） › 890×626 開いた横: 見開き（左見出し1行・右は時間軸・本文内に縦の操作列なし・日の右ページは5件がスクロールなし） (828ms)
+  ✓   4 [chromium] › tests/layout.spec.js:116:5 › レイアウト（4サイズ） › 951×669 開いた横: 見開き（左見出し1行・右は時間軸・本文内に縦の操作列なし・日の右ページは5件がスクロールなし） (780ms)
+  ✓   5 [chromium] › tests/layout.spec.js:170:5 › 可視テキストの重なり › closedPortrait 466×678 (1.6s)
+  ✓   6 [chromium] › tests/layout.spec.js:170:5 › 可視テキストの重なり › closedLandscape 678×466 (1.7s)
+  ✓   7 [chromium] › tests/layout.spec.js:170:5 › 可視テキストの重なり › openPortrait 626×890 (3.1s)
+  ✓   8 [chromium] › tests/layout.spec.js:170:5 › 可視テキストの重なり › openLandscape 890×626 (3.2s)
+  ✓   9 [chromium] › tests/layout.spec.js:170:5 › 可視テキストの重なり › openPortrait669 669×951 (3.2s)
+  ✓  10 [chromium] › tests/layout.spec.js:170:5 › 可視テキストの重なり › openLandscape951 951×669 (3.2s)
+  ✓  11 [chromium] › tests/memo.spec.js:89:1 › DB 失敗は下書きを残して表示し、再試行で保存できる (1.7s)
+  ✓  12 [chromium] › tests/native.spec.js:805:3 › ネイティブ（偽装）第11版 PR7: iPhone へ反映 › 3 回続けて編集（WRITE_ONLY で待ち）→ 許可後に updateEvent は 1 回、再起動後も再送 (2.9s)
+  ✓  13 [chromium] › tests/note-ime-r70.spec.js:194:3 › R-70 ノートの変換（Chromium の本物の IME） › 既にある途中の行（ゴミ行）を勝手に消さない: 開いただけでは1文字も変えず、書き足しても前の行は残る (2.8s)
+  ✓  14 [chromium] › tests/notify.spec.js:209:3 › 通知の再予約 › PR36: 60件ちょうどで窓外も無ければ duo.refresh は予約されない (1.3s)
+  ✓  15 [chromium] › tests/open-portrait.spec.js:127:5 › 開いた縦 626×890: 月 › 2週の型は6段: 帯＋チップは6段まで、収まらない日は +N（日付の行）にする（帯も1件に数える） (7.6s)
+  ✓  16 [chromium] › tests/open-portrait.spec.js:127:5 › 開いた縦 669×951: 月 › 2週の型は6段: 帯＋チップは6段まで、収まらない日は +N（日付の行）にする（帯も1件に数える） (7.6s)
+  ✓  17 [chromium] › tests/pages.spec.js:176:1 › 下の余白64・折り目の描画なし。時間と一覧の末尾が切替の裏まで続く (281ms)
+  ✘  18 [chromium] › tests/s6-fixes.spec.js:39:3 › 押した色の取り違えがない › 選んでいる日のマスを押しても、地は濃い緑でなく #EFECE4。+N の上を押してもマスが押される（V-03: +N は押す的でない） (5.7s)
+(node:1584728) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  19 [chromium] › tests/s7a-notes.spec.js:62:5 › S7a ノートの記号 閉じた 466×678（帯84） › 編集画面の題名欄に記号が出ない。開いただけでは保存しない。題名を直しても元の記号を保つ (6.7s)
+  ✓  20 [chromium] › tests/s7a-notes.spec.js:62:5 › S7a ノートの記号 開いた縦 669×951 › 編集画面の題名欄に記号が出ない。開いただけでは保存しない。題名を直しても元の記号を保つ (6.4s)
+  ✓  21 [chromium] › tests/s7a-notes.spec.js:62:5 › S7a ノートの記号 開いた横 951×669（帯84） › 編集画面の題名欄に記号が出ない。開いただけでは保存しない。題名を直しても元の記号を保つ (6.5s)
+
+
+  1) [chromium] › tests/s6-fixes.spec.js:39:3 › 押した色の取り違えがない › 選んでいる日のマスを押しても、地は濃い緑でなく #EFECE4。+N の上を押してもマスが押される（V-03: +N は押す的でない） 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "rgb(226, 221, 210)"
+    Received: "rgba(0, 0, 0, 0)"
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      48 |     const d = await day.boundingBox();
+      49 |     await page.mouse.move(d.x + 4, d.y + d.height - 4); await page.mouse.down();
+    > 50 |     await expect.poll(() => day.evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(226, 221, 210)'); // 第19.2版 S11b（R-75）: 閉じた7段の押した地は #E2DDD2
+         |                                                                                       ^
+      51 |     await page.mouse.up();
+      52 |     { // S11d（設計レビュー 7c9fb05 M3・品質レビュー ⑦）: 時刻つきチップの上で押しても、チップは紺のベタにならない（地 transparent・filter なし）。押した地はマスだけ
+      53 |       await page.waitForTimeout(250); const chip = day.locator('.strip.chip.timed').first(); await expect(chip).toBeVisible(); const cb = await chip.boundingBox(); // 上の押下（click）の描き直しが済んでから測る
+        at /workspace/cal-v191/app/tests/s6-fixes.spec.js:50:87
+
+    Error Context: test-results/s6-fixes-押した色の取り違えがない-選んでい-3e95e-押してもマスが押される（V-03-N-は押す的でない）-chromium/error-context.md
+
+  1 failed
+    [chromium] › tests/s6-fixes.spec.js:39:3 › 押した色の取り違えがない › 選んでいる日のマスを押しても、地は濃い緑でなく #EFECE4。+N の上を押してもマスが押される（V-03: +N は押す的でない） 
+  20 passed (1.2m)

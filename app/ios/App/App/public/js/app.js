@@ -9,8 +9,8 @@ import { occurrenceAt, parseOccId, planDelete, planEdit, editInfo, normRule } fr
 import { bumpRevision, occBetween } from './occcache.js';
 import { LIMIT, groupByDay, highlight, excerpt, normalize, terms, searchEvents, searchNotes, searchTasks, noteIndexSize } from './search.js';
 import { backupName, buildBackup, countStats, localIso, legacyHashes, planAppend, planLegacyNotes, planNotes, planTasks, validateBackup, MAX_BYTES } from './backup.js';
-import { solid } from './categories.js';
-import { CAT_IDS, LIMITS as CAT_LIMITS, canHideCategory, defaultDeleteTarget, ensureOneVisible, supplementForReplace, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, RETARGET_TOAST, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory } from './categories.js';
+import { colorSet, eventSet, setVars, isFlickId, flickName, flickSet, FLICK, validColorId } from './colors.js';
+import { CAT_IDS, LIMITS as CAT_LIMITS, canHideCategory, defaultDeleteTarget, ensureOneVisible, supplementForReplace, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, RETARGET_TOAST, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, validateCategory } from './categories.js';
 import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAlarms, encAlarm, fireAt, nextNotifyText, normNotify, pastForNotify, planNotifications, planNotifyPolicy, MAX_PENDING, WINDOW_DAYS } from './notify.js';
 import { rokuyoOf } from './rokuyo.js';
 import { createPainter } from './curl/painter.js';
@@ -29,6 +29,7 @@ import { liveTasks as liveTasksOf, isTombstone as isTaskTombstone, TASK_TITLE_MA
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
 import { call, hideKeyboardAccessoryBar, errCode, errReason, errText, haptic, listen, nativeAvailable } from './native.js';
 import { createDestPage, destRowsHtml } from './destination-ui.js';
+import { xcKeyOf, xcLoad, xcItems, xcSet, xcSweep, xcExport, xcImport } from './event-colors.js';
 import { KB_METRICS_ENABLED as KB_METRICS_BUILD, kbMetrics, kbText, screenText } from './kbmetrics.js';
 // 開発用の表示（画面寸法・キーボード計測・タッチ確認）は審査版・征希さんの版では出さない。確かめるときだけ ?dev=1 で出す（第19.1版 S5 H-16）。
 const DEV = new URLSearchParams(location.search).has('dev') || (() => { try { return localStorage.getItem('duo.dev') === '1'; } catch { return false; } })();
@@ -589,7 +590,12 @@ const isX = (e) => e.origin === 'iphone';
 const catOf = (e) => resolveCategory(e.categoryId, state.categories);
 const catCls = (e) => (isX(e) ? 'ext' : '');
 // 色はカテゴリ一覧から inline の CSS 変数で（固定クラスは使わない）。iPhone の予定はカレンダーの色。
-const colorVars = (c) => `--cat:${c};--tint:${tint(c)};--solid:${solid(c)};`;
+// 第19.4版（design/36 §8.1）: 色は画面に出すときだけくすませる。入口はここ（colorVars・catVar・catSet）と、設定の丸（calDot）・詳細の丸。保存と EventKit の色は元の hex のまま。
+// ダークは値だけ（36 §5）。アプリはライト固定（V-07）なので、確かめ用に html[data-theme=dark]（?theme=dark）のときだけ使う
+const MODE = (() => { try { if (new URLSearchParams(location.search).get('theme') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch { /* */ } return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'; })();
+if (MODE === 'dark') import('./theme-preview.js').then((m) => m.applyDarkPreview()).catch(() => {}); // 見本のときだけ読み込む
+const lineOf = (c) => colorSet(c, MODE).line; // 色の点・凡例・丸（4.5 の線の色）
+const colorVars = (c) => setVars(colorSet(c, MODE));
 // iPhone に保存した予定（linked / pending）の色と札は保存先カレンダーのもの。未取得なら保存した名前と安全な色。
 const calOfLink = (e) => {
   const l = e.nativeLink;
@@ -597,7 +603,34 @@ const calOfLink = (e) => {
   const c = X.calendars.find((x) => x.id === l.calendarId);
   return { name: c ? c.title : l.calName || 'iPhone', color: c?.color || '#68716A' };
 };
-const catVar = (e) => { if (isX(e)) return `--cat:${e.color};--solid:${solid(e.color)};`; const c = calOfLink(e); return colorVars(c ? c.color : catOf(e).color); };
+// 予定の元の色（保存のままの hex）: iPhone の予定はカレンダーの色、iPhone に保存した Duo の予定は保存先カレンダーの色、それ以外は分類の色
+const baseColorOf = (e) => { if (isX(e)) return e.color; const c = calOfLink(e); return c ? c.color : catOf(e).color; };
+// 予定ごとの色（design/37）: Duo の予定は colorId（繰り返しは系列の本体の値。overrides の colorId は読まない）、iPhone の予定は色の表（meta 'xcolors'）
+const colorIdOf = (e) => (isX(e) ? xColorIdOf(e) : e.colorId);
+const catSet = (e) => eventSet(colorIdOf(e), baseColorOf(e), MODE);
+const catVar = (e) => setVars(catSet(e));
+// iPhone の予定に付けた色の表（design/37 §4.2。meta 'xcolors' の写し）。キーは externalId（空なら itemId）で、繰り返しは全部の回が同じ色
+const XC = { map: new Map() };
+const xColorIdOf = (e) => XC.map.get(xcKeyOf(e))?.colorId ?? null;
+async function xcPut(table) { if (table === XC.map) return; XC.map = table; bumpRevision(); await db.putEventColors(xcItems(table)); }
+// iPhone にも保存した Duo の予定（linked）: 保存で得た externalId で、色の表にも同じ色を入れる（別の端末では iPhone の予定として見えるため。連携の回答 6）。外したら表からも外す
+function xcMirror(events) {
+  let t = XC.map;
+  for (const e of events) {
+    const l = e?.nativeLink, key = l?.state === 'linked' && typeof l.externalId === 'string' ? l.externalId : '';
+    if (!key) continue;
+    const want = validColorId(e.colorId) ? e.colorId : null, have = t.get(key)?.colorId ?? null;
+    if (want !== have) t = xcSet(t, key, want, { calId: l.calendarId || '', title: e.title, lastStart: e.start });
+  }
+  return xcPut(t).catch(() => {});
+}
+// 読み込みが成功したあとだけ「消えたかどうか」を見る（連携の回答 5 の 4 つの条件は event-colors.js の xcSweep）
+function xcSweepNow() {
+  if (!XC.map.size || X.status !== 'ok' || !X.cache) return;
+  const r = xcSweep(XC.map, { status: X.status, range: X.cache.range, calIds: X.cache.ids ? X.cache.ids.split(',') : [], events: X.cache.events });
+  if (r.changed) xcPut(r.table).catch(() => {});
+}
+const xcAfterLoad = () => { xcMirror(state.events).then(xcSweepNow); };
 const catSty = (e) => ` style="${catVar(e)}"`;
 const tagText = (e) => (isX(e) ? subLabel(e) : calOfLink(e)?.name ?? catOf(e).name);
 const xi = (e) => (isX(e) ? '<span class="xi" aria-hidden="true">▦</span>' : '');
@@ -707,7 +740,7 @@ const bell = (e) => (hasBell(e) ? BELL : '');
 const rep = (e) => (e.recurring ? '<span class="rep" aria-hidden="true">↻</span>' : '');
 const repLabel = (e, t) => (e.recurring || isX(e) || alLabel(e) ? ` aria-label="${esc(`${xname(e)}${t}${e.recurring ? ' 繰り返し' : ''}${alLabel(e)}`)}"` : '');
 const addBtn = '<footer class="foot"><button type="button" class="add" data-act="add">＋ 予定を追加</button></footer>';
-const legend = () => `<div class="legend" aria-label="カテゴリ凡例">${state.categories.filter((c) => !c.hidden).map((c) => `<span style="--cat:${c.color}">${esc(c.name)}</span>`).join('')}</div>`;
+const legend = () => `<div class="legend" aria-label="カテゴリ凡例">${state.categories.filter((c) => !c.hidden).map((c) => `<span style="--cat-line:${lineOf(c.color)}">${esc(c.name)}</span>`).join('')}</div>`;
 const xlegend = () => (extActive() ? '<div class="xlegend small">▦ iPhoneの予定（カレンダーの色）</div>' : '');
 
 function periodTitle() {
@@ -815,7 +848,7 @@ function pasteGhosts(w, cap) {
 function pasteGhostHtml(w, cap, lt = LANE_TOP, ls = LANE_STEP) {
   const gs = pasteGhosts(w, cap);
   if (!gs.length) return '';
-  const s = PS.src, v = s.origin === 'iphone' ? `--cat:${s.color || '#68716A'};` : catVar(s);
+  const s = PS.src, v = catVar(s);
   return gs.map((g) => {
     const t = clipTitle(s.title), time = !s.all && g.n === 1 ? `${t0(s.start.slice(11, 16))} ` : '';
     const label = !g.first ? `${t}（つづき）` : g.n > 1 ? `${t} ${g.n}日` : `${time}${t}`;
@@ -826,11 +859,7 @@ const colPos = (sc, ec) => `left:calc(${sc} * 100% / 7 + 1.5px);width:calc(${ec 
 // 閉じた7段のマスの読み上げ: 「11月12日 木曜日、予定N件…」（六曜はマスに出さないので読み上げの先頭にも置かない）
 const DOW_LONG = ['日', '月', '火', '水', '木', '金', '土'];
 const dynDayLabel = (k) => { const d = parseKey(k); return `${d.getMonth() + 1}月${d.getDate()}日 ${DOW_LONG[d.getDay()]}曜日${holSpoken(k)}`; };
-// ベタ塗りの文字: 白 #FFFFFF と #1C1F1D のうち、地の色とのコントラストが高い方（design/34 §7）
-const relLum = (hex) => { const m = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(hex || ''); if (!m) return 0.2; let h = m[1]; if (h.length === 3) h = [...h].map((c) => c + c).join(''); const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
-const onSolid = (hex) => { const L = relLum(hex), cw = 1.05 / (L + 0.05), cd = (L + 0.05) / (relLum('#1C1F1D') + 0.05); return cw >= cd ? '#FFFFFF' : '#1C1F1D'; };
-const catColorOf = (e) => { if (isX(e)) return e.color; const c = calOfLink(e); return c ? c.color : catOf(e).color; };
-// 閉じた7段のチップ（design/34 §7）。時刻つき単日＝地なし＋左の線 2×10。終日・複数日＝ベタ塗りの帯（切れ目の側だけ角丸 0）。
+// 閉じた7段のチップ（design/34 §7、第19.4版 design/36 §15.3）。時刻つき単日＝地なし＋左の線 2.5×10。終日・複数日＝ごく薄い地＋左の線＋墨の文字（週をまたいで続く側だけ角丸 0。週の頭ごとに線と題名）。
 // 帯は見た目は週の中の1本。作りは、またぐマスごとに1片（どの片も自分のマスの子なので、たたいた所のマスが日になる）。題名は先頭の片だけが持ち、右のマスの上へも続けて見せる。
 function dynChipPieces(b, days, lt, ls, time) {
   const { e } = b, top = lt + b.lane * ls, n = b.ec - b.sc + 1;
@@ -839,15 +868,13 @@ function dynChipPieces(b, days, lt, ls, time) {
   for (let col = b.sc; col <= b.ec; col++) {
     const lead = col === b.sc, last = col === b.ec, gl = lead && !cutL ? 1 : 0, gr = last && !cutR ? 1 : 0;
     const at = `data-lane="${b.lane}" ${lead ? `data-lead="1" data-sc="${b.sc}" data-ec="${b.ec}" data-event="${esc(e.id)}"` : `data-cont="${esc(e.id)}"`} data-sday="${days[b.sc]}"`;
-    const ov = b.band && e.all && !lead ? 3 : 0; // つづきの片は左へ 3 重ねて、角丸の隅を前の片（同じ色）で埋める（継ぎ目に欠けが出ない）
+    const ov = b.band && !lead ? 3 : 0; // つづきの片は左へ 3 重ねて、角丸の隅を前の片（同じ色）で埋める（継ぎ目に欠けが出ない）
     const pos = `top:${top}px;left:${gl - ov}px;width:calc(100% - ${gl + gr}px + ${ov}px);z-index:${lead ? 3 : 2}`;
     const title = esc(e.title);
     if (!b.band) { out.push({ col, html: `<span class="strip chip timed ${catCls(e)}" ${at} style="${catVar(e)}${pos}" aria-hidden="true"><i class="cline"></i><span class="st">${time ? `${chipTime(e.start)} ` : ''}${title}</span></span>` }); continue; }
     const txt = lead ? `<span class="bt" style="width:calc(${n} * 100% - ${gl + 1}px)"><span class="st">${title}</span></span>` : '';
-    if (e.all) {
-      const colr = catColorOf(e), rl = (lead && !cutL) || ov ? 3 : 0, rr = last && !cutR ? 3 : 0;
-      out.push({ col, html: `<span class="bar chip all ${catCls(e)}" ${at} data-all="1" style="${catVar(e)}${pos};background:${colr};color:${onSolid(colr)};border-radius:${rl}px ${rr}px ${rr}px ${rl}px" aria-hidden="true">${txt}</span>` });
-    } else out.push({ col, html: `<span class="bar chip multi ${catCls(e)}" ${at} style="${catVar(e)}${pos}" aria-hidden="true">${lead && !cutL ? '<i class="cline"></i>' : ''}${txt}</span>` });
+    const rl = (lead && !cutL) || ov ? 3 : 0, rr = last && !cutR ? 3 : 0;
+    out.push({ col, html: `<span class="bar chip ${e.all ? 'all' : 'multi'} ${catCls(e)}" ${at}${e.all ? ' data-all="1"' : ''} style="${catVar(e)}${pos};border-radius:${rl}px ${rr}px ${rr}px ${rl}px" aria-hidden="true">${lead ? '<i class="cline"></i>' : ''}${txt}</span>` });
   }
   return out;
 }
@@ -901,10 +928,12 @@ function weekInner(w, { mode, cur, sel, today, cap, time, tk = null, lt = LANE_T
     const { e } = b, top = `top:${lt + b.lane * ls}px`;
     if (b.band) {
       const when = dayOf(e.start) === dayOf(e.end) ? `${dayLabel(dayOf(e.start))} 終日` : `${dayOf(e.start)}から${dayOf(e.end)}`;
-      html += `<span class="bar ${catCls(e)}" data-lane="${b.lane}" data-sc="${b.sc}" data-ec="${b.ec}" data-event="${esc(e.id)}" style="${catVar(e)}left:calc(${b.sc} * 100% / 7);width:calc(${b.ec - b.sc + 1} * 100% / 7);${top}" aria-hidden="true" title="${esc(`${e.title} ${when}`)}"><span class="bt"><span class="st">${esc(e.title)}</span></span></span>`;
+      const bl = dayOf(e.start) < days[0] ? 0 : 1.5, br = dayOf(e.end) > days[6] ? 0 : 1.5; // 始まりと終わりの側だけ、時刻つきのチップと同じ 1.5 の内寄せ（週をまたいで続く側は端まで）
+      const o1 = cur !== null && parseKey(days[b.sc]).getMonth() !== cur && parseKey(days[b.ec]).getMonth() !== cur;
+      html += `<span class="bar ${catCls(e)}${o1 ? ' outm' : ''}${dayOf(e.start) < days[0] ? ' cl' : ''}${dayOf(e.end) > days[6] ? ' cr' : ''}" data-lane=""${b.lane}" data-sc="${b.sc}" data-ec="${b.ec}" data-event="${esc(e.id)}" style="${catVar(e)}left:calc(${b.sc} * 100% / 7 + ${bl}px);width:calc(${b.ec - b.sc + 1} * 100% / 7 - ${bl + br}px);${top}" aria-hidden="true" title="${esc(`${e.title} ${when}`)}"><span class="bt"><span class="st">${esc(e.title)}</span></span></span>`;
     } else {
       const k = days[b.sc];
-      html += `<span class="strip ${catCls(e)}" data-lane="${b.lane}" data-sc="${b.sc}" data-ec="${b.ec}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}${colPos(b.sc, b.ec)};${top}" aria-hidden="true"><span class="st">${time ? `${chipTime(e.start)} ` : ''}${esc(e.title)}</span></span>`;
+      html += `<span class="strip ${catCls(e)}${cur !== null && parseKey(k).getMonth() !== cur ? ' outm' : ''}" data-lane=""${b.lane}" data-sc="${b.sc}" data-ec="${b.ec}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}${colPos(b.sc, b.ec)};${top}" aria-hidden="true"><span class="st">${time ? `${chipTime(e.start)} ` : ''}${esc(e.title)}</span></span>`;
     }
   }
   return html;
@@ -1450,7 +1479,7 @@ function stageDayHtml() {
   else {
     const rank = stageLaneRank(k), rk2 = (e) => (rank?.has(e.id) ? rank.get(e.id) : 999);
     const alls = list.filter((e) => e.all).sort((a, b) => rk2(a) - rk2(b)), cards = list.filter((e) => !e.all).sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
-    const chips = alls.map((e) => { const col = catColorOf(e); return `<button type="button" class="mdallday ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}background:${col};color:${onSolid(col)}" aria-label="${esc(evAllLabel(e, k))}">${xi(e)}${rep(e)}<span class="mdat">${esc(e.title)}</span>${dayNth(e, k) ? `<small>${dayNth(e, k)}</small>` : ''}</button>`; }).join('');
+    const chips = alls.map((e) => { const cs = catSet(e); return `<button type="button" class="mdallday ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${setVars(cs)}--cat-edge:${cs.edge}" aria-label="${esc(evAllLabel(e, k))}">${xi(e)}${rep(e)}<span class="mdat">${esc(e.title)}</span>${dayNth(e, k) ? `<small>${dayNth(e, k)}</small>` : ''}</button>`; }).join('');
     const cs = cards.map((e) => {
       const memo = (e.notes || '').split('\n').find((x) => x.trim()) || '';
       return `<button type="button" class="mdcard mdk-event ${catCls(e)}" role="listitem" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}" aria-label="${esc(evCardLabel(e, k, memo.trim()))}"><span class="mdt1">${dayOf(e.start) < k ? '0:00' : t0(e.start.slice(11, 16))}</span><span class="mdt2">${dayEndText(e, k)}</span><i class="mdln" aria-hidden="true"></i><strong${e.title ? '' : ' class="mdnt"'}>${xi(e)}${rep(e)}${e.title ? esc(e.title) : '（題名なし）'}${bell(e)}</strong>${memo ? `<small>${esc(memo)}</small>` : ''}</button>${cardActs('event', e.id, k, !!e.recurring)}`;
@@ -3856,6 +3885,7 @@ const R = { toggle: $('#rtoggle'), panel: $('#rpanel'), sum: $('#rsum'), desc: $
 let rsel = [], autoDays = true;
 // iPhone の予定（ext）の編集状態。Duo の resolve/commit/outbox には流さない。null は Duo の予定／新規。
 let extEd = null; // { before, detail, cal, alarms0, gen }
+let colorSel = null; // 編集中の予定の色（design/37）。null＝カテゴリの色、文字列＝colorId。繰り返しは「この予定のみ」で保存しても系列の本体（全部の回）に付く
 let alarms; // 編集中の通知。undefined=項目なし（既存で未設定。触るまで既定を付けない）／配列=明示（[] はなし）
 
 function resolve(id) {
@@ -3899,7 +3929,7 @@ function readForm() {
   return {
     title: F.title.value, categoryId: formCat(), dest: destSel, all: F.all.checked, start: fullStart(), end: fullEnd(), place: F.place.value, notes: F.notes.value,
     rfreq: F.rfreq.value, rbyday: [...rsel], rend: F.rend.value, rcount: F.rcount.value, runtil: F.runtil.value, ropen: !R.panel.hidden, autoDays,
-    alarms,
+    alarms, colorId: colorSel,
   };
 }
 function saveDraft() {
@@ -4012,6 +4042,8 @@ function showEditor(values, id, focus = true) {
   applyAllDayUi();
   setRepeatOpen(!!values.ropen);
   destSel = extEd ? null : normDest(values.dest);
+  colorSel = extEd ? xColorIdOf(extEd.before) : validColorId(values.colorId) ? values.colorId : null;
+  closeColorPop(false);
   { const d0 = destEff(); lastCat = d0.type === 'duo' ? d0.id : lastCatOk(); }
   closeDestPop(false);
   alarms = Array.isArray(values.alarms) ? values.alarms.map((a) => ({ ...a })) : undefined;
@@ -4036,7 +4068,7 @@ function applyExtUi() {
   $('#ext-gone').hidden = true;
   if (!x) return;
   const b = x.before, d = x.detail;
-  $('#ed-tag').innerHTML = `<i class="cdot" style="background:${esc(b.color)}" aria-hidden="true"></i>${esc(subLabel(b))}${b.recurring ? ' <span aria-hidden="true">↻</span>' : ''}`;
+  $('#ed-tag').innerHTML = `<i class="cdot" style="background:${lineOf(b.color)}" aria-hidden="true"></i>${esc(subLabel(b))}${b.recurring ? ' <span aria-hidden="true">↻</span>' : ''}`;
   const rule = d.rule && d.rule.freq ? ruleSummary(d.rule, b.start) : '';
   $('#rfix-sum').textContent = rule || d.ruleText || '繰り返し';
 }
@@ -4097,10 +4129,10 @@ function destInfo(d) {
 }
 function destGroups(locked = curDest()?.type === 'iphone') {
   const byVis = (l) => [...l.filter((x) => !x.hidden), ...l.filter((x) => x.hidden)];
-  const gs = locked ? [] : [{ head: 'Duo（この端末だけ）', items: byVis(state.categories.map((c) => ({ type: 'duo', id: c.id, name: c.name, color: c.color, hidden: !!c.hidden }))) }];
+  const gs = locked ? [] : [{ head: 'Duo（この端末だけ）', items: byVis(state.categories.map((c) => ({ type: 'duo', id: c.id, name: c.name, color: lineOf(c.color), hidden: !!c.hidden }))) }];
   if (extActive()) {
     for (const g of groupBySource(writable(X.calendars))) {
-      gs.push({ head: `iPhone ・ ${g.heading}`, items: byVis(g.items.map((c) => ({ type: 'iphone', id: c.id, name: c.title, color: c.color, hidden: !link.calendarIds.includes(c.id) }))) });
+      gs.push({ head: `iPhone ・ ${g.heading}`, items: byVis(g.items.map((c) => ({ type: 'iphone', id: c.id, name: c.title, color: lineOf(c.color), hidden: !link.calendarIds.includes(c.id) }))) });
     }
   }
   return gs;
@@ -4128,6 +4160,34 @@ const destPage = createDestPage(destPop, {
   },
   onSettings() { openCalSettingsFromEditor(); },
 });
+// ---- 予定ごとの色（design/37 §3）: 「カレンダー」の下の「色」の行と、色を選ぶ画面（カテゴリの色＋フリックの 7 色）
+const swVars = (colorId, base) => setVars(eventSet(colorId, base, MODE));
+// 「カテゴリの色（プライベート）」／ iPhone のカレンダーなら「カレンダーの色（個人）」
+const baseColorLabel = (d, info) => `${d.type === 'iphone' ? 'カレンダー' : 'カテゴリ'}の色（${info.name}）`;
+const edBase4Color = () => { if (extEd) return { d: { type: 'iphone' }, info: { name: extEd.before.calName || 'iPhone', color: extEd.before.color } }; const d = destEff(); return { d, info: destInfo(d) }; };
+function colorRowsHtml(cur, d, info, isIphone) {
+  const row = (id, name, sub) => { const on = (isFlickId(cur) ? cur : '') === id; return `<button type="button" class="dopt copt" role="option" aria-selected="${on}" aria-label="色 ${esc(name)}${sub ? ` ${esc(sub)}` : ''}" data-dtype="color" data-did="${id}"><i class="csw lg" style="${swVars(id || null, info.color)}" aria-hidden="true"></i><span class="dn">${esc(name)}${sub ? `<small class="dsub">${esc(sub)}</small>` : ''}</span><span class="dck" aria-hidden="true">${on ? '✓' : ''}</span></button>`; };
+  return `<h4>${d.type === 'iphone' ? 'カレンダー' : 'カテゴリ'}</h4>${row('', `${d.type === 'iphone' ? 'カレンダー' : 'カテゴリ'}の色`, info.name)}<h4>くすみ色（Duo フリックと同じ 7 色）</h4>${FLICK.map((f) => row(f.id, f.name, '')).join('')}${isIphone ? '<p class="dnote cnote">iPhone のカレンダーの予定に付けた色は、この端末の Duo の中だけに残ります（iPhone のカレンダーには書けません）。</p>' : ''}`;
+}
+const colorPage = createDestPage($('#color-pop'), {
+  title: '色',
+  settings: false,
+  bodyHtml() { const { d, info } = edBase4Color(); return colorRowsHtml(colorSel, d, info, !!extEd); },
+  onOpen() { form.inert = true; $('#f-color').setAttribute('aria-expanded', 'true'); },
+  onClose(focus) { form.inert = false; $('#f-color').setAttribute('aria-expanded', 'false'); if (focus) $('#f-color').focus({ preventScroll: true }); },
+  onPick(d) { colorSel = isFlickId(d.id) ? d.id : null; updateColorUi(); saveDraft(); },
+});
+function closeColorPop(focus = true) { return colorPage.close(focus); }
+$('#f-color').addEventListener('click', () => { if (!colorPage.isOpen()) { closeDestPop(false); colorPage.open(); } });
+function updateColorUi() {
+  const { d, info } = edBase4Color(), on = isFlickId(colorSel);
+  $('#color-sw').setAttribute('style', swVars(on ? colorSel : null, info.color));
+  const nm = $('#color-name'); nm.textContent = on ? flickName(colorSel) : baseColorLabel(d, info); nm.classList.toggle('on', on);
+  $('#f-color').setAttribute('aria-label', `色 ${nm.textContent}`);
+  if (colorPage.isOpen()) colorPage.render();
+}
+// 保存の計画に色を入れる: 系列の本体（と、この保存で分かれた新しい系列）にだけ書く。overrides には書かない
+const withColor = (plan) => ({ ...plan, puts: plan.puts.map((e) => { const n = { ...e }; if (validColorId(colorSel)) n.colorId = colorSel; else delete n.colorId; return n; }) });
 const renderDestPop = () => destPage.render();
 const closeDestPop = (focus = true) => destPage.close(focus);
 const openDestPop = () => destPage.open();
@@ -4151,7 +4211,7 @@ menuDlg.addEventListener('close', () => {
     F.dest.focus({ preventScroll: true });
   }
 });
-dlg.addEventListener('close', () => { closeDestPop(false); });
+dlg.addEventListener('close', () => { closeDestPop(false); closeColorPop(false); });
 // すべての編集で「カレンダー」1行を出す。編集中のリンク済み予定には案内を出す。
 function updateXUi() {
   const cur = editing ? resolve(editing) : null;
@@ -4163,8 +4223,9 @@ function updateXUi() {
   if (lock) closeDestPop(false);
   const d = destInfo(destEff());
   $('#dest-name').textContent = d.name;
-  $('#dest-dot').style.background = d.color;
+  $('#dest-dot').style.background = lineOf(d.color);
   if (destPage.isOpen()) renderDestPop();
+  updateColorUi();
 }
 $('#xlinked-open').addEventListener('click', async () => {
   const cur = editing ? resolve(editing) : null;
@@ -4176,7 +4237,7 @@ function valuesFrom(cur) {
   return {
     title: o.title, categoryId: o.categoryId, all: !!o.all, start: toInput(o.start, o.all), end: toInput(o.end, o.all), place: o.place || '', notes: o.notes || '',
     rfreq: r ? r.freq : 'none', rbyday: r?.byDay || [], rend: r ? (r.count != null ? 'count' : r.until ? 'until' : 'none') : 'none',
-    rcount: String(r?.count ?? 10), runtil: r?.until ? r.until.replaceAll('-', '/') : '', ropen: false, autoDays: false, alarms: o.alarms,
+    rcount: String(r?.count ?? 10), runtil: r?.until ? r.until.replaceAll('-', '/') : '', ropen: false, autoDays: false, alarms: o.alarms, colorId: cur.p.colorId ?? null,
   };
 }
 function openEditor(id, from, day = state.selected, startMin = null, opts = {}) {
@@ -4285,7 +4346,14 @@ function menuGroove() {
   });
 }
 let grooveRaf = 0;
-const grooveSchedule = () => { cancelAnimationFrame(grooveRaf); grooveRaf = requestAnimationFrame(() => { editorGroove(); menuGroove(); }); };
+// 「色」の行の置き場所（design/37 §3.1 は「カレンダー」のすぐ下）。キーボードが出てシートが低いとき（開いた横で 352 など）は、
+// 題名を打つ間に カレンダー・開始・終了・長さ・終日 が全部見える決まり（edit-sheet）を守るため、「終日」の下へ下げる
+function placeColorRow() {
+  if (!dlg.open) return;
+  const row = $('#color-l'), tight = dlg.clientHeight < 420, after = tight ? form.querySelector('label.check') : $('#dest-l');
+  if (after && after.nextElementSibling !== row) after.after(row);
+}
+const grooveSchedule = () => { cancelAnimationFrame(grooveRaf); grooveRaf = requestAnimationFrame(() => { placeColorRow(); editorGroove(); menuGroove(); }); };
 window.__editorGrooveNow = editorGroove;
 window.__menuGrooveNow = menuGroove;
 menuDlg.addEventListener('toggle', grooveSchedule);
@@ -4567,6 +4635,7 @@ async function commit(plan, { ops = [] } = {}) {
   const gone = new Set([...plan.dels, ...plan.puts.map((e) => e.id)]);
   state.events = [...state.events.filter((e) => !gone.has(e.id)), ...plan.puts];
   bumpRevision();
+  xcMirror(plan.puts);
   requestNotifySync('edit');
   if (ops.some((o) => o.kind !== 'drop')) requestFlush();
   if (plan.puts.some(hasDuoAlarms)) askNotifyPerm(); // 結果を待たない。拒否されても保存は成立
@@ -4586,7 +4655,11 @@ form.addEventListener('submit', async (ev) => {
     if (r.where === 'repeat') { setRepeatOpen(true); R.err.textContent = r.error; } else $('#error').textContent = r.error;
     return;
   }
-  if (extEd) { submitExt(r.event); return; }
+  if (extEd) { // iPhone の予定: 色は Duo の中の表に書く（EventKit には書けない）。本文の保存とは別に先に入れる
+    const k = xcKeyOf(extEd.before);
+    if (k && (xColorIdOf(extEd.before) ?? null) !== (colorSel ?? null)) { try { await xcPut(xcSet(XC.map, k, colorSel, { calId: extEd.before.calId, title: extEd.before.title, lastStart: extEd.before.start })); } catch { $('#error').textContent = SAVE_FAIL; return; } render(); }
+    submitExt(r.event); return;
+  }
   const cur = editing ? resolve(editing) : null;
   if (cur?.occKey) { openScope('edit', cur, r.event); return; }
   const prev = cur?.p;
@@ -4602,7 +4675,7 @@ form.addEventListener('submit', async (ev) => {
   const { ops, plan: splan } = prev ? planOps(prev, { puts: [item], dels: [] }, 'all', null, r.event, mv === 'x2x' ? { moveTo: dsel.id } : undefined) : { ops: [], plan: { puts: [item], dels: [] } };
   saving = true;
   try {
-    await commit(splan, { ops });
+    await commit(withColor(splan), { ops });
   } catch {
     $('#error').textContent = SAVE_FAIL;
     saving = false;
@@ -4689,7 +4762,7 @@ scopeDlg.addEventListener('click', async (ev) => {
     let plan0 = planEdit(cur.p, cur.occKey, scope, form0, newId);
     if (mv === 'toX' && scope === 'all') plan0 = { ...plan0, puts: plan0.puts.map((e) => { if (e.id !== cur.p.id) return e; const n = { ...e }; toPending(n, dsel, cur.p); return n; }) };
     const { ops, plan } = planOps(cur.p, plan0, scope, cur.occKey, form0, mv === 'x2x' && scope === 'all' ? { moveTo: dsel.id } : undefined);
-    await commit(plan, { ops });
+    await commit(withColor(plan), { ops }); // 色は「この予定のみ」でも全部の回（系列の本体）に付く（design/37 決定 2）
   } catch {
     scopeDlg.close();
     $('#error').textContent = SAVE_FAIL;
@@ -4988,7 +5061,7 @@ function renderCats() {
   const dis = cs.busy ? ' disabled' : '';
   CT.title.textContent = cs.id ? 'カテゴリを編集' : 'カテゴリを追加';
   CT.close.textContent = '完了';
-  const pal = PALETTE.map((p) => `<button type="button" class="swatch" data-color="${p.light}" style="background:${p.light}" aria-label="${p.name}" aria-pressed="${p.light === cs.color.toLowerCase()}"></button>`).join('');
+  const pal = PALETTE.map((p) => `<button type="button" class="swatch" data-color="${p.light}" style="background:${colorSet(p.light, MODE).fill};border-color:${lineOf(p.light)}" aria-label="${p.name}" aria-pressed="${p.light === cs.color.toLowerCase()}"></button>`).join('');
   CT.body.innerHTML = `<section class="card"><label>名前<input id="cat-name" maxlength="${CAT_LIMITS.name}" value="${esc(cs.name)}" placeholder="例：仕事" autocomplete="off"></label>
     <span id="cat-color-l" class="lbl">色</span><div class="palette" role="group" aria-labelledby="cat-color-l">${pal}</div>
     <span class="lbl">見本</span>${previewHtml(cs.name, cs.color)}
@@ -5156,7 +5229,7 @@ function renderBackup() {
   const dis = bk.busy ? ' disabled' : '';
   const st = countStats(state.events);
   if (bk.stage === 'main') {
-    BK.body.innerHTML = `<section class="card"><h3>書き出し</h3><p>予定${st.total}件・うち繰り返し${st.recurring}件／設定も含めて保存（ノートとタスク（リマインダーと同期しているものを含む）も入ります。リマインダーのリスト・追加先・月の件数の設定は含みません）</p><button type="button" class="solid" id="bk-export"${dis}>JSONを書き出す</button><p class="small">iPhoneでは共有シートの『ファイルに保存』で残せます。</p>${bk.msg ? `<p class="bmsg">${esc(bk.msg)}</p>` : ''}</section>
+    BK.body.innerHTML = `<section class="card"><h3>書き出し</h3><p>予定${st.total}件・うち繰り返し${st.recurring}件／設定も含めて保存（ノートとタスク、予定に付けた色も入ります）</p><button type="button" class="solid" id="bk-export"${dis}>JSONを書き出す</button><p class="small">iPhoneでは共有シートの『ファイルに保存』で残せます。</p>${bk.msg ? `<p class="bmsg">${esc(bk.msg)}</p>` : ''}</section>
       <section class="card"><h3>読み込み</h3><p>書き出したJSONファイルから予定を戻します。</p><button type="button" id="bk-pick"${dis}>JSONファイルを選ぶ</button>${bk.busy ? '<p class="small" role="status">ファイルを検証しています…</p>' : ''}${bk.err ? `<p class="berr" role="alert">${esc(bk.err)}</p>` : ''}</section>`;
   } else if (bk.stage === 'invalid') {
     BK.body.innerHTML = `<section class="card"><h3>読み込めませんでした</h3><p class="berr" role="alert">このファイルは読み込めません。DuoのバックアップJSONを選んでください。</p><p class="small">ファイル：${esc(bk.name)}</p><p class="small">理由：${esc(bk.reason)}</p><p class="small">今の予定は変更していません。</p><button type="button" id="bk-pick">ファイルを選び直す</button><button type="button" id="bk-back" class="row cancel">戻る</button></section>`;
@@ -5199,7 +5272,7 @@ async function doExport() {
     if (!await flushNotesAwait()) { bk.err = '保存できていないノートがあるため書き出せません。ノートの再試行をしてからもう一度お試しください。'; say(bk.err); renderBackup(); return; }
     // ノート有効: tasks+notes+folders を出し、旧 memos は出さない（旧メモは端末内の控えに残る）。
     const tx0 = performance.now();
-    const text = JSON.stringify(buildBackup(state.events, { ...state, view: closedSize() ? OPENUI.view : state.view, notify: loadNotify(), tasks: remSet }, new Date(), state.categories, [], await db.listTasks(), await db.listNotes({ includeDeleted: true }), await db.listFolders()), null, 2);
+    const text = JSON.stringify(buildBackup(state.events, { ...state, view: closedSize() ? OPENUI.view : state.view, notify: loadNotify(), tasks: remSet }, new Date(), state.categories, [], await db.listTasks(), await db.listNotes({ includeDeleted: true }), await db.listFolders(), xcExport(XC.map)), null, 2);
     NB.perf.export = Math.round((performance.now() - tx0) * 10) / 10; // 書き出し（読み出し＋JSON化）の実測。端末ごとの記録用
     const file = new File([text], backupName(), { type: 'application/json' });
     if (NATIVE) {
@@ -5246,7 +5319,7 @@ BK.file.addEventListener('change', () => {
 async function finishImport(kind) {
   if (bk.busy) return;
   const { plan } = bk, name = bk.name;
-  let data = bk.data, dupLinks = 0, tp = null, lp = null, np = null;
+  let data = bk.data, dupLinks = 0, tp = null, lp = null, np = null, xcNext = null;
   if (kind === 'replace') { const u = uniqueRequestIds(data.events); data = { ...data, events: u.events }; dupLinks = u.unlinked; } // 二重の requestId は先の1件だけ結びつけ
   bk = { ...bk, busy: true, err: '' };
   renderBackup();
@@ -5261,6 +5334,9 @@ async function finishImport(kind) {
     // 新形式のノート・フォルダ（ファイルに項目があるときだけ）。置換は明示された項目だけ置き換える。旧 memos へは書かない。
     np = data.notes || data.folders ? planNotes(curNotesNow, data.notes ?? null, curFoldersNow, data.folders ?? null, kind === 'replace') : null;
     const legacyPuts = np ? { notePuts: np.notePuts, noteReplace: np.noteReplace, folderPuts: np.folderPuts, folderReplace: np.folderReplace } : lp ? { notePuts: lp.notePuts, folderPuts: lp.folderPuts } : {};
+    // iPhone の予定の色の表（design/37 §4.2）: ファイルに項目があるときだけ。置き換えは表も置き換え、追加はファイルの側を足す（同じキーは今の端末を残す）
+    xcNext = data.eventColors ? xcImport(XC.map, data.eventColors, kind === 'replace' ? 'replace' : 'add') : null;
+    const xcPlan = xcNext ? { eventColors: xcItems(xcNext) } : {};
     // カテゴリと予定を1トランザクションで。参照先のカテゴリが無い予定は未分類に付け替える。
     const now = Date.now(), cin = data.categories.map((c) => ({ ...c, createdAt: c.createdAt || now, updatedAt: c.updatedAt || now }));
     if (kind === 'add') {
@@ -5268,13 +5344,13 @@ async function finishImport(kind) {
       const fin = ensureOneVisible(fx.categories, now).list; // 書く結果が全部 hidden なら先頭だけ表示に戻す
       const cur = new Map(state.categories.map((c) => [c.id, c]));
       const same = (c) => cur.get(c.id)?.name === c.name && cur.get(c.id)?.color === c.color && !!cur.get(c.id)?.hidden === !!c.hidden;
-      await db.applyImport({ catPuts: fin.filter((c) => !cur.has(c.id) || !same(c)), eventPuts: fx.events, taskPuts: tp.puts, ...legacyPuts });
+      await db.applyImport({ catPuts: fin.filter((c) => !cur.has(c.id) || !same(c)), eventPuts: fx.events, taskPuts: tp.puts, ...legacyPuts, ...xcPlan });
     } else {
       let cats = data.hasCategories ? mergeCategories([], cin, 'replace').categories : mergeCategories(state.categories, cin, 'add').categories;
       if (!cats.length) cats = state.categories;
       if (data.hasCategories) cats = supplementForReplace(cats, data.events, now).list; // 不足する家族/外出/その他（と参照される仕事/私用）を補う
       const fx = fixEventCategories(data.events, cats, now);
-      OBX.items = await db.applyImport({ catPuts: ensureOneVisible(fx.categories, now).list, eventPuts: fx.events, replace: true, outbox: (cur) => keepAfterReplace(cur, fx.events), ...(data.tasks ? { taskReplace: true, taskPuts: data.tasks } : {}), ...legacyPuts });
+      OBX.items = await db.applyImport({ catPuts: ensureOneVisible(fx.categories, now).list, eventPuts: fx.events, replace: true, outbox: (cur) => keepAfterReplace(cur, fx.events), ...(data.tasks ? { taskReplace: true, taskPuts: data.tasks } : {}), ...legacyPuts, ...xcPlan });
     }
   } catch {
     try { state.events = await db.listEvents(); } catch { /* 無視 */ }
@@ -5286,6 +5362,7 @@ async function finishImport(kind) {
   // 成功後: 表示中のノートと一覧を捨て、DB の内容を読み直す（書き込み前に未保存分は保存済み）
   noteStore.reset(); NB.ed?.destroy(); NB.ed = null; NB.cur = null; NB.opening = null; db.setLastNote(null).catch(() => {}); invalidateNoteList(); NB.failed = false;
   state.events = await db.listEvents();
+  if (xcNext) XC.map = xcNext;
   bumpRevision();
   try { setCategories(await db.listCategories()); } catch { /* 直前の一覧で続ける */ }
   let msg;
@@ -5388,6 +5465,7 @@ function loadExt(force = false) {
       X.cache = { range: need, ids: idsKey(link.calendarIds), events, loadedAt: new Date(), tz: new Date().getTimezoneOffset() };
       X.status = 'ok'; X.failKey = '';
       await reconcileLinks(); // 世代確認の後。照合は同期で計算し、保存時に現状と再確認する
+      xcAfterLoad(); // 色の表: 読み込みが成功したあとだけ「消えたかどうか」を見る（design/37 §4.2）
     } catch (e) {
       if (gen !== X.gen) return;
       X.status = 'error'; X.failKey = key0;
@@ -5453,7 +5531,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { if
 // ---------- 設定 › カレンダー（Duo／iPhone のアカウント別／リマインダー。✓で表示を切り替える） ----------
 // ✓を変えても iPhone 側の予定・カレンダーは書き換えない（Duo の画面に出すかどうかだけ）。
 const calScreenOpen = () => menuDlg.open && menuScreen === 'calendar';
-const calDot = (c) => `<i class="cdot" style="background:${esc(safeColor(c))}" aria-hidden="true"></i>`;
+const calDot = (c) => `<i class="cdot" style="background:${lineOf(safeColor(c))}" aria-hidden="true"></i>`; // 丸は変換後の線の色（36 §8.1）。元の色は変えない
 const calRow = (attr, on, color, name, tag = '') => `<button type="button" class="crow${on ? '' : ' off'}" role="checkbox" aria-checked="${on}" ${attr}>${calDot(color)}<span class="cname">${esc(name || '（名前なし）')}</span>${tag}<span class="cck" aria-hidden="true">${on ? '✓' : ''}</span></button>`;
 function renderCalScreen() {
   const box = $('#m-cal');
@@ -5667,9 +5745,10 @@ function xdBody(e) {
   const when = e.all
     ? `<dt>開始</dt><dd>${ymdSlash(dayOf(e.start))}（終日）</dd><dt>終了</dt><dd>${ymdSlash(dayOf(e.end))}（含む最終日）</dd>`
     : `<dt>開始</dt><dd>${esc(t(e.start))}</dd><dt>終了</dt><dd>${esc(t(e.rawEnd && e.rawEnd >= e.start ? e.rawEnd : e.end))}</dd>`;
-  $('#xd-body').innerHTML = `<h3 class="xdt">${esc(e.title)}</h3><p class="xdcal caltag"><i class="cdot" style="background:${e.color}" aria-hidden="true"></i>${esc(subLabel(e))}${e.recurring ? ' <span class="rep" aria-hidden="true">↻</span>' : ''}</p>
-    <dl class="facts">${when}<dt>場所</dt><dd>${e.place ? esc(e.place) : '場所なし'}</dd><dt>メモ</dt><dd class="notes">${e.notes ? esc(e.notes) : 'メモなし'}</dd></dl>`;
+  $('#xd-body').innerHTML = `<h3 class="xdt">${esc(e.title)}</h3><p class="xdcal caltag"><i class="cdot" style="background:${catSet(e).line}" aria-hidden="true"></i>${esc(subLabel(e))}${e.recurring ? ' <span class="rep" aria-hidden="true">↻</span>' : ''}</p>
+    <dl class="facts">${when}<dt>場所</dt><dd>${e.place ? esc(e.place) : '場所なし'}</dd><dt>メモ</dt><dd class="notes">${e.notes ? esc(e.notes) : 'メモなし'}</dd></dl>${xcKeyOf(e) ? (() => { const cid = xColorIdOf(e), on = isFlickId(cid), nm = on ? flickName(cid) : `カレンダーの色（${e.calName || 'iPhone'}）`; return `<button type="button" id="xd-color" class="destbtn colorbtn" aria-haspopup="true" aria-label="色 ${esc(nm)}"><span class="dlbl">色</span><span class="dval"><i class="csw" style="${swVars(on ? cid : null, e.color)}" aria-hidden="true"></i><span class="cnm${on ? ' on' : ''}">${esc(nm)}</span><span aria-hidden="true">›</span></span></button>`; })() : ''}`;
 }
+$('#xd-body').addEventListener('click', (ev) => { const b = ev.target.closest('#xd-color'); if (!b || !xdCur) return; const cur = xdState?.before || xdCur; openColorStrip(xdCur.id, b, () => { if (xdDlg.open) xdBody(xdState?.before || cur); }); });
 // 下の段。取得中・失敗は編集・削除なし。書けるとき: 削除/編集＋小さい「カレンダーで開く」。書けないとき: 理由＋大きい「カレンダーで開く」。
 function xdFoot() {
   const s = xdState, can = s?.status === 'ok' && s.ed.editable;
@@ -6291,6 +6370,7 @@ async function onSendOk(op, link, res, conflict) {
     outbox: (cur) => cur.filter((o) => o.opId !== op.opId).map((o) => (npLink && o.link?.requestId === op.newRequestId ? { ...o, link: npLink } : o)),
   });
   if (conflict) notice(MSG.conflictUpdate);
+  if (r.events.length) xcMirror(state.events); // 保存で externalId が決まった: 色の表にも同じ色を入れる（design/37 §4.1）
   if (op.newParentId || r.events.length) requestNotifySync('link');
   render();
 }
@@ -6994,7 +7074,7 @@ function grabStart(o, x, y) {
   document.documentElement.dataset.grab = '1';
   grabNoSelect(); // 品質 Q-1: つかんだら、残っている文字の選択を外す（運ぶ間は selectstart も止める）
   const chip = document.createElement('div'); chip.className = 'gchip'; chip.setAttribute('aria-hidden', 'true');
-  chip.style.setProperty('--cat', getComputedStyle(o.el).getPropertyValue('--cat') || '#294E42');
+  chip.style.setProperty('--cat-mark', getComputedStyle(o.el).getPropertyValue('--cat-mark') || '#294E42');
   document.body.append(chip); GR.chip = chip;
   if (o.el.matches('.week .chip, .week .strip, .week .bar')) { o.el.classList.add('grabbed'); GR.asChip = true; chip.classList.add('on'); mvLog('chip'); } // 月のマスのチップは持ち上げず、すぐ札になる（35 §6.1）
   else { // 持ち上げる（35 §6.1）: カードを 1.03 倍・影 段2（0 4 12 / 10%）、0.15 秒。元の場所に同じ大きさの破線の枠（1.5 #A8ABA4）
@@ -7605,7 +7685,7 @@ document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && PS.on 
 // 確定: 計画を作って pasteCommit へ（Duo 分は1回の保存、iPhone 分は createEvents）。保存に失敗したら選択を残して再度押せる。
 async function confirmPaste({ src, srcLink, days }) {
   if (PS.busy) return;
-  const plan = planPaste(src, days, { cals: X.calendars, enabled: extActive(), destCalendarId: destCalId(), destCatId: (() => { const d = destNow(); return d.type === 'duo' ? d.id : ''; })(), catVisible: (id) => state.categories.some((c) => c.id === id && !c.hidden), defaultCatId, newId, pastedAt: Date.now(), srcLink });
+  const plan = planPaste(src, days, { srcColorId: isX(src) ? xColorIdOf(src) : undefined, cals: X.calendars, enabled: extActive(), destCalendarId: destCalId(), destCatId: (() => { const d = destNow(); return d.type === 'duo' ? d.id : ''; })(), catVisible: (id) => state.categories.some((c) => c.id === id && !c.hidden), defaultCatId, newId, pastedAt: Date.now(), srcLink });
   if (!plan.ok) { notice(plan.error === 'too-many' ? `一度に貼り付けられるのは${PASTE_MAX}日までです` : '貼り付ける日を選んでください'); return; }
   PS.busy = 1;
   root.querySelectorAll('[data-pa]').forEach((b) => { b.disabled = true; });
@@ -7623,6 +7703,7 @@ function duoSource(id) {
   if (!r) return null;
   const o = r.occ;
   const src = { title: o.title, categoryId: o.categoryId, all: !!o.all, start: o.start, end: o.end, place: o.place || '', notes: o.notes || '', alarms: Array.isArray(o.alarms) ? o.alarms.map((a) => ({ ...a })) : undefined };
+  if (r.p.colorId != null) src.colorId = r.p.colorId; // コピーで作った予定も色を引き継ぐ（系列の本体の色）
   if (o.nativeLink) src.nativeLink = { ...o.nativeLink };
   return { src, link: r.p.nativeLink ? { ...r.p.nativeLink } : null };
 }
@@ -7656,8 +7737,8 @@ function openChipMenu(id, chipEl) {
   const editable = !ext || !preReason(X.calendars.find((c) => c.id === x?.calId));
   const m = document.createElement('div');
   m.className = 'cmenu'; m.setAttribute('role', 'menu'); m.setAttribute('aria-label', '予定の操作'); m.dataset.cmenu = id;
-  m.innerHTML = `<button type="button" role="menuitem" data-cm="copy">コピー</button><button type="button" role="menuitem" data-cm="edit"${editable ? '' : ' disabled'}>編集</button><button type="button" role="menuitem" data-cm="del" class="danger"${editable ? '' : ' disabled'}>削除</button>`;
-  const r = chipEl.getBoundingClientRect(), W = 160, H = 132;
+  m.innerHTML = `<button type="button" role="menuitem" data-cm="copy">コピー</button><button type="button" role="menuitem" data-cm="color">色</button><button type="button" role="menuitem" data-cm="edit"${editable ? '' : ' disabled'}>編集</button><button type="button" role="menuitem" data-cm="del" class="danger"${editable ? '' : ' disabled'}>削除</button>`;
+  const r = chipEl.getBoundingClientRect(), W = 160, H = 176;
   m.style.left = `${Math.round(Math.min(Math.max(4, r.left), window.innerWidth - W - 4))}px`;
   m.style.top = `${Math.round(r.bottom + 4 + H > window.innerHeight - 4 ? Math.max(4, r.top - H - 4) : r.bottom + 4)}px`;
   m.addEventListener('click', (ev) => {
@@ -7665,11 +7746,75 @@ function openChipMenu(id, chipEl) {
     if (!b || b.disabled) return;
     closeChipMenu();
     if (b.dataset.cm === 'copy') copyFrom(id);
+    else if (b.dataset.cm === 'color') openColorStrip(id, chipEl);
     else { openEditor(id, chipEl); if (b.dataset.cm === 'del' && !ext) $('#delete').click(); }
   });
   document.body.append(m); chipMenu = m;
   document.addEventListener('pointerdown', chipMenuOutside, true);
   m.querySelector('[data-cm="copy"]').focus({ preventScroll: true });
+}
+// ---- 予定ごとの色の近道（design/37 §3.3）: メニューの「色」→ 色の帯（幅 336・高さ 78・角丸 14）。左端「分類」＝カテゴリの色に戻す、続いてフリックの 7 色。
+// たたくとすぐ変わって帯は閉じ、「色を変えました　元に戻す」（6 秒）。繰り返しは全部の回に付く。iPhone の予定は Duo の中の表に付く
+const COLOR_UNDO_MS = 6000;
+const evById = (id) => (isXId(id) ? visExt().find((v) => v.id === id) || (xdCur?.id === id ? xdCur : null) : resolve(id)?.p) || null;
+// 予定（描画 id）の色を変える。戻り値は前の colorId（null＝カテゴリの色）。変えられなければ undefined
+async function setEventColor(id, colorId) {
+  const want = validColorId(colorId) ? colorId : null;
+  if (isXId(id)) {
+    const x = evById(id), key = x ? xcKeyOf(x) : '';
+    if (!key) return undefined;
+    const prev = xColorIdOf(x);
+    await xcPut(xcSet(XC.map, key, want, { calId: x.calId, title: x.title, lastStart: x.start }));
+    render();
+    return prev;
+  }
+  const cur = resolve(id);
+  if (!cur) return undefined;
+  const prev = cur.p.colorId ?? null, item = { ...cur.p, updatedAt: Date.now() };
+  if (want) item.colorId = want; else delete item.colorId;
+  await commit({ puts: [item], dels: [] });
+  render();
+  return prev;
+}
+async function pickEventColor(id, colorId, after) {
+  let prev;
+  try { prev = await setEventColor(id, colorId); } catch { prev = undefined; }
+  if (prev === undefined) { notice('色を変えられませんでした。'); return; }
+  after?.();
+  if ((prev ?? null) === (validColorId(colorId) ? colorId : null)) return;
+  say('色を変えました。');
+  notice('色を変えました', { label: '元に戻す', fn: async () => { document.querySelector('#native-toast')?.remove(); try { await setEventColor(id, prev); after?.(); say('色を元に戻しました。'); } catch { notice('元に戻せませんでした。'); } } }, COLOR_UNDO_MS);
+}
+function openColorStrip(id, anchor, after) {
+  closeChipMenu();
+  const e = evById(id);
+  if (!e) return;
+  const cur = isFlickId(colorIdOf(e)) ? colorIdOf(e) : '', base = baseColorOf(e), iph = isX(e) || !!calOfLink(e);
+  const m = document.createElement('div');
+  m.className = 'cmenu colorstrip'; m.setAttribute('role', 'group'); m.setAttribute('aria-label', '色'); m.dataset.colorstrip = id;
+  const sw = (cid, name, txt) => `<button type="button" class="cso" data-cs="${cid}" aria-pressed="${cur === cid}" aria-label="${esc(name)}${cur === cid ? '、選択中' : ''}"><i class="csw lg" style="${swVars(cid || null, base)}" aria-hidden="true">${txt}</i></button>`;
+  m.innerHTML = `<p class="csn" aria-live="polite">${esc(cur ? flickName(cur) : `${iph ? 'カレンダー' : 'カテゴリ'}の色`)}</p><div class="csr">${sw('', `${iph ? 'カレンダー' : 'カテゴリ'}の色に戻す`, '<b>分類</b>')}${FLICK.map((f) => sw(f.id, f.name, '')).join('')}</div>`;
+  const r = anchor.getBoundingClientRect(), W = Math.min(336, window.innerWidth - 16), H = 78;
+  m.style.width = `${W}px`;
+  m.style.left = `${Math.round(Math.min(Math.max(8, r.left + r.width / 2 - W / 2), window.innerWidth - W - 8))}px`;
+  m.style.top = `${Math.round(r.bottom + 4 + H > window.innerHeight - 8 ? Math.max(8, r.top - H - 4) : r.bottom + 4)}px`;
+  m.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-cs]');
+    if (!b) return;
+    closeChipMenu();
+    pickEventColor(id, b.dataset.cs || null, after);
+  });
+  m.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') { ev.preventDefault(); closeChipMenu(); anchor.focus?.({ preventScroll: true }); return; }
+    if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return;
+    const o = [...m.querySelectorAll('.cso')], i = o.indexOf(document.activeElement); if (i < 0) return;
+    ev.preventDefault(); o[(i + (ev.key === 'ArrowRight' ? 1 : o.length - 1)) % o.length].focus({ preventScroll: true });
+  });
+  // 開いているシート（dialog）の中から出すときは、その dialog の中に置く（外に置くと、シートが出ている間は押せない）。置いたあと、実際の位置のずれ（dialog が位置の基準になる場合）を直す
+  (anchor.closest('dialog[open]') || document.body).append(m); chipMenu = m;
+  { const want = { x: parseFloat(m.style.left), y: parseFloat(m.style.top) }, got = m.getBoundingClientRect(); if (Math.abs(got.left - want.x) > 0.5 || Math.abs(got.top - want.y) > 0.5) { m.style.left = `${Math.round(want.x - (got.left - want.x))}px`; m.style.top = `${Math.round(want.y - (got.top - want.y))}px`; } }
+  document.addEventListener('pointerdown', chipMenuOutside, true);
+  (m.querySelector('.cso[aria-pressed="true"]') || m.querySelector('.cso')).focus({ preventScroll: true });
 }
 // 月の日を長押しして同じ日で離したときの小さなメニュー（チップのメニューと同じ寸法）。
 function openDayMenu(day, el) {
@@ -7746,7 +7891,7 @@ async function boot() {
   let rt = null; // カテゴリの一度きり移行（取得より前）。失敗は印なしでロールバック済み。次の起動で再実行。戻り値は PR12 が移行前の証拠として使う
   try { rt = await db.migrateCategoriesOnce(new Date()); } catch { rt = null; }
   boot.retarget = rt;
-  try { setCategories(await db.listCategories()); let bf = null; try { bf = await db.backfillNotifyOnce(new Date()); } catch { bf = null; /* ロールバック済み。次の起動で再実行 */ } state.events = await db.listEvents(); try { OBX.items = await db.getOutbox(); } catch { OBX.items = []; } bumpRevision(); N.ready = true; requestNotifySync(bf?.ran ? 'backfill' : 'launch'); } catch { say('保存領域を開けませんでした。'); }
+  try { setCategories(await db.listCategories()); let bf = null; try { bf = await db.backfillNotifyOnce(new Date()); } catch { bf = null; /* ロールバック済み。次の起動で再実行 */ } state.events = await db.listEvents(); try { OBX.items = await db.getOutbox(); } catch { OBX.items = []; } try { XC.map = xcLoad(await db.getEventColors()); } catch { XC.map = new Map(); } xcMirror(state.events); bumpRevision(); N.ready = true; requestNotifySync(bf?.ran ? 'backfill' : 'launch'); } catch { say('保存領域を開けませんでした。'); }
   state.loaded = true;
   render();
   if (rt?.marker?.toast === 'pending' && rt.marker.moved > 0) { notice(RETARGET_TOAST, null, 6000); db.markRetargetToastDone().catch(() => {}); }

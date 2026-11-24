@@ -7,3 +7,6 @@
 - 10:19 段4 済み: ついでの直し（バックアップ画面の文言＝段3 のコミットに同梱、tests/helpers.js の削除済み試験名 reminder-sync・reminder-ui。public/js/reminder-sync.js は app/ にも ios の写しにも残っていない＝消すものなし）
 - 10:36 中断後に確認: run_v194.sh と claude（段5 全体 Playwright 実行中）は生きている。二重起動せず監督を続ける
 - 11:24 段5 途中: verify-muted-colors の自動テスト（単体 colors 16・event-colors 26、Playwright tests/v194-colors.spec.js 24 件×chromium・webkit）と、色の変更で落ちた既存 spec の期待値の直し（chip-style・ref-layout・s5-fixes・layout-metrics・closed-month-s1・month-pull・month-all・categories・native・v193-cards・press-sheet・spec-values）。全体 1 回目 V194-full1.out は直す前（34 落ち）。このあと スクショ → 全体の最終 1 回
+- 11:26 再び中断後の確認: run_v194.sh・claude 生存、段5 途中（9ab441e）。二重起動せず監督
+- 12:10 段5 済み: 全体 Playwright 最後の 1 回 2263 通過・12 落ち（別の重い処理と重なったゆらぎ。1 本ずつ回し直して全部通過）・31 とばし。単体 東京 603/606・NY 605/606 で失敗 0
+- 12:10 段6 済み: スクショ 20 枚（/workspace/cal-v191-shots/V194/）を見て案 A と見比べ、sw v183、npm run ios、v191-notes/V194.md

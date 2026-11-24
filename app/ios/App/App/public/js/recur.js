@@ -108,6 +108,8 @@ function make(p, key, ddIn) {
   // 通知（alarms）は個別変更 → 親の順に継承。どちらにも無ければ項目を作らない。
   const alarms = o?.alarms !== undefined && o.alarms !== null ? o.alarms : p.alarms;
   if (alarms !== undefined) base.alarms = alarms;
+  // 予定ごとの色（design/37 §4.1）は系列の本体の値だけ。個別変更（overrides）の colorId は読まない（全部の回が同じ色）
+  if (p.colorId != null) base.colorId = p.colorId;
   return { ...base, id: `${p.id}@${key}`, parentId: p.id, occKey: key, recurring: true, moved: !!o };
 }
 export const occurrenceAt = (p, key) => make(p, key);
@@ -227,7 +229,7 @@ export function planEdit(p, occKey, scope, form, newId) {
       }
     }
     const np = {
-      id: newId(), ...(p.alarms !== undefined ? { alarms: p.alarms } : {}), ...formVals, recurrence: rule, notes: formVals.notes,
+      id: newId(), ...(p.alarms !== undefined ? { alarms: p.alarms } : {}), ...(p.colorId != null ? { colorId: p.colorId } : {}), ...formVals, recurrence: rule, notes: formVals.notes,
       exdates: keep ? (p.exdates || []).filter((k) => k > occKey) : [], overrides: ov, updatedAt: now,
     };
     return { puts: [cutParent(p, occKey), np], dels: [] };

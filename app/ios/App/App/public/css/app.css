@@ -1,4 +1,4 @@
-:root{--holiday:#B43C3C;--paper:#f7f4ed;--card:#fffdfa;--ink:#293b35;--muted:#68716a;--line:#dddcd3;--green:#294e42;--focus:#294E42;
+:root{--capsule:#EFECE4;--ink2:#1C1F1D;--line2:#E4E0D6;--cardw:#fff;--satc:#526B90;--satbg:#EEF1F4;--outc:#5D6963;--holiday:#B43C3C;--paper:#f7f4ed;--card:#fffdfa;--ink:#293b35;--muted:#68716a;--line:#dddcd3;--green:#294e42;--focus:#294E42;
  --sat:env(safe-area-inset-top,0px);--sar:env(safe-area-inset-right,0px);--sab:env(safe-area-inset-bottom,0px);--sal:env(safe-area-inset-left,0px);--vy:0px;--vb:0px;
  --rt:max(var(--vy),var(--sat));--rb:max(var(--vb),var(--sab));--rl:var(--sal);--rr:var(--sar);
  --danger:#963e38}
@@ -44,22 +44,22 @@ button[aria-pressed=true]{background:var(--green);color:#fff}
 /* 月グリッド: 行は週の数で高さを等分し（いつもの高さ未満にはしない）、グリッドの下に空きを作らない */
 .scroll.msc{display:flex;flex-direction:column}
 .legend{display:flex;gap:4px 12px;flex-wrap:wrap;flex:none;padding:6px 0 2px;font-size:11px}
-.legend span:before{content:'';display:inline-block;background:var(--cat);width:6px;height:6px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.legend span:before{content:'';display:inline-block;background:var(--cat-line);width:6px;height:6px;border-radius:50%;margin-right:5px;vertical-align:middle}
 
 .weekdays{position:sticky;top:0;z-index:3;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));background:var(--paper);color:var(--muted);font-size:11px;text-align:center;padding-bottom:4px}
-.weekdays .sun{color:var(--holiday)}.weekdays .sat{color:#3f6a8a}
+.weekdays .sun{color:var(--holiday)}.weekdays .sat{color:var(--satc)}
 .week{position:relative;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--line)}
 .day{min-width:0;min-height:0;border-radius:0;padding:2px 1px;text-align:center;overflow:hidden;display:flex;flex-direction:column;align-items:center}
 .dhead{display:flex;align-items:center;justify-content:center;gap:2px;width:100%;flex:none}
 .dots{display:flex;gap:3px;justify-content:center;height:8px;margin-top:2px}
-.dot{width:5px;height:5px;border-radius:50%;background:var(--cat)}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--cat-line)}
 
 /* 予定カード */
 .event{position:relative;display:grid;grid-template-columns:1fr auto;column-gap:8px;align-items:center;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 12px 8px 14px;margin-top:8px;min-height:60px}
 @media (hover:hover){.event:hover{background:#f4f1e8}}
-.event:before{content:'';position:absolute;left:0;top:12px;bottom:12px;width:3px;background:var(--cat);border-radius:4px}
+.event:before{content:'';position:absolute;left:0;top:12px;bottom:12px;width:3px;background:var(--cat-mark);border-radius:4px}
 .event .clock{font-size:15px;line-height:20px;font-variant-numeric:tabular-nums}
-.event .tag{font-size:13px;color:var(--cat);text-align:right;line-height:20px}
+.event .tag{font-size:13px;color:var(--cat-text);text-align:right;line-height:20px}
 .event strong{grid-column:1/-1;font-size:15px;font-weight:400;line-height:22px;overflow-wrap:anywhere}
 .event .sub{grid-column:1/-1;font-size:13px;color:var(--muted);line-height:18px}
 .empty{padding:16px 4px;color:var(--muted)}.empty p{margin:0}
@@ -164,7 +164,7 @@ dialog{--m:12px;--pw:460px;position:fixed;box-sizing:border-box;min-width:0;
  padding:18px 20px;border:1px solid var(--line);border-radius:24px;background:var(--card);color:var(--ink);box-shadow:0 0 0 100vmax #1a302d55,0 12px 32px #00000029}
 html[data-kb] dialog{margin-top:0;margin-bottom:auto}
 dialog#confirm{z-index:11}
-.dtext{white-space:pre-line;font-size:13px;color:#68716A}
+.dtext{white-space:pre-line;font-size:13px;color:var(--muted)}
 dialog h2{font:600 17px/22px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;margin:0}
 .formhead,.actions{display:flex;align-items:center;justify-content:space-between;gap:8px}
 form label{display:block;margin-top:12px;font-size:13px}
@@ -276,10 +276,10 @@ dialog#menu[open]{display:flex;flex-direction:column}
 .smsg{color:var(--muted);padding:16px 4px;margin:0}
 .hcount{margin:8px 0 0}
 .hgroup h3{font-size:15px;font-weight:500;margin:16px 0 4px}
-.hit{display:block;width:100%;min-height:88px;padding:12px 12px 12px 16px;text-align:left;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--cat);border-radius:12px;margin-top:8px}
+.hit{display:block;width:100%;min-height:88px;padding:12px 12px 12px 16px;text-align:left;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--cat-mark);border-radius:12px;margin-top:8px}
 @media (hover:hover){.hit:hover{background:#f4f1e8}}
 .hit>*{display:block}
-.hmeta{font-size:15px;line-height:20px;color:var(--cat)}
+.hmeta{font-size:15px;line-height:20px;color:var(--cat-text)}
 .hit strong{font-weight:400;font-size:15px;line-height:24px;overflow-wrap:anywhere}
 .hplace{font-size:15px;line-height:20px;color:var(--muted);overflow-wrap:anywhere}
 .hnote{font-size:13px;line-height:20px;color:var(--muted);overflow-wrap:anywhere}
@@ -330,7 +330,6 @@ html[data-kb] body[data-layout=spread] dialog,html[data-kb] body[data-layout=des
 .formhead button,.phead button{min-width:44px;min-height:44px}
 
 /* ===== 第7版: iPhone カレンダー連携 ===== */
-.ext{--cat:#68716a;--tint:var(--paper)}
 .xi{display:inline-block;width:14px;margin-right:0;font-size:11px;line-height:inherit;text-align:center;color:var(--muted)}
 .event.ext .tag,.hit.ext .hmeta{color:var(--muted)}
 .xlegend{flex:none;padding:0 0 2px;font-size:11px}
@@ -375,8 +374,8 @@ input,select,textarea,.date-text{font-size:16px}
 .undobar button{color:#fff;border:1px solid #ffffff80;flex:none}
 @media (hover:hover){.undobar button:hover{background:#386351}}
 .palette{display:grid;grid-template-columns:repeat(6,36px);gap:12px;justify-content:space-between;margin:8px 0 12px}
-.swatch{width:36px;min-width:36px;height:36px;min-height:36px;padding:0;border-radius:50%;border:0}
-@media (hover:hover){.swatch:hover{filter:brightness(1.1)}}
+.swatch{box-sizing:border-box;width:36px;min-width:36px;height:36px;min-height:36px;padding:0;border-radius:50%;border:2px solid transparent}
+@media (hover:hover){.swatch:hover{filter:brightness(.97)}}
 .swatch[aria-pressed=true]{background-clip:padding-box;box-shadow:0 0 0 3px var(--card),0 0 0 6px var(--ink)}
 .catpre{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 8px}
 .delbox{margin-top:12px}
@@ -395,36 +394,40 @@ input,select,textarea,.date-text{font-size:16px}
 :root{--chip-h:14px;--chip-gap:2px;--lane-step:16px;--date-h:18px;--lane-top:18px;--fold-keepout:10px;--chip-fs:9px}
 .week .day{position:relative;min-height:0;padding:0;border-right:1px solid #e5e3db;align-items:center}
 .week .day:last-child{border-right:0}
-.week .day.sat{background:#EEF1F4}
+.week .day.sat{background:var(--satbg)}
 @media (hover:hover){.week .day.sat:hover{background:#e3e8ee}}
 .week .num{width:auto;min-width:18px;height:var(--date-h);padding:0 4px;margin-top:0;border-radius:999px;font-size:11px;line-height:var(--date-h);flex:none}
+.week .day.sat .num{color:var(--satc)}
 .week .day.sun .num,.week .day.hol .num{color:var(--holiday)}
-.week .day.out .num{color:#A8ABA4}
+.week .day.out .num{color:var(--outc);font-weight:400}
 .week .day.selected{box-shadow:inset 0 0 0 2px #294E42}
 .week .day.today .num{background:var(--green);color:#fff}
 .week.named,.week.simple{flex:1 0 var(--need,85px)}
 .week.all{position:relative;display:grid;flex:none;height:max(calc(100cqh / var(--n)),var(--need,0px));border-top:0;box-shadow:inset 0 1px 0 var(--line)}
 .dots{display:flex;gap:3px;justify-content:center;height:8px;margin-top:2px}
-.dot{width:5px;height:5px;border-radius:50%;background:var(--cat)}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--cat-line)}
 /* +N: 見た目は9px・日付行の右端。押せる範囲は日セル右上の44×44（兄弟 button）。 */
 .week .plus{position:absolute;top:0;z-index:4;display:flex;align-items:flex-start;justify-content:flex-end;width:44px;height:44px;min-width:44px;min-height:44px;padding:0 3px 0 0;border-radius:0;background:transparent;
- font-size:9px;font-weight:600;line-height:var(--date-h);text-align:right;color:var(--muted)}
+ font-size:9px;font-weight:600;line-height:var(--date-h);text-align:right;color:var(--outc)}
 @media (hover:hover){.week .plus:hover{background:transparent;color:var(--ink)}}
-/* 時刻つき単日: 本色の塗り＋白文字・太字。切って省略記号は付けない。 */
-.strip{position:absolute;z-index:2;height:var(--chip-h);min-height:var(--chip-h);padding:0 0 0 1.5px;border:0;border-radius:3px;background:var(--cat);color:#fff;
+/* 時刻つき単日（第19.4版 design/36 §15.3）: ごく薄い地＋左の線 2.5×10＋墨の文字。切って省略記号は付けない。 */
+.strip{position:absolute;z-index:2;height:var(--chip-h);min-height:var(--chip-h);padding:0 0 0 7px;border:0;border-radius:3px;background:var(--cat-tint);color:var(--ink);
  font-size:var(--chip-fs);font-weight:600;line-height:var(--chip-h);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:clip}
-@media (hover:hover){.strip:hover{background:var(--cat);filter:brightness(.92)}}
-/* 終日・複数日: 塗らず「線＋中央の題名」。線は題名の下（レーン上端から12.5px・太さ2px・列境界から内1px）。 */
-.bar{position:absolute;z-index:2;height:16px;min-height:16px;padding:0;border:0;border-radius:0;background:transparent;color:var(--cat);
- font-size:var(--chip-fs);font-weight:600;line-height:12px;text-align:center;white-space:nowrap;overflow:hidden}
-@media (hover:hover){.bar:hover{background:transparent;filter:brightness(.9)}}
-.bar:after{content:'';position:absolute;left:1px;right:1px;top:12.5px;height:2px;border-radius:4px;background:var(--cat)}
-.bar .bt{display:inline-block;box-sizing:border-box;padding:0 2px 0 3px;max-width:100%;overflow:hidden;vertical-align:top;text-overflow:clip}
+@media (hover:hover){.strip:hover{background:var(--cat-tint);filter:brightness(.95)}}
+/* 終日・複数日（第19.4版 design/36 §15.3）: 時刻つきと同じ形（ごく薄い地＋左の線＋墨の文字）。週をまたいで続く側の角は 0（.cl・.cr）。 */
+.bar{position:absolute;z-index:2;height:var(--chip-h);min-height:var(--chip-h);padding:0;border:0;border-radius:3px;background:var(--cat-tint);color:var(--ink);
+ font-size:var(--chip-fs);font-weight:600;line-height:var(--chip-h);text-align:left;white-space:nowrap;overflow:hidden}
+@media (hover:hover){.bar:hover{background:var(--cat-tint);filter:brightness(.95)}}
+.bar.cl{border-top-left-radius:0;border-bottom-left-radius:0}.bar.cr{border-top-right-radius:0;border-bottom-right-radius:0}
+.strip:not(.chip)::before,.bar:not(.chip)::before{content:'';position:absolute;left:2px;top:calc(var(--chip-h) / 2 - 5px);width:2.5px;height:10px;border-radius:1.25px;background:var(--cat-mark)}
+.strip.outm,.bar.outm{background:var(--cat-tint-out);color:var(--outc)}
+.strip.outm::before,.bar.outm::before{background:var(--cat-line-out)}
+.bar .bt{display:inline-block;box-sizing:border-box;padding:0 2px 0 7px;max-width:100%;overflow:hidden;vertical-align:top;text-overflow:clip}
 .weekdays.all{padding-right:3px}
 /* カテゴリ編集の見本（月と同じ見た目） */
-.catpre .chip{display:inline-block;height:var(--chip-h);max-width:100%;padding:0 6px 0 1.5px;border-radius:3px;background:var(--cat);color:#fff;font-size:10px;font-weight:600;line-height:var(--chip-h);white-space:nowrap;overflow:hidden}
-.catpre .bar-like{position:relative;display:inline-block;height:16px;max-width:100%;padding:0 6px;color:var(--cat);font-size:10px;font-weight:600;line-height:12px;white-space:nowrap;overflow:hidden}
-.catpre .bar-like:after{content:'';position:absolute;left:1px;right:1px;top:12.5px;height:2px;border-radius:4px;background:var(--cat)}
+.catpre .chip{position:relative;display:inline-block;height:var(--chip-h);max-width:100%;padding:0 6px 0 7px;border-radius:3px;background:var(--cat-tint);color:var(--ink);font-size:10px;font-weight:600;line-height:var(--chip-h);white-space:nowrap;overflow:hidden}
+.catpre .chip::before{content:'';position:absolute;left:2px;top:2px;width:2.5px;height:10px;border-radius:1.25px;background:var(--cat-mark)}
+.catpre .bar-like{box-sizing:border-box;display:inline-block;height:20px;max-width:100%;padding:0 9px;border:1px solid var(--cat-mark);border-radius:10px;background:var(--cat-fill);color:var(--ink);font-size:10px;font-weight:600;line-height:18px;white-space:nowrap;overflow:hidden}
 .diag{margin:6px 4px 2px;padding:6px 8px;border-top:1px solid var(--line);font-size:11px;line-height:1.4;color:var(--muted);overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
 .menurows button[aria-pressed=true]{background:var(--green);color:#fff}
 
@@ -496,7 +499,7 @@ input,select,textarea,.date-text{font-size:16px}
 .mlegend .legend{padding:4px 0 2px}
 
 /* ===== 第10版 ④: 見開き（左ページ＝月・一覧など／右ページ＝時間軸 60px/時／右端 76px の操作列）===== */
-.shell.spread{position:fixed;inset:0;display:block;padding:0;gap:0;background:linear-gradient(90deg,#F0EDE5 var(--fold-x),#FFFDFA var(--fold-x));overflow:hidden}
+.shell.spread{position:fixed;inset:0;display:block;padding:0;gap:0;background:linear-gradient(90deg,#F0EDE5 var(--fold-x),var(--card) var(--fold-x));overflow:hidden}
 .spread .page{position:fixed;top:var(--content-y);height:var(--content-h);display:flex;flex-direction:column;min-width:0;min-height:0;overflow:clip}
 .spread .lp{left:var(--left-start);width:calc(var(--left-end) - var(--left-start))}
 .spread .rp{left:var(--right-start);width:calc(var(--right-end) - var(--right-start))}
@@ -505,7 +508,7 @@ input,select,textarea,.date-text{font-size:16px}
 .shead{display:flex;align-items:flex-start;flex:none;height:var(--head-h);padding-top:var(--hpt,24px);min-height:0}
 .sset{display:flex;align-items:center;justify-content:center}
 .shead h2{flex:1;min-width:0;margin:0;padding:9px 0;font:600 20px/26px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;white-space:nowrap;overflow:hidden;text-align:left}
-.shead h2 .yr{font-weight:600;color:#68716A}
+.shead h2 .yr{font-weight:600;color:var(--muted)}
 .sctl{display:flex;flex:none}
 .sctl button{min-width:44px;width:44px;height:44px;padding:0;font-size:20px;display:flex;align-items:center;justify-content:center}
 .spread .calendar{display:flex}
@@ -532,8 +535,10 @@ input,select,textarea,.date-text{font-size:16px}
 .adcols{display:flex;flex:1;min-width:0}
 .adcol{display:flex;flex:1;gap:6px;min-width:0;overflow:hidden}
 .adpill,.adplus{height:28px;min-height:28px;padding:0 12px;border-radius:14px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
-.adpill{background:var(--tint);color:var(--cat)}
-@media (hover:hover){.adpill:hover{background:var(--tint);filter:brightness(.95)}}
+.adpill{background:var(--cat-tint);color:var(--ink);border-radius:4px;padding-left:12px}
+.adpill:not(.adband){position:relative}
+.adpill::before{content:'';position:absolute;left:4px;top:5px;bottom:5px;width:2.5px;border-radius:1.25px;background:var(--cat-mark)}
+@media (hover:hover){.adpill:hover{background:var(--cat-tint);filter:brightness(.95)}}
 .adplus{flex:none;padding:0 8px;color:var(--muted);background:transparent}
 .tlheads{display:flex;flex:none;height:44px}
 .tlh0{flex:none;width:var(--lw,50px)}
@@ -550,10 +555,10 @@ input,select,textarea,.date-text{font-size:16px}
 .tlcols{position:absolute;left:var(--lw,50px);right:0;top:0;bottom:0;display:flex}
 .tlcol{position:relative;flex:1;min-width:0}
 .tlcol+.tlcol{border-left:1px solid #e8e5dc}
-.tlev{position:absolute;z-index:2;top:calc(12px + var(--m) * var(--hh) / 60);height:max(20px,calc(var(--d) * var(--hh) / 60 - 1px));min-height:20px;padding:1px 4px 1px 8px;border-radius:4px;background:var(--tint);color:var(--ink);box-shadow:inset 4px 0 0 var(--cat);
+.tlev{position:absolute;z-index:2;top:calc(12px + var(--m) * var(--hh) / 60);height:max(20px,calc(var(--d) * var(--hh) / 60 - 1px));min-height:20px;padding:1px 4px 1px 8px;border-radius:4px;background:var(--cat-tint);color:var(--ink);box-shadow:inset 3px 0 0 var(--cat-mark);
  font-size:13px;line-height:17px;text-align:left;white-space:nowrap;overflow:hidden}
-@media (hover:hover){.tlev:hover{background:var(--tint);filter:brightness(.95)}}
-.tlev .tt{margin-right:5px;font-weight:600;color:var(--cat)}
+@media (hover:hover){.tlev:hover{background:var(--cat-tint);filter:brightness(.95)}}
+.tlev .tt{margin-right:5px;font-weight:600;color:var(--ink)}
 .nowl{position:absolute;z-index:3;left:0;right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:0;pointer-events:none}
 .nowl:before{content:'';position:absolute;left:calc(var(--lw,50px) + var(--i) * (100% - var(--lw,50px)) / var(--n));width:calc((100% - var(--lw,50px)) / var(--n));top:-.75px;height:1.5px;background:#D64541}
 .nowt{position:absolute;left:0;top:-11px;width:46px;height:22px;border-radius:999px;background:#D64541;color:#fff;font-size:11px;font-weight:600;line-height:22px;text-align:center;font-variant-numeric:tabular-nums}
@@ -584,7 +589,7 @@ button.alnote.link{min-height:44px;padding:0;text-align:left;background:none;bor
 .alperm{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px}
 .alperm .alnote,.alperm .alnote13{margin:0;flex:1;min-width:0}
 .alperm .mini{min-height:44px;padding:0 10px;font-size:13px;flex:none}
-.bell{display:inline-block;width:12px;height:12px;margin-left:4px;vertical-align:-1px;color:#68716a;flex:none}
+.bell{display:inline-block;width:12px;height:12px;margin-left:4px;vertical-align:-1px;color:var(--muted);flex:none}
 .nb{display:inline-flex;align-items:center;gap:2px;margin-left:6px}
 .nb .bell{margin-left:0}
 .nsw{min-height:52px}
@@ -631,7 +636,7 @@ body[data-layout=home] dialog#xdetail::before,body[data-layout=browse] dialog#xd
 #touch-check .tc-dot i{position:absolute;left:10px;top:-2px;font-style:normal;font-size:10px;white-space:nowrap;background:rgba(0,0,0,.65);padding:0 3px;border-radius:3px}
 
 /* ===== 第13版 PR4: iPhone の予定の編集・削除（09） ===== */
-.caltag{display:inline-flex;align-items:center;gap:6px;min-height:22px;max-width:50%;padding:0 10px;border-radius:999px;background:#eef0ea;font-size:13px;line-height:22px;color:#68716A;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.caltag{display:inline-flex;align-items:center;gap:6px;min-height:22px;max-width:50%;padding:0 10px;border-radius:999px;background:#eef0ea;font-size:13px;line-height:22px;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .caltag[hidden]{display:none}
 .formhead .caltag{margin-left:auto;flex:0 1 auto}
 .xdcal.caltag{display:inline-flex;margin:0 0 8px}
@@ -641,11 +646,11 @@ body[data-layout=home] dialog#xdetail::before,body[data-layout=browse] dialog#xd
 .xdact button{min-height:44px;font-size:15px}
 .xdact .danger{flex:none;padding:0 16px;border:0;background:transparent;color:#C0392B}
 .xdact .primary{flex:1 1 auto;background:#294E42;color:#fff}
-#xd-open.small{min-height:44px;width:auto;margin:0;padding:0 8px;background:transparent;border:0;color:#68716A;font-size:13px}
-.xdreason{margin:0 0 6px;font-size:13px;line-height:1.4;color:#68716A}
+#xd-open.small{min-height:44px;width:auto;margin:0;padding:0 8px;background:transparent;border:0;color:var(--muted);font-size:13px}
+.xdreason{margin:0 0 6px;font-size:13px;line-height:1.4;color:var(--muted)}
 .rfix[hidden]{display:none}
 .rfix{margin-top:12px}
-.rfixrow{margin:0;min-height:44px;display:flex;align-items:center;font-size:15px;color:#68716A}
+.rfixrow{margin:0;min-height:44px;display:flex;align-items:center;font-size:15px;color:var(--muted)}
 .gonebar{margin:0 0 8px;min-height:36px;display:flex;align-items:center;padding:0 12px;border-radius:8px;background:#F6EDE0;color:#7A5A2E;font-size:13px}
 .gonebar[hidden]{display:none}
 #scope .row:disabled{color:#A8ABA4}
@@ -667,12 +672,12 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .menurows .rkswitch::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0003;transition:transform .15s cubic-bezier(0.2,0.8,0.2,1)}
 .menurows .swrow[aria-checked=true] .rkswitch{background:var(--green)}
 .menurows .swrow[aria-checked=true] .rkswitch::after{transform:translateX(20px)}
-.menurows .swnote{margin:0 0 6px;padding:0 12px;font-size:13px;line-height:1.4;color:#68716A}
+.menurows .swnote{margin:0 0 6px;padding:0 12px;font-size:13px;line-height:1.4;color:var(--muted)}
 
 /* 第14版 PR3: 六曜。月のマスは数字の行の左端（左3・8pt）、日の見出しは日付の右8pt・13pt、週は9pt */
 .week .rk{position:absolute;left:3px;top:0;z-index:1;font-size:8px;line-height:var(--date-h);color:#A8ABA4;white-space:nowrap;pointer-events:none}
 .week .day.out .rk{color:#C9C6BC}
-.hrk{margin-left:8px;font:400 13px/1 -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif;color:#68716A;white-space:nowrap}
+.hrk{margin-left:8px;font:400 13px/1 -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif;color:var(--muted);white-space:nowrap}
 .wrk{display:block;font-size:9px;font-weight:400;line-height:1.2;color:#A8ABA4;text-align:inherit}
 .tlhd .wrk{display:inline;margin-left:3px}
 .weekview.cols .wd{display:flex;flex-direction:column;align-items:center;justify-content:center}
@@ -683,7 +688,7 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .rhead.dh{flex-wrap:nowrap;align-items:flex-start}
 .rhead.dh h2{flex:1 1 0;min-width:0}
 .rhead.dh .sctl{flex:none}
-.spread .page .tlmenu{position:absolute;z-index:8;right:4px;top:calc(var(--hpt,24px) + 44px);width:120px;border-radius:12px;background:#fffdfa;box-shadow:inset 0 0 0 1px var(--line),0 4px 16px #1a302d33;overflow:hidden}
+.spread .page .tlmenu{position:absolute;z-index:8;right:4px;top:calc(var(--hpt,24px) + 44px);width:120px;border-radius:12px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line),0 4px 16px #1a302d33;overflow:hidden}
 .tlmenu button{display:flex;align-items:center;justify-content:center;width:120px;height:44px;min-height:44px;padding:0;border-radius:0;background:transparent;font-size:15px}
 .tlmenu button[aria-checked=true]{background:var(--green);color:#fff;font-weight:600}
 .spread .tlin{margin-bottom:64px}
@@ -697,7 +702,7 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 @media (hover:hover){.datebtn:hover{background:transparent}}
 .spread.fb .rhead.dh{flex-wrap:wrap}
 .spread.fb .rhead.dh h2{flex:1 1 150px;min-width:150px}
-.spread .page .mmenu{position:absolute;z-index:9;left:0;top:calc(var(--hpt,24px) + 44px);height:260px;box-sizing:border-box;border-radius:12px;background:#fffdfa;box-shadow:inset 0 0 0 1px var(--line),0 4px 16px #1a302d33;overflow:hidden;display:flex;flex-direction:column}
+.spread .page .mmenu{position:absolute;z-index:9;left:0;top:calc(var(--hpt,24px) + 44px);height:260px;box-sizing:border-box;border-radius:12px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line),0 4px 16px #1a302d33;overflow:hidden;display:flex;flex-direction:column}
 .mmh{display:flex;align-items:center;height:44px;flex:none}
 .mmh button{flex:none;width:44px;min-width:44px;height:44px;padding:0;font-size:20px;background:transparent;display:flex;align-items:center;justify-content:center}
 .mmt{flex:1;text-align:center;font-weight:600;font-size:15px}
@@ -711,8 +716,8 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .rhead.dh .spanbtn{margin-right:8px}
 .rhead.dh .sctl{margin-left:auto}
 
-/* 開いた縦の下パネル（月の下）。基準 y520〜873: 地 #FFFDFA・上端線 #C9C6BC。位置は JS の --pnl-top/--pnl-h、横は --ux 比 */
-.pnl{position:fixed;left:var(--content-x);width:var(--content-w);top:var(--pnl-top);height:var(--pnl-h);box-sizing:border-box;z-index:4;background:#FFFDFA;border-top:1px solid #C9C6BC;overflow:hidden;display:block}
+/* 開いた縦の下パネル（月の下）。基準 y520〜873: 地 var(--card)・上端線 #C9C6BC。位置は JS の --pnl-top/--pnl-h、横は --ux 比 */
+.pnl{position:fixed;left:var(--content-x);width:var(--content-w);top:var(--pnl-top);height:var(--pnl-h);box-sizing:border-box;z-index:4;background:var(--card);border-top:1px solid #C9C6BC;overflow:hidden;display:block}
 .pnl.up{top:var(--grid-top);height:var(--pnl-up-h)}
 .pnl.enter,.pnl.leave.go{transform:translateY(100%)}
 .pnl-anim .pnl{transition:transform .25s ease}
@@ -762,18 +767,18 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .mlrows{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
 .mrow{display:flex;flex-direction:column;justify-content:center;width:100%;height:56px;min-height:56px;padding:0 4px;text-align:left;background:transparent;border-radius:0;border-bottom:1px solid var(--line);box-sizing:border-box;overflow:hidden}
 .mrow b{font-size:13px;line-height:20px;font-weight:600;white-space:nowrap}
-.mrow span{font-size:13px;line-height:20px;color:#68716A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow span{font-size:13px;line-height:20px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .srhead{font-size:15px;font-weight:600;margin:20px 0 0}
 .mhit{display:block;width:100%;min-height:56px;padding:10px 12px 10px 16px;text-align:left;background:var(--card);border:1px solid var(--line);border-left:3px solid #8A7E5C;border-radius:12px;margin-top:8px}
 .mhit>*{display:block}
 .remgate{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;padding:16px}
-.remgate .remtx{margin:0;font-size:15px;line-height:1.5;color:#293B35;max-width:280px}
+.remgate .remtx{margin:0;font-size:15px;line-height:1.5;color:var(--ink);max-width:280px}
 .remgate .rembtn{min-height:44px;padding:0 16px;border:0;border-radius:10px;background:#294E42;color:#fff;font-size:15px}
 
 /* タスク一覧（第14版 PR15）。丸は表示のみ（完了操作は後続） */
 .taskl{padding:0 4px;flex:1;min-height:0;overflow-y:auto}
-.taskl .remtx{margin:0;font-size:15px;color:#293B35}
-.rmh{margin:12px 0 4px;font-size:13px;font-weight:600;color:#293B35}
+.taskl .remtx{margin:0;font-size:15px;color:var(--ink)}
+.rmh{margin:12px 0 4px;font-size:13px;font-weight:600;color:var(--ink)}
 .rmh.late{color:#B43C3C}
 .rmrow{display:flex;align-items:center;gap:12px;min-height:44px;padding:0 4px;box-sizing:border-box}
 .rmrow.two{min-height:56px}
@@ -788,27 +793,27 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .rmt{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rmrow.done .rmt{color:#A8ABA4;text-decoration:line-through}
 .rmpri{font-weight:600;color:#B43C3C;margin-right:4px}
-.rmd{font-size:11px;color:#68716A}
+.rmd{font-size:11px;color:var(--muted)}
 .rmd.late{color:#B43C3C}
-.rmro{flex:none;font-size:11px;color:#68716A}
-.rmrow.ro .rmt{color:#68716A}
-.rmdonebtn{min-height:44px;padding:0 4px;border:0;background:none;font-size:13px;font-weight:600;color:#293B35;text-align:left}
+.rmro{flex:none;font-size:11px;color:var(--muted)}
+.rmrow.ro .rmt{color:var(--muted)}
+.rmdonebtn{min-height:44px;padding:0 4px;border:0;background:none;font-size:13px;font-weight:600;color:var(--ink);text-align:left}
 .rmmore{min-height:44px;width:100%;border:0;background:none;font-size:13px;color:#294E42}
 
 /* タスクの追加（第14版 PR17） */
 .rmadd{margin:4px 0 8px}
-.rmaddbtn{display:block;width:100%;height:44px;border:0;border-radius:10px;background:#F0EDE5;color:#293B35;font-size:15px;text-align:left;padding:0 12px;box-sizing:border-box}
+.rmaddbtn{display:block;width:100%;height:44px;border:0;border-radius:10px;background:#F0EDE5;color:var(--ink);font-size:15px;text-align:left;padding:0 12px;box-sizing:border-box}
 .rmaddbtn:disabled{color:#A8ABA4}
 .rmaddin{display:flex;align-items:center;gap:8px;height:44px;border-radius:10px;background:#F0EDE5;padding:0 8px 0 12px;box-sizing:border-box}
-.rmaddgo{flex:none;height:44px;min-width:52px;border:0;border-radius:8px;background:#293B35;color:#fff;font-size:15px;padding:0 12px}
+.rmaddgo{flex:none;height:44px;min-width:52px;border:0;border-radius:8px;background:var(--ink);color:#fff;font-size:15px;padding:0 12px}
 .rmaddgo:disabled{opacity:.5}
-.remin{flex:1;min-width:0;height:44px;border:0;background:transparent;font-size:15px;color:#293B35;outline:none;padding:0}
+.remin{flex:1;min-width:0;height:44px;border:0;background:transparent;font-size:15px;color:var(--ink);outline:none;padding:0}
 .rmchip{flex:none;display:inline-flex;align-items:center;gap:2px;height:24px;border-radius:12px;padding:0 4px 0 8px;background:#fff;font-size:11px;color:#294E42;border:1px solid #E3E0D7;box-sizing:border-box}
 .rmchip0{padding:0 8px;min-height:24px}
-.rmchipx{border:0;background:none;color:#68716A;font-size:13px;min-width:24px;height:24px;padding:0;position:relative}
+.rmchipx{border:0;background:none;color:var(--muted);font-size:13px;min-width:24px;height:24px;padding:0;position:relative}
 .rmchipx::before,.rmchip0::before{content:'';position:absolute;inset:-10px -4px}
 .rmchip0{position:relative}
-.rmwhy{margin:4px 4px 0;font-size:11px;color:#68716A}
+.rmwhy{margin:4px 4px 0;font-size:11px;color:var(--muted)}
 .rmwhy.err{color:#B43C3C}
 
 /* タスクの編集シート（第14版 PR19） */
@@ -817,7 +822,7 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 #tk-body .pair{display:flex;gap:8px}#tk-body .pair label{flex:1}
 .tkmeta{margin:10px 0 0}
 #tk-save[hidden]{display:none}
-.rmnote{padding:0 8px;min-height:24px;position:relative;color:#68716A}
+.rmnote{padding:0 8px;min-height:24px;position:relative;color:var(--muted)}
 .rmnote.on{color:#294E42;border-color:#294E42}
 .rmnote::before{content:'';position:absolute;inset:-10px -4px}
 .tknote{margin-top:12px}
@@ -828,7 +833,7 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 
 /* ===== 第14版 PR23: タスクのリスト設定と月の件数 ===== */
 /* ✓N: 日付の数字の中心から右14pt・8pt。閉じた画面には JS が出さない */
-.week .tkn{position:absolute;left:calc(50% + 14px);top:0;z-index:1;font-size:8px;line-height:var(--date-h);color:#68716A;white-space:nowrap;pointer-events:none}
+.week .tkn{position:absolute;left:calc(50% + 14px);top:0;z-index:1;font-size:8px;line-height:var(--date-h);color:var(--muted);white-space:nowrap;pointer-events:none}
 .menurows .tkpanel{margin:2px 0 6px}
 .menurows .tkpanel .eyebrow{margin:6px 12px 2px}
 .menurows .tkpanel button{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;font-size:15px;text-align:left}
@@ -854,16 +859,16 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .closed.tv-day .allday{height:32px;margin-bottom:0}
 .closed.tv .hlab{font-size:11px}
 .closed.tv-week .nowt{width:30px;height:18px;top:-9px;border-radius:999px;font-size:9px;line-height:18px;letter-spacing:-.02em}
-.dbox{position:absolute;z-index:4;left:0;right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:calc(var(--d) * var(--hh) / 60);box-sizing:border-box;border:2px solid var(--cat);border-radius:8px;background:var(--tint);color:var(--cat);padding:1px 6px;overflow:visible;pointer-events:auto;touch-action:none}
+.dbox{position:absolute;z-index:4;left:0;right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:calc(var(--d) * var(--hh) / 60);box-sizing:border-box;border:2px solid var(--cat-mark);border-radius:8px;background:var(--cat-tint);color:var(--ink);padding:1px 6px;overflow:visible;pointer-events:auto;touch-action:none}
 .dbox .dt{display:block;font-size:13px;line-height:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dbox .ds{display:block;font-size:11px;line-height:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hdl{position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px var(--cat);touch-action:none}
+.hdl{position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px var(--cat-mark);touch-action:none}
 .hdl:before{content:'';position:absolute;left:50%;top:50%;width:44px;height:44px;transform:translate(-50%,-50%)}
 .hdl-s{left:6px;top:-7px}
 .hdl-e{left:6px;bottom:-7px}
 .dbox[data-short] .hdl-s:before{transform:translate(-50%,-100%)}
 .dbox[data-short] .hdl-e:before{transform:translate(-50%,0)}
-.dx{position:absolute;right:2px;top:-10px;width:20px;height:20px;padding:0;border:0;border-radius:50%;background:#fff;color:var(--cat);box-shadow:0 0 0 2px var(--cat);font-size:13px;line-height:20px;font-weight:600;text-align:center;touch-action:none;z-index:1}
+.dx{position:absolute;right:2px;top:-10px;width:20px;height:20px;padding:0;border:0;border-radius:50%;background:#fff;color:var(--cat-mark);box-shadow:0 0 0 2px var(--cat-mark);font-size:13px;line-height:20px;font-weight:600;text-align:center;touch-action:none;z-index:1}
 .dx:before{content:'';position:absolute;left:50%;top:50%;width:44px;height:44px;transform:translate(-50%,-50%)}
 .dbox[data-short] .dx:before{transform:translate(-50%,-75%)}
 .dtag{position:absolute;z-index:5;left:3px;width:44px;height:18px;border-radius:4px;background:#294E42;color:#fff;font-size:10px;font-weight:600;line-height:18px;text-align:center;pointer-events:none;font-variant-numeric:tabular-nums}
@@ -883,7 +888,7 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 
 /* ---- コピーの貼付選択（PR33） ---- */
 .week .bar,.week .strip{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
-.cmenu{position:fixed;z-index:9100;width:160px;border-radius:12px;background:#fffdfa;box-shadow:inset 0 0 0 1px var(--line),0 4px 16px #1a302d33;overflow:hidden}
+.cmenu{position:fixed;z-index:9100;width:160px;border-radius:12px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line),0 4px 16px #1a302d33;overflow:hidden}
 .cmenu button{display:block;width:100%;height:44px;padding:0 16px;border:0;border-bottom:1px solid var(--line);background:transparent;text-align:left;font-size:15px;color:#294E42}
 .cmenu button:last-child{border-bottom:0}
 .cmenu button.danger{color:#C0392B}
@@ -906,14 +911,14 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .pbo.full .pn{color:#F4C27A}
 .pbnav{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%)}
 .week .day.psel::after{content:"";position:absolute;inset:2px;border:2.5px solid #2F9E6E;border-radius:8px;pointer-events:none;z-index:3}
-.week .day.psrc{box-shadow:inset 0 0 0 1.5px #68716A}
-.week .day .pcsrc{position:absolute;left:0;right:0;bottom:1px;text-align:center;font-size:9px;line-height:1.1;color:#68716A;pointer-events:none;z-index:2}
+.week .day.psrc{box-shadow:inset 0 0 0 1.5px var(--muted)}
+.week .day .pcsrc{position:absolute;left:0;right:0;bottom:1px;text-align:center;font-size:9px;line-height:1.1;color:var(--muted);pointer-events:none;z-index:2}
 .week .day .pck{position:absolute;right:3px;bottom:3px;width:16px;height:16px;border-radius:50%;background:#2F9E6E;color:#fff;font:600 10px/16px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;text-align:center;font-style:normal;pointer-events:none;z-index:4}
 .week .day.pshake{animation:pshake .2s}
 @keyframes pshake{0%,100%{transform:scale(1)}50%{transform:scale(.92)}}
 .pdim{filter:brightness(.9)}
 
-.week .pghost{position:absolute;z-index:1;box-sizing:border-box;height:var(--chip-h);padding:0 0 0 3px;border:1px dashed var(--cat);border-radius:3px;background:color-mix(in srgb,var(--cat) 18%,transparent);color:var(--cat);font-size:var(--chip-fs);font-weight:600;line-height:calc(var(--chip-h) - 2px);white-space:nowrap;overflow:hidden;pointer-events:none}
+.week .pghost{position:absolute;z-index:1;box-sizing:border-box;height:var(--chip-h);padding:0 0 0 3px;border:1px dashed var(--cat-mark);border-radius:3px;background:color-mix(in srgb,var(--cat-mark) 18%,transparent);color:var(--ink);font-size:var(--chip-fs);font-weight:600;line-height:calc(var(--chip-h) - 2px);white-space:nowrap;overflow:hidden;pointer-events:none}
 .week .pghost.cont{border-left-style:none;border-radius:0 3px 3px 0}
 .week .pghost.more{border-right-style:none;border-radius:3px 0 0 3px}
 .week .pghost.cont.more{border-radius:0}
@@ -923,7 +928,7 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 /* 新規予定のカレンダー選択（1行 + ポップオーバー） */
 .destrow{position:relative;margin-top:12px}.destrow[hidden]{display:none}
 .destbtn{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:44px;padding:0 12px;border-radius:10px;background:#fff;border:1px solid #DCD7CB;font-size:15px;text-align:left}
-.destbtn .dlbl{flex:none}.destbtn .dval{display:flex;align-items:center;gap:6px;min-width:0;color:#68716A;font-size:15px}
+.destbtn .dlbl{flex:none}.destbtn .dval{display:flex;align-items:center;gap:6px;min-width:0;color:var(--muted);font-size:15px}
 .destbtn .dval #dest-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .destbtn .cdot.big{width:12px;height:12px}
 .destpop{position:absolute;left:0;top:calc(100% + 4px);z-index:20;box-sizing:border-box;width:min(296px,100%);max-height:min(320px,50vh);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:6px 0;border-radius:14px;background:#fff;border:1px solid #DCD7CB;box-shadow:0 8px 24px #0002}
@@ -936,8 +941,8 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .destpage .dphead{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:8px;min-height:56px;padding:0 12px 0 8px;background:#fff;border-bottom:1px solid var(--line)}
 .destpage .dback{flex:none;min-width:44px;min-height:44px;padding:0 10px;border:0;background:transparent;font-size:15px;color:#294E42;white-space:nowrap}
 .destpage .dptitle{margin:0;font:600 17px/1.3 -apple-system,'Hiragino Sans',sans-serif}
-.destpage h4{margin:0;padding:0 20px;min-height:28px;display:flex;align-items:center;font-size:13px;font-weight:600;color:#68716A}
-.destpage .dnote{margin:8px 20px;font-size:13px;color:#68716A}
+.destpage h4{margin:0;padding:0 20px;min-height:28px;display:flex;align-items:center;font-size:13px;font-weight:600;color:var(--muted)}
+.destpage .dnote{margin:8px 20px;font-size:13px;color:var(--muted)}
 .destpage .dopt{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:0 20px;border:0;background:transparent;font-size:15px;text-align:left}
 .destpage .dopt .dn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .destpage .dopt .cdot{flex:none;width:12px;height:12px;border-radius:50%}
@@ -947,8 +952,8 @@ input.swc:disabled,.xsw input[type=checkbox]:disabled{opacity:.4}
 .destpage .dset{display:flex;align-items:center;width:100%;min-height:44px;margin-top:8px;padding:0 20px;border:0;border-top:1px solid var(--line);background:transparent;font-size:15px;color:#2E8B57;text-align:left}
 .destpage button:focus-visible{outline:2px solid #294E42;outline-offset:-2px}
 .destbtn:disabled{opacity:.6}.destbtn:disabled .dval>span:last-child{visibility:hidden}
-.destpop h4{margin:0;padding:0 14px;min-height:26px;display:flex;align-items:center;font-size:13px;font-weight:600;color:#68716A}
-.destpop .dnote{margin:2px 14px 6px;font-size:13px;color:#68716A}
+.destpop h4{margin:0;padding:0 14px;min-height:26px;display:flex;align-items:center;font-size:13px;font-weight:600;color:var(--muted)}
+.destpop .dnote{margin:2px 14px 6px;font-size:13px;color:var(--muted)}
 .destpop .dopt{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:0 14px;border:0;background:transparent;font-size:15px;text-align:left}
 .destpop .dopt .dn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .destpop .dopt .cdot{width:12px;height:12px}
@@ -968,10 +973,10 @@ body[data-layout=spread] dialog#menu,body[data-layout=desk] dialog#menu{height:a
 .mscreens .menurows>button,.mscreens .menurows .tlz button,.mscreens .menurows .tkpanel button{min-height:48px;padding-left:20px;padding-right:20px;border-radius:0}
 .srow{display:flex!important;align-items:center;gap:6px;height:48px;min-height:48px;padding:0 20px 0 32px!important;font-size:15px;background:transparent;border:0;text-align:left}
 .srow[hidden]{display:none!important}
-.sic{flex:none;display:inline-flex;width:22px;height:22px;color:#68716A}
+.sic{flex:none;display:inline-flex;width:22px;height:22px;color:var(--muted)}
 .sic .gl{font-size:19px;line-height:20px;font-weight:600}
 .sname{flex:1;min-width:0;margin-left:6px}
-.shint{font-size:13px;color:#68716A;white-space:nowrap}
+.shint{font-size:13px;color:var(--muted);white-space:nowrap}
 .sch{color:#A8ABA4;font-size:20px;width:16px;text-align:right}
 .ssep{margin:5.5px 0;border:0;border-top:1px solid #ECE9E1}
 .sfoot{margin:14px 20px;font-size:11px;color:#A8ABA4}
@@ -993,7 +998,7 @@ body[data-layout=spread] dialog#menu,body[data-layout=desk] dialog#menu{height:a
 .crow.off .cdot{opacity:.4}
 .crow.shake{animation:catshake .2s linear}
 @media (prefers-reduced-motion:reduce){.crow.shake{animation:none;outline:2px solid #4E7FC4}}
-.cnote{margin:0;padding:4px 20px 6px;font-size:13px;line-height:1.4;color:#68716A}
+.cnote{margin:0;padding:4px 20px 6px;font-size:13px;line-height:1.4;color:var(--muted)}
 .mscreens .menurows button.cbtn{display:inline-block;width:auto;margin:2px 20px 8px 20px;min-height:40px;padding:0 16px;border:1px solid #DCD7CB;border-radius:999px;background:#fff;font-size:15px}
 /* 第15版 PR9: Duo 段の編集モード（赤−・並べ替え・追加） */
 .calsec.dhead{display:flex;align-items:center;justify-content:space-between}
@@ -1003,7 +1008,7 @@ body[data-layout=spread] dialog#menu,body[data-layout=desk] dialog#menu{height:a
 .cdel span{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#C8453B;color:#fff;font-size:18px;line-height:1;font-weight:600}
 .cdel:disabled span{opacity:.35}
 .mscreens .menurows .crow.edit button.cmain{flex:1;min-width:0;display:flex;align-items:center;gap:10px;height:44px;min-height:44px;padding:0;border:0;background:transparent;text-align:left;font-size:15px}
-.crow.edit .mv button{min-width:44px;min-height:44px;height:44px;padding:0;border:0;background:transparent;font-size:18px;color:#68716A}
+.crow.edit .mv button{min-width:44px;min-height:44px;height:44px;padding:0;border:0;background:transparent;font-size:18px;color:var(--muted)}
 .crow.edit .mv button:disabled{opacity:.3}
 .mscreens .menurows button.crow.addrow{color:#4E7FC4}
 .crow.addrow .cplus{flex:none;width:14px;text-align:center}
@@ -1013,10 +1018,10 @@ body[data-layout=spread] dialog#menu,body[data-layout=desk] dialog#menu{height:a
 .mscreens .menurows button.destrow{display:flex;align-items:center;gap:8px;height:48px;font-size:15px;border-top:1px solid #ECE9E1;background:transparent;border-left:0;border-right:0;border-bottom:0}
 .destrow .dname{flex:1;min-width:0}
 .destrow .cdot{flex:none;width:12px;height:12px;border-radius:50%}
-.destrow .dval{font-size:15px;color:#68716A;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.destrow .dval{font-size:15px;color:var(--muted);max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* 設定の追加先ページ（第16版 PR4）は .destpage（編集シートと同じ）。シートの外枠に重ねる */
 dialog#menu #m-destpop{border-radius:inherit}
-#m-cal-foot{padding:8px 20px 0;font-size:13px;color:#68716A}
+#m-cal-foot{padding:8px 20px 0;font-size:13px;color:var(--muted)}
 #m-cal-foot button{min-height:32px;padding:0 12px;border:1px solid #DCD7CB;border-radius:16px;background:#fff;font-size:13px;width:auto}
 
 /* 日時（設計12 §1–2）。日付は文字の欄のまま、時刻はカプセルと時分のマス */
@@ -1024,9 +1029,9 @@ dialog#menu #m-destpop{border-radius:inherit}
 .dtrow{display:flex;align-items:center;gap:8px;min-height:44px}
 .dtrow+.dtrow{border-top:1px solid #eeeae0}
 .dtk{flex:none;width:2.4em;font-size:13px}
-.dcap{flex:1 1 120px;min-width:120px;height:32px;padding:0 8px;border:0;border-radius:8px;background:#F0EDE5;font-size:15px;color:#293B35;white-space:nowrap}
+.dcap{flex:1 1 120px;min-width:120px;height:32px;padding:0 8px;border:0;border-radius:8px;background:#F0EDE5;font-size:15px;color:var(--ink);white-space:nowrap}
 .dcap.open{background:#294E42;color:#fff}
-.tcap{position:relative;flex:none;width:58px;height:32px;padding:0;border:0;border-radius:8px;background:#F0EDE5;font-size:15px;font-weight:600;color:#293B35}
+.tcap{position:relative;flex:none;width:58px;height:32px;padding:0;border:0;border-radius:8px;background:#F0EDE5;font-size:15px;font-weight:600;color:var(--ink)}
 .tcap.open{background:#294E42;color:#fff}
 .tcap[hidden]{display:none}
 .dbadge{position:absolute;left:-6px;top:-9px;height:16px;padding:0 6px;border-radius:8px;background:#87500F;color:#fff;font-size:11px;line-height:16px;pointer-events:none}
@@ -1036,14 +1041,14 @@ dialog#menu #m-destpop{border-radius:inherit}
 .dchip{height:26px;min-width:44px;padding:0 10px;border:1px solid #DCD7CB;border-radius:999px;background:#fff;font-size:13px}
 .dchip[aria-pressed=true]{background:#DDE7E2;border-color:#294E42;font-weight:600}
 .tpop{padding:8px 0 10px;border-top:1px solid #eeeae0}
-.tlab{margin:6px 0 4px;font-size:13px;color:#68716A}
+.tlab{margin:6px 0 4px;font-size:13px;color:var(--muted)}
 .tnote{margin-left:8px;color:#294E42;font-weight:600}
 .tgrid{display:grid;gap:4px}
 .hgrid{grid-template-columns:repeat(6,minmax(0,1fr))}
 .mgrid{grid-template-columns:repeat(6,minmax(0,1fr))}
 .tcell{min-width:0;height:34px;padding:0;border:0;border-radius:8px;background:#F0EDE5;font-size:15px}
 .mcell{height:32px}
-.tcell.usual{color:#293B35}.tcell.rare{color:#A8ABA4}
+.tcell.usual{color:var(--ink)}.tcell.rare{color:#A8ABA4}
 .tcell[aria-pressed=true]{background:#294E42;color:#fff;font-weight:600}
 .dtbox.allday .tcap,.dtbox.allday .dbadge,.dtbox.allday #row-d,.dtbox.allday #tpop{display:none}
 
@@ -1056,9 +1061,9 @@ dialog#menu #m-destpop{border-radius:inherit}
 .dpnav{width:44px;height:44px;padding:0;border:0;background:none;font-size:20px;color:#294E42}
 .dpmt{font-size:15px;font-weight:600}
 .dpwk,.dpgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
-.dpwk span{text-align:center;font-size:13px;color:#68716A}.dpwk .hol{color:var(--holiday)}
+.dpwk span{text-align:center;font-size:13px;color:var(--muted)}.dpwk .hol{color:var(--holiday)}
 .dpgrid{touch-action:pan-y}
-.dcell{height:38px;min-width:0;padding:0;border:0;background:none;font-size:15px;color:#293B35;display:flex;align-items:center;justify-content:center}
+.dcell{height:38px;min-width:0;padding:0;border:0;background:none;font-size:15px;color:var(--ink);display:flex;align-items:center;justify-content:center}
 .dcell .n{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;box-sizing:border-box}
 .dcell.hol{color:var(--holiday)}
 .dcell.out{color:#C9C6BC}
@@ -1068,7 +1073,7 @@ dialog#menu #m-destpop{border-radius:inherit}
 
 /* 数字の短縮入力（長押し）・大文字（設計12 §4・6） */
 .dcap.editing,.tcap.editing{display:none}
-.capin{box-sizing:border-box;height:32px;border:2px solid #294E42;border-radius:8px;background:#fff;color:#293B35;font-size:15px;font-weight:600;text-align:center;padding:0 6px;min-width:0}
+.capin{box-sizing:border-box;height:32px;border:2px solid #294E42;border-radius:8px;background:#fff;color:var(--ink);font-size:15px;font-weight:600;text-align:center;padding:0 6px;min-width:0}
 .capin.dcap-in{flex:1 1 120px;min-width:120px}
 .capin.tcap-in{flex:none;width:58px}
 .capin:focus-visible{outline:2px solid #294E42;outline-offset:1px}
@@ -1096,7 +1101,7 @@ dialog#menu #m-destpop{border-radius:inherit}
 .rmchipl::before{content:'';position:absolute;inset:-10px -4px}
 .rmdp{margin:6px 0 0;padding:8px 10px 10px;background:#fff;border:1px solid var(--line);border-radius:10px}
 .rmdpt{margin-top:6px}
-.rmtimeon{padding:0 10px;min-height:32px;position:relative;color:#68716A}
+.rmtimeon{padding:0 10px;min-height:32px;position:relative;color:var(--muted)}
 .rmtimeon.on{color:#294E42;border-color:#294E42}
 .rmtimeon:disabled{color:#C9C6BC}
 .rmdp .tpop{margin-top:6px}
@@ -1105,7 +1110,7 @@ dialog#menu #m-destpop{border-radius:inherit}
 .hdt.hol,.wdt.hol,.mmc.hol .n{color:var(--holiday)}
 .hnm{margin-left:8px;font:400 13px/1 -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif;color:var(--holiday);white-space:nowrap}
 .wrk.whn{color:var(--holiday)}
-.about{margin-top:12px;padding:0 12px;font-size:13px;line-height:1.5;color:#68716A}.about h3{margin:0 0 4px;font-size:13px;color:var(--ink)}.about p{margin:0 0 6px;overflow-wrap:anywhere}
+.about{margin-top:12px;padding:0 12px;font-size:13px;line-height:1.5;color:var(--muted)}.about h3{margin:0 0 4px;font-size:13px;color:var(--ink)}.about p{margin:0 0 6px;overflow-wrap:anywhere}
 @media (max-width:420px){.hrk.hx{display:none}}
 
 /* ===== 第16版 PR12: 右の帯のタスク・メモ（丸48・当たり56） ===== */
@@ -1115,7 +1120,7 @@ dialog#menu #m-destpop{border-radius:inherit}
 @media (hover:hover){.cb.cstrip.on:hover .bi{background:#DDE7E2}}
 .cb .bdg{position:absolute;top:-4px;right:-4px;box-sizing:border-box;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:#B43C3C;color:#fff;font-size:10px;font-weight:600;line-height:18px;text-align:center;box-shadow:0 0 0 1.5px #fff}
 .cb.cmemo.has .bi::after{content:"";position:absolute;left:50%;bottom:6px;width:12px;height:2px;margin-left:-6px;border-radius:4px;background:#294E42}
-.stip{position:fixed;z-index:30;transform:translateY(-50%);padding:4px 8px;border-radius:8px;background:#293B35;color:#fff;font-size:13px;line-height:1.3;white-space:nowrap;pointer-events:none}
+.stip{position:fixed;z-index:30;transform:translateY(-50%);padding:4px 8px;border-radius:8px;background:var(--ink);color:#fff;font-size:13px;line-height:1.3;white-space:nowrap;pointer-events:none}
 .chsp{flex:none;width:44px}
 .page.flash{animation:pgflash .2s ease-out}
 @keyframes pgflash{0%{box-shadow:inset 0 0 0 3px #294E42;background:#DDE7E2}100%{box-shadow:inset 0 0 0 0 transparent}}
@@ -1142,7 +1147,7 @@ dialog#menu #m-destpop{border-radius:inherit}
 .agrow{display:flex;align-items:center;gap:8px;width:100%;height:40px;min-height:40px;padding:0 4px;border-radius:0;background:transparent;text-align:left;border:0;color:var(--ink)}
 @media (hover:hover){.agrow:hover{background:transparent}}
 .agrow .agt{flex:none;width:44px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
-.agrow .agbar{flex:none;width:4px;height:20px;border-radius:4px;background:var(--cat,var(--green))}
+.agrow .agbar{flex:none;width:4px;height:20px;border-radius:4px;background:var(--cat-mark,var(--green))}
 .agrow strong{flex:1;min-width:0;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* 第16版 PR14: ホームの今日のカード（design/14 案A）。全体を1本でスクロール、タブは固定 */
@@ -1151,30 +1156,30 @@ dialog#menu #m-destpop{border-radius:inherit}
 .hcards{display:flex;flex-direction:column;gap:10px;flex:none}
 .hcard{display:block;width:100%;text-align:left;background:#fff;border-radius:14px;padding:10px 12px;border:1px solid #E3E0D7;box-sizing:border-box}
 .hh3{display:flex;align-items:center;justify-content:space-between;min-height:28px}
-.hh3 h3{margin:0;font-size:13px;font-weight:600;color:#68716A}
+.hh3 h3{margin:0;font-size:13px;font-weight:600;color:var(--muted)}
 .hgo{min-height:44px;margin:-8px -6px -8px 0;padding:0 6px;font-size:13px;color:var(--green);background:none;border:0}
 .hrow{display:flex;align-items:center;gap:8px;width:100%;min-height:32px;text-align:left;background:none;border:0;padding:0}
 .hrow .ht{font-size:13px;min-width:44px;color:#4a524c}
-.hrow .hbar{width:4px;height:18px;border-radius:4px;background:var(--cat,#6E8F7F);flex:none}
+.hrow .hbar{width:4px;height:18px;border-radius:4px;background:var(--cat-mark,#6E8F7F);flex:none}
 .hrow strong{font-size:15px;font-weight:400;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hmore{display:block;min-height:32px;font-size:13px;color:var(--green);background:none;border:0;padding:0}
 .hempty{color:#8a8f88;font-size:13px;margin:4px 0}
 .htask{display:flex;align-items:center;gap:4px;min-height:48px}
-.htask .rmck{--rc:#68716A}
+.htask .rmck{--rc:var(--muted)}
 .htask.done .rmck{background:var(--rc);position:relative}
 .htask.done .rmck::after{content:'✓';position:absolute;inset:0;color:#fff;font-size:14px;line-height:16.5px;text-align:center}
 .htask .htt{flex:1;min-width:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .htask.done .htt{text-decoration:line-through;color:#8a8f88}
-.hdue{font-size:13px;color:#68716A}.hdue.od{color:#B43C3C}
+.hdue{font-size:13px;color:var(--muted)}.hdue.od{color:#B43C3C}
 .hadd{min-height:44px;font-size:13px;color:var(--green);background:none;border:0;padding:0}
 .hmemob{display:flex;flex-direction:column;gap:0;width:100%;min-height:44px;text-align:left;background:none;border:0;padding:0}
 .hmemob span{font-size:15px;line-height:22px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.htmr{min-height:52px;background:#fff;font-size:13px}.htmr b{font-weight:600}.htmr small{color:#68716A}.htmr span{display:block;font-size:13px}
+.htmr{min-height:52px;background:#fff;font-size:13px}.htmr b{font-weight:600}.htmr small{color:var(--muted)}.htmr span{display:block;font-size:13px}
 /* 開いた横: 今日の予定は 9〜19 時の小さな時間軸（1時間14pt） */
 .haxis{position:relative;display:block;width:100%;min-height:0;margin:6px 0 2px;padding:0;border:0;border-radius:0;background:none;text-align:left;color:inherit;font:inherit}
 .haxis .hh{position:absolute;left:0;width:22px;font-size:11px;font-weight:400;line-height:14px;color:#8a8f88;transform:translateY(-7px)} /* N-07: 11/400・行 14 */
 .haxis .hbars{display:block;position:absolute;left:26px;right:0;top:0;bottom:0;border-left:1px solid #E3E0D7;background:repeating-linear-gradient(to bottom,transparent 0,transparent 13px,#EFEDE6 13px,#EFEDE6 14px)}
-.hbarev{position:absolute;left:2px;right:2px;padding:0 6px;border:0;border-radius:3px;display:flex;align-items:center;box-sizing:border-box;background:var(--tint,#DCE7E0);box-shadow:inset 3px 0 0 var(--cat,#6E8F7F);font-size:10px;text-align:left;overflow:hidden;color:var(--ink,#222);min-height:0}
+.hbarev{position:absolute;left:2px;right:2px;padding:0 6px;border:0;border-radius:3px;display:flex;align-items:center;box-sizing:border-box;background:var(--cat-tint,#DCE7E0);box-shadow:inset 3px 0 0 var(--cat-mark,#6E8F7F);font-size:10px;text-align:left;overflow:hidden;color:var(--ink,#222);min-height:0}
 .hbarev.past{opacity:.45}
 .hbarev span{display:block;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:12px;font-size:11px;font-weight:400}
 .hnow{position:absolute;left:0;right:0;height:0;border-top:1.5px solid #B43C3C;pointer-events:none}
@@ -1196,7 +1201,7 @@ dialog#menu #m-destpop{border-radius:inherit}
 .ned-body .nl[data-k=h2] { font-size: 17px; font-weight: 600; line-height: 26px; padding: 2px 0; }
 .nl[data-k=bullet], .nl[data-k=check] { padding-left: 28px; }
 .nl[data-k=bullet]::before { content: ''; position: absolute; left: 13px; top: 12px; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.nl[data-k=check][data-c="1"] { color: #68716A; text-decoration: line-through; }
+.nl[data-k=check][data-c="1"] { color: var(--muted); text-decoration: line-through; }
 /* 見るだけの表示（1日ページのノート欄・ホームのノート）: 15pt の1行 30。四角は見せるだけ（押せない）。 */
 .dnt .nl, .pvnote .nl { position: relative; display: block; min-height: 30px; font-size: 15px; line-height: 30px; }
 .dnt .nl[data-k=h1], .dnt .nl[data-k=h2], .pvnote .nl[data-k=h1], .pvnote .nl[data-k=h2] { font-weight: 600; }
@@ -1242,7 +1247,7 @@ dialog#menu #m-destpop{border-radius:inherit}
 .nchip{flex:none;min-height:44px;min-width:44px;max-width:60vw;padding:0 14px;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:transparent;border-radius:999px;box-shadow:inset 0 0 0 1px var(--line);touch-action:manipulation}
 .nchip.on{background:var(--green);color:#fff;box-shadow:none}
 .nchip.nadd{font-size:17px} /* V-22: 18→17 */
-.nsec{margin:8px 4px 2px;font-size:13px;line-height:20px;color:#68716A;font-weight:600}
+.nsec{margin:8px 4px 2px;font-size:13px;line-height:20px;color:var(--muted);font-weight:600}
 .nrw{touch-action:pan-y;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .nrw.pinned{background:rgba(41,78,66,.05)}
 .npin{font-style:normal;margin-right:4px}
@@ -1250,14 +1255,14 @@ dialog#menu #m-destpop{border-radius:inherit}
 .nmeta{position:relative;flex:none;display:flex;align-items:center;gap:8px;padding:0 0 6px}
 .ndate{flex:none;min-width:44px;min-height:44px;padding:0 10px;font-size:13px;background:transparent;border-radius:14px;box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap}
 .ndate.on{box-shadow:inset 0 0 0 2px #294E42;color:#294E42}
-.ndpop{position:absolute;z-index:9;left:0;top:100%;width:min(280px,100%);box-sizing:border-box;border-radius:12px;background:#fffdfa;box-shadow:inset 0 0 0 1px var(--line),0 4px 16px #1a302d33;padding:0 0 4px}
+.ndpop{position:absolute;z-index:9;left:0;top:100%;width:min(280px,100%);box-sizing:border-box;border-radius:12px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line),0 4px 16px #1a302d33;padding:0 0 4px}
 .ndpop p{margin:0;padding:12px 12px 4px;font-size:15px}
 .ndfoot{display:flex;gap:8px;padding:4px 8px 0}
 .ndfoot .nmbtn,.ndconf .nmbtn{min-height:44px}
 .ndconf .nmrow{padding:4px 8px 0}
 .nday{flex:none;display:flex;align-items:center;gap:6px;min-height:44px;font-size:13px}
 .nday button{min-width:44px;min-height:44px;background:transparent;font-size:15px}
-.nmeta .nmlab{flex:1;min-width:0;display:flex;align-items:center;gap:6px;font-size:13px;color:#68716A}
+.nmeta .nmlab{flex:1;min-width:0;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
 .nmeta select{flex:1;min-width:0;min-height:44px;font-size:16px}
 .nmpin{flex:none;min-height:44px;min-width:44px;padding:0 12px;font-size:15px;background:transparent;border-radius:999px;box-shadow:inset 0 0 0 1px var(--line)}
 .nmpin.on{box-shadow:inset 0 0 0 2px #294E42;color:#294E42}
@@ -1312,7 +1317,7 @@ dialog#menu #m-destpop{border-radius:inherit}
 .ftcard{margin-top:8px;padding:12px;border-radius:12px;background:#fff;box-shadow:inset 0 0 0 1px var(--line)}
 .fttitle{width:100%;box-sizing:border-box;font-size:20px;font-weight:600;border:0;background:transparent;padding:4px 0;min-height:44px}
 .ftrow{display:flex;align-items:center;gap:12px;min-height:44px}
-.ftrow>span{width:48px;font-weight:600;color:var(--muted,#68716A)}
+.ftrow>span{width:48px;font-weight:600;color:var(--muted,var(--muted))}
 .ftrow input[type=date],.ftrow input[type=time]{font-size:16px;min-height:36px}
 .ftnote{align-items:flex-start}
 .ftnote textarea{flex:1;min-height:88px;font-size:16px;box-sizing:border-box}
@@ -1345,16 +1350,16 @@ html.kbl[data-kbl=note][data-kbnu="0"] .nup{display:none}
 .nupb{flex:none;max-width:70%;min-height:44px;padding:0 14px;border-radius:999px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);font-size:15px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
 html.kbl[data-kbe=dn] .nupb{max-width:none;width:100%;border-radius:8px;background:transparent;box-shadow:none;border-bottom:1px solid var(--line)}
 .nupe{font-size:13px;color:var(--muted)}
-.ndchip{flex:none;position:relative;height:22px;min-height:22px;margin:0 0 0 6px;padding:0 8px;border-radius:999px;font-size:13px;line-height:22px;background:transparent;box-shadow:inset 0 0 0 1px var(--line);color:#68716A;white-space:nowrap}
+.ndchip{flex:none;position:relative;height:22px;min-height:22px;margin:0 0 0 6px;padding:0 8px;border-radius:999px;font-size:13px;line-height:22px;background:transparent;box-shadow:inset 0 0 0 1px var(--line);color:var(--muted);white-space:nowrap}
 .ndchip::before{content:"";position:absolute;left:-4px;right:-4px;top:-11px;bottom:-11px}
 .ndchip.has{color:#294E42;box-shadow:inset 0 0 0 1px #8A7E5C}
 .nday>span{display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:14px;background:rgba(138,126,92,.14);color:#294E42}
 
 /* ===== 第18版 PR1: 見開きの型「今日＋明日」（左右とも1日ページ）===== */
 /* 縦の寸法: 見出し82／予定欄 --tt-split（既定300）／つまみ24／ノート（残り）。左右で同じ。ページの高さは --tt-h（y0〜603）。溝（--fold-keepout）には何も置かない */
-.shell.spread.tt{background:#FFFDFA}
-.spread .dpage{height:var(--tt-h,603px);background:#FFFDFA;overflow:clip}
-.dpage{display:flex;flex-direction:column;background:#FFFDFA}
+.shell.spread.tt{background:var(--card)}
+.spread .dpage{height:var(--tt-h,603px);background:var(--card);overflow:clip}
+.dpage{display:flex;flex-direction:column;background:var(--card)}
 .dpage .dph{flex:none;height:82px;box-sizing:border-box;padding:18px 16px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
 .dpage .dd{display:flex;align-items:baseline;min-width:0;margin:0;font:20px/44px -apple-system,BlinkMacSystemFont,'Hiragino Kaku Gothic ProN',sans-serif;font-weight:600;white-space:nowrap;overflow:hidden}
 .dpage .dd .hdt.hol{color:var(--holiday)}
@@ -1404,7 +1409,7 @@ dialog#editor{padding:0}
 #editor .formhead h2{flex:1;min-width:0;text-align:center;font:600 15px/1.3 -apple-system,'Hiragino Sans',system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #editor .formhead .caltag{margin-left:0}
 #editor .hbtn{position:relative;flex:none;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border:0;background:transparent;font-size:15px}
-#editor .hbtn::before{content:"";position:absolute;left:0;top:0;width:44px;height:44px;border-radius:50%;background:#EFECE4;z-index:-1}
+#editor .hbtn::before{content:"";position:absolute;left:0;top:0;width:44px;height:44px;border-radius:50%;background:var(--capsule);z-index:-1}
 #editor .hbtn{isolation:isolate}
 #editor .hbtn.hok{color:#fff}
 #editor .hbtn.hok::before{background:var(--green)}
@@ -1419,10 +1424,10 @@ dialog#editor{padding:0}
 #editor .dtrow+.dtrow{border-top:0}
 #editor .dtk{flex:1 1 auto;width:auto;font-size:15px;white-space:nowrap}
 #editor .dtrow .dtk{flex:1 1 auto}
-#editor .dcap{flex:none;width:130px;min-width:130px;height:32px;min-height:32px;padding:0 8px;border-radius:8px;background:#EFECE4;font-size:15px;font-weight:400;position:relative}
-#editor .tcap{flex:none;width:72px;height:32px;min-height:32px;padding:0;border-radius:8px;background:#EFECE4;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;position:relative}
+#editor .dcap{flex:none;width:130px;min-width:130px;height:32px;min-height:32px;padding:0 8px;border-radius:8px;background:var(--capsule);font-size:15px;font-weight:400;position:relative}
+#editor .tcap{flex:none;width:72px;height:32px;min-height:32px;padding:0;border-radius:8px;background:var(--capsule);font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;position:relative}
 #editor .dcap::after,#editor .tcap::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
-#editor .dcap.open,#editor .tcap.open{background:#EFECE4;color:#293B35;box-shadow:inset 0 0 0 1.5px var(--green)}
+#editor .dcap.open,#editor .tcap.open{background:var(--capsule);color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--green)}
 #editor .capin.dcap-in{flex:none;width:130px;min-width:130px}
 #editor .capin.tcap-in{flex:none;width:72px;min-height:32px}
 #editor .dbadge{position:static;flex:none;height:auto;padding:0;background:transparent;color:#87500F;font-size:11px;line-height:1;margin-right:-3px}
@@ -1433,7 +1438,7 @@ dialog#editor{padding:0}
 #editor .dchip::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}
 #editor .dchip[aria-pressed=true]{background:var(--green);border-color:var(--green);color:#fff;font-weight:600}
 #editor label.check{display:flex;align-items:center;gap:8px;padding:0 4px;border-bottom:1px solid #eeeae0;font-size:15px}
-#editor input[type=checkbox][role=switch]{-webkit-appearance:none;appearance:none;flex:none;position:relative;width:51px;height:31px;min-height:31px;margin:0;padding:0;border:0;border-radius:16px;background:#E4E0D6;transition:background .15s cubic-bezier(0.2,0.8,0.2,1),filter .15s ease-out}
+#editor input[type=checkbox][role=switch]{-webkit-appearance:none;appearance:none;flex:none;position:relative;width:51px;height:31px;min-height:31px;margin:0;padding:0;border:0;border-radius:16px;background:var(--line2);transition:background .15s cubic-bezier(0.2,0.8,0.2,1),filter .15s ease-out}
 #editor input[type=checkbox][role=switch]::before{content:"";position:absolute;left:2px;top:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0003;transition:transform .15s cubic-bezier(0.2,0.8,0.2,1)}
 #editor input[type=checkbox][role=switch]:checked{background:var(--green)}
 #editor input[type=checkbox][role=switch]:checked::before{transform:translateX(20px)}
@@ -1470,20 +1475,20 @@ html[data-kb] dialog#editor,html[data-kb] body[data-layout=spread] dialog#editor
 /* ===== 第19版 PR4: 時刻のダイヤル（design/24）。閉じた画面は行のすぐ下（幅180・1段32・5段）、開いた横は左のページ、開いた縦は下の面（幅220・1段44・7段）。 ===== */
 #tpop{display:flex;flex-direction:column;align-items:center;padding:8px 0 10px;border-top:0;max-height:none;overflow:visible}
 #tpop[hidden]{display:none}
-#tpop .dial{position:relative;flex:none;display:flex;box-sizing:border-box;width:180px;height:calc(var(--rows,5) * var(--rowh,32px));background:#fff;border-radius:12px;box-shadow:0 0 0 1px #E4E0D6;overflow:hidden;animation:dialgrow .25s cubic-bezier(0.16,1,0.3,1)}
+#tpop .dial{position:relative;flex:none;display:flex;box-sizing:border-box;width:180px;height:calc(var(--rows,5) * var(--rowh,32px));background:#fff;border-radius:12px;box-shadow:0 0 0 1px var(--line2);overflow:hidden;animation:dialgrow .25s cubic-bezier(0.16,1,0.3,1)}
 @keyframes dialgrow{from{height:0;opacity:.3}}
 @media (prefers-reduced-motion:reduce){#tpop .dial{animation:none}}
-#tpop .dband{position:absolute;left:6px;right:6px;top:calc(50% - var(--rowh,32px) / 2);height:var(--rowh,32px);border-radius:8px;background:#EFECE4}
+#tpop .dband{position:absolute;left:6px;right:6px;top:calc(50% - var(--rowh,32px) / 2);height:var(--rowh,32px);border-radius:8px;background:var(--capsule)}
 #tpop .dcol{position:relative;flex:1 1 0;min-width:0;height:100%;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
 #tpop .dcol:focus-visible{outline:2px solid #294E42;outline-offset:-3px;border-radius:10px}
 #tpop .ditem{position:absolute;left:0;right:0;top:0;height:var(--rowh,32px);display:flex;align-items:center;justify-content:center;font-size:11px;color:#C3C6BF;font-variant-numeric:tabular-nums;pointer-events:none;will-change:transform}
 #tpop .ditem.d1{font-size:13px;color:#8C918A}
-#tpop .ditem.d0{font-size:17px;font-weight:600;color:#293B35}
+#tpop .ditem.d0{font-size:17px;font-weight:600;color:var(--ink)}
 #tpop .dunit{position:absolute;top:50%;transform:translateY(-50%);font-size:11px;color:#8C918A;pointer-events:none}
 #tpop .uh{right:calc(50% + 8px)}#tpop .um{right:8px}
 #tpop .tfhead,#tpop .tfchips{display:none}
 #tpop.face{position:fixed;z-index:40;box-sizing:border-box;margin:0;padding:16px 0 12px;background:var(--paper);border-radius:16px;box-shadow:0 0 0 1px var(--line)}
-#tpop.face .tfhead{display:block;margin:0;font:600 15px/1.3 -apple-system,'Hiragino Sans',system-ui,sans-serif;color:#293B35}
+#tpop.face .tfhead{display:block;margin:0;font:600 15px/1.3 -apple-system,'Hiragino Sans',system-ui,sans-serif;color:var(--ink)}
 #tpop.face .dial{width:220px;margin-top:14px}
 #tpop.face .ditem{font-size:13px}#tpop.face .ditem.d1{font-size:15px}#tpop.face .ditem.d0{font-size:20px}
 #tpop.face .dunit{font-size:11px}
@@ -1510,7 +1515,7 @@ dialog.panel.tface-open{overflow:visible}
 .mpull .week .day{height:var(--mp-row);justify-content:flex-start}
 .mpull .strip,.mpull .bar{height:var(--chip-h);min-height:var(--chip-h);line-height:var(--chip-h)}
 .mpull .bar:after{top:calc(var(--chip-h) - 3.5px)}
-.mpull .week .plus.pn{width:auto;height:var(--chip-h);min-width:0;min-height:0;padding:0 0 0 2px;justify-content:flex-start;align-items:center;font-size:8px;line-height:var(--chip-h);color:#8C918A;text-align:left}
+.mpull .week .plus.pn{width:auto;height:var(--chip-h);min-width:0;min-height:0;padding:0 0 0 2px;justify-content:flex-start;align-items:center;font-size:8px;line-height:var(--chip-h);color:var(--outc);text-align:left}
 .mpull .mgrab{flex:none;position:relative;display:flex;align-items:center;justify-content:center;height:24px;min-height:24px;touch-action:none;cursor:ns-resize}
 .mpull .mgrab i{display:block;width:36px;height:4px;border-radius:4px;background:#B9B4A8}
 .mpull.dragging .mgrid{transition:none!important}
@@ -1518,12 +1523,12 @@ dialog.panel.tface-open{overflow:visible}
 .mpull .mday{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 8px calc(var(--end-pad-closed,56px) + 4px)}
 .mdh{display:flex;align-items:center;justify-content:space-between;height:44px;flex:none}
 .mdh h3{/* 品質 中-4（設計 00:25 の決め）: 閉じた月 15pt W600 */margin:0;font:600 15px/1.2 -apple-system,'Hiragino Sans',sans-serif;min-width:0}
-.mdsw{display:grid;grid-template-columns:1fr 1fr;width:132px;height:32px;flex:none;border-radius:16px;background:#EFECE4;padding:2px;box-sizing:border-box}
+.mdsw{display:grid;grid-template-columns:1fr 1fr;width:132px;height:32px;flex:none;border-radius:16px;background:var(--capsule);padding:2px;box-sizing:border-box}
 .mdsw button{height:28px;min-height:28px;min-width:0;padding:0;border-radius:14px;background:transparent;font-size:13px;font-weight:600}
 .mdsw button[aria-pressed=true]{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.15)}
 .mdlist{display:flex;flex-direction:column}
 .mdev{display:flex;align-items:center;gap:8px;height:44px;min-height:44px;padding:0 4px;border-radius:0;background:transparent;text-align:left}
-.mdev .mdbar{flex:none;width:4px;height:16px;border-radius:4px;background:var(--cat)}
+.mdev .mdbar{flex:none;width:4px;height:16px;border-radius:4px;background:var(--cat-mark)}
 .mdev .mdt{flex:none;width:44px;font-size:13px;color:#8C918A}
 .mdev strong{flex:1;min-width:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mdnone{display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px;color:#8C918A}
@@ -1558,7 +1563,7 @@ dialog.panel.tface-open{overflow:visible}
 
 /* ===== 開いた縦の日・週（第19版 PR7、design/29 案A「1枚の紙・2つの窓」）===== */
 /* 時間軸は紙 1枚（0:00〜24:00 ＋下の余白）。上の窓（終日の下〜--fcut0）と下の窓（--fcut1〜）で見る。1時間 44。窓の位置は JS が溝の変数から決める。 */
-.fold{position:fixed;left:var(--content-x);width:var(--content-w);top:0;height:100%;pointer-events:none;--fline:#E4E0D6;--fnow:#B43C3C;--ftoday:#EFF3EF}
+.fold{position:fixed;left:var(--content-x);width:var(--content-w);top:0;height:100%;pointer-events:none;--fline:var(--line2);--fnow:#B43C3C;--ftoday:#EFF3EF}
 .fold>*{pointer-events:auto}
 .portrait .fold .fhead{position:absolute;top:var(--head-h);left:0;right:0;height:44px;min-height:0;display:flex;align-items:center;padding:0 12px;gap:0}
 .portrait .fold .fhead>*{position:static;top:auto;margin:0}
@@ -1595,14 +1600,14 @@ dialog.panel.tface-open{overflow:visible}
 .fold .flcols{left:var(--lw);right:0;top:0;bottom:0}
 .fold-week .tlcol.ftd{background:var(--ftoday)}
 .fold-week .tlcol+.tlcol{border-left:0;box-shadow:inset 1px 0 var(--fline)}
-.fold .fev{top:calc(var(--m) * var(--hh) / 60);height:calc(var(--d) * var(--hh) / 60);min-height:22px;container-type:size;padding:0;border-radius:8px;background:var(--cat);color:#fff;box-shadow:none;overflow:hidden;display:block}
-@media (hover:hover){.fold .fev:hover{background:var(--cat);filter:brightness(.95)}}
-.fold .ftl{position:absolute;left:6px;right:4px;top:calc(var(--ty,0px) + 3px);font-size:13px;font-weight:600;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.fold .ftm{position:absolute;left:6px;right:4px;top:calc(var(--ty,0px) + 19px);font-size:11px;line-height:12px;white-space:nowrap;overflow:hidden}
+.fold .fev{top:calc(var(--m) * var(--hh) / 60);height:calc(var(--d) * var(--hh) / 60);min-height:22px;container-type:size;padding:0;border-radius:4px;background:var(--cat-tint);color:var(--ink);box-shadow:inset 3px 0 0 var(--cat-mark);overflow:hidden;display:block}
+@media (hover:hover){.fold .fev:hover{background:var(--cat-tint);filter:brightness(.95)}}
+.fold .ftl{position:absolute;left:8px;right:4px;top:calc(var(--ty,0px) + 3px);font-size:13px;font-weight:600;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fold .ftm{position:absolute;left:8px;right:4px;top:calc(var(--ty,0px) + 19px);font-size:11px;line-height:12px;white-space:nowrap;overflow:hidden}
 .fold-week .ftl{font-size:10px;line-height:12px;left:3px;right:2px;top:calc(var(--ty,0px) + 2px)}
 .fold .fev[data-ti="0"] .ftl,.fold .fev[data-tm="0"] .ftm{display:none}
 .fold .fev[data-small="1"] .ftl{font-size:10px;line-height:12px}
-.fold .fev::after{content:'';position:absolute;left:0;right:0;top:var(--cl,0);height:1px;background:repeating-linear-gradient(90deg,#fff 0 4px,transparent 4px 8px);display:none}
+.fold .fev::after{content:'';position:absolute;left:0;right:0;top:var(--cl,0);height:1px;background:repeating-linear-gradient(90deg,var(--cat-mark) 0 4px,transparent 4px 8px);display:none}
 .fold .fev[data-cut]::after{display:block}
 .fold .fllab{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 .fold .fh,.fold .fnt{position:absolute;left:0;width:calc(var(--lw) - 6px);transform:translateY(-50%);text-align:right;font-size:11px;line-height:14px;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -1619,15 +1624,15 @@ dialog.panel.tface-open{overflow:visible}
 /* 第19版 PR8: 予定を長押しでつかんで別の日へ落とす（design/21 §1.3）。元の場所は点線の空き枠、落とす先の日は緑の枠2＋薄い緑の地 */
 .grabbed{background:transparent!important;box-shadow:none!important;outline:1.5px dashed #A8ABA4;outline-offset:-1.5px;color:transparent!important;filter:none!important}
 .grabbed *{opacity:.0}
-.gchip{position:fixed;left:0;top:0;z-index:99998;display:flex;align-items:center;gap:6px;box-sizing:border-box;height:32px;max-width:calc(100vw - 16px);padding:0 10px;border-radius:8px;background:#fff;color:#1C1F1D;font:600 13px/32px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;white-space:nowrap;overflow:hidden;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.10);opacity:0;will-change:transform}
+.gchip{position:fixed;left:0;top:0;z-index:99998;display:flex;align-items:center;gap:6px;box-sizing:border-box;height:32px;max-width:calc(100vw - 16px);padding:0 10px;border-radius:8px;background:#fff;color:var(--ink2);font:600 13px/32px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;white-space:nowrap;overflow:hidden;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.10);opacity:0;will-change:transform}
 .gchip.on{opacity:1}
 .gchip .gct{flex:0 1 auto;min-width:0;max-width:200px;overflow:hidden;text-overflow:ellipsis}
 .gchip .gct.rec{max-width:140px}
-.gchip .gcl{flex:none;width:3px;height:16px;border-radius:1.5px;background:var(--cat,#294E42)}
-.gchip .gcb{flex:none;box-sizing:border-box;width:14px;height:14px;border:1.75px solid #68716A;border-radius:3px}
+.gchip .gcl{flex:none;width:3px;height:16px;border-radius:1.5px;background:var(--cat-mark,#294E42)}
+.gchip .gcb{flex:none;box-sizing:border-box;width:14px;height:14px;border:1.75px solid var(--muted);border-radius:3px}
 .gchip .gcb.on{background:#294E42;border-color:#294E42}
 .gchip .gcp{flex:none;display:block}
-.gchip .gcr{flex:none;box-sizing:border-box;height:20px;padding:0 6px;border-radius:8px;background:#EFECE4;color:#68716A;font:600 11px/20px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif}
+.gchip .gcr{flex:none;box-sizing:border-box;height:20px;padding:0 6px;border-radius:8px;background:var(--capsule);color:var(--muted);font:600 11px/20px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif}
 .gchip .gcd{flex:none;color:#294E42}
 .week .day.mdrop{background:#E5EEE9}
 .week .day.mdrop::after{content:"";position:absolute;inset:1px;box-sizing:border-box;border:2px solid #294E42;border-radius:4px;pointer-events:none;z-index:3}
@@ -1635,23 +1640,23 @@ html[data-grab] .tl,html[data-grab] .tlx{touch-action:none}
 
 /* 第19版 PR9: ノート第1段（design/27）。上の帯・書式のシート・下へ伸びる紙・ノートのシート */
 .ned-top{flex:none;display:flex;align-items:center;gap:12px;height:44px;padding:0 var(--ns-pr,12px) 0 var(--ns-pl,12px);box-sizing:border-box}
-.ned-grp{display:flex;align-items:center;height:40px;padding:0 4px;border-radius:16px;background:#EFECE4;box-sizing:border-box}
+.ned-grp{display:flex;align-items:center;height:40px;padding:0 4px;border-radius:16px;background:var(--capsule);box-sizing:border-box}
 .ned-gundo{width:96px}.ned-gtools{width:140px}
-.ned .ned-ib{position:relative;width:44px;height:44px;min-height:44px;min-width:44px;margin:-2px 0;padding:0;border:0;background:transparent;color:#293B35;display:flex;align-items:center;justify-content:center}
+.ned .ned-ib{position:relative;width:44px;height:44px;min-height:44px;min-width:44px;margin:-2px 0;padding:0;border:0;background:transparent;color:var(--ink);display:flex;align-items:center;justify-content:center}
 .ned .ned-ib svg{position:relative}
 .ned .ned-ib:disabled,.ned .ned-ib[aria-disabled=true]{color:#C9C5BA;opacity:1}
-.ned .ned-ib::before{content:"";position:absolute;left:4px;top:6px;width:36px;height:32px;border-radius:10px;background:#EFECE4;opacity:0;transition:opacity .15s ease-out}
+.ned .ned-ib::before{content:"";position:absolute;left:4px;top:6px;width:36px;height:32px;border-radius:10px;background:var(--capsule);opacity:0;transition:opacity .15s ease-out}
 .ned .ned-ib:active:not(:disabled)::before{opacity:1;transition-duration:.10s}
 .ned .ned-done{position:relative;margin-left:auto;width:44px;height:44px;padding:0;border:0;background:transparent;color:#fff;display:flex;align-items:center;justify-content:center}
 .ned .ned-done::before{content:"";position:absolute;width:32px;height:32px;border-radius:50%;background:#294E42}
 .ned .ned-done svg{position:relative}
-.ned-fsheet{position:fixed;left:var(--ns-x,0);width:var(--ns-w,100%);bottom:0;height:var(--ned-fs-h,250px);box-sizing:border-box;z-index:60;background:#FFFDFA;border-radius:24px 24px 0 0;box-shadow:0 12px 32px rgba(0,0,0,.16);padding:0 16px 34px;display:flex;flex-direction:column;gap:8px}
+.ned-fsheet{position:fixed;left:var(--ns-x,0);width:var(--ns-w,100%);bottom:0;height:var(--ned-fs-h,250px);box-sizing:border-box;z-index:60;background:var(--card);border-radius:24px 24px 0 0;box-shadow:0 12px 32px rgba(0,0,0,.16);padding:0 16px 34px;display:flex;flex-direction:column;gap:8px}
 .ned-fsheet[hidden]{display:none}
 .ned-fshead{height:44px;display:flex;align-items:center;justify-content:space-between}
 .ned-fstitle{font-size:15px;font-weight:600}
 .ned .ned-fsclose{width:44px;height:44px;border:0;background:transparent;display:flex;align-items:center;justify-content:center;padding:0}
-.ned-fsclose i{width:28px;height:28px;border-radius:50%;background:#EFECE4;font-style:normal;font-size:13px;display:flex;align-items:center;justify-content:center}
-.ned-fsseg{display:flex;width:268px;max-width:100%;height:44px;border-radius:10px;background:#EFECE4;padding:3px;box-sizing:border-box;gap:0}
+.ned-fsclose i{width:28px;height:28px;border-radius:50%;background:var(--capsule);font-style:normal;font-size:13px;display:flex;align-items:center;justify-content:center}
+.ned-fsseg{display:flex;width:268px;max-width:100%;height:44px;border-radius:10px;background:var(--capsule);padding:3px;box-sizing:border-box;gap:0}
 .ned .ned-fsb{flex:1;height:38px;min-height:38px;min-width:0;border:0;border-radius:8px;background:transparent;color:inherit;padding:0}
 .ned .ned-fsb[aria-pressed=true]{background:#fff}
 .ned-fs-heading{font-size:15px;font-weight:600}.ned-fs-heading2{font-size:13px;font-weight:600}.ned-fs-plain{font-size:13px}
@@ -1661,9 +1666,9 @@ html[data-grab] .tl,html[data-grab] .tlx{touch-action:none}
 .ned-bodywrap{background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 29px,#EEEAE1 29px,#EEEAE1 30px);background-attachment:local}
 .ned-tail{height:90px;cursor:text}
 .ned-inkslot{padding:0 8px}
-.ned-ink{color:#293B35;pointer-events:none}
+.ned-ink{color:var(--ink);pointer-events:none}
 .ned-ink svg,.ned-ink img{display:block}.ned-ink img{max-width:100%;height:auto}
-.nsheet{position:fixed;z-index:40;display:flex;flex-direction:column;box-sizing:border-box;padding-top:8px;padding-bottom:var(--ns-pb,0px);background:#FFFDFA;border-radius:24px 24px 0 0;box-shadow:0 12px 32px rgba(0,0,0,.16);animation:nsheetin .25s cubic-bezier(0.16,1,0.3,1)}
+.nsheet{position:fixed;z-index:40;display:flex;flex-direction:column;box-sizing:border-box;padding-top:8px;padding-bottom:var(--ns-pb,0px);background:var(--card);border-radius:24px 24px 0 0;box-shadow:0 12px 32px rgba(0,0,0,.16);animation:nsheetin .25s cubic-bezier(0.16,1,0.3,1)}
 .nsheet[hidden]{display:none}
 .nsheet.closing{transform:translateY(100%);transition:transform .25s cubic-bezier(0.16,1,0.3,1)}
 .nsheet .ned{flex:1;min-height:0;height:100%;gap:0}
@@ -1679,16 +1684,16 @@ html.kbl[data-kbl=note][data-kbe=dn] .nhost{height:calc(var(--kl-ed-h) + var(--k
 
 /* ---------- v19.3（征希さんの要望）: リマインダーとの同期をやめた。第19版 PR10 のリストの部品・設定の同期の段・説明/確認のシートの CSS は外した ---------- */
 .menurows .fixrow{padding:0 12px}
-/* 設定 › タスクの常設の一文（注の形 13/400 #68716A のまま、上の注と段を分ける） */
+/* 設定 › タスクの常設の一文（注の形 13/400 var(--muted) のまま、上の注と段を分ける） */
 .menurows #m-tknosync{margin-top:12px}
 /* 1 回だけの知らせ（設計 35 §8.1）。下からのシート。後ろは ::backdrop で暗くする（モーダル） */
-dialog#remend{position:fixed;inset:auto 0 0 0;margin:0;width:auto;max-width:none;max-height:none;box-sizing:border-box;padding:24px 24px max(24px,var(--sab,0px));border:0;border-radius:24px 24px 0 0;background:#FFFDFA;color:#293B35;box-shadow:0 12px 32px rgba(0,0,0,.16);overflow:visible;touch-action:none;-webkit-user-select:none;user-select:none;transition:transform .2s var(--sheet-ease)}
+dialog#remend{position:fixed;inset:auto 0 0 0;margin:0;width:auto;max-width:none;max-height:none;box-sizing:border-box;padding:24px 24px max(24px,var(--sab,0px));border:0;border-radius:24px 24px 0 0;background:var(--card);color:var(--ink);box-shadow:0 12px 32px rgba(0,0,0,.16);overflow:visible;touch-action:none;-webkit-user-select:none;user-select:none;transition:transform .2s var(--sheet-ease)}
 dialog#remend[open]{display:flex;flex-direction:column;animation:sheetin .25s var(--sheet-ease)}
 dialog#remend::backdrop{background:rgba(28,31,29,.24);animation:sheetfadein .25s var(--sheet-ease)}
 dialog#remend.out{animation:sheetout .2s var(--sheet-ease) forwards;pointer-events:none}
 dialog#remend.out::backdrop{animation:sheetfadeout .2s var(--sheet-ease) forwards}
-#remend h2{margin:0;font:600 17px/24px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1C1F1D;outline:none}
-#remend p{margin:12px 0 0;font-size:15px;line-height:22px;font-weight:300;color:#293B35}
+#remend h2{margin:0;font:600 17px/24px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink2);outline:none}
+#remend p{margin:12px 0 0;font-size:15px;line-height:22px;font-weight:300;color:var(--ink)}
 #remend-ok{flex:none;display:block;width:100%;height:48px;min-height:48px;margin:24px 0 0;padding:0;border:0;border-radius:14px;background:#294E42;color:#fff;font-size:15px;font-weight:600;transition:background-color .1s}
 #remend-ok:active{background:#1F3D33}
 #remend .remend-in{display:flex;flex-direction:column;flex:1;min-height:0;width:100%;margin:0 auto}
@@ -1711,9 +1716,9 @@ body:is([data-layout=spread],[data-layout=desk]) dialog#remend{left:calc(50% + 9
 }
 
 /* ===== 第19.1版 S1: 閉じた画面の月は1本でスクロール（design/33 §5）・タブの上のぼかし（M-18）・日付の行（H-05/H-06/M-19） ===== */
-/* タブの上 24（y575〜599）に地色 #F7F4ED の 0→100% のぼかし。閉じた画面のホーム・日・週・月すべて。右の帯は避ける。 */
+/* タブの上 24（y575〜599）に地色 var(--paper) の 0→100% のぼかし。閉じた画面のホーム・日・週・月すべて。右の帯は避ける。 */
 .tabfade{display:none}
-.shell.closed .tabfade{display:block;position:fixed;z-index:5;left:var(--sal,0px);right:var(--sar,0px);top:calc(var(--tabs-y) - 24px);height:24px;pointer-events:none;background:linear-gradient(to bottom,rgba(247,244,237,0),#F7F4ED)}
+.shell.closed .tabfade{display:block;position:fixed;z-index:5;left:var(--sal,0px);right:var(--sar,0px);top:calc(var(--tabs-y) - 24px);height:24px;pointer-events:none;background:linear-gradient(to bottom,rgba(247,244,237,0),var(--paper))}
 /* 月を引く画面（閉じた画面）: .mpull が1本のスクロール。見出し 48＋曜日の行 20 だけ上に固定。 */
 .closed .mpull{display:block;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;box-sizing:border-box;padding:0 8px;overscroll-behavior:contain;scrollbar-width:none}
 .closed .mpull::-webkit-scrollbar{display:none}
@@ -1721,7 +1726,7 @@ body:is([data-layout=spread],[data-layout=desk]) dialog#remend{left:calc(50% + 9
 .closed .mpull .mph{padding:0}
 .closed .mpull .mph h2{flex:1 1 auto;text-align:left;padding-left:8px}
 .mpull .mph .mpdate{display:none}
-.closed .mpull .mph .mpdate{display:block;flex:none;margin:0 4px 0 auto;font-size:13px;line-height:1;color:#68716A;white-space:nowrap;opacity:0;transition:opacity .15s ease;pointer-events:none}
+.closed .mpull .mph .mpdate{display:block;flex:none;margin:0 4px 0 auto;font-size:13px;line-height:1;color:var(--muted);white-space:nowrap;opacity:0;transition:opacity .15s ease;pointer-events:none}
 .closed .mpull .mph.scrd .mpdate{opacity:1}
 @media (prefers-reduced-motion:reduce){.closed .mpull .mph .mpdate{transition:none}}
 .closed .mpull .mgrid{overflow:visible}
@@ -1732,14 +1737,14 @@ body:is([data-layout=spread],[data-layout=desk]) dialog#remend{left:calc(50% + 9
 .mdsw button{height:44px;min-height:44px;margin:-6px 0;border:solid transparent;border-width:8px 2px;background-clip:padding-box;border-radius:8px}
 .mdsw button[aria-pressed=true]{background-color:#fff;box-shadow:none;filter:drop-shadow(0 1px 1px rgba(0,0,0,.15))}
 
-/* 日付の行 18（H-05・H-06・M-19）: 日付 11pt（今日は丸）→ 六曜 8pt W6 #68716A を横に並べ、+N は行の右。段は全部名前に使う。
+/* 日付の行 18（H-05・H-06・M-19）: 日付 11pt（今日は丸）→ 六曜 8pt W6 var(--muted) を横に並べ、+N は行の右。段は全部名前に使う。
    開いた縦・開いた横: 日付 左4・今日の丸 18・六曜は x+26〜42・+N 9pt W6 右3。閉じた画面（マス 52.3）: 丸 16・日付 x+3〜19・六曜 x+21〜37・+N 8pt W6 右2。 */
 .week.named .day,.week.all .day{flex-direction:row;justify-content:flex-start;align-items:flex-start;padding:0 0 0 3px} /* 日セルの左の線 1＋3＝x+4 */
 .week.named .day .num,.week.all .day .num{order:1;width:auto;min-width:18px;height:18px;line-height:18px;padding:0;margin:0;border-radius:999px;text-align:center;font-size:11px}
 .week.named .day .num.sd,.week.all .day .num.sd{padding:0 2px;margin:0;letter-spacing:-.5px}
-.week.named .day .rk,.week.all .day .rk{order:2;position:static;flex:none;margin-left:4px;height:18px;font-size:8px;font-weight:600;line-height:18px;color:#68716A}
+.week.named .day .rk,.week.all .day .rk{order:2;position:static;flex:none;margin-left:4px;height:18px;font-size:8px;font-weight:600;line-height:18px;color:var(--muted)}
 .week.named .day.out .rk,.week.all .day.out .rk{color:#8C918A}
-.week .plus{font-weight:600;color:#68716A;line-height:18px;padding-right:3px}
+.week .plus{font-weight:600;color:var(--muted);line-height:18px;padding-right:3px}
 @media (hover:hover){.week .plus:hover{color:var(--ink)}}
 .closed .week.named .day,.closed .week.all .day{padding-left:2px} /* 日セルの左の線 1＋2＝x+3 */
 .closed .week.named .day .num,.closed .week.all .day .num{min-width:16px;height:16px;line-height:16px;margin-top:1px;border-radius:8px}
@@ -1747,7 +1752,7 @@ body:is([data-layout=spread],[data-layout=desk]) dialog#remend{left:calc(50% + 9
 .closed .week .plus{font-size:8px;padding-right:2px}
 .week .strip,.week .bar{font-weight:600}
 .week .strip{border-radius:3px}
-.week .strip.cut::after{content:'';position:absolute;right:0;top:0;bottom:0;width:4px;background:linear-gradient(to right,transparent,var(--cat));pointer-events:none}
+.week .strip.cut::after{content:'';position:absolute;right:0;top:0;bottom:0;width:4px;background:linear-gradient(to right,transparent,var(--cat-tint));pointer-events:none}
 .week .bar .bt.cut{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 4px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 4px),transparent)}
 /* L-01: 見えない「期間を選ぶ」は押せない所に（キーボードの Tab・Enter では今までどおり開く） */
 .mrpick{pointer-events:none}
@@ -1757,19 +1762,19 @@ body:is([data-layout=spread],[data-layout=desk]) dialog#remend{left:calc(50% + 9
 .closed.tv-week .tlhd{margin:-1px 0;height:44px;padding:0;gap:0;border-radius:8px;color:var(--ink)}
 .closed.tv-week .tlhd .dw{display:block;font-size:10px;line-height:10px;font-weight:600;color:var(--muted)}
 .closed.tv-week .tlhd .dd{display:block;min-width:22px;height:22px;margin-top:0;border-radius:999px;font-size:13px;line-height:22px;font-weight:600;text-align:center}
-.closed.tv-week .tlhd .wrk{font-size:8px;line-height:8px;font-weight:600;color:#68716A}
+.closed.tv-week .tlhd .wrk{font-size:8px;line-height:8px;font-weight:600;color:var(--muted)}
 .closed.tv-week .tlhd.today .dd{background:var(--green);color:#fff}
 .closed.tv-week .tlhd[aria-pressed=true]{background:#E5EEE9;color:var(--ink)}
 .closed.tv-week .tlhd.today[aria-pressed=true]{color:var(--ink)}
 .closed.tv-week .allday{align-items:flex-start;margin-bottom:0}
 .closed.tv-week .allday .adl{line-height:20px;padding-top:2px}
 .closed.tv-week .adcols{position:relative}
-.closed.tv-week .adband{position:absolute;height:16px;min-height:16px;padding:0;border-radius:0;background:transparent;color:var(--cat);font-size:9px;font-weight:600;line-height:12px;text-align:center;overflow:hidden}
-.closed.tv-week .adband::after{content:'';position:absolute;left:1px;right:1px;top:12.5px;height:2px;border-radius:4px;background:var(--cat)}
-@media (hover:hover){.closed.tv-week .adband:hover{background:transparent;filter:brightness(.9)}}
+.closed.tv-week .adband{position:absolute;height:14px;min-height:14px;padding:0 0 0 7px;border-radius:3px;background:var(--cat-tint);color:var(--ink);font-size:9px;font-weight:600;line-height:14px;text-align:left;overflow:hidden}
+.closed.tv-week .adband::before{left:2px;top:2px;bottom:auto;height:10px}
+@media (hover:hover){.closed.tv-week .adband:hover{background:var(--cat-tint);filter:brightness(.95)}}
 .closed.tv-week .adband .bt{display:inline-block;max-width:100%;overflow:hidden;vertical-align:top}
-.closed.tv-week .adcols .adplus{position:absolute;height:14px;min-height:14px;padding:0 2px 0 0;font-size:9px;font-weight:600;line-height:14px;color:#68716A;text-align:right;border-radius:0}
-.closed.tv-week .tlev{min-height:24px;padding:1px 2px 1px 6px;box-shadow:inset 3px 0 0 var(--cat);font-size:9px;font-weight:600;line-height:11px;overflow:hidden;border-radius:3px}
+.closed.tv-week .adcols .adplus{position:absolute;height:14px;min-height:14px;padding:0 2px 0 0;font-size:9px;font-weight:600;line-height:14px;color:var(--muted);text-align:right;border-radius:0}
+.closed.tv-week .tlev{min-height:24px;padding:1px 2px 1px 6px;box-shadow:inset 3px 0 0 var(--cat-mark);font-size:9px;font-weight:600;line-height:11px;overflow:hidden;border-radius:3px}
 .closed.tv-week .tlev .tn{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;white-space:normal;overflow-wrap:anywhere}
 .closed .mpull .weekdays{background:transparent}
 /* 月のタスクの件数 ✓N は日付の行で六曜の右（六曜の後ろに続けて並べる） */
@@ -1783,7 +1788,7 @@ body:is([data-layout=spread],[data-layout=desk]) dialog#remend{left:calc(50% + 9
 .phome .pvw>*{position:absolute;pointer-events:auto;box-sizing:border-box;margin:0}
 .pv-date{left:24px;right:24px;top:calc(var(--head-h,82px) + 8px);height:44px;display:flex;align-items:center}
 .pv-date h2{margin:0;display:flex;align-items:baseline;font:600 20px/44px -apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink);white-space:nowrap}
-.pv-date .hrk{margin-left:12px;font-size:13px;color:#68716A}
+.pv-date .hrk{margin-left:12px;font-size:13px;color:var(--muted)}
 .pv-date .hnm{margin-left:12px;font-size:13px;font-weight:600;color:var(--holiday)}
 .pv-date .hdt.hol{color:var(--holiday)}
 .pvnext{left:12px;right:12px;width:auto;top:calc(var(--head-h,82px) + 60px);height:100px;border-radius:16px;padding:0 16px;display:flex;flex-direction:column;justify-content:center;gap:2px;overflow:hidden}
@@ -1795,7 +1800,7 @@ body:is([data-layout=spread],[data-layout=desk]) dialog#remend{left:calc(50% + 9
 .pv-today,.pv-week,.pv-tasks,.pv-notes{background:#fff;border:1px solid #E3E0D7;border-radius:14px;overflow:hidden}
 .pv-today{left:12px;right:12px;top:calc(var(--head-h,82px) + 168px);height:201px;padding:0 12px}
 .pvh{display:flex;align-items:center;gap:12px;height:36px;flex:none}
-.pvh h3{margin:0;flex:1;min-width:0;font:600 13px/1 -apple-system,'Hiragino Sans',sans-serif;color:#68716A;white-space:nowrap}
+.pvh h3{margin:0;flex:1;min-width:0;font:600 13px/1 -apple-system,'Hiragino Sans',sans-serif;color:var(--muted);white-space:nowrap}
 .pvh .hgo{position:relative;flex:none;min-height:0;height:36px;padding:0;font-size:13px;font-weight:600;color:var(--green);background:none;border:0;white-space:nowrap}
 .pvh .hgo::before{content:"";position:absolute;left:-6px;right:-6px;top:-4px;bottom:-4px}
 .pv-today .hrow{height:32px;min-height:32px}
@@ -1853,14 +1858,14 @@ body[data-posture=portrait] .mscreens{scrollbar-gutter:stable}
 
 /* ===== 第19.1版 S4: 押した反応（H-01, design/25 §1「押した反応 0.10」）=====
    指が触れた瞬間に 0.10 秒 ease-out で変え、離したら 0.15 秒で戻す。
-   丸ボタン・行・タブ・チップ＝地を #EFECE4／緑の塗り＝黒 12%（brightness .88）／文字のリンク＝不透明度 .5。
+   丸ボタン・行・タブ・チップ＝地を var(--capsule)／緑の塗り＝黒 12%（brightness .88）／文字のリンク＝不透明度 .5。
    :hover は触った後に残る（iOS）ので、ここの !important で :active を勝たせる。灰の点滅は消す。 */
 *{-webkit-tap-highlight-color:transparent}
 :where(button,[role=button],[role=tab],[role=checkbox],[role=switch],a[href],.mgrab,summary){transition:background-color .15s ease-out,opacity .15s ease-out,filter .15s ease-out}
 :where(button:not([role=switch])):active:not(:disabled),
 :where([role=button]):active:not(:disabled),
 :where([role=tab]):active:not(:disabled),
-:where(a[href]):active:not(:disabled){background-color:#EFECE4!important;transition-duration:.10s}
+:where(a[href]):active:not(:disabled){background-color:var(--capsule)!important;transition-duration:.10s}
 /* 自分は透明で、見た目を子や疑似要素が持つもの（押せる範囲だけ広い） */
 .cb:active:not(:disabled),
 .tabs button:active:not(:disabled),
@@ -1872,14 +1877,14 @@ body[data-posture=portrait] .mscreens{scrollbar-gutter:stable}
 .ned .ned-ib:active:not(:disabled),
 .ned .ned-done:active:not(:disabled){background-color:transparent!important}
 /* 丸ボタン */
-.cb:active:where(:not(:disabled)) .bi{background-color:#EFECE4!important;transition-duration:.10s}
+.cb:active:where(:not(:disabled)) .bi{background-color:var(--capsule)!important;transition-duration:.10s}
 .cb .bi{transition:background-color .15s ease-out,filter .15s ease-out}
 .cb.cadd:active .bi,.cb.cpnl.on:active .bi,.cb.ctt.on:active .bi{background-color:var(--green)!important;filter:brightness(.88)}
 .cb.on:not(.cpnl):not(.ctt):not(.cstrip):active .bi{background-color:#DDE7E2!important;filter:brightness(.92)}
 .rbtn.radd:active{background-color:var(--green)!important;filter:brightness(.88)}
-/* 浮動タブの札（選んだ札は緑の上で 12% 黒、ほかは札の上に #EFECE4） */
+/* 浮動タブの札（選んだ札は緑の上で 12% 黒、ほかは札の上に var(--capsule)） */
 .tabs .pill,.pgsw .pill,.pswitch .pill,.spanbtn span,.allbtn span{transition:background-color .15s ease-out,filter .15s ease-out}
-.tabs button:active .pill,.pgsw button:active .pill,.pswitch button:active .pill,.spanbtn:active span,.allbtn:active span{background-color:#EFECE4!important;transition-duration:.10s}
+.tabs button:active .pill,.pgsw button:active .pill,.pswitch button:active .pill,.spanbtn:active span,.allbtn:active span{background-color:var(--capsule)!important;transition-duration:.10s}
 .tabs button[aria-pressed=true]:active .pill,.pgsw button[aria-pressed=true]:active .pill,.pswitch button[aria-pressed=true]:active .pill,.allbtn[aria-pressed=true]:active span,.rhead.dh .spanbtn[aria-pressed=true]:active span{background-color:var(--green)!important;filter:brightness(.88)}
 /* 予定の編集シートの ✕ ✓（円は疑似要素） */
 #editor .hbtn::before{transition:filter .15s ease-out}
@@ -1889,15 +1894,15 @@ body[data-posture=portrait] .mscreens{scrollbar-gutter:stable}
 :is(.add,.next,.primary,.card>button.solid,button[aria-pressed=true],.deskbtn[aria-pressed=true],.sw[aria-checked=true],.mseg[aria-pressed=true],.nchip.on,.rmchip[aria-pressed=true],.dchip[aria-pressed=true],.menurows button[aria-pressed=true],.tlmenu button[aria-checked=true],.tcell[aria-pressed=true],.dcap.open,.tcap.open,.rsmain,.rembtn,.xdact .primary,.mrbar button[data-mr=ok],.mmc.sel,.tlhd[aria-pressed=true],.undobar button):active:where(:not(:disabled)){background-color:var(--green)!important;filter:brightness(.88);transition-duration:.10s}
 :is(.tabs,.pgsw,.pswitch) button[aria-pressed=true]:active:where(:not(:disabled)),.allbtn[aria-pressed=true]:active{background-color:transparent!important;filter:none}
 /* 地の色つきの札（予定の札・時間軸の予定・終日の札・ホームの帯） */
-.strip:active,.fold .fev:active{background-color:var(--cat)!important;filter:brightness(.88);transition-duration:.10s}
-.tlev:active,.adpill:active,.hbarev:active{background-color:var(--tint,#DCE7E0)!important;filter:brightness(.92);transition-duration:.10s}
-.fold .fev:active{background-color:var(--cat)!important;filter:brightness(.88)}
+.strip:active,.fold .fev:active{background-color:var(--cat-tint)!important;filter:brightness(.92);transition-duration:.10s}
+.tlev:active,.adpill:active,.hbarev:active{background-color:var(--cat-tint,#DCE7E0)!important;filter:brightness(.92);transition-duration:.10s}
+.fold .fev:active{background-color:var(--cat-tint)!important;filter:brightness(.92)}
 /* 文字のリンク */
 :is(.hgo,.hadd,.hmore,.rmdonebtn,.mback):active:where(:not(:disabled)){background-color:transparent!important;opacity:.5;transition-duration:.10s}
 /* スイッチ・つまみ */
 [role=switch]:active:where(:not(:disabled)),.mgrab:active{filter:brightness(.92);transition-duration:.10s}
 .mgrab:active i{background:#8E897D}
-/* 日マス・日付マス・時分マス・週の日の見出しは button なので上の一般の規則（地 #EFECE4）がそのまま効く */
+/* 日マス・日付マス・時分マス・週の日の見出しは button なので上の一般の規則（地 var(--capsule)）がそのまま効く */
 
 /* ===== 第19.1版 S4: シートの出入り（H-02・動-5, design/25 §1）=====
    出る: 下から translateY(100%)→0 と下の暗い膜 0→1 を 0.25 秒 cubic-bezier(0.16,1,0.3,1)。閉じる: 同じ秒数で逆（JS が終わってから dialog を閉じる）。
@@ -1922,19 +1927,19 @@ dialog.sheet-out{animation:sheetout .25s var(--sheet-ease) forwards!important;po
 /* ---- 第19.1版 S5 ---- */
 /* H-16/17: 開発用の表示は ?dev=1 のときだけ */
 html:not([data-dev]) #touch-check-open,html:not([data-dev]) #layout-diagnostics,html:not([data-dev]) #screen-diagnostics,html:not([data-dev]) #kb-metrics{display:none!important}
-.srnone{margin:4px 16px 0;font-size:13px;line-height:18px;color:#68716A;text-align:center}
+.srnone{margin:4px 16px 0;font-size:13px;line-height:18px;color:var(--muted);text-align:center}
 
-/* H-18/19・M-14: 設定の行 48（名札 15pt／今の値 15pt #68716A＋›／スイッチ 51×31）、−／＋ 88×32、左上「‹ 設定」・右上 ×丸 44 */
-.mscreens .menurows>button.setrow{display:flex;flex-direction:row;align-items:center;gap:8px;height:48px;min-height:48px;padding:0 20px;background:transparent;font-size:15px;font-weight:400;color:#293B35}
+/* H-18/19・M-14: 設定の行 48（名札 15pt／今の値 15pt var(--muted)＋›／スイッチ 51×31）、−／＋ 88×32、左上「‹ 設定」・右上 ×丸 44 */
+.mscreens .menurows>button.setrow{display:flex;flex-direction:row;align-items:center;gap:8px;height:48px;min-height:48px;padding:0 20px;background:transparent;font-size:15px;font-weight:400;color:var(--ink)}
 .mscreens .menurows>button.setrow .mn{flex:1;min-width:0;text-align:left}
-.mscreens .menurows>button.setrow .mv{flex:none;font-size:15px;color:#68716A}
+.mscreens .menurows>button.setrow .mv{flex:none;font-size:15px;color:var(--muted)}
 .mscreens .menurows>button.setrow .sch{flex:none;width:12px;text-align:right}
-.menurows button.setrow[aria-pressed=true],.menurows button.setrow[aria-checked=true]{background:transparent;color:#293B35}
+.menurows button.setrow[aria-pressed=true],.menurows button.setrow[aria-checked=true]{background:transparent;color:var(--ink)}
 .mscreens .menurows>button.setrow.swrow{justify-content:space-between}
 .menurows .mrowd{display:flex;align-items:center;gap:8px;height:48px;padding:0 20px;font-size:15px;margin:0}
 .menurows .mrowd .mn{flex:1}
-.menurows .mpm{flex:none;display:flex;width:88px;height:32px;border-radius:8px;background:#EFECE4;overflow:hidden}
-.mscreens .menurows .mrowd .mpm button{flex:1;position:relative;width:44px;min-width:44px;height:32px;min-height:32px;padding:0;border-radius:0;font-size:20px;line-height:32px;text-align:center;color:#293B35;background:transparent}
+.menurows .mpm{flex:none;display:flex;width:88px;height:32px;border-radius:8px;background:var(--capsule);overflow:hidden}
+.mscreens .menurows .mrowd .mpm button{flex:1;position:relative;width:44px;min-width:44px;height:32px;min-height:32px;padding:0;border-radius:0;font-size:20px;line-height:32px;text-align:center;color:var(--ink);background:transparent}
 .mscreens .menurows .mrowd .mpm button::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
 .mscreens .menurows .mrowd .mpm button:active{background:#E2DDD2!important}
 .menurows .mrowd .mpm button+button{border-left:1px solid #DCD7CB}
@@ -1944,21 +1949,21 @@ html:not([data-dev]) #touch-check-open,html:not([data-dev]) #layout-diagnostics,
 .mhead[data-s=sub] #m-close{order:2}
 .mhead #m-close[hidden]{display:none}
 #sr-close{flex:none}
-.mscreens .menurows>button.mrow .mn,.mscreens .menurows>button.swrow>span:first-child{color:#293B35;font-size:15px;font-weight:400}
-.mscreens .menurows>button.swrow{font-size:15px;color:#293B35}
+.mscreens .menurows>button.mrow .mn,.mscreens .menurows>button.swrow>span:first-child{color:var(--ink);font-size:15px;font-weight:400}
+.mscreens .menurows>button.swrow{font-size:15px;color:var(--ink)}
 /* M-03: 開いた横の下のタブ 1つ 64×40（5つで 320・角丸 20）、文字 13 W6、選んだ札は文字の左右 12 */
 .pgsw{width:320px;height:40px;border-radius:20px;grid-template-columns:repeat(5,64px);left:calc(var(--tabs-x) + var(--tabs-w) / 2 - 160px)}
 .pgsw.pgr{left:calc(var(--sw-r-x) + var(--tabs-w) / 2 - 160px)}
 .pgsw button{height:40px;min-height:40px;width:64px;border-radius:20px}
 .pgsw .pill{width:auto;min-width:0;max-width:64px;height:40px;padding:0 12px;border-radius:20px;font-size:13px;font-weight:600;white-space:nowrap}
-/* M-09: 時間軸の予定の枠は全部 29 §3 の形（カテゴリの色の地・題名 12pt W6 白・時刻 10pt 白・角丸 8）。白文字 4.5 に届かない色は --solid が 10% 暗くする */
-.tlev:not(.fev){display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch;padding:2px 8px 2px 8px;border-radius:8px;background:var(--solid,var(--cat));color:#fff;box-shadow:none;white-space:nowrap;container-type:size;font-size:12px;line-height:16px}
-.tlev:not(.fev) .tn{order:1;display:block;overflow:hidden;text-overflow:ellipsis;font-size:13px;line-height:16px;font-weight:600;color:#fff}
-.tlev:not(.fev) .tt{order:2;margin:0;font-size:11px;line-height:12px;font-weight:400;color:#fff;overflow:hidden;text-overflow:ellipsis}
+/* M-09 → 第19.4版（design/36 §15.3）: 時間軸の予定の枠は ごく薄い地＋左の線 3（高さいっぱい）＋墨の文字・角丸 4。文字は左から 11 */
+.tlev:not(.fev){display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch;padding:2px 8px 2px 11px;border-radius:4px;background:var(--cat-tint);color:var(--ink);box-shadow:inset 3px 0 0 var(--cat-mark);white-space:nowrap;container-type:size;font-size:12px;line-height:16px}
+.tlev:not(.fev) .tn{order:1;display:block;overflow:hidden;text-overflow:ellipsis;font-size:13px;line-height:16px;font-weight:600;color:var(--ink)}
+.tlev:not(.fev) .tt{order:2;margin:0;font-size:11px;line-height:12px;font-weight:400;color:var(--ink);overflow:hidden;text-overflow:ellipsis}
 @container (max-height:31px){.tlev:not(.fev) .tt{display:none}}
-@media (hover:hover){.tlev:not(.fev):hover{background:var(--solid,var(--cat));filter:brightness(.95)}}
-.tlev:not(.fev):active{background-color:var(--solid,var(--cat))!important}
-.closed.tv-week .tlev:not(.fev){box-shadow:none;border-radius:8px;padding:1px 3px}
+@media (hover:hover){.tlev:not(.fev):hover{background:var(--cat-tint);filter:brightness(.95)}}
+.tlev:not(.fev):active{background-color:var(--cat-tint)!important}
+.closed.tv-week .tlev:not(.fev){border-radius:4px;padding:1px 3px 1px 6px}
 /* M-05: 今日＋明日の時間軸の窓は、上下の端 12 を地の色へぼかす */
 .dpage .tl{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 12px,#000 calc(100% - 12px),transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 12px,#000 calc(100% - 12px),transparent 100%)}
 /* M-16: 帯の丸ボタンは押した状態でも四角い地を出さない（丸 .bi だけが緑・アイコン白） */
@@ -1981,13 +1986,13 @@ button.cb.ctt.on[aria-pressed=true] .bi{color:#fff}
 /* L-06: 繰り返しの行は 名札＋右に「なし ›」（行 44） */
 #editor .rtoggle{display:flex;flex-direction:row;align-items:center;gap:8px;height:44px;min-height:44px;padding:0 4px}
 #editor .rtoggle .rn{flex:none;font-size:15px}
-#editor .rtoggle .rv{flex:1;min-width:0;text-align:right;font-size:15px;color:#68716A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#editor .rtoggle .rv{flex:1;min-width:0;text-align:right;font-size:15px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #editor .rtoggle .sch{flex:none;width:12px;text-align:right;transition:transform .15s ease-out}
 #editor .rtoggle[aria-expanded=true] .sch{transform:rotate(90deg)}
 
 /* S5 M-11: 月のマスの中のチップ・帯は押す的にしない（マス全体が1つの押す的）。押した位置からの長押しは JS が位置で探す */
 .week .strip,.week .bar{pointer-events:none;display:block;box-sizing:border-box}
-.week .strip{padding:0 0 0 1.5px;text-align:left}
+.week .strip{padding:0 0 0 7px;text-align:left}
 /* S5 M-11: 押せる範囲が 44 未満のものは、見た目はそのまま余白（疑似要素）で 44×44 以上にする。隣と重ならない所だけ。 */
 .pgsw button{position:relative}
 .pgsw button::after{content:"";position:absolute;left:0;right:0;top:-2px;bottom:-2px}
@@ -2024,21 +2029,21 @@ body:has(.nmenu) :is(.pgsw,.tabs){visibility:hidden}
 .cb.cstrip.on:active .bi{background-color:var(--green)!important;filter:brightness(.88)}
 #editor .formhead{padding:0 8px}
 /* M-20: 日付を選ぶ部品の選んだ日も丸だけ（button[aria-pressed=true] の四角い緑の地を出さない） */
-.dcell[aria-pressed=true],.dcell.sel{background:none;color:#293B35}
+.dcell[aria-pressed=true],.dcell.sel{background:none;color:var(--ink)}
 .dcell.sel .n{background:#294E42;color:#fff}
 .dcell:active:where(:not(:disabled)){background-color:transparent!important;filter:none}
-.dcell:active .n{background-color:#EFECE4}
+.dcell:active .n{background-color:var(--capsule)}
 .dcell.sel:active .n{background-color:#294E42;filter:brightness(.88)}
 
 .chip-press{position:fixed;z-index:60;pointer-events:none;background:rgba(0,0,0,.12);animation:chippress .1s ease-out}
 @keyframes chippress{from{opacity:0}to{opacity:1}}
 
 /* S6: 選んでいる（aria-pressed=true）のに見た目が緑の塗りでない部品を押すと、緑の塗りの規則（button[aria-pressed=true]:active）が勝って地が濃い緑になり、文字が読めなくなっていた（選んだ日のマスを押す、など）。それぞれ自分の押した色にする */
-.week .day:active:not(:disabled),.day:active:not(:disabled){background-color:#EFECE4!important}
+.week .day:active:not(:disabled),.day:active:not(:disabled){background-color:var(--capsule)!important}
 .tvseg button[aria-pressed=true]:active:not(:disabled){background-color:#F6F4EE!important;filter:none}
 /* V-01: 切替は札（.fmp）の地だけを変える。ボタン全体は透明のまま */
 .fmodes button:active:not(:disabled){background-color:transparent!important}
-.fmodes button:active:not(:disabled) .fmp{background-color:#EFECE4;transition-duration:.10s}
+.fmodes button:active:not(:disabled) .fmp{background-color:var(--capsule);transition-duration:.10s}
 .fmodes button[aria-pressed=true]:active:not(:disabled) .fmp{background-color:#F6F4EE}
 body :is(.dchip)[aria-pressed=true]:active:not(:disabled){filter:brightness(.92)}
 #editor .dchip[aria-pressed=true]:active:not(:disabled){background-color:var(--green)!important}
@@ -2054,10 +2059,10 @@ body :is(.dchip)[aria-pressed=true]:active:not(:disabled){filter:brightness(.92)
 .nmeta .nfpill{flex:0 1 auto;max-width:60%;min-width:0}
 .nmeta .nfp{display:inline-flex;align-items:center;gap:3px;box-sizing:border-box;height:28px;max-width:100%;padding:0 10px;border-radius:14px;box-shadow:inset 0 0 0 1px var(--line);font-size:13px;line-height:28px;white-space:nowrap;transition:background-color .15s ease-out}
 .nmeta .nfp>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
-.nmeta .nfp i{font-style:normal;font-size:11px;color:#68716A}
+.nmeta .nfp i{font-style:normal;font-size:11px;color:var(--muted)}
 .nmeta .ndate.on .nfp,.nmeta .nmpin.on .nfp{box-shadow:inset 0 0 0 2px #294E42;color:#294E42}
 .nmeta :is(.nfpill,.ndate,.nmpin):active:not(:disabled){background-color:transparent!important}
-.nmeta :is(.nfpill,.ndate,.nmpin):active:not(:disabled) .nfp{background-color:#EFECE4;transition-duration:.10s}
+.nmeta :is(.nfpill,.ndate,.nmpin):active:not(:disabled) .nfp{background-color:var(--capsule);transition-duration:.10s}
 /* V-19: 開いた横・右ページのノートは、見出し・一覧・フォルダの行・題と本文の文字を x500（ページの端から 16）にそろえる */
 .spread .page[data-page=memo] .ntools{padding-left:0}
 .spread .page[data-page=memo] .ntools .ntitle{padding-left:8px}
@@ -2085,7 +2090,7 @@ body :is(.dchip)[aria-pressed=true]:active:not(:disabled){filter:brightness(.92)
 .spread .week .plus{font-size:8px;padding-right:2px}
 /* V-06: 開いた縦の時間軸の予定は見た目の最小 22（15分の予定 11→22）。題名 13/16 W6 1行・上 3。重なりの計算も 22（30分）で行う（dayBlocks の minMin） */
 /* V-05: 週の題名は 10pt・行 12・上 2。行数は枠の高さで決める＝(高さ−4)÷12 の切り捨て（24→1行＋…、43→3行、65→5行）。切れた2行目を出さない */
-.closed.tv-week .tlev:not(.fev){padding:2px 3px}
+.closed.tv-week .tlev:not(.fev){padding:2px 3px 2px 6px}
 .closed.tv-week .tlev:not(.fev) .tn{font-size:10px;line-height:12px;-webkit-line-clamp:1}
 .fold-week .ftl{white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:1;overflow:hidden;overflow-wrap:anywhere}
 @container (min-height:24px){.closed.tv-week .tlev:not(.fev) .tn{-webkit-line-clamp:2}}
@@ -2110,11 +2115,11 @@ body :is(.dchip)[aria-pressed=true]:active:not(:disabled){filter:brightness(.92)
 @container (min-height:136px){.fold-week .ftl{-webkit-line-clamp:11}}
 @container (min-height:144px){.closed.tv-week .tlev:not(.fev) .tn{-webkit-line-clamp:12}}
 @container (min-height:148px){.fold-week .ftl{-webkit-line-clamp:12}}
-/* V-09: 開いた縦・開いた横の下のバーの上に、閉じた画面と同じ 24 のぼかし（上 0%→下 100%）。縦は y839〜863（x0〜669）、横は各ページ y587〜611（左ページ #F0EDE5・右ページ #FFFDFA）。最後の行はバーの上 8 まで送れる */
-.shell.open.portrait .tabfade{display:block;position:fixed;z-index:5;left:var(--sal,0px);right:var(--sar,0px);top:calc(var(--tabs-y) - 24px);height:24px;pointer-events:none;background:linear-gradient(to bottom,rgba(247,244,237,0),#F7F4ED)}
+/* V-09: 開いた縦・開いた横の下のバーの上に、閉じた画面と同じ 24 のぼかし（上 0%→下 100%）。縦は y839〜863（x0〜669）、横は各ページ y587〜611（左ページ #F0EDE5・右ページ var(--card)）。最後の行はバーの上 8 まで送れる */
+.shell.open.portrait .tabfade{display:block;position:fixed;z-index:5;left:var(--sal,0px);right:var(--sar,0px);top:calc(var(--tabs-y) - 24px);height:24px;pointer-events:none;background:linear-gradient(to bottom,rgba(247,244,237,0),var(--paper))}
 .shell.spread .tabfade{display:block;position:fixed;z-index:5;top:calc(var(--tabs-y) - 24px);height:24px;pointer-events:none}
 .shell.spread .tabfade.tfl{left:var(--left-start);width:calc(var(--left-end) - var(--left-start));background:linear-gradient(to bottom,rgba(240,237,229,0),#F0EDE5)}
-.shell.spread .tabfade.tfr{left:calc(var(--right-start) + 8px);width:calc(var(--right-end) - var(--right-start) - 8px);background:linear-gradient(to bottom,rgba(255,253,250,0),#FFFDFA)}
+.shell.spread .tabfade.tfr{left:calc(var(--right-start) + 8px);width:calc(var(--right-end) - var(--right-start) - 8px);background:linear-gradient(to bottom,rgba(255,253,250,0),var(--card))}
 /* V-07: 暗い色（ダーク用の media query の 7 か所と .shell.fd の暗い色）を外し、全部明るい色にそろえた。ダークは別の版で全画面まとめて入れる（25 §6）。キーボード・ピッカー・共有シート・ステータスバーも明るいまま（iOS は Info.plist の UIUserInterfaceStyle=Light） */
 :root{color-scheme:light}
 /* V-10 の見直しで見つけた隙: 開いた縦のノートの型の見出し行（「ノート」「＋ 新規」）だけ左右の余白が 0 で、一覧（x16）より外にはみ出していた。一覧と同じ 16 */
@@ -2125,9 +2130,9 @@ body :is(.dchip)[aria-pressed=true]:active:not(:disabled){filter:brightness(.92)
 /* V-22: 段にない太さ・大きさ。h/b/strong の既定の太字は W6、small は 11（10.83 をやめる）。見出し（.mdh h3・.fold h2・h2.rdate）は設計の回答待ちなので触らない */
 h1,h2,h3,h4,h5,b,strong{font-weight:600}
 small{font-size:11px}
-/* V-11・品質 中-2: 灰のカプセル（予定の編集の日付・時刻、地 #EFECE4）は押すと #E2DDD2（0.10秒、離して 0.15秒） */
+/* V-11・品質 中-2: 灰のカプセル（予定の編集の日付・時刻、地 var(--capsule)）は押すと #E2DDD2（0.10秒、離して 0.15秒） */
 #editor .dcap:active:not(:disabled),#editor .tcap:active:not(:disabled),.dcap:not(.open):active:not(:disabled),.tcap:not(.open):active:not(:disabled){background-color:#E2DDD2!important;filter:none;transition-duration:.10s}
-#editor .dcap.open:active:not(:disabled),#editor .tcap.open:active:not(:disabled){background-color:#E2DDD2!important;filter:none;color:#293B35}
+#editor .dcap.open:active:not(:disabled),#editor .tcap.open:active:not(:disabled){background-color:#E2DDD2!important;filter:none;color:var(--ink)}
 /* V-12: 「今日」の文字リンクも他のリンクと同じ（不透明度 .5、地は出さない） */
 :is(.mptoday,.ftoday):active:where(:not(:disabled)){background-color:transparent!important;opacity:.5;transition-duration:.10s}
 
@@ -2222,48 +2227,44 @@ body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#tas
 .shell.closed .mpull.browse .mph h2{position:absolute;left:0;right:0;top:0;margin:0;padding:0;text-align:center;font:600 17px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;pointer-events:none}
 .mpull.browse .mph button{position:relative;z-index:1}
 .mpull.browse .mph button.vh{position:absolute}
-.mpull.browse .weekdays{height:20px;padding:0;font-size:11px;font-weight:400;color:#68716A}
-.mpull.browse .weekdays .sun{color:#B43C3C}
+.mpull.browse .weekdays{height:20px;padding:0;font-size:11px;font-weight:400;color:var(--muted)}
+.mpull.browse .weekdays .sun{color:var(--holiday)}
 .mpull.browse .mgwrap{flex:none;position:relative;height:var(--H);overflow:hidden}
 .shell.closed .mpull.browse .mgrid{position:absolute;inset:0;height:auto;overflow:hidden;transition:none!important}
-.mpull.browse .week{height:var(--rh);flex:none;box-sizing:border-box;overflow:hidden;grid-template-rows:minmax(0,1fr);border-top:0;box-shadow:inset 0 .5px 0 #E4E0D6}
+.mpull.browse .week{height:var(--rh);flex:none;box-sizing:border-box;overflow:hidden;grid-template-rows:minmax(0,1fr);border-top:0;box-shadow:inset 0 .5px 0 var(--line2)}
 .mpull.browse .week:first-child{border-top:0;box-shadow:none}
 .mpull.browse .week .day{height:100%;justify-content:flex-start;align-items:flex-start;border-right:0}
-.shell.closed .mpull.browse .week .day .num{display:block;box-sizing:border-box;width:auto;min-width:0;height:22px;margin:0;padding:0 0 0 4px;border-radius:0;font:600 14px/22px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;font-variant-numeric:tabular-nums;color:#293B35;background:none;text-align:left}
-.shell.closed .mpull.browse .week .day .num .mo{font-size:11px;font-weight:400;color:#68716A}
-.shell.closed .mpull.browse .week .day.sun .num,.shell.closed .mpull.browse .week .day.hol .num{color:#B43C3C}
-.shell.closed .mpull.browse .week .day.out .num{color:#A8ABA4}
+.shell.closed .mpull.browse .week .day .num{display:block;box-sizing:border-box;width:auto;min-width:0;height:22px;margin:0;padding:0 0 0 4px;border-radius:0;font:600 14px/22px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;font-variant-numeric:tabular-nums;color:var(--ink);background:none;text-align:left}
+.shell.closed .mpull.browse .week .day .num .mo{font-size:11px;font-weight:400;color:var(--muted)}
+.shell.closed .mpull.browse .week .day.sat .num{color:var(--satc)}
+.shell.closed .mpull.browse .week .day.sun .num,.shell.closed .mpull.browse .week .day.hol .num{color:var(--holiday)}
+.shell.closed .mpull.browse .week .day.out .num,.shell.closed .mpull.browse .week .day.out .num .mo{color:var(--outc);font-weight:400}
 .shell.closed .mpull.browse .week .day.today .num{width:20px;height:20px;margin:1px 0 0 3px;padding:0;border-radius:50%;line-height:20px;text-align:center;background:#294E42;color:#fff}
 .mpull.browse .week .rk{display:none}
-.mpull.browse .week .plus.dyn{position:absolute;top:0;z-index:4;display:block;width:auto;height:22px;min-width:0;min-height:0;padding:0;font:400 11px/22px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#68716A;pointer-events:none}
+.mpull.browse .week .plus.dyn{position:absolute;top:0;z-index:4;display:block;width:auto;height:22px;min-width:0;min-height:0;padding:0;font:400 11px/22px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--outc);pointer-events:none}
 .mpull.browse .week .plus.dyn[hidden]{display:none}
 .mgrid [data-lane="0"]{opacity:var(--o0,1)}
 .mgrid [data-lane="1"]{opacity:var(--o1,1)}
 .mgrid [data-lane="2"]{opacity:var(--o2,1)}
 .mgrid [data-lane="3"]{opacity:var(--o3,1)}
-/* S11b R-74・R-75: チップは日のボタンの中。時刻つき＝地なし＋左の線 2×10（左 2・上下 2）、文字は左 6。終日・複数日＝ベタ塗り（角丸3）。*/
+/* S11b R-74・R-75 → 第19.4版（design/36 §15.3）: チップは日のボタンの中。時刻つき＝地なし＋左の線 2.5×10（左 2・上下 2・角丸 1.25）、文字は左 7。終日・複数日＝ごく薄い地＋同じ左の線＋墨の文字（角丸 3、週をまたいで続く側は 0）。前後の月は 地 30%・線 79%・文字 #5D6963（不透明度は使わない。§15.4）*/
 .mpull.browse .week .day{overflow:visible}
 .mpull.browse .week .day .strip.chip,.mpull.browse .week .day .bar.chip{position:absolute;z-index:2;display:block;box-sizing:border-box;height:14px;min-height:14px;line-height:14px;font:600 10px/14px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:clip;text-align:left;pointer-events:auto}
-.mpull.browse .week .day .strip.timed{background:transparent;color:#293B35;border-radius:0;padding:0 0 0 6px}
-.mpull.browse .week .day .bar.multi{background:transparent;color:#293B35;padding:0}
-.mpull.browse .week .day .bar.multi::after{top:auto;bottom:0;left:0;right:0;height:1px;border-radius:0;background:var(--cat)}
-.mpull.browse .week .day .cline{position:absolute;left:2px;top:2px;width:2px;height:10px;border-radius:1px;background:var(--cat)}
-.mpull.browse .week .day .bar.all{padding:0;font-weight:600}
-.mpull.browse .week .day .bar.all::after{display:none}
-.mpull.browse .week .day .bar .bt{position:absolute;left:3px;top:0;height:14px;display:block;padding:0;max-width:none;overflow:hidden;text-overflow:clip;pointer-events:none}
-.mpull.browse .week .day .bar.multi .bt{left:6px}
+.mpull.browse .week .day .strip.timed{background:transparent;color:var(--ink);border-radius:0;padding:0 0 0 7px}
+.mpull.browse .week .day .bar.chip{background:var(--cat-tint);color:var(--ink);padding:0;font-weight:600}
+.mpull.browse .week .day .cline{position:absolute;left:2px;top:2px;width:2.5px;height:10px;border-radius:1.25px;background:var(--cat-mark)}
+.mpull.browse .week .day .bar .bt{position:absolute;left:7px;top:0;height:14px;display:block;padding:0;max-width:none;overflow:hidden;text-overflow:clip;pointer-events:none}
+.mpull.browse .week .day.out .chip{color:var(--outc)}
+.mpull.browse .week .day.out .bar.chip{background:var(--cat-tint-out)}
+.mpull.browse .week .day.out .cline{background:var(--cat-line-out)}
 .mpull.browse .week .day .bar.chip{overflow:visible}
 .mpull.browse .week .day .st{display:inline}
-.mpull.browse .week .day.out [data-lane="0"]{opacity:calc(var(--o0,1) * .45)}
-.mpull.browse .week .day.out [data-lane="1"]{opacity:calc(var(--o1,1) * .45)}
-.mpull.browse .week .day.out [data-lane="2"]{opacity:calc(var(--o2,1) * .45)}
-.mpull.browse .week .day.out [data-lane="3"]{opacity:calc(var(--o3,1) * .45)}
 .shell.closed .mpull.browse:not(.pulling) .week .day:active:not(:disabled):not(.nopress):not(.grabd),.shell.closed .mpull.browse:not(.pulling) .week .day.prs{background-color:#E2DDD2!important;transition:background-color .10s linear}
 .shell.closed .mpull.browse .week .day.nopress:active:not(.prs){background-color:var(--rest,transparent)!important}
 .shell.closed .mpull.browse .mgrab{position:relative;z-index:3;display:flex;justify-content:center;align-items:flex-start;flex:none;box-sizing:border-box;height:44px;min-height:44px;margin:0 0 -20px;padding-top:10px;touch-action:none;cursor:ns-resize}
 .mpull.browse .mgrab::after{display:none}
 .mpull.browse .mgrab i{display:block;width:36px;height:4px;border-radius:2px;background:#B9B4A8}
-.mpull.browse .mgrab:active i{background:#68716A}
+.mpull.browse .mgrab:active i{background:var(--muted)}
 .shell.closed .mpull.browse .mday{flex:1;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;padding:0 4px 41px;margin:0;box-sizing:border-box;scrollbar-width:none}
 .mpull.browse .mday::-webkit-scrollbar{display:none}
 .mpull.browse .mgrab,.mpull.browse .mgrab *{-webkit-user-select:none;user-select:none;-webkit-user-drag:none}
@@ -2273,71 +2274,71 @@ body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#tas
 .shell.closed .mpull.browse .week .day{padding:0;border:0;flex-direction:column;align-items:flex-start}
 .shell.closed .mpull.browse .mdh h3{font:600 17px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif}
 
-/* S11b 日の欄（design/34 §6）。閉じた7段だけ。x12〜370（.mpull 8＋.mday 4）。面 #EFECE4。 */
-.shell.closed .mpull.browse .mday{background:#EFECE4;border-radius:0}
-.mpull.browse .mdh{display:flex;align-items:center;justify-content:space-between;height:44px;flex:none;padding:0;background:#EFECE4}
-.mpull.browse .mdh h3{display:flex;align-items:baseline;gap:8px;margin:0;font:600 17px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1C1F1D}
-.mpull.browse .mdh .hdw{font:400 13px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#68716A}
+/* S11b 日の欄（design/34 §6）。閉じた7段だけ。x12〜370（.mpull 8＋.mday 4）。面 var(--capsule)。 */
+.shell.closed .mpull.browse .mday{background:var(--capsule);border-radius:0}
+.mpull.browse .mdh{display:flex;align-items:center;justify-content:space-between;height:44px;flex:none;padding:0;background:var(--capsule)}
+.mpull.browse .mdh h3{display:flex;align-items:baseline;gap:8px;margin:0;font:600 17px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink2)}
+.mpull.browse .mdh .hdw{font:400 13px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--outc)}
 .mpull.browse .mdh .hdt.hol{color:#B43C3C}
 .mpull.browse .mdad{display:flex;flex-wrap:wrap;gap:8px;padding:0;margin:0 0 8px;max-height:64px;overflow:hidden}
-.mpull.browse .mdallday{display:inline-flex;align-items:center;gap:4px;box-sizing:border-box;height:28px;min-height:28px;max-width:100%;padding:0 12px;border-radius:14px;font:600 13px/28px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;border:0;overflow:hidden;white-space:nowrap;text-align:left}
+.mpull.browse .mdallday{display:inline-flex;align-items:center;gap:4px;box-sizing:border-box;height:28px;min-height:28px;max-width:100%;padding:0 12px;border-radius:14px;font:600 13px/26px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;border:1px solid var(--cat-edge,var(--cat-mark));background:var(--cat-fill);color:var(--ink);overflow:hidden;white-space:nowrap;text-align:left}
 .mpull.browse .mdallday .mdat{overflow:hidden;text-overflow:ellipsis}
-.mpull.browse .mdallday small{font:400 11px/28px -apple-system,'Hiragino Sans',sans-serif;opacity:.9}
+.mpull.browse .mdallday small{font:400 11px/26px -apple-system,'Hiragino Sans',sans-serif;color:var(--ink)}
 .mpull.browse .mdallday[hidden]{display:none}
-.mpull.browse .mdmore{display:inline-flex;align-items:center;box-sizing:border-box;height:28px;padding:0 12px;border-radius:14px;background:#E4E0D6;font:600 13px/28px -apple-system,'Hiragino Sans',sans-serif;color:#293B35}
+.mpull.browse .mdmore{display:inline-flex;align-items:center;box-sizing:border-box;height:28px;padding:0 12px;border-radius:14px;background:var(--line2);font:600 13px/28px -apple-system,'Hiragino Sans',sans-serif;color:var(--ink)}
 .mpull.browse .mdmore[hidden]{display:none}
 .mpull.browse .mdcards{padding:0}
 .mpull.browse .mdcard{position:relative;display:block;box-sizing:border-box;width:100%;height:56px;min-height:56px;margin:0 0 8px;padding:0;border:0;border-radius:14px;background:#fff;text-align:left;overflow:hidden}
 .mpull.browse .mdcard .mdt1,.mpull.browse .mdcard .mdt2{position:absolute;left:12px;width:36px;font-variant-numeric:tabular-nums;white-space:nowrap}
-.mpull.browse .mdcard .mdt1{top:9px;font:600 13px/18px -apple-system,'Hiragino Sans',sans-serif;color:#1C1F1D;font-variant-numeric:tabular-nums}
-.mpull.browse .mdcard .mdt2{top:29px;font:400 13px/18px -apple-system,'Hiragino Sans',sans-serif;color:#68716A;font-variant-numeric:tabular-nums}
-.mpull.browse .mdcard .mdln{position:absolute;left:56px;top:8px;width:3px;height:40px;border-radius:1.5px;background:var(--cat)}
-.mpull.browse .mdcard strong{position:absolute;left:68px;right:12px;top:8px;font:600 15px/20px -apple-system,'Hiragino Sans',sans-serif;color:#1C1F1D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mpull.browse .mdcard small{position:absolute;left:68px;right:12px;top:30px;font:400 11px/16px -apple-system,'Hiragino Sans',sans-serif;color:#68716A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mpull.browse .mdnone2{margin:0;padding:0;height:44px;font:400 13px/44px -apple-system,'Hiragino Sans',sans-serif;color:#68716A}
-.mpull.browse .mdnl{display:flex;align-items:center;width:100%;height:44px;min-height:44px;margin:0;padding:0;border:0;border-radius:0;background:none;font:600 13px/44px -apple-system,'Hiragino Sans',sans-serif;color:#68716A;text-align:left}
+.mpull.browse .mdcard .mdt1{top:9px;font:600 13px/18px -apple-system,'Hiragino Sans',sans-serif;color:var(--ink2);font-variant-numeric:tabular-nums}
+.mpull.browse .mdcard .mdt2{top:29px;font:400 13px/18px -apple-system,'Hiragino Sans',sans-serif;color:var(--muted);font-variant-numeric:tabular-nums}
+.mpull.browse .mdcard .mdln{position:absolute;left:56px;top:8px;width:3px;height:40px;border-radius:1.5px;background:var(--cat-mark)}
+.mpull.browse .mdcard strong{position:absolute;left:68px;right:12px;top:8px;font:600 15px/20px -apple-system,'Hiragino Sans',sans-serif;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mpull.browse .mdcard small{position:absolute;left:68px;right:12px;top:30px;font:400 11px/16px -apple-system,'Hiragino Sans',sans-serif;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mpull.browse .mdnone2{margin:0;padding:0;height:44px;font:400 13px/44px -apple-system,'Hiragino Sans',sans-serif;color:var(--muted)}
+.mpull.browse .mdnl{display:flex;align-items:center;width:100%;height:44px;min-height:44px;margin:0;padding:0;border:0;border-radius:0;background:none;font:600 13px/44px -apple-system,'Hiragino Sans',sans-serif;color:var(--muted);text-align:left}
 .mpull.browse .mdnote{display:block;box-sizing:border-box;width:100%;min-height:88px;margin:0;padding:8px 12px;border-radius:14px;background:#fff;text-align:left}
 .mpull.browse .mdnote .mdempty{font:400 13px/20px -apple-system,'Hiragino Sans',sans-serif;color:#A8ABA4}
 .mpull.browse .mdbody .tl{overflow:visible;flex:none}
 /* 押した反応の filter（brightness）はマスを重ね合わせの層にして、帯（子）が隣のマスの下へ落ちる。7段のマスでは使わない（R-75） */
 .shell.closed .mpull.browse .week .day:active,.shell.closed .mpull.browse .week .day[aria-pressed=true]:active{filter:none!important}
 
-/* S11b 日の欄の時間軸 B・C（design/34 §6.2）: 目盛り 11/400 #68716A を x12 に、線は x48〜370 に 0.5 #E4E0D6。予定は白いカード（角丸4）＋左の線 3＋題名 13/600。色の地は塗らない。C は題名の下に時刻 11/400。 */
+/* S11b 日の欄の時間軸 B・C（design/34 §6.2）: 目盛り 11/400 var(--muted) を x12 に、線は x48〜370 に 0.5 var(--line2)。予定は白いカード（角丸4）＋左の線 3＋題名 13/600。色の地は塗らない。C は題名の下に時刻 11/400。 */
 .mpull.browse .mday .tl{--lw:36px}
-.mpull.browse .mday .hlab{left:0;width:36px;height:14px;top:calc(12px + var(--m) * var(--hh) / 60 - 7px);font:400 11px/14px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#68716A;text-align:left}
-.mpull.browse .mday .hl,.mpull.browse .mday .hl.half{border-top:.5px solid #E4E0D6}
+.mpull.browse .mday .hlab{left:0;width:36px;height:14px;top:calc(12px + var(--m) * var(--hh) / 60 - 7px);font:400 11px/14px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--muted);text-align:left}
+.mpull.browse .mday .hl,.mpull.browse .mday .hl.half{border-top:.5px solid var(--line2)}
 .mpull.browse .mday .hl.half{display:none}
 .mpull.browse .mday .nowl:before{height:1px;top:-.5px;background:#B43C3C}
-.mpull.browse .mday .tlev:not(.fev){background:#fff;color:#1C1F1D;border-radius:4px;box-shadow:inset 3px 0 0 var(--cat);padding:2px 8px 2px 11px;filter:none}
-.mpull.browse .mday .tlev:not(.fev) .tn{color:#1C1F1D;font:600 13px/16px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif}
+.mpull.browse .mday .tlev:not(.fev){background:var(--cat-tint);color:var(--ink);border-radius:4px;box-shadow:inset 3px 0 0 var(--cat-mark);padding:2px 8px 2px 11px;filter:none}
+.mpull.browse .mday .tlev:not(.fev) .tn{color:var(--ink);font:600 13px/16px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif}
 .mpull.browse .mday .tlev:not(.fev) .tt{display:none}
 .mpull.browse .mday .tlev .tr{display:none}
-.mpull.browse .mday[data-dg="C"] .tlev .tr{order:2;display:block;font:400 11px/14px -apple-system,'Hiragino Sans',sans-serif;color:#68716A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mpull.browse .mday .tlev:not(.fev):active{background-color:#F5F3EC!important;filter:none}
-@media (hover:hover){.mpull.browse .mday .tlev:not(.fev):hover{background-color:#F5F3EC!important;filter:none}}
+.mpull.browse .mday[data-dg="C"] .tlev .tr{order:2;display:block;font:400 11px/14px -apple-system,'Hiragino Sans',sans-serif;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mpull.browse .mday .tlev:not(.fev):active{background-color:var(--cat-tint)!important;filter:brightness(.94)}
+@media (hover:hover){.mpull.browse .mday .tlev:not(.fev):hover{background-color:var(--cat-tint)!important;filter:brightness(.96)}}
 /* 今日の丸が (x+13, y+11) 丸20 になったので、ノートの印（白 8×1.5）も丸の中央（x+9〜17）へ */
 .shell.closed .mpull.browse .week .day.today .mline{left:13px;top:15px}
 /* 閉じた7段のチップは、切れても影（グラデーション）を付けず、そのまま切る（34 §7「…を付けずに切る」） */
 .mpull.browse .week .day .strip.chip::after,.mpull.browse .week .day .bar .bt.cut{-webkit-mask-image:none;mask-image:none}
 .mpull.browse .week .day .strip.chip.cut::after{display:none}
 /* ===== 第19.2版 S11c（design/34 §9・§12 Q-3・Q-10・Q-11）: 下のタブ廃止・右の列（タスク・…・＋）・「…」の中・今日へ・‹ カレンダー・ノート中・初回ヒント ===== */
-.cb.cmore .bi,.cb.cundo .bi,.cb.credo .bi{color:#293B35}
-.cb.cmore.on .bi{background:#EFECE4}
+.cb.cmore .bi,.cb.cundo .bi,.cb.credo .bi{color:var(--ink)}
+.cb.cmore.on .bi{background:var(--capsule)}
 .shell.closed.fb .cb.ctask .bi,.shell.closed.fb .cb.cmore .bi,.shell.closed.fb .cb.cundo .bi{box-shadow:none;background:transparent}
 .shell.closed .cb.ctask,.shell.closed .cb.cmore,.shell.closed .cb.cadd{transition:opacity .15s ease-out,visibility 0s}
 .shell.closed .cb.cundo,.shell.closed .cb.credo{visibility:hidden;opacity:0;transition:opacity .15s ease-out,visibility 0s linear .15s}
 .shell.closed.noteedit .cb.cundo,.shell.closed.noteedit .cb.credo{visibility:visible;opacity:1;transition:opacity .15s ease-out,visibility 0s}
 .shell.closed.noteedit .cb.ctask,.shell.closed.noteedit .cb.cmore,.shell.closed.noteedit .cb.cadd{visibility:hidden;opacity:0;transition:opacity .15s ease-out,visibility 0s linear .15s}
 @media (prefers-reduced-motion:reduce){.shell.closed .cb.ctask,.shell.closed .cb.cmore,.shell.closed .cb.cadd,.shell.closed .cb.cundo,.shell.closed .cb.credo{transition:none!important}}
-/* 「…」の中: 幅 224、上下のあき 8、行 44、左右の内側 16、行の間の線 0.5 #E4E0D6、角丸 12、影は段2（25 §2）、15/400 */
-.moremenu{position:fixed;z-index:30;box-sizing:border-box;padding:8px 0;border-radius:12px;background:#FFFDFA;box-shadow:0 4px 12px rgba(41,59,53,.10),0 0 0 .5px #E4E0D6;animation:morein .15s ease-out;overflow:hidden}
+/* 「…」の中: 幅 224、上下のあき 8、行 44、左右の内側 16、行の間の線 0.5 var(--line2)、角丸 12、影は段2（25 §2）、15/400 */
+.moremenu{position:fixed;z-index:30;box-sizing:border-box;padding:8px 0;border-radius:12px;background:var(--card);box-shadow:0 4px 12px rgba(41,59,53,.10),0 0 0 .5px var(--line2);animation:morein .15s ease-out;overflow:hidden}
 @keyframes morein{from{opacity:0}to{opacity:1}}
-.moremenu [role=menuitem]{position:relative;display:flex;align-items:center;justify-content:flex-start;box-sizing:border-box;width:calc(100% - 32px);height:44px;min-height:44px;min-width:0;margin:0 16px;padding:0;border-radius:0;background:transparent!important;color:#293B35;font:400 15px/20px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;text-align:left;white-space:nowrap;filter:none!important}
+.moremenu [role=menuitem]{position:relative;display:flex;align-items:center;justify-content:flex-start;box-sizing:border-box;width:calc(100% - 32px);height:44px;min-height:44px;min-width:0;margin:0 16px;padding:0;border-radius:0;background:transparent!important;color:var(--ink);font:400 15px/20px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;text-align:left;white-space:nowrap;filter:none!important}
 .moremenu [role=menuitem]::before{content:"";position:absolute;inset:0 -16px;z-index:-1;background:transparent;transition:background-color .10s linear}
 .moremenu [role=menuitem]:active::before{background:#E2DDD2}
 .moremenu [role=menuitem]:focus-visible{outline:2px solid #294E42;outline-offset:-2px}
 .moremenu{isolation:isolate}
-.moremenu .sep{position:absolute;left:16px;right:16px;height:.5px;background:#E4E0D6;pointer-events:none}
+.moremenu .sep{position:absolute;left:16px;right:16px;height:.5px;background:var(--line2);pointer-events:none}
 @media (prefers-reduced-motion:reduce){.moremenu{animation:none}}
 /* 見出し（y0〜44）: 題名をたたくと今日へ。「今日へ」は 11/400 緑、押せる範囲 64×44（帯があるとき x318〜382。文字は x370 で右揃え） */
 .shell.closed .mpull.browse .mph h2{pointer-events:auto;cursor:pointer}
@@ -2352,9 +2353,9 @@ body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#tas
 .shell.closed .chead.cch .cnav{position:absolute;top:1px;left:1px;width:2px;height:2px;min-width:0;min-height:0;padding:0;overflow:hidden;clip-path:none;opacity:0;font-size:1px;line-height:1;color:transparent;z-index:7}
 .shell.closed .chead.cch .cnav[data-act=next]{left:5px}
 .shell.closed.fb .chead.cch{padding-left:0;padding-right:0}
-/* 初めて開いたときの札（x56〜326、高さ 52、角丸 16、地 #293B35、13/400 #F7F4ED）。つまみの上（格子の下端）に出す */
+/* 初めて開いたときの札（x56〜326、高さ 52、角丸 16、地 var(--ink)、13/400 var(--paper)）。つまみの上（格子の下端）に出す */
 .shell.closed .mpull.browse{position:relative}
-.mhint{position:absolute;z-index:8;left:calc(50% - 135px);top:calc(64px + var(--H) - 60px);box-sizing:border-box;width:270px;height:52px;padding:8px 0;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;background:#293B35;color:#F7F4ED;font:400 13px/18px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;text-align:center;white-space:nowrap;pointer-events:none;animation:morein .15s ease-out}
+.mhint{position:absolute;z-index:8;left:calc(50% - 135px);top:calc(64px + var(--H) - 60px);box-sizing:border-box;width:270px;height:52px;padding:8px 0;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;background:var(--ink);color:var(--paper);font:400 13px/18px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;text-align:center;white-space:nowrap;pointer-events:none;animation:morein .15s ease-out}
 .mhint.out{opacity:0;transition:opacity .15s linear}
 /* 知らせ（「…へ移しました。元に戻す」など）は、閉じた画面では日の欄の幅 x12〜370 に収め、右の列にかけない（設計レビュー 7c9fb05 D2） */
 body[data-layout=home] .toastbar,body[data-layout=browse] .toastbar{left:calc(var(--sal,0px) + 12px);right:calc(var(--sar,0px) + 12px)}
@@ -2368,7 +2369,7 @@ body[data-layout=home] .toastbar,body[data-layout=browse] .toastbar{left:calc(va
 
 /* ===== 第19.2版 S11d（設計レビュー 7c9fb05 の必須 M1〜M9・design/34 §13） ===== */
 /* M1（34 §13-3）: 週の間の線 0.5 は行の高さを取らない（box-shadow）。土曜・押した地のマスの上にも出るよう、同じ線を行の上の層にも描く。チップ（z2）より下 */
-.mpull.browse .week:not(:first-child)::before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;box-shadow:inset 0 .5px 0 #E4E0D6}
+.mpull.browse .week:not(:first-child)::before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;box-shadow:inset 0 .5px 0 var(--line2)}
 /* M2（34 §2.3）: 選んだ日の枠はマスの内側 1・太さ 2・角丸 4。チップ（z2・帯 z3）より上に描く */
 .shell.closed .mpull.browse .week .day.selected{box-shadow:none}
 .shell.closed .mpull.browse .week .day.selected:not(.msel):not(.psel):not(.mdrop)::after{content:"";position:absolute;inset:1px;box-sizing:border-box;border:2px solid #294E42;border-radius:4px;z-index:4;pointer-events:none}
@@ -2410,7 +2411,7 @@ body[data-layout=home] .toastbar,body[data-layout=browse] .toastbar{left:calc(va
 .shell.closed.fb:not(.land) .mpull.browse[data-stage="1"] .mday{padding-bottom:41px}
 
 /* ===== 第19.2版 S11f（design/34 §16、設計レビュー 0568d18） ===== */
-/* §16-1: 段2〜7（と閉じた横）は、つまみ（下）を日の欄の下端（下の余白 41 の内側）に貼り付ける。押せる範囲 x8〜374・y593〜637、線 y611〜615。中身はつまみの面（#EFECE4）の下を流れる。段1 は貼り付けない（日の欄が 74 しかない） */
+/* §16-1: 段2〜7（と閉じた横）は、つまみ（下）を日の欄の下端（下の余白 41 の内側）に貼り付ける。押せる範囲 x8〜374・y593〜637、線 y611〜615。中身はつまみの面（var(--capsule)）の下を流れる。段1 は貼り付けない（日の欄が 74 しかない） */
 /* 貼り付いている間だけ、上の辺に 0.5 の線（行の線と同じ色。ぼかしは使わない） */
 /* 帯がない画面: 下の余白 105 は送り切ったときの＋よけ。貼り付く位置は帯ありと同じ y593〜637（余白 41 の内側）。右下の＋（押せる x402〜458）にかからないよう x8〜402、線の中心は日の欄の中央 x233 */
 /* §16-2: 段2〜7（と閉じた横）は、カード（A）でも日の見出しを貼り付ける（B・C と同じ値。下に線は引かない）。段1 は貼らない */
@@ -2446,14 +2447,14 @@ body:has(> .nsheet:not([hidden])) .shell.closed.land.fb .cb.ctask .bdg{visibilit
 /* 日の欄: .mday は「スクロール 0 で見えている所」の箱（高さ＝画面−88−H。今までと同じ）。中身（.mdin）は箱の下へあふれて画面のスクロールに続く（入れ子の縦スクロールは作らない）。
    .mdin の最小の高さ＝箱＋H＝画面−88（見出し 64＋つまみ 24）: どの日・どの段でも格子を見出しの下まで流し切れる。下の余白は 帯あり 41・帯なし 105（最後のノートがホームバーの帯・右下の＋に隠れない） */
 .shell.closed .mpull.browse[data-stage] .mday,.shell.closed.fb:not(.land) .mpull.browse[data-stage="1"] .mday{overflow:visible;padding:0;overscroll-behavior:auto}
-.shell.closed .mpull.browse[data-stage] .mdin{box-sizing:border-box;min-height:calc(100% + var(--H));padding:0 4px 41px;background:#EFECE4}
+.shell.closed .mpull.browse[data-stage] .mdin{box-sizing:border-box;min-height:calc(100% + var(--H));padding:0 4px 41px;background:var(--capsule)}
 .shell.closed.fb .mpull.browse[data-stage] .mdin{padding-bottom:105px}
 .shell.closed.land .mpull.browse .mdin{display:contents}
 /* 日の見出しは貼り付けない（上に残るのは年月と曜日だけ。格子が流れ切ったら年月の右に選んだ日を出す） */
 .shell.closed .mpull.browse[data-stage] .mday .mdh,.shell.closed .mpull.browse[data-stage] .mday[data-dg] .mdh{position:relative;top:auto;z-index:auto}
 /* つまみ（下）の貼り付き: 画面の下端から 41 上（y593〜637。帯なしは箱 56 で y581〜637）。決まり（T・遊び 4・0.15 秒 linear・埋めた面）は S11f〜S11j のまま、見えている高さで決める */
-/* 見出しの右の「12日（木）」: 格子が見出しの下へ流れ切ったら 0.15 秒で出す（design/33 §2。13/400 #68716A）。「今日へ」があるときはその左 */
-.shell.closed .mpull.browse .mph .mpdate{display:block;position:absolute;top:0;right:4px;margin:0;font:400 13px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#68716A;white-space:nowrap;opacity:0;transition:opacity .15s linear;pointer-events:none}
+/* 見出しの右の「12日（木）」: 格子が見出しの下へ流れ切ったら 0.15 秒で出す（design/33 §2。13/400 var(--muted)）。「今日へ」があるときはその左 */
+.shell.closed .mpull.browse .mph .mpdate{display:block;position:absolute;top:0;right:4px;margin:0;font:400 13px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--muted);white-space:nowrap;opacity:0;transition:opacity .15s linear;pointer-events:none}
 .shell.closed .mpull.browse .mph.scrd .mpdate{opacity:1}
 .shell.closed .mpull.browse .mph:has(.mptoday:not([hidden])) .mpdate{right:52px}
 .shell.closed.fb .mpull.browse .mph .mpdate{right:96px}
@@ -2469,13 +2470,13 @@ body:has(> .nsheet:not([hidden])) .shell.closed.land.fb .cb.ctask .bdg{visibilit
 .shell.closed .mpull.browse[data-stage] .mgwrap{isolation:isolate}
 
 /* ===== 第19.3版 その2（征希さん「閉じた時の表示は『カード・時間』で分けるだけ」・design/35 §5） ===== */
-/* 見出しの右の「カード｜時間」: 132×32・角丸 8・地 #E4E0D6（日の欄の地 #EFECE4 より1段濃い）。1つ 66、押せる範囲 66×44。選んでいる側は白の玉（角丸 6）13/600 #293B35、選んでいない側 #68716A */
+/* 見出しの右の「カード｜時間」: 132×32・角丸 8・地 var(--line2)（日の欄の地 var(--capsule) より1段濃い）。1つ 66、押せる範囲 66×44。選んでいる側は白の玉（角丸 6）13/600 var(--ink)、選んでいない側 var(--muted) */
 .mpull.browse .mdh h3{flex:1 1 auto;min-width:0;overflow:hidden;white-space:nowrap}
 .mpull.browse .mdh .hdw{overflow:hidden;text-overflow:ellipsis;min-width:0}
-.mpull.browse .mdct{position:relative;z-index:4;display:grid;grid-template-columns:1fr 1fr;align-items:center;box-sizing:border-box;width:132px;height:32px;flex:none;margin:0;padding:0;border-radius:8px;background:#E4E0D6}
-.mpull.browse .mdct button{box-sizing:border-box;height:44px;min-height:44px;min-width:0;margin:-6px 0;padding:0;border:solid transparent;border-width:8px 2px;border-radius:8px;background:transparent;background-clip:padding-box;box-shadow:none;filter:none;font:600 13px/28px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#68716A;-webkit-tap-highlight-color:transparent}
-.mpull.browse .mdct button[aria-pressed=true]{background-color:#fff;color:#293B35;filter:drop-shadow(0 1px 1px rgba(0,0,0,.15))}
-@media (hover:hover){.mpull.browse .mdct button:hover{color:#68716A;background-color:transparent}.mpull.browse .mdct button[aria-pressed=true]:hover{color:#293B35;background-color:#fff}}
+.mpull.browse .mdct{position:relative;z-index:4;display:grid;grid-template-columns:1fr 1fr;align-items:center;box-sizing:border-box;width:132px;height:32px;flex:none;margin:0;padding:0;border-radius:8px;background:var(--line2)}
+.mpull.browse .mdct button{box-sizing:border-box;height:44px;min-height:44px;min-width:0;margin:-6px 0;padding:0;border:solid transparent;border-width:8px 2px;border-radius:8px;background:transparent;background-clip:padding-box;box-shadow:none;filter:none;font:600 13px/28px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--muted);-webkit-tap-highlight-color:transparent}
+.mpull.browse .mdct button[aria-pressed=true]{background-color:#fff;color:var(--ink);filter:drop-shadow(0 1px 1px rgba(0,0,0,.15))}
+@media (hover:hover){.mpull.browse .mdct button:hover{color:var(--muted);background-color:transparent}.mpull.browse .mdct button[aria-pressed=true]:hover{color:var(--ink);background-color:#fff}}
 .mpull.browse .mdct button:active:where(:not(:disabled)){filter:none}
 .mpull.browse .mdct button[aria-pressed=true]:active{filter:drop-shadow(0 1px 1px rgba(0,0,0,.15))}
 .mpull.browse .mdct button:focus-visible{outline:2px solid #2F6B4F;outline-offset:-8px}
@@ -2485,11 +2486,11 @@ body:has(> .nsheet:not([hidden])) .shell.closed.land.fb .cb.ctask .bdg{visibilit
 .mpull.browse .mdctrow{display:flex;align-items:center;height:44px;flex:none}
 .mpull.browse .mdctrow .mdct{width:100%}
 .shell.closed.land.fb .mpull.browse .mdctrow{padding-right:84px}
-/* 時間の幅のバー（35 §5.3）: 見出しのすぐ下。区域 24、線 36×4・角丸 2・#B9B4A8（区域の上から 10〜14）。押している間 #68716A。押せる範囲は全幅×44（区域の上下に 10 ずつ）。貼り付けない（画面と一緒に流れる） */
+/* 時間の幅のバー（35 §5.3）: 見出しのすぐ下。区域 24、線 36×4・角丸 2・#B9B4A8（区域の上から 10〜14）。押している間 var(--muted)。押せる範囲は全幅×44（区域の上下に 10 ずつ）。貼り付けない（画面と一緒に流れる） */
 .shell.closed .mpull.browse .mdgrab{position:relative;z-index:1;display:flex;justify-content:center;align-items:flex-start;box-sizing:border-box;width:100%;height:24px;min-height:24px;margin:0;padding:10px 0 0;touch-action:none;cursor:ns-resize;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;transform:translateY(var(--dgrub,0px))}
 .shell.closed .mpull.browse .mdgrab::before{content:"";position:absolute;left:0;right:0;top:-10px;bottom:-10px}
 .mpull.browse .mdgrab i{position:relative;display:block;width:36px;height:4px;border-radius:2px;background:#B9B4A8}
-.mpull.browse .mdgrab:active i{background:#68716A}
+.mpull.browse .mdgrab:active i{background:var(--muted)}
 .shell.closed .mpull.browse .mday .mdgrab ~ .mdbody,.shell.closed .mpull.browse .mday .mdgrab ~ .mdrest{transform:translateY(var(--dgrub,0px))}
 /* 帯がない画面: バーの押せる所は右下の＋（縦）・右の列（横）にかけない */
 .shell.closed.fb:not(.land) .mpull.browse .mdgrab::before{right:52px}
@@ -2503,10 +2504,10 @@ body:has(> .nsheet:not([hidden])) .shell.closed.land.fb .cb.ctask .bdg{visibilit
 html.kbl[data-kbl=taskd] .ftask{display:block;position:static}
 html.kbl[data-kbl=taskd] .ftdn{position:fixed;left:0;right:0;top:var(--kl-ed-top);height:var(--kl-ed-h);z-index:5;box-sizing:border-box;padding-bottom:8px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:var(--paper)}
 html.kbl[data-kbl=taskd] .ftdn .rmadd,html.kbl[data-kbl=taskd] .ftdn .ftchips{display:none}
-/* ===== 第19.3版 その2 F（design/35 §8）: ノートの状態の行の知らせ「タスクに足しました（期限 11月12日）」。12/400 #68716A、0.15 秒で出し入れ、2 秒。シートの中でも出す（失敗の知らせは今までどおり） ===== */
-.ned-status.info{color:#68716A;font-weight:400;animation:morein .15s linear}
+/* ===== 第19.3版 その2 F（design/35 §8）: ノートの状態の行の知らせ「タスクに足しました（期限 11月12日）」。12/400 var(--muted)、0.15 秒で出し入れ、2 秒。シートの中でも出す（失敗の知らせは今までどおり） ===== */
+.ned-status.info{color:var(--muted);font-weight:400;animation:morein .15s linear}
 .ned-status.info.out{opacity:0;transition:opacity .15s linear}
-.nsheet .ned-status.info{display:flex;position:absolute;left:20px;right:20px;bottom:8px;z-index:3;height:28px;padding:0 12px;box-sizing:border-box;align-items:center;border-radius:14px;background:#EFECE4;pointer-events:none}
+.nsheet .ned-status.info{display:flex;position:absolute;left:20px;right:20px;bottom:8px;z-index:3;height:28px;padding:0 12px;box-sizing:border-box;align-items:center;border-radius:14px;background:var(--capsule);pointer-events:none}
 @media (prefers-reduced-motion:reduce){.ned-status.info{animation:none}}
 /* キーボードが出ていないとき（シートの下端＝画面の下端）は、ホームバーの帯（33）の上へ */
 html:not([data-kb]) .shell.closed ~ .nsheet .ned-status.info,html:not([data-kb]) body[data-layout=browse] .nsheet .ned-status.info,html:not([data-kb]) body[data-layout=home] .nsheet .ned-status.info{bottom:41px}
@@ -2521,7 +2522,7 @@ html:not([data-kb]) .shell.closed ~ .nsheet .ned-status.info,html:not([data-kb])
 .mpull.browse .mdcard .mdnt{color:#A8ABA4;font-weight:400}
 .mpull.browse .mdk-task .mdopen{position:absolute;inset:0;display:block;box-sizing:border-box;width:100%;height:56px;min-height:56px;margin:0;padding:0;border:0;border-radius:14px;background:transparent!important;text-align:left;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .mpull.browse .mdk-task .mdck{position:absolute;left:0;top:0;z-index:1;width:52px;min-width:52px;height:56px;min-height:56px;margin:0;padding:0;border:0;border-radius:14px 0 0 14px;background:transparent!important}
-.mpull.browse .mdk-task .mdck .rmck{position:absolute;left:20px;top:18px;--rc:#68716A;background:#fff}
+.mpull.browse .mdk-task .mdck .rmck{position:absolute;left:20px;top:18px;--rc:var(--muted);background:#fff}
 .mpull.browse .mdk-task.over .mdck .rmck{--rc:#B43C3C}
 .mpull.browse .mdk-task.done .mdck .rmck{--rc:#294E42;background:#294E42}
 .mpull.browse .mdk-task.done .mdck .rmck::after{content:"";position:absolute;left:4.5px;top:1.5px;width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);box-sizing:border-box}
@@ -2529,8 +2530,8 @@ html:not([data-kb]) .shell.closed ~ .nsheet .ned-status.info,html:not([data-kb])
 .mpull.browse .mdcard .mdover{color:#B43C3C;font-weight:400}
 .mpull.browse .mdcard strong .bell{margin-left:4px;vertical-align:-1px}
 .mpull.browse .mdk-note .mdpaper{position:absolute;left:22px;top:18px;display:block}
-/* 区画の見出し「タスク ›」「ノート ›」: 高さ 32・13/600 #68716A・左 4。押せる範囲は上下に 6 ずつ足して 44 */
-.mpull.browse .mdsh,.mpull.browse .mdnl.mdsh{position:relative;display:flex;align-items:center;width:auto;min-width:96px;height:32px;min-height:32px;margin:0;padding:0 12px 0 4px;border:0;border-radius:8px;background:none;font:600 13px/32px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#68716A;text-align:left}
+/* 区画の見出し「タスク ›」「ノート ›」: 高さ 32・13/600 var(--muted)・左 4。押せる範囲は上下に 6 ずつ足して 44 */
+.mpull.browse .mdsh,.mpull.browse .mdnl.mdsh{position:relative;display:flex;align-items:center;width:auto;min-width:96px;height:32px;min-height:32px;margin:0;padding:0 12px 0 4px;border:0;border-radius:8px;background:none;font:600 13px/32px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--muted);text-align:left}
 .mpull.browse .mdsh::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
 .mpull.browse .mdrest{position:relative}
 .mpull.browse .mdbody + .mdrest > .mdsh:first-child{margin-top:0}
@@ -2540,9 +2541,9 @@ html:not([data-kb]) .shell.closed ~ .nsheet .ned-status.info,html:not([data-kb])
 .mpull.browse .mdadd button{flex:none;box-sizing:border-box;width:96px;min-width:0;height:44px;min-height:44px;margin:0;padding:0;border:0;border-radius:8px;background:none;font:600 13px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#294E42;text-align:left}
 .shell.closed.land .mpull.browse .mdadd button{width:88px}
 /* 月のマスの名前のチップ（閉じた画面だけ。35 §2.4）: タスク＝四角 8×8・角丸 2（完了は塗り）、ノート＝紙 8×10。文字は印の 10 ぶん右から */
-.mpull.browse .week .day .strip.xk{background:transparent;color:#293B35;border-radius:0;padding:0 0 0 12px}
-.mpull.browse .week .day .cbox{position:absolute;left:2px;top:3px;box-sizing:border-box;width:8px;height:8px;border:1.25px solid #68716A;border-radius:2px}
-.mpull.browse .week .day .cbox.on{background:#68716A}
+.mpull.browse .week .day .strip.xk{background:transparent;color:var(--ink);border-radius:0;padding:0 0 0 12px}
+.mpull.browse .week .day .cbox{position:absolute;left:2px;top:3px;box-sizing:border-box;width:8px;height:8px;border:1.25px solid var(--muted);border-radius:2px}
+.mpull.browse .week .day .cbox.on{background:var(--muted)}
 .mpull.browse .week .day .cpaper{position:absolute;left:2px;top:2px;width:8px;height:10px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 10'%3E%3Cpath d='M.625.625h4.25l2.5 2.5v6.25H.625z' fill='%23F7F4ED' stroke='%2368716A' stroke-width='1.25' stroke-linejoin='round'/%3E%3Cpath d='M4.875.625v2.5h2.5' fill='none' stroke='%2368716A' stroke-width='1'/%3E%3C/svg%3E") no-repeat center/8px 10px}
 /* 持ち上げ（35 §6.1）: 1.03 倍・影 段2（0 4 12 / 10%）・地は白、0.15 秒。元の場所に同じ大きさの破線の枠（1.5 #A8ABA4）。視差効果を減らすときは拡大しない（影は付ける） */
 .lifted{transform:scale(1.03);box-shadow:0 4px 12px rgba(0,0,0,.10)!important;background-color:#fff!important;z-index:7;transition:transform .15s cubic-bezier(.2,.8,.2,1),box-shadow .15s cubic-bezier(.2,.8,.2,1)}
@@ -2553,22 +2554,22 @@ html[data-grab] .mpull.browse,html[data-grab] .mpull.browse *{touch-action:none!
 /* 着地（35 §6.5）: 先の日のマスの #E5EEE9 を 0.25 秒残して 0.15 秒で消す */
 @keyframes mland{0%,62.5%{background-color:#E5EEE9}}
 .week .day.mland{animation:mland .4s linear}
-/* ノートのシートの日付の行 44（35 §4.3・決定 4・R2）。カプセル 高さ 32・角丸 8・#EFECE4・14/400 #293B35。閉じた縦は上の帯がすぐ下（y196〜240）、ほかは今までどおり 8 あけて上の帯 */
+/* ノートのシートの日付の行 44（35 §4.3・決定 4・R2）。カプセル 高さ 32・角丸 8・var(--capsule)・14/400 var(--ink)。閉じた縦は上の帯がすぐ下（y196〜240）、ほかは今までどおり 8 あけて上の帯 */
 .nsheet{padding-top:0}
 .nsheet .nsdate{flex:none;display:flex;align-items:center;box-sizing:border-box;height:44px;padding:0 calc(var(--ns-bml,8px) + 8px)}
-.nsheet .nsdcap{position:relative;flex:none;width:auto;min-width:0;height:32px;min-height:32px;padding:0 8px;border:0;border-radius:8px;background:#EFECE4;font:400 14px/32px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#293B35;white-space:nowrap}
+.nsheet .nsdcap{position:relative;flex:none;width:auto;min-width:0;height:32px;min-height:32px;padding:0 8px;border:0;border-radius:8px;background:var(--capsule);font:400 14px/32px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink);white-space:nowrap}
 .nsheet .nsdcap::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
 .nsheet .nsdcap.open{background:#294E42;color:#fff}
 .nsheet .ned{margin-top:8px}
 .nsheet[data-cp="1"] .ned{margin-top:0}
-.nsheet > .dpop{position:absolute;left:12px;top:44px;z-index:6;box-sizing:border-box;width:min(360px,calc(100% - 24px));max-height:calc(100% - 52px);overflow-y:auto;margin:0;padding:8px 8px 10px;border:0;border-radius:14px;background:#FFFDFA;box-shadow:0 12px 32px rgba(0,0,0,.16)}
+.nsheet > .dpop{position:absolute;left:12px;top:44px;z-index:6;box-sizing:border-box;width:min(360px,calc(100% - 24px));max-height:calc(100% - 52px);overflow-y:auto;margin:0;padding:8px 8px 10px;border:0;border-radius:14px;background:var(--card);box-shadow:0 12px 32px rgba(0,0,0,.16)}
 /* 読み上げの操作「日付を移す」のシート（35 §6.8） */
 .cmv{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-end;justify-content:center;background:rgba(28,31,29,.24)}
-.cmvin{box-sizing:border-box;width:100%;max-width:480px;max-height:100%;overflow-y:auto;padding:20px 20px calc(20px + var(--sab,0px));border-radius:24px 24px 0 0;background:#FFFDFA;box-shadow:0 12px 32px rgba(0,0,0,.16)}
-.cmvin h3{margin:0 0 12px;font:600 17px/24px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#1C1F1D;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;outline:none}
+.cmvin{box-sizing:border-box;width:100%;max-width:480px;max-height:100%;overflow-y:auto;padding:20px 20px calc(20px + var(--sab,0px));border-radius:24px 24px 0 0;background:var(--card);box-shadow:0 12px 32px rgba(0,0,0,.16)}
+.cmvin h3{margin:0 0 12px;font:600 17px/24px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;outline:none}
 .cmvin .cmvrow{display:flex;align-items:center;height:44px}
 .cmvin .cmvrow .dcap{flex:none;width:auto;min-width:130px}
-.cmvin .cmvx{display:block;width:100%;height:44px;margin-top:12px;border:0;border-radius:14px;background:#EFECE4;font:600 15px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#293B35}
+.cmvin .cmvx{display:block;width:100%;height:44px;margin-top:12px;border:0;border-radius:14px;background:var(--capsule);font:600 15px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink)}
 /* タスクのシートの「ノート「買い物」 ›」（35 §8）: 44・13/400 緑 */
 .tksrc{display:flex;align-items:center;width:100%;height:44px;min-height:44px;margin:0;padding:0;border:0;background:none;font:400 13px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#294E42;text-align:left}
 /* 持ち上げたら地は白に戻す（押した色・土日の地より強く）。落とせる日の地 #E5EEE9 は、土日・今日・選んだ日の地より強く */
@@ -2579,9 +2580,9 @@ html[data-grab] .mpull.browse,html[data-grab] .mpull.browse *{touch-action:none!
 .mpull.browse .mdacts .vh{min-width:0;min-height:0;padding:0;border:0;margin:0}
 /* 繰り返しの回を移した札「13日（金）へ移しました（この回だけ）」は 1 行（35 §6.9） */
 .toastbar.mvonly span{flex:1 1 auto;min-width:0;font-size:13px;font-feature-settings:"palt";white-space:nowrap;overflow:hidden}
-/* ノートの無い日の「ノート ›」（ノートの一覧の入口）: 「＋」の行の右端。区画の見出しと同じ字（13/600 #68716A）、押せる高さ 44 */
+/* ノートの無い日の「ノート ›」（ノートの一覧の入口）: 「＋」の行の右端。区画の見出しと同じ字（13/600 var(--muted)）、押せる高さ 44 */
 .mpull.browse .mdadd{flex-wrap:wrap}
-.mpull.browse .mdadd .mdnl.mdnlx{display:block;width:auto;min-width:72px;height:44px;min-height:44px;margin:0 0 0 auto;padding:0 4px 0 12px;font:600 13px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#68716A;text-align:right}
+.mpull.browse .mdadd .mdnl.mdnlx{display:block;width:auto;min-width:72px;height:44px;min-height:44px;margin:0 0 0 auto;padding:0 4px 0 12px;font:600 13px/44px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--muted);text-align:right}
 /* 開いた横のノートの題名の行（入力欄）をつかんだとき: 元の場所の破線の枠（入力欄は outline を消してあるので明示する） */
 .ned .ned-title.grabbed{outline:1.5px dashed #A8ABA4!important;outline-offset:-1.5px;border-radius:8px}
 /* 第19.3版 その4（品質 Q-1）: 開いた画面の持ち上げ口（R7。開いた縦のタスクの行・ノートの題名の行、開いた横のノートの題名の行）は、カードと同じく長押しを文字の選択・吹き出しと取り合わせない。ノートの本文には付けない（本文の長押しは文字の選択のまま）。題名の欄は入力中（:focus）は今までどおり選べる */
@@ -2591,3 +2592,31 @@ html[data-grab] .mpull.browse,html[data-grab] .mpull.browse *{touch-action:none!
 html[data-grab],html[data-grab] *{-webkit-touch-callout:none!important;-webkit-user-select:none!important;user-select:none!important}
 /* 品質 L-1: 開いた縦で持ち上げたタスクの行は、1.03 倍のぶん（幅の 1.5%）だけ左右を内へ寄せて、画面の端からはみ出させない（中身の位置はほぼそのまま） */
 .mpull:not(.browse) .mday .mdtask.lifted{margin-left:9px;margin-right:9px}
+
+/* ===== 第19.4版（design/36・37）: くすみ色 =====
+   色の値は js/colors.js が inline の変数で渡す（--cat-tint 薄い地・--cat-mark 左の線・--cat-line 線と印・--cat-text 色の文字・--cat-fill と --cat-edge 下の札・--cat-tint-out と --cat-line-out 前後の月）。
+   形の決まり（チップ・帯・時間軸の枠・下の札・前後の月・土日）は、もとの規則をその場で直してある（「第19.4版」の注）。
+   ダークは値だけ（36 §5）: アプリはライト固定（V-07。iOS も UIUserInterfaceStyle=Light）。html[data-theme=dark] は値と比を確かめるための見本で、利用者の設定には出さない（開き方は ?theme=dark）。 */
+html[data-theme=dark]{--paper:#1C1F1D;--card:#262A27;--cardw:#262A27;--capsule:#30352F;--ink:#E8E6E0;--ink2:#E8E6E0;--muted:#A3A9A2;--line:#343A36;--line2:#343A36;--green:#6FA08C;--focus:#6FA08C;--satc:#8BA8C4;--satbg:#232A2F;--outc:#A3A29E;--holiday:#D0928E;color-scheme:dark}
+/* 予定ごとの色（design/37 §3）。見本＝薄い地＋左 3 の線・角丸 4（行は 28×20、選ぶ画面と色の帯は 32×24） */
+.csw{position:relative;flex:none;display:inline-block;box-sizing:border-box;width:28px;height:20px;border-radius:4px;background:var(--cat-tint);font-style:normal}
+.csw::before{content:'';position:absolute;left:3px;top:3px;bottom:3px;width:3px;border-radius:1.5px;background:var(--cat-mark)}
+.csw.lg{width:32px;height:24px}
+.destbtn.colorbtn .dval{flex:0 1 auto;min-width:0}
+.destbtn.colorbtn #color-name,.destbtn.colorbtn .cnm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.destbtn.colorbtn #color-name.on,.destbtn.colorbtn .cnm.on{color:var(--ink2)}
+#xd-body .destbtn.colorbtn{margin-top:12px}
+/* 色を選ぶ画面: 見出し 26（12pt）・行 44・左右 20・見本と名前の間 12。8 行＋見出し 2 つ＝404 で、閉じた縦でもスクロールなしで入る */
+.destpage.colorpage h4{min-height:26px;font-size:12px;font-weight:400}
+.destpage.colorpage .dopt{gap:12px}
+.destpage.colorpage .dopt .dsub{margin-left:8px;font-size:12px;color:var(--muted)}
+.destpage.colorpage .cnote{font-size:12px;line-height:1.5}
+/* 長押しメニューの「色」の帯: 幅 336・高さ 78・角丸 14。上に選んでいる色の名前 12pt、下に見本 32×24 を 8 つ（間 8。押す的 40×44）。選んでいる見本に 白 2＋緑 2 の輪 */
+.cmenu.colorstrip{box-sizing:border-box;height:78px;padding:8px 8px 0;border-radius:14px;overflow:visible}
+.colorstrip .csn{margin:0 4px;height:18px;font-size:12px;line-height:18px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.colorstrip .csr{display:flex;justify-content:space-between;height:44px;margin-top:2px}
+.cmenu.colorstrip button.cso{display:flex;align-items:center;justify-content:center;flex:none;width:40px;height:44px;min-height:44px;padding:0;border:0;border-radius:8px;background:transparent}
+.colorstrip .cso .csw b{position:absolute;left:8px;right:0;top:0;bottom:0;font-size:9px;line-height:24px;font-weight:600;color:var(--ink);text-align:center;letter-spacing:-.04em}
+.colorstrip .cso[aria-pressed=true] .csw{box-shadow:0 0 0 2px #fff,0 0 0 4px #294E42}
+.colorstrip .cso:active .csw{filter:brightness(.94)}
+.cmenu.colorstrip button.cso:active,.cmenu.colorstrip button.cso[aria-pressed=true]:active{background-color:transparent!important;filter:none}
