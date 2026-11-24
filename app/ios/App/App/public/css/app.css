@@ -2668,3 +2668,9 @@ html:not([data-theme=dark]) .shell.spread .page.lp .week .strip.outm,html:not([d
 .mpull.browse .mday[data-dg="B"] .mdad,.mpull.browse .mday[data-dg="C"] .mdad{margin-bottom:0}
 .mpull.browse .mday .tl[data-fs] + .mdfold button{top:0;height:24px;min-height:24px;line-height:24px;color:var(--muted)}
 .mpull.browse .mday .tl[data-fs] + .mdfold button::after{content:"";position:absolute;left:0;right:0;top:-10px;bottom:-10px}
+/* 征希さん「伸ばすポイントが左で時間と被っており操作しづらい」: 閉じた画面の「時間」の仮の枠の取っ手は、左の時刻の札から離す（始まり＝上の左から 72、終わり＝下の右から 48。✕ は右上のまま） */
+.mpull.browse .mday .tl[data-fs] .dbox .hdl-s{left:72px}
+.mpull.browse .mday .tl[data-fs] .dbox .hdl-e{left:auto;right:48px}
+.dhrow{cursor:default}
+.dhrow .dhsel{display:flex;align-items:center;gap:6px;margin-left:auto}
+.dhrow select{height:32px;padding:0 8px;border:1px solid var(--line2);border-radius:8px;background:#fff;color:var(--ink2);font:400 15px/30px -apple-system,'Hiragino Sans',sans-serif}

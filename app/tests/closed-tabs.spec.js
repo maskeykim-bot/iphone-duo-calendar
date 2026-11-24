@@ -418,7 +418,7 @@ test('S11e 閉じた画面の日: ホームの「タイムライン ›」→ �
   const m = await page.evaluate(() => { const md = document.querySelector('.mday'), tl = md.querySelector('.tl'), ev = [...md.querySelectorAll('.tlev[data-event]')].map((e) => e.getBoundingClientRect().top).sort((a, b) => a - b)[0]; return { ev, head: tl.getBoundingClientRect().top, bar: md.querySelector('.mdgrab').getBoundingClientRect().top - tl.getBoundingClientRect().bottom, st: md.scrollTop + md.closest('.mpull.browse').scrollTop, folded: !!md.querySelector('.mdbody.folded') }; });
   expect(m.st).toBe(0); expect(m.folded).toBe(true);
   expect(Math.abs(m.bar)).toBeLessThan(0.5); // バーは時間軸のすぐ下
-  expect(m.ev - m.head).toBeGreaterThan(14 + 12 - 2); expect(m.ev - m.head).toBeLessThan(14 + 12 + 2); // 最初の予定（10:00）は、時間軸の上端から 上のあき 12＋9:00〜10:00 の 14
+  expect(m.ev - m.head).toBeGreaterThan(28 + 12 - 2); expect(m.ev - m.head).toBeLessThan(28 + 12 + 2); // v19.5 その2（征希さん「設定で決めた1日（8:00-22:00）で表示」「好きな位置で止められるように」）で仕様変更: 見せるのは設定の 8:00 から。最初の予定（10:00）は、時間軸の上端から 上のあき 12＋8:00〜10:00 の 28
   await expect(page.locator('.mpane .hcard, .mpane .rmrow, .mpane [data-page="task"], .mpane [data-page="memo"]')).toHaveCount(0);
   // 段4 から開くと、段は覚えている段のまま
   await page.locator('.mday .mdct [data-dg="card"]').click();

@@ -5,7 +5,8 @@ import { SIZES, seed, ev } from './helpers.js';
 import { boot, DAY, EMPTY, SEC, stageOf, haptics, ui, scTop, setScroll, rect, hourGap, lineY, toTime, toCard, barPt, mouseDrag, touchDrag, near } from './v193-p2-lib.js';
 // v19.5（征希さん「時間で表示した時は本家仕様にする」）で仕様変更: 1時間の高さは 28／88 → 14（詰めた形）／56（広げた形）、寄る境は 58 → 35。つまみ（バー）は見出しの下 → 時間軸の下で、引いた量だけ時間軸が伸びる（指に 1:1）。
 // 畳むのは「最初の予定の1時間前より上」→「9:00（早い予定があればその時刻）より前と、18:00（遅い予定があればその終わり）の1時間後より後」。開く文言は「前の時間」→「すべての時間」。
-// DATA（30分の予定 5 本・9:00〜13:30）の見えている時間軸の高さは 220＋7.5×（1時間の高さ）。下へ 200 引くと 1時間 40.7。離したときは、60 以上引いていれば引いた向きの形へ寄り、足りなければ元の形へ戻る
+// v19.5 その2（征希さん「設定で決めた1日（8:00-22:00）で表示」「好きな位置で止められるように」）で仕様変更: 見せるのは 8:00〜22:00（外に予定がある日はその予定まで）。つまみは離した所で止まる（14〜56 の好きな高さ。寄せ・払いはやめた）。dayGrip は 35 を境に 1／2 を書く（保存の形は同じ）。高さそのものは duo.ui.v1 の dayHh
+// DATA（30分の予定 5 本・9:00〜13:30）の見えている時間軸の高さは 220＋11.5×（1時間の高さ）。下へ 300 引くと 1時間 40.1、60 で 19.2
 
 const dg = (page) => page.locator('.mday').getAttribute('data-dg');
 
@@ -15,10 +16,10 @@ test('A-1 保存の形は v19.2 のまま: dayGrip は 0（カード）・1（�
   const keys0 = Object.keys(await ui(page)).sort();
   expect(keys0).toContain('dayGrip');
   await toTime(page); expect((await ui(page)).dayGrip).toBe(1); expect(await dg(page)).toBe('B');
-  const p = await barPt(page); await mouseDrag(page, p.x, p.y, p.x, p.y + 200, { hold: 150 });
+  const p = await barPt(page); await mouseDrag(page, p.x, p.y, p.x, p.y + 300, { hold: 150 });
   expect((await ui(page)).dayGrip).toBe(2); expect(await dg(page)).toBe('C');
   await toCard(page); expect((await ui(page)).dayGrip).toBe(0); expect(await dg(page)).toBe('A');
-  expect(Object.keys(await ui(page)).sort()).toEqual(keys0);
+  expect(Object.keys(await ui(page)).filter((k) => k !== 'dayHh').sort()).toEqual(keys0.filter((k) => k !== 'dayHh')); // dayHh（1時間の高さ）は「時間」にした後だけ書く
 });
 
 test('A-2 古い保存値: 1 は「時間・最低限」（1時間 14）、2 は「詳細」（56）、0〜2 でない値はカード', async ({ page }) => {
@@ -100,18 +101,15 @@ test('A-6 押せる範囲は全幅×44（区域 24 の上下に 10 ずつ）。�
   expect(await haptics(page)).toEqual([]);
 });
 
-test('A-7 速く払うと払った向きへ: 下へ 30 を速く払うと詳細、詳細から上へ 30 を速く払うと最低限', async ({ page }) => {
+test('A-7 速く払っても離した所で止まる: 下へ 30 を速く払うと 1時間 16.6、そこから上へ 30 を速く払うと 14', async ({ page }) => {
+  // v19.5 その2（征希さん「設定で決めた1日（8:00-22:00）で表示」「好きな位置で止められるように」）で仕様変更: 前は「速く払うと払った向きの端へ」
   await boot(page, { dg: 1 });
   let p = await barPt(page);
   await touchDrag(page, p.x, p.y, p.x, p.y + 30, { steps: 3 });
-  expect((await ui(page)).dayGrip).toBe(2); expect(near(await hourGap(page), 56, 0.5)).toBe(true);
+  expect((await ui(page)).dayGrip).toBe(1); expect(near(await hourGap(page), 14 + 30 / 11.5, 0.5)).toBe(true);
   p = await barPt(page);
   await touchDrag(page, p.x, p.y, p.x, p.y - 30, { steps: 3 });
   expect((await ui(page)).dayGrip).toBe(1); expect(near(await hourGap(page), 14, 0.5)).toBe(true);
-  // ゆっくり 30（止めてから離す）は近い方＝最低限のまま
-  p = await barPt(page);
-  await touchDrag(page, p.x, p.y, p.x, p.y + 30, { steps: 6, hold: 150 });
-  expect((await ui(page)).dayGrip).toBe(1);
 });
 
 test('A-8 予定は白いカード（始まり・終わり・色の線・題名）。詰めた形（14）でもカードは 44 より低くならず、字がはみ出さない。広げた形（56）は長さどおり', async ({ page }) => {
@@ -142,13 +140,13 @@ test('A-9 「すべての時間」で 0:00 から開く（画面は動かさな�
   await page.locator('.mday .mdgrab').focus(); await page.keyboard.press('ArrowDown'); await page.waitForTimeout(150);
   expect(near(await lineY(page, 0), tl.y + 12)).toBe(true); // 幅を変えても開いたまま
   await toCard(page); await toTime(page);
-  expect(near(await lineY(page, 540), (await rect(page, '.mday .tl')).y + 12)).toBe(true); // 畳み直す（9:00 から）
-  // 0 時台の予定しかない日は 0:00 から見せる（前は畳まない）。19:00 より後は畳んであるので「すべての時間」は出る
+  expect(near(await lineY(page, 480), (await rect(page, '.mday .tl')).y + 12)).toBe(true); // 畳み直す（8:00 から）
+  // 0 時台の予定しかない日は 0:00 から見せる（前は畳まない）。22:00 より後は畳んであるので「すべての時間」は出る
   await seed(page, [ev('z', '夜中', `${EMPTY}T00:30`, `${EMPTY}T01:00`)]);
   await page.locator(`.mgrid .day[data-date="${EMPTY}"]`).click(); await page.waitForTimeout(400);
   await expect(page.locator('.mday .mdfold button')).toHaveText('すべての時間');
   expect(near(await lineY(page, 0), (await rect(page, '.mday .tl')).y + 12)).toBe(true);
-  expect(await page.evaluate(() => [...document.querySelectorAll('.mday .hlab')].filter((e) => !e.hidden).map((e) => Number(e.dataset.rm) / 60).pop())).toBe(19);
+  expect(await page.evaluate(() => [...document.querySelectorAll('.mday .hlab')].filter((e) => !e.hidden).map((e) => Number(e.dataset.rm) / 60).pop())).toBe(22);
 });
 
 test('A-10 その1の決まり: 時間でも画面は1本のスクロール（入れ子の縦スクロールなし）。バーで幅を変えても段と画面の位置は変わらない。つまみ（上）で段だけ変わる', async ({ page }) => {
@@ -156,7 +154,7 @@ test('A-10 その1の決まり: 時間でも画面は1本のスクロール（�
   const nested = await page.evaluate(() => [...document.querySelectorAll('.mpull.browse *')].filter((e) => { const c = getComputedStyle(e); return /(auto|scroll)/.test(c.overflowY) && e.scrollHeight > e.clientHeight + 1; }).map((e) => e.className));
   expect(nested).toEqual([]);
   const p = await barPt(page), st0 = await scTop(page);
-  await mouseDrag(page, p.x, p.y, p.x, p.y + 200, { hold: 150 });
+  await mouseDrag(page, p.x, p.y, p.x, p.y + 300, { hold: 150 });
   expect(await stageOf(page)).toBe(4); expect(await scTop(page)).toBe(st0); // 画面の位置は、つまみを見える所へ送ったまま変わらない
   // 時間軸の終わりと区画（「＋」の行）まで1本で送れる
   const sec = await page.locator(SEC).evaluate((e) => ({ max: e.scrollHeight - e.clientHeight }));
@@ -167,7 +165,7 @@ test('A-10 その1の決まり: 時間でも画面は1本のスクロール（�
   // つまみ（上）を 86 上へ → 段が進む（小さい月へ）。時間の幅（dayGrip 2）はそのまま
   const g = await rect(page, '.mgrab');
   await mouseDrag(page, g.x + g.w / 2, g.y + 12, g.x + g.w / 2, g.y + 12 - 86, { hold: 150, settle: 550 });
-  expect(await stageOf(page)).toBeGreaterThan(4); expect((await ui(page)).dayGrip).toBe(2); expect(near(await hourGap(page), 56, 0.5)).toBe(true);
+  expect(await stageOf(page)).toBeGreaterThan(4); expect((await ui(page)).dayGrip).toBe(2); expect(near(await hourGap(page), 14 + 300 / 11.5, 0.5)).toBe(true);
 });
 
 test('A-11 帯がない画面（ブラウザ）: 切り替えは右下の＋・右上の「…」「タスク」にかからない。バーの押せる所は＋にかからない', async ({ page }) => {
@@ -189,7 +187,7 @@ test('A-12 閉じた横: 日の欄の中がスクロール（今までどおり�
   // v19.5（征希さん「時間で表示した時は本家仕様にする」）で仕様変更: 並びは 切り替えの行（y50〜82）→ 終日の札 → 時間軸（9:00 から）→ つまみ
   const bar = await rect(page, '.mday .mdgrab'), tl = await rect(page, '.mday .tl'), pill = await rect(page, '.mday .mdallday');
   expect(pill.y >= 88 - 1 && pill.b <= tl.y + 1).toBe(true); expect(near(bar.y, tl.b)).toBe(true);
-  expect(near(await lineY(page, 540), tl.y + 12)).toBe(true);
+  expect(near(await lineY(page, 480), tl.y + 12)).toBe(true);
   expect(await md.evaluate((e) => e.scrollTop)).toBe(0);
   await md.evaluate((e) => { e.scrollTop = 200; }); await page.waitForTimeout(200);
   const moved = await md.evaluate((e) => e.scrollTop); expect(moved > 50).toBe(true);
@@ -197,14 +195,14 @@ test('A-12 閉じた横: 日の欄の中がスクロール（今までどおり�
   expect(near((await rect(page, '.mday .mdh')).y, 0)).toBe(true); // 日の見出しは今までどおり貼り付く
   await md.evaluate((e) => { e.scrollTop = 0; });
   let p = await barPt(page);
-  await touchDrag(page, p.x, p.y, p.x, p.y + 40, { steps: 8, hold: 150 }); // 60 に足りない引きは元の形へ戻る
+  await touchDrag(page, p.x, p.y, p.x, p.y + 40, { steps: 8, hold: 150 }); // 1時間 17.5（35 より低い間は dayGrip 1）
   expect((await ui(page)).dayGrip).toBe(1);
   p = await barPt(page);
-  await touchDrag(page, p.x, p.y, p.x, p.y + 200, { steps: 8, hold: 150 });
-  expect((await ui(page)).dayGrip).toBe(2); expect(near(await hourGap(page), 56, 0.5)).toBe(true);
+  await touchDrag(page, p.x, p.y, p.x, p.y + 300, { steps: 8, hold: 150 });
+  expect((await ui(page)).dayGrip).toBe(2); const hhL = await hourGap(page); expect(near(hhL, 14 + 340 / 11.5, 0.6)).toBe(true);
   // 縦へ戻しても同じ段
   await page.setViewportSize(SIZES.closedPortrait); await page.waitForTimeout(600);
-  expect(await dg(page)).toBe('C'); expect(near(await hourGap(page), 56, 0.5)).toBe(true);
+  expect(await dg(page)).toBe('C'); expect(near(await hourGap(page), hhL, 0.5)).toBe(true);
 });
 
 test('A-13 初めて「時間」にした1回だけ、札「バーを下へ引くと、時間が広がります」。触れると消え、2回目は出ない', async ({ page }) => {
@@ -222,15 +220,15 @@ test('A-13 初めて「時間」にした1回だけ、札「バーを下へ引�
   await expect(page.locator('.mbarhint')).toHaveCount(0);
 });
 
-test('A-14 予定のない日: カードは「予定はありません」、時間は 9:00〜19:00。切り替えは同じ位置、バーは時間軸のすぐ下', async ({ page }) => {
+test('A-14 予定のない日: カードは「予定はありません」、時間は 8:00〜22:00。切り替えは同じ位置、バーは時間軸のすぐ下', async ({ page }) => {
   await boot(page, { sel: EMPTY });
   await expect(page.locator('.mday .mdnone2')).toHaveText('予定はありません');
   const sw0 = await rect(page, '.mday .mdct');
   await toTime(page);
   const sw1 = await rect(page, '.mday .mdct'), tl = await rect(page, '.mday .tl');
   expect(near(sw0.y, sw1.y) && near(sw0.x, sw1.x)).toBe(true);
-  expect(near(await lineY(page, 540), tl.y + 12)).toBe(true);
-  expect(near(tl.h, 12 + 10 * 14 + 12)).toBe(true); // 9:00〜19:00 を 1時間 14 で（上下の余白 12）
+  expect(near(await lineY(page, 480), tl.y + 12)).toBe(true);
+  expect(near(tl.h, 12 + 14 * 14 + 12)).toBe(true); // 8:00〜22:00 を 1時間 14 で（上下の余白 12）
   expect(near((await rect(page, '.mday .mdgrab')).y, tl.b)).toBe(true);
 });
 

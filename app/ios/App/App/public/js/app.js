@@ -88,9 +88,12 @@ function loadUi() {
     focusMode: normFocusMode(s.focusMode), // 開いた縦の集中モード（calendar|task|note）。他の姿勢では使わず、保存だけ保つ
     lastSide: s.lastSide === 'left' ? 'left' : 'right', // 最後に触ったページ（＋の行き先）
     holidayRed: s.holidayRed !== false, // 祝日を赤で表示（既定オン。boolean の false だけが切。日曜の赤は常に出す）
+    dayHours: normDayHours(s.dayHours), // 第19.5版: 閉じた画面の「時間」に出す1日の範囲（時。既定 8〜22）。この端末の表示の設定（バックアップには入れない）
+    dayHh: Number.isFinite(s.dayHh) ? Math.min(56, Math.max(14, s.dayHh)) : null, // 第19.5版: 閉じた画面の「時間」の1時間の高さ（14〜56。つまみを離した所）。無ければ dayGrip から（1＝14、2＝56）
     rokuyo: s.rokuyo !== false, // 六曜を表示（既定オン。boolean の false だけが切。未保存・破損・欠落はオン）
   };
 }
+function normDayHours(v) { const f = Number(v?.from), t = Number(v?.to); return Number.isInteger(f) && Number.isInteger(t) && f >= 0 && t <= 24 && t - f >= 4 ? { from: f, to: t } : { from: 8, to: 22 }; }
 const state = { ...loadUi(), events: [], categories: [], loaded: false, strip: null }; // strip: 右の帯から開いたタスク／メモ（'task'|'memo'）。メモリだけ、保存しない
 // 第19.2版 S11e・S11f（指示14・品質 B-2）: 画面の記憶は、閉じた画面と開いた画面とで分ける。
 // 閉じた画面が読み書きするのは 段（stage）・選んだ日（selected）・日の欄のつまみの段（dayGrip）だけ。開いた縦・横の 表示（view）・ホーム（home）は、閉じている間は書き換えず、保存にもそのまま戻す。開いたらこの画面に戻る。
@@ -151,8 +154,8 @@ function saveUi() {
   const { view, home } = OPENUI, { selected, dayGrip } = state;
   // 閉じた横（34 §14）は段を使わない。横の間の保存には stage を書かず（S11e 指示10）、縦に戻ったとき・横のまま起動し直したときのために控え（stageHeld）だけを残す
   const stage = closedLand() ? undefined : state.stage, stageHeld = closedLand() ? state.stage : undefined;
-  const { style, desk, monthExpand, monthForm, monthDay, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView, spreadType, ttSplit } = state;
-  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, monthForm, stage, stageHeld, dayGrip, monthDay, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTimeV: 11, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView, spreadType, ttSplit })); } catch { /* 保存不可でも動作は続ける */ }
+  const { style, desk, monthExpand, monthForm, monthDay, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView, spreadType, ttSplit, dayHours, dayHh } = state;
+  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, monthForm, stage, stageHeld, dayGrip, monthDay, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTimeV: 11, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView, spreadType, ttSplit, dayHours, ...(dayHh == null ? {} : { dayHh }) })); } catch { /* 保存不可でも動作は続ける */ }
 }
 // 左右（または縦の下パネル）のページを選ぶ。同じ種類が左右に並ぶ場合は交換。
 function setPage(side, id) { set({ pages: selectPage(state.pages, side, id) }); }
@@ -1433,7 +1436,7 @@ function stageHtml() {
 // つまみは時間軸の下（下へ引くと指についてきて広がる）。1時間の高さは 14（詰めた形）⇄ 56（広げた形）。カードが 44 より低くなる時間だけ、その時間を広げる（js/elastic.js。予定のない時間は詰まったまま）。
 // 見せる範囲は 9:00（それより早い予定があればその時刻）〜 18:00（遅い予定があればその終わり）の 1 時間後まで。残りは「すべての時間」で開く
 const DAYBAR = { min: 14, max: 56, snap: 35, pull: 60, rubber: 0.3, rubberMax: 24, flick: 300, dots: 22 }; // design/35 §5.3（flick＝離す前 80ms の速さがこれ（毎秒）を超えたら払った向きへ）
-const DG = { mode: state.dayGrip, hh: state.dayGrip === 2 ? DAYBAR.max : DAYBAR.min, last: state.dayGrip || 1, drag: null, raf: 0, swap: 0, tlKey: '', unfold: false }; // mode 0=A カード、1=B 時間・最低限（1時間 28）、2=C 時間・詳細（88）。hh は1時間の高さ。state.dayGrip に覚える（保存の形・値の範囲 0〜2 は v19.2 のまま。古い 1 は「時間・最低限」として読む）。last＝最後に見ていた時間の段（「時間」をたたいたときに戻る先。覚えるのはこの起動の間だけ）
+const DG = { mode: state.dayGrip, hh: state.dayGrip ? (state.dayHh ?? (state.dayGrip === 2 ? DAYBAR.max : DAYBAR.min)) : DAYBAR.min, hhKeep: state.dayHh, last: state.dayGrip || 1, drag: null, raf: 0, swap: 0, tlKey: '', unfold: false }; // mode 0=A カード、1=B 時間・最低限（1時間 28）、2=C 時間・詳細（88）。hh は1時間の高さ。state.dayGrip に覚える（保存の形・値の範囲 0〜2 は v19.2 のまま。古い 1 は「時間・最低限」として読む）。last＝最後に見ていた時間の段（「時間」をたたいたときに戻る先。覚えるのはこの起動の間だけ）
 const DG_EASE = STG_EASE(0.16, 1, 0.3, 1);
 const dayMode = () => DG.mode;
 const dayNth = (e, k) => { const n = Math.round((parseKey(dayOf(e.end)) - parseKey(dayOf(e.start))) / 864e5) + 1; return n > 1 ? `（${Math.round((parseKey(k) - parseKey(dayOf(e.start))) / 864e5) + 1}/${n}日目）` : ''; };
@@ -1561,11 +1564,13 @@ function dayFoldMin() { return fsRange(state.selected).from; }
 const FSC = { min: 44, map: null, hh: 0, from: 0, to: 1440 };
 function fsRange(k) {
   const bs = dayBlocks(k, 1);
-  const first = bs.length ? Math.min(...bs.map((b) => b.s)) : 9 * 60, last = bs.length ? Math.max(...bs.map((b) => b.en)) : 18 * 60;
-  return { bs, from: Math.min(9, Math.floor(first / 60)) * 60, to: Math.min(1440, Math.max(18, Math.ceil(last / 60)) * 60 + 60) };
+  const first = bs.length ? Math.min(...bs.map((b) => b.s)) : 1440, last = bs.length ? Math.max(...bs.map((b) => b.en)) : 0;
+  const dh = state.dayHours; // 征希さん「設定で決めた1日（8:00-22:00）で表示」。範囲の外に予定がある日は、その予定まで広げる
+  return { bs, from: Math.min(dh.from, Math.floor(first / 60)) * 60, to: Math.min(1440, Math.max(dh.to, Math.ceil(last / 60)) * 60) };
 }
 const fsTl = () => root.querySelector('.mpull.browse .mday .tl[data-fs]');
-const fsCompact = (col) => !!col?.closest?.('.tl[data-fs]') && dayMode() === 1;
+const FS_TAP = 28; // 1時間がこれより低いと、指で時刻を選べない（15分が 7 未満）
+const fsCompact = (col) => !!col?.closest?.('.tl[data-fs]') && DG.hh < FS_TAP;
 const fsOn = (pane) => pane === 'mday' && !!FSC.map && !!fsTl();
 function fsVis(hh) { const { bs } = fsRange(state.selected), m = elasticMap(elasticHours(bs, hh, FSC.min)); return m.y(FSC.to) - m.y(FSC.from); }
 function fsLayout(tl = fsTl(), hh = DG.hh) {
@@ -1610,11 +1615,12 @@ function dayUnfold() {
 const dayKids = (el) => [...(el.querySelector(':scope > .mdin') || el).children];
 function paintDayPane(anim = false, keep = false) {
   const old = root.querySelector('.mpull.browse .mday'); if (!old) return;
-  const st = old.scrollTop;
+  const st = old.scrollTop, sec = old.closest('.mpull.browse[data-stage]'), secSt = sec?.scrollTop ?? 0;
   old.insertAdjacentHTML('afterend', stageDayHtml()); old.remove();
   const el = root.querySelector('.mpull.browse .mday');
+  if (keep && sec && sec.scrollTop !== secSt) sec.scrollTop = secSt; // 第19.5版: 描き直しで画面（1本のスクロール）の位置が数 px ずれないように戻す
   if (keep) el.dataset.dgFresh = '0'; else DG.tlKey = ''; // 「カード｜時間」で切り替えたときは、開いた時間軸を最初の予定の1時間前へ合わせ直す。バーで幅を変えたとき（keep）はそのまま
-  dayAfterRender(el); if (keep) el.scrollTop = st;
+  dayAfterRender(el); if (keep) { el.scrollTop = st; if (sec && sec.scrollTop !== secSt) sec.scrollTop = secSt; }
   if (!anim) return;
   // 前を 0.08 秒で消してから、次を 0.12 秒で出す（35 §5.1。見出しと切り替えは動かさない）。視差効果を減らす: 0.15 秒のフェード
   const kf = reduced() ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0 }, { opacity: 0, offset: 0.4 }, { opacity: 1 }], tm = reduced() ? { duration: 150, easing: 'linear' } : { duration: 200, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' };
@@ -1635,10 +1641,11 @@ function daySwap(old, st0) {
   });
 }
 const DAY_NAME = ['カード', '時間', '時間・詳細'];
-function setDayMode(mode, announce = true, keep = false) {
+function setDayMode(mode, announce = true, keep = false, hh = null) {
   const was = dayMode();
-  DG.hh = mode === 2 ? DAYBAR.max : DAYBAR.min; DG.mode = mode ? mode : 0; if (DG.mode) DG.last = DG.mode;
-  if (state.dayGrip !== DG.mode) { state.dayGrip = DG.mode; saveUi(); }
+  // 第19.5版（征希さん「好きな位置で止められるように」）: 1時間の高さは 14〜56 の好きな値（hh）。mode（dayGrip）は 35 を境に 1／2 を書くだけ（保存の形は今までどおり）。hh を渡さないとき（キー・たたき・切り替え）は端の値
+  DG.hh = hh ?? (mode === 2 ? DAYBAR.max : DAYBAR.min); DG.mode = mode ? mode : 0; if (DG.mode) { DG.last = DG.mode; DG.hhKeep = DG.hh; }
+  if (state.dayGrip !== DG.mode || (DG.mode && state.dayHh !== DG.hh)) { state.dayGrip = DG.mode; if (DG.mode) state.dayHh = DG.hh; saveUi(); }
   paintDayPane(was !== mode && (was === 0 || mode === 0), keep);
   if (announce && was !== mode) say(mode && was ? `時間の幅を${mode === 2 ? '詳細' : '最低限'}にしました。` : `日の欄を${DAY_NAME[mode ? 1 : 0]}にしました。`);
   if (mode && !was) dayBarHint();
@@ -1647,7 +1654,7 @@ function setDayMode(mode, announce = true, keep = false) {
 function dayTab(to) {
   const m = to === 'time' ? (dayMode() || DG.last || 1) : 0;
   cancelAnimationFrame(DG.raf); DG.raf = 0; DG.drag = null;
-  if (m !== dayMode()) setDayMode(m);
+  if (m !== dayMode()) setDayMode(m, true, false, m ? DG.hhKeep : null); // 時間は、最後に見ていた高さで開く
   root.querySelector(`.mpull.browse .mdct [data-dg="${to}"]`)?.focus({ preventScroll: true });
 }
 // 35 §5.4（§9.5 の続き）: 「時間」に初めて切り替えた1回だけ、バーの下に札「バーを下へ引くと、時間が広がります」（0.15 秒で出し、触れるか 6 秒で消す）
@@ -1683,11 +1690,11 @@ function dayBarApply(hh, rub = 0) {
     if (g) { g.setAttribute('aria-valuenow', String(n)); g.setAttribute('aria-valuetext', n === 2 ? '詳細' : '最低限'); }
   }
 }
-function dayGripSnap(toMode) {
+function dayGripSnap(toMode, hhTo = null) {
   cancelAnimationFrame(DG.raf); DG.raf = 0;
-  const md = root.querySelector('.mpull.browse .mday'), tl = md?.querySelector('.tl'); if (!tl) { setDayMode(toMode); return; }
-  const hh1 = toMode === 2 ? DAYBAR.max : DAYBAR.min, h0 = DG.hh, r0 = parseFloat(md.style.getPropertyValue('--dgrub')) || 0, t0m = performance.now();
-  const fin = () => { DG.raf = 0; dayBarApply(hh1, 0); setDayMode(toMode, true, true); };
+  const md = root.querySelector('.mpull.browse .mday'), tl = md?.querySelector('.tl'); if (!tl) { setDayMode(toMode, true, false, hhTo); return; }
+  const hh1 = hhTo ?? (toMode === 2 ? DAYBAR.max : DAYBAR.min), h0 = DG.hh, r0 = parseFloat(md.style.getPropertyValue('--dgrub')) || 0, t0m = performance.now();
+  const fin = () => { DG.raf = 0; dayBarApply(hh1, 0); setDayMode(toMode, hhTo == null, true, hh1); };
   if (reduced() || (Math.abs(hh1 - h0) < 0.01 && !r0)) { fin(); return; }
   const f = (now) => { const x = Math.min(1, (now - t0m) / 250); if (x >= 1) { fin(); return; } const e = DG_EASE(x); dayBarApply(h0 + (hh1 - h0) * e, r0 * (1 - e)); DG.raf = requestAnimationFrame(f); };
   DG.raf = requestAnimationFrame(f);
@@ -1718,10 +1725,10 @@ const dayGripEnd = (ev) => {
   MP.swallow = performance.now() + 400;
   const w = d.pts.filter((p) => ev.timeStamp - p.t <= STG_VWIN); // 離す前 80ms の速さ（つまみ（上）と同じ測り方）
   const v = w.length >= 2 && w[w.length - 1].t > w[0].t ? ((w[w.length - 1].y - w[0].y) / (w[w.length - 1].t - w[0].t)) * 1000 : 0;
-  dayGripSnap(Math.abs(v) > DAYBAR.flick ? (v > 0 ? 2 : 1) : Math.abs(d.dy) >= DAYBAR.pull ? (d.dy > 0 ? 2 : 1) : dayMode()); // 第19.5版: 60 以上引いて離すと引いた向きの形へ（下＝広げた形、上＝詰めた形）、足りなければ元の形へ戻る。速く払ったら払った向きへ（予定の多い日でも同じ引きで切り替わるよう、1時間の高さでなく引いた量で決める）
+  void v; dayGripSnap(DG.hh >= DAYBAR.snap ? 2 : 1, DG.hh); // 第19.5版: 60 以上引いて離すと引いた向きの形へ（下＝広げた形、上＝詰めた形）、足りなければ元の形へ戻る。速く払ったら払った向きへ（予定の多い日でも同じ引きで切り替わるよう、1時間の高さでなく引いた量で決める）
 };
 window.addEventListener('pointerup', dayGripEnd);
-window.addEventListener('pointercancel', (ev) => { if (DG.drag && ev.pointerId === DG.drag.id) { DG.drag = null; root.querySelector('.mpull.browse .mdgrab.drag')?.classList.remove('drag'); if (dayMode()) dayGripSnap(dayMode()); } });
+window.addEventListener('pointercancel', (ev) => { if (DG.drag && ev.pointerId === DG.drag.id) { const h0 = DG.drag.hh0; DG.drag = null; root.querySelector('.mpull.browse .mdgrab.drag')?.classList.remove('drag'); if (dayMode()) dayGripSnap(h0 >= DAYBAR.snap ? 2 : 1, h0); } });
 root.addEventListener('keydown', (ev) => {
   const g = ev.target.closest?.('.mdgrab'); if (!g || (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp')) return;
   ev.preventDefault();
@@ -5050,7 +5057,20 @@ function pickCurlEngine(v) {
   syncCurlMenu();
   natCurl.probe().then((c) => { syncCurlMenu(); say(c ? 'めくりを iOS のめくりにしました。' : 'この端末では iOS のめくりは使えません。'); });
 }
-function syncRokuyoMenu() { $('#m-holiday').setAttribute('aria-checked', String(state.holidayRed)); $('#m-rokuyo').setAttribute('aria-checked', String(state.rokuyo)); }
+// 第19.5版: 設定「時間に出す1日」（始まり 0〜20 時・終わり 4〜24 時。4時間以上あける）
+function syncDayHours() {
+  const f = $('#m-dh-from'), t = $('#m-dh-to'); if (!f || !t) return;
+  const opt = (a, b, sel) => Array.from({ length: b - a + 1 }, (_, i) => `<option value="${a + i}"${a + i === sel ? ' selected' : ''}>${a + i}:00</option>`).join('');
+  f.innerHTML = opt(0, 20, state.dayHours.from); t.innerHTML = opt(4, 24, state.dayHours.to);
+}
+document.addEventListener('change', (ev) => {
+  if (ev.target.id !== 'm-dh-from' && ev.target.id !== 'm-dh-to') return;
+  let from = Number($('#m-dh-from').value), to = Number($('#m-dh-to').value);
+  if (to - from < 4) { if (ev.target.id === 'm-dh-from') to = Math.min(24, from + 4); else from = Math.max(0, to - 4); }
+  set({ dayHours: normDayHours({ from, to }) }); syncDayHours();
+  say(`時間に出す1日を ${state.dayHours.from}:00 から ${state.dayHours.to}:00 にしました。`);
+});
+function syncRokuyoMenu() { syncDayHours(); $('#m-holiday').setAttribute('aria-checked', String(state.holidayRed)); $('#m-rokuyo').setAttribute('aria-checked', String(state.rokuyo)); }
 // 月の表現（手帳｜予定名｜全部）。月表示のときだけ。1回選ぶと閉じる。
 function syncModeMenu() {
   const on = viewNow() === 'month' && !listShown() && (layoutKind() !== 'spread' || PG().left === 'month' || PG().right === 'month');
@@ -7006,7 +7026,7 @@ function cardOrigin(t) {
   const sc = closedLand() ? md : md.closest('.mpull.browse'), from = el.dataset.sday || el.closest('[data-day]')?.dataset.day || state.selected;
   if (el.dataset.task) return { kind: 'grab', ck: 'task', id: el.dataset.task, el, from, tl: null, sc };
   if (el.dataset.note) return { kind: 'grab', ck: 'note', id: el.dataset.note, el, from, tl: null, sc };
-  return el.dataset.event ? { kind: 'grab', ck: 'event', id: el.dataset.event, el, from, tl: null, sc } : null;
+  return el.dataset.event ? { kind: 'grab', ck: 'event', id: el.dataset.event, el, from, tl: el.matches('.tlev') ? el.closest('.tl[data-fs]') : null, sc } : null; // 第19.5版: 「時間」の枠は、時間軸の中で引くと時刻が動く（tl を渡す）
 }
 const dayDiffKeys = (a, b) => Math.round((parseKey(a) - parseKey(b)) / 864e5);
 const hmOfIso = (iso) => Number(iso.slice(11, 13)) * 60 + Number(iso.slice(14, 16));
@@ -7042,7 +7062,7 @@ function grabInfoOf(ck, id, tl = null) {
   if (ck === 'task') { const r = RM.data?.reminders.find((x) => x.itemId === id); return r?.due?.date ? { task: r, title: r.title || '（題名なし）', shift: false, day: r.due.date } : null; }
   if (ck === 'note') { const c = noteCardById(id); return c ? { note: c, title: c.title || EMPTY_TITLE, shift: false, day: c.day } : null; }
   const ext = visExt().find((x) => x.id === id);
-  if (ext) return { ext, title: ext.title, shift: false, rec: !!ext.recurring };
+  if (ext) { const one1 = !ext.all && dayOf(ext.start) === dayOf(ext.end) && !!tl?.matches?.('[data-fs]'); return { ext, title: ext.title, shift: one1, sMin: one1 ? hmOfIso(ext.start) : 0, eMin: one1 ? hmOfIso(ext.end) : 0, rec: !!ext.recurring }; } // 第19.5版: iPhone の予定も、閉じた画面の「時間」では時刻を動かせる
   const cur = resolve(id); if (!cur) return null;
   const occ = cur.occ, one = !occ.all && dayOf(occ.start) === dayOf(occ.end);
   return { cur, title: occ.title, shift: !!tl && one, sMin: one ? hmOfIso(occ.start) : 0, eMin: one ? hmOfIso(occ.end) : 0, rec: !!cur.occKey };
@@ -7081,8 +7101,12 @@ function grabRecalc() {
   const tl = GR.o.tl, g = grabInfo();
   if (tl?.isConnected && g?.shift) {
     const rc = tl.getBoundingClientRect(), er = GR.o.el.getBoundingClientRect(); // 時刻は、つかんだ枠の列の中で引いている間だけ動く（月へ向かう横の動きでは変わらない）
-    if (Math.abs(EG.x - GR.x0) <= 24 && EG.x >= er.left && EG.x < er.right && EG.y >= rc.top && EG.y < rc.bottom) {
-      const hh = hhOf(paneOf(tl)), dy = (EG.y - GR.y0) + (tl.scrollTop - GR.s0), dm = fsOn(paneOf(tl)) ? FSC.map.min(FSC.map.y(g.sMin) + dy) - g.sMin : dy / hh * 60;
+    const fsg = fsOn(paneOf(tl)); // 第19.5版（征希さん「別の時間へのドラッグにも対応」）: 閉じた画面の「時間」は、指が時間軸の中にある間は時刻が動く（横にずれてもよい）。時間軸の外（月のマスへ向かう）では時刻は元のまま
+    if (fsg && !(EG.x >= rc.left && EG.x < rc.right && EG.y >= rc.top && EG.y < rc.bottom)) { if (GR.off) { GR.off = 0; mvFeel('light'); } }
+    else if (fsg || (Math.abs(EG.x - GR.x0) <= 24 && EG.x >= er.left && EG.x < er.right && EG.y >= rc.top && EG.y < rc.bottom)) {
+      const hh = hhOf(paneOf(tl)), dy = (EG.y - GR.y0) + (tl.scrollTop - GR.s0), ct = tl.querySelector('.tlcol').getBoundingClientRect().top + TL_PAD;
+      if (fsg && GR.m0 == null) GR.m0 = FSC.map.min(GR.y0 - ct); // つかんだ所の時刻（画面を送っても、指の下の時刻との差で決める）
+      const dm = fsg ? (Math.abs(EG.y - GR.y0) < 12 && !GR.off ? 0 : FSC.map.min(EG.y - ct) - GR.m0) : dy / hh * 60;
       const off = Math.min(1440 - g.eMin, Math.max(-g.sMin, Math.round(dm / 15) * 15));
       if (off !== GR.off) { GR.off = off; mvFeel('light'); }
     }
@@ -7100,7 +7124,7 @@ function grabClear() {
   if (GR.inert) { GR.inert.inert = false; GR.inert = null; }
   root.querySelectorAll('.grabbed, .lifted, .liftrel').forEach((n) => n.classList.remove('grabbed', 'lifted', 'liftrel'));
   document.documentElement.removeAttribute('data-grab');
-  GR.on = false; GR.o = null; GR.ext = null; GR.off = 0; GR.gen++; GR.asChip = false; GR.cells = null; GR.ckey = ''; GR.acc = 0;
+  GR.on = false; GR.o = null; GR.ext = null; GR.off = 0; GR.m0 = null; GR.gen++; GR.asChip = false; GR.cells = null; GR.ckey = ''; GR.acc = 0;
 }
 // やめた（落とせない所で離す・元の日で離す・指がキャンセルされた。35 §6.5）: 札をカードの大きさに戻しながら、元の場所へ 0.22 秒（out の3乗）。知らせ・触覚・保存は出さない。視差効果を減らすときは 0.15 秒のフェードだけ
 const BACK_MS = 220, BACK_EASE = 'cubic-bezier(0.33, 1, 0.68, 1)';
@@ -7244,7 +7268,7 @@ async function commitFast(plan, { ops = [] } = {}, show = (fn) => { fn(); render
 async function moveGrabbed(g, fromDay, toDay, off, st) {
   if (g.task) return moveTaskCard(g.task.itemId, toDay);
   if (g.note) return moveNoteCard(g.note.id, toDay);
-  if (g.ext) return moveExt(g, fromDay, toDay, st);
+  if (g.ext) return moveExt(g, fromDay, toDay, st, off);
   const { p, occKey, occ } = g.cur;
   const eff = addDays(dayOf(occ.start), dayDiffKeys(toDay, fromDay || dayOf(occ.start)));
   if (eff === dayOf(occ.start) && !off) return; // 34 §16-4: 同じ日・同じ時刻なら何もしない（保存・知らせ・触覚なし。繰り返しの回に overrides を作らない）
@@ -7268,17 +7292,17 @@ function extShow(e, start, end, toDay, show = true) {
   return c;
 }
 const extUnshow = (c) => { if (c && X.cache && X.cache.loadedAt === c.loadedAt) { X.cache = c; render(); } };
-async function moveExt(g, fromDay, toDay, st) {
+async function moveExt(g, fromDay, toDay, st, off = 0) {
   const e = g.ext;
-  if (toDay === (fromDay || dayOf(e.start))) return; // 34 §16-4: 同じ日なら何もしない（getEvent も呼ばない。iPhone へ書かない）
-  const n = dayDiffKeys(toDay, fromDay || dayOf(e.start)), sh = (iso) => `${addDays(dayOf(iso), n)}${iso.slice(10)}`;
-  const prevC = extShow(e, sh(e.start), sh(e.end), addDays(dayOf(e.start), n)), back = { ck: 'event', id: e.id, day: toDay };
+  if (toDay === (fromDay || dayOf(e.start)) && !off) return; // 34 §16-4: 同じ日なら何もしない（getEvent も呼ばない。iPhone へ書かない）
+  const n = dayDiffKeys(toDay, fromDay || dayOf(e.start)), sh = (iso) => { const x = `${addDays(dayOf(iso), n)}${iso.slice(10)}`; return off ? isoPlusMin(x, off) : x; };
+  const prevC = extShow(e, sh(e.start), sh(e.end), addDays(dayOf(e.start), n), n !== 0), back = { ck: 'event', id: e.id, day: toDay };
   if (!st || st.status === 'loading') {
     try { const d = await call('getEvent', extTarget(e)); const cal = X.calendars.find((c) => c.id === e.calId); st = { detail: d, cal, ed: extEditable(e, cal, d), before: { ...toDisplay(d, cal), id: e.id } }; } catch { extUnshow(prevC); moveFail('この予定は取得できませんでした。', back); return; }
   }
   if (st.status === 'no' || !st.ed?.editable) { extUnshow(prevC); moveFail(REASON_TEXT[st.ed?.reason] || XD_NOTE, back); return; }
   const eff = addDays(dayOf(st.before.start), dayDiffKeys(toDay, fromDay || dayOf(st.before.start)));
-  const mv = window.__duoMoveFail === 'plan' ? null : buildMoveExtArgs(st.before, eff, st.detail);
+  const mv = window.__duoMoveFail === 'plan' ? null : buildMoveExtArgs(st.before, eff, st.detail, off);
   if (!mv) { extUnshow(prevC); moveFail('移せませんでした。', back); return; }
   let r;
   try { r = await call('updateExternalEvent', mv.args); } catch (err) {
@@ -7565,7 +7589,7 @@ directCtl = initDirectInput({
       monthEdgeUpdate(); return;
     }
     if (o.kind !== 'time') return;
-    if (o.pane === 'mday' && fsTl() && dayMode() === 1) { dayGripSnap(2); feel('light'); return; } // 第19.5版: 詰めた形の長押しも、まず広げるだけ
+    if (o.pane === 'mday' && fsTl() && DG.hh < FS_TAP) { dayGripSnap(2); feel('light'); return; } // 第19.5版: 詰めた形の長押しも、まず広げるだけ
     const m = dragAt(y, o); if (m == null) return;
     DIR.anchor = m;
     Object.assign(DF, { mode: 'drag', day: o.day, pane: o.pane, anchor: m }, dragRange(m, m));
@@ -7590,7 +7614,8 @@ directCtl = initDirectInput({
     if (o.kind === 'grab') {
       if (!GR.on) return;
       EG.x = x; EG.y = y;
-      const day = moveDayAt(x, y), g = grabInfo(), off = GR.off, st = GR.ext;
+      const g = grabInfo(), off = GR.off, st = GR.ext;
+      const day = moveDayAt(x, y) || (off && g && GR.o?.tl?.matches?.('[data-fs]') ? (o.from || g.day || dayOf(g.ext ? g.ext.start : g.cur.occ.start)) : null); // 第19.5版: 閉じた画面の「時間」で、時間軸の中で時刻を動かして離した＝同じ日のまま時刻だけ変える（開いた画面は今までどおり、月でない所で離したら取りやめ）
       const from = g ? (o.from || g.day || dayOf(g.ext ? g.ext.start : g.cur.occ.start)) : null;
       if (!g || !day || (!off && day === from)) { grabBack(); return; } // やめた（月の日以外・溝の上・元の日で離した。34 §16-4・35 §6.5）: 0.22 秒で元へ戻すだけ（知らせ・触覚・保存なし）
       mvLog('drop', { day });

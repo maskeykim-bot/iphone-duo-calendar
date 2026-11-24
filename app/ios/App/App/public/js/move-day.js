@@ -59,8 +59,10 @@ export const canGrabExt = (x, cal, detail) => extEditable(x, cal, detail).editab
 
 // 移す引数。start/end/all だけを送る（題名・メモは送らない）。変わらなければ null。繰り返しは span:'this'（その回だけ）。
 // 戻り値 { args, note, after:{start,end} }。
-export function buildMoveExtArgs(before, toDay, detail) {
-  const t = moveTimes(before, toDay);
+// offMin（第19.5版）: 同じ日のまま、または移した先の日で、時刻を分だけずらす（終日は動かさない。1日の中に収まる値だけを渡す）。
+const plusMin = (iso, n) => { const t = Number(iso.slice(11, 13)) * 60 + Number(iso.slice(14, 16)) + n, p = (v) => String(v).padStart(2, '0'); return `${iso.slice(0, 10)}T${p(Math.floor(t / 60))}:${p(t % 60)}`; };
+export function buildMoveExtArgs(before, toDay, detail, offMin = 0) {
+  const t0 = moveTimes(before, toDay), t = offMin && !before.all ? { ...t0, start: plusMin(t0.start, offMin), end: plusMin(t0.end, offMin) } : t0;
   const args = buildExtArgs(before, { start: t.start, end: t.end, all: !!before.all }, 'only', detail);
   if (!args) return null;
   return { args, note: t.note, after: { start: t.start, end: t.end } };
