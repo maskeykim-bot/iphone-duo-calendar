@@ -1,0 +1,851 @@
+{
+ "from": "colors36-lib.mjs / colors37-lib.mjs",
+ "criteria": {
+  "text": 4.5,
+  "nonText": 3,
+  "cvdDeltaE": 10,
+  "normalDeltaE": 15
+ },
+ "bg": {
+  "light": {
+   "paper": "#F7F4ED",
+   "capsule": "#EFECE4",
+   "card": "#FFFFFF",
+   "sheet": "#FFFDFA"
+  },
+  "dark": {
+   "paper": "#1C1F1D",
+   "capsule": "#30352F",
+   "card": "#262A27"
+  }
+ },
+ "ink": {
+  "light": "#293B35",
+  "black": "#1C1F1D",
+  "white": "#FFFFFF",
+  "darkInk": "#E8E6E0"
+ },
+ "satCol": {
+  "light": "#EEF1F4",
+  "dark": "#232A2F"
+ },
+ "weekendA": {
+  "name": "土青・日赤（今の形）",
+  "sat": "#526B90",
+  "sun": "#B43C3C",
+  "satHead": "#526B90",
+  "sunHead": "#B43C3C",
+  "satCol": "#EEF1F4",
+  "hol": "#B43C3C"
+ },
+ "moreN": "#5D6963",
+ "shape": {
+  "chipH": 14,
+  "radius": 3,
+  "lineX": 2,
+  "lineW": 2.5,
+  "lineH": 10,
+  "lineR": 1.25,
+  "textX": 7,
+  "blockLineW": 3,
+  "blockR": 4
+ },
+ "palette": [
+  {
+   "n": 1,
+   "name": "青",
+   "hex": "#2F5F8A",
+   "light": {
+    "fill": "#C3E5FC",
+    "tint": "#D4DDEB",
+    "line": "#526B90",
+    "mark": "#526B90"
+   },
+   "dark": {
+    "fill": "#455D6D",
+    "tint": "#29303B",
+    "line": "#ABD0E9",
+    "mark": "#ABD0E9"
+   }
+  },
+  {
+   "n": 2,
+   "name": "赤紫",
+   "hex": "#8A4B6B",
+   "light": {
+    "fill": "#D7B3CA",
+    "tint": "#E7D7E1",
+    "line": "#643B57",
+    "mark": "#643B57"
+   },
+   "dark": {
+    "fill": "#503848",
+    "tint": "#382C33",
+    "line": "#BD97B0",
+    "mark": "#BD97B0"
+   }
+  },
+  {
+   "n": 3,
+   "name": "緑",
+   "hex": "#2E6B5A",
+   "light": {
+    "fill": "#CAE8D8",
+    "tint": "#D1E1D8",
+    "line": "#4C725F",
+    "mark": "#4C725F"
+   },
+   "dark": {
+    "fill": "#4A5F54",
+    "tint": "#26332D",
+    "line": "#A6C6B6",
+    "mark": "#A6C6B6"
+   }
+  },
+  {
+   "n": 4,
+   "name": "琥珀",
+   "hex": "#87500F",
+   "light": {
+    "fill": "#EBC8A9",
+    "tint": "#E7DACE",
+    "line": "#734A22",
+    "mark": "#734A22"
+   },
+   "dark": {
+    "fill": "#5B442E",
+    "tint": "#382E24",
+    "line": "#C19D7C",
+    "mark": "#C19D7C"
+   }
+  },
+  {
+   "n": 5,
+   "name": "灰",
+   "hex": "#5A5E62",
+   "light": {
+    "fill": "#BDB6AC",
+    "tint": "#E0DCD5",
+    "line": "#423C34",
+    "mark": "#423C34"
+   },
+   "dark": {
+    "fill": "#312D27",
+    "tint": "#332F29",
+    "line": "#A29E98",
+    "mark": "#A29E98"
+   }
+  },
+  {
+   "n": 6,
+   "name": "赤",
+   "hex": "#A13A3A",
+   "light": {
+    "fill": "#F7C3BF",
+    "tint": "#EBD7D6",
+    "line": "#985855",
+    "mark": "#985855"
+   },
+   "dark": {
+    "fill": "#633F3D",
+    "tint": "#3A2C2A",
+    "line": "#D0928E",
+    "mark": "#D0928E"
+   }
+  },
+  {
+   "n": 7,
+   "name": "紫",
+   "hex": "#5E4C8E",
+   "light": {
+    "fill": "#CEC6EF",
+    "tint": "#DDDAEA",
+    "line": "#6D6194",
+    "mark": "#6D6194"
+   },
+   "dark": {
+    "fill": "#49435F",
+    "tint": "#302E3A",
+    "line": "#A79DC9",
+    "mark": "#A79DC9"
+   }
+  },
+  {
+   "n": 8,
+   "name": "青緑",
+   "hex": "#1F6A73",
+   "light": {
+    "fill": "#B3D8DD",
+    "tint": "#CDE1E4",
+    "line": "#417279",
+    "mark": "#417279"
+   },
+   "dark": {
+    "fill": "#344F52",
+    "tint": "#233335",
+    "line": "#85ADB2",
+    "mark": "#85ADB2"
+   }
+  },
+  {
+   "n": 9,
+   "name": "黄緑",
+   "hex": "#556A1C",
+   "light": {
+    "fill": "#CAD8AF",
+    "tint": "#D9DFCF",
+    "line": "#60703B",
+    "mark": "#60703B"
+   },
+   "dark": {
+    "fill": "#454E31",
+    "tint": "#2D3226",
+    "line": "#9DAC80",
+    "mark": "#9DAC80"
+   }
+  },
+  {
+   "n": 10,
+   "name": "紺",
+   "hex": "#2C3F75",
+   "light": {
+    "fill": "#ADBCDF",
+    "tint": "#D6DCEC",
+    "line": "#41517B",
+    "mark": "#41517B"
+   },
+   "dark": {
+    "fill": "#374158",
+    "tint": "#2B303B",
+    "line": "#95A4C9",
+    "mark": "#95A4C9"
+   }
+  },
+  {
+   "n": 11,
+   "name": "茶",
+   "hex": "#6E4E3A",
+   "light": {
+    "fill": "#DAC5B9",
+    "tint": "#E6DAD3",
+    "line": "#7A6152",
+    "mark": "#7A6152"
+   },
+   "dark": {
+    "fill": "#52443B",
+    "tint": "#372E28",
+    "line": "#B6A092",
+    "mark": "#B6A092"
+   }
+  },
+  {
+   "n": 12,
+   "name": "灰青",
+   "hex": "#476175",
+   "light": {
+    "fill": "#C2D2DE",
+    "tint": "#D5DEE5",
+    "line": "#596D7C",
+    "mark": "#596D7C"
+   },
+   "dark": {
+    "fill": "#404B53",
+    "tint": "#2A3136",
+    "line": "#96A7B4",
+    "mark": "#96A7B4"
+   }
+  }
+ ],
+ "auto": [
+  {
+   "name": "未分類",
+   "hex": "#68716A",
+   "light": {
+    "fill": "#D5DDD7",
+    "tint": "#D7DFD9",
+    "line": "#656C67",
+    "mark": "#69706B"
+   },
+   "dark": {
+    "fill": "#49504B",
+    "tint": "#2B322D",
+    "line": "#9FA7A1",
+    "mark": "#9FA7A1"
+   }
+  },
+  {
+   "name": "旧 仕事",
+   "hex": "#375A7F",
+   "light": {
+    "fill": "#B8CEE5",
+    "tint": "#D2DEEB",
+    "line": "#516B87",
+    "mark": "#516B87"
+   },
+   "dark": {
+    "fill": "#3A4959",
+    "tint": "#28313B",
+    "line": "#91A7C0",
+    "mark": "#91A7C0"
+   }
+  },
+  {
+   "name": "旧 プライベート",
+   "hex": "#885265",
+   "light": {
+    "fill": "#EDCAD4",
+    "tint": "#EAD7DC",
+    "line": "#885F6C",
+    "mark": "#885F6C"
+   },
+   "dark": {
+    "fill": "#5B444B",
+    "tint": "#392B30",
+    "line": "#BD99A5",
+    "mark": "#BD99A5"
+   }
+  },
+  {
+   "name": "旧 ゴルフ",
+   "hex": "#396B49",
+   "light": {
+    "fill": "#BCD8C3",
+    "tint": "#D2E1D6",
+    "line": "#4E7259",
+    "mark": "#4E7259"
+   },
+   "dark": {
+    "fill": "#3B4F40",
+    "tint": "#28332B",
+    "line": "#8FAE97",
+    "mark": "#8FAE97"
+   }
+  },
+  {
+   "name": "旧 経済指標",
+   "hex": "#825A23",
+   "light": {
+    "fill": "#E8CFB1",
+    "tint": "#E6DBCD",
+    "line": "#83653F",
+    "mark": "#83653F"
+   },
+   "dark": {
+    "fill": "#584733",
+    "tint": "#372E24",
+    "line": "#BAA081",
+    "mark": "#BAA081"
+   }
+  },
+  {
+   "name": "iPhone 赤",
+   "hex": "#FF2968",
+   "light": {
+    "fill": "#FECED3",
+    "tint": "#EBD7D9",
+    "line": "#985861",
+    "mark": "#AB6972"
+   },
+   "dark": {
+    "fill": "#674347",
+    "tint": "#3A2B2D",
+    "line": "#CF9198",
+    "mark": "#CF9198"
+   }
+  },
+  {
+   "name": "iPhone 橙",
+   "hex": "#FF9500",
+   "light": {
+    "fill": "#FAD4B4",
+    "tint": "#E8DACE",
+    "line": "#8F6034",
+    "mark": "#A27246"
+   },
+   "dark": {
+    "fill": "#624831",
+    "tint": "#382E24",
+    "line": "#C79B74",
+    "mark": "#C79B74"
+   }
+  },
+  {
+   "name": "iPhone 黄",
+   "hex": "#FFCC00",
+   "light": {
+    "fill": "#EBDBB0",
+    "tint": "#E2DCCD",
+    "line": "#7D682A",
+    "mark": "#8F7A3C"
+   },
+   "dark": {
+    "fill": "#594D2E",
+    "tint": "#342F23",
+    "line": "#B7A36D",
+    "mark": "#B7A36D"
+   }
+  },
+  {
+   "name": "iPhone 緑",
+   "hex": "#63DA38",
+   "light": {
+    "fill": "#C9E7C1",
+    "tint": "#D5E0D2",
+    "line": "#4E7444",
+    "mark": "#608655"
+   },
+   "dark": {
+    "fill": "#40553B",
+    "tint": "#2A3328",
+    "line": "#8DB083",
+    "mark": "#8DB083"
+   }
+  },
+  {
+   "name": "iPhone 青",
+   "hex": "#1BADF8",
+   "light": {
+    "fill": "#BBE2FF",
+    "tint": "#D0DFEA",
+    "line": "#357095",
+    "mark": "#4882A8"
+   },
+   "dark": {
+    "fill": "#345267",
+    "tint": "#26323A",
+    "line": "#78ACCF",
+    "mark": "#78ACCF"
+   }
+  },
+  {
+   "name": "iPhone 紫",
+   "hex": "#CC73E1",
+   "light": {
+    "fill": "#EFD0F6",
+    "tint": "#E3D8E6",
+    "line": "#835D8C",
+    "mark": "#946D9D"
+   },
+   "dark": {
+    "fill": "#5B4660",
+    "tint": "#352C37",
+    "line": "#BA96C2",
+    "mark": "#BA96C2"
+   }
+  },
+  {
+   "name": "iPhone 茶",
+   "hex": "#A2845E",
+   "light": {
+    "fill": "#EBD9C3",
+    "tint": "#E5DBCF",
+    "line": "#7C674C",
+    "mark": "#8E785D"
+   },
+   "dark": {
+    "fill": "#584C3D",
+    "tint": "#362E25",
+    "line": "#B4A18B",
+    "mark": "#B4A18B"
+   }
+  },
+  {
+   "name": "モック 仕事（Google 青）",
+   "hex": "#1A73E8",
+   "light": {
+    "fill": "#C9DEFD",
+    "tint": "#D4DDEB",
+    "line": "#4A6B9B",
+    "mark": "#5779AA"
+   },
+   "dark": {
+    "fill": "#3D4F6A",
+    "tint": "#29303B",
+    "line": "#87A6D4",
+    "mark": "#87A6D4"
+   }
+  },
+  {
+   "name": "モック 趣味",
+   "hex": "#8E24AA",
+   "light": {
+    "fill": "#E2C6EB",
+    "tint": "#E3D8E6",
+    "line": "#825D8E",
+    "mark": "#825D8E"
+   },
+   "dark": {
+    "fill": "#55415C",
+    "tint": "#352C37",
+    "line": "#B996C3",
+    "mark": "#B996C3"
+   }
+  },
+  {
+   "name": "モック 個人",
+   "hex": "#D93025",
+   "light": {
+    "fill": "#FED0C8",
+    "tint": "#EBD7D4",
+    "line": "#985950",
+    "mark": "#A6665C"
+   },
+   "dark": {
+    "fill": "#67443F",
+    "tint": "#3A2C29",
+    "line": "#D0938A",
+    "mark": "#D0938A"
+   }
+  },
+  {
+   "name": "モック 祝日",
+   "hex": "#0B8043",
+   "light": {
+    "fill": "#BCE5C6",
+    "tint": "#D2E1D6",
+    "line": "#3D754F",
+    "mark": "#417953"
+   },
+   "dark": {
+    "fill": "#375540",
+    "tint": "#28332A",
+    "line": "#81B38E",
+    "mark": "#81B38E"
+   }
+  },
+  {
+   "name": "モック 予備",
+   "hex": "#555555",
+   "light": {
+    "fill": "#C9C9C9",
+    "tint": "#DCDCDC",
+    "line": "#666666",
+    "mark": "#666666"
+   },
+   "dark": {
+    "fill": "#464646",
+    "tint": "#303030",
+    "line": "#A4A4A4",
+    "mark": "#A4A4A4"
+   }
+  },
+  {
+   "name": "1枚目 紺青",
+   "hex": "#1264A0",
+   "light": {
+    "fill": "#B2D6F7",
+    "tint": "#D1DEEB",
+    "line": "#3E6E98",
+    "mark": "#3E6E98"
+   },
+   "dark": {
+    "fill": "#334C64",
+    "tint": "#27313B",
+    "line": "#80A9D0",
+    "mark": "#80A9D0"
+   }
+  },
+  {
+   "name": "1枚目 水色",
+   "hex": "#34AADC",
+   "light": {
+    "fill": "#B5E4FD",
+    "tint": "#CFE0E9",
+    "line": "#2B7191",
+    "mark": "#4084A5"
+   },
+   "dark": {
+    "fill": "#305465",
+    "tint": "#253239",
+    "line": "#73AECB",
+    "mark": "#73AECB"
+   }
+  },
+  {
+   "name": "1枚目 赤茶",
+   "hex": "#B93B18",
+   "light": {
+    "fill": "#FECCBF",
+    "tint": "#EBD8D3",
+    "line": "#975A4A",
+    "mark": "#975A4A"
+   },
+   "dark": {
+    "fill": "#66433A",
+    "tint": "#3A2C28",
+    "line": "#CF9485",
+    "mark": "#CF9485"
+   }
+  },
+  {
+   "name": "1枚目 桃",
+   "hex": "#FF2968",
+   "light": {
+    "fill": "#FECED3",
+    "tint": "#EBD7D9",
+    "line": "#985861",
+    "mark": "#AB6972"
+   },
+   "dark": {
+    "fill": "#674347",
+    "tint": "#3A2B2D",
+    "line": "#CF9198",
+    "mark": "#CF9198"
+   }
+  },
+  {
+   "name": "1枚目 黄緑",
+   "hex": "#9AA615",
+   "light": {
+    "fill": "#DBE2B5",
+    "tint": "#DCDFCE",
+    "line": "#686F32",
+    "mark": "#7A8144"
+   },
+   "dark": {
+    "fill": "#4D5231",
+    "tint": "#2F3125",
+    "line": "#A3AB74",
+    "mark": "#A3AB74"
+   }
+  },
+  {
+   "name": "白",
+   "hex": "#FFFFFF",
+   "light": {
+    "fill": "#DCDCDC",
+    "tint": "#DCDCDC",
+    "line": "#6A6A6A",
+    "mark": "#7B7B7B"
+   },
+   "dark": {
+    "fill": "#4E4E4E",
+    "tint": "#303030",
+    "line": "#A4A4A4",
+    "mark": "#A4A4A4"
+   }
+  },
+  {
+   "name": "黒",
+   "hex": "#000000",
+   "light": {
+    "fill": "#BCBCBC",
+    "tint": "#DCDCDC",
+    "line": "#2E2E2E",
+    "mark": "#2E2E2E"
+   },
+   "dark": {
+    "fill": "#414141",
+    "tint": "#303030",
+    "line": "#A4A4A4",
+    "mark": "#A4A4A4"
+   }
+  },
+  {
+   "name": "純赤",
+   "hex": "#FF0000",
+   "light": {
+    "fill": "#FED0C8",
+    "tint": "#EBD7D4",
+    "line": "#985950",
+    "mark": "#AB6A61"
+   },
+   "dark": {
+    "fill": "#67443E",
+    "tint": "#3A2C29",
+    "line": "#CF9389",
+    "mark": "#CF9389"
+   }
+  },
+  {
+   "name": "純黄",
+   "hex": "#FFFF00",
+   "light": {
+    "fill": "#DEE0B3",
+    "tint": "#DDDECE",
+    "line": "#6C6D2E",
+    "mark": "#7E7F40"
+   },
+   "dark": {
+    "fill": "#505130",
+    "tint": "#303124",
+    "line": "#A7A972",
+    "mark": "#A7A972"
+   }
+  }
+ ],
+ "out": {
+  "light": {
+   "text": "#5D6963",
+   "textAlpha": 0.75,
+   "tintAlpha": 0.3,
+   "lineAlpha": 0.79,
+   "tints": [
+    "#ECEDEC",
+    "#F2EBE9",
+    "#ECEEE7",
+    "#F2ECE4",
+    "#F0EDE6",
+    "#F3EBE6",
+    "#EFECEC",
+    "#EAEEEA",
+    "#EEEEE4",
+    "#EDEDED",
+    "#F2ECE5",
+    "#EDEDEB",
+    "#EDEEE7"
+   ],
+   "lines": [
+    "#7588A4",
+    "#836277",
+    "#708D7D",
+    "#8F6E4D",
+    "#68635B",
+    "#AC7975",
+    "#8A80A7",
+    "#678D91",
+    "#808C60",
+    "#677393",
+    "#948073",
+    "#7A8994",
+    "#848983"
+   ]
+  },
+  "dark": {
+   "text": "#A3A29E",
+   "textAlpha": 0.66,
+   "tintAlpha": 0.3,
+   "lineAlpha": 0.62,
+   "tints": [
+    "#202426",
+    "#242324",
+    "#1F2522",
+    "#24241F",
+    "#232421",
+    "#252321",
+    "#222426",
+    "#1E2524",
+    "#212520",
+    "#212426",
+    "#242420",
+    "#202425",
+    "#212522"
+   ],
+   "lines": [
+    "#758D9B",
+    "#806978",
+    "#72877C",
+    "#826D58",
+    "#6F6E69",
+    "#8C6663",
+    "#726D88",
+    "#5D7779",
+    "#6C765A",
+    "#677188",
+    "#7B6F66",
+    "#68737B",
+    "#6D736F"
+   ]
+  }
+ },
+ "flick": [
+  {
+   "id": "kusumiPink",
+   "name": "くすみピンク",
+   "light": {
+    "tint": "#E8D9D8",
+    "line": "#9E645F",
+    "dL": 0
+   },
+   "dark": {
+    "tint": "#362D2C",
+    "line": "#C99A95",
+    "dL": 0
+   }
+  },
+  {
+   "id": "sage",
+   "name": "セージ",
+   "light": {
+    "tint": "#DDE3D8",
+    "line": "#65785B",
+    "dL": 0
+   },
+   "dark": {
+    "tint": "#2A3127",
+    "line": "#9CB08F",
+    "dL": 0
+   }
+  },
+  {
+   "id": "kusumiBlue",
+   "name": "くすみブルー",
+   "light": {
+    "tint": "#D8DFE6",
+    "line": "#5E758E",
+    "dL": 0
+   },
+   "dark": {
+    "tint": "#283038",
+    "line": "#93A9BF",
+    "dL": 0
+   }
+  },
+  {
+   "id": "lavenderGray",
+   "name": "ラベンダーグレー",
+   "light": {
+    "tint": "#DEDBE6",
+    "line": "#7A6D99",
+    "dL": 0
+   },
+   "dark": {
+    "tint": "#2F2C37",
+    "line": "#A99FC2",
+    "dL": 0
+   }
+  },
+  {
+   "id": "greige",
+   "name": "グレージュ",
+   "light": {
+    "tint": "#E3DED7",
+    "line": "#80715F",
+    "dL": 0
+   },
+   "dark": {
+    "tint": "#312D28",
+    "line": "#B7A792",
+    "dL": 0
+   }
+  },
+  {
+   "id": "terracotta",
+   "name": "テラコッタ",
+   "light": {
+    "tint": "#E7D8CF",
+    "line": "#A56148",
+    "dL": 0
+   },
+   "dark": {
+    "tint": "#372A25",
+    "line": "#CF917A",
+    "dL": 0
+   }
+  },
+  {
+   "id": "milkTea",
+   "name": "ミルクティー",
+   "light": {
+    "tint": "#E6DDD2",
+    "line": "#8A6E53",
+    "dL": 0
+   },
+   "dark": {
+    "tint": "#342C25",
+    "line": "#C2A688",
+    "dL": 0
+   }
+  }
+ ]
+}
