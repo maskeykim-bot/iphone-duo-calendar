@@ -49,3 +49,20 @@ test('R-4 帯がない画面・閉じた横は今までの形（右の列のま�
   await expect(page.locator('.ctl.crl')).toHaveCount(0); await expect(page.locator('.railg')).toHaveCount(0);
   await expect(page.locator('.ctl .ctask')).toHaveCount(1); await expect(page.locator('.ctl .cmore')).toHaveCount(1);
 });
+
+test('R-5 ホームの「これからの 7 日間」: 明日から 7 行。予定は 3 件まで＋「ほか N 件」、予定のない日は「予定なし」。行をたたくと、その日を選んでカレンダーへ', async ({ page }) => {
+  const { ev, seed } = await import('./helpers.js');
+  await boot(page);
+  await seed(page, [1, 2, 3, 4, 5].map((i) => ev(`w${i}`, `用事${i}`, `2026-11-14T1${i}:00`, `2026-11-14T1${i}:30`)));
+  await rail(page, 'ホーム').click();
+  const rows = page.locator('.hweek .hwrow');
+  await expect(rows).toHaveCount(7);
+  expect(await rows.evaluateAll((es) => es.map((e) => e.dataset.day))).toEqual(['2026-11-13', '2026-11-14', '2026-11-15', '2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19']);
+  await expect(rows.nth(1).locator('.hwe')).toHaveCount(3); await expect(rows.nth(1).locator('.hwm')).toHaveText('ほか2件');
+  await expect(rows.nth(1).locator('.hwe').first()).toContainText('11:00'); await expect(rows.nth(1).locator('.hwe').first()).toContainText('用事1');
+  await expect(rows.nth(0).locator('.hwn')).toHaveText('予定なし');
+  await expect(page.locator('.home .htmr')).toHaveCount(0); // 閉じた画面は「明日」の札の代わりに 7 日間
+  const sc = page.locator('.home.listview'); expect(await sc.evaluate((e) => e.scrollHeight > e.clientHeight)).toBe(true); // 下へ送って読める
+  await rows.nth(1).click();
+  await expect(page.locator('.shell.closed.home')).toHaveCount(0); await expect(page.locator('.mdh .hdt')).toHaveText('11月14日'); expect((await ui(page)).selected).toBe('2026-11-14');
+});

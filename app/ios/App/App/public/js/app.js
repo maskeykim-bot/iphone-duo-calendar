@@ -1967,6 +1967,19 @@ function homeTasksCard() {
   const add = `<button type="button" class="hadd${first ? ' first' : ''}" data-act="homego" data-to="taskadd" aria-label="＋ タスクを追加"><span class="hadd-p" aria-hidden="true">＋</span><span class="hadd-t">タスクを追加</span></button>`;
   return `<section class="hcard htasks" aria-label="タスク"><div class="hh3"><h3>タスク ${T.total}件</h3>${homeGo('task', 'すべて')}</div>${first ? add : ''}${rows || (first ? '' : '<p class="small hempty">今日のタスクはありません</p>')}${first ? '' : add}</section>`; // 閉じたホームで 0 件なら追加の行だけ（カードの下端 y522）
 }
+// 第19.5版: ホームの「これからの 7 日間」（明日から 7 日。1 日 1 行で、予定は 3 件まで＋「ほか N 件」。行をたたくと、その日を選んでカレンダーへ）
+const HOME_WEEK_MAX = 3;
+function homeWeekCard(k) {
+  const from = addDays(k, 1), to = addDays(k, 7), occ = occIn(from, to);
+  const rows = Array.from({ length: 7 }, (_, i) => addDays(k, i + 1)).map((dk) => {
+    const d = parseKey(dk), list = eventsOnDay(occ, dk), hn = holName(dk);
+    const items = list.slice(0, HOME_WEEK_MAX).map((e) => `<span class="hwe ${catCls(e)}"${catSty(e)}><i class="hbar" aria-hidden="true"></i><em>${e.all || dayOf(e.start) < dk ? '終日' : t0(e.start.slice(11, 16))}</em>${esc(e.title || '（題名なし）')}</span>`).join('');
+    const more = list.length > HOME_WEEK_MAX ? `<span class="hwm">ほか${list.length - HOME_WEEK_MAX}件</span>` : '';
+    const lab = `${dayLabel(dk)}${hn ? `、${hn}` : ''}、${list.length ? `予定 ${list.length}件。${list.slice(0, HOME_WEEK_MAX).map((e) => e.title).join('、')}` : '予定なし'}。この日を開く`;
+    return `<button type="button" class="hwrow${isRed(dk) ? ' red' : d.getDay() === 6 ? ' sat' : ''}" data-act="homeday" data-day="${dk}" aria-label="${esc(lab)}"><span class="hwd"><b>${d.getDate()}</b><small>${DOW[d.getDay()]}</small></span><span class="hwl">${items || '<span class="hwn">予定なし</span>'}${more}</span></button>`;
+  }).join('');
+  return `<section class="hcard hweek" aria-label="これからの7日間"><div class="hh3"><h3>これからの 7 日間</h3></div>${rows}</section>`;
+}
 function listHtml(mode = 'cards') {
   const now = nowStamp(), k = todayKey(), d = parseKey(k), tm = addDays(k, 1);
   const list = eventsOnDay(occIn(k, k), k).filter((e) => e.end > now);
@@ -1985,6 +1998,7 @@ function listHtml(mode = 'cards') {
   if (mode === 'cols') return `<div class="hcols"><div class="hcol">${nextHtml}</div><div class="hcol">${homeTasksCard()}</div></div>`;
   if (mode === 'pv') return pvHome({ list, next, future, now, k, count });
   const eve = eveningFirst(now);
+  if (closedSize()) return `${hero}<div class="hcards">${evCard}${homeTasksCard()}${homeWeekCard(k)}</div>`; // 第19.5版（征希さん「ホーム: 次の予定と今日の予定、7日間の予定。スクロールできるように」）: 閉じた画面は「明日」の札の代わりに、明日からの 7 日間
   return `${hero}<div class="hcards">${eve ? tmCard : ''}${evCard}${homeTasksCard()}${eve ? '' : tmCard}</div>`;
 }
 // 閉じた一覧の「次の予定」の時刻行に、次に鳴る通知の時刻を添える。
@@ -3811,6 +3825,7 @@ root.addEventListener('click', (ev) => {
   else if (d.pnl) pickBottom(d.pnl);
   else if (d.act === 'strip') { if (STRIP.swallow && performance.now() < STRIP.swallow) { STRIP.swallow = 0; return; } STRIP.swallow = 0; toggleStrip(d.strip); }
   else if (d.act === 'allmonth') set({ monthExpand: !state.monthExpand });
+  else if (d.act === 'homeday') { set({ home: false, strip: null, selected: d.day }); say(`${dayLabel(d.day)}を開きました。`); }
   else if (d.act === 'railhome') { const on = listShown(); set({ home: !on, strip: null }); say(on ? 'カレンダーに戻りました。' : 'ホームを開きました。'); }
   else if (d.act === 'pin') { set({ monthPin: !state.monthPin }); say(state.monthPin ? '月を固定しました。' : '月の固定を解除しました。月ごと下まで送れます。'); root.querySelector('.cb.cpin')?.focus({ preventScroll: true }); }
   else if (d.act === 'today') set({ selected: todayKey() }); // 今日へ戻るのは選択日だけ。表示（一覧・日・週・月）は保つ

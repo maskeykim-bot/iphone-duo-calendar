@@ -48,11 +48,13 @@ test('閉じたホーム: 次の予定・今日の予定3件＋ほか・タス�
   await expect(page.locator('.htask').first()).toContainText('古い');
   await expect(page.locator('.htask .hdue').first()).toHaveText('11/5');
   await expect(page.locator('.hmemo')).toHaveCount(0); // 今日のメモカードは外した
-  await expect(page.locator('.htmr')).toContainText('明日 11/13（金）');
-  await expect(page.locator('.htmr')).toContainText('9:00');
-  await expect(page.locator('.htmr')).toContainText('ほか1件');
+  // v19.5（征希さん「ホーム: 次の予定と今日の予定、7日間の予定」）で仕様変更: 閉じたホームは「明日」の札の代わりに「これからの 7 日間」（明日から 7 行）
+  await expect(page.locator('.htmr')).toHaveCount(0);
+  await expect(page.locator('.hweek .hwrow').first()).toHaveAttribute('data-day', '2026-11-13');
+  await expect(page.locator('.hweek .hwrow').first()).toContainText('9:00');
+  await expect(page.locator('.hweek .hwrow').first().locator('.hwe')).toHaveCount(2); // 明日は 2 件（3 件までは全部出す）
   // 並び: 次の予定 → 今日の予定 → タスク → 明日
-  const idx = await page.evaluate(() => ['.hevents', '.htasks', '.htmr'].map((s) => document.querySelector(s).getBoundingClientRect().top));
+  const idx = await page.evaluate(() => ['.hevents', '.htasks', '.hweek'].map((s) => document.querySelector(s).getBoundingClientRect().top));
   idx.unshift(await page.locator('.hero').evaluate((e) => e.getBoundingClientRect().top));
   expect([...idx].sort((a, b) => a - b)).toEqual(idx);
 });
@@ -69,17 +71,17 @@ test('閉じたホーム: 全体がスクロールし、「‹ カレンダー�
   await sc.evaluate((e) => { e.scrollTop = e.scrollHeight; });
   const after = await back.boundingBox();
   expect(after.y).toBe(before.y);
-  const last = await page.locator('.htmr').boundingBox();
+  const last = await page.locator('.hweek').boundingBox(); // v19.5 で仕様変更: 最後のカードは「これからの 7 日間」
   expect(last.y + last.height).toBeLessThanOrEqual(678 - 41 + 1);
 });
 
-test('20時以降は明日が今日の予定の上。選択日と独立して今日固定', async ({ page }) => {
+test('20時以降も並びは同じ（今日の予定 → タスク → これからの 7 日間）。選択日と独立して今日固定', async ({ page }) => { // v19.5（征希さん「ホーム: 次の予定と今日の予定、7日間の予定」）で仕様変更: 閉じたホームは「明日」の札の代わりに「これからの 7 日間」（明日から 7 行）。前: 20時以降は「明日」の札を今日の予定の上へ
   await openH(page, SIZES.closedPortrait, []);
   await seed(page, EVS);
   await page.clock.setFixedTime(new Date('2026-11-12T21:00:00+09:00'));
   await seedUi(page, { selected: '2026-12-25' });
   await tab(page, 'ホーム').click();
-  const ys = await page.evaluate(() => ['.htmr', '.hevents'].map((s) => document.querySelector(s).getBoundingClientRect().top));
+  const ys = await page.evaluate(() => ['.hevents', '.hweek'].map((s) => document.querySelector(s).getBoundingClientRect().top));
   expect(ys[0]).toBeLessThan(ys[1]);
   await expect(page.locator('.date')).toContainText('12');
   await expect(page.locator('.hevents')).toContainText('この後の予定はありません');
@@ -91,7 +93,7 @@ test('0件案内と次の予定なし', async ({ page }) => {
   // S8 ★1-10（設計 2026-11-20 4:05）: 閉じたホームでタスク 0 件のときは「＋ タスクを追加」の行だけ（案内の文は出さない）
   await expect(page.locator('.htasks')).not.toContainText('今日のタスクはありません');
   await expect(page.locator('.hevents')).toContainText('この後の予定はありません');
-  await expect(page.locator('.htmr')).toContainText('予定はありません');
+  await expect(page.locator('.hweek .hwn')).toHaveCount(7); await expect(page.locator('.hweek .hwn').first()).toHaveText('予定なし'); // v19.5 で仕様変更: 7 日とも「予定なし」
   await expect(page.locator('.hadd')).toBeVisible();
 });
 
@@ -144,8 +146,7 @@ test('導線: タイムライン›は日表示の今日、明日は明日、す
   await expectShown(page, '日');
   await expect(page.locator('.mday .mdh .hdt')).toHaveText('11月12日'); // S11e（34 §15-④）: 閉じた画面の「日」はカレンダーの日の欄の時間軸 B。日付は日の欄の見出し（題名は「2026年11月」のまま）
   await tab(page, 'ホーム').click();
-  await page.locator('.htmr').click();
-  await expectShown(page, '日');
+  await page.locator('.hweek .hwrow').first().click(); // v19.5 で仕様変更: 明日の行をたたくと、明日を選んでカレンダーへ（カード｜時間は前のまま）
   await expect(page.locator('.mday .mdh .hdt')).toHaveText('11月13日');
   await tab(page, 'ホーム').click();
   await page.locator('.htasks .hgo').click();

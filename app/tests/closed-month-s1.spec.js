@@ -57,7 +57,7 @@ test.describe('閉じた画面 466×678（帯 84）', () => {
     await page.waitForTimeout(200);
     await expect(page.locator('.tabs')).toHaveCount(0);
     const barTop = 678 - 33; // ホームバーの帯の上端 y645。下の余白は 41（帯 33＋8。design/34 §6.1・§10「33 全体」: 87 → 41）
-    const last = await box(page.locator('.htmr'));
+    const last = await box(page.locator('.hweek')); // v19.5（征希さん「ホーム: 7日間の予定」）で仕様変更: 最後のカードは「明日」→「これからの 7 日間」
     expect(near(last.y + last.height, barTop - 8, 1)).toBe(true);
     const add = await box(page.locator('.hadd'));
     expect(add.y + add.height).toBeLessThanOrEqual(barTop - 8 + 1);

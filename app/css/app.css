@@ -2699,3 +2699,19 @@ html[data-grabtime] .gchip{opacity:0!important}
 /* 月を固定: 月の格子とつまみ（上）を見出しの下に貼り付ける（日の欄だけが送られる）。解除すると今までどおり月ごと送れる */
 .shell.closed .mpull.browse[data-stage].pin .mgwrap{position:sticky;top:64px;z-index:5;background:var(--paper)}
 .shell.closed .mpull.browse[data-stage].pin .mgrab{position:sticky;top:calc(64px + var(--H));z-index:5;background:var(--paper)}
+/* ---- 第19.5版: ホームの「これからの 7 日間」（閉じた画面） ---- */
+.hcard.hweek{padding-bottom:4px}
+.hweek .hwrow{display:flex;align-items:flex-start;gap:12px;box-sizing:border-box;width:100%;min-height:44px;margin:0;padding:8px 4px;border:0;border-radius:0;background:none;text-align:left;color:var(--ink2)}
+.hweek .hwrow + .hwrow{border-top:.5px solid var(--line2)}
+.hweek .hwrow:active{background:#F5F3EC}
+.hweek .hwd{flex:none;width:34px;text-align:center}
+.hweek .hwd b{display:block;font:600 17px/20px -apple-system,'Hiragino Sans',sans-serif;font-variant-numeric:tabular-nums}
+.hweek .hwd small{display:block;font:400 11px/14px -apple-system,'Hiragino Sans',sans-serif;color:#5D6963}
+.hweek .hwrow.red .hwd b,.hweek .hwrow.red .hwd small{color:#B43C3C}
+.hweek .hwrow.sat .hwd b,.hweek .hwrow.sat .hwd small{color:#526B90}
+.hweek .hwl{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;padding-top:1px}
+.hweek .hwe{position:relative;display:block;padding-left:10px;font:400 13px/20px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hweek .hwe .hbar{position:absolute;left:0;top:4px;bottom:4px;width:3px;height:auto;border-radius:1.5px;background:var(--cat-mark)}
+.hweek .hwe em{font-style:normal;font-weight:600;font-variant-numeric:tabular-nums;margin-right:8px}
+.hweek .hwn{font:400 13px/20px -apple-system,'Hiragino Sans',sans-serif;color:#A8ABA4}
+.hweek .hwm{font:400 11px/16px -apple-system,'Hiragino Sans',sans-serif;color:#5D6963;padding-left:10px}
