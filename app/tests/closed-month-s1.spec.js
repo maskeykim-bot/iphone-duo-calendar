@@ -126,7 +126,7 @@ test.describe('開いた横 951×669', () => {
     expect(info.top).toBeGreaterThanOrEqual(18); expect(info.top).toBeLessThanOrEqual(20);
     const d = await page.locator('[data-date="2026-11-12"]').evaluate((c) => { const r = c.getBoundingClientRect(), n = c.querySelector('.num').getBoundingClientRect(), k = c.querySelector('.rk').getBoundingClientRect(), p = c.parentElement.querySelector('.plus[data-plus="2026-11-12"]'), rg = document.createRange(); rg.selectNodeContents(p); const pt = rg.getBoundingClientRect(); const ps = getComputedStyle(p); return { nl: n.left - r.left, nw: n.width, kl: k.left - r.left, kr: k.right - r.left, pl: pt.left - r.left, pr: r.right - pt.right, pfs: parseFloat(ps.fontSize), pfw: Number(ps.fontWeight), pc: ps.color, ptop: pt.top - r.top, pb: pt.bottom - r.top, txt: p.textContent }; });
     expect(near(d.nl, 3, 0.8)).toBe(true); expect(near(d.kl, 21, 1.2)).toBe(true); /* V-04: 開いた横の六曜 x+21〜37 */ expect(d.kl).toBeGreaterThanOrEqual(d.nl + d.nw - 0.5);
-    expect(d.txt).toBe('+3'); expect(d.pfs).toBe(8); expect(d.pfw).toBeGreaterThanOrEqual(600); expect(d.pc).toBe('rgb(104, 113, 106)'); expect(near(d.pr, 4, 1)).toBe(true); /* S8 N-05: 選んだマスは 4 */ /* V-04: +N 8pt 右 2 */ /* S9 品質: 設計 fc56bc9・STEER 05:59 で右あき4(±1)に固定 */
+    expect(d.txt).toBe('+3'); expect(d.pfs).toBe(8); expect(d.pfw).toBeGreaterThanOrEqual(600); expect(d.pc).toBe('rgb(93, 105, 99)'); /* 第19.4版 レビュー直し 必須4: 開いた画面の +N も #5D6963 */ expect(near(d.pr, 4, 1)).toBe(true); /* S8 N-05: 選んだマスは 4 */ /* V-04: +N 8pt 右 2 */ /* S9 品質: 設計 fc56bc9・STEER 05:59 で右あき4(±1)に固定 */
     expect(d.pl).toBeGreaterThanOrEqual(d.kr); expect(d.pb).toBeLessThanOrEqual(18.5); // 日付の行 18 に収まる
   });
 

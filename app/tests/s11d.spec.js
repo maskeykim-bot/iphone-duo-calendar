@@ -37,12 +37,14 @@ test.describe('S11d M1・M2 の足し', () => {
     expect(s.second.z).toBe('1'); expect(s.second.pe).toBe('none'); // チップ（z2）より下、押せない
     expect(s.first.bt).toBe('0px'); expect(s.first.sh).toBe('none'); expect(s.first.bc).toBe('none');
   });
-  test('M2 選んだ日の枠は、帯（終日・複数日）より上の層', async ({ page }) => {
+  // 第19.4版 レビュー直し（design/V194_レビュー.md 必須2）で決まりが変わった: 重なり順は「1 日のチップ ＜ 枠 ＜ 複数日の帯」。前は「枠は帯より上」（帯の題名の上に枠の線が乗っていた）
+  test('M2 選んだ日の枠は、1 日のチップより上・複数日の帯より下の層', async ({ page }) => {
     await boot(page);
     await page.locator(cell('2026-11-13')).click({ position: { x: 30, y: 70 } }); await page.waitForTimeout(300); // 出張（12〜14）の帯が通るマス
-    const s = await page.locator(cell('2026-11-13')).evaluate((d) => ({ frame: Number(getComputedStyle(d, '::after').zIndex), chips: [...d.parentElement.querySelectorAll('.chip')].map((c) => Number(getComputedStyle(c).zIndex) || 0) }));
-    expect(s.chips.length).toBeGreaterThan(0);
-    for (const z of s.chips) expect(s.frame).toBeGreaterThan(z);
+    const s = await page.locator(cell('2026-11-13')).evaluate((d) => { const z = (c) => Number(getComputedStyle(c).zIndex) || 0, all = [...d.parentElement.querySelectorAll('.chip')], band = (c) => c.classList.contains('bar') && !c.classList.contains('one'); return { frame: Number(getComputedStyle(d, '::after').zIndex), ones: all.filter((c) => !band(c)).map(z), bands: all.filter(band).map(z) }; });
+    expect(s.bands.length).toBeGreaterThan(0);
+    for (const z of s.ones) expect(s.frame).toBeGreaterThan(z);
+    for (const z of s.bands) expect(z).toBeGreaterThan(s.frame);
   });
 });
 

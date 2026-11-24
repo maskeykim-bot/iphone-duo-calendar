@@ -304,12 +304,13 @@ test.describe('V-09 下のバーの上のぼかし 24', () => {
       await endCheck(page, tb.y, t);
     }
   });
-  test('開いた横: 各ページ y587〜611（左 #F0EDE5・右 #FFFDFA）。月・時間・タスク・ノートの最後の行はバーの上に出る', async ({ page }) => {
+  // 第19.4版 レビュー直し（設計 望ましい14）: 開いた横のぼかしは 12（y599〜611）。時間軸の枠に地が付き、24 だと枠が 2 つに切れて見えたため。開いた縦・閉じた画面は 24 のまま
+  test('開いた横: 各ページ y599〜611（左 #F0EDE5・右 #FFFDFA）。月・時間・タスク・ノートの最後の行はバーの上に出る', async ({ page }) => {
     await setUi(page, LEGACY);
     await openApp(page, L); await band(page, 84);
     await seed(page, MANY);
     const l = await rect(page.locator('.tabfade.tfl')), r = await rect(page.locator('.tabfade.tfr'));
-    near(l.y, 587); near(l.h, 24); near(r.y, 587); near(r.h, 24);
+    near(l.y, 599); near(l.h, 12); near(r.y, 599); near(r.h, 12);
     const lp = await rect(page.locator('.lp')), rp = await rect(page.locator('.rp'));
     near(l.x, lp.x); near(l.w, lp.w); near(r.x, rp.x); near(r.w, rp.w);
     expect(await page.locator('.tabfade.tfl').evaluate((e) => getComputedStyle(e).backgroundImage)).toContain('rgb(240, 237, 229)');

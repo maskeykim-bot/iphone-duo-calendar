@@ -1,0 +1,51 @@
+
+Running 18 tests using 1 worker
+
+(node:1959050) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › tests/closed-month-s1.spec.js:115:3 › 開いた横 951×669 › 新しい端末の月は予定名（点ではない）。マス 63.8×83.5 に日付の行 18＋チップ 4段、+N は日付の行、六曜と重ならない (1.2s)
+  ✓   2 [chromium] › tests/closed-pull-v20.spec.js:272:3 › C. 段が変わる位置と吸い付き（§3・§5） › [未実装] 指に 1:1: 毎フレーム、H の変化と指の縦の動きの差が 1pt 以内、遅れは 1 フレーム（16.7ms）以内（§12 Q-14） (2.5s)
+  ✘   3 [chromium] › tests/layout-metrics.spec.js:333:3 › 月の日付・配色・前後月 › 土曜セルは淡い青、日曜の日付は赤、選択は2px枠、今日だけ日付が丸 (842ms)
+(node:1959565) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   4 [chromium] › tests/s7e.spec.js:138:3 › 1:20-2 タブの下 20: ぼかし 24 が全部の面に出て、送り切ると最後の行はバー上端から 8 以上 › 開いた横（左右の各ページ：月・時間・タスク・ノート・ホーム） (9.7s)
+  ✓   5 [chromium] › tests/v193-closed-scroll.spec.js:248:3 › 6・8 スクロールした状態での操作 › 8 マスのタップで日が変わり、スクロール位置は動かない（日の欄は中身だけ替わる） (1.5s)
+  ✓   6 [chromium] › tests/v193-day-cardtime.spec.js:171:1 › A-12 閉じた横: 日の欄の中がスクロール（今までどおり）。時間はバー・終日の行・1時間前からで、バーは流れる。段は使わない (3.0s)
+  ✓   7 [chromium] › tests/v193-design35-s9.spec.js:187:1 › 35 §9 L-1 閉じた横の切り替え: 見出し 44 の下に「カード｜時間」188×32（y50〜82、1つ 94、押せる 94×44）。カード 188×56 は y88 より下 (2.2s)
+  ✓   8 [chromium] › tests/v193-design35-s9.spec.js:396:1 › 35 §9 K-8 完了・期限切れ: 完了＝四角 #294E42 の塗り・題名 #A8ABA4 取り消し線・1.5 秒後に区画の一番下へ。期限切れ＝四角の線と「期限切れ」が #B43C3C (3.4s)
+  ✓   9 [chromium] › tests/v193-design35-s9.spec.js:581:3 › 35 §9 M-1・M-11（会議）つかむまで: 0.30 秒で離すと開く。0.35 秒押すと 1.03 倍・影 0 4 12・触覚 medium・元の場所に破線 1.5 #A8ABA4 (3.7s)
+  ✓  10 [chromium] › tests/v193-design35-s9.spec.js:581:3 › 35 §9 M-1・M-11（見積もりを送る）つかむまで: 0.30 秒で離すと開く。0.35 秒押すと 1.03 倍・影 0 4 12・触覚 medium・元の場所に破線 1.5 #A8ABA4 (3.7s)
+  ✓  11 [chromium] › tests/v193-design35-s9.spec.js:581:3 › 35 §9 M-1・M-11（買い物）つかむまで: 0.30 秒で離すと開く。0.35 秒押すと 1.03 倍・影 0 4 12・触覚 medium・元の場所に破線 1.5 #A8ABA4 (3.8s)
+(node:1960296) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  12 [webkit] › tests/v193-closed-scroll.spec.js:248:3 › 6・8 スクロールした状態での操作 › 8 マスのタップで日が変わり、スクロール位置は動かない（日の欄は中身だけ替わる） (2.0s)
+  ✓  13 [webkit] › tests/v193-day-cardtime.spec.js:171:1 › A-12 閉じた横: 日の欄の中がスクロール（今までどおり）。時間はバー・終日の行・1時間前からで、バーは流れる。段は使わない (3.4s)
+  ✓  14 [webkit] › tests/v193-design35-s9.spec.js:187:1 › 35 §9 L-1 閉じた横の切り替え: 見出し 44 の下に「カード｜時間」188×32（y50〜82、1つ 94、押せる 94×44）。カード 188×56 は y88 より下 (2.6s)
+  ✓  15 [webkit] › tests/v193-design35-s9.spec.js:396:1 › 35 §9 K-8 完了・期限切れ: 完了＝四角 #294E42 の塗り・題名 #A8ABA4 取り消し線・1.5 秒後に区画の一番下へ。期限切れ＝四角の線と「期限切れ」が #B43C3C (3.8s)
+  ✓  16 [webkit] › tests/v193-design35-s9.spec.js:581:3 › 35 §9 M-1・M-11（会議）つかむまで: 0.30 秒で離すと開く。0.35 秒押すと 1.03 倍・影 0 4 12・触覚 medium・元の場所に破線 1.5 #A8ABA4 (4.0s)
+  ✓  17 [webkit] › tests/v193-design35-s9.spec.js:581:3 › 35 §9 M-1・M-11（見積もりを送る）つかむまで: 0.30 秒で離すと開く。0.35 秒押すと 1.03 倍・影 0 4 12・触覚 medium・元の場所に破線 1.5 #A8ABA4 (4.0s)
+  ✓  18 [webkit] › tests/v193-design35-s9.spec.js:581:3 › 35 §9 M-1・M-11（買い物）つかむまで: 0.30 秒で離すと開く。0.35 秒押すと 1.03 倍・影 0 4 12・触覚 medium・元の場所に破線 1.5 #A8ABA4 (4.1s)
+
+
+  1) [chromium] › tests/layout-metrics.spec.js:333:3 › 月の日付・配色・前後月 › 土曜セルは淡い青、日曜の日付は赤、選択は2px枠、今日だけ日付が丸 
+
+    Error: expect(received).toContain(expected) // indexOf
+
+    Expected substring: "2px"
+    Received string:    "none"
+
+      340 |     await page.locator('[data-date="2026-11-18"]').click({ position: { x: 10, y: 10 } }); // 第19版 PR6: 開いた縦の月は日をたたくと下の日の部分が変わる（日表示へは進まない）
+      341 |     await expect(page.locator('.mdh h3')).toContainText('11月18日（水）');
+    > 342 |     expect(await page.locator('[data-date="2026-11-18"]').evaluate((e) => getComputedStyle(e).boxShadow)).toContain('2px');
+          |                                                                                                           ^
+      343 |     expect(await page.locator('[data-date="2026-11-18"] .num').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
+      344 |     expect(await page.locator('[data-date="2026-11-12"] .num').evaluate((e) => getComputedStyle(e).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
+      345 |   });
+        at /workspace/cal-v191/app/tests/layout-metrics.spec.js:342:107
+
+    Error Context: test-results/layout-metrics-月の日付・配色・前後月-土曜セルは淡い青、日曜の日付は赤、選択は2px枠、今日だけ日付が丸-chromium/error-context.md
+
+  1 failed
+    [chromium] › tests/layout-metrics.spec.js:333:3 › 月の日付・配色・前後月 › 土曜セルは淡い青、日曜の日付は赤、選択は2px枠、今日だけ日付が丸 
+  17 passed (1.0m)
+EXIT 1

@@ -336,10 +336,10 @@ test.describe('月の日付・配色・前後月', () => {
     expect(await page.locator('[data-date="2026-11-14"]').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(238, 241, 244)');
     expect(await page.locator('[data-date="2026-11-15"] .num').evaluate((e) => getComputedStyle(e).color)).toBe('rgb(180, 60, 60)');
     // 選択日 = 今日（11/12）。選択は 2px 枠 #294E42
-    expect(await page.locator('[data-date="2026-11-12"]').evaluate((e) => getComputedStyle(e).boxShadow)).toContain('rgb(41, 78, 66) 0px 0px 0px 2px inset');
+    expect(await page.locator('[data-date="2026-11-12"]').evaluate((e) => getComputedStyle(e, '::after').boxShadow)).toContain('rgb(41, 78, 66) 0px 0px 0px 2px inset'); // 第19.4版 レビュー直し 必須2: 枠は ::after に描く（1日のチップ ＜ 枠 ＜ 複数日の帯）。見た目は同じ 2px
     await page.locator('[data-date="2026-11-18"]').click({ position: { x: 10, y: 10 } }); // 第19版 PR6: 開いた縦の月は日をたたくと下の日の部分が変わる（日表示へは進まない）
     await expect(page.locator('.mdh h3')).toContainText('11月18日（水）');
-    expect(await page.locator('[data-date="2026-11-18"]').evaluate((e) => getComputedStyle(e).boxShadow)).toContain('2px');
+    expect(await page.locator('[data-date="2026-11-18"]').evaluate((e) => getComputedStyle(e, '::after').boxShadow)).toContain('2px');
     expect(await page.locator('[data-date="2026-11-18"] .num').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
     expect(await page.locator('[data-date="2026-11-12"] .num').evaluate((e) => getComputedStyle(e).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
   });
