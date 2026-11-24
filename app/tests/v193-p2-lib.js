@@ -29,13 +29,21 @@ export const ui = (page) => page.evaluate(() => JSON.parse(localStorage.getItem(
 export const scTop = (page) => page.locator(SEC).evaluate((e) => e.scrollTop);
 export const setScroll = async (page, v) => { await page.locator(SEC).evaluate((e, y) => { e.scrollTop = y; }, v); await page.waitForTimeout(250); };
 export const rect = (page, sel) => page.evaluate((s) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height, b: b.bottom, r: b.right }; }, sel);
-// 1時間の高さ（となり合う時刻の線の間）と、--hh
-export const hourGap = (page) => page.evaluate(() => { const l = [...document.querySelectorAll('.mpull.browse .mday .hl:not(.half)')]; return l[11].getBoundingClientRect().top - l[10].getBoundingClientRect().top; });
-// 時間軸の m 分の線の y
-export const lineY = (page, m) => page.evaluate((mm) => [...document.querySelectorAll('.mpull.browse .mday .hl:not(.half)')].find((e) => Number(e.style.getPropertyValue('--m')) === mm).getBoundingClientRect().top, m);
+// v19.5（征希さん「時間で表示した時は本家仕様にする」）で仕様変更: 時間軸は伸び縮みする（予定のある時間だけ広がる）。線は 3 時間ごとだけなので、時刻の目盛り（.hlab。本当の分は data-rm、位置は線の 7 上）で測る。
+// 1時間の高さ＝予定のない 15:00〜16:00 の間（DATA の予定は 9:00〜13:30）。詰めた形 14・広げた形 56、寄る境は 35
+export const HH = { min: 14, max: 56, snap: 35 };
+const labY = (mm) => { const e = document.querySelector(`.mpull.browse .mday .hlab[data-rm="${mm}"]`); return e.getBoundingClientRect().top + 7; };
+export const hourGap = (page) => page.evaluate(`(${labY})(960) - (${labY})(900)`);
+// 時間軸の m 分（1時間ごと）の線の y
+export const lineY = (page, m) => page.evaluate(`(${labY})(${m})`);
 export const toTime = async (page) => { await page.locator('.mpull.browse .mdct [data-dg="time"]').click(); await page.waitForTimeout(350); };
 export const toCard = async (page) => { await page.locator('.mpull.browse .mdct [data-dg="card"]').click(); await page.waitForTimeout(350); };
-export const barPt = async (page) => { const g = await rect(page, '.mpull.browse .mdgrab'); return { x: g.x + g.w / 2, y: g.y + g.h / 2 }; };
+// v19.5 で仕様変更: つまみは時間軸の下。画面の外（下）にあるときは、引けるように画面（閉じた横は日の欄）を送って y260 あたりへ出してから、その中心を返す
+export const barPt = async (page) => {
+  await page.evaluate(() => { const g = document.querySelector('.mpull.browse .mdgrab'); if (!g) return; const r = g.getBoundingClientRect(); if (r.top <= 300) return; const sc = document.querySelector('.mpull.browse[data-stage]') || g.closest('.mday'); sc.scrollTop += r.top - 260; });
+  await page.waitForTimeout(250);
+  const g = await rect(page, '.mpull.browse .mdgrab'); return { x: g.x + g.w / 2, y: g.y + g.h / 2 };
+};
 // マウスで引く。hold: 離す前に止める時間（ms。120 以上なら はらいの速さ 0）。up=false なら押したまま
 export async function mouseDrag(page, x0, y0, x1, y1, { steps = 12, hold = 0, up = true, settle = 450 } = {}) { await page.mouse.move(x0, y0); await page.mouse.down(); await page.mouse.move(x1, y1, { steps }); if (hold) await page.waitForTimeout(hold); if (up) { await page.mouse.up(); await page.waitForTimeout(settle); } }
 // 指（pointerType:touch）の動きを pointer の出来事で送る（両エンジン共通）

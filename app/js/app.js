@@ -1565,6 +1565,7 @@ function fsRange(k) {
   return { bs, from: Math.min(9, Math.floor(first / 60)) * 60, to: Math.min(1440, Math.max(18, Math.ceil(last / 60)) * 60 + 60) };
 }
 const fsTl = () => root.querySelector('.mpull.browse .mday .tl[data-fs]');
+const fsCompact = (col) => !!col?.closest?.('.tl[data-fs]') && dayMode() === 1;
 const fsOn = (pane) => pane === 'mday' && !!FSC.map && !!fsTl();
 function fsVis(hh) { const { bs } = fsRange(state.selected), m = elasticMap(elasticHours(bs, hh, FSC.min)); return m.y(FSC.to) - m.y(FSC.from); }
 function fsLayout(tl = fsTl(), hh = DG.hh) {
@@ -1695,6 +1696,7 @@ root.addEventListener('pointerdown', (ev) => {
   const g = ev.target.closest?.('.mdgrab'); if (!g || !ev.isPrimary || (ev.pointerType === 'mouse' && ev.button !== 0) || !dayMode()) return;
   cancelAnimationFrame(DG.raf); DG.raf = 0;
   DG.drag = { id: ev.pointerId, y0: ev.clientY, hh0: DG.hh, vis0: fsVis(DG.hh), moved: false, dy: 0, pts: [] };
+  g.classList.add('drag'); // 引いている間の色（:active は、つまみが指について動く間に外れることがある）
 });
 window.addEventListener('pointermove', (ev) => {
   const d = DG.drag; if (!d || ev.pointerId !== d.id) return;
@@ -1710,7 +1712,7 @@ window.addEventListener('pointermove', (ev) => {
 });
 const dayGripEnd = (ev) => {
   const d = DG.drag; if (!d || ev.pointerId !== d.id) return;
-  DG.drag = null;
+  DG.drag = null; root.querySelector('.mpull.browse .mdgrab.drag')?.classList.remove('drag');
   if (!dayMode()) return;
   if (!d.moved) { if (ev.type === 'pointerup') dayGripSnap(DG.hh >= DAYBAR.snap ? 1 : 2); return; } // たたくと 28 ⇄ 88（0.25 秒）
   MP.swallow = performance.now() + 400;
@@ -1719,7 +1721,7 @@ const dayGripEnd = (ev) => {
   dayGripSnap(Math.abs(v) > DAYBAR.flick ? (v > 0 ? 2 : 1) : DG.hh >= DAYBAR.snap ? 2 : 1); // 58 未満なら最低限、58 以上なら詳細。速く払ったら払った向きへ
 };
 window.addEventListener('pointerup', dayGripEnd);
-window.addEventListener('pointercancel', (ev) => { if (DG.drag && ev.pointerId === DG.drag.id) { DG.drag = null; if (dayMode()) dayGripSnap(dayMode()); } });
+window.addEventListener('pointercancel', (ev) => { if (DG.drag && ev.pointerId === DG.drag.id) { DG.drag = null; root.querySelector('.mpull.browse .mdgrab.drag')?.classList.remove('drag'); if (dayMode()) dayGripSnap(dayMode()); } });
 root.addEventListener('keydown', (ev) => {
   const g = ev.target.closest?.('.mdgrab'); if (!g || (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp')) return;
   ev.preventDefault();
@@ -3319,6 +3321,8 @@ root.addEventListener('keydown', (ev) => {
   const k = { ArrowUp: ev.shiftKey ? 'shorter' : 'earlier', ArrowDown: ev.shiftKey ? 'longer' : 'later' }[ev.key];
   if (k) { ev.preventDefault(); nudgeDraft(k); }
 });
+const TAPD = { x: 0, y: 0 }; // 押した所（マウスで時間軸を縦に引いて離したときの click を「たたき」と数えない）
+root.addEventListener('pointerdown', (ev) => { TAPD.x = ev.clientX; TAPD.y = ev.clientY; }, true);
 // 空きタップ: 1回目＝その時刻（15分刻み）から1時間の仮枠、枠の上の2回目＝編集シート、枠の外＝枠を消す。
 function tlTap(ev, col) {
   if (performance.now() < TLQ.quiet) return;
@@ -3330,6 +3334,7 @@ function tlTap(ev, col) {
   }
   if (DF.mode === 'temp') { if (ev.target.closest('.dbox')) openDraft(); else clearDraftBox(); return; }
   if (DF.mode) return;
+  if (fsCompact(col)) { if (Math.hypot(ev.clientX - TAPD.x, ev.clientY - TAPD.y) <= 8) { dayGripSnap(2); feel('light'); } return; } // 第19.5版: 詰めた形（1時間 14）では枠を作らず、まず広げる（細かすぎて指で時刻を選べない）。広げた形で今までどおり
   const pane = col.closest('.fl') ? 'fold' : paneOf(col.closest('.tl'));
   Object.assign(DF, { mode: 'temp', day: col.dataset.day, pane }, tapRange(minAtY(ev.clientY, col, pane)));
   paintDraft();
@@ -7560,6 +7565,7 @@ directCtl = initDirectInput({
       monthEdgeUpdate(); return;
     }
     if (o.kind !== 'time') return;
+    if (o.pane === 'mday' && fsTl() && dayMode() === 1) { dayGripSnap(2); feel('light'); return; } // 第19.5版: 詰めた形の長押しも、まず広げるだけ
     const m = dragAt(y, o); if (m == null) return;
     DIR.anchor = m;
     Object.assign(DF, { mode: 'drag', day: o.day, pane: o.pane, anchor: m }, dragRange(m, m));

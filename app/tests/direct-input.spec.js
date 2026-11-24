@@ -53,6 +53,14 @@ const pointAt = (page, min, nth = 0, sel = '.tlcol') => page.locator(sel).nth(nt
   // 第19.2版 S11e（design/34 §15-④）: 閉じた画面の「日」は日の欄（.mday）の時間軸 B。時間軸そのものは送れず、日の欄が1本で送られるので、日の欄を送って見出し 44 と下のつまみ（S11f §16-1）の間の中央へ持ってくる
   // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 閉じた縦の日の欄は中でスクロールしない（画面 .mpull.browse の1本）。開いたときは最初の予定の1時間前より上を畳んでいるので、その時刻が畳んだ所なら「前の時間」で開いてから、画面を送って貼り付いた見出し（年月＋曜日 64）と下のつまみの間の中央へ持ってくる（前: .mday.scrollTop を送る）
   const md = c.closest('.mpull.browse .mday');
+  if (md && tl.matches('[data-fs]')) { // v19.5（征希さん「時間で表示した時は本家仕様にする」）で仕様変更: 時間軸は伸び縮みする（予定のある時間だけ広がる）ので、位置は時刻の目盛り（.hlab。本当の分は data-rm、線は 7 下）の間を割って出す。見せる範囲（9:00〜最後の予定の1時間後）の外は「すべての時間」で開いてから
+    const lab = (m) => md.querySelector(`.hlab[data-rm="${m}"]`);
+    if (lab(Math.floor(min / 60) * 60).hidden || (lab(Math.floor(min / 60) * 60 + 60)?.hidden ?? false)) md.querySelector('.mdfold button')?.click();
+    const yOf = (m) => { const h0 = Math.floor(m / 60) * 60, a = lab(h0).getBoundingClientRect().top + 7, b = h0 + 60 >= 1440 ? a + h : lab(h0 + 60).getBoundingClientRect().top + 7; return a + (m - h0) / 60 * (b - a); };
+    const sec = md.closest('.mpull.browse'), s = sec.getBoundingClientRect(); sec.scrollTop += yOf(min) + 1 - (s.top + 64 + (s.height - 64 - 85) / 2);
+    const r = c.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: yOf(min) + 1 };
+  }
   if (md) { const sec = md.closest('.mpull.browse'); if (min < (Number(tl.style.getPropertyValue('--foldm')) || 0)) md.querySelector('.mdfold button')?.click(); const y0 = c.getBoundingClientRect().top + 12 + min * h / 60 + 1, s = sec.getBoundingClientRect(); sec.scrollTop += y0 - (s.top + 64 + (s.height - 64 - 85) / 2); }
   const r = c.getBoundingClientRect();
   return { x: r.left + r.width / 2, y: r.top + 12 + min * h / 60 + 1 };
@@ -63,7 +71,8 @@ const dbCount = (page) => page.evaluate(async () => (await (await import('./js/d
 
 for (const [name, size, setup2] of [
   ['開いた横（右ページ）', SIZES.openLandscape951, async () => {}],
-  ['閉じた縦の日', SIZES.closedPortrait, async (page) => { await tab(page, '日').click(); }],
+  // v19.5（征希さん「時間で表示した時は本家仕様にする」）で仕様変更: 閉じた画面の「時間」の詰めた形（1時間 14）は、空きをたたく・長押しすると、枠を作らずに広げた形（1時間 56）へ変わるだけ（tests/v195-day-time.spec.js）。枠を作って直すのは広げた形なので、広げてから始める
+  ['閉じた縦の日', SIZES.closedPortrait, async (page) => { await tab(page, '日').click(); await page.locator('.mpull.browse .mdgrab').focus(); await page.keyboard.press('ArrowDown'); await page.waitForTimeout(200); }],
 ]) {
   test.describe(`時間軸の直接入力 ${name}`, () => {
     test.beforeEach(async ({ page }) => { if (name === '閉じた縦' || name === '開いた縦') await monthFormInit(page); /* 第19版 PR6: 月を引く画面の「月」の型（11/25 まで見える） */ await openApp(page, size); await setup2(page); await expect(page.locator('.tlcol').first()).toBeVisible(); });
@@ -226,6 +235,7 @@ for (const [name, size, setup2] of [
         await expect(page.locator('#editor')).toBeHidden();
       }
       await page.waitForTimeout(450);
+      if (!(await page.locator('.adcol').count())) return; // v19.5 で仕様変更: 閉じた画面の「時間」に「終日」の行は無い（終日の予定はカードと同じ色の札。終日の予定を足すのは ＋ から）
       await scrollTo(page, '.tl', 0); // 閉じた画面の日の欄では、終日の段は時間軸と一緒に送られる（一番上へ戻してから押す）
       const a = await page.locator('.adcol').first().boundingBox();
       await press(page, { x: a.x + a.width / 2, y: a.y + a.height / 2 });

@@ -197,13 +197,14 @@ test.describe('S11b 設計レビュー 必須（M1〜M9）', () => {
     });
   }
   // v19.3 征希さん『カード・時間で分けるだけ』で仕様変更: 保存値 1（B）の1時間は 44 → 28（時間・最低限。design/35 §5.3）。保存の形・値の範囲は同じ
-  for (const [v, dg, hh] of [[1, 'B', 28], [2, 'C', 88]]) {
+  // v19.5（征希さん「時間で表示した時は本家仕様にする」）で仕様変更: 1時間は 28／88 → 14／56。時間軸は伸び縮みするので、予定のない 15:00〜16:00 の目盛りの間で測る
+  for (const [v, dg, hh] of [[1, 'B', 14], [2, 'C', 56]]) {
     test(`M8 保存値 dayGrip=${v} は ${dg} で起動し、閉じる⇄開く・読み込み直しのあとも ${dg}（保存値も ${v} のまま）`, async ({ page }) => {
       await page.addInitScript((v) => { if (!sessionStorage.getItem('qa-dg')) { const k = 'duo.ui.v1'; let s = {}; try { s = JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch { s = {}; } localStorage.setItem(k, JSON.stringify({ ...s, dayGrip: v })); sessionStorage.setItem('qa-dg', '1'); } }, v);
       await boot(page);
       const md = page.locator('.mpull.browse .mday');
       await expect(md).toHaveAttribute('data-dg', dg);
-      const hours = async () => md.locator('.hour').evaluateAll((es) => es.slice(0, 2).map((e) => e.getBoundingClientRect().top));
+      const hours = async () => md.locator('.hour').evaluateAll((es) => es.filter((e) => ['900', '960'].includes(e.dataset.rm)).map((e) => e.getBoundingClientRect().top));
       for (let i = 0; i < 2; i++) {
         await page.setViewportSize({ width: 626, height: 890 }); await page.waitForTimeout(400);
         await page.setViewportSize({ width: 466, height: 678 }); await page.waitForTimeout(500);

@@ -46,37 +46,44 @@ test('35 §9 S-2 カードにつまみなし: つまみ（下）の要素が無�
   expect(await haptics(page)).toEqual([]);
 });
 
-test('35 §9 S-3 時間・最低限: 1時間の線の間が 28。終日の行がバーの下に見える。最初に見える時刻＝最初の予定の1時間前', async ({ page }) => {
+// v19.5（征希さん「時間で表示した時は本家仕様にする」）で仕様変更（S-3〜S-9・L-1 の時間の部分。design/35 §5.3 のバーの決まりを置き換え）:
+// 1時間の高さは 28／88 → 14（詰めた形）／56（広げた形）、寄る境 58 → 35。バーは見出しの下 → 時間軸の下で、引いた量だけ時間軸が伸びる（指に 1:1。1:0.5 はやめた）。
+// 終日は「終日の行」→ カードと同じ色の札（.mdad）。見せるのは 9:00（早い予定があればその時刻）〜 18:00（遅い予定があればその終わり）の1時間後。
+// DATA（30分の予定 5 本）の見えている時間軸の高さ＝220＋7.5×（1時間の高さ）なので、下へ 60 で 1時間 22、200 で 40.7（広げた形へ）、100 で 27.3（詰めた形へ）
+test('35 §9 S-3 時間・最低限: 予定のない時間は 1時間 14。終日の札が見出しの下に見える。最初に見える時刻は 9:00（8:00 は畳む）。バーは時間軸のすぐ下', async ({ page }) => {
   await boot(page);
   await toTime(page);
   expect((await ui(page)).dayGrip).toBe(1);
-  expect(near(await hourGap(page), 28, 0.5)).toBe(true);
-  const mdh = await rect(page, '.mday .mdh'), bar = await rect(page, '.mday .mdgrab'), ad = await rect(page, '.mday .mdbody > .allday'), pill = await rect(page, '.mday .mdbody .adpill'), tl = await rect(page, '.mday .tl');
-  expect(near(bar.y, mdh.b)).toBe(true); expect(near(bar.h, 24)).toBe(true); // バーは見出しのすぐ下、区域 24
+  expect(near(await hourGap(page), 14, 0.5)).toBe(true);
+  const mdh = await rect(page, '.mday .mdh'), bar = await rect(page, '.mday .mdgrab'), ad = await rect(page, '.mday .mdbody > .mdad'), pill = await rect(page, '.mday .mdad .mdallday'), tl = await rect(page, '.mday .tl');
+  expect(near(bar.y, tl.b)).toBe(true); expect(near(bar.h, 24)).toBe(true); // バーは時間軸のすぐ下、区域 24
   const line = await rect(page, '.mday .mdgrab i');
   expect(near(line.w, 36) && near(line.h, 4) && near(line.y - bar.y, 10)).toBe(true);
   expect(await css(page, '.mday .mdgrab i', 'backgroundColor')).toBe('rgb(185, 180, 168)');
-  expect(ad.y >= bar.b - 1).toBe(true); expect(pill.y >= bar.b - 1 && pill.b <= tl.y + 1).toBe(true); // 終日の行はバーの下・時間軸の上
+  expect(ad.y >= mdh.b - 1).toBe(true); expect(pill.y >= mdh.b - 1 && pill.b <= tl.y + 1).toBe(true); // 終日の札は見出しの下・時間軸の上
+  await expect(page.locator('.mday .mdbody .allday')).toHaveCount(0); // 「終日」の行は作らない
   expect(pill.b < 678).toBe(true);
   expect(await scTop(page)).toBe(0); // 画面は送っていない（月が見えたまま）
-  // 最初の予定 9:00 の1時間前＝8:00 の線が、時間軸の上端のすぐ下（上の余白 12）。7:00 の線は畳んであって見えない
-  expect(near(await lineY(page, 480), tl.y + 12)).toBe(true);
-  expect(await lineY(page, 420) < tl.y).toBe(true);
-  const hidden = await page.evaluate(() => { const tl = document.querySelector('.mday .tl').getBoundingClientRect(); const l = [...document.querySelectorAll('.mday .hlab')].find((e) => e.textContent === '7:00').getBoundingClientRect(); return document.elementFromPoint(l.left + 4, Math.max(1, l.top + 7))?.textContent !== '7:00' && l.bottom <= tl.top + 12; });
-  expect(hidden).toBe(true);
+  // 9:00 の線が、時間軸の上端のすぐ下（上の余白 12）。8:00 より前と 20:00 より後の目盛りは出さない
+  expect(near(await lineY(page, 540), tl.y + 12)).toBe(true);
+  const labs = await page.evaluate(() => [...document.querySelectorAll('.mday .hlab')].map((e) => ({ h: Number(e.dataset.rm) / 60, hid: e.hidden, t: e.textContent, dot: e.classList.contains('dot') })));
+  expect(labs.filter((l) => !l.hid).map((l) => l.h)).toEqual([9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+  expect(labs.filter((l) => !l.hid && !l.dot).map((l) => l.t)).toEqual(['9', '12', '15', '18']); // 数字は 3 時間ごと。間は点
+  expect(near(tl.h, 12 + 220 + 7.5 * 14 + 12)).toBe(true);
 });
 
-test('35 §9 S-4 バーで広げる: バーを下へ 60 引いて止めると 1時間 58。バーのすぐ下の時刻の線の y は引く前と同じ', async ({ page }) => {
+test('35 §9 S-4 バーで広げる: バーを下へ 60 引いて止めると 1時間 22。バーは指についてくる（60 下へ）。時間軸の上端の線の y は引く前と同じ', async ({ page }) => {
   await boot(page, { dg: 1 });
-  const y0 = await lineY(page, 480), p = await barPt(page), bar0 = await rect(page, '.mday .mdgrab');
+  const p = await barPt(page), y0 = await lineY(page, 540), bar0 = await rect(page, '.mday .mdgrab');
   await mouseDrag(page, p.x, p.y, p.x, p.y + 60, { up: false, hold: 150 });
-  expect(near(await hourGap(page), 58, 0.5)).toBe(true);
-  expect(near(await lineY(page, 480), y0)).toBe(true);
-  expect(near((await rect(page, '.mday .mdgrab')).y, bar0.y)).toBe(true); // バーも動かない（端のゴムの外）
+  expect(near(await hourGap(page), 22, 0.5)).toBe(true);
+  expect(near(await lineY(page, 540), y0)).toBe(true);
+  expect(near((await rect(page, '.mday .mdgrab')).y, bar0.y + 60)).toBe(true); // 時間軸が 60 伸びて、その下のバーが指の下にある
   expect(await css(page, '.mday .mdgrab i', 'backgroundColor')).toBe('rgb(104, 113, 106)'); // 押している間 #68716A
   await page.mouse.up(); await page.waitForTimeout(450);
-  // 指（pointerType:touch）でも同じ 1:0.5
+  // 指（pointerType:touch）でも同じ 1:1
   await page.locator('.mday .mdgrab').focus(); await page.keyboard.press('ArrowUp'); await page.waitForTimeout(100);
+  const p2 = await barPt(page);
   const got = await page.evaluate(async ({ x, y }) => {
     const t = document.querySelector('.mpull.browse .mdgrab'); const o = (yy) => ({ bubbles: true, cancelable: true, composed: true, pointerId: 9, pointerType: 'touch', isPrimary: true, clientX: x, clientY: yy, button: 0, buttons: 1 });
     t.dispatchEvent(new PointerEvent('pointerdown', o(y)));
@@ -84,75 +91,75 @@ test('35 §9 S-4 バーで広げる: バーを下へ 60 引いて止めると 1�
     for (const d of [20, 40, 60]) { window.dispatchEvent(new PointerEvent('pointermove', o(y + d))); out.push(parseFloat(document.querySelector('.mday .tl').style.getPropertyValue('--hh'))); } // 同じコマのうちに変わる（1コマも遅れない）
     window.dispatchEvent(new PointerEvent('pointercancel', o(y + 60)));
     return out;
-  }, p);
-  expect(got).toEqual([38, 48, 58]);
+  }, p2);
+  expect(got.map((v) => Math.round(v * 100) / 100)).toEqual([16.67, 19.33, 22]);
 });
 
-test('35 §9 S-5 バーで寄せる: 下へ 70 で離すと 0.25 秒後に 88、50 で離すと 28。58 をまたいだとき触覚ログ 1 件', async ({ page }) => {
+test('35 §9 S-5 バーで寄せる: 下へ 200 で離すと 0.25 秒後に 56、100 で離すと 14。35 をまたいだとき触覚ログ 1 件', async ({ page }) => {
   await boot(page, { dg: 1 });
   let p = await barPt(page);
-  await mouseDrag(page, p.x, p.y, p.x, p.y + 70, { hold: 150, settle: 0 });
+  await mouseDrag(page, p.x, p.y, p.x, p.y + 200, { hold: 150, settle: 0 });
   await page.waitForTimeout(120);
-  const mid = await hourGap(page); expect(mid > 63 && mid < 88).toBe(true); // 0.25 秒かけて寄る途中
+  const mid = await hourGap(page); expect(mid > 41 && mid < 56).toBe(true); // 0.25 秒かけて寄る途中
   await page.waitForTimeout(330);
-  expect(near(await hourGap(page), 88, 0.5)).toBe(true);
+  expect(near(await hourGap(page), 56, 0.5)).toBe(true);
   expect((await ui(page)).dayGrip).toBe(2);
   expect(await page.locator('.mday').getAttribute('data-dg')).toBe('C');
-  expect(await haptics(page)).toEqual([{ dayBar: 2, t: 0 }]); // 58 をまたいだ先（詳細）を 1 件だけ
-  // 最低限へ戻して、下へ 50 で離す → 28 のまま。またいでいないので触覚は増えない
+  expect(await haptics(page)).toEqual([{ dayBar: 2, t: 0 }]); // 35 をまたいだ先（詳細）を 1 件だけ
+  // 最低限へ戻して、下へ 100 で離す → 14 のまま。またいでいないので触覚は増えない
   await page.locator('.mday .mdgrab').focus(); await page.keyboard.press('ArrowUp'); await page.waitForTimeout(150);
   await page.evaluate(() => { window.__duoHapticLog.length = 0; });
   p = await barPt(page);
-  await mouseDrag(page, p.x, p.y, p.x, p.y + 50, { hold: 150 });
-  expect(near(await hourGap(page), 28, 0.5)).toBe(true);
+  await mouseDrag(page, p.x, p.y, p.x, p.y + 100, { hold: 150 });
+  expect(near(await hourGap(page), 14, 0.5)).toBe(true);
   expect((await ui(page)).dayGrip).toBe(1);
   expect(await haptics(page)).toEqual([]);
 });
 
-test('35 §9 S-6 ゴム: 88 からさらに下へ 100 引くと、88＋最大 24 の見かけで止まり、離すと 88', async ({ page }) => {
+test('35 §9 S-6 ゴム: 56 からさらに下へ 100 引くと、バーが最大 24 だけついてきて止まり、離すと戻る', async ({ page }) => {
   await boot(page, { dg: 2 });
-  const p = await barPt(page), bar0 = await rect(page, '.mday .mdgrab'), y0 = await lineY(page, 480);
+  const p = await barPt(page), bar0 = await rect(page, '.mday .mdgrab'), y0 = await lineY(page, 540);
   await mouseDrag(page, p.x, p.y, p.x, p.y + 100, { up: false, hold: 150 });
-  expect(near(await hourGap(page), 88, 0.5)).toBe(true); // 1時間の高さは 88 のまま
+  expect(near(await hourGap(page), 56, 0.5)).toBe(true); // 1時間の高さは 56 のまま
   const bar1 = await rect(page, '.mday .mdgrab');
-  expect(near(bar1.y - bar0.y, 24)).toBe(true); // バーと時間軸が指に少しついてくる（超えた引きの 0.3 倍、最大 24）
-  expect(near(await lineY(page, 480) - y0, 24)).toBe(true);
+  expect(near(bar1.y - bar0.y, 24)).toBe(true); // バー（とその下の区画）が指に少しついてくる（超えた引きの 0.3 倍、最大 24）
+  expect(near(await lineY(page, 540), y0)).toBe(true); // 時間軸は動かない
   await page.mouse.move(p.x, p.y + 30, { steps: 4 }); await page.waitForTimeout(150); // 止めてから離す（速く払うと払った向きへ寄る）
   expect(near((await rect(page, '.mday .mdgrab')).y - bar0.y, 9)).toBe(true); // 30×0.3
   await page.mouse.up(); await page.waitForTimeout(450);
   expect(near((await rect(page, '.mday .mdgrab')).y, bar0.y)).toBe(true);
-  expect(near(await hourGap(page), 88, 0.5)).toBe(true);
+  expect(near(await hourGap(page), 56, 0.5)).toBe(true);
   expect((await ui(page)).dayGrip).toBe(2);
   expect(await haptics(page)).toEqual([]);
 });
 
-test('35 §9 S-7 バーは貼り付かない: 時間で下へ 300 送ると、バーも日の見出しと一緒に流れて画面の外へ。上に残るのは年月と曜日（y0〜64）だけ。戻すと見出しのすぐ下にあり、引けば幅が変わる', async ({ page }) => {
+test('35 §9 S-7 バーは貼り付かない: 時間で下へ 250 送ると、バーも日の見出しと一緒に 250 流れる。上に残るのは年月と曜日（y0〜64）だけ。戻すと時間軸のすぐ下にあり、引けば幅が変わる', async ({ page }) => {
   await boot(page, { dg: 1 });
-  // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更: 日の欄の下の「ノートの欄」（最小 88）がノートのカードに替わり、ノートのない日は日の欄が短くなった（送れる量 247）。300 送れるよう、その日にノートを 2 枚置く
+  // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更: 日の欄の下の「ノートの欄」（最小 88）がノートのカードに替わり、ノートのない日は日の欄が短くなった。送れるよう、その日にノートを 2 枚置く
   await page.evaluate(async (d) => { const db = await import('/js/db.js'); for (const i of [1, 2]) await db.putNote({ id: `s7-${i}`, body: `メモ${i}`, createdAt: i, updatedAt: i, folderId: null, pinned: false, pinnedAt: null, date: d, deletedAt: null }); }, DAY);
   await reloadKeep(page); await page.waitForTimeout(400);
   const bar0 = await rect(page, '.mday .mdgrab'), mdh0 = await rect(page, '.mday .mdh');
-  await setScroll(page, 300);
-  expect(await scTop(page)).toBe(300);
+  await setScroll(page, 250);
+  expect(await scTop(page)).toBe(250);
   const bar1 = await rect(page, '.mday .mdgrab'), mdh1 = await rect(page, '.mday .mdh'), fix = await rect(page, '.mpfix');
-  expect(near(bar1.y, bar0.y - 300) && near(mdh1.y, mdh0.y - 300)).toBe(true);
-  expect(bar1.b < 64).toBe(true); // y64 に止まらない（見出し＋曜日の下に隠れて見えない）
+  expect(near(bar1.y, bar0.y - 250) && near(mdh1.y, mdh0.y - 250)).toBe(true);
+  expect(mdh1.b < 64 + 250).toBe(true);
   expect(await css(page, '.mday .mdgrab', 'position')).toBe('relative');
   expect(near(fix.y, 0) && near(fix.b, 64)).toBe(true);
   const stuck = await page.evaluate(() => [...document.querySelectorAll('.mpull.browse *')].filter((e) => getComputedStyle(e).position === 'sticky').map((e) => e.className));
   expect(stuck).toEqual(['mpfix']);
   await setScroll(page, 0);
   const bar2 = await rect(page, '.mday .mdgrab');
-  expect(near(bar2.y, (await rect(page, '.mday .mdh')).b)).toBe(true);
+  expect(near(bar2.y, (await rect(page, '.mday .tl')).b)).toBe(true);
   const p = await barPt(page);
   await mouseDrag(page, p.x, p.y, p.x, p.y + 60, { up: false, hold: 150 });
-  expect(near(await hourGap(page), 58, 0.5)).toBe(true);
+  expect(near(await hourGap(page), 22, 0.5)).toBe(true);
   await page.mouse.up();
 });
 
 test('35 §9 S-8 バー以外では変わらない: 時間軸・格子・日の欄を縦に引いても、1時間の高さも段も変わらない（触覚ログも増えない）', async ({ page }) => {
   await boot(page, { dg: 1 });
-  const tl = await rect(page, '.mday .tl'), grid = await rect(page, '.mgwrap'), mdh = await rect(page, '.mday .mdh'), ad = await rect(page, '.mday .mdbody > .allday');
+  const tl = await rect(page, '.mday .tl'), grid = await rect(page, '.mgwrap'), mdh = await rect(page, '.mday .mdh'), ad = await rect(page, '.mday .mdbody > .mdad');
   const pulls = [[200, tl.y + 40, 200, tl.y + 200], [200, tl.y + 220, 200, tl.y + 30], [20, tl.y + 60, 20, tl.y + 200], [200, grid.y + 30, 200, grid.y + 150], [200, grid.b - 20, 200, grid.y + 10], [60, mdh.y + 22, 60, mdh.y + 150], [30, ad.y + 14, 30, ad.y + 130]];
   for (const [x0, y0, x1, y1] of pulls) {
     await touchDrag(page, x0, y0, x1, y1, { settle: 80 });
@@ -160,26 +167,26 @@ test('35 §9 S-8 バー以外では変わらない: 時間軸・格子・日の�
     await page.keyboard.press('Escape'); // 時間軸の空きを長く引いて出来かけた予定の箱などは捨てる
   }
   await page.waitForTimeout(400);
-  expect(near(await hourGap(page), 28, 0.5)).toBe(true);
+  expect(near(await hourGap(page), 14, 0.5)).toBe(true);
   expect((await ui(page)).dayGrip).toBe(1);
   expect(await stageOf(page)).toBe(4);
   expect(await haptics(page)).toEqual([]);
 });
 
-test('35 §9 S-9 覚える: 時間・詳細にして 閉じる⇄開く・読み込み直しのあとも dayGrip 2 のまま、1時間 88', async ({ page }) => {
+test('35 §9 S-9 覚える: 時間・詳細にして 閉じる⇄開く・読み込み直しのあとも dayGrip 2 のまま、1時間 56', async ({ page }) => {
   await boot(page, { dg: 1 });
   const p = await barPt(page);
-  await mouseDrag(page, p.x, p.y, p.x, p.y + 120, { hold: 150 });
+  await mouseDrag(page, p.x, p.y, p.x, p.y + 200, { hold: 150 });
   expect((await ui(page)).dayGrip).toBe(2);
   await page.setViewportSize(SIZES.openPortrait669); await page.waitForTimeout(500);
   await expect(page.locator('.shell.closed')).toHaveCount(0);
   expect((await ui(page)).dayGrip).toBe(2);
   await page.setViewportSize(SIZES.closedPortrait); await page.waitForTimeout(500);
   expect(await page.locator('.mday').getAttribute('data-dg')).toBe('C');
-  expect(near(await hourGap(page), 88, 0.5)).toBe(true);
+  expect(near(await hourGap(page), 56, 0.5)).toBe(true);
   await page.reload(); await page.waitForSelector('html[data-ready]'); await page.waitForTimeout(300);
   expect(await page.locator('.mday').getAttribute('data-dg')).toBe('C');
-  expect(near(await hourGap(page), 88, 0.5)).toBe(true);
+  expect(near(await hourGap(page), 56, 0.5)).toBe(true);
   expect((await ui(page)).dayGrip).toBe(2);
   await expect(page.locator('.mday .mdct [data-dg="time"]')).toHaveAttribute('aria-pressed', 'true');
 });
@@ -195,14 +202,14 @@ test('35 §9 L-1 閉じた横の切り替え: 見出し 44 の下に「カード
   expect(first >= 88 - 1).toBe(true);
   const card = await rect(page, '.mday .mdcard');
   expect(near(card.w, 188) && near(card.h, 56) && card.y >= 88).toBe(true);
-  // 時間にすると、切り替えの行の下にバー（幅いっぱい×24）、その下に終日の行。1時間 28
+  // v19.5（征希さん「時間で表示した時は本家仕様にする」）で仕様変更: 時間にすると、切り替えの行の下に終日の札、時間軸、そのすぐ下にバー（幅いっぱい×24）。1時間 14
   await toTime(page);
   const bar = await rect(page, '.mday .mdgrab');
-  expect(near(bar.y, 88) && near(bar.h, 24) && near(bar.w, 188)).toBe(true);
-  expect(near(await hourGap(page), 28, 0.5)).toBe(true);
+  expect(near(bar.y, (await rect(page, '.mday .tl')).b) && near(bar.h, 24) && near(bar.w, 188)).toBe(true);
+  expect(near(await hourGap(page), 14, 0.5)).toBe(true);
   const p = await barPt(page);
-  await mouseDrag(page, p.x, p.y, p.x, p.y + 70, { hold: 150 });
-  expect(near(await hourGap(page), 88, 0.5)).toBe(true);
+  await touchDrag(page, p.x, p.y, p.x, p.y + 200, { steps: 8, hold: 150 }); // 閉じた横は高さ 466。指の出来事で画面の下の端より先まで引く
+  expect(near(await hourGap(page), 56, 0.5)).toBe(true);
   expect((await ui(page)).dayGrip).toBe(2);
   await toCard(page);
   await expect(page.locator('.mday .mdgrab')).toHaveCount(0);

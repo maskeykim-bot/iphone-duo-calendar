@@ -119,7 +119,7 @@ test('「時間」のときも、時間軸の枠・終日の行を長押しで�
   const e = (await dbEvs(page)).find((x) => x.id === 'e1'); expect([e.start, e.end]).toEqual([`${D14}T09:00`, `${D14}T10:00`]);
   await expect(toast(page).locator('span')).toHaveText('14日（土）へ移しました');
   await undo(page);
-  await dropOn(page, '.mday .adpill', cell(D14));
+  await dropOn(page, '.mday .mdallday', cell(D14)); // v19.5（征希さん「時間で表示した時は本家仕様にする」）で仕様変更: 「時間」の終日は「終日の行」の札（.adpill）→ カードと同じ色の札（.mdallday）
   const t = (await dbEvs(page)).find((x) => x.id === 'ad'); expect([t.start, t.end]).toEqual(['2026-11-13T00:00', '2026-11-15T23:59']);
 });
 

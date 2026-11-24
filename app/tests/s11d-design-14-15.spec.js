@@ -105,10 +105,11 @@ test('§15③ 帯なし縦: 日の欄の下余白105、送り切ると最後の�
 });
 
 // v19.3 征希さん『カード・時間で分けるだけ』で仕様変更: 時間（B）の1時間は 44 → 28（最低限。design/35 §5.3）
-test('§15④ ホームのタイムライン → 段7・日の欄B（時間・最低限＝1時間28）、別の日の画面を開かない',async({page})=>{
+// v19.5（征希さん「時間で表示した時は本家仕様にする」）で仕様変更: 時間・最低限の1時間は 28 → 14（予定のない 17:00〜18:00 の目盛りの間で測る。予定は 9:00〜15:30）
+test('§15④ ホームのタイムライン → 段7・日の欄B（時間・最低限＝1時間14）、別の日の画面を開かない',async({page})=>{
  await boot(page);await moreGo(page,/ホーム/);await page.locator('.home').getByRole('button',{name:'タイムライン',exact:true}).click();await page.waitForTimeout(500);
  await expect(page.locator('.shell.closed.tv-day')).toHaveCount(0);await expect(page.locator('.mpull')).toHaveAttribute('data-stage','7');await expect(page.locator('.mday')).toHaveAttribute('data-dg','B');
- const hh=await page.locator('.mday .hour').evaluateAll(es=>es.slice(0,2).map(e=>e.getBoundingClientRect().top));expect(hh.length).toBe(2);near(hh[1]-hh[0],28);
+ const hh=await page.locator('.mday .hour').evaluateAll(es=>es.filter(e=>['1020','1080'].includes(e.dataset.rm)).map(e=>e.getBoundingClientRect().top));expect(hh.length).toBe(2);near(hh[1]-hh[0],14);
 });
 
 test('望ましい: 週の時間軸の見出し中心は x191（帯あり）',async({page})=>{

@@ -69,12 +69,15 @@ for (const [label, dark] of MODES) {
       // 日付の横の薄い文字（「木 先勝」）
       const [h] = await texts(page, '.mday .mdh .hdw'); expect(h.color).toBe(OUT_TEXT[mode]); expect(h.bg).toBe(capsule); expect(h.ratio).toBeGreaterThanOrEqual(dark ? 4.5 : 4.85);
       if (!dark) { expect(h.color).toBe('#5D6963'); expect(Math.floor(h.ratio * 100) / 100).toBe(4.85); }
-      // 時間の型: 枠は 薄い地＋左 3 の線＋墨・角丸 4
+      // 時間の型: v19.5（征希さん「時間で表示した時は本家仕様にする」）で仕様変更。枠は「薄い地＋左 3 の線＋墨・角丸 4」→ カードと同じ「白いカード（角丸 10）＋色の線 3＋墨」。色は表示だけ（線はカードと同じ mark）
+      const [cardBg] = await bgs(page, '.mday .mdcard.mdk-event');
       await page.locator('.mday .mdct button', { hasText: '時間' }).click(); await page.waitForTimeout(400);
       const blocks = await bgs(page, '.mday .tlev'); expect(blocks.length).toBe(3);
-      for (const [i, e] of [EVENTS[2], EVENTS[3], EVENTS[4]].entries()) { const s = setOf(e, mode); expect(blocks[i].bg).toBe(s.tint); expect(blocks[i].radius).toBe('4px'); expect(ratio(s.mark, s.tint)).toBeGreaterThanOrEqual(3); }
-      expect(await page.locator('.mday .tlev').first().evaluate((x) => getComputedStyle(x).boxShadow)).toMatch(/3px 0px 0px 0px inset/);
-      for (const t of await texts(page, '.mday .tlev .tn')) { expect(t.color).toBe(ink); expect(t.ratio).toBeGreaterThanOrEqual(4.5); }
+      for (const b of blocks) { expect(b.bg).toBe(cardBg.bg); expect(b.radius).toBe('10px'); }
+      const tls = await marks(page, '.mday .tlev .fln'); expect(tls.length).toBe(3);
+      for (const [i, e] of [EVENTS[2], EVENTS[3], EVENTS[4]].entries()) { expect(tls[i].color).toBe(setOf(e, mode).mark); expect(tls[i].ratio).toBeGreaterThanOrEqual(3); expect(tls[i].w).toBe(3); }
+      for (const t of await texts(page, '.mday .tlev .tn, .mday .tlev .ft1, .mday .tlev .ft2')) expect(t.ratio, `${t.text} ${t.color}×${t.bg}`).toBeGreaterThanOrEqual(4.5);
+      { const [ct] = await page.evaluate(() => [getComputedStyle(document.querySelector('.mday .tlev .tn')).color]); await page.locator('.mday .mdct button', { hasText: 'カード' }).click(); await page.waitForTimeout(400); expect(await page.evaluate(() => getComputedStyle(document.querySelector('.mday .mdcard strong')).color)).toBe(ct); } // 題名の色はカードの題名と同じ
     });
 
     test('C-4・C-5 前後の月: 数字も予定もまとめて薄い（文字 #5D6963・普通の太さ・4.8 以上、地は薄い地の 30%、線は 79%（ダーク 62%）で 3 以上。不透明度は使わない）。+N は必ず見える', async ({ page }) => {
@@ -159,7 +162,7 @@ for (const [label, dark] of MODES) {
       const [pill] = await bgs(page, '.mday .mdallday'); expect(pill.bg).toBe(t.tint); expect(rgbHex(pill.border)).toBe(t.line);
       const [ln] = await marks(page, '.mday .mdcard.mdk-event .mdln'); expect(ln.color).toBe(g.line); expect(ln.ratio).toBeGreaterThanOrEqual(3);
       await page.locator('.mday .mdct button', { hasText: '時間' }).click(); await page.waitForTimeout(400);
-      const [blk] = await bgs(page, '.mday .tlev'); expect(blk.bg).toBe(g.tint);
+      const [bl] = await marks(page, '.mday .tlev .fln'); expect(bl.color).toBe(g.line); expect(bl.ratio).toBeGreaterThanOrEqual(3); // v19.5 で仕様変更: 時間の枠は白いカード＋色の線（カードと同じ色）
     });
   });
 }
