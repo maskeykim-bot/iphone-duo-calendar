@@ -4182,15 +4182,20 @@ const destPage = createDestPage(destPop, {
 const swVars = (colorId, base) => setVars(eventSet(colorId, base, MODE));
 // 「カテゴリの色（プライベート）」／ iPhone のカレンダーなら「カレンダーの色（個人）」
 const baseColorLabel = (d, info) => `${d.type === 'iphone' ? 'カレンダー' : 'カテゴリ'}の色（${info.name}）`;
+// 行の中の名前（レビュー直し 必須5）: 「カテゴリの色（」は切らず、分類名だけを … で切り、閉じかっこは残す（「カテゴリの色（ゴルフ練…）」）。選んだ色の名前は 1 つ
+const colorNameHtml = (flickId, iphone, name) => (isFlickId(flickId) ? `<span class="cn1">${esc(flickName(flickId))}</span>` : `<span class="cn1">${iphone ? 'カレンダー' : 'カテゴリ'}の色（</span><span class="cn2">${esc(name)}</span><span class="cn3">）</span>`);
+// 繰り返しの予定は全部の回が同じ色になる（37 決定 2）。色を選ぶ画面の注記と、色の帯のトーストで知らせる（レビュー直し 望ましい12・企画 3）
+const REPEAT_COLOR_NOTE = '繰り返しの予定は、すべての回が同じ色になります。';
+const edRepeats = () => (extEd ? !!extEd.before.recurring : !!F.rfreq.value && F.rfreq.value !== 'none');
 const edBase4Color = () => { if (extEd) return { d: { type: 'iphone' }, info: { name: extEd.before.calName || 'iPhone', color: extEd.before.color } }; const d = destEff(); return { d, info: destInfo(d) }; };
-function colorRowsHtml(cur, d, info, isIphone) {
+function colorRowsHtml(cur, d, info, isIphone, repeats = false) {
   const row = (id, name, sub) => { const on = (isFlickId(cur) ? cur : '') === id; return `<button type="button" class="dopt copt" role="option" aria-selected="${on}" aria-label="色 ${esc(name)}${sub ? ` ${esc(sub)}` : ''}" data-dtype="color" data-did="${id}"><i class="csw lg" style="${swVars(id || null, info.color)}" aria-hidden="true"></i><span class="dn">${esc(name)}${sub ? `<small class="dsub">${esc(sub)}</small>` : ''}</span><span class="dck" aria-hidden="true">${on ? '✓' : ''}</span></button>`; };
-  return `<h4>${d.type === 'iphone' ? 'カレンダー' : 'カテゴリ'}</h4>${row('', `${d.type === 'iphone' ? 'カレンダー' : 'カテゴリ'}の色`, info.name)}<h4>くすみ色（Duo フリックと同じ 7 色）</h4>${FLICK.map((f) => row(f.id, f.name, '')).join('')}${isIphone ? '<p class="dnote cnote">iPhone のカレンダーの予定に付けた色は、この端末の Duo の中だけに残ります（iPhone のカレンダーには書けません）。</p>' : ''}`;
+  return `<h4>${d.type === 'iphone' ? 'カレンダー' : 'カテゴリ'}</h4>${row('', `${d.type === 'iphone' ? 'カレンダー' : 'カテゴリ'}の色`, info.name)}<h4>くすみ色（Duo フリックと同じ 7 色）</h4>${FLICK.map((f) => row(f.id, f.name, '')).join('')}${repeats ? `<p class="dnote cnote crep">${REPEAT_COLOR_NOTE}</p>` : ''}${isIphone ? '<p class="dnote cnote">iPhone のカレンダーの予定に付けた色は、この端末の Duo の中だけに残ります（iPhone のカレンダーには書けません）。</p>' : ''}`;
 }
 const colorPage = createDestPage($('#color-pop'), {
   title: '色',
   settings: false,
-  bodyHtml() { const { d, info } = edBase4Color(); return colorRowsHtml(colorSel, d, info, !!extEd); },
+  bodyHtml() { const { d, info } = edBase4Color(); return colorRowsHtml(colorSel, d, info, !!extEd, edRepeats()); },
   onOpen() { form.inert = true; $('#f-color').setAttribute('aria-expanded', 'true'); },
   onClose(focus) { form.inert = false; $('#f-color').setAttribute('aria-expanded', 'false'); if (focus) $('#f-color').focus({ preventScroll: true }); },
   onPick(d) { colorSel = isFlickId(d.id) ? d.id : null; updateColorUi(); saveDraft(); },
@@ -4200,7 +4205,7 @@ $('#f-color').addEventListener('click', () => { if (!colorPage.isOpen()) { close
 function updateColorUi() {
   const { d, info } = edBase4Color(), on = isFlickId(colorSel);
   $('#color-sw').setAttribute('style', swVars(on ? colorSel : null, info.color));
-  const nm = $('#color-name'); nm.textContent = on ? flickName(colorSel) : baseColorLabel(d, info); nm.classList.toggle('on', on);
+  const nm = $('#color-name'); nm.innerHTML = colorNameHtml(on ? colorSel : null, d.type === 'iphone', info.name); nm.classList.toggle('on', on);
   $('#f-color').setAttribute('aria-label', `色 ${nm.textContent}`);
   if (colorPage.isOpen()) colorPage.render();
 }
@@ -5764,7 +5769,7 @@ function xdBody(e) {
     ? `<dt>開始</dt><dd>${ymdSlash(dayOf(e.start))}（終日）</dd><dt>終了</dt><dd>${ymdSlash(dayOf(e.end))}（含む最終日）</dd>`
     : `<dt>開始</dt><dd>${esc(t(e.start))}</dd><dt>終了</dt><dd>${esc(t(e.rawEnd && e.rawEnd >= e.start ? e.rawEnd : e.end))}</dd>`;
   $('#xd-body').innerHTML = `<h3 class="xdt">${esc(e.title)}</h3><p class="xdcal caltag"><i class="cdot" style="background:${catSet(e).line}" aria-hidden="true"></i>${esc(subLabel(e))}${e.recurring ? ' <span class="rep" aria-hidden="true">↻</span>' : ''}</p>
-    <dl class="facts">${when}<dt>場所</dt><dd>${e.place ? esc(e.place) : '場所なし'}</dd><dt>メモ</dt><dd class="notes">${e.notes ? esc(e.notes) : 'メモなし'}</dd></dl>${xcKeyOf(e) ? (() => { const cid = xColorIdOf(e), on = isFlickId(cid), nm = on ? flickName(cid) : `カレンダーの色（${e.calName || 'iPhone'}）`; return `<button type="button" id="xd-color" class="destbtn colorbtn" aria-haspopup="true" aria-label="色 ${esc(nm)}"><span class="dlbl">色</span><span class="dval"><i class="csw" style="${swVars(on ? cid : null, e.color)}" aria-hidden="true"></i><span class="cnm${on ? ' on' : ''}">${esc(nm)}</span><span aria-hidden="true">›</span></span></button>`; })() : ''}`;
+    <dl class="facts">${when}<dt>場所</dt><dd>${e.place ? esc(e.place) : '場所なし'}</dd><dt>メモ</dt><dd class="notes">${e.notes ? esc(e.notes) : 'メモなし'}</dd></dl>${xcKeyOf(e) ? (() => { const cid = xColorIdOf(e), on = isFlickId(cid), nm = on ? flickName(cid) : `カレンダーの色（${e.calName || 'iPhone'}）`; return `<button type="button" id="xd-color" class="destbtn colorbtn" aria-haspopup="true" aria-label="色 ${esc(nm)}"><span class="dlbl">色</span><span class="dval"><i class="csw" style="${swVars(on ? cid : null, e.color)}" aria-hidden="true"></i><span class="cnm${on ? ' on' : ''}">${colorNameHtml(on ? cid : null, true, e.calName || 'iPhone')}</span><span aria-hidden="true">›</span></span></button>`; })() : ''}`;
 }
 $('#xd-body').addEventListener('click', (ev) => { const b = ev.target.closest('#xd-color'); if (!b || !xdCur) return; const cur = xdState?.before || xdCur; openColorStrip(xdCur.id, b, () => { if (xdDlg.open) xdBody(xdState?.before || cur); }); });
 // 下の段。取得中・失敗は編集・削除なし。書けるとき: 削除/編集＋小さい「カレンダーで開く」。書けないとき: 理由＋大きい「カレンダーで開く」。
@@ -7771,7 +7776,7 @@ function openChipMenu(id, chipEl) {
   document.addEventListener('pointerdown', chipMenuOutside, true);
   m.querySelector('[data-cm="copy"]').focus({ preventScroll: true });
 }
-// ---- 予定ごとの色の近道（design/37 §3.3）: メニューの「色」→ 色の帯（幅 336・高さ 78・角丸 14）。左端「分類」＝カテゴリの色に戻す、続いてフリックの 7 色。
+// ---- 予定ごとの色の近道（design/37 §3.3）: メニューの「色」→ 色の帯（幅 336・高さ 78・角丸 14）。左端＝カテゴリ（iPhone の予定ならカレンダー）の色に戻す見本（文字なし）、仕切り 1×20、続いてフリックの 7 色。
 // たたくとすぐ変わって帯は閉じ、「色を変えました　元に戻す」（6 秒）。繰り返しは全部の回に付く。iPhone の予定は Duo の中の表に付く
 const COLOR_UNDO_MS = 6000;
 const evById = (id) => (isXId(id) ? visExt().find((v) => v.id === id) || (xdCur?.id === id ? xdCur : null) : resolve(id)?.p) || null;
@@ -7800,8 +7805,9 @@ async function pickEventColor(id, colorId, after) {
   if (prev === undefined) { notice('色を変えられませんでした。'); return; }
   after?.();
   if ((prev ?? null) === (validColorId(colorId) ? colorId : null)) return;
-  say('色を変えました。');
-  notice('色を変えました', { label: '元に戻す', fn: async () => { document.querySelector('#native-toast')?.remove(); try { await setEventColor(id, prev); after?.(); say('色を元に戻しました。'); } catch { notice('元に戻せませんでした。'); } } }, COLOR_UNDO_MS);
+  const ev0 = evById(id), all = !!(ev0 && (isXId(id) ? ev0.recurring : ev0.recurrence)), msg = all ? 'すべての回の色を変えました' : '色を変えました'; // 繰り返しは全部の回に付く
+  say(`${msg}。`);
+  notice(msg, { label: '元に戻す', fn: async () => { document.querySelector('#native-toast')?.remove(); try { await setEventColor(id, prev); after?.(); say('色を元に戻しました。'); } catch { notice('元に戻せませんでした。'); } } }, COLOR_UNDO_MS);
 }
 function openColorStrip(id, anchor, after) {
   closeChipMenu();
@@ -7811,7 +7817,7 @@ function openColorStrip(id, anchor, after) {
   const m = document.createElement('div');
   m.className = 'cmenu colorstrip'; m.setAttribute('role', 'group'); m.setAttribute('aria-label', '色'); m.dataset.colorstrip = id;
   const sw = (cid, name, txt) => `<button type="button" class="cso" data-cs="${cid}" aria-pressed="${cur === cid}" aria-label="${esc(name)}${cur === cid ? '、選択中' : ''}"><i class="csw lg" style="${swVars(cid || null, base)}" aria-hidden="true">${txt}</i></button>`;
-  m.innerHTML = `<p class="csn" aria-live="polite">${esc(cur ? flickName(cur) : `${iph ? 'カレンダー' : 'カテゴリ'}の色`)}</p><div class="csr">${sw('', `${iph ? 'カレンダー' : 'カテゴリ'}の色に戻す`, '<b>分類</b>')}${FLICK.map((f) => sw(f.id, f.name, '')).join('')}</div>`;
+  m.innerHTML = `<p class="csn" aria-live="polite">${esc(cur ? flickName(cur) : `${iph ? 'カレンダー' : 'カテゴリ'}の色`)}</p><div class="csr">${sw('', `${iph ? 'カレンダー' : 'カテゴリ'}の色に戻す`, '')}<i class="csdiv" aria-hidden="true"></i>${FLICK.map((f) => sw(f.id, f.name, '')).join('')}</div>`;
   // 置き場所（レビュー直し 必須3）: 開いた横は、押した所のあるページの中に左右 8 空けて収める（折り目の溝 --fold-x±--fold-keepout にかけない）。
   // 開いた縦は、上下が溝（--groove-avoid-y0〜y1）にかかるならチップの上側へ（それもかかるなら溝のすぐ下）
   const r = anchor.getBoundingClientRect(), H = 78, cx = r.left + r.width / 2;

@@ -28,7 +28,7 @@ export const allDay = (id, title, d1, d2, extra = {}) => ev(id, title, `${d1}T00
 
 // ---- 色を読む（ページの中で動く関数を文字で渡す）
 const IN_PAGE = `
-  const parse = (s) => { const m = /rgba?\\(([^)]+)\\)/.exec(s || ''); if (!m) return null; const p = m[1].split(/[,\\s/]+/).filter(Boolean).map(Number); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; };
+  const parse = (s) => { const k = /^color\\(srgb ([^)]+)\\)/.exec(s || ''); if (k) { const q = k[1].split(/[\\s/]+/).filter(Boolean).map(Number); return { r: q[0] * 255, g: q[1] * 255, b: q[2] * 255, a: q.length > 3 ? q[3] : 1 }; } /* color-mix の結果 */ const m = /rgba?\\(([^)]+)\\)/.exec(s || ''); if (!m) return null; const p = m[1].split(/[,\\s/]+/).filter(Boolean).map(Number); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; };
   const over = (top, under) => ({ r: top.r * top.a + under.r * (1 - top.a), g: top.g * top.a + under.g * (1 - top.a), b: top.b * top.a + under.b * (1 - top.a), a: 1 });
   // 要素の後ろに実際に見えている地の色（透ける地は親へさかのぼって重ねる。不透明度も数える）
   const bgOf = (el) => { const layers = []; for (let e = el; e; e = e.parentElement) { const c = parse(getComputedStyle(e).backgroundColor); if (c && c.a > 0) { layers.push(c); if (c.a >= 1) break; } } let out = { r: 255, g: 255, b: 255, a: 1 }; for (const c of layers.reverse()) out = over(c, out); return out; };

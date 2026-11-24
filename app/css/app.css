@@ -2605,8 +2605,13 @@ html[data-theme=dark]{--paper:#1C1F1D;--card:#262A27;--cardw:#262A27;--capsule:#
 .csw{position:relative;flex:none;display:inline-block;box-sizing:border-box;width:28px;height:20px;border-radius:4px;background:var(--cat-tint);font-style:normal}
 .csw::before{content:'';position:absolute;left:3px;top:3px;bottom:3px;width:3px;border-radius:1.5px;background:var(--cat-mark)}
 .csw.lg{width:32px;height:24px}
-.destbtn.colorbtn .dval{flex:0 1 auto;min-width:0}
-.destbtn.colorbtn #color-name,.destbtn.colorbtn .cnm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* レビュー直し 必須5: 値は右寄せで行の残りを全部使う（「色」と値の間 16 以上・見本 28×20・名前 15pt W4 字間 0・名前と › の間 6・› 幅 8）。「カテゴリの色（」は切らず、分類名だけ … で切る */
+.destbtn.colorbtn{gap:16px}
+.destbtn.colorbtn .dval{flex:1 1 auto;min-width:0;max-width:none;justify-content:flex-end;gap:6px;overflow:visible}
+.destbtn.colorbtn #color-name,.destbtn.colorbtn .cnm{display:flex;flex:0 1 auto;min-width:0;font-size:15px;font-weight:400;letter-spacing:0;white-space:nowrap;overflow:hidden}
+.destbtn.colorbtn .cn1,.destbtn.colorbtn .cn3{flex:none}
+.destbtn.colorbtn .cn2{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.destbtn.colorbtn .dval>span:last-child{flex:none;width:8px;text-align:right}
 .destbtn.colorbtn #color-name.on,.destbtn.colorbtn .cnm.on{color:var(--ink2)}
 #xd-body .destbtn.colorbtn{margin-top:12px}
 /* 色を選ぶ画面: 見出し 26（12pt）・行 44・左右 20・見本と名前の間 12。8 行＋見出し 2 つ＝404 で、閉じた縦でもスクロールなしで入る */
@@ -2614,12 +2619,15 @@ html[data-theme=dark]{--paper:#1C1F1D;--card:#262A27;--cardw:#262A27;--capsule:#
 .destpage.colorpage .dopt{gap:12px}
 .destpage.colorpage .dopt .dsub{margin-left:8px;font-size:12px;color:var(--muted)}
 .destpage.colorpage .cnote{font-size:12px;line-height:1.5}
+/* レビュー直し 望ましい12: 繰り返しの注記（12pt W4・#5D6963・上 12・左右 20・行間 1.5）。iPhone の注記より上 */
+.destpage.colorpage .cnote.crep{margin:12px 20px 0;padding:0;font-weight:400;color:var(--outc)}
 /* 長押しメニューの「色」の帯: 幅 336・高さ 78・角丸 14。上に選んでいる色の名前 12pt、下に見本 32×24 を 8 つ（間 8。押す的 40×44）。選んでいる見本に 白 2＋緑 2 の輪 */
-.cmenu.colorstrip{box-sizing:border-box;height:78px;padding:8px 8px 0;border-radius:14px;overflow:visible}
-.colorstrip .csn{margin:0 4px;height:18px;font-size:12px;line-height:18px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmenu.colorstrip{box-sizing:border-box;height:78px;padding:8px 4px 0;border-radius:14px;overflow:visible} /* 左右 4: 押す的 40×8＋仕切り（1＋左右 3.5）＝328 を 336 の中に。見本は帯の端から 8 */
+.colorstrip .csn{margin:0 8px;height:18px;font-size:12px;line-height:18px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .colorstrip .csr{display:flex;justify-content:space-between;height:44px;margin-top:2px}
 .cmenu.colorstrip button.cso{display:flex;align-items:center;justify-content:center;flex:none;width:40px;height:44px;min-height:44px;padding:0;border:0;border-radius:8px;background:transparent}
-.colorstrip .cso .csw b{position:absolute;left:8px;right:0;top:0;bottom:0;font-size:9px;line-height:24px;font-weight:600;color:var(--ink);text-align:center;letter-spacing:-.04em}
+/* レビュー直し 必須6: 最初の見本（カテゴリ／カレンダーの色）に文字は入れない。7 色との間に仕切り 1×20（#DCD7CB。見本の縦の中心）。押す的 40×44 はそのまま */
+.colorstrip .csdiv{flex:none;align-self:center;width:1px;height:20px;margin:0 3.5px;background:#DCD7CB} /* 左右 3.5: 選んでいる見本の輪（外へ 4）とくっつかない */
 .colorstrip .cso[aria-pressed=true] .csw{box-shadow:0 0 0 2px #fff,0 0 0 4px #294E42}
 .colorstrip .cso:active .csw{filter:brightness(.94)}
 .cmenu.colorstrip button.cso:active,.cmenu.colorstrip button.cso[aria-pressed=true]:active{background-color:transparent!important;filter:none}
@@ -2627,7 +2635,9 @@ html[data-theme=dark]{--paper:#1C1F1D;--card:#262A27;--cardw:#262A27;--capsule:#
 /* 望ましい7: 前後の月の予定の地（30%）と線（79%。7 色は --cat-line-a）は、置かれるページの地に混ぜる。開いた横の左ページは #F0EDE5、右ページは var(--card)。ほか（紙 #F7F4ED）は js/colors.js の値のまま */
 .shell.spread .page.lp{--page-bg:#F0EDE5}
 .shell.spread .page.rp{--page-bg:var(--card)}
-.shell.spread .week .strip.outm,.shell.spread .week .bar.outm{background:color-mix(in srgb,var(--cat-tint) 30%,var(--page-bg,var(--paper)))}
-.shell.spread .week .strip.outm::before,.shell.spread .week .bar.outm::before{background:color-mix(in srgb,var(--cat-line) var(--cat-line-a,79%),var(--page-bg,var(--paper)))}
+html:not([data-theme=dark]) .shell.spread .week .strip.outm,html:not([data-theme=dark]) .shell.spread .week .bar.outm{background:color-mix(in srgb,var(--cat-tint) 30%,var(--page-bg,var(--paper)))}
+html:not([data-theme=dark]) .shell.spread .week .strip.outm::before,html:not([data-theme=dark]) .shell.spread .week .bar.outm::before{background:color-mix(in srgb,var(--cat-line) var(--cat-line-a,79%),var(--page-bg,var(--paper)))}
+/* 左ページの地に混ぜた前後の月の地は紙の上より少し暗いので、その上の文字は #59655F（どの色の地の上でも 4.9 以上。#5D6963 のままだと 4.65 で、前後の月の基準 4.8 を割る）。ダークは見本だけなので紙の値のまま */
+html:not([data-theme=dark]) .shell.spread .page.lp .week .strip.outm,html:not([data-theme=dark]) .shell.spread .page.lp .week .bar.outm{color:#59655F}
 /* 望ましい8: 開いた画面の曜日（月〜金）は #5D6963。土・日は案 A の色のまま */
 .shell.open .weekdays,.shell.spread .weekdays{color:var(--outc)}

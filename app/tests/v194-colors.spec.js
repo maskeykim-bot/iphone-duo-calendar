@@ -4,7 +4,7 @@
 import { test, expect } from '@playwright/test';
 import { clickSettings, enableCalendars } from './helpers.js';
 import { boot, SIZES, ev, allDay, catId, texts, marks, bgs, varOf, ratio, rgbHex, dbEvs, dbCats, dbColors, cell, toast, mockNative, mockNext, CALS } from './v194-lib.js';
-import { colorSet, flickSet, FLICK, INK, OUT_TEXT, BG, WEEKEND } from '../js/colors.js';
+import { colorSet, flickSet, mixHex, FLICK, INK, OUT_TEXT, BG, WEEKEND } from '../js/colors.js';
 
 const W = catId('work'), P = catId('private'), F = catId('family'), O = catId('out'), G = catId('other');
 const BASE = { [W]: '#2f5f8a', [P]: '#8a4b6b', [F]: '#2e6b5a', [O]: '#87500f', [G]: '#5a5e62', bright: '#34aadc' };
@@ -130,8 +130,8 @@ for (const [label, dark] of MODES) {
         for (const t of await texts(page, '.week .strip .st, .week .bar .st, .week .day .num, .week .plus')) expect(t.ratio, `${t.text} ${t.color}×${t.bg}`).toBeGreaterThanOrEqual(4.5);
         for (const x of await marks(page, '.week .strip, .week .bar', '::before')) expect(x.ratio, `${x.color}×${x.bg}`).toBeGreaterThanOrEqual(3);
         // 前後の月（開いた月）: チップの地 30%・文字 #5D6963
-        const so = colorSet(BASE[F], mode); const [ob] = await bgs(page, '.week .strip.outm[data-event="o2"]'); expect(ob.bg).toBe(so.tintOut);
-        const [ot] = await texts(page, '.week .strip.outm[data-event="o2"] .st'); expect(ot.color).toBe(OUT_TEXT[mode]); expect(ot.ratio).toBeGreaterThanOrEqual(4.8);
+        const so = colorSet(BASE[F], mode), lp = !dark && size === SIZES.openLandscape951; const [ob] = await bgs(page, '.week .strip.outm[data-event="o2"]'); expect(ob.bg).toBe(lp ? mixHex(so.tint, '#F0EDE5', 0.30) : so.tintOut); // レビュー直し 望ましい7: 開いた横の左ページ（#F0EDE5）ではそのページの地に混ぜる
+        const [ot] = await texts(page, '.week .strip.outm[data-event="o2"] .st'); expect(ot.color).toBe(lp ? '#59655F' : OUT_TEXT[mode]); expect(ot.ratio).toBeGreaterThanOrEqual(4.8);
         if (size === SIZES.openLandscape951) { // 右のページ: 時間軸と終日の帯
           const blocks = await bgs(page, '.page.rp .tlev, .tl .tlev'); expect(blocks.length).toBeGreaterThan(0);
           const tints = [EVENTS[2], EVENTS[3], EVENTS[4]].map((e) => setOf(e, mode).tint);

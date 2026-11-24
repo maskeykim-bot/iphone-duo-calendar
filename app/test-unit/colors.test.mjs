@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
-import { BG, INK, OUT_TEXT, OUT_LINE_ALPHA, OUT_TINT_ALPHA, WEEKEND, FLICK, COLOR_ID_MAX, colorSet, flickSet, eventSet, setVars, isFlickId, flickName, validColorId, contrast, mixHex, toOklch } from '../js/colors.js';
+import { LEFT_PAGE, BG, INK, OUT_TEXT, OUT_LINE_ALPHA, OUT_TINT_ALPHA, WEEKEND, FLICK, COLOR_ID_MAX, colorSet, flickSet, eventSet, setVars, isFlickId, flickName, validColorId, contrast, mixHex, toOklch } from '../js/colors.js';
 import { PALETTE, DEFAULTS_NEW, LEGACY, UNCATEGORIZED } from '../js/categories.js';
 
 const FX = JSON.parse(readFileSync(new URL('./fixtures/colors36-37.json', import.meta.url), 'utf8'));
@@ -143,10 +143,10 @@ test('P-1・P-10: 予定の色の組。7 色の ID ならその組（36 の式�
   assert.equal(isFlickId('sage'), true); assert.equal(isFlickId('xxx'), false); assert.equal(isFlickId('toString'), false); assert.equal(isFlickId('__proto__'), false);
 });
 
-test('段1: inline の CSS 変数は 7 つ。値は # と 16 進 6 けただけ（style に入れても壊れない）', () => {
+test('段1: inline の CSS 変数は 色 7 つ（値は # と 16 進 6 けただけ）＋前後の月の線の割合 1 つ（数字と %。レビュー直し 望ましい7）。style に入れても壊れない', () => {
   for (const s of [colorSet('#2f5f8a'), colorSet('bad"<'), eventSet('sage', '#2f5f8a'), eventSet('sage', '#2f5f8a', 'dark')]) {
     const v = setVars(s);
-    assert.match(v, /^(--cat-(line|mark|tint|fill|text|tint-out|line-out):#[0-9A-F]{6};){7}$/);
+    assert.match(v, /^(--cat-(line|mark|tint|fill|text|tint-out|line-out):#[0-9A-F]{6};){7}--cat-line-a:\d{2,3}%;$/);
   }
   assert.ok(setVars(colorSet('#2f5f8a')).includes('--cat-line:#526B90;') && setVars(colorSet('#2f5f8a')).includes('--cat-tint:#D4DDEB;'));
 });
@@ -175,4 +175,19 @@ test('C-2・C-3: 216 色（6×6×6）のどれが来ても、墨×薄い地・�
       assert.ok(cr(s.lineOut, BG[m].paper) >= 3 && cr(s.lineOut, s.tintOut) >= 3, `${hex} ${m} 前後の月の線 ${cr(s.lineOut, BG[m].paper)} ${cr(s.lineOut, s.tintOut)}`);
     }
   }
+});
+
+// レビュー直し（design/V194_レビュー.md 望ましい7）: 開いた横の左ページ #F0EDE5 の上では、前後の月の地（30%）と線をそのページの地に混ぜる。地が消えず、線は 3 以上、文字は 4.5 以上
+test('レビュー直し 望ましい7: 左ページ #F0EDE5 に混ぜた前後の月の地は見え、線は 3 以上・文字 #5D6963 は 4.5 以上（既定 5 色・パレット・iPhone の色・7 色）', () => {
+  assert.equal(LEFT_PAGE, '#F0EDE5');
+  const sets = [...['#2f5f8a', '#8a4b6b', '#2e6b5a', '#87500f', '#5a5e62', '#a13a3a', '#5e4c8e', '#1f6a73', '#556a1c', '#34aadc', '#ff2968', '#68716a', '#ffcc00', '#d93025', '#0b8043'].map((h) => [h, colorSet(h)]), ...FLICK.map((f) => [f.id, flickSet(f.id)])];
+  for (const [n, s] of sets) {
+    assert.ok(Number.isInteger(s.lineOutA) && s.lineOutA >= OUT_LINE_ALPHA.light * 100 && s.lineOutA <= 100, `${n} 割合 ${s.lineOutA}`);
+    const t = mixHex(s.tint, LEFT_PAGE, OUT_TINT_ALPHA), l = mixHex(s.line, LEFT_PAGE, s.lineOutA / 100);
+    assert.notEqual(t, LEFT_PAGE, `${n} 地がページと同じ色でない`);
+    assert.ok(contrast(l, LEFT_PAGE) >= 3 && contrast(l, t) >= 3, `${n} 線 ${contrast(l, LEFT_PAGE)} ${contrast(l, t)}`);
+    assert.ok(contrast(OUT_TEXT.light, t) >= 4.5, `${n} 文字 ${contrast(OUT_TEXT.light, t)}`);
+  }
+  // 紙の上の値（36 §15.4 の tintOut・lineOut）は変えていない
+  assert.equal(colorSet('#5a5e62').tintOut, mixHex(colorSet('#5a5e62').tint, BG.light.paper, OUT_TINT_ALPHA));
 });

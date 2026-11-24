@@ -194,7 +194,7 @@ test.describe('必須4・望ましい7・8・14 開いた画面の薄い文字�
       expect(bg).not.toBe(LEFT_PAGE);
       expect(ratio(bg, LEFT_PAGE), `${g.id} 地×ページ`).toBeGreaterThanOrEqual(1.03); // 紙に混ぜていたときは 1.00〜1.02 で見えなかった
       expect(ratio(line, LEFT_PAGE), `${g.id} 線×ページ`).toBeGreaterThanOrEqual(3); expect(ratio(line, bg), `${g.id} 線×地`).toBeGreaterThanOrEqual(3);
-      expect(toHex(g.color)).toBe(OUTC); expect(ratio(OUTC, bg), `${g.id} 文字`).toBeGreaterThanOrEqual(4.5);
+      expect(toHex(g.color)).toBe('#59655F'); expect(ratio('#59655F', bg), `${g.id} 文字（前後の月の基準 4.8）`).toBeGreaterThanOrEqual(4.8); expect(ratio(OUTC, bg)).toBeLessThan(4.8); // #5D6963 のままでは割る
       { const px = await pixel(page, Math.round(g.x + g.w / 2), Math.round(g.y) + 1); expect(near(px, bg, 2), `${g.id} 画面の画素 ${px} 計算 ${bg}`).toBe(true); } // 実際に描かれている色
     }
   });
@@ -222,4 +222,108 @@ test('連携 L-4: 開いた月の帯・チップの data-lane は段の番号（
   const got = await page.evaluate(() => [...document.querySelectorAll('.week > .strip, .week > .bar')].map((e) => ({ lane: e.getAttribute('data-lane'), bad: [...e.attributes].some((a) => /"/.test(a.name)) })));
   expect(got.length).toBeGreaterThan(10);
   for (const g of got) { expect(g.lane).toMatch(/^\d+$/); expect(g.bad).toBe(false); }
+});
+
+// ---- 直し2: 編集シートの「色」の行（必須5）・色の帯の仕切り（必須6）・繰り返しの注記（望ましい12・企画 3）
+const openCard = async (page, title) => { await page.locator('.mday .mdcard', { hasText: title }).first().click(); await expect(page.locator('#editor')).toBeVisible(); await page.waitForTimeout(350); };
+const rowOf = (page) => page.evaluate(() => {
+  const r = (e) => { const q = e.getBoundingClientRect(); return { l: q.left, t: q.top, r: q.right, b: q.bottom, w: q.width, h: q.height, cy: (q.top + q.bottom) / 2 }; };
+  const f = document.querySelector('#f-color'), d = document.querySelector('#f-dest'), nm = f.querySelector('#color-name'), cs = getComputedStyle(nm), part = (c) => { const e = nm.querySelector(c); return e ? { ...r(e), text: e.textContent, cut: e.scrollWidth > e.clientWidth + 0.5 } : null; };
+  return { row: r(f), lbl: r(f.querySelector('.dlbl')), lblFont: [getComputedStyle(f.querySelector('.dlbl')).fontSize, getComputedStyle(f.querySelector('.dlbl')).fontWeight], sw: r(f.querySelector('.csw')), swRadius: getComputedStyle(f.querySelector('.csw')).borderRadius, swLine: getComputedStyle(f.querySelector('.csw'), '::before').width,
+    name: r(nm), text: nm.textContent, font: [cs.fontSize, cs.fontWeight, cs.letterSpacing], color: getComputedStyle(nm.querySelector('.cn1')).color, cn1: part('.cn1'), cn2: part('.cn2'), cn3: part('.cn3'),
+    chev: r(f.querySelector('.dval > span:last-child')), dchev: r(d.querySelector('.dval > span:last-child')), ddot: r(d.querySelector('.cdot')), drow: r(d), aria: f.getAttribute('aria-label') };
+});
+test.describe('必須5 編集シートの「色」の行: 値は右寄せで、色の名前が切れずに読める', () => {
+  const E = [ev('e1', '歯医者', '2026-11-12T15:00', '2026-11-12T16:00', { categoryId: P }), ev('e2', '練習', '2026-11-12T17:00', '2026-11-12T18:00', { categoryId: 'longcat' })];
+  const CATS = [{ id: 'longcat', name: 'ゴルフ練習場の予約と打ちっぱなしの記録', color: '#1f6a73' }];
+  test('閉じた縦: 「カテゴリの色（プライベート）」が全部出る。見本 28×20・名前 15pt W4・字間 0・名前と › の間 6・› 幅 8（右端はカレンダーの行の › と同じ）', async ({ page }) => {
+    await boot(page, { events: E, cats: CATS });
+    await openCard(page, '歯医者');
+    const m = await rowOf(page);
+    expect(m.text).toBe('カテゴリの色（プライベート）'); expect(m.aria).toBe('色 カテゴリの色（プライベート）');
+    expect(m.row.h).toBe(44);
+    expect(m.lblFont).toEqual(['15px', '400']);
+    expect([m.cn1.cut, m.cn2.cut, m.cn3.cut]).toEqual([false, false, false]); // どこも切れていない
+    expect([m.cn1.text, m.cn2.text, m.cn3.text]).toEqual(['カテゴリの色（', 'プライベート', '）']);
+    expect([m.sw.w, m.sw.h, m.swRadius, m.swLine]).toEqual([28, 20, '4px', '3px']);
+    expect(m.font[0]).toBe('15px'); expect(m.font[1]).toBe('400'); expect(['normal', '0px']).toContain(m.font[2]);
+    expect(m.sw.l - m.lbl.r, '「色」と値の間').toBeGreaterThanOrEqual(16);
+    expect(m.name.l - m.sw.r, '見本と名前の間').toBeCloseTo(6, 1);
+    expect(m.chev.l - m.name.r, '名前と › の間').toBeCloseTo(6, 1);
+    expect(m.chev.w).toBeCloseTo(8, 1);
+    expect(m.chev.r, '› の右端はカレンダーの行と同じ').toBeCloseTo(m.dchev.r, 1);
+    expect(m.sw.cy - m.row.t, '見本の縦の中心は、カレンダーの行の丸と同じ高さ').toBeCloseTo(m.ddot.cy - m.drow.t, 1); expect(Math.abs(m.sw.cy - m.row.cy)).toBeLessThanOrEqual(0.5); // 行の下の線 1 の分で 0.5
+    expect(toHex(m.color)).toBe('#68716A'); // 既定は薄い文字（白の上 4.97）
+    expect(m.name.w, '10 字（150pt）が入る').toBeGreaterThanOrEqual(150);
+    // 選んだ色の名前は墨で、1 つだけ
+    await page.locator('#f-color').click(); await page.locator('#color-pop .dopt', { hasText: 'ラベンダーグレー' }).click(); await expect(page.locator('#color-pop')).toBeHidden();
+    const p = await rowOf(page);
+    expect(p.text).toBe('ラベンダーグレー'); expect(p.cn2).toBeNull(); expect(p.cn1.cut).toBe(false); expect(toHex(p.color)).toBe('#1C1F1D');
+    expect(p.chev.r).toBeCloseTo(m.chev.r, 1); expect(p.chev.l - p.name.r).toBeCloseTo(6, 1);
+  });
+  test('長い分類名: 「カテゴリの色（」と「）」は切らず、分類名だけが … で切れる', async ({ page }) => {
+    await boot(page, { events: E, cats: CATS });
+    await openCard(page, '練習');
+    const m = await rowOf(page);
+    expect(m.text).toBe('カテゴリの色（ゴルフ練習場の予約と打ちっぱなしの記録）');
+    expect([m.cn1.cut, m.cn2.cut, m.cn3.cut]).toEqual([false, true, false]);
+    expect(await page.locator('#color-name .cn2').evaluate((e) => getComputedStyle(e).textOverflow)).toBe('ellipsis');
+    expect(m.cn1.w).toBeGreaterThanOrEqual(7 * 14); // 「カテゴリの色（」7 字がそのまま
+    expect(m.cn3.r).toBeLessThanOrEqual(m.chev.l - 5.9); expect(m.chev.r).toBeCloseTo(m.dchev.r, 1);
+    expect(m.sw.l - m.lbl.r).toBeGreaterThanOrEqual(16); // 長くても「色」との間は 16 以上
+    expect(m.row.r - m.chev.r).toBeCloseTo(4, 0);
+  });
+});
+
+test.describe('必須6・望ましい12 色の帯と繰り返しの注記', () => {
+  const E = [ev('e1', '歯医者', '2026-11-12T15:00', '2026-11-12T16:00', { categoryId: P }), ev('rp', '毎週の定例', '2026-11-10T10:00', '2026-11-10T11:00', { categoryId: W, recurrence: { freq: 'weekly', interval: 1 } })];
+  const strip = async (page, id) => { const b = await page.locator(`.week .strip[data-event^="${id}"]`).first().boundingBox(); await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down(); await page.waitForTimeout(800); await page.mouse.up(); await page.locator('.cmenu [data-cm="color"]').click(); await expect(page.locator('.colorstrip')).toBeVisible(); };
+  test('色の帯: 最初の見本に文字はなく、7 色との間に仕切り 1×20（#DCD7CB）。押す的は 40×44 が 8 つで、仕切りは的と的の間。全部 336 の中', async ({ page }) => {
+    await boot(page, { size: SIZES.openLandscape951, events: E });
+    await strip(page, 'e1');
+    const m = await page.evaluate(() => { const r = (e) => { const q = e.getBoundingClientRect(); return { l: q.left, r: q.right, t: q.top, b: q.bottom, w: q.width, h: q.height }; }; const s = document.querySelector('.colorstrip'); return { strip: r(s), text: s.querySelector('.csr').textContent.trim(), b: s.querySelectorAll('.csw b').length, csn: s.querySelector('.csn').textContent, btns: [...s.querySelectorAll('.cso')].map((e) => ({ ...r(e), label: e.getAttribute('aria-label'), sw: r(e.querySelector('.csw')) })), div: { ...r(s.querySelector('.csdiv')), bg: getComputedStyle(s.querySelector('.csdiv')).backgroundColor, hidden: s.querySelector('.csdiv').getAttribute('aria-hidden') }, order: [...s.querySelector('.csr').children].map((e) => e.className.split(' ')[0]) }; });
+    expect(m.text).toBe(''); expect(m.b).toBe(0); // 「分類」の字はない
+    expect(m.csn).toBe('カテゴリの色'); expect(m.btns[0].label).toBe('カテゴリの色に戻す、選択中');
+    expect(m.order).toEqual(['cso', 'csdiv', 'cso', 'cso', 'cso', 'cso', 'cso', 'cso', 'cso']);
+    expect(m.btns.length).toBe(8);
+    for (const b of m.btns) { expect([b.w, b.h]).toEqual([40, 44]); expect([b.sw.w, b.sw.h]).toEqual([32, 24]); expect(b.l).toBeGreaterThanOrEqual(m.strip.l); expect(b.r).toBeLessThanOrEqual(m.strip.r); }
+    expect([m.div.w, m.div.h]).toEqual([1, 20]); expect(toHex(m.div.bg)).toBe('#DCD7CB'); expect(m.div.hidden).toBe('true');
+    expect((m.div.t + m.div.b) / 2).toBeCloseTo((m.btns[0].sw.t + m.btns[0].sw.b) / 2, 1); // 見本の縦の中心
+    expect(m.div.l).toBeGreaterThanOrEqual(m.btns[0].r); expect(m.div.r).toBeLessThanOrEqual(m.btns[1].l); // 押す的と押す的のすき間
+    expect(m.div.l - m.btns[0].sw.r).toBeGreaterThan(4); // 選んでいる見本の輪（外へ 4）とくっつかない
+    expect(m.btns[0].sw.l - m.strip.l).toBeCloseTo(8, 1); expect(m.strip.r - m.btns[7].sw.r).toBeCloseTo(8, 1);
+    expect([m.strip.w, m.strip.h]).toEqual([336, 78]);
+    // 1 回の予定のトーストは今までどおり
+    await page.locator('.colorstrip [data-cs="sage"]').click();
+    await expect(toast(page)).toContainText('色を変えました'); await expect(toast(page)).not.toContainText('すべての回');
+  });
+  test('繰り返しの予定を色の帯で変えると「すべての回の色を変えました｜元に戻す」。全部の回が同じ色になり、元に戻せる', async ({ page }) => {
+    await boot(page, { size: SIZES.openLandscape951, events: E });
+    await strip(page, 'rp');
+    await page.locator('.colorstrip [data-cs="terracotta"]').click();
+    await expect(toast(page)).toContainText('すべての回の色を変えました'); await expect(toast(page).locator('button')).toHaveText('元に戻す');
+    expect(await toast(page).evaluate((e) => e.getBoundingClientRect().height)).toBeLessThanOrEqual(60); // 1 行
+    expect((await dbEvs(page)).find((e) => e.id === 'rp').colorId).toBe('terracotta');
+    const marks = await page.evaluate(() => [...document.querySelectorAll('.week .strip[data-event^="rp"]')].map((e) => getComputedStyle(e).getPropertyValue('--cat-mark').trim()));
+    expect(marks.length).toBeGreaterThanOrEqual(3); expect(new Set(marks)).toEqual(new Set(['#A56148'])); // 全部の回
+    await toast(page).locator('button').click();
+    await expect.poll(async () => (await dbEvs(page)).find((e) => e.id === 'rp').colorId).toBeUndefined();
+  });
+  test('色を選ぶ画面: 繰り返しの予定のときだけ、7 色の下に「繰り返しの予定は、すべての回が同じ色になります。」（12pt W4・#5D6963・上 12・左右 20・行間 1.5）', async ({ page }) => {
+    await boot(page, { events: E, sel: '2026-11-10' });
+    await openCard(page, '毎週の定例');
+    await page.locator('#f-color').click(); await expect(page.locator('#color-pop')).toBeVisible(); await page.waitForTimeout(350);
+    const n = await page.evaluate(() => { const e = document.querySelector('#color-pop .crep'), s = getComputedStyle(e), q = e.getBoundingClientRect(), last = [...document.querySelectorAll('#color-pop .dopt')].pop().getBoundingClientRect(), pg = e.parentElement.getBoundingClientRect(); return { text: e.textContent, fs: s.fontSize, fw: s.fontWeight, lh: parseFloat(s.lineHeight) / parseFloat(s.fontSize), color: s.color, top: q.top - last.bottom, left: q.left - pg.left, right: pg.right - q.right, fits: document.querySelector('#color-pop').scrollHeight <= document.querySelector('#color-pop').clientHeight }; });
+    expect(n.text).toBe('繰り返しの予定は、すべての回が同じ色になります。');
+    expect([n.fs, n.fw]).toEqual(['12px', '400']); expect(n.lh).toBeCloseTo(1.5, 2); expect(toHex(n.color)).toBe(OUTC);
+    expect(n.top).toBeCloseTo(12, 0); expect(n.left).toBeCloseTo(20, 0); expect(n.right).toBeGreaterThanOrEqual(19.5);
+    expect(n.fits).toBe(true); // 閉じた縦でもスクロールなしで入る
+    expect(ratio(OUTC, '#FFFFFF')).toBeGreaterThanOrEqual(4.5);
+  });
+  test('色を選ぶ画面: 繰り返しでない予定には注記を出さない', async ({ page }) => {
+    await boot(page, { events: E });
+    await openCard(page, '歯医者');
+    await page.locator('#f-color').click(); await expect(page.locator('#color-pop')).toBeVisible();
+    expect(await page.locator('#color-pop .crep').count()).toBe(0);
+  });
 });
