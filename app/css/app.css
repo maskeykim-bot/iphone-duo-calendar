@@ -2722,7 +2722,7 @@ html[data-grabtime] .gchip{opacity:0!important}
 .shell.closed .home.hm-cards .hxc .ht{position:absolute;left:10px;top:5px;min-width:0;font:600 13px/17px -apple-system,'Hiragino Sans',sans-serif;color:var(--ink2);font-variant-numeric:tabular-nums}
 .shell.closed .home.hm-cards .hxc .ht2{position:absolute;left:10px;top:22px;font:400 13px/17px -apple-system,'Hiragino Sans',sans-serif;color:var(--muted);font-variant-numeric:tabular-nums}
 .shell.closed .home.hm-cards .hxc .hbar{position:absolute;left:53px;top:6px;bottom:6px;width:3px;height:auto;border-radius:1.5px}
-.shell.closed .home.hm-cards .hxc strong{position:absolute;left:64px;right:10px;top:5px;font:600 15px/17px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink2);overflow:hidden;text-overflow:ellipsis}
+.shell.closed .home.hm-cards .hxc strong{position:absolute;left:64px;right:10px;top:5px;font:400 15px/17px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink2);overflow:hidden;text-overflow:ellipsis}
 .shell.closed .home.hm-cards .hxc .hxm{position:absolute;left:64px;right:10px;top:24px;font:400 11px/15px -apple-system,'Hiragino Sans',sans-serif;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
 .shell.closed .home.hm-cards .hrow.hxc:active{background:#F5F3EC}
 .shell.closed .home.hm-cards .date .hrk{margin-left:8px;font-weight:400;color:#5D6963}

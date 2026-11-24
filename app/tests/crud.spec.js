@@ -7,8 +7,8 @@ test.describe('予定の追加・編集・削除', () => {
     await expect(page.getByText('予定はまだありません')).toBeVisible();
     await loadSample(page);
     await expect(page.locator('.next')).toContainText('プロジェクト定例');
-    await expect(page.locator('.hevents .hrow')).toHaveCount(3); // 残りは最大3件＋ほか（第16版 PR14）
-    await expect(page.locator('.hmore')).toHaveText('ほか1件');
+    await expect(page.locator('.hevents .hrow')).toHaveCount(4); // v19.5（征希さん「ホーム…スクロールできるように」「作り込んで」）で仕様変更: 閉じたホームは残りを全部カードで出す（前: 最大3件＋ほか）
+    await expect(page.locator('.hmore')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'サンプルを入れる' })).toHaveCount(0);
   });
 
