@@ -66,6 +66,7 @@ export function planPaste(src, days, ctx) {
       place: src.place || '', notes: src.notes || '', recurrence: null, exdates: [], overrides: {},
       alarms: Array.isArray(src.alarms) ? src.alarms.map((a) => ({ ...a })) : [], updatedAt: ctx.pastedAt,
     };
+    { const cid = isExt(src) ? ctx.srcColorId : src.colorId; if (typeof cid === 'string' && cid && cid.length <= 40) ev.colorId = cid; } // コピーで作った予定も色を引き継ぐ（design/37 §4.1）
     if (t.kind !== 'linked') return { day, event: ev };
     ev.nativeLink = { state: 'pending', requestId: ctx.newId(), calendarId: t.calendarId };
     const native = { requestId: ev.nativeLink.requestId, calendarId: t.calendarId, title: ev.title, start: ev.start, end: ev.all ? `${dayOf(ev.end)}T00:00` : ev.end, all: ev.all, place: ev.place, notes: ev.notes, alarms: ev.alarms.map((a) => ({ ...a })) };

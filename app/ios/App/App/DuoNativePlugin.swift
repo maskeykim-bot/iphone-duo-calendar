@@ -237,16 +237,23 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
 
     // MARK: - カレンダー・予定
 
+    // 第19.4版（design/36 §8.2）: Display P3 などの色は成分が 0〜1 の外に出ることがある。そのまま %02x にすると 3 けた以上になって
+    // "#rrggbb" の形が崩れ、JS 側（iphone.js）で代わりの色 #68716a に化ける。r・g・b を 0〜1 に収めてから変換する。
+    private func hexByte(_ v: CGFloat) -> Int {
+        let c = v.isNaN ? 0 : min(max(v, 0), 1)
+        return Int((c * 255).rounded())
+    }
+
     private func hexColor(_ cg: CGColor?) -> String {
         guard let cg = cg else { return DuoNativePlugin.fallbackColor }
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         if UIColor(cgColor: cg).getRed(&r, green: &g, blue: &b, alpha: &a) {
-            return String(format: "#%02x%02x%02x", Int((r * 255).rounded()), Int((g * 255).rounded()), Int((b * 255).rounded()))
+            return String(format: "#%02x%02x%02x", hexByte(r), hexByte(g), hexByte(b))
         }
         if let space = CGColorSpace(name: CGColorSpace.sRGB),
            let conv = cg.converted(to: space, intent: .defaultIntent, options: nil),
            let comps = conv.components, comps.count >= 3 {
-            return String(format: "#%02x%02x%02x", Int((comps[0] * 255).rounded()), Int((comps[1] * 255).rounded()), Int((comps[2] * 255).rounded()))
+            return String(format: "#%02x%02x%02x", hexByte(comps[0]), hexByte(comps[1]), hexByte(comps[2]))
         }
         return DuoNativePlugin.fallbackColor
     }

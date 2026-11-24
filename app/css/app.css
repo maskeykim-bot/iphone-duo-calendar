@@ -2598,3 +2598,25 @@ html[data-grab],html[data-grab] *{-webkit-touch-callout:none!important;-webkit-u
    形の決まり（チップ・帯・時間軸の枠・下の札・前後の月・土日）は、もとの規則をその場で直してある（「第19.4版」の注）。
    ダークは値だけ（36 §5）: アプリはライト固定（V-07。iOS も UIUserInterfaceStyle=Light）。html[data-theme=dark] は値と比を確かめるための見本で、利用者の設定には出さない（開き方は ?theme=dark）。 */
 html[data-theme=dark]{--paper:#1C1F1D;--card:#262A27;--cardw:#262A27;--capsule:#30352F;--ink:#E8E6E0;--ink2:#E8E6E0;--muted:#A3A9A2;--line:#343A36;--line2:#343A36;--green:#6FA08C;--focus:#6FA08C;--satc:#8BA8C4;--satbg:#232A2F;--outc:#A3A29E;--holiday:#D0928E;color-scheme:dark}
+/* 予定ごとの色（design/37 §3）。見本＝薄い地＋左 3 の線・角丸 4（行は 28×20、選ぶ画面と色の帯は 32×24） */
+.csw{position:relative;flex:none;display:inline-block;box-sizing:border-box;width:28px;height:20px;border-radius:4px;background:var(--cat-tint);font-style:normal}
+.csw::before{content:'';position:absolute;left:3px;top:3px;bottom:3px;width:3px;border-radius:1.5px;background:var(--cat-mark)}
+.csw.lg{width:32px;height:24px}
+.destbtn.colorbtn .dval{flex:0 1 auto;min-width:0}
+.destbtn.colorbtn #color-name,.destbtn.colorbtn .cnm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.destbtn.colorbtn #color-name.on,.destbtn.colorbtn .cnm.on{color:var(--ink2)}
+#xd-body .destbtn.colorbtn{margin-top:12px}
+/* 色を選ぶ画面: 見出し 26（12pt）・行 44・左右 20・見本と名前の間 12。8 行＋見出し 2 つ＝404 で、閉じた縦でもスクロールなしで入る */
+.destpage.colorpage h4{min-height:26px;font-size:12px;font-weight:400}
+.destpage.colorpage .dopt{gap:12px}
+.destpage.colorpage .dopt .dsub{margin-left:8px;font-size:12px;color:var(--muted)}
+.destpage.colorpage .cnote{font-size:12px;line-height:1.5}
+/* 長押しメニューの「色」の帯: 幅 336・高さ 78・角丸 14。上に選んでいる色の名前 12pt、下に見本 32×24 を 8 つ（間 8。押す的 40×44）。選んでいる見本に 白 2＋緑 2 の輪 */
+.cmenu.cstrip{box-sizing:border-box;height:78px;padding:8px 8px 0;border-radius:14px;overflow:visible}
+.cstrip .csn{margin:0 4px;height:18px;font-size:12px;line-height:18px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cstrip .csr{display:flex;justify-content:space-between;height:44px;margin-top:2px}
+.cmenu.cstrip button.cso{display:flex;align-items:center;justify-content:center;flex:none;width:40px;height:44px;min-height:44px;padding:0;border:0;border-radius:8px;background:transparent}
+.cstrip .cso .csw b{position:absolute;left:8px;right:0;top:0;bottom:0;font-size:9px;line-height:24px;font-weight:600;color:var(--ink);text-align:center;letter-spacing:-.04em}
+.cstrip .cso[aria-pressed=true] .csw{box-shadow:0 0 0 2px #fff,0 0 0 4px #294E42}
+.cstrip .cso:active .csw{filter:brightness(.94)}
+.cmenu.cstrip button.cso:active,.cmenu.cstrip button.cso[aria-pressed=true]:active{background-color:transparent!important;filter:none}

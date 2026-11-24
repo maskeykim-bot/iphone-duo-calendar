@@ -191,7 +191,7 @@ export const applyCategoryChanges = ({ catPuts = [], catDels = [], eventPuts = [
 // taskPuts / taskReplace: タスクも同じトランザクション（検証済みの値だけ渡す）。
 // notePuts/folderPuts（任意）: ノート・フォルダ。noteReplace/folderReplace のときは先に全部消す（未指定は現在を保持）。
 // memoPuts（任意）: 書くメモ。memoReplace のときは先にメモを全部消す。予定・カテゴリ・メモ・送信待ちは同じトランザクション。
-export const applyImport = ({ catPuts = [], eventPuts = [], replace = false, outbox = null, memoPuts = [], memoReplace = false, taskPuts = [], taskReplace = false, notePuts = [], noteReplace = false, folderPuts = [], folderReplace = false }) => run(['events', 'categories', 'meta', 'memos', 'tasks', 'notes', 'folders'], 'readwrite', ({ events, categories, meta, memos, tasks, notes, folders }, set) => {
+export const applyImport = ({ catPuts = [], eventPuts = [], replace = false, outbox = null, memoPuts = [], memoReplace = false, taskPuts = [], taskReplace = false, notePuts = [], noteReplace = false, folderPuts = [], folderReplace = false, eventColors = null }) => run(['events', 'categories', 'meta', 'memos', 'tasks', 'notes', 'folders'], 'readwrite', ({ events, categories, meta, memos, tasks, notes, folders }, set) => {
   if (replace) { events.clear(); categories.clear(); }
   if (memoReplace) memos.clear();
   if (taskReplace) tasks.clear();
@@ -203,6 +203,7 @@ export const applyImport = ({ catPuts = [], eventPuts = [], replace = false, out
   memoPuts.forEach((m) => memos.put(m));
   catPuts.forEach((c) => categories.put(c));
   eventPuts.forEach((e) => events.put(e));
+  if (Array.isArray(eventColors)) meta.put({ key: XCOLORS, items: eventColors }); // 色の表（同じトランザクション。null は今のまま）
   if (outbox) readOutbox(meta, (cur) => { const next = outbox(cur); meta.put({ key: OUTBOX, items: next }); set(next); });
 });
 
@@ -296,6 +297,14 @@ export async function getOutbox() {
   return Array.isArray(r?.items) ? r.items : [];
 }
 export const putOutbox = (items) => run(['meta'], 'readwrite', ({ meta }) => { meta.put({ key: OUTBOX, items }); });
+// ---------- iPhone の予定に付けた色の表（第19.4版 design/37 §4.2。meta の 1 件。SCHEMA_VERSION は 6 のまま・移行なし） ----------
+export const XCOLORS = 'xcolors';
+export async function getEventColors() {
+  const db = await open();
+  const r = await wrap(db.transaction('meta').objectStore('meta').get(XCOLORS));
+  return Array.isArray(r?.items) ? r.items : [];
+}
+export const putEventColors = (items) => run(['meta'], 'readwrite', ({ meta }) => { meta.put({ key: XCOLORS, items }); });
 // 予定の put/del と送信待ちの更新を同じトランザクションで。outbox は (現在の一覧) → 新しい一覧。新しい一覧を返す。
 export const applyChangesWithOutbox = ({ puts = [], dels = [], outbox }) => run(['events', 'meta'], 'readwrite', ({ events, meta }, set) => {
   puts.forEach((e) => events.put(e));

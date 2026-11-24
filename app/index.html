@@ -31,6 +31,9 @@
       <div id="dest-l" class="destrow erow">
         <button type="button" id="f-dest" class="destbtn" aria-haspopup="true" aria-expanded="false" aria-controls="dest-pop"><span class="dlbl">カレンダー</span><span class="dval"><i id="dest-dot" class="cdot big" aria-hidden="true"></i><span id="dest-name"></span><span aria-hidden="true">›</span></span></button>
       </div>
+      <div id="color-l" class="destrow erow">
+        <button type="button" id="f-color" class="destbtn colorbtn" aria-haspopup="true" aria-expanded="false" aria-controls="color-pop"><span class="dlbl">色</span><span class="dval"><i id="color-sw" class="csw" aria-hidden="true"></i><span id="color-name"></span><span aria-hidden="true">›</span></span></button>
+      </div>
       <div id="dtbox" class="dtbox">
         <div class="dtrow erow" id="row-s"><span class="dtk">開始</span><button type="button" id="f-start" class="dcap" aria-haspopup="true" aria-expanded="false" value=""></button><button type="button" id="f-stime" class="tcap" aria-haspopup="true" aria-expanded="false"></button></div>
         <div class="dtrow erow" id="row-e"><span class="dtk">終了</span><button type="button" id="f-end" class="dcap" aria-haspopup="true" aria-expanded="false" value=""></button><span id="f-eday" class="dbadge" hidden></span><button type="button" id="f-etime" class="tcap" aria-haspopup="true" aria-expanded="false"></button></div>
@@ -97,6 +100,7 @@
     </div>
   </form>
   <div id="dest-pop" class="destpage" role="group" aria-label="カレンダー" hidden></div>
+  <div id="color-pop" class="destpage colorpage" role="group" aria-label="色" hidden></div>
 </dialog>
 <dialog id="confirm" aria-labelledby="confirmtitle">
   <h2 id="confirmtitle">この予定を削除しますか？</h2>
