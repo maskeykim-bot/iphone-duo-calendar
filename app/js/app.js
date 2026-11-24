@@ -9,8 +9,8 @@ import { occurrenceAt, parseOccId, planDelete, planEdit, editInfo, normRule } fr
 import { bumpRevision, occBetween } from './occcache.js';
 import { LIMIT, groupByDay, highlight, excerpt, normalize, terms, searchEvents, searchNotes, searchTasks, noteIndexSize } from './search.js';
 import { backupName, buildBackup, countStats, localIso, legacyHashes, planAppend, planLegacyNotes, planNotes, planTasks, validateBackup, MAX_BYTES } from './backup.js';
-import { solid } from './categories.js';
-import { CAT_IDS, LIMITS as CAT_LIMITS, canHideCategory, defaultDeleteTarget, ensureOneVisible, supplementForReplace, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, RETARGET_TOAST, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, tint, validateCategory } from './categories.js';
+import { colorSet, eventSet, setVars, isFlickId, flickName, flickSet, FLICK, validColorId } from './colors.js';
+import { CAT_IDS, LIMITS as CAT_LIMITS, canHideCategory, defaultDeleteTarget, ensureOneVisible, supplementForReplace, PALETTE, UNCATEGORIZED, countByCategory, fixEventCategories, legacyToId, mergeCategories, moveCategory, nameTaken, RETARGET_TOAST, newCategory, paletteName, planDeleteCategory, resolveCategory, sortCategories, validateCategory } from './categories.js';
 import { alarmOptions, alarmsAria, alarmsDup, convertAlarms, decAlarm, defaultAlarms, encAlarm, fireAt, nextNotifyText, normNotify, pastForNotify, planNotifications, planNotifyPolicy, MAX_PENDING, WINDOW_DAYS } from './notify.js';
 import { rokuyoOf } from './rokuyo.js';
 import { createPainter } from './curl/painter.js';
@@ -589,7 +589,12 @@ const isX = (e) => e.origin === 'iphone';
 const catOf = (e) => resolveCategory(e.categoryId, state.categories);
 const catCls = (e) => (isX(e) ? 'ext' : '');
 // 色はカテゴリ一覧から inline の CSS 変数で（固定クラスは使わない）。iPhone の予定はカレンダーの色。
-const colorVars = (c) => `--cat:${c};--tint:${tint(c)};--solid:${solid(c)};`;
+// 第19.4版（design/36 §8.1）: 色は画面に出すときだけくすませる。入口はここ（colorVars・catVar・catSet）と、設定の丸（calDot）・詳細の丸。保存と EventKit の色は元の hex のまま。
+// ダークは値だけ（36 §5）。アプリはライト固定（V-07）なので、確かめ用に html[data-theme=dark]（?theme=dark）のときだけ使う
+const MODE = (() => { try { if (new URLSearchParams(location.search).get('theme') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch { /* */ } return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'; })();
+if (MODE === 'dark') import('./theme-preview.js').then((m) => m.applyDarkPreview()).catch(() => {}); // 見本のときだけ読み込む
+const lineOf = (c) => colorSet(c, MODE).line; // 色の点・凡例・丸（4.5 の線の色）
+const colorVars = (c) => setVars(colorSet(c, MODE));
 // iPhone に保存した予定（linked / pending）の色と札は保存先カレンダーのもの。未取得なら保存した名前と安全な色。
 const calOfLink = (e) => {
   const l = e.nativeLink;
@@ -597,7 +602,13 @@ const calOfLink = (e) => {
   const c = X.calendars.find((x) => x.id === l.calendarId);
   return { name: c ? c.title : l.calName || 'iPhone', color: c?.color || '#68716A' };
 };
-const catVar = (e) => { if (isX(e)) return `--cat:${e.color};--solid:${solid(e.color)};`; const c = calOfLink(e); return colorVars(c ? c.color : catOf(e).color); };
+// 予定の元の色（保存のままの hex）: iPhone の予定はカレンダーの色、iPhone に保存した Duo の予定は保存先カレンダーの色、それ以外は分類の色
+const baseColorOf = (e) => { if (isX(e)) return e.color; const c = calOfLink(e); return c ? c.color : catOf(e).color; };
+// 予定ごとの色（design/37）: Duo の予定は colorId（繰り返しは系列の本体の値。overrides の colorId は読まない）、iPhone の予定は色の表（meta 'xcolors'）
+const colorIdOf = (e) => (isX(e) ? xColorIdOf(e) : e.colorId);
+const catSet = (e) => eventSet(colorIdOf(e), baseColorOf(e), MODE);
+const catVar = (e) => setVars(catSet(e));
+const xColorIdOf = () => null; // 段3 で iPhone の予定の色の表につなぐ
 const catSty = (e) => ` style="${catVar(e)}"`;
 const tagText = (e) => (isX(e) ? subLabel(e) : calOfLink(e)?.name ?? catOf(e).name);
 const xi = (e) => (isX(e) ? '<span class="xi" aria-hidden="true">▦</span>' : '');
@@ -707,7 +718,7 @@ const bell = (e) => (hasBell(e) ? BELL : '');
 const rep = (e) => (e.recurring ? '<span class="rep" aria-hidden="true">↻</span>' : '');
 const repLabel = (e, t) => (e.recurring || isX(e) || alLabel(e) ? ` aria-label="${esc(`${xname(e)}${t}${e.recurring ? ' 繰り返し' : ''}${alLabel(e)}`)}"` : '');
 const addBtn = '<footer class="foot"><button type="button" class="add" data-act="add">＋ 予定を追加</button></footer>';
-const legend = () => `<div class="legend" aria-label="カテゴリ凡例">${state.categories.filter((c) => !c.hidden).map((c) => `<span style="--cat:${c.color}">${esc(c.name)}</span>`).join('')}</div>`;
+const legend = () => `<div class="legend" aria-label="カテゴリ凡例">${state.categories.filter((c) => !c.hidden).map((c) => `<span style="--cat-line:${lineOf(c.color)}">${esc(c.name)}</span>`).join('')}</div>`;
 const xlegend = () => (extActive() ? '<div class="xlegend small">▦ iPhoneの予定（カレンダーの色）</div>' : '');
 
 function periodTitle() {
@@ -815,7 +826,7 @@ function pasteGhosts(w, cap) {
 function pasteGhostHtml(w, cap, lt = LANE_TOP, ls = LANE_STEP) {
   const gs = pasteGhosts(w, cap);
   if (!gs.length) return '';
-  const s = PS.src, v = s.origin === 'iphone' ? `--cat:${s.color || '#68716A'};` : catVar(s);
+  const s = PS.src, v = catVar(s);
   return gs.map((g) => {
     const t = clipTitle(s.title), time = !s.all && g.n === 1 ? `${t0(s.start.slice(11, 16))} ` : '';
     const label = !g.first ? `${t}（つづき）` : g.n > 1 ? `${t} ${g.n}日` : `${time}${t}`;
@@ -826,11 +837,7 @@ const colPos = (sc, ec) => `left:calc(${sc} * 100% / 7 + 1.5px);width:calc(${ec 
 // 閉じた7段のマスの読み上げ: 「11月12日 木曜日、予定N件…」（六曜はマスに出さないので読み上げの先頭にも置かない）
 const DOW_LONG = ['日', '月', '火', '水', '木', '金', '土'];
 const dynDayLabel = (k) => { const d = parseKey(k); return `${d.getMonth() + 1}月${d.getDate()}日 ${DOW_LONG[d.getDay()]}曜日${holSpoken(k)}`; };
-// ベタ塗りの文字: 白 #FFFFFF と #1C1F1D のうち、地の色とのコントラストが高い方（design/34 §7）
-const relLum = (hex) => { const m = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(hex || ''); if (!m) return 0.2; let h = m[1]; if (h.length === 3) h = [...h].map((c) => c + c).join(''); const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
-const onSolid = (hex) => { const L = relLum(hex), cw = 1.05 / (L + 0.05), cd = (L + 0.05) / (relLum('#1C1F1D') + 0.05); return cw >= cd ? '#FFFFFF' : '#1C1F1D'; };
-const catColorOf = (e) => { if (isX(e)) return e.color; const c = calOfLink(e); return c ? c.color : catOf(e).color; };
-// 閉じた7段のチップ（design/34 §7）。時刻つき単日＝地なし＋左の線 2×10。終日・複数日＝ベタ塗りの帯（切れ目の側だけ角丸 0）。
+// 閉じた7段のチップ（design/34 §7、第19.4版 design/36 §15.3）。時刻つき単日＝地なし＋左の線 2.5×10。終日・複数日＝ごく薄い地＋左の線＋墨の文字（週をまたいで続く側だけ角丸 0。週の頭ごとに線と題名）。
 // 帯は見た目は週の中の1本。作りは、またぐマスごとに1片（どの片も自分のマスの子なので、たたいた所のマスが日になる）。題名は先頭の片だけが持ち、右のマスの上へも続けて見せる。
 function dynChipPieces(b, days, lt, ls, time) {
   const { e } = b, top = lt + b.lane * ls, n = b.ec - b.sc + 1;
@@ -839,15 +846,13 @@ function dynChipPieces(b, days, lt, ls, time) {
   for (let col = b.sc; col <= b.ec; col++) {
     const lead = col === b.sc, last = col === b.ec, gl = lead && !cutL ? 1 : 0, gr = last && !cutR ? 1 : 0;
     const at = `data-lane="${b.lane}" ${lead ? `data-lead="1" data-sc="${b.sc}" data-ec="${b.ec}" data-event="${esc(e.id)}"` : `data-cont="${esc(e.id)}"`} data-sday="${days[b.sc]}"`;
-    const ov = b.band && e.all && !lead ? 3 : 0; // つづきの片は左へ 3 重ねて、角丸の隅を前の片（同じ色）で埋める（継ぎ目に欠けが出ない）
+    const ov = b.band && !lead ? 3 : 0; // つづきの片は左へ 3 重ねて、角丸の隅を前の片（同じ色）で埋める（継ぎ目に欠けが出ない）
     const pos = `top:${top}px;left:${gl - ov}px;width:calc(100% - ${gl + gr}px + ${ov}px);z-index:${lead ? 3 : 2}`;
     const title = esc(e.title);
     if (!b.band) { out.push({ col, html: `<span class="strip chip timed ${catCls(e)}" ${at} style="${catVar(e)}${pos}" aria-hidden="true"><i class="cline"></i><span class="st">${time ? `${chipTime(e.start)} ` : ''}${title}</span></span>` }); continue; }
     const txt = lead ? `<span class="bt" style="width:calc(${n} * 100% - ${gl + 1}px)"><span class="st">${title}</span></span>` : '';
-    if (e.all) {
-      const colr = catColorOf(e), rl = (lead && !cutL) || ov ? 3 : 0, rr = last && !cutR ? 3 : 0;
-      out.push({ col, html: `<span class="bar chip all ${catCls(e)}" ${at} data-all="1" style="${catVar(e)}${pos};background:${colr};color:${onSolid(colr)};border-radius:${rl}px ${rr}px ${rr}px ${rl}px" aria-hidden="true">${txt}</span>` });
-    } else out.push({ col, html: `<span class="bar chip multi ${catCls(e)}" ${at} style="${catVar(e)}${pos}" aria-hidden="true">${lead && !cutL ? '<i class="cline"></i>' : ''}${txt}</span>` });
+    const rl = (lead && !cutL) || ov ? 3 : 0, rr = last && !cutR ? 3 : 0;
+    out.push({ col, html: `<span class="bar chip ${e.all ? 'all' : 'multi'} ${catCls(e)}" ${at}${e.all ? ' data-all="1"' : ''} style="${catVar(e)}${pos};border-radius:${rl}px ${rr}px ${rr}px ${rl}px" aria-hidden="true">${lead ? '<i class="cline"></i>' : ''}${txt}</span>` });
   }
   return out;
 }
@@ -901,10 +906,12 @@ function weekInner(w, { mode, cur, sel, today, cap, time, tk = null, lt = LANE_T
     const { e } = b, top = `top:${lt + b.lane * ls}px`;
     if (b.band) {
       const when = dayOf(e.start) === dayOf(e.end) ? `${dayLabel(dayOf(e.start))} 終日` : `${dayOf(e.start)}から${dayOf(e.end)}`;
-      html += `<span class="bar ${catCls(e)}" data-lane="${b.lane}" data-sc="${b.sc}" data-ec="${b.ec}" data-event="${esc(e.id)}" style="${catVar(e)}left:calc(${b.sc} * 100% / 7);width:calc(${b.ec - b.sc + 1} * 100% / 7);${top}" aria-hidden="true" title="${esc(`${e.title} ${when}`)}"><span class="bt"><span class="st">${esc(e.title)}</span></span></span>`;
+      const bl = dayOf(e.start) < days[0] ? 0 : 1.5, br = dayOf(e.end) > days[6] ? 0 : 1.5; // 始まりと終わりの側だけ、時刻つきのチップと同じ 1.5 の内寄せ（週をまたいで続く側は端まで）
+      const o1 = cur !== null && parseKey(days[b.sc]).getMonth() !== cur && parseKey(days[b.ec]).getMonth() !== cur;
+      html += `<span class="bar ${catCls(e)}${o1 ? ' outm' : ''}${dayOf(e.start) < days[0] ? ' cl' : ''}${dayOf(e.end) > days[6] ? ' cr' : ''}" data-lane=""${b.lane}" data-sc="${b.sc}" data-ec="${b.ec}" data-event="${esc(e.id)}" style="${catVar(e)}left:calc(${b.sc} * 100% / 7 + ${bl}px);width:calc(${b.ec - b.sc + 1} * 100% / 7 - ${bl + br}px);${top}" aria-hidden="true" title="${esc(`${e.title} ${when}`)}"><span class="bt"><span class="st">${esc(e.title)}</span></span></span>`;
     } else {
       const k = days[b.sc];
-      html += `<span class="strip ${catCls(e)}" data-lane="${b.lane}" data-sc="${b.sc}" data-ec="${b.ec}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}${colPos(b.sc, b.ec)};${top}" aria-hidden="true"><span class="st">${time ? `${chipTime(e.start)} ` : ''}${esc(e.title)}</span></span>`;
+      html += `<span class="strip ${catCls(e)}${cur !== null && parseKey(k).getMonth() !== cur ? ' outm' : ''}" data-lane=""${b.lane}" data-sc="${b.sc}" data-ec="${b.ec}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}${colPos(b.sc, b.ec)};${top}" aria-hidden="true"><span class="st">${time ? `${chipTime(e.start)} ` : ''}${esc(e.title)}</span></span>`;
     }
   }
   return html;
@@ -1450,7 +1457,7 @@ function stageDayHtml() {
   else {
     const rank = stageLaneRank(k), rk2 = (e) => (rank?.has(e.id) ? rank.get(e.id) : 999);
     const alls = list.filter((e) => e.all).sort((a, b) => rk2(a) - rk2(b)), cards = list.filter((e) => !e.all).sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
-    const chips = alls.map((e) => { const col = catColorOf(e); return `<button type="button" class="mdallday ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}background:${col};color:${onSolid(col)}" aria-label="${esc(evAllLabel(e, k))}">${xi(e)}${rep(e)}<span class="mdat">${esc(e.title)}</span>${dayNth(e, k) ? `<small>${dayNth(e, k)}</small>` : ''}</button>`; }).join('');
+    const chips = alls.map((e) => { const cs = catSet(e); return `<button type="button" class="mdallday ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" style="${setVars(cs)}--cat-edge:${cs.edge}" aria-label="${esc(evAllLabel(e, k))}">${xi(e)}${rep(e)}<span class="mdat">${esc(e.title)}</span>${dayNth(e, k) ? `<small>${dayNth(e, k)}</small>` : ''}</button>`; }).join('');
     const cs = cards.map((e) => {
       const memo = (e.notes || '').split('\n').find((x) => x.trim()) || '';
       return `<button type="button" class="mdcard mdk-event ${catCls(e)}" role="listitem" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}" aria-label="${esc(evCardLabel(e, k, memo.trim()))}"><span class="mdt1">${dayOf(e.start) < k ? '0:00' : t0(e.start.slice(11, 16))}</span><span class="mdt2">${dayEndText(e, k)}</span><i class="mdln" aria-hidden="true"></i><strong${e.title ? '' : ' class="mdnt"'}>${xi(e)}${rep(e)}${e.title ? esc(e.title) : '（題名なし）'}${bell(e)}</strong>${memo ? `<small>${esc(memo)}</small>` : ''}</button>${cardActs('event', e.id, k, !!e.recurring)}`;
@@ -4036,7 +4043,7 @@ function applyExtUi() {
   $('#ext-gone').hidden = true;
   if (!x) return;
   const b = x.before, d = x.detail;
-  $('#ed-tag').innerHTML = `<i class="cdot" style="background:${esc(b.color)}" aria-hidden="true"></i>${esc(subLabel(b))}${b.recurring ? ' <span aria-hidden="true">↻</span>' : ''}`;
+  $('#ed-tag').innerHTML = `<i class="cdot" style="background:${lineOf(b.color)}" aria-hidden="true"></i>${esc(subLabel(b))}${b.recurring ? ' <span aria-hidden="true">↻</span>' : ''}`;
   const rule = d.rule && d.rule.freq ? ruleSummary(d.rule, b.start) : '';
   $('#rfix-sum').textContent = rule || d.ruleText || '繰り返し';
 }
@@ -4163,7 +4170,7 @@ function updateXUi() {
   if (lock) closeDestPop(false);
   const d = destInfo(destEff());
   $('#dest-name').textContent = d.name;
-  $('#dest-dot').style.background = d.color;
+  $('#dest-dot').style.background = lineOf(d.color);
   if (destPage.isOpen()) renderDestPop();
 }
 $('#xlinked-open').addEventListener('click', async () => {
@@ -4988,7 +4995,7 @@ function renderCats() {
   const dis = cs.busy ? ' disabled' : '';
   CT.title.textContent = cs.id ? 'カテゴリを編集' : 'カテゴリを追加';
   CT.close.textContent = '完了';
-  const pal = PALETTE.map((p) => `<button type="button" class="swatch" data-color="${p.light}" style="background:${p.light}" aria-label="${p.name}" aria-pressed="${p.light === cs.color.toLowerCase()}"></button>`).join('');
+  const pal = PALETTE.map((p) => `<button type="button" class="swatch" data-color="${p.light}" style="background:${colorSet(p.light, MODE).fill};border-color:${lineOf(p.light)}" aria-label="${p.name}" aria-pressed="${p.light === cs.color.toLowerCase()}"></button>`).join('');
   CT.body.innerHTML = `<section class="card"><label>名前<input id="cat-name" maxlength="${CAT_LIMITS.name}" value="${esc(cs.name)}" placeholder="例：仕事" autocomplete="off"></label>
     <span id="cat-color-l" class="lbl">色</span><div class="palette" role="group" aria-labelledby="cat-color-l">${pal}</div>
     <span class="lbl">見本</span>${previewHtml(cs.name, cs.color)}
@@ -5453,7 +5460,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { if
 // ---------- 設定 › カレンダー（Duo／iPhone のアカウント別／リマインダー。✓で表示を切り替える） ----------
 // ✓を変えても iPhone 側の予定・カレンダーは書き換えない（Duo の画面に出すかどうかだけ）。
 const calScreenOpen = () => menuDlg.open && menuScreen === 'calendar';
-const calDot = (c) => `<i class="cdot" style="background:${esc(safeColor(c))}" aria-hidden="true"></i>`;
+const calDot = (c) => `<i class="cdot" style="background:${lineOf(safeColor(c))}" aria-hidden="true"></i>`; // 丸は変換後の線の色（36 §8.1）。元の色は変えない
 const calRow = (attr, on, color, name, tag = '') => `<button type="button" class="crow${on ? '' : ' off'}" role="checkbox" aria-checked="${on}" ${attr}>${calDot(color)}<span class="cname">${esc(name || '（名前なし）')}</span>${tag}<span class="cck" aria-hidden="true">${on ? '✓' : ''}</span></button>`;
 function renderCalScreen() {
   const box = $('#m-cal');
@@ -5667,7 +5674,7 @@ function xdBody(e) {
   const when = e.all
     ? `<dt>開始</dt><dd>${ymdSlash(dayOf(e.start))}（終日）</dd><dt>終了</dt><dd>${ymdSlash(dayOf(e.end))}（含む最終日）</dd>`
     : `<dt>開始</dt><dd>${esc(t(e.start))}</dd><dt>終了</dt><dd>${esc(t(e.rawEnd && e.rawEnd >= e.start ? e.rawEnd : e.end))}</dd>`;
-  $('#xd-body').innerHTML = `<h3 class="xdt">${esc(e.title)}</h3><p class="xdcal caltag"><i class="cdot" style="background:${e.color}" aria-hidden="true"></i>${esc(subLabel(e))}${e.recurring ? ' <span class="rep" aria-hidden="true">↻</span>' : ''}</p>
+  $('#xd-body').innerHTML = `<h3 class="xdt">${esc(e.title)}</h3><p class="xdcal caltag"><i class="cdot" style="background:${catSet(e).line}" aria-hidden="true"></i>${esc(subLabel(e))}${e.recurring ? ' <span class="rep" aria-hidden="true">↻</span>' : ''}</p>
     <dl class="facts">${when}<dt>場所</dt><dd>${e.place ? esc(e.place) : '場所なし'}</dd><dt>メモ</dt><dd class="notes">${e.notes ? esc(e.notes) : 'メモなし'}</dd></dl>`;
 }
 // 下の段。取得中・失敗は編集・削除なし。書けるとき: 削除/編集＋小さい「カレンダーで開く」。書けないとき: 理由＋大きい「カレンダーで開く」。
@@ -6994,7 +7001,7 @@ function grabStart(o, x, y) {
   document.documentElement.dataset.grab = '1';
   grabNoSelect(); // 品質 Q-1: つかんだら、残っている文字の選択を外す（運ぶ間は selectstart も止める）
   const chip = document.createElement('div'); chip.className = 'gchip'; chip.setAttribute('aria-hidden', 'true');
-  chip.style.setProperty('--cat', getComputedStyle(o.el).getPropertyValue('--cat') || '#294E42');
+  chip.style.setProperty('--cat-mark', getComputedStyle(o.el).getPropertyValue('--cat-mark') || '#294E42');
   document.body.append(chip); GR.chip = chip;
   if (o.el.matches('.week .chip, .week .strip, .week .bar')) { o.el.classList.add('grabbed'); GR.asChip = true; chip.classList.add('on'); mvLog('chip'); } // 月のマスのチップは持ち上げず、すぐ札になる（35 §6.1）
   else { // 持ち上げる（35 §6.1）: カードを 1.03 倍・影 段2（0 4 12 / 10%）、0.15 秒。元の場所に同じ大きさの破線の枠（1.5 #A8ABA4）
