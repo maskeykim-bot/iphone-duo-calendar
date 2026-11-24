@@ -27,7 +27,7 @@ test.describe('レイアウト（4サイズ）', () => {
     await openApp(page, SIZES.closedPortrait);
     await tab(page, 'ホーム').click(); // 起動はカレンダー（design/34 §9.2・11:29 の決定）
     for (let i = 0; i < 9; i++) await addEvent(page, { title: `追加予定${i}`, start: `2026/11/12 ${String(14 + (i % 8)).padStart(2, '0')}:00`, end: `2026/11/12 ${String(14 + (i % 8)).padStart(2, '0')}:30` });
-    await expect(page.locator('.hevents .hrow')).toHaveCount(3); // 最大3件＋ほか
+    await expect(page.locator('.hevents .hrow')).toHaveCount(8); await expect(page.locator('.hmore')).toHaveCount(0); // v19.5（征希さん「ホーム…スクロールできるように」「作り込んで」）で仕様変更: 閉じたホームの今日の予定は、3 件＋「ほか」ではなく残りを全部カードで出す（下へ送って読む）
     const list = page.locator('.home.listview');
     // 下の余白が 87 → 41 になり（タブ廃止）、この件数では送らなくても収まることがある。送れるなら送り切って、最後のカードが余白の上にあることを見る
     expect(await list.evaluate((el) => el.scrollHeight >= el.clientHeight)).toBe(true);

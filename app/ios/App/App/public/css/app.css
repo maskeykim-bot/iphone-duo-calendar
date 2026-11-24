@@ -2715,3 +2715,15 @@ html[data-grabtime] .gchip{opacity:0!important}
 .hweek .hwe em{font-style:normal;font-weight:600;font-variant-numeric:tabular-nums;margin-right:8px}
 .hweek .hwn{font:400 13px/20px -apple-system,'Hiragino Sans',sans-serif;color:#A8ABA4}
 .hweek .hwm{font:400 11px/16px -apple-system,'Hiragino Sans',sans-serif;color:#5D6963;padding-left:10px}
+/* ---- 第19.5版（征希さん「作り込んで」）: 閉じたホームの「今日の予定」は、日の欄と同じ白いカード（高さ 44・角丸 10・間 6）。タスクの箱は S8 ★1-10 の決まり（追加の行が見出しのすぐ下・行 44）のまま ---- */
+.shell.closed .home.hm-cards .hcard.hevents{background:none;border:0;border-radius:0;padding:0}
+.shell.closed .home.hm-cards .hcard.hevents .hh3{padding:0 4px}
+.shell.closed .home.hm-cards .hrow.hxc{position:relative;display:block;box-sizing:border-box;width:100%;height:44px;min-height:44px;margin:0 0 6px;padding:0;border:0;border-radius:10px;background:#fff;box-shadow:0 .5px 2px rgba(38,42,39,.12);overflow:hidden;text-align:left;white-space:nowrap}
+.shell.closed .home.hm-cards .hxc .ht{position:absolute;left:10px;top:5px;min-width:0;font:600 13px/17px -apple-system,'Hiragino Sans',sans-serif;color:var(--ink2);font-variant-numeric:tabular-nums}
+.shell.closed .home.hm-cards .hxc .ht2{position:absolute;left:10px;top:22px;font:400 13px/17px -apple-system,'Hiragino Sans',sans-serif;color:var(--muted);font-variant-numeric:tabular-nums}
+.shell.closed .home.hm-cards .hxc .hbar{position:absolute;left:53px;top:6px;bottom:6px;width:3px;height:auto;border-radius:1.5px}
+.shell.closed .home.hm-cards .hxc strong{position:absolute;left:64px;right:10px;top:5px;font:600 15px/17px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink2);overflow:hidden;text-overflow:ellipsis}
+.shell.closed .home.hm-cards .hxc .hxm{position:absolute;left:64px;right:10px;top:24px;font:400 11px/15px -apple-system,'Hiragino Sans',sans-serif;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+.shell.closed .home.hm-cards .hrow.hxc:active{background:#F5F3EC}
+.shell.closed .home.hm-cards .date .hrk{margin-left:8px;font-weight:400;color:#5D6963}
+.shell.closed .home.hm-cards .hevents .hempty{padding:0 4px}

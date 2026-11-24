@@ -1969,6 +1969,11 @@ function homeTasksCard() {
 }
 // 第19.5版: ホームの「これからの 7 日間」（明日から 7 日。1 日 1 行で、予定は 3 件まで＋「ほか N 件」。行をたたくと、その日を選んでカレンダーへ）
 const HOME_WEEK_MAX = 3;
+// 第19.5版（征希さん「作り込んで」）: 閉じたホームの「今日の予定」は、日の欄と同じ白いカード（始まり・終わり・色の線・題名・メモの 1 行目）
+function homeEventCard(e, k) {
+  const memo = (e.notes || '').split('\n').find((x) => x.trim()) || '', multi = e.all || dayOf(e.start) < k;
+  return `<button type="button" class="hrow event-row hxc ${catCls(e)}"${catSty(e)} data-event="${esc(e.id)}"${repLabel(e, `${timeLabel(e)} ${e.title}`)}><span class="ht">${multi ? '終日' : t0(e.start.slice(11))}${bell(e)}</span><span class="ht2">${multi ? '' : dayEndText(e, k)}</span><i class="hbar" aria-hidden="true"></i><strong>${xi(e)}${rep(e)}${esc(e.title)}</strong>${memo ? `<small class="hxm">${esc(memo)}</small>` : ''}</button>`;
+}
 function homeWeekCard(k) {
   const from = addDays(k, 1), to = addDays(k, 7), occ = occIn(from, to);
   const rows = Array.from({ length: 7 }, (_, i) => addDays(k, i + 1)).map((dk) => {
@@ -1985,14 +1990,14 @@ function listHtml(mode = 'cards') {
   const list = eventsOnDay(occIn(k, k), k).filter((e) => e.end > now);
   // 今日にもう予定がなければ、未来の回も含めて日付順に次の予定を探す。
   const future = list.length ? null : occIn(addDays(k, 1), addDays(k, 400)).sort((a, b) => a.start.localeCompare(b.start) || String(a.id).localeCompare(String(b.id)))[0];
-  const { next, shown, more, count } = splitEvents(list, future);
+  const { next, shown, more, count, rest } = splitEvents(list, future), closedH = closedSize() && mode === 'cards';
   const nextDay = next && dayOf(next.start) !== k ? `<small class="nd">${dayLabel(dayOf(next.start))}</small> ` : '';
   const nextHtml = next
     ? `<button type="button" class="next ${catCls(next)}"${catSty(next)} data-event="${esc(next.id)}"${repLabel(next, `次の予定 ${next.title}`)}><small>次の予定 · ${esc(tagText(next))}</small><strong>${xi(next)}${rep(next)}${esc(next.title)}</strong><span class="when"><span class="time">${nextDay}${next.all ? '終日' : t0(next.start.slice(11))}</span>${next.all || dayOf(next.start) !== dayOf(next.end) ? '' : ` — ${t0(next.end.slice(11))}`}${next.place ? ` <small>${esc(next.place)}</small>` : ''}${nextBell(next)}</span></button>`
     : `<div class="next none"><small>次の予定</small><strong>${extActive() ? '読み込み済みの期間に次の予定はありません。' : state.events.length ? 'この後の予定はありません' : '予定はまだありません'}</strong>${sampleBtn()}</div>`;
-  const hero = `<section class="hero"><div class="date-block"><div class="eyebrow">今日 / ${d.getFullYear()}年${d.getMonth() + 1}月</div><div class="date">${d.getDate()}<span>${DOW[d.getDay()]}曜日</span></div></div>${nextHtml}</section>`;
-  const body = mode === 'axis' ? homeAxis(list, now, k) : shown.map(homeEventRow).join('');
-  const evCard = `<section class="hcard hevents" aria-label="今日の予定"><div class="hh3"><h3>今日の予定 ${count}件</h3>${homeGo('time', 'タイムライン')}</div>${body || '<p class="small hempty">この後の予定はありません</p>'}${mode !== 'axis' && more ? `<button type="button" class="hmore" data-act="homego" data-to="time">ほか${more}件</button>` : ''}</section>`;
+  const hero = `<section class="hero"><div class="date-block"><div class="eyebrow">今日 / ${d.getFullYear()}年${d.getMonth() + 1}月</div><div class="date">${d.getDate()}<span>${DOW[d.getDay()]}曜日</span>${closedH && rkOf(k) ? `<span class="hrk">${rkOf(k).name}</span>` : ''}</div></div>${nextHtml}</section>`;
+  const body = mode === 'axis' ? homeAxis(list, now, k) : closedH ? rest.map((e) => homeEventCard(e, k)).join('') : shown.map(homeEventRow).join(''); // 閉じた画面は下へ送って読めるので、残りを全部出す（「ほか N 件」は出さない）
+  const evCard = `<section class="hcard hevents" aria-label="今日の予定"><div class="hh3"><h3>今日の予定 ${count}件</h3>${homeGo('time', 'タイムライン')}</div>${body || '<p class="small hempty">この後の予定はありません</p>'}${mode !== 'axis' && more && !closedH ? `<button type="button" class="hmore" data-act="homego" data-to="time">ほか${more}件</button>` : ''}</section>`;
   const tl = tomorrowSummary(eventsOnDay(occIn(tm, tm), tm)), td = parseKey(tm);
   const tmCard = `<button type="button" class="hcard htmr" data-act="homego" data-to="tomorrow" aria-label="明日の予定を開く"><b>明日 ${td.getMonth() + 1}/${td.getDate()}（${DOW[td.getDay()]}）</b> <small>${tl.count}件</small>${tl.first ? `<span>${tl.first.all ? '終日' : t0(tl.first.start.slice(11))} ${esc(tl.first.title)}${tl.more ? `　ほか${tl.more}件` : ''}</span>` : '<span class="hempty">予定はありません</span>'}</button>`;
   if (mode === 'cols') return `<div class="hcols"><div class="hcol">${nextHtml}</div><div class="hcol">${homeTasksCard()}</div></div>`;

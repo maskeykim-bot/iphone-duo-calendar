@@ -38,11 +38,12 @@ test('閉じたホーム: 次の予定・今日の予定3件＋ほか・タス�
   await tab(page, 'ホーム').click();
   await expect(page.locator('.next')).toContainText('会議');
   const ev3 = page.locator('.hevents .hrow');
-  await expect(ev3).toHaveCount(3);
-  await expect(ev3).toHaveText([/昼/, /資料/, /歯医者/]);
+  // v19.5（征希さん「ホーム…スクロールできるように」「作り込んで」）で仕様変更: 閉じたホームの今日の予定は、3 件＋「ほか」ではなく残りを全部カードで出す（下へ送って読む）
+  await expect(ev3).toHaveCount(4);
+  expect((await ev3.allTextContents()).slice(0, 3).map((t, i) => [/昼/, /資料/, /歯医者/][i].test(t))).toEqual([true, true, true]);
   await expect(page.locator('.hevents')).not.toContainText('朝の予定');
   await expect(page.locator('.hevents h3')).toContainText('5件');
-  await expect(page.locator('.hmore')).toHaveText('ほか1件');
+  await expect(page.locator('.hmore')).toHaveCount(0);
   await expect(page.locator('.htasks h3')).toContainText('4件');
   await expect(page.locator('.htask')).toHaveCount(3);
   await expect(page.locator('.htask').first()).toContainText('古い');
