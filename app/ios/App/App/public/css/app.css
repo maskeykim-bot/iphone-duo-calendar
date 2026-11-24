@@ -400,7 +400,10 @@ input,select,textarea,.date-text{font-size:16px}
 .week .day.sat .num{color:var(--satc)}
 .week .day.sun .num,.week .day.hol .num{color:var(--holiday)}
 .week .day.out .num{color:var(--outc);font-weight:400}
-.week .day.selected{box-shadow:inset 0 0 0 2px #294E42}
+/* 第19.4版 レビュー直し（設計 必須2）: 選んだ日の枠は ::after に描き、重なり順を「1日のチップ(2) ＜ 枠(3) ＜ 複数日の帯(3・あとに置く)」にそろえる（開いた縦・開いた横）。閉じた縦（.mpull.browse）は下の方の規則で 枠 4・帯 5〜6 */
+.week .day.selected:not(.msel):not(.psel):not(.mdrop)::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 2px #294E42;pointer-events:none;z-index:3}
+.week>.bar:not(.one){z-index:3}
+.week .day.selected:is(.msel,.psel,.mdrop){box-shadow:inset 0 0 0 2px #294E42}
 .week .day.today .num{background:var(--green);color:#fff}
 .week.named,.week.simple{flex:1 0 var(--need,85px)}
 .week.all{position:relative;display:grid;flex:none;height:max(calc(100cqh / var(--n)),var(--need,0px));border-top:0;box-shadow:inset 0 1px 0 var(--line)}
@@ -560,8 +563,9 @@ input,select,textarea,.date-text{font-size:16px}
 @media (hover:hover){.tlev:hover{background:var(--cat-tint);filter:brightness(.95)}}
 .tlev .tt{margin-right:5px;font-weight:600;color:var(--ink)}
 .nowl{position:absolute;z-index:3;left:0;right:0;top:calc(12px + var(--m) * var(--hh) / 60);height:0;pointer-events:none}
-.nowl:before{content:'';position:absolute;left:calc(var(--lw,50px) + var(--i) * (100% - var(--lw,50px)) / var(--n));width:calc((100% - var(--lw,50px)) / var(--n));top:-.75px;height:1.5px;background:#D64541}
-.nowt{position:absolute;left:0;top:-11px;width:46px;height:22px;border-radius:999px;background:#D64541;color:#fff;font-size:11px;font-weight:600;line-height:22px;text-align:center;font-variant-numeric:tabular-nums}
+.nowl:before{content:'';position:absolute;left:calc(var(--lw,50px) + var(--i) * (100% - var(--lw,50px)) / var(--n));width:calc((100% - var(--lw,50px)) / var(--n));top:-.75px;height:1.5px;background:#CF3F3B}
+/* 品質 Q-5: 現在時刻の札の地は #CF3F3B（白の文字 4.74。#D64541 は 4.39 だった）。線も同じ色 */
+.nowt{position:absolute;left:0;top:-11px;width:46px;height:22px;border-radius:999px;background:#CF3F3B;color:#fff;font-size:11px;font-weight:600;line-height:22px;text-align:center;font-variant-numeric:tabular-nums}
 body[data-layout=spread] .toastbar{left:var(--left-start);right:auto;width:calc(var(--left-end) - var(--left-start));margin:0}
 .menurows .tlz{display:flex;gap:4px;margin:2px 0 6px}.menurows .tlz button{flex:1;min-width:0;font-size:13px;padding:4px 6px}
 
@@ -1529,7 +1533,7 @@ dialog.panel.tface-open{overflow:visible}
 .mdlist{display:flex;flex-direction:column}
 .mdev{display:flex;align-items:center;gap:8px;height:44px;min-height:44px;padding:0 4px;border-radius:0;background:transparent;text-align:left}
 .mdev .mdbar{flex:none;width:4px;height:16px;border-radius:4px;background:var(--cat-mark)}
-.mdev .mdt{flex:none;width:44px;font-size:13px;color:#8C918A}
+.mdev .mdt{flex:none;width:44px;font-size:13px;color:var(--outc)} /* 品質 Q-2: 「終日」・時刻は #5D6963（紙の上 5.21。#8C918A は 2.93 だった） */
 .mdev strong{flex:1;min-width:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mdnone{display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px;color:#8C918A}
 .mdnone p{margin:0}
@@ -1742,9 +1746,9 @@ body:is([data-layout=spread],[data-layout=desk]) dialog#remend{left:calc(50% + 9
 .week.named .day,.week.all .day{flex-direction:row;justify-content:flex-start;align-items:flex-start;padding:0 0 0 3px} /* 日セルの左の線 1＋3＝x+4 */
 .week.named .day .num,.week.all .day .num{order:1;width:auto;min-width:18px;height:18px;line-height:18px;padding:0;margin:0;border-radius:999px;text-align:center;font-size:11px}
 .week.named .day .num.sd,.week.all .day .num.sd{padding:0 2px;margin:0;letter-spacing:-.5px}
-.week.named .day .rk,.week.all .day .rk{order:2;position:static;flex:none;margin-left:4px;height:18px;font-size:8px;font-weight:600;line-height:18px;color:var(--muted)}
-.week.named .day.out .rk,.week.all .day.out .rk{color:#8C918A}
-.week .plus{font-weight:600;color:var(--muted);line-height:18px;padding-right:3px}
+.week.named .day .rk,.week.all .day .rk{order:2;position:static;flex:none;margin-left:4px;height:18px;font-size:8px;font-weight:600;line-height:18px;color:var(--outc)} /* レビュー直し 望ましい8: 六曜は #5D6963（開いた横の左ページ #F0EDE5 の上 4.90・土の列の地の上 5.05） */
+.week.named .day.out .rk,.week.all .day.out .rk{color:var(--outc);font-weight:400} /* 前後の月の六曜は数字と同じ扱い（#5D6963・W4） */
+.week .plus{font-weight:600;color:var(--outc);line-height:18px;padding-right:3px} /* レビュー直し 必須4: +N は #5D6963（土の列の地の上 5.05・開いた横の左ページの上 4.90） */
 @media (hover:hover){.week .plus:hover{color:var(--ink)}}
 .closed .week.named .day,.closed .week.all .day{padding-left:2px} /* 日セルの左の線 1＋2＝x+3 */
 .closed .week.named .day .num,.closed .week.all .day .num{min-width:16px;height:16px;line-height:16px;margin-top:1px;border-radius:8px}
@@ -1774,7 +1778,7 @@ body:is([data-layout=spread],[data-layout=desk]) dialog#remend{left:calc(50% + 9
 @media (hover:hover){.closed.tv-week .adband:hover{background:var(--cat-tint);filter:brightness(.95)}}
 .closed.tv-week .adband .bt{display:inline-block;max-width:100%;overflow:hidden;vertical-align:top}
 .closed.tv-week .adcols .adplus{position:absolute;height:14px;min-height:14px;padding:0 2px 0 0;font-size:9px;font-weight:600;line-height:14px;color:var(--muted);text-align:right;border-radius:0}
-.closed.tv-week .tlev{min-height:24px;padding:1px 2px 1px 6px;box-shadow:inset 3px 0 0 var(--cat-mark);font-size:9px;font-weight:600;line-height:11px;overflow:hidden;border-radius:3px}
+.closed.tv-week .tlev{min-height:24px;padding:1px 2px 1px 6px;box-shadow:inset 3px 0 0 var(--cat-mark);font-size:9px;font-weight:600;line-height:11px;overflow:hidden;border-radius:4px}
 .closed.tv-week .tlev .tn{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;white-space:normal;overflow-wrap:anywhere}
 .closed .mpull .weekdays{background:transparent}
 /* 月のタスクの件数 ✓N は日付の行で六曜の右（六曜の後ろに続けて並べる） */
@@ -2117,7 +2121,7 @@ body :is(.dchip)[aria-pressed=true]:active:not(:disabled){filter:brightness(.92)
 @container (min-height:148px){.fold-week .ftl{-webkit-line-clamp:12}}
 /* V-09: 開いた縦・開いた横の下のバーの上に、閉じた画面と同じ 24 のぼかし（上 0%→下 100%）。縦は y839〜863（x0〜669）、横は各ページ y587〜611（左ページ #F0EDE5・右ページ var(--card)）。最後の行はバーの上 8 まで送れる */
 .shell.open.portrait .tabfade{display:block;position:fixed;z-index:5;left:var(--sal,0px);right:var(--sar,0px);top:calc(var(--tabs-y) - 24px);height:24px;pointer-events:none;background:linear-gradient(to bottom,rgba(247,244,237,0),var(--paper))}
-.shell.spread .tabfade{display:block;position:fixed;z-index:5;top:calc(var(--tabs-y) - 24px);height:24px;pointer-events:none}
+.shell.spread .tabfade{display:block;position:fixed;z-index:5;top:calc(var(--tabs-y) - 12px);height:12px;pointer-events:none} /* レビュー直し 望ましい14: 開いた横はぼかし 12（時間軸の枠に地が付いたので、24 だと枠が 2 つに切れて見えた） */
 .shell.spread .tabfade.tfl{left:var(--left-start);width:calc(var(--left-end) - var(--left-start));background:linear-gradient(to bottom,rgba(240,237,229,0),#F0EDE5)}
 .shell.spread .tabfade.tfr{left:calc(var(--right-start) + 8px);width:calc(var(--right-end) - var(--right-start) - 8px);background:linear-gradient(to bottom,rgba(255,253,250,0),var(--card))}
 /* V-07: 暗い色（ダーク用の media query の 7 か所と .shell.fd の暗い色）を外し、全部明るい色にそろえた。ダークは別の版で全画面まとめて入れる（25 §6）。キーボード・ピッカー・共有シート・ステータスバーも明るいまま（iOS は Info.plist の UIUserInterfaceStyle=Light） */
@@ -2372,7 +2376,7 @@ body[data-layout=home] .toastbar,body[data-layout=browse] .toastbar{left:calc(va
 .mpull.browse .week:not(:first-child)::before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;box-shadow:inset 0 .5px 0 var(--line2)}
 /* M2（34 §2.3）: 選んだ日の枠はマスの内側 1・太さ 2・角丸 4。チップ（z2・帯 z3）より上に描く */
 .shell.closed .mpull.browse .week .day.selected{box-shadow:none}
-.shell.closed .mpull.browse .week .day.selected:not(.msel):not(.psel):not(.mdrop)::after{content:"";position:absolute;inset:1px;box-sizing:border-box;border:2px solid #294E42;border-radius:4px;z-index:4;pointer-events:none}
+.shell.closed .mpull.browse .week .day.selected:not(.msel):not(.psel):not(.mdrop)::after{content:"";position:absolute;inset:1px;box-sizing:border-box;border:2px solid #294E42;border-radius:4px;z-index:4;pointer-events:none;box-shadow:none}
 /* M3（34 §9.4）: 閉じた7段の時刻つきチップは、押しても・つかんでも紺のベタにしない。つかんだ元は破線の枠だけ（R-49） */
 .mpull.browse .week .day .strip.chip:active{background-color:transparent!important;filter:none!important}
 .mpull.browse .week .day .chip.grabbed,.mpull.browse .week .day .chip.grabbed:active{background:transparent!important;background-color:transparent!important;filter:none!important;outline:1.5px dashed #A8ABA4;outline-offset:-1.5px}
@@ -2602,8 +2606,13 @@ html[data-theme=dark]{--paper:#1C1F1D;--card:#262A27;--cardw:#262A27;--capsule:#
 .csw{position:relative;flex:none;display:inline-block;box-sizing:border-box;width:28px;height:20px;border-radius:4px;background:var(--cat-tint);font-style:normal}
 .csw::before{content:'';position:absolute;left:3px;top:3px;bottom:3px;width:3px;border-radius:1.5px;background:var(--cat-mark)}
 .csw.lg{width:32px;height:24px}
-.destbtn.colorbtn .dval{flex:0 1 auto;min-width:0}
-.destbtn.colorbtn #color-name,.destbtn.colorbtn .cnm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* レビュー直し 必須5: 値は右寄せで行の残りを全部使う（「色」と値の間 16 以上・見本 28×20・名前 15pt W4 字間 0・名前と › の間 6・› 幅 8）。「カテゴリの色（」は切らず、分類名だけ … で切る */
+.destbtn.colorbtn{gap:16px}
+.destbtn.colorbtn .dval{flex:1 1 auto;min-width:0;max-width:none;justify-content:flex-end;gap:6px;overflow:visible}
+.destbtn.colorbtn #color-name,.destbtn.colorbtn .cnm{display:flex;flex:0 1 auto;min-width:0;font-size:15px;font-weight:400;letter-spacing:0;white-space:nowrap;overflow:hidden}
+.destbtn.colorbtn .cn1,.destbtn.colorbtn .cn3{flex:none}
+.destbtn.colorbtn .cn2{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.destbtn.colorbtn .dval>span:last-child{flex:none;width:8px;text-align:right}
 .destbtn.colorbtn #color-name.on,.destbtn.colorbtn .cnm.on{color:var(--ink2)}
 #xd-body .destbtn.colorbtn{margin-top:12px}
 /* 色を選ぶ画面: 見出し 26（12pt）・行 44・左右 20・見本と名前の間 12。8 行＋見出し 2 つ＝404 で、閉じた縦でもスクロールなしで入る */
@@ -2611,12 +2620,25 @@ html[data-theme=dark]{--paper:#1C1F1D;--card:#262A27;--cardw:#262A27;--capsule:#
 .destpage.colorpage .dopt{gap:12px}
 .destpage.colorpage .dopt .dsub{margin-left:8px;font-size:12px;color:var(--muted)}
 .destpage.colorpage .cnote{font-size:12px;line-height:1.5}
+/* レビュー直し 望ましい12: 繰り返しの注記（12pt W4・#5D6963・上 12・左右 20・行間 1.5）。iPhone の注記より上 */
+.destpage.colorpage .cnote.crep{margin:12px 20px 0;padding:0;font-weight:400;color:var(--outc)}
 /* 長押しメニューの「色」の帯: 幅 336・高さ 78・角丸 14。上に選んでいる色の名前 12pt、下に見本 32×24 を 8 つ（間 8。押す的 40×44）。選んでいる見本に 白 2＋緑 2 の輪 */
-.cmenu.colorstrip{box-sizing:border-box;height:78px;padding:8px 8px 0;border-radius:14px;overflow:visible}
-.colorstrip .csn{margin:0 4px;height:18px;font-size:12px;line-height:18px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmenu.colorstrip{box-sizing:border-box;height:78px;padding:8px 4px 0;border-radius:14px;overflow:visible} /* 左右 4: 押す的 40×8＋仕切り（1＋左右 3.5）＝328 を 336 の中に。見本は帯の端から 8 */
+.colorstrip .csn{margin:0 8px;height:18px;font-size:12px;line-height:18px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .colorstrip .csr{display:flex;justify-content:space-between;height:44px;margin-top:2px}
 .cmenu.colorstrip button.cso{display:flex;align-items:center;justify-content:center;flex:none;width:40px;height:44px;min-height:44px;padding:0;border:0;border-radius:8px;background:transparent}
-.colorstrip .cso .csw b{position:absolute;left:8px;right:0;top:0;bottom:0;font-size:9px;line-height:24px;font-weight:600;color:var(--ink);text-align:center;letter-spacing:-.04em}
+/* レビュー直し 必須6: 最初の見本（カテゴリ／カレンダーの色）に文字は入れない。7 色との間に仕切り 1×20（#DCD7CB。見本の縦の中心）。押す的 40×44 はそのまま */
+.colorstrip .csdiv{flex:none;align-self:center;width:1px;height:20px;margin:0 3.5px;background:#DCD7CB} /* 左右 3.5: 選んでいる見本の輪（外へ 4）とくっつかない */
 .colorstrip .cso[aria-pressed=true] .csw{box-shadow:0 0 0 2px #fff,0 0 0 4px #294E42}
 .colorstrip .cso:active .csw{filter:brightness(.94)}
 .cmenu.colorstrip button.cso:active,.cmenu.colorstrip button.cso[aria-pressed=true]:active{background-color:transparent!important;filter:none}
+/* ===== 第19.4版 レビュー直し（design/V194_レビュー.md） ===== */
+/* 望ましい7: 前後の月の予定の地（30%）と線（79%。7 色は --cat-line-a）は、置かれるページの地に混ぜる。開いた横の左ページは #F0EDE5、右ページは var(--card)。ほか（紙 #F7F4ED）は js/colors.js の値のまま */
+.shell.spread .page.lp{--page-bg:#F0EDE5}
+.shell.spread .page.rp{--page-bg:var(--card)}
+html:not([data-theme=dark]) .shell.spread .week .strip.outm,html:not([data-theme=dark]) .shell.spread .week .bar.outm{background:color-mix(in srgb,var(--cat-tint) 30%,var(--page-bg,var(--paper)))}
+html:not([data-theme=dark]) .shell.spread .week .strip.outm::before,html:not([data-theme=dark]) .shell.spread .week .bar.outm::before{background:color-mix(in srgb,var(--cat-line) var(--cat-line-a,79%),var(--page-bg,var(--paper)))}
+/* 左ページの地に混ぜた前後の月の地は紙の上より少し暗いので、その上の文字は #59655F（どの色の地の上でも 4.9 以上。#5D6963 のままだと 4.65 で、前後の月の基準 4.8 を割る）。ダークは見本だけなので紙の値のまま */
+html:not([data-theme=dark]) .shell.spread .page.lp .week .strip.outm,html:not([data-theme=dark]) .shell.spread .page.lp .week .bar.outm{color:#59655F}
+/* 望ましい8: 開いた画面の曜日（月〜金）は #5D6963。土・日は案 A の色のまま */
+.shell.open .weekdays,.shell.spread .weekdays{color:var(--outc)}

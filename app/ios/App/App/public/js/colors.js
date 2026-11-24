@@ -6,6 +6,7 @@ export const BG = {
   light: { paper: '#F7F4ED', capsule: '#EFECE4', card: '#FFFFFF', sat: '#EEF1F4' },
   dark: { paper: '#1C1F1D', capsule: '#30352F', card: '#262A27', sat: '#232A2F' },
 };
+export const LEFT_PAGE = '#F0EDE5'; // 開いた横の左ページの地（app.css の .shell.spread）
 export const INK = { light: '#293B35', dark: '#E8E6E0' };
 // 前後の月の数字・予定の文字・+N（36 §15.4・§15.5）。下の欄の日付の横の薄い文字もこの色（§15.9）
 export const OUT_TEXT = { light: '#5D6963', dark: '#A3A29E' };
@@ -130,6 +131,10 @@ function withOut(s, mode, solve) {
   // 決まった組（37 の 7 色）は表の割合で 3:1 を割ることがあるので、割らない所まで 0.01 ずつ濃くする
   if (solve) for (; a < 1; a += 0.01) { const l = mixHex(s.line, paper, a); if (contrast(l, paper) >= MARK_NEED + PAD && contrast(l, s.tintOut) >= MARK_NEED + PAD) break; }
   s.lineOut = mixHex(s.line, paper, Math.min(1, a));
+  // レビュー直し 望ましい7: 開いた横の左ページ（#F0EDE5）では、CSS が地と線をそのページの地へ混ぜ直す。線の割合（%）は、そのページの地と前後の月の地の両方に 3:1 を割らない所まで 1% ずつ濃くした値（ダークは見本だけなので紙と同じ割合）
+  let b = Math.min(1, a);
+  if (mode === 'light') { const pg = LEFT_PAGE, t = mixHex(s.tint, pg, OUT_TINT_ALPHA); for (; b < 1; b += 0.01) { const l = mixHex(s.line, pg, b); if (contrast(l, pg) >= MARK_NEED + PAD && contrast(l, t) >= MARK_NEED + PAD) break; } }
+  s.lineOutA = Math.round(Math.min(1, b) * 100);
   // 下の札の縁（36 §15.7）: 左の線の色。塗りの上で 3:1 を割る色（元が明るい iPhone の色）だけ 4.5 の線の色にする
   s.edge = contrast(s.mark, s.fill) >= MARK_NEED + PAD ? s.mark : s.line;
   s.ink = INK[mode]; s.outText = OUT_TEXT[mode];
@@ -194,4 +199,4 @@ export function eventSet(colorId, base, mode = 'light') {
   return f ? { ...f, text: b.line } : b;
 }
 // inline の CSS 変数
-export const setVars = (s) => `--cat-line:${s.line};--cat-mark:${s.mark};--cat-tint:${s.tint};--cat-fill:${s.fill};--cat-text:${s.text || s.line};--cat-tint-out:${s.tintOut};--cat-line-out:${s.lineOut};`;
+export const setVars = (s) => `--cat-line:${s.line};--cat-mark:${s.mark};--cat-tint:${s.tint};--cat-fill:${s.fill};--cat-text:${s.text || s.line};--cat-tint-out:${s.tintOut};--cat-line-out:${s.lineOut};--cat-line-a:${s.lineOutA}%;`;

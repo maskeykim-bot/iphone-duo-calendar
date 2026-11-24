@@ -5,6 +5,7 @@
 import { validColorId } from './colors.js';
 
 export const XCOLORS_KEY = 'xcolors';
+export const XC_SEEN_MS = 24 * 60 * 60 * 1000; // 見つかった行の seenAt を新しくする間隔
 export const XC_MAX = 3000;
 export const XC_KEEP_MS = 30 * 864e5; // 見つからなくなってから 30 日は残す（iCloud の同期待ちで色が消えないように）
 const KEY_MAX = 500, TITLE_MAX = 200;
@@ -51,7 +52,8 @@ export function xcSet(table, key, colorId, info = {}, now = Date.now()) {
 // missingSince から 30 日たっても見つからない行は表から消す。戻り値 { table, changed }。
 export function xcSweep(table, view, now = Date.now()) {
   if (!view || view.status !== 'ok' || !view.range || !Array.isArray(view.calIds) || !view.calIds.length || !Array.isArray(view.events)) return { table, changed: false };
-  const ids = new Set(view.calIds), from = `${view.range.from}T00:00`, to = `${view.range.to}T23:59`;
+  const ids = new Set(view.calIds.filter((x) => typeof x === 'string' && x)), from = `${view.range.from}T00:00`, to = `${view.range.to}T23:59`;
+  if (!ids.size) return { table, changed: false }; // 連携 L-1: 空の id だけ（''.split(',') の ['']）も「ids が空」と同じ扱い
   const seen = new Map();
   for (const e of view.events) { const k = xcKeyOf(e); if (!k) continue; const c = seen.get(k); if (!c || e.start > c.start) seen.set(k, e); }
   const out = new Map(); let changed = false;
@@ -59,7 +61,8 @@ export function xcSweep(table, view, now = Date.now()) {
     const hit = seen.get(r.key);
     if (hit) { // 見つかった: 手がかりを新しくし、missingSince を消す
       const n = { key: r.key, colorId: r.colorId, calId: str(hit.calId, KEY_MAX) || r.calId, title: str(hit.title, TITLE_MAX) || r.title, lastStart: STAMP.test(hit.start || '') ? hit.start : r.lastStart, seenAt: r.seenAt };
-      if (r.missingSince != null || n.calId !== r.calId || n.title !== r.title || n.lastStart !== r.lastStart) { n.seenAt = now; changed = true; }
+      // 連携 L-2: seenAt は「最後に見た時刻」。ただし書き込みを減らすため、変わりがなければ 1 日に 1 回だけ新しくする（3000 件を超えたとき、毎日見ている予定が先に消される側に回らない）
+      if (r.missingSince != null || n.calId !== r.calId || n.title !== r.title || n.lastStart !== r.lastStart || now - r.seenAt >= XC_SEEN_MS) { n.seenAt = now; changed = true; }
       out.set(r.key, n); continue;
     }
     const judge = ids.has(r.calId) && !!r.lastStart && r.lastStart >= from && r.lastStart <= to;

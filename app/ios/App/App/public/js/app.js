@@ -627,7 +627,7 @@ function xcMirror(events) {
 // 読み込みが成功したあとだけ「消えたかどうか」を見る（連携の回答 5 の 4 つの条件は event-colors.js の xcSweep）
 function xcSweepNow() {
   if (!XC.map.size || X.status !== 'ok' || !X.cache) return;
-  const r = xcSweep(XC.map, { status: X.status, range: X.cache.range, calIds: X.cache.ids ? X.cache.ids.split(',') : [], events: X.cache.events });
+  const r = xcSweep(XC.map, { status: X.status, range: X.cache.range, calIds: X.cache.ids ? X.cache.ids.split(',').filter(Boolean) : [], events: X.cache.events }); // 連携 L-1: オンのカレンダーが 0 件なら空の配列（＝判断しない）
   if (r.changed) xcPut(r.table).catch(() => {});
 }
 const xcAfterLoad = () => { xcMirror(state.events).then(xcSweepNow); };
@@ -861,20 +861,32 @@ const DOW_LONG = ['日', '月', '火', '水', '木', '金', '土'];
 const dynDayLabel = (k) => { const d = parseKey(k); return `${d.getMonth() + 1}月${d.getDate()}日 ${DOW_LONG[d.getDay()]}曜日${holSpoken(k)}`; };
 // 閉じた7段のチップ（design/34 §7、第19.4版 design/36 §15.3）。時刻つき単日＝地なし＋左の線 2.5×10。終日・複数日＝ごく薄い地＋左の線＋墨の文字（週をまたいで続く側だけ角丸 0。週の頭ごとに線と題名）。
 // 帯は見た目は週の中の1本。作りは、またぐマスごとに1片（どの片も自分のマスの子なので、たたいた所のマスが日になる）。題名は先頭の片だけが持ち、右のマスの上へも続けて見せる。
-function dynChipPieces(b, days, lt, ls, time) {
+// 第19.4版 レビュー直し（設計 必須1・2）: 帯の題名は帯の地の中で切る（左 7＋右 2）。選んだ日の枠（閉じた縦は マスの内側 1・線 2）との重なり順は「1日のチップ ＜ 枠 ＜ 複数日の帯」。
+// 選んだマスの 1 日のチップは左右 5.5 ずつ内側。複数日の帯は枠の上を通し、題名は枠の線の 1 手前で切る（SEL_FRAME は枠の線の外の縁・内の縁までのマスの端からの距離）
+const SEL_FRAME = { dyn: { lo: 1, li: 3, ri: 3 }, open: { lo: 0, li: 2, ri: 3 } }, SEL_INSET = 5.5;
+function dynChipPieces(b, days, lt, ls, time, sel = null) {
   const { e } = b, top = lt + b.lane * ls, n = b.ec - b.sc + 1;
   const cutL = dayOf(e.start) < days[0], cutR = dayOf(e.end) > days[6];
+  const one = n === 1 && !cutL && !cutR, sc = sel ? days.indexOf(sel) : -1; // one＝その日だけのチップ（終日 1 日も入る）
   const out = [];
   for (let col = b.sc; col <= b.ec; col++) {
-    const lead = col === b.sc, last = col === b.ec, gl = lead && !cutL ? 1 : 0, gr = last && !cutR ? 1 : 0;
+    const lead = col === b.sc, last = col === b.ec, ins = one && col === sc, gl = ins ? SEL_INSET : lead && !cutL ? 1 : 0, gr = ins ? SEL_INSET : last && !cutR ? 1 : 0;
     const at = `data-lane="${b.lane}" ${lead ? `data-lead="1" data-sc="${b.sc}" data-ec="${b.ec}" data-event="${esc(e.id)}"` : `data-cont="${esc(e.id)}"`} data-sday="${days[b.sc]}"`;
     const ov = b.band && !lead ? 3 : 0; // つづきの片は左へ 3 重ねて、角丸の隅を前の片（同じ色）で埋める（継ぎ目に欠けが出ない）
-    const pos = `top:${top}px;left:${gl - ov}px;width:calc(100% - ${gl + gr}px + ${ov}px);z-index:${lead ? 3 : 2}`;
+    const pos = `top:${top}px;left:${gl - ov}px;width:calc(100% - ${gl + gr}px + ${ov}px);z-index:${one ? (lead ? 3 : 2) : lead ? 6 : 5}`; // 枠は z-index 4
     const title = esc(e.title);
-    if (!b.band) { out.push({ col, html: `<span class="strip chip timed ${catCls(e)}" ${at} style="${catVar(e)}${pos}" aria-hidden="true"><i class="cline"></i><span class="st">${time ? `${chipTime(e.start)} ` : ''}${title}</span></span>` }); continue; }
-    const txt = lead ? `<span class="bt" style="width:calc(${n} * 100% - ${gl + 1}px)"><span class="st">${title}</span></span>` : '';
+    if (!b.band) { out.push({ col, html: `<span class="strip chip timed${ins ? ' insel' : ''} ${catCls(e)}" ${at} style="${catVar(e)}${pos}" aria-hidden="true"><i class="cline"></i><span class="st">${time ? `${chipTime(e.start)} ` : ''}${title}</span></span>` }); continue; }
+    let txt = '';
+    if (lead) {
+      // 題名の幅（.bt は片の左から 7 で始まる）。マスの幅 C＝100%＋c0。帯の終わりの 2 手前まで。選んだ日にかかる帯は、枠の線の 1 手前まで
+      const grLast = n === 1 ? gr : cutR ? 0 : 1, c0 = gl + (n === 1 ? gr : 0), F = SEL_FRAME.dyn;
+      let k = n, px = n * c0 - gl - grLast - 9;
+      if (!one && sc === b.sc) { k = 1; px = c0 - gl - F.ri - 1 - 7; }
+      else if (!one && sc > b.sc && sc <= b.ec) { k = sc - b.sc; px = k * c0 - gl + F.lo - 1 - 7; }
+      txt = `<span class="bt" style="width:calc(${k} * 100% ${px < 0 ? '-' : '+'} ${Math.abs(px)}px)"><span class="st">${title}</span></span>`;
+    }
     const rl = (lead && !cutL) || ov ? 3 : 0, rr = last && !cutR ? 3 : 0;
-    out.push({ col, html: `<span class="bar chip ${e.all ? 'all' : 'multi'} ${catCls(e)}" ${at}${e.all ? ' data-all="1"' : ''} style="${catVar(e)}${pos};border-radius:${rl}px ${rr}px ${rr}px ${rl}px" aria-hidden="true">${lead ? '<i class="cline"></i>' : ''}${txt}</span>` });
+    out.push({ col, html: `<span class="bar chip ${e.all ? 'all' : 'multi'}${one ? ' one' : ''}${ins ? ' insel' : ''} ${catCls(e)}" ${at}${e.all ? ' data-all="1"' : ''} style="${catVar(e)}${pos};border-radius:${rl}px ${rr}px ${rr}px ${rl}px" aria-hidden="true">${lead ? '<i class="cline"></i>' : ''}${txt}</span>` });
   }
   return out;
 }
@@ -888,7 +900,7 @@ function weekInner(w, { mode, cur, sel, today, cap, time, tk = null, lt = LANE_T
   if (plusLane >= 0) items = items.filter((b) => { if (b.sc === b.ec && b.lane === plusLane && hidden[b.sc] > 0) { dropped[b.sc]++; return false; } return true; });
   let html = '';
   const inCell = Array(7).fill('');
-  if (dyn) for (const b of items) for (const pc of dynChipPieces(b, days, lt, ls, time)) inCell[pc.col] += pc.html; // 閉じた7段: チップは日のボタンの中（R-75。どこをたたいても日になる）
+  if (dyn) for (const b of items) for (const pc of dynChipPieces(b, days, lt, ls, time, sel)) inCell[pc.col] += pc.html; // 閉じた7段: チップは日のボタンの中（R-75。どこをたたいても日になる）
   // 第19.3版 その3（design/35 §2.4・決定 5）: 閉じた画面のマスに、タスクとノートの名前のチップも出す（予定の下の空いた段へ タスク → ノート の順。入りきらない分は +N に数える）。
   // 印は形で分ける: タスク＝四角 8×8・角丸 2（完了は塗り）、ノート＝角の折れた紙 8×10。件数（.tkn）と緑の線（.mline）は閉じた画面では出さない
   const xhid = Array(7).fill(0), xn = days.map(() => ({ t: 0, n: 0 }));
@@ -901,7 +913,8 @@ function weekInner(w, { mode, cur, sel, today, cap, time, tk = null, lt = LANE_T
       const put = (attr, mark, title) => {
         const lane = occ.findIndex((row) => !row[col]); if (lane < 0) { xhid[col]++; return; }
         occ[lane][col] = true;
-        inCell[col] += `<span class="strip chip xk" data-lane="${lane}" data-lead="1" data-sc="${col}" data-ec="${col}" ${attr} data-sday="${k}" style="top:${lt + lane * ls}px;left:1px;width:calc(100% - 2px);z-index:3" aria-hidden="true">${mark}<span class="st">${esc(title)}</span></span>`;
+        const g = k === sel ? SEL_INSET : 1;
+        inCell[col] += `<span class="strip chip xk${k === sel ? ' insel' : ''}" data-lane="${lane}" data-lead="1" data-sc="${col}" data-ec="${col}" ${attr} data-sday="${k}" style="top:${lt + lane * ls}px;left:${g}px;width:calc(100% - ${2 * g}px);z-index:3" aria-hidden="true">${mark}<span class="st">${esc(title)}</span></span>`;
       };
       for (const r of ts) { const done = pend.has(r.itemId) ? pend.get(r.itemId) === true : !!r.done; put(`data-task="${esc(r.itemId)}"`, `<i class="cbox${done ? ' on' : ''}"></i>`, r.title || '（題名なし）'); }
       for (const c of ns) put(`data-note="${esc(c.id)}"`, '<i class="cpaper"></i>', c.title || EMPTY_TITLE);
@@ -924,16 +937,21 @@ function weekInner(w, { mode, cur, sel, today, cap, time, tk = null, lt = LANE_T
   });
   if (mode === 'simple') return html;
   html += pasteGhostHtml(w, cap, lt, ls);
+  // 開いた画面（チップは週の子）。レビュー直し 必須2: 選んだマスの 1 日のチップは枠の内側（左右 5.5）、複数日の帯は枠の上を通し、題名は枠の線の 1 手前で切る（閉じた縦と同じ決まり）
+  const selCol = sel ? days.indexOf(sel) : -1;
   if (!dyn) for (const b of items) {
     const { e } = b, top = `top:${lt + b.lane * ls}px`;
     if (b.band) {
       const when = dayOf(e.start) === dayOf(e.end) ? `${dayLabel(dayOf(e.start))} 終日` : `${dayOf(e.start)}から${dayOf(e.end)}`;
-      const bl = dayOf(e.start) < days[0] ? 0 : 1.5, br = dayOf(e.end) > days[6] ? 0 : 1.5; // 始まりと終わりの側だけ、時刻つきのチップと同じ 1.5 の内寄せ（週をまたいで続く側は端まで）
+      const n = b.ec - b.sc + 1, cutL = dayOf(e.start) < days[0], cutR = dayOf(e.end) > days[6], one = n === 1 && !cutL && !cutR, ins = one && selCol === b.sc;
+      const bl = ins ? SEL_INSET : cutL ? 0 : 1.5, br = ins ? SEL_INSET : cutR ? 0 : 1.5; // 始まりと終わりの側だけ、時刻つきのチップと同じ 1.5 の内寄せ（週をまたいで続く側は端まで）
       const o1 = cur !== null && parseKey(days[b.sc]).getMonth() !== cur && parseKey(days[b.ec]).getMonth() !== cur;
-      html += `<span class="bar ${catCls(e)}${o1 ? ' outm' : ''}${dayOf(e.start) < days[0] ? ' cl' : ''}${dayOf(e.end) > days[6] ? ' cr' : ''}" data-lane=""${b.lane}" data-sc="${b.sc}" data-ec="${b.ec}" data-event="${esc(e.id)}" style="${catVar(e)}left:calc(${b.sc} * 100% / 7 + ${bl}px);width:calc(${b.ec - b.sc + 1} * 100% / 7 - ${bl + br}px);${top}" aria-hidden="true" title="${esc(`${e.title} ${when}`)}"><span class="bt"><span class="st">${esc(e.title)}</span></span></span>`;
+      const F = SEL_FRAME.open, C = `(100% + ${bl + br}px) / ${n}`; // C＝マスの幅（帯の幅から戻す）
+      const mw = one || selCol < b.sc || selCol > b.ec ? '' : selCol === b.sc ? ` style="max-width:calc(${C} - ${bl + F.ri + 1}px)"` : ` style="max-width:calc(${selCol - b.sc} * ${C} - ${bl - F.lo + 1}px)"`;
+      html += `<span class="bar ${catCls(e)}${one ? ' one' : ''}${ins ? ' insel' : ''}${o1 ? ' outm' : ''}${cutL ? ' cl' : ''}${cutR ? ' cr' : ''}" data-lane="${b.lane}" data-sc="${b.sc}" data-ec="${b.ec}" data-event="${esc(e.id)}" style="${catVar(e)}left:calc(${b.sc} * 100% / 7 + ${bl}px);width:calc(${n} * 100% / 7 - ${bl + br}px);${top}" aria-hidden="true" title="${esc(`${e.title} ${when}`)}"><span class="bt"${mw}><span class="st">${esc(e.title)}</span></span></span>`;
     } else {
-      const k = days[b.sc];
-      html += `<span class="strip ${catCls(e)}${cur !== null && parseKey(k).getMonth() !== cur ? ' outm' : ''}" data-lane=""${b.lane}" data-sc="${b.sc}" data-ec="${b.ec}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}${colPos(b.sc, b.ec)};${top}" aria-hidden="true"><span class="st">${time ? `${chipTime(e.start)} ` : ''}${esc(e.title)}</span></span>`;
+      const k = days[b.sc], ins = selCol === b.sc && b.sc === b.ec;
+      html += `<span class="strip ${catCls(e)}${ins ? ' insel' : ''}${cur !== null && parseKey(k).getMonth() !== cur ? ' outm' : ''}" data-lane="${b.lane}" data-sc="${b.sc}" data-ec="${b.ec}" data-event="${esc(e.id)}" data-sday="${k}" style="${catVar(e)}${ins ? `left:calc(${b.sc} * 100% / 7 + ${SEL_INSET}px);width:calc(100% / 7 - ${2 * SEL_INSET}px)` : colPos(b.sc, b.ec)};${top}" aria-hidden="true"><span class="st">${time ? `${chipTime(e.start)} ` : ''}${esc(e.title)}</span></span>`;
     }
   }
   return html;
@@ -4164,15 +4182,20 @@ const destPage = createDestPage(destPop, {
 const swVars = (colorId, base) => setVars(eventSet(colorId, base, MODE));
 // 「カテゴリの色（プライベート）」／ iPhone のカレンダーなら「カレンダーの色（個人）」
 const baseColorLabel = (d, info) => `${d.type === 'iphone' ? 'カレンダー' : 'カテゴリ'}の色（${info.name}）`;
+// 行の中の名前（レビュー直し 必須5）: 「カテゴリの色（」は切らず、分類名だけを … で切り、閉じかっこは残す（「カテゴリの色（ゴルフ練…）」）。選んだ色の名前は 1 つ
+const colorNameHtml = (flickId, iphone, name) => (isFlickId(flickId) ? `<span class="cn1">${esc(flickName(flickId))}</span>` : `<span class="cn1">${iphone ? 'カレンダー' : 'カテゴリ'}の色（</span><span class="cn2">${esc(name)}</span><span class="cn3">）</span>`);
+// 繰り返しの予定は全部の回が同じ色になる（37 決定 2）。色を選ぶ画面の注記と、色の帯のトーストで知らせる（レビュー直し 望ましい12・企画 3）
+const REPEAT_COLOR_NOTE = '繰り返しの予定は、すべての回が同じ色になります。';
+const edRepeats = () => (extEd ? !!extEd.before.recurring : !!F.rfreq.value && F.rfreq.value !== 'none');
 const edBase4Color = () => { if (extEd) return { d: { type: 'iphone' }, info: { name: extEd.before.calName || 'iPhone', color: extEd.before.color } }; const d = destEff(); return { d, info: destInfo(d) }; };
-function colorRowsHtml(cur, d, info, isIphone) {
+function colorRowsHtml(cur, d, info, isIphone, repeats = false) {
   const row = (id, name, sub) => { const on = (isFlickId(cur) ? cur : '') === id; return `<button type="button" class="dopt copt" role="option" aria-selected="${on}" aria-label="色 ${esc(name)}${sub ? ` ${esc(sub)}` : ''}" data-dtype="color" data-did="${id}"><i class="csw lg" style="${swVars(id || null, info.color)}" aria-hidden="true"></i><span class="dn">${esc(name)}${sub ? `<small class="dsub">${esc(sub)}</small>` : ''}</span><span class="dck" aria-hidden="true">${on ? '✓' : ''}</span></button>`; };
-  return `<h4>${d.type === 'iphone' ? 'カレンダー' : 'カテゴリ'}</h4>${row('', `${d.type === 'iphone' ? 'カレンダー' : 'カテゴリ'}の色`, info.name)}<h4>くすみ色（Duo フリックと同じ 7 色）</h4>${FLICK.map((f) => row(f.id, f.name, '')).join('')}${isIphone ? '<p class="dnote cnote">iPhone のカレンダーの予定に付けた色は、この端末の Duo の中だけに残ります（iPhone のカレンダーには書けません）。</p>' : ''}`;
+  return `<h4>${d.type === 'iphone' ? 'カレンダー' : 'カテゴリ'}</h4>${row('', `${d.type === 'iphone' ? 'カレンダー' : 'カテゴリ'}の色`, info.name)}<h4>くすみ色（Duo フリックと同じ 7 色）</h4>${FLICK.map((f) => row(f.id, f.name, '')).join('')}${repeats ? `<p class="dnote cnote crep">${REPEAT_COLOR_NOTE}</p>` : ''}${isIphone ? '<p class="dnote cnote">iPhone のカレンダーの予定に付けた色は、この端末の Duo の中だけに残ります（iPhone のカレンダーには書けません）。</p>' : ''}`;
 }
 const colorPage = createDestPage($('#color-pop'), {
   title: '色',
   settings: false,
-  bodyHtml() { const { d, info } = edBase4Color(); return colorRowsHtml(colorSel, d, info, !!extEd); },
+  bodyHtml() { const { d, info } = edBase4Color(); return colorRowsHtml(colorSel, d, info, !!extEd, edRepeats()); },
   onOpen() { form.inert = true; $('#f-color').setAttribute('aria-expanded', 'true'); },
   onClose(focus) { form.inert = false; $('#f-color').setAttribute('aria-expanded', 'false'); if (focus) $('#f-color').focus({ preventScroll: true }); },
   onPick(d) { colorSel = isFlickId(d.id) ? d.id : null; updateColorUi(); saveDraft(); },
@@ -4182,7 +4205,7 @@ $('#f-color').addEventListener('click', () => { if (!colorPage.isOpen()) { close
 function updateColorUi() {
   const { d, info } = edBase4Color(), on = isFlickId(colorSel);
   $('#color-sw').setAttribute('style', swVars(on ? colorSel : null, info.color));
-  const nm = $('#color-name'); nm.textContent = on ? flickName(colorSel) : baseColorLabel(d, info); nm.classList.toggle('on', on);
+  const nm = $('#color-name'); nm.innerHTML = colorNameHtml(on ? colorSel : null, d.type === 'iphone', info.name); nm.classList.toggle('on', on);
   $('#f-color').setAttribute('aria-label', `色 ${nm.textContent}`);
   if (colorPage.isOpen()) colorPage.render();
 }
@@ -5746,7 +5769,7 @@ function xdBody(e) {
     ? `<dt>開始</dt><dd>${ymdSlash(dayOf(e.start))}（終日）</dd><dt>終了</dt><dd>${ymdSlash(dayOf(e.end))}（含む最終日）</dd>`
     : `<dt>開始</dt><dd>${esc(t(e.start))}</dd><dt>終了</dt><dd>${esc(t(e.rawEnd && e.rawEnd >= e.start ? e.rawEnd : e.end))}</dd>`;
   $('#xd-body').innerHTML = `<h3 class="xdt">${esc(e.title)}</h3><p class="xdcal caltag"><i class="cdot" style="background:${catSet(e).line}" aria-hidden="true"></i>${esc(subLabel(e))}${e.recurring ? ' <span class="rep" aria-hidden="true">↻</span>' : ''}</p>
-    <dl class="facts">${when}<dt>場所</dt><dd>${e.place ? esc(e.place) : '場所なし'}</dd><dt>メモ</dt><dd class="notes">${e.notes ? esc(e.notes) : 'メモなし'}</dd></dl>${xcKeyOf(e) ? (() => { const cid = xColorIdOf(e), on = isFlickId(cid), nm = on ? flickName(cid) : `カレンダーの色（${e.calName || 'iPhone'}）`; return `<button type="button" id="xd-color" class="destbtn colorbtn" aria-haspopup="true" aria-label="色 ${esc(nm)}"><span class="dlbl">色</span><span class="dval"><i class="csw" style="${swVars(on ? cid : null, e.color)}" aria-hidden="true"></i><span class="cnm${on ? ' on' : ''}">${esc(nm)}</span><span aria-hidden="true">›</span></span></button>`; })() : ''}`;
+    <dl class="facts">${when}<dt>場所</dt><dd>${e.place ? esc(e.place) : '場所なし'}</dd><dt>メモ</dt><dd class="notes">${e.notes ? esc(e.notes) : 'メモなし'}</dd></dl>${xcKeyOf(e) ? (() => { const cid = xColorIdOf(e), on = isFlickId(cid), nm = on ? flickName(cid) : `カレンダーの色（${e.calName || 'iPhone'}）`; return `<button type="button" id="xd-color" class="destbtn colorbtn" aria-haspopup="true" aria-label="色 ${esc(nm)}"><span class="dlbl">色</span><span class="dval"><i class="csw" style="${swVars(on ? cid : null, e.color)}" aria-hidden="true"></i><span class="cnm${on ? ' on' : ''}">${colorNameHtml(on ? cid : null, true, e.calName || 'iPhone')}</span><span aria-hidden="true">›</span></span></button>`; })() : ''}`;
 }
 $('#xd-body').addEventListener('click', (ev) => { const b = ev.target.closest('#xd-color'); if (!b || !xdCur) return; const cur = xdState?.before || xdCur; openColorStrip(xdCur.id, b, () => { if (xdDlg.open) xdBody(xdState?.before || cur); }); });
 // 下の段。取得中・失敗は編集・削除なし。書けるとき: 削除/編集＋小さい「カレンダーで開く」。書けないとき: 理由＋大きい「カレンダーで開く」。
@@ -7753,7 +7776,7 @@ function openChipMenu(id, chipEl) {
   document.addEventListener('pointerdown', chipMenuOutside, true);
   m.querySelector('[data-cm="copy"]').focus({ preventScroll: true });
 }
-// ---- 予定ごとの色の近道（design/37 §3.3）: メニューの「色」→ 色の帯（幅 336・高さ 78・角丸 14）。左端「分類」＝カテゴリの色に戻す、続いてフリックの 7 色。
+// ---- 予定ごとの色の近道（design/37 §3.3）: メニューの「色」→ 色の帯（幅 336・高さ 78・角丸 14）。左端＝カテゴリ（iPhone の予定ならカレンダー）の色に戻す見本（文字なし）、仕切り 1×20、続いてフリックの 7 色。
 // たたくとすぐ変わって帯は閉じ、「色を変えました　元に戻す」（6 秒）。繰り返しは全部の回に付く。iPhone の予定は Duo の中の表に付く
 const COLOR_UNDO_MS = 6000;
 const evById = (id) => (isXId(id) ? visExt().find((v) => v.id === id) || (xdCur?.id === id ? xdCur : null) : resolve(id)?.p) || null;
@@ -7782,8 +7805,9 @@ async function pickEventColor(id, colorId, after) {
   if (prev === undefined) { notice('色を変えられませんでした。'); return; }
   after?.();
   if ((prev ?? null) === (validColorId(colorId) ? colorId : null)) return;
-  say('色を変えました。');
-  notice('色を変えました', { label: '元に戻す', fn: async () => { document.querySelector('#native-toast')?.remove(); try { await setEventColor(id, prev); after?.(); say('色を元に戻しました。'); } catch { notice('元に戻せませんでした。'); } } }, COLOR_UNDO_MS);
+  const ev0 = evById(id), all = !!(ev0 && (isXId(id) ? ev0.recurring : ev0.recurrence)), msg = all ? 'すべての回の色を変えました' : '色を変えました'; // 繰り返しは全部の回に付く
+  say(`${msg}。`);
+  notice(msg, { label: '元に戻す', fn: async () => { document.querySelector('#native-toast')?.remove(); try { await setEventColor(id, prev); after?.(); say('色を元に戻しました。'); } catch { notice('元に戻せませんでした。'); } } }, COLOR_UNDO_MS);
 }
 function openColorStrip(id, anchor, after) {
   closeChipMenu();
@@ -7793,11 +7817,25 @@ function openColorStrip(id, anchor, after) {
   const m = document.createElement('div');
   m.className = 'cmenu colorstrip'; m.setAttribute('role', 'group'); m.setAttribute('aria-label', '色'); m.dataset.colorstrip = id;
   const sw = (cid, name, txt) => `<button type="button" class="cso" data-cs="${cid}" aria-pressed="${cur === cid}" aria-label="${esc(name)}${cur === cid ? '、選択中' : ''}"><i class="csw lg" style="${swVars(cid || null, base)}" aria-hidden="true">${txt}</i></button>`;
-  m.innerHTML = `<p class="csn" aria-live="polite">${esc(cur ? flickName(cur) : `${iph ? 'カレンダー' : 'カテゴリ'}の色`)}</p><div class="csr">${sw('', `${iph ? 'カレンダー' : 'カテゴリ'}の色に戻す`, '<b>分類</b>')}${FLICK.map((f) => sw(f.id, f.name, '')).join('')}</div>`;
-  const r = anchor.getBoundingClientRect(), W = Math.min(336, window.innerWidth - 16), H = 78;
+  m.innerHTML = `<p class="csn" aria-live="polite">${esc(cur ? flickName(cur) : `${iph ? 'カレンダー' : 'カテゴリ'}の色`)}</p><div class="csr">${sw('', `${iph ? 'カレンダー' : 'カテゴリ'}の色に戻す`, '')}<i class="csdiv" aria-hidden="true"></i>${FLICK.map((f) => sw(f.id, f.name, '')).join('')}</div>`;
+  // 置き場所（レビュー直し 必須3）: 開いた横は、押した所のあるページの中に左右 8 空けて収める（折り目の溝 --fold-x±--fold-keepout にかけない）。
+  // 開いた縦は、上下が溝（--groove-avoid-y0〜y1）にかかるならチップの上側へ（それもかかるなら溝のすぐ下）
+  const r = anchor.getBoundingClientRect(), H = 78, cx = r.left + r.width / 2;
+  const rs = getComputedStyle(document.documentElement), px = (n) => { const v = parseFloat(rs.getPropertyValue(n)); return Number.isFinite(v) ? v : null; };
+  let lo = 8, hi = window.innerWidth - 8;
+  if (document.querySelector('.shell.spread')) {
+    const a = px('--left-start'), b = px('--left-end'), c = px('--right-start'), d = px('--right-end');
+    if (a !== null && b !== null && c !== null && d !== null && b > a && d > c) { if (cx < (b + c) / 2) { lo = a + 8; hi = b - 8; } else { lo = c + 8; hi = d - 8; } }
+  }
+  const W = Math.min(336, hi - lo);
   m.style.width = `${W}px`;
-  m.style.left = `${Math.round(Math.min(Math.max(8, r.left + r.width / 2 - W / 2), window.innerWidth - W - 8))}px`;
-  m.style.top = `${Math.round(r.bottom + 4 + H > window.innerHeight - 8 ? Math.max(8, r.top - H - 4) : r.bottom + 4)}px`;
+  m.style.left = `${Math.max(Math.ceil(lo), Math.floor(Math.min(Math.max(lo, cx - W / 2), hi - W)))}px`; // 端数は内側へ（右端が hi を越えない）
+  const g0 = px('--groove-avoid-y0'), g1 = px('--groove-avoid-y1'), vh = window.innerHeight;
+  const hitsGroove = (y) => g0 !== null && g1 !== null && g1 > g0 && y < g1 && y + H > g0, fits = (y) => y >= 8 && y + H <= vh - 8;
+  const below = r.bottom + 4, above = r.top - H - 4;
+  let top = fits(below) && !hitsGroove(below) ? below : fits(above) && !hitsGroove(above) ? above : fits(below) ? below : Math.max(8, above);
+  if (hitsGroove(top)) { const under = g1 + 4, over = g0 - H - 4; top = fits(under) ? under : fits(over) ? over : top; }
+  m.style.top = `${Math.round(top)}px`;
   m.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-cs]');
     if (!b) return;
@@ -7904,6 +7942,7 @@ async function boot() {
       title: draft.title || '', categoryId: draftCat(draft), all: !!draft.all, start: draft.start || '', end: draft.end || '', place: draft.place || '', notes: draft.notes || '',
       rfreq: draft.rfreq, rbyday: Array.isArray(draft.rbyday) ? draft.rbyday : [], rend: draft.rend, rcount: draft.rcount, runtil: draft.runtil, ropen: !!draft.ropen, autoDays: draft.autoDays, dest: id ? draftEditDest(draft, id) : draftDest(draft),
       alarms: Array.isArray(draft.alarms) ? draft.alarms : id ? undefined : defaultAlarms(!!draft.all, loadNotify()),
+      colorId: validColorId(draft.colorId) ? draft.colorId : null, // 連携 M-1・品質 Q-1: 下書きで選んでいた色も戻す（渡さないと、保存で本体の colorId が消え、繰り返しは全部の回の色が消える）
     }, id, false);
     edBase = null; // 復元した下書きは未保存の変更として扱う
   }
