@@ -5,7 +5,7 @@ import { SIZES, seed, ev } from './helpers.js';
 import { boot, DAY, EMPTY, SEC, stageOf, haptics, ui, scTop, setScroll, rect, hourGap, lineY, toTime, toCard, barPt, mouseDrag, touchDrag, near } from './v193-p2-lib.js';
 // v19.5（征希さん「時間で表示した時は本家仕様にする」）で仕様変更: 1時間の高さは 28／88 → 14（詰めた形）／56（広げた形）、寄る境は 58 → 35。つまみ（バー）は見出しの下 → 時間軸の下で、引いた量だけ時間軸が伸びる（指に 1:1）。
 // 畳むのは「最初の予定の1時間前より上」→「9:00（早い予定があればその時刻）より前と、18:00（遅い予定があればその終わり）の1時間後より後」。開く文言は「前の時間」→「すべての時間」。
-// DATA（30分の予定 5 本・9:00〜13:30）の見えている時間軸の高さは 220＋7.5×（1時間の高さ）。下へ 200 引くと 1時間 40.7（広げた形へ寄る）、100 なら 27.3（詰めた形へ戻る）
+// DATA（30分の予定 5 本・9:00〜13:30）の見えている時間軸の高さは 220＋7.5×（1時間の高さ）。下へ 200 引くと 1時間 40.7。離したときは、60 以上引いていれば引いた向きの形へ寄り、足りなければ元の形へ戻る
 
 const dg = (page) => page.locator('.mday').getAttribute('data-dg');
 
@@ -197,7 +197,7 @@ test('A-12 閉じた横: 日の欄の中がスクロール（今までどおり�
   expect(near((await rect(page, '.mday .mdh')).y, 0)).toBe(true); // 日の見出しは今までどおり貼り付く
   await md.evaluate((e) => { e.scrollTop = 0; });
   let p = await barPt(page);
-  await touchDrag(page, p.x, p.y, p.x, p.y + 100, { steps: 8, hold: 150 });
+  await touchDrag(page, p.x, p.y, p.x, p.y + 40, { steps: 8, hold: 150 }); // 60 に足りない引きは元の形へ戻る
   expect((await ui(page)).dayGrip).toBe(1);
   p = await barPt(page);
   await touchDrag(page, p.x, p.y, p.x, p.y + 200, { steps: 8, hold: 150 });

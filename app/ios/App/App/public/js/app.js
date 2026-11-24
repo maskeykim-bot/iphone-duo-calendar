@@ -1432,7 +1432,7 @@ function stageHtml() {
 // 第19.5版（征希さん「時間で表示した時は本家仕様にする」）: 時間は本家の手帳の形。目盛りは 3 時間ごとの数字（間の時間は点）、予定は白いカード（始まり・終わり・色の線・題名・メモ）、
 // つまみは時間軸の下（下へ引くと指についてきて広がる）。1時間の高さは 14（詰めた形）⇄ 56（広げた形）。カードが 44 より低くなる時間だけ、その時間を広げる（js/elastic.js。予定のない時間は詰まったまま）。
 // 見せる範囲は 9:00（それより早い予定があればその時刻）〜 18:00（遅い予定があればその終わり）の 1 時間後まで。残りは「すべての時間」で開く
-const DAYBAR = { min: 14, max: 56, snap: 35, rubber: 0.3, rubberMax: 24, flick: 300, dots: 22 }; // design/35 §5.3（flick＝離す前 80ms の速さがこれ（毎秒）を超えたら払った向きへ）
+const DAYBAR = { min: 14, max: 56, snap: 35, pull: 60, rubber: 0.3, rubberMax: 24, flick: 300, dots: 22 }; // design/35 §5.3（flick＝離す前 80ms の速さがこれ（毎秒）を超えたら払った向きへ）
 const DG = { mode: state.dayGrip, hh: state.dayGrip === 2 ? DAYBAR.max : DAYBAR.min, last: state.dayGrip || 1, drag: null, raf: 0, swap: 0, tlKey: '', unfold: false }; // mode 0=A カード、1=B 時間・最低限（1時間 28）、2=C 時間・詳細（88）。hh は1時間の高さ。state.dayGrip に覚える（保存の形・値の範囲 0〜2 は v19.2 のまま。古い 1 は「時間・最低限」として読む）。last＝最後に見ていた時間の段（「時間」をたたいたときに戻る先。覚えるのはこの起動の間だけ）
 const DG_EASE = STG_EASE(0.16, 1, 0.3, 1);
 const dayMode = () => DG.mode;
@@ -1718,7 +1718,7 @@ const dayGripEnd = (ev) => {
   MP.swallow = performance.now() + 400;
   const w = d.pts.filter((p) => ev.timeStamp - p.t <= STG_VWIN); // 離す前 80ms の速さ（つまみ（上）と同じ測り方）
   const v = w.length >= 2 && w[w.length - 1].t > w[0].t ? ((w[w.length - 1].y - w[0].y) / (w[w.length - 1].t - w[0].t)) * 1000 : 0;
-  dayGripSnap(Math.abs(v) > DAYBAR.flick ? (v > 0 ? 2 : 1) : DG.hh >= DAYBAR.snap ? 2 : 1); // 58 未満なら最低限、58 以上なら詳細。速く払ったら払った向きへ
+  dayGripSnap(Math.abs(v) > DAYBAR.flick ? (v > 0 ? 2 : 1) : Math.abs(d.dy) >= DAYBAR.pull ? (d.dy > 0 ? 2 : 1) : dayMode()); // 第19.5版: 60 以上引いて離すと引いた向きの形へ（下＝広げた形、上＝詰めた形）、足りなければ元の形へ戻る。速く払ったら払った向きへ（予定の多い日でも同じ引きで切り替わるよう、1時間の高さでなく引いた量で決める）
 };
 window.addEventListener('pointerup', dayGripEnd);
 window.addEventListener('pointercancel', (ev) => { if (DG.drag && ev.pointerId === DG.drag.id) { DG.drag = null; root.querySelector('.mpull.browse .mdgrab.drag')?.classList.remove('drag'); if (dayMode()) dayGripSnap(dayMode()); } });

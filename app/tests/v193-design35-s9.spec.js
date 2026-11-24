@@ -95,7 +95,7 @@ test('35 §9 S-4 バーで広げる: バーを下へ 60 引いて止めると 1�
   expect(got.map((v) => Math.round(v * 100) / 100)).toEqual([16.67, 19.33, 22]);
 });
 
-test('35 §9 S-5 バーで寄せる: 下へ 200 で離すと 0.25 秒後に 56、100 で離すと 14。35 をまたいだとき触覚ログ 1 件', async ({ page }) => {
+test('35 §9 S-5 バーで寄せる: 下へ 200 で離すと 0.25 秒後に 56、40 で離すと 14（60 以上引くと引いた向きの形へ）。1時間 35 をまたいだとき触覚ログ 1 件', async ({ page }) => {
   await boot(page, { dg: 1 });
   let p = await barPt(page);
   await mouseDrag(page, p.x, p.y, p.x, p.y + 200, { hold: 150, settle: 0 });
@@ -106,14 +106,23 @@ test('35 §9 S-5 バーで寄せる: 下へ 200 で離すと 0.25 秒後に 56�
   expect((await ui(page)).dayGrip).toBe(2);
   expect(await page.locator('.mday').getAttribute('data-dg')).toBe('C');
   expect(await haptics(page)).toEqual([{ dayBar: 2, t: 0 }]); // 35 をまたいだ先（詳細）を 1 件だけ
-  // 最低限へ戻して、下へ 100 で離す → 14 のまま。またいでいないので触覚は増えない
+  // 最低限へ戻して、下へ 40 で離す → 14 のまま（60 に足りない）。またいでいないので触覚は増えない
   await page.locator('.mday .mdgrab').focus(); await page.keyboard.press('ArrowUp'); await page.waitForTimeout(150);
   await page.evaluate(() => { window.__duoHapticLog.length = 0; });
   p = await barPt(page);
-  await mouseDrag(page, p.x, p.y, p.x, p.y + 100, { hold: 150 });
+  await mouseDrag(page, p.x, p.y, p.x, p.y + 40, { hold: 150 });
   expect(near(await hourGap(page), 14, 0.5)).toBe(true);
   expect((await ui(page)).dayGrip).toBe(1);
   expect(await haptics(page)).toEqual([]);
+  // 下へ 80 で離す（1時間は 24.7 で 35 に届かない）→ 60 以上引いたので広げた形へ。寄る途中で 35 をまたぐので触覚 1 件
+  p = await barPt(page);
+  await mouseDrag(page, p.x, p.y, p.x, p.y + 80, { hold: 150 });
+  expect(near(await hourGap(page), 56, 0.5)).toBe(true); expect((await ui(page)).dayGrip).toBe(2);
+  expect(await haptics(page)).toEqual([{ dayBar: 2, t: 0 }]);
+  // 広げた形から上へ 80 で離す → 詰めた形へ
+  p = await barPt(page);
+  await mouseDrag(page, p.x, p.y, p.x, p.y - 80, { hold: 150 });
+  expect(near(await hourGap(page), 14, 0.5)).toBe(true); expect((await ui(page)).dayGrip).toBe(1);
 });
 
 test('35 §9 S-6 ゴム: 56 からさらに下へ 100 引くと、バーが最大 24 だけついてきて止まり、離すと戻る', async ({ page }) => {
