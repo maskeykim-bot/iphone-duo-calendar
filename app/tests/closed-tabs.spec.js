@@ -396,7 +396,7 @@ test('PR5 閉じた画面の週: 見出し 48・日付の行 42・終日 24・�
 
 // 第19.2版 S11e（34 §15-④）: 閉じた画面に日の時間軸の画面（28 §1。時間軸 y80〜）はもうない。ホームの「タイムライン ›」は、カレンダーの日の欄の時間軸 B（1時間 44）を開く
 // v19.3 征希さん『カード・時間で分けるだけ』で仕様変更: 時間（B）の1時間は 44 → 28（最低限）。見出しの下にバー 24（と終日の行）が入るので、最初の予定は「見出しの下 44＋12」→「時間軸の上端から 28＋12」。カードへ戻すのは「カード」（前 .mdback）
-test('S11e 閉じた画面の日: ホームの「タイムライン ›」→ カレンダーの日の欄の時間 B（1時間 28）。段1〜3 は段7、段4〜7 はそのまま。最初の予定の1時間前が見出しの下', async ({ page }) => {
+test('S11e 閉じた画面の日: ホームの「タイムライン ›」→ カレンダーの日の欄の時間 B（1時間 14）。段1〜3 は段7、段4〜7 はそのまま。9:00 が見出しの下', async ({ page }) => {
   await openApp(page, SIZES.closedPortrait);
   await setSafeRight(page, 84);
   await loadSample(page);
@@ -409,15 +409,16 @@ test('S11e 閉じた画面の日: ホームの「タイムライン ›」→ �
   await expect(md).toHaveAttribute('data-dg', 'B');
   const pane = await box(md);
   expect(near(pane.t, 174) && near(pane.b, 678), JSON.stringify(pane)).toBe(true);
-  expect(await page.locator('.mday .tl').evaluate((e) => parseFloat(getComputedStyle(e).getPropertyValue('--hh')))).toBe(28);
-  const hl = await page.locator('.mday .hl:not(.half)').evaluateAll((els) => els.slice(0, 3).map((e) => e.getBoundingClientRect().top));
-  expect(near(hl[1] - hl[0], 28) && near(hl[2] - hl[1], 28)).toBe(true);
+  // v19.5（征希さん「時間で表示した時は本家仕様にする」）で仕様変更: 1時間は 28 → 14（予定のない時間。予定のある時間はカードの分だけ広がる）。線は 3 時間ごとなので目盛り（.hlab）で、予定のない 19:00〜21:00 を測る。見せるのは 9:00 から（前: 最初の予定の1時間前から）。バーは時間軸のすぐ下（前: 見出しのすぐ下）
+  expect(await page.locator('.mday .tl').evaluate((e) => parseFloat(getComputedStyle(e).getPropertyValue('--hh')))).toBe(14);
+  const hl = await page.locator('.mday .hlab').evaluateAll((els) => els.filter((e) => ['1140', '1200', '1260'].includes(e.dataset.rm)).map((e) => e.getBoundingClientRect().top));
+  expect(near(hl[1] - hl[0], 14) && near(hl[2] - hl[1], 14)).toBe(true);
   // 最初の時刻つきの予定の1時間前が、貼り付いた見出し（44）のすぐ下
   // v19.3 征希さんの要望（つまみだけで段・月ごとスクロール）で仕様変更: 日の欄は中でスクロールしない。前→後: 「日の欄の中を送ってある（scrollTop > 0）」→「1時間前より上を畳んである（.mdbody.folded）。日の欄も画面も送っていない」。最初の予定が見出しの下 1時間＋12 にあるのは同じ
-  const m = await page.evaluate(() => { const md = document.querySelector('.mday'), tl = md.querySelector('.tl'), ev = [...md.querySelectorAll('.tlev[data-event]')].map((e) => e.getBoundingClientRect().top).sort((a, b) => a - b)[0]; return { ev, head: tl.getBoundingClientRect().top, bar: md.querySelector('.mdgrab').getBoundingClientRect().top - md.querySelector('.mdh').getBoundingClientRect().bottom, st: md.scrollTop + md.closest('.mpull.browse').scrollTop, folded: !!md.querySelector('.mdbody.folded') }; });
+  const m = await page.evaluate(() => { const md = document.querySelector('.mday'), tl = md.querySelector('.tl'), ev = [...md.querySelectorAll('.tlev[data-event]')].map((e) => e.getBoundingClientRect().top).sort((a, b) => a - b)[0]; return { ev, head: tl.getBoundingClientRect().top, bar: md.querySelector('.mdgrab').getBoundingClientRect().top - tl.getBoundingClientRect().bottom, st: md.scrollTop + md.closest('.mpull.browse').scrollTop, folded: !!md.querySelector('.mdbody.folded') }; });
   expect(m.st).toBe(0); expect(m.folded).toBe(true);
-  expect(m.bar).toBe(0); // バーは見出しのすぐ下
-  expect(m.ev - m.head).toBeGreaterThan(28 - 2); expect(m.ev - m.head).toBeLessThan(28 + 14); // 時間軸の上端から 1時間（28）＋上のあき 12
+  expect(Math.abs(m.bar)).toBeLessThan(0.5); // バーは時間軸のすぐ下
+  expect(m.ev - m.head).toBeGreaterThan(14 + 12 - 2); expect(m.ev - m.head).toBeLessThan(14 + 12 + 2); // 最初の予定（10:00）は、時間軸の上端から 上のあき 12＋9:00〜10:00 の 14
   await expect(page.locator('.mpane .hcard, .mpane .rmrow, .mpane [data-page="task"], .mpane [data-page="memo"]')).toHaveCount(0);
   // 段4 から開くと、段は覚えている段のまま
   await page.locator('.mday .mdct [data-dg="card"]').click();

@@ -201,7 +201,7 @@ test.describe('閉じた画面 466×678', () => {
   // 第19.2版 S11d（design/34 §5「覚えておくもの」・設計レビュー 7c9fb05 M8・品質レビュー 7c9fb05 中）: S11b の「段は保存しない（開くたびにカード）」は仕様と逆だったので戻す。
   // 日の欄のつまみの段（A カード／B 時間軸／C 時間軸・広い）は覚える。日を選び直しても、読み込み直しのあとも同じ。保存値が 0〜2 の整数でなければカード。
   // v19.3 征希さん『カード・時間で分けるだけ』で仕様変更: カード→時間は見出しの右の「時間」（前: つまみ（下）を下へ）。時間・最低限の1時間は 28（前: 44。design/35 §5.3）。時間⇄詳細はバーのキー ↑↓、カードへは「カード」（前: 見出しの右の小さな「カード」.mdback）
-  test('日の欄の「時間」（35 §5）: 1時間 28 で今の時刻に赤い線。日の欄の下にタスクはなく、ノートがある。段は覚える（日を選び直しても・読み込み直しても同じ。34 §5・M8）', async ({ page }) => {
+  test('日の欄の「時間」（35 §5）: 1時間 14 で今の時刻に赤い線。日の欄の下にタスクはなく、ノートがある。段は覚える（日を選び直しても・読み込み直しても同じ。34 §5・M8）', async ({ page }) => {
     await openApp(page, SIZES.closedPortrait);
     await seedTasks(page, [T('t1', { title: '十二日が期限', due: { date: '2026-11-12' } }), T('t2', { title: '別の日', due: { date: '2026-11-20' } })]);
     await tab(page, '月').click();
@@ -211,8 +211,9 @@ test.describe('閉じた画面 466×678', () => {
     await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'A'); // 初めはカード
     await page.locator('.mday .mdct [data-dg="time"]').click(); // 見出しの右の「時間」
     await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'B');
-    const hs = await page.locator('.mday .hlab').evaluateAll((e) => e.slice(0, 3).map((x) => x.getBoundingClientRect().top));
-    expect(near(hs[1] - hs[0], 28, 0.6)).toBe(true);
+    // v19.5（征希さん「時間で表示した時は本家仕様にする」）で仕様変更: 1時間は 28 → 14。予定のない 15:00〜16:00 の目盛りの間で測る
+    const hs = await page.locator('.mday .hlab').evaluateAll((e) => e.filter((x) => ['900', '960'].includes(x.dataset.rm)).map((x) => x.getBoundingClientRect().top));
+    expect(near(hs[1] - hs[0], 14, 0.6)).toBe(true);
     await expect(page.locator('.mday .nowl')).not.toHaveAttribute('hidden', ''); // 今日の線
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('duo.ui.v1')).dayGrip)).toBe(1); // UI_KEY に保存（IndexedDB・バックアップの版6は変えない）
     await page.locator('.mgrid .day[data-date="2026-11-18"]').click({ position: { x: 30, y: 70 } }); await page.waitForTimeout(400);
@@ -224,8 +225,8 @@ test.describe('閉じた画面 466×678', () => {
     await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'C');
     await page.reload(); await page.waitForSelector('html[data-ready]');
     await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'C');
-    const hs2 = await page.locator('.mday .hlab').evaluateAll((e) => e.slice(0, 3).map((x) => x.getBoundingClientRect().top));
-    expect(near(hs2[1] - hs2[0], 88, 0.6)).toBe(true); // C は1時間 88
+    const hs2 = await page.locator('.mday .hlab').evaluateAll((e) => e.filter((x) => ['900', '960'].includes(x.dataset.rm)).map((x) => x.getBoundingClientRect().top));
+    expect(near(hs2[1] - hs2[0], 56, 0.6)).toBe(true); // v19.5 で仕様変更: C は1時間 88 → 56
     await page.locator('.mday .mdct [data-dg="card"]').click(); // 見出しの右の「カード」
     await expect(page.locator('.mday')).toHaveAttribute('data-dg', 'A');
     await page.reload(); await page.waitForSelector('html[data-ready]');
