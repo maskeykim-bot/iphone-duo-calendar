@@ -48,15 +48,16 @@ test.describe('閉じた 466×678 + 右 safe（帯あり）', () => {
       const bg = await bx(page.locator('.bandbg'));
       near(bg.x, W - R); near(bg.width, R);
       // 48角の見た目の top = T+[172,232]q（タスク・…）、＋ H-B-80q。押せる範囲は 56 角（上下左右に 4 広い。34 §9.1-12〜14・§12 Q-3）
-      const want = { タスク: 172, その他: 232, 予定を追加: 598 }; // 旧: 設定 172・検索 232・タスク 418・ノート 478・今日 538・＋ 598
-      for (const [n, top] of Object.entries(want)) {
+      // v19.5（征希さん「直感的に操作できるよう変更したい」）で仕様変更: 右の列は ホーム・タスク・ノート（y160 から 50 ずつ）／月の固定（丸 52）／今日・検索・…（＋ の 12 上で終わる）／＋（見える 48・押せる 56 のまま）
+      const want = { ホーム: [160, 50, 44], タスク: [210, 50, 44], ノート: [260, 50, 44], 月を固定: [322, 52, 52], 今日に戻る: [436, 50, 44], 予定を検索: [486, 50, 44], その他: [536, 50, 44], 予定を追加: [594, 56, 48] };
+      for (const [n, [top, size, vw]] of Object.entries(want)) {
         const b = btn(page, n), r = await bx(b);
-        near(r.width, 56); near(r.height, 56); near(r.x + r.width / 2, cx); near(r.y, top * q - 4);
+        near(r.width, size); near(r.height, size); near(r.x + r.width / 2, cx); near(r.y, top * q);
         const vis = await bx(b.locator('.bi, span').first());
-        near(vis.width, 48);
+        near(vis.width, vw);
         expect(await reaches(page, b), n).toBe(true);
       }
-      await expect(page.locator('.ctl').getByRole('button')).toHaveCount(3);
+      await expect(page.locator('.ctl').getByRole('button')).toHaveCount(8);
       const rs = await noOverlaps(page, Object.keys(want).map((n) => btn(page, n)));
       expect(rs[0].y).toBeGreaterThanOrEqual(160 * q - 0.5); // 最初のhit上端は T+160q 以降
       // design/34 §2.1: 見出し y0〜44＋曜日 y44〜64 → 格子の上端は y64（旧: 見出し 48＋曜日 20＝y68）
@@ -69,7 +70,7 @@ test.describe('閉じた 466×678 + 右 safe（帯あり）', () => {
       for (const a of ['prev', 'next']) { const nb = page.locator(`.mph [data-act="${a}"]`); await expect(nb).toHaveCount(1); await expect(nb).toHaveCSS('opacity', '0'); const r = await bx(nb); expect(r.width).toBeLessThanOrEqual(2.5); expect(r.height).toBeLessThanOrEqual(2.5); }
       await expect(page.locator('.mph [data-act="mptoday"]')).toBeHidden();
       // 帯の何もない所は遮らない（本体の帯）
-      expect(await page.evaluate((cx) => !document.elementFromPoint(cx, 350)?.closest('.ctl, .bandbg'), cx)).toBe(true);
+      expect(await page.evaluate((cx) => !document.elementFromPoint(cx, 405)?.closest('.ctl, .bandbg'), cx)).toBe(true); // v19.5: 何もない所は 月の固定（〜y374）と下のまとまり（y436〜）の間
       expect(await findTextOverlaps(page)).toEqual([]);
     });
   }
@@ -150,7 +151,7 @@ test.describe('閉じた 466×678 + 右 safe（帯あり）', () => {
     near((await bx(btn(page, '予定を追加'))).x, 402); // S11e（34 §15-③）: 右下の＋は 見える 48 を右 12（x406〜454）、押せる 56（x402〜458）
     await setSafe(page, { r: 84 });
     await expect(page.locator('.ctl.band')).toHaveCount(1);
-    near((await bx(btn(page, 'その他'))).x + 28, 424);
+    near((await bx(btn(page, 'その他'))).x + 25, 424); // v19.5 で仕様変更: 「…」は下のまとまりの中（押せる 50）
   });
 
   test('高さが小さくて56角のhitが並べないときは、帯があっても見出し・右下へ退避する', async ({ page }) => {
@@ -165,7 +166,7 @@ test.describe('閉じた 466×678 + 右 safe（帯あり）', () => {
     await withSafe(page, { width: 466, height: 800 }, { t: 47, r: 84, b: 34 }, '月');
     const H = 800, q = (H - 47 - 34) / 678;
     const task = await bx(btn(page, 'タスク')), more = await bx(btn(page, 'その他')), add = await bx(btn(page, '予定を追加'));
-    near(task.y, 47 + 172 * q - 4); near(more.y, 47 + 232 * q - 4); near(add.y, H - 34 - 80 * q - 4);
+    near(task.y, 47 + 160 * q + 50); near(more.y, H - 34 - 80 * q - 12 - 50); near(add.y, H - 34 - 80 * q - 4); // v19.5 で仕様変更: 上のまとまりは y0＋160q から 50 ずつ（タスクは 2 つ目）、下のまとまりは ＋ の 12 上で終わる（「…」は 3 つ目）
     expect(add.y + add.height).toBeLessThanOrEqual(H - 34 + 4.5);
     near((await bx(page.locator('.mgrid .week').first())).y, 47 + 64); // design/34 §2.1: 見出し 44＋曜日 20
     await expect(page.locator('.tabs')).toHaveCount(0);

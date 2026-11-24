@@ -263,13 +263,21 @@ for (const size of OPEN_SIZES) {
 const near = (a, b, t = 0.5) => Math.abs(a - b) <= t;
 const setSafeRight = (page, r) => page.evaluate((v) => document.documentElement.style.setProperty('--sar', `${v}px`), r);
 
-test('S11c 閉じた画面 466×678（帯 84）: 下のタブはなく、右の列は タスク y172〜220・… y232〜280・＋ y598〜646（見える丸 48、押せる 56）', async ({ page }) => {
+test('S11c 閉じた画面 466×678（帯 84）: 下のタブはなく、右の列は ホーム・タスク・ノート（y160〜310）／月の固定／今日・検索・…（y436〜586）／＋ y598〜646', async ({ page }) => {
   // 旧: タブ x48〜334・y599〜645。34 §9.1-9 でタブを廃止し、§9.1-12〜14・§12 Q-3 の右の列に置き換え
   await openApp(page, SIZES.closedPortrait);
   await setSafeRight(page, 84); // 実機の右の帯
   await expect(page.locator('.ctl.band')).toHaveCount(1);
   await expect(page.locator('.tabs')).toHaveCount(0);
-  for (const [sel, top] of [['.ctask', 172], ['.cmore', 232], ['.cadd', 598]]) {
+  // v19.5（征希さん「直感的に操作できるよう変更したい」。右の列＝ホーム・タスク・ノート／月の固定／今日・検索・…／＋）で仕様変更。まとまりの中は 1 つ 50×50（x399〜449）、見える地は 44×40。月の固定は丸 52（y322〜374）。＋ は今までどおり（見える丸 48、押せる 56）
+  for (const [sel, top] of [['.chome', 160], ['.ctask', 210], ['.cmemo', 260], ['.ctoday', 436], ['.csearch', 486], ['.cmore', 536]]) {
+    const hit = await box(page.locator(`.ctl ${sel}`)), vis = await box(page.locator(`.ctl ${sel} .bi`));
+    expect(near(hit.l, 399) && near(hit.r, 449) && near(hit.t, top) && near(hit.b, top + 50), `${sel} 押せる ${JSON.stringify(hit)}`).toBe(true);
+    expect(near(vis.l, 402) && near(vis.r, 446) && near(vis.t, top + 5) && near(vis.b, top + 45), `${sel} 見える ${JSON.stringify(vis)}`).toBe(true);
+  }
+  { const pin = await box(page.locator('.ctl .cpin .bi')); expect(near(pin.l, 398) && near(pin.r, 450) && near(pin.t, 322) && near(pin.b, 374), JSON.stringify(pin)).toBe(true); }
+  { const g = await page.locator('.railg').evaluateAll((es) => es.map((e) => { const r = e.getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; })); expect(g).toEqual([[398, 160, 52, 150], [398, 436, 52, 150]]); }
+  for (const [sel, top] of [['.cadd', 598]]) {
     const hit = await box(page.locator(`.ctl ${sel}`)), vis = await box(page.locator(`.ctl ${sel} .bi`));
     expect(near(vis.l, 400) && near(vis.r, 448) && near(vis.t, top) && near(vis.b, top + 48), `${sel} 見える ${JSON.stringify(vis)}`).toBe(true);
     expect(near(hit.l, 396) && near(hit.r, 452) && near(hit.t, top - 4) && near(hit.b, top + 52), `${sel} 押せる ${JSON.stringify(hit)}`).toBe(true);

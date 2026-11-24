@@ -2681,3 +2681,21 @@ html:not([data-theme=dark]) .shell.spread .page.lp .week .strip.outm,html:not([d
 .mpull.browse .mday .tl[data-fs] .fsghost .g3{position:absolute;left:62px;right:8px;top:3px;font:600 15px/17px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink2);overflow:hidden;text-overflow:ellipsis}
 .mpull.browse .mday .tl[data-fs] .fsgtag{z-index:7}
 html[data-grabtime] .gchip{opacity:0!important}
+/* ---- 第19.5版: 閉じた縦の右の列（iOS のボタンにならう: 白い半透明の地・細い縁・やわらかい影。まとまりは丸い箱に 50 ずつ） ---- */
+.railg{position:fixed;z-index:5;box-sizing:border-box;border-radius:999px;background:rgba(255,255,255,.74);-webkit-backdrop-filter:blur(18px) saturate(1.6);backdrop-filter:blur(18px) saturate(1.6);box-shadow:0 0 0 .5px rgba(0,0,0,.10),0 6px 18px rgba(28,31,29,.10),inset 0 1px 0 rgba(255,255,255,.9);pointer-events:none;transition:opacity .15s ease-out}
+.ctl.crl .cb:is(.chome,.ctask,.cmemo,.ctoday,.csearch,.cmore) .bi{width:44px;height:40px;border-radius:20px;background:transparent;box-shadow:none}
+.ctl.crl .cb:is(.chome,.ctoday,.csearch) .bi{color:var(--green)}
+.ctl.crl .cb:is(.ctask,.cmemo,.csearch,.cmore)::before{content:"";position:absolute;left:12px;right:12px;top:0;border-top:.5px solid rgba(0,0,0,.12);pointer-events:none}
+.ctl.crl .cb.on:is(.chome,.ctask,.cmemo,.cmore) .bi{background:var(--green);color:#fff}
+.ctl.crl .cb:is(.chome,.ctask,.cmemo,.ctoday,.csearch,.cmore):active .bi{background:#E2DDD2}
+.ctl.crl .cb.on:is(.chome,.ctask,.cmemo,.cmore):active .bi{background:var(--green);filter:brightness(.9)}
+.ctl.crl .cb.cpin .bi{width:52px;height:52px;border-radius:999px;background:rgba(255,255,255,.74);-webkit-backdrop-filter:blur(18px) saturate(1.6);backdrop-filter:blur(18px) saturate(1.6);box-shadow:0 0 0 .5px rgba(0,0,0,.10),0 6px 18px rgba(28,31,29,.10),inset 0 1px 0 rgba(255,255,255,.9);color:var(--green)}
+.ctl.crl .cb.cpin.on .bi{background:var(--green);color:#fff;box-shadow:0 6px 16px rgba(41,78,66,.28),inset 0 1px 0 rgba(255,255,255,.2)}
+.ctl.crl .cb.ctoday .bi{font:600 13px/1 -apple-system,'Hiragino Sans',sans-serif;letter-spacing:-.02em}
+.ctl.crl .cb.cadd .bi{box-shadow:0 8px 20px rgba(41,78,66,.32),inset 0 1px 0 rgba(255,255,255,.25)}
+.shell.closed .ctl.crl .cb:is(.chome,.cpin,.cmemo,.ctoday,.csearch){transition:opacity .15s ease-out,visibility 0s}
+.shell.closed.noteedit .ctl.crl .cb:is(.chome,.cpin,.cmemo,.ctoday,.csearch){visibility:hidden;opacity:0}
+.shell.closed.noteedit .railg{opacity:0}
+/* 月を固定: 月の格子とつまみ（上）を見出しの下に貼り付ける（日の欄だけが送られる）。解除すると今までどおり月ごと送れる */
+.shell.closed .mpull.browse[data-stage].pin .mgwrap{position:sticky;top:64px;z-index:5;background:var(--paper)}
+.shell.closed .mpull.browse[data-stage].pin .mgrab{position:sticky;top:calc(64px + var(--H));z-index:5;background:var(--paper)}

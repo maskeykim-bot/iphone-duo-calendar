@@ -21,18 +21,19 @@ const near = (a, b, tol = 0.8) => expect(Math.abs(a - b), `${a} ≈ ${b}`).toBeL
 const names = (page) => page.locator('.ctl button').evaluateAll((e) => e.map((b) => b.dataset.act + (b.dataset.strip ? `:${b.dataset.strip}` : '')));
 
 test.describe('閉じた画面の帯', () => {
-  test('右の列は タスク・…・＋ の3項目（丸48・当たり56）。ノート・設定・検索・今日・全は帯にない（design/34 §9.1 で置き換え）', async ({ page }) => {
+  test('右の列は ホーム・タスク・ノート・月の固定・今日・検索・…・＋ の8項目。設定・全は帯にない', async ({ page }) => {
     // 旧: 設定・検索・タスク・ノート・今日・＋ の6項目（タスク y418・ノート y478）。34 §9.1-12: タスクは y172〜220 へ上げ、ノートは日の欄の「ノート ›」へ
     await mock(page);
     await band(page, SIZES.closedPortrait);
     await tab(page, '月').click();
-    expect(await names(page)).toEqual(['strip:task', 'more', 'noteundo', 'noteredo', 'add']); // S11e（34 §15-②）: 書いている間は タスク→「元に戻す」、…→「やり直す」に替わる（同じ位置に重ねて持つ。ふだんは隠れていて押せない・読み上げない。下の toHaveCount(3) が見えるボタンの数）
-    await expect(page.locator('.ctl').getByRole('button')).toHaveCount(3);
+    // v19.5（征希さん「直感的に操作できるよう変更したい」。右の列＝ホーム・タスク・ノート／月の固定／今日・検索・…／＋）で仕様変更
+    expect(await names(page)).toEqual(['railhome', 'strip:task', 'strip:memo', 'pin', 'today', 'search', 'more', 'noteundo', 'noteredo', 'add']); // S11e（34 §15-②）: 書いている間は タスク→「元に戻す」、…→「やり直す」に替わる（同じ位置に重ねて持つ。ふだんは隠れていて押せない・読み上げない。下の toHaveCount(3) が見えるボタンの数）
+    await expect(page.locator('.ctl').getByRole('button')).toHaveCount(8);
     const r = await sb(page, 'task').boundingBox();
-    near(r.width, 56); near(r.height, 56); near(r.y, 172 - 4); near(r.x + 28, 466 - 42);
+    near(r.width, 50); near(r.height, 50); near(r.y, 210); near(r.x + 25, 466 - 42);
     const v = await sb(page, 'task').locator('.bi').boundingBox();
-    near(v.width, 48); near(v.height, 48);
-    await expect(sb(page, 'memo')).toHaveCount(0);
+    near(v.width, 44); near(v.height, 40);
+    await expect(sb(page, 'memo')).toHaveCount(1);
     await expect(page.locator('.ctl [data-act="allmonth"]')).toHaveCount(0);
     // 全は「…」→「月の表現」へ（§9.1-2）。選ぶと全部表示、状態を保つ
     await expect(page.locator('.mph [data-act="allmonth"]')).toHaveCount(0);
@@ -82,12 +83,12 @@ test.describe('閉じた画面の帯', () => {
     await expect(page.locator('.mgrid [data-date="2026-11-14"]')).toHaveAttribute('aria-selected', 'true'); // ノートは日付を動かさない
   });
 
-  test('帯に「ノート」の丸はなく、「今日のメモあり」の印もない。入口の名前は「ノートの一覧」（日の欄の「ノート ›」）', async ({ page }) => {
+  test('帯に「ノート」のボタンがある（v19.5 で仕様変更。前: 帯にノートの丸はない）。「今日のメモあり」の印はない。日の欄の入口の名前は「ノートの一覧」（「ノート ›」）', async ({ page }) => {
     await mock(page);
     await band(page, SIZES.closedPortrait);
     await page.evaluate(async () => { const d = await import('/js/db.js'); await d.putMemo('2026-11-12', '買い物'); await d.migrateNotesOnce(); });
     await tab(page, '月').click();
-    await expect(sb(page, 'memo')).toHaveCount(0);
+    await expect(sb(page, 'memo')).toHaveCount(1);
     await expect(page.locator('.ctl .has')).toHaveCount(0);
     const nl = page.locator('.mday .mdnl');
     await expect(nl).toHaveAttribute('aria-label', 'ノートの一覧');

@@ -36,13 +36,16 @@ export const CHIPS = { timedLine: { w: 2.5, h: 10, r: 1.25, left: 2 }, timedText
 export const DAYLIST = { x0: 12, x1: 370, head: 44, headFs: 17, allDayChipH: 28, allDayChipR: 14, cardH: 56, cardR: 14, cardGap: 8, bottomPad: 41, noteRow: 44, noteMin: 88, empty: 44, bg: '#EFECE4', bgDark: '#262A27' };
 export const DAYGRIP = { toTimeline: 40, hourB: 44, hourC: 88, cAt: 128, snapBC: 66 };
 // §12 Q-3: vis＝見える丸 48、hit＝上下左右に 4 広げた押せる範囲 56×56
+// v19.5（征希さん「直感的に操作できるよう変更したい」。右の列＝ホーム・タスク・ノート／月の固定／今日・検索・…／＋）で仕様変更: タスクは上のまとまりの 2 つ目（押せる 50×50＝x399〜449・y210〜260、見える地 44×40）、「…」は下のまとまりの 3 つ目（y536〜586）。「元に戻す」は今までのタスクの位置（y172〜220）のまま
 export const RAIL = {
-  tasks: { vis: { x: [400, 448], y: [172, 220] }, hit: { x: [396, 452], y: [168, 224] } },
-  more:  { vis: { x: [400, 448], y: [232, 280] }, hit: { x: [396, 452], y: [228, 284] } },
+  // まとまりの中のボタンに 48 の丸は無い（見える地は 44×40）。spec の visCircle は 48 の箱が無ければ押せる範囲の箱を返すので、vis も押せる範囲の値
+  tasks: { vis: { x: [399, 449], y: [210, 260] }, hit: { x: [399, 449], y: [210, 260] } },
+  more:  { vis: { x: [399, 449], y: [536, 586] }, hit: { x: [399, 449], y: [536, 586] } },
+  undo:  { vis: { x: [400, 448], y: [172, 220] }, hit: { x: [396, 452], y: [168, 224] } },
   plus:  { vis: { x: [400, 448], y: [598, 646] }, hit: { x: [396, 452], y: [594, 650] } },
 };
 // §12 Q-10: 上下のあき 8（8＋44×5＋8＝236）。行の間の線 0.5 #E4E0D6、左右の内側 16。
-export const MENU = { x: [152, 376], y: [232, 468], w: 224, row: 44, pad: 8, inset: 16, line: { h: 0.5, color: '#E4E0D6' }, r: 12, fs: 15, items: ['ホーム', '週の時間軸', '検索', '月の表現', '設定'] };
+export const MENU = { x: [152, 376], y: [401, 637], w: 224, row: 44, pad: 8, inset: 16, line: { h: 0.5, color: '#E4E0D6' }, r: 12, fs: 15, items: ['ホーム', '週の時間軸', '検索', '月の表現', '設定'] };
 export const CELL = { pressBg: '#E2DDD2', pressSec: 0.10, longPressSec: 0.35, plusN: { fs: 11, right: 4, color: '#68716A' }, date: { fs: 14, w: 600, left: 4 }, today: { d: 20, cx: 13, cy: 11 } }; // 今日の数字は丸の中央 (x+13, y+11)。今日以外は左 4（§12 Q-2）
 export const NOTE_EDIT = { restoreSec: 0.15 };
 export const HINT = { box: { x: [56, 326], h: 52, r: 16 }, nudge: 8, times: 2, sec: 0.6, hideAfter: 6 };

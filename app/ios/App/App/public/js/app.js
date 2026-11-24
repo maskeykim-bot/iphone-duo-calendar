@@ -90,6 +90,7 @@ function loadUi() {
     holidayRed: s.holidayRed !== false, // 祝日を赤で表示（既定オン。boolean の false だけが切。日曜の赤は常に出す）
     dayHours: normDayHours(s.dayHours), // 第19.5版: 閉じた画面の「時間」に出す1日の範囲（時。既定 8〜22）。この端末の表示の設定（バックアップには入れない）
     dayHh: Number.isFinite(s.dayHh) ? Math.min(56, Math.max(14, s.dayHh)) : null, // 第19.5版: 閉じた画面の「時間」の1時間の高さ（14〜56。つまみを離した所）。無ければ dayGrip から（1＝14、2＝56）
+    monthPin: s.monthPin !== false, // 第19.5版: 閉じた画面で月を固定する（既定オン。固定＝月は上に残り、日の欄だけが送られる。解除＝月ごと下まで送れる）
     rokuyo: s.rokuyo !== false, // 六曜を表示（既定オン。boolean の false だけが切。未保存・破損・欠落はオン）
   };
 }
@@ -154,8 +155,8 @@ function saveUi() {
   const { view, home } = OPENUI, { selected, dayGrip } = state;
   // 閉じた横（34 §14）は段を使わない。横の間の保存には stage を書かず（S11e 指示10）、縦に戻ったとき・横のまま起動し直したときのために控え（stageHeld）だけを残す
   const stage = closedLand() ? undefined : state.stage, stageHeld = closedLand() ? state.stage : undefined;
-  const { style, desk, monthExpand, monthForm, monthDay, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView, spreadType, ttSplit, dayHours, dayHh } = state;
-  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, monthForm, stage, stageHeld, dayGrip, monthDay, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTimeV: 11, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView, spreadType, ttSplit, dayHours, ...(dayHh == null ? {} : { dayHh }) })); } catch { /* 保存不可でも動作は続ける */ }
+  const { style, desk, monthExpand, monthForm, monthDay, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView, spreadType, ttSplit, dayHours, dayHh, monthPin } = state;
+  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, monthForm, stage, stageHeld, dayGrip, monthDay, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTimeV: 11, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView, spreadType, ttSplit, dayHours, monthPin, ...(dayHh == null ? {} : { dayHh }) })); } catch { /* 保存不可でも動作は続ける */ }
 }
 // 左右（または縦の下パネル）のページを選ぶ。同じ種類が左右に並ぶ場合は交換。
 function setPage(side, id) { set({ pages: selectPage(state.pages, side, id) }); }
@@ -355,7 +356,7 @@ const HIT_BAND = 56, VIS_BAND = 48, HIT_HDR = 44;
 const CL_LAND_GRID = 382; // 閉じた横の格子の列の幅（閉じた縦の中身の幅と同じ。マス 52.3）
 // 閉じた横の帯の仮の値（CSS の :root の --cl-land-rail・--cl-land-home の1か所。実機で測って置き換える）
 function closedLandVals() { const c = getComputedStyle(de); return { rail: parseFloat(c.getPropertyValue('--cl-land-rail')) || 84, home: parseFloat(c.getPropertyValue('--cl-land-home')) || 33 }; }
-const POS = { land: null, post: 'closed', band: false, bg: null, hbar: false, set: null, search: null, all: null, task: null, more: null, memo: null, today: null, add: null, pnl: null, fm: null, tt: null, fmode: 'calendar', ux: 1 };
+const POS = { land: null, post: 'closed', band: false, bg: null, hbar: false, set: null, search: null, all: null, task: null, more: null, memo: null, today: null, add: null, pnl: null, fm: null, tt: null, home: null, pin: null, rail: null, undo: null, redo: null, fmode: 'calendar', ux: 1 };
 let ttPageH = 603; // 開いた横の1日ページの高さ（y0〜603。updateLayoutMetrics が決める）
 function updateLayoutMetrics() {
   const S = safe(); lastSafe = safeKey(S);
@@ -365,7 +366,7 @@ function updateLayoutMetrics() {
   const post = kind === 'home' || kind === 'browse' ? 'closed' : kind === 'open' && isPortrait() ? 'portrait' : 'landscape';
   const n = monthWeeks(state.selected).length;
   const v = { 'layout-w': W, 'layout-h': H, 'content-x': x0, 'content-y': y0, 'content-w': U, 'content-h': V, 'fold-x': W / 2 };
-  const pos = { land: null, post, band: false, bg: null, hbar: false, set: null, search: null, all: null, task: null, more: null, memo: null, today: null, add: null, pnl: null, fm: null, tt: null, fmode: 'calendar', ux: 1 };
+  const pos = { land: null, post, band: false, bg: null, hbar: false, set: null, search: null, all: null, task: null, more: null, memo: null, today: null, add: null, pnl: null, fm: null, tt: null, home: null, pin: null, rail: null, undo: null, redo: null, fmode: 'calendar', ux: 1 };
   portraitWeekH = 0;
   for (const k of ['pnl-top', 'pnl-h', 'pnl-up-h']) de.style.removeProperty(`--${k}`);
   const box = (x, y, s, vs) => ({ x, y, s, v: vs });
@@ -387,6 +388,16 @@ function updateLayoutMetrics() {
     if (pos.band) {
       const cx = W - (land ? LV.rail : R) / 2, bx = cx - HIT_BAND / 2;
       pos.task = box(bx, tTask - m, HIT_BAND, VIS_BAND); pos.more = box(bx, tMore - m, HIT_BAND, VIS_BAND); pos.add = box(bx, tAdd - m, HIT_BAND, VIS_BAND);
+      pos.undo = pos.task; pos.redo = pos.more; // ノートを書いている間の「元に戻す」「やり直す」は、今までの位置（y172・y232）のまま
+      // 第19.5版（征希さん「直感的に操作できるよう変更したい」）: 閉じた縦の右の列＝上のまとまり（ホーム・タスク・ノート）、月の固定、下のまとまり（今日・検索・…）、＋。1つ 50×50（まとまりの幅 52）。入らない高さでは今までの3つ
+      const RS = 50, g1 = y0 + 160 * q, pinY = g1 + 3 * RS + 12, g2 = tAdd - 12 - 3 * RS;
+      if (!land && g2 >= pinY + 52 + 8) {
+        const rx = cx - RS / 2;
+        pos.home = box(rx, g1, RS, 44); pos.task = box(rx, g1 + RS, RS, 44); pos.memo = box(rx, g1 + 2 * RS, RS, 44);
+        pos.pin = box(cx - 26, pinY, 52, 52);
+        pos.today = box(rx, g2, RS, 44); pos.search = box(rx, g2 + RS, RS, 44); pos.more = box(rx, g2 + 2 * RS, RS, 44);
+        pos.rail = { x: cx - 26, w: 52, g1, g2, h: 3 * RS };
+      }
     } else { // 右の帯がない（ブラウザなど。§15-③・§14.5）: 見出しの右に「…」「タスク」（押せる 44・記号 22・丸なし。押した地の丸 36）。縦は右端を 8 あけ、横は右端から。＋ は右下（見える 48 を右 12・ホームバーの帯の 12 上、押せる 56）
       pos.hbar = true;
       const rx = W - R - (land ? 0 : 8);
@@ -680,7 +691,13 @@ const sheetOverHead = () => !POS.band && closedLand() && !!document.querySelecto
 const sheetHeadSync = () => { const on = sheetOverHead(); for (const b of root.querySelectorAll('.shell.closed .cb.ctask, .shell.closed .cb.cmore, .shell.closed .mpull.browse .mph')) b.inert = on; }; // S11i（品質 8960267）: 見出しの帯（年月＝今日へ・見えない前の月/次の月）も同じ条件で押せなくする
 const NE_HIDE = ' tabindex="-1" aria-hidden="true"'; // 書いている間は隠れている右の列のボタン（読み上げ・キーの順からも外す）
 let noteEditing = false; // 閉じた画面でノートを書いている間（右の列の「タスク」→「元に戻す」、「＋」は隠す）
+const ICON_HOME = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.2 12 4.5l8 6.7"/><path d="M6.2 9.8V19h4.1v-5h3.4v5h4.1V9.8"/></svg>';
+const ICON_PIN = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l-.8 5.2 3 3.3H6.8l3-3.3L9 4Z"/><path d="M12 12.6V20"/></svg>';
+const ICON_PINOFF = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l-.8 5.2 3 3.3H6.8l3-3.3L9 4Z" opacity=".4"/><path d="M12 12.6V20" opacity=".4"/><path d="M4.5 4.5l15 15"/></svg>';
 const CTL = {
+  // 第19.5版: 閉じた縦の右の列
+  home: () => { const on = listShown(); return `<button type="button" class="cb chome${on ? ' on' : ''}" data-act="railhome"${noteEditing ? NE_HIDE : ''} aria-pressed="${on}" aria-label="ホーム"${posStyle(POS.home)}><span class="bi">${ICON_HOME}</span></button>`; },
+  pin: () => { const on = state.monthPin; return `<button type="button" class="cb cpin${on ? ' on' : ''}" data-act="pin"${noteEditing ? NE_HIDE : ''} aria-pressed="${on}" aria-label="月を固定"${posStyle(POS.pin)}><span class="bi">${on ? ICON_PIN : ICON_PINOFF}</span></button>`; },
   set: () => `<button type="button" class="cb csettings" data-act="menu" aria-label="設定" aria-haspopup="dialog"${posStyle(POS.set)}><span class="bi">${ICON_GEAR}</span></button>`,
   search: () => `<button type="button" class="cb csearch" data-act="search" aria-label="${FOCUS_NOUN[POS.fmode] || '予定'}を検索"${posStyle(POS.search)}><span class="bi">${ICON_SEARCH}</span></button>`,
   task: () => {
@@ -695,8 +712,8 @@ const CTL = {
   // 第19.2版 S11c（design/34 §9.1-14・§9.2・§9.3）: 閉じた画面の「…」と、ノートを書いている間の「元に戻す」
   more: () => `<button type="button" class="cb cmore${MORE.open ? ' on' : ''}" data-act="more"${noteEditing ? NE_HIDE : ''}${sheetOverHead() ? ' inert' : ''} aria-label="その他" aria-haspopup="menu" aria-expanded="${MORE.open}"${posStyle(POS.more)}><span class="bi">${ICON_MORE}</span></button>`,
   // S11e（34 §15-②）: 帯があるとき、書いている間は タスク→元に戻す、…→やり直す（＋は隠す）。使えないときは記号 #C9C5BA（data-off。押しても何もしない）
-  undo: () => `<button type="button" class="cb cundo" data-act="noteundo" aria-label="元に戻す" data-off="${noteHist().undo ? 0 : 1}"${noteEditing ? '' : ' tabindex="-1" aria-hidden="true"'}${posStyle(POS.task)}><span class="bi">${ICON_UNDO}</span></button>`,
-  redo: () => `<button type="button" class="cb credo" data-act="noteredo" aria-label="やり直す" data-off="${noteHist().redo ? 0 : 1}"${noteEditing ? '' : ' tabindex="-1" aria-hidden="true"'}${posStyle(POS.more)}><span class="bi">${ICON_REDO}</span></button>`,
+  undo: () => `<button type="button" class="cb cundo" data-act="noteundo" aria-label="元に戻す" data-off="${noteHist().undo ? 0 : 1}"${noteEditing ? '' : ' tabindex="-1" aria-hidden="true"'}${posStyle(POS.undo || POS.task)}><span class="bi">${ICON_UNDO}</span></button>`,
+  redo: () => `<button type="button" class="cb credo" data-act="noteredo" aria-label="やり直す" data-off="${noteHist().redo ? 0 : 1}"${noteEditing ? '' : ' tabindex="-1" aria-hidden="true"'}${posStyle(POS.redo || POS.more)}><span class="bi">${ICON_REDO}</span></button>`,
   today: () => `<button type="button" class="cb ctoday" data-act="today" aria-label="今日に戻る"${posStyle(POS.today)}><span class="bi" aria-hidden="true">${todayLabel()}</span></button>`,
   pnl: () => { const on = state.pages.portraitShown; return `<button type="button" class="cb cpnl${on ? ' on' : ''}" data-act="pnltoggle" aria-label="${on ? '下の段を隠す' : '下の段を表示'}"${posStyle(POS.pnl)}><span class="bi">${ICON_PNL}</span></button>`; },
   add: () => `<button type="button" class="cb cadd" data-act="add"${noteEditing ? NE_HIDE : ''} aria-label="${FOCUS_NOUN[POS.fmode] || '予定'}を追加"${posStyle(POS.add)}><span class="bi" aria-hidden="true">＋</span></button>`,
@@ -715,10 +732,12 @@ function ctl() {
   const bg = POS.bg ? `<div class="bandbg" aria-hidden="true" style="left:${r2(POS.bg.x)}px;width:${r2(POS.bg.w)}px"></div>` : '';
   let h = '';
   if (POS.post === 'closed') {
-    h = CTL.task() + CTL.more() + (POS.band ? CTL.undo() + CTL.redo() : '') + CTL.add(); // 第19.2版 S11c: タスク・…・＋ だけ（設定・検索・ノート・今日は「…」・日の欄・見出しへ。design/34 §9.1）
+    const R0 = POS.rail, railBg = R0 ? [R0.g1, R0.g2].map((y) => `<div class="railg" aria-hidden="true" style="left:${r2(R0.x)}px;top:${r2(y)}px;width:${R0.w}px;height:${R0.h}px"></div>`).join('') : '';
+    h = R0 ? railBg + CTL.home() + CTL.task() + CTL.memo() + CTL.pin() + CTL.today() + CTL.search() + CTL.more() + CTL.undo() + CTL.redo() + CTL.add()
+      : CTL.task() + CTL.more() + (POS.band ? CTL.undo() + CTL.redo() : '') + CTL.add(); // 第19.2版 S11c: タスク・…・＋ だけ（設定・検索・ノート・今日は「…」・日の欄・見出しへ。design/34 §9.1）
   } else if (POS.post === 'portrait') h = CTL.set() + focusSwitch() + CTL.search() + (POS.today ? CTL.today() : '') + (POS.pnl ? CTL.pnl() : '') + CTL.add();
   else if (POS.band) h = CTL.set() + CTL.search() + (POS.tt ? CTL.tt() : '') + CTL.task() + CTL.memo() + CTL.today() + CTL.add();
-  return `${bg}<div class="ctl${POS.band ? ' band' : ''}" role="group" aria-label="操作">${h}</div>`;
+  return `${bg}<div class="ctl${POS.band ? ' band' : ''}${POS.post === 'closed' && POS.rail ? ' crl' : ''}" role="group" aria-label="操作">${h}</div>`;
 }
 // 画面・検索・通知で共通の表示条件。入力が変わるまで使い回す。
 let visFnKey = null, visFn = null;
@@ -1427,7 +1446,7 @@ function stageHtml() {
   ST.n = n; ST.kind = kind; ST.H = H; ST.land = land;
   const ws = stageWeeks(kind);
   const grab = land ? '' : `<div class="mgrab" role="slider" tabindex="0" aria-label="月の大きさ。上下に引いて変える" aria-orientation="vertical" aria-valuemin="1" aria-valuemax="7" aria-valuenow="${n}" aria-valuetext="${STG_NAME[n]}"><i aria-hidden="true"></i></div>`;
-  return `<section class="calendar mpull browse${land ? ' land' : ''}" aria-label="カレンダー"${land ? ' data-land="1" data-form="month"' : ` data-stage="${n}" data-form="${STG_FORM[n]}" data-scroll="stg"`} style="--H:${H}px;--chip-h:14px;--chip-fs:10px;--date-h:22px"><div class="mpfix">${stageHead(ws)}<button type="button" class="mrpick vh" data-act="pickrange">期間を選ぶ</button><div class="weekdays">${stageWdInner(kind, ws[0])}</div></div><div class="mgwrap">${stageGridHtml(kind, H, ws)}</div>${grab}${stageDayHtml()}</section>`;
+  return `<section class="calendar mpull browse${land ? ' land' : state.monthPin ? ' pin' : ''}" aria-label="カレンダー"${land ? ' data-land="1" data-form="month"' : ` data-stage="${n}" data-form="${STG_FORM[n]}" data-scroll="stg"`} style="--H:${H}px;--chip-h:14px;--chip-fs:10px;--date-h:22px"><div class="mpfix">${stageHead(ws)}<button type="button" class="mrpick vh" data-act="pickrange">期間を選ぶ</button><div class="weekdays">${stageWdInner(kind, ws[0])}</div></div><div class="mgwrap">${stageGridHtml(kind, H, ws)}</div>${grab}${stageDayHtml()}</section>`;
 }
 // ---- 閉じた7段の日の欄（design/34 §6）。見出し44・終日のベタ塗りチップ・高さ56のカード・つまみ（下）・ノート。開いた縦の pullDayHtml は変えない。
 // 第19.3版 その2（征希さん「閉じた時の表示は『カード・時間』で分けるだけ」・design/35 §5）: 日の欄は見出しの右の「カード｜時間」でたたいて切り替える。つまみ（下）の A→B→C の3段と、下の端への貼り付き（S11f〜S11j の T の境）はやめた。
@@ -3792,6 +3811,8 @@ root.addEventListener('click', (ev) => {
   else if (d.pnl) pickBottom(d.pnl);
   else if (d.act === 'strip') { if (STRIP.swallow && performance.now() < STRIP.swallow) { STRIP.swallow = 0; return; } STRIP.swallow = 0; toggleStrip(d.strip); }
   else if (d.act === 'allmonth') set({ monthExpand: !state.monthExpand });
+  else if (d.act === 'railhome') { const on = listShown(); set({ home: !on, strip: null }); say(on ? 'カレンダーに戻りました。' : 'ホームを開きました。'); }
+  else if (d.act === 'pin') { set({ monthPin: !state.monthPin }); say(state.monthPin ? '月を固定しました。' : '月の固定を解除しました。月ごと下まで送れます。'); root.querySelector('.cb.cpin')?.focus({ preventScroll: true }); }
   else if (d.act === 'today') set({ selected: todayKey() }); // 今日へ戻るのは選択日だけ。表示（一覧・日・週・月）は保つ
   else if (d.act === 'prev') { if (!d.pane && !swiping && closedTv()) swipeTo(-1); else move(-1, d.pane); }
   else if (d.act === 'next') { if (!d.pane && !swiping && closedTv()) swipeTo(1); else move(1, d.pane); }

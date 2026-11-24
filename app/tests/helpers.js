@@ -51,6 +51,8 @@ export async function openApp(page, size = SIZES.closedPortrait, query = '', opt
     s = JSON.parse(localStorage.getItem(key) || '{}');
     if (!s.monthDay) localStorage.setItem(key, JSON.stringify({ ...s, monthDay: 'time' })); // 日の部分は 時間軸（.tlev）で起動。既定（予定）を調べる spec は monthFormInit を先に呼ぶ
   }, { q: query, closedSize: Math.min(size.width, size.height) < 600 });
+  // 第19.5版: 閉じた画面の「月を固定」（既定オン）。第19.4版までの spec は月ごと送れる前提なので、保存が無ければ固定なしで起動する。固定を調べる spec は monthPin を先に書く
+  if (!opts.fresh) await page.addInitScript((q) => { const ns = new URLSearchParams(q).get('ns'), key = `duo.ui.v1${ns ? `.${ns}` : ''}`; let s = {}; try { s = JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch { s = {}; } if (s.monthPin === undefined) localStorage.setItem(key, JSON.stringify({ ...s, monthPin: false })); }, query);
   // 第19.1版 S4: シートは下から 0.25 秒で出る（H-02）。既存の spec は出きった位置の寸法を測るので、出る動きは止めておく。
   // 動きそのものを調べる spec は { motion: true } を渡す（tests/press-sheet-type-s4.spec.js）。閉じ終わるまでの 0.25 秒は動きを止めても同じ（JS の待ち）。
   if (!opts.motion) await page.addInitScript(() => { document.addEventListener('DOMContentLoaded', () => { const st = document.createElement('style'); st.id = 'test-no-sheet-motion'; st.textContent = 'dialog,dialog[open],dialog.sheet-out,#scrim{animation:none!important}'; document.head.append(st); }); });

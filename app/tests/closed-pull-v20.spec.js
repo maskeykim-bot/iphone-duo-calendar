@@ -577,7 +577,7 @@ test.describe('G. 消したものへ、移した先からたどり着ける（§
     await page.keyboard.press('Escape');
     await page.locator(SEL.day).getByRole('button', { name: /のノート/ }).click(); await expect(page.locator('.ned-body').first()).toBeVisible();
   });
-  test('[未実装] 8 右の列の日付ボタンはない（今日へは見出し）', async ({ page }) => { await boot(page); await expect(page.getByRole('button', { name: '今日に戻る' })).toHaveCount(0); });
+  test('[未実装] 8 右の列に「今日に戻る」がある（v19.5 征希さん「今日に戻るボタンもよろしく」で仕様変更。前: 右の列の日付ボタンはない）', async ({ page }) => { await boot(page); await expect(page.getByRole('button', { name: '今日に戻る' })).toHaveCount(1); });
   test('[未実装] 9 下のタブはない。ホームと週の時間軸は「…」から、戻りは「‹ カレンダー」', async ({ page }) => {
     await boot(page); await expect(page.locator('.tabs')).toHaveCount(0);
     for (const name of ['ホーム', '週の時間軸']) {
@@ -642,7 +642,7 @@ test.describe('H. ノートを書いている間の右の列（§9.3）', () => 
   test('[未実装] 書いている間は「タスク」が「元に戻す」に、「＋」は消える。キーボードが閉じたら 0.15 秒で戻る', async ({ page }) => {
     await boot(page); await toStage(page, 4);
     await page.locator(SEL.day).getByRole('button', { name: /のノート/ }).click(); await page.keyboard.type('メモ');
-    await expect(SEL.undoBtn(page)).toBeVisible(); const u = await visCircle(SEL.undoBtn(page)); near(u.x, S.RAIL.tasks.vis.x[0]); near(u.y, S.RAIL.tasks.vis.y[0]);
+    await expect(SEL.undoBtn(page)).toBeVisible(); const u = await visCircle(SEL.undoBtn(page)); near(u.x, S.RAIL.undo.vis.x[0]); near(u.y, S.RAIL.undo.vis.y[0]);
     await expect(SEL.plusBtn(page)).toBeHidden(); await expect(SEL.tasksBtn(page)).toBeHidden();
     await page.evaluate(() => document.activeElement?.blur()); await page.waitForTimeout(S.NOTE_EDIT.restoreSec * 1000 + 60);
     await expect(SEL.tasksBtn(page)).toBeVisible(); await expect(SEL.plusBtn(page)).toBeVisible();
