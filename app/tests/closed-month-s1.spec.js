@@ -28,7 +28,7 @@ test.describe('閉じた画面 466×678（帯 84）', () => {
     expect(near(g.nw, 20, 0.6) && near(g.nh, 20, 0.6)).toBe(true); // 今日の丸は直径 20
     expect(near(g.cx, 13, 0.6) && near(g.cy, 11, 0.6)).toBe(true);
     expect(g.rk).toBe('none');
-    expect(g.pfs).toBe(11); expect(g.pfw).toBe(400); expect(g.pc).toBe('rgb(104, 113, 106)');
+    expect(g.pfs).toBe(11); expect(g.pfw).toBe(400); expect(g.pc).toBe('rgb(93, 105, 99)'); // 第19.4版（design/36 §15.5）: +N は #68716A → #5D6963（カプセル・土の列の地の上でも 4.8 以上）
     expect(near(g.pr, 4, 0.8)).toBe(true);
     expect(g.ptext).toMatch(/^\+\d+$/);
   });

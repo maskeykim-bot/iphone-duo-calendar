@@ -31,7 +31,8 @@ export const RUBBER = { k: 0.3, max: 24, backSec: 0.22 };
 // v は離す前 80ms の動き（最初と最後の点の差÷時間）。点が2つないときは v＝0。H′＝H＋v×0.15。H′ がちょうど中間なら、v が負（上へ）なら段の数字が大きい方、v≧0 なら小さい方へ寄せる（§12 Q-7）。
 export const SNAP = { sec: 0.25, secLong: 0.30, longOver: 200, maxJump: 2, vK: 0.15, vWindowMs: 80, tapUnder: 6, ease: 'cubic-bezier(0.16, 1, 0.3, 1)' };
 export const SWAP = { outFrom: 0, outTo: 0.08, inFrom: 0.08, inTo: 0.20, ease: 'cubic-bezier(0.2, 0.8, 0.2, 1)', headSec: 0.15 };
-export const CHIPS = { timedLine: { w: 2, h: 10, r: 1, left: 2 }, timedTextLeft: 6, allDayRadius: 3, minContrast: 4.5, textColors: ['#FFFFFF', '#1C1F1D'], fadeGapFull: 2 };
+// 第19.4版（design/36 §15.3）: 左の線は 2.5×10・角丸 1.25、文字は左 7。終日・複数日はベタ塗りをやめ、ごく薄い地＋左の線＋墨の文字（文字の色は #293B35 だけ）
+export const CHIPS = { timedLine: { w: 2.5, h: 10, r: 1.25, left: 2 }, timedTextLeft: 7, allDayRadius: 3, minContrast: 4.5, textColors: ['#FFFFFF', '#1C1F1D'], fadeGapFull: 2 };
 export const DAYLIST = { x0: 12, x1: 370, head: 44, headFs: 17, allDayChipH: 28, allDayChipR: 14, cardH: 56, cardR: 14, cardGap: 8, bottomPad: 41, noteRow: 44, noteMin: 88, empty: 44, bg: '#EFECE4', bgDark: '#262A27' };
 export const DAYGRIP = { toTimeline: 40, hourB: 44, hourC: 88, cAt: 128, snapBC: 66 };
 // §12 Q-3: vis＝見える丸 48、hit＝上下左右に 4 広げた押せる範囲 56×56

@@ -56,7 +56,7 @@ test.describe('閉じた画面 466×678', () => {
     // 段1: 4件（+1）。チップは日付の行（22）の下から 16 おき
     expect(await vis()).toBe(4); await expect(plus()).toHaveText('+1');
     const pl = await plus().evaluate((e) => { const s = getComputedStyle(e), d = e.parentElement.querySelector('[data-date="2026-11-12"]').getBoundingClientRect(), g = document.createRange(); g.selectNodeContents(e); const t = g.getBoundingClientRect(); return { fs: parseFloat(s.fontSize), fw: Number(s.fontWeight), color: s.color, right: d.right - t.right, top: t.top - d.top, tb: t.bottom - d.top }; });
-    expect(pl.fs).toBe(11); expect(pl.fw).toBe(400); expect(pl.color).toBe('rgb(104, 113, 106)');
+    expect(pl.fs).toBe(11); expect(pl.fw).toBe(400); expect(pl.color).toBe('rgb(93, 105, 99)'); // 第19.4版（design/36 §15.5）: +N は #68716A → #5D6963
     expect(near(pl.right, 4, 1)).toBe(true); expect(pl.tb).toBeLessThanOrEqual(22.5);
     const tops = await page.locator('.mgrid .strip[data-sday="2026-11-12"]').evaluateAll((es) => es.map((e) => e.getBoundingClientRect().top - e.closest('.week').getBoundingClientRect().top));
     expect(near(tops[0], 22, 1.2) && near(tops[3] - tops[0], 48, 0.6)).toBe(true);

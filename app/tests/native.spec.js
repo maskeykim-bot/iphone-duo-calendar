@@ -359,7 +359,7 @@ test.describe('ネイティブ（偽装）', () => {
     const card = page.locator('.mdcard.ext, .tlev.ext', { hasText: '歯医者' });
     await expect(card).toBeVisible();
     await expect(card).toHaveAttribute('aria-label', /iPhone、家族、/);
-    expect(await card.evaluate((el) => getComputedStyle(el).getPropertyValue('--cat').trim())).toBe('#d93025');
+    expect(await card.evaluate((el) => getComputedStyle(el).getPropertyValue('--cat-line').trim())).toBe('#985950'); // カレンダーの色 #d93025 の線（第19.4版 design/36: 画面の色は保存の色をくすませた線の色。保存の色は元のまま）
     // 並び: 終日→時間付き（アプリ予定がなくても iPhone 内で開始昇順）
     // 月（予定名）
     await tab(page, '月').click();
@@ -369,7 +369,7 @@ test.describe('ネイティブ（偽装）', () => {
     await expect(dent).not.toContainText('▦');
     await expect(dent).toHaveAttribute('aria-hidden', 'true'); // チップは押す的ではない（S5）。出所と題名はマスのボタンの aria-label にある
     await expect(page.locator('.calendar .day[data-date="2026-11-12"]')).toHaveAttribute('aria-label', /予定\d+件.*：iPhone、[^、]+、(\d+:\d\d )?歯医者/); // S8 品質の低: 読み上げに時刻（「15:00 歯医者」）が入る。 出所（iPhone、カレンダー名）も読み上げに残す
-    expect(await dent.locator('.cline').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(217, 48, 37)'); // カレンダーの色 #d93025（第19.2版 S11b: 時刻つきは地を塗らず左の線がカレンダーの色）
+    expect(await dent.locator('.cline').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(166, 102, 92)'); // カレンダーの色 #d93025 をくすませた左の線 #A6665C（第19.4版 design/36。第19.2版 S11b: 時刻つきは地を塗らず左の線）
     await expect(page.locator('.bar', { hasText: '<b>旅行</b>' })).toHaveCount(1); // 11/14(土)〜15(日)は月曜始まりでは同じ週なので1本（週境界の分割は month-all.spec.js で確認）。HTML は文字として表示
     // 凡例は設定メニューの中
     await openMenu(page, 'calendar');
@@ -1713,7 +1713,7 @@ test.describe('第15版 PR6: 既存予定のカレンダー移動', () => {
     await tab(page, '月').click();
     await page.locator('[data-date="2026-11-12"]').click({ position: { x: 12, y: 10 } });
     const blk = page.locator('.mdcard, .tlev', { hasText: '会食' });
-    await expect(blk).toHaveAttribute('style', /--cat:#d93025/);
+    await expect(blk).toHaveAttribute('style', /--cat-line:#985950/); // 保存先カレンダーの色 #d93025 の線（第19.4版 design/36: 画面の色は保存の色をくすませた線の色。保存の色は元のまま）
     // v19.3 その3（征希さん「メモもカードで分ける」）で仕様変更: 閉じた画面のカードの読み上げは design/35 §2.3 の決まった形（種類、時刻、題名、添え）で、保存先のカレンダー名は入らない（前: /家族/ を含む）。色は保存先カレンダーのもの（上）、つながりは「iPhone にも追加済み」
     await expect(blk).toHaveAttribute('aria-label', /^予定、.*会食、iPhone にも追加済み$/);
   });

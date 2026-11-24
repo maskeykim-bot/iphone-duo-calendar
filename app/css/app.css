@@ -535,7 +535,7 @@ input,select,textarea,.date-text{font-size:16px}
 .adcols{display:flex;flex:1;min-width:0}
 .adcol{display:flex;flex:1;gap:6px;min-width:0;overflow:hidden}
 .adpill,.adplus{height:28px;min-height:28px;padding:0 12px;border-radius:14px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
-.adpill{background:var(--cat-tint);color:var(--ink);border-radius:6px;padding-left:12px}
+.adpill{background:var(--cat-tint);color:var(--ink);border-radius:4px;padding-left:12px}
 .adpill:not(.adband){position:relative}
 .adpill::before{content:'';position:absolute;left:4px;top:5px;bottom:5px;width:2.5px;border-radius:1.25px;background:var(--cat-mark)}
 @media (hover:hover){.adpill:hover{background:var(--cat-tint);filter:brightness(.95)}}
@@ -2612,11 +2612,11 @@ html[data-theme=dark]{--paper:#1C1F1D;--card:#262A27;--cardw:#262A27;--capsule:#
 .destpage.colorpage .dopt .dsub{margin-left:8px;font-size:12px;color:var(--muted)}
 .destpage.colorpage .cnote{font-size:12px;line-height:1.5}
 /* 長押しメニューの「色」の帯: 幅 336・高さ 78・角丸 14。上に選んでいる色の名前 12pt、下に見本 32×24 を 8 つ（間 8。押す的 40×44）。選んでいる見本に 白 2＋緑 2 の輪 */
-.cmenu.cstrip{box-sizing:border-box;height:78px;padding:8px 8px 0;border-radius:14px;overflow:visible}
-.cstrip .csn{margin:0 4px;height:18px;font-size:12px;line-height:18px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cstrip .csr{display:flex;justify-content:space-between;height:44px;margin-top:2px}
-.cmenu.cstrip button.cso{display:flex;align-items:center;justify-content:center;flex:none;width:40px;height:44px;min-height:44px;padding:0;border:0;border-radius:8px;background:transparent}
-.cstrip .cso .csw b{position:absolute;left:8px;right:0;top:0;bottom:0;font-size:9px;line-height:24px;font-weight:600;color:var(--ink);text-align:center;letter-spacing:-.04em}
-.cstrip .cso[aria-pressed=true] .csw{box-shadow:0 0 0 2px #fff,0 0 0 4px #294E42}
-.cstrip .cso:active .csw{filter:brightness(.94)}
-.cmenu.cstrip button.cso:active,.cmenu.cstrip button.cso[aria-pressed=true]:active{background-color:transparent!important;filter:none}
+.cmenu.colorstrip{box-sizing:border-box;height:78px;padding:8px 8px 0;border-radius:14px;overflow:visible}
+.colorstrip .csn{margin:0 4px;height:18px;font-size:12px;line-height:18px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.colorstrip .csr{display:flex;justify-content:space-between;height:44px;margin-top:2px}
+.cmenu.colorstrip button.cso{display:flex;align-items:center;justify-content:center;flex:none;width:40px;height:44px;min-height:44px;padding:0;border:0;border-radius:8px;background:transparent}
+.colorstrip .cso .csw b{position:absolute;left:8px;right:0;top:0;bottom:0;font-size:9px;line-height:24px;font-weight:600;color:var(--ink);text-align:center;letter-spacing:-.04em}
+.colorstrip .cso[aria-pressed=true] .csw{box-shadow:0 0 0 2px #fff,0 0 0 4px #294E42}
+.colorstrip .cso:active .csw{filter:brightness(.94)}
+.cmenu.colorstrip button.cso:active,.cmenu.colorstrip button.cso[aria-pressed=true]:active{background-color:transparent!important;filter:none}

@@ -94,8 +94,8 @@ test.describe('DB v2 → v3 移行', () => {
     // 画面の色: 仕事は従来どおり。旧経済指標の予定は「その他」の色
     await tab(page, '日').click();
     await expect(page.locator('.tlev', { hasText: '仕事の予定' })).toBeVisible();
-    expect(await page.locator('.tlev', { hasText: '仕事の予定' }).evaluate((el) => getComputedStyle(el).getPropertyValue('--cat').trim())).toBe('#375a7f');
-    expect(await page.locator('.tlev', { hasText: '指標' }).evaluate((el) => getComputedStyle(el).getPropertyValue('--cat').trim())).toBe('#5a5e62');
+    expect(await page.locator('.tlev', { hasText: '仕事の予定' }).evaluate((el) => getComputedStyle(el).getPropertyValue('--cat-line').trim())).toBe('#516B87'); // 旧 仕事 #375a7f の線（第19.4版 design/36: 画面の色は保存の色をくすませた線の色。保存の色は元のまま）
+    expect(await page.locator('.tlev', { hasText: '指標' }).evaluate((el) => getComputedStyle(el).getPropertyValue('--cat-line').trim())).toBe('#423C34'); // その他 #5a5e62 の線
     await expect(page.locator('.tlev', { hasText: '指標' })).toHaveAttribute('aria-label', /、その他/);
     // 再読み込みしても重複しない
     await page.reload(); await page.waitForSelector('html[data-ready]');
@@ -160,7 +160,7 @@ test.describe('設定 › カレンダーのカテゴリ編集（Duo 段の編�
     await tab(page, '日').click();
     const card = page.locator('.tlev', { hasText: '予定A' });
     await expect(card).toHaveAttribute('aria-label', /、ファミリー/);
-    expect(await card.evaluate((el) => getComputedStyle(el).getPropertyValue('--cat').trim())).toBe('#a13a3a');
+    expect(await card.evaluate((el) => getComputedStyle(el).getPropertyValue('--cat-line').trim())).toBe('#985855'); // 赤 #a13a3a の線（第19.4版 design/36: 画面の色は保存の色をくすませた線の色。保存の色は元のまま）
     await page.reload(); await page.waitForSelector('html[data-ready]');
     await tab(page, '日').click();
     await expect(page.locator('.tlev', { hasText: '予定A' })).toHaveAttribute('aria-label', /、ファミリー/);

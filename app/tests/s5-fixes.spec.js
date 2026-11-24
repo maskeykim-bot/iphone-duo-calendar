@@ -181,20 +181,22 @@ test.describe('時間軸（H-08・H-20・M-05・M-09）', () => {
     });
     if (r !== null) expect(r).toBe(0);
   });
-  test('時間軸の予定の枠は カテゴリの色の地・白の題名 12pt W6・時刻 10pt・角丸 8', async ({ page }) => {
+  // 第19.4版（design/36 §2.4・§15.3）で仕様変更: 前「カテゴリの色の地・白の題名・角丸 8」→ ごく薄い地＋左 3 の線＋墨の題名・角丸 4（白い文字はくすみ色の上で 4.5 に届かないため）
+  test('時間軸の予定の枠は ごく薄い地＋左 3 の線＋墨の題名 13pt W6・時刻 11pt・角丸 4', async ({ page }) => {
     await openApp(page, SIZES.openLandscape951);
     await seed(page, [ev('a', '打ち合わせ', '2026-11-12T13:00', '2026-11-12T15:00')]);
     await page.reload(); await page.waitForSelector('html[data-ready]');
     const e = page.locator('.tlev:not(.fev)[data-event="a"]').first();
     await expect(e).toBeVisible();
-    expect(await e.evaluate((x) => getComputedStyle(x).borderRadius)).toBe('8px');
-    expect(await e.evaluate((x) => getComputedStyle(x).color)).toBe('rgb(255, 255, 255)');
+    expect(await e.evaluate((x) => getComputedStyle(x).borderRadius)).toBe('4px');
+    expect(await e.evaluate((x) => getComputedStyle(x).color)).toBe('rgb(41, 59, 53)');
+    expect(await e.evaluate((x) => getComputedStyle(x).boxShadow)).toMatch(/rgb\(82, 107, 144\) 3px 0px 0px 0px inset/); // 左の線 #526B90（仕事の線の色）
     expect(await e.locator('.tn').evaluate((x) => [getComputedStyle(x).fontSize, getComputedStyle(x).fontWeight])).toEqual(['13px', '600']); // 設計 V-22: 12→13（段にない大きさ）
     expect(await e.locator('.tt').evaluate((x) => getComputedStyle(x).fontSize)).toBe('11px'); // 設計 2026-11-20 1:20: 注 10/400→11/400（S7e）
     const bg = await e.evaluate((x) => getComputedStyle(x).backgroundColor);
-    const lum = bg.match(/\d+/g).slice(0, 3).map(Number).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
-    const L = 0.2126 * lum[0] + 0.7152 * lum[1] + 0.0722 * lum[2];
-    expect(1.05 / (L + 0.05)).toBeGreaterThanOrEqual(4.5);
+    expect(bg).toBe('rgb(212, 221, 235)'); // 薄い地 #D4DDEB
+    const lumOf = (c) => { const l = c.match(/\d+/g).slice(0, 3).map(Number).map((v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * l[0] + 0.7152 * l[1] + 0.0722 * l[2]; };
+    expect((lumOf(bg) + 0.05) / (lumOf('rgb(41, 59, 53)') + 0.05)).toBeGreaterThanOrEqual(4.5); // 墨の文字×薄い地
   });
   test('今日＋明日: 左右のタブを出さず、窓の下 12 にかかる時刻ラベルは出さない', async ({ page }) => {
     await openApp(page, SIZES.openLandscape951, '?ns=s5tt');

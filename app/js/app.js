@@ -7791,7 +7791,7 @@ function openColorStrip(id, anchor, after) {
   if (!e) return;
   const cur = isFlickId(colorIdOf(e)) ? colorIdOf(e) : '', base = baseColorOf(e), iph = isX(e) || !!calOfLink(e);
   const m = document.createElement('div');
-  m.className = 'cmenu cstrip'; m.setAttribute('role', 'group'); m.setAttribute('aria-label', '色'); m.dataset.cstrip = id;
+  m.className = 'cmenu colorstrip'; m.setAttribute('role', 'group'); m.setAttribute('aria-label', '色'); m.dataset.colorstrip = id;
   const sw = (cid, name, txt) => `<button type="button" class="cso" data-cs="${cid}" aria-pressed="${cur === cid}" aria-label="${esc(name)}${cur === cid ? '、選択中' : ''}"><i class="csw lg" style="${swVars(cid || null, base)}" aria-hidden="true">${txt}</i></button>`;
   m.innerHTML = `<p class="csn" aria-live="polite">${esc(cur ? flickName(cur) : `${iph ? 'カレンダー' : 'カテゴリ'}の色`)}</p><div class="csr">${sw('', `${iph ? 'カレンダー' : 'カテゴリ'}の色に戻す`, '<b>分類</b>')}${FLICK.map((f) => sw(f.id, f.name, '')).join('')}</div>`;
   const r = anchor.getBoundingClientRect(), W = Math.min(336, window.innerWidth - 16), H = 78;
@@ -7810,7 +7810,9 @@ function openColorStrip(id, anchor, after) {
     const o = [...m.querySelectorAll('.cso')], i = o.indexOf(document.activeElement); if (i < 0) return;
     ev.preventDefault(); o[(i + (ev.key === 'ArrowRight' ? 1 : o.length - 1)) % o.length].focus({ preventScroll: true });
   });
-  document.body.append(m); chipMenu = m;
+  // 開いているシート（dialog）の中から出すときは、その dialog の中に置く（外に置くと、シートが出ている間は押せない）。置いたあと、実際の位置のずれ（dialog が位置の基準になる場合）を直す
+  (anchor.closest('dialog[open]') || document.body).append(m); chipMenu = m;
+  { const want = { x: parseFloat(m.style.left), y: parseFloat(m.style.top) }, got = m.getBoundingClientRect(); if (Math.abs(got.left - want.x) > 0.5 || Math.abs(got.top - want.y) > 0.5) { m.style.left = `${Math.round(want.x - (got.left - want.x))}px`; m.style.top = `${Math.round(want.y - (got.top - want.y))}px`; } }
   document.addEventListener('pointerdown', chipMenuOutside, true);
   (m.querySelector('.cso[aria-pressed="true"]') || m.querySelector('.cso')).focus({ preventScroll: true });
 }

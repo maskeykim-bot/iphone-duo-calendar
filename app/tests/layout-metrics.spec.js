@@ -307,7 +307,8 @@ test.describe('月の文字「大」・時刻の出し入れ', () => {
 });
 
 test.describe('月の日付・配色・前後月', () => {
-  test('前後の月の予定も描き、薄くするのは日付だけ。1日は六曜オンで「12/1」、オフで「12月1日」', async ({ page }) => {
+  // 第19.4版（design/36 §15.4）で仕様変更: 前「薄くするのは日付だけ（数字 #A8ABA4）」→ 数字も予定もまとめて薄く（文字 #5D6963・数字は普通の太さ。不透明度は使わない）
+  test('前後の月の予定も描き、数字も予定もまとめて薄くする（#5D6963）。1日は六曜オンで「12/1」、オフで「12月1日」', async ({ page }) => {
     await page.addInitScript(() => { if (!localStorage.getItem('duo.ui.v1')) localStorage.setItem('duo.ui.v1', JSON.stringify({ monthForm: 'month' })); }); // 月の型（前後の月が見える）
     await openApp(page, SIZES.openPortrait669);
     await seed(page, [
@@ -320,7 +321,8 @@ test.describe('月の日付・配色・前後月', () => {
     await expect(chip(page, '2026-10-29')).toHaveCount(1);
     await expect(chip(page, '2026-12-01')).toHaveCount(1);
     const out = page.locator('[data-date="2026-10-26"]');
-    expect(await out.evaluate((e) => ({ op: getComputedStyle(e).opacity, num: getComputedStyle(e.querySelector('.num')).color }))).toEqual({ op: '1', num: 'rgb(168, 171, 164)' });
+    expect(await out.evaluate((e) => ({ op: getComputedStyle(e).opacity, num: getComputedStyle(e.querySelector('.num')).color, fw: getComputedStyle(e.querySelector('.num')).fontWeight }))).toEqual({ op: '1', num: 'rgb(93, 105, 99)', fw: '400' });
+    expect(await chip(page, '2026-10-26').evaluate((e) => getComputedStyle(e).color)).toBe('rgb(93, 105, 99)');
     expect(await chip(page, '2026-10-26').evaluate((e) => getComputedStyle(e).opacity)).toBe('1');
     await expect(page.locator('[data-date="2026-12-01"] .num')).toHaveText('12/1'); // 六曜オン（既定）
     await page.evaluate(() => { const k = 'duo.ui.v1'; localStorage.setItem(k, JSON.stringify({ ...JSON.parse(localStorage.getItem(k) || '{}'), rokuyo: false })); });

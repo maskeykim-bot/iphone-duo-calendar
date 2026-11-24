@@ -244,7 +244,7 @@ test('iPhone の予定のカード: 長押しで 14 へ → updateExternalEvent�
   const src = await extCard(page, '歯医者');
   expect(await page.locator(src).getAttribute('aria-label')).toBe('予定、15時00分、16時00分まで、歯医者、iPhone、家族');
   await carry(page, src, cell(D14));
-  await expect(page.locator('.gchip.on .gcl')).toHaveCount(1); expect(await css(page, '.gchip .gcl', 'backgroundColor')).toBe('rgb(217, 48, 37)'); // 印の線はカレンダーの色
+  await expect(page.locator('.gchip.on .gcl')).toHaveCount(1); expect(await css(page, '.gchip .gcl', 'backgroundColor')).toBe('rgb(166, 102, 92)'); // 印の線はカレンダーの色 #d93025 をくすませた左の線 #A6665C（第19.4版 design/36。保存・EventKit の色は元のまま）
   await page.mouse.up(); await page.waitForTimeout(40);
   await expect(page.locator(`${cell(D14)} .chip`, { hasText: '歯医者' })).toHaveCount(1); // 書き込みを待たずに先の日へ出る
   expect((await writes(page)).length <= 1).toBe(true);

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { PALETTE } from '../js/categories.js';
+import { colorSet } from '../js/colors.js';
 import { openApp, tab, setStyle, seed, ev, SIZES, chip, monthFormInit } from './helpers.js';
 
 // 第10版 ①: 月のチップ・帯・+N の計算後スタイル（06 §1〜§3）。画面サイズ・折り目は固定しない。
@@ -12,6 +13,7 @@ const POSTURES = [
 ];
 // 第19版 PR6: 閉じた画面・開いた縦の月は「月を引く画面」。第19.1版 H-04・design/33 §1: 閉じた月の型「月」はチップ 16・10pt、そのほかは 14・9pt。角丸は 3、開いた横の文字も 9pt
 const isPull = (size) => size.width < size.height;
+// 第19.4版（design/36）: 画面に出る色は保存の本色ではなく、くすませた色（薄い地・左の線）。保存の色は変えない（tests/v194-colors.spec.js の D-1）
 const rgb = (hex) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
 
 // 12色のカテゴリを DB に入れ、11/2〜11/13 に1件ずつ（各色）時刻付きの予定を置く。
@@ -35,7 +37,7 @@ const cs = (loc) => loc.evaluate((el) => {
 
 for (const [name, size, fs] of POSTURES) {
   for (const scheme of ['light', 'dark']) {
-    test(`${name} ${scheme}: 時刻つきチップは 本色＋白・太字・角丸3・切って省略しない（12色）`, async ({ page }) => {
+    test(`${name} ${scheme}: 時刻つきチップは ごく薄い地＋左の線 2.5×10＋墨の文字・太字・角丸3・切って省略しない（12色。第19.4版 design/36 §15.3）`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });
       if (isPull(size)) await monthFormInit(page);
       await openApp(page, size);
@@ -47,17 +49,19 @@ for (const [name, size, fs] of POSTURES) {
         const s = await cs(strip);
         expect(s.fs).toBe(size === SIZES.closedPortrait ? 10 : isPull(size) ? 9 : fs);
         expect(s.fw).toBeGreaterThanOrEqual(600);
-        if (size === SIZES.closedPortrait) { // 第19.2版 S11b（34 §7・R-74）: 閉じた7段の時刻つきは地を塗らず、左の線 2×10（カレンダーの色）。高さ 14・文字 #293B35
+        const set = colorSet(p.light);
+        if (size === SIZES.closedPortrait) { // 第19.2版 S11b（34 §7・R-74）→ 第19.4版（36 §15.3）: 閉じた7段の時刻つきは地を塗らず、左の線 2.5×10（くすませた線の色）。高さ 14・文字 #293B35
           expect(Math.abs(s.h - 14)).toBeLessThanOrEqual(0.2);
           expect(s.bg).toBe('rgba(0, 0, 0, 0)');
           expect(s.color).toBe('rgb(41, 59, 53)');
           const ln = await strip.locator('.cline').evaluate((e) => { const r = e.getBoundingClientRect(); return { w: r.width, h: r.height, bg: getComputedStyle(e).backgroundColor }; });
-          expect([ln.w, ln.h]).toEqual([2, 10]); expect(ln.bg).toBe(rgb(p.light)); // 保存された本色（dark 値・tint へ差し替えない）
+          expect([ln.w, ln.h]).toEqual([2.5, 10]); expect(ln.bg).toBe(rgb(set.mark)); // 左の線の色（OS がダークでも同じ。アプリはライト固定）
         } else {
         expect(Math.abs(s.h - 14)).toBeLessThanOrEqual(0.2);
         expect(s.radius).toBe('3px');
-        expect(s.bg).toBe(rgb(p.light)); // 保存された本色（dark 値・tint へ差し替えない）
-        expect(s.color).toBe('rgb(255, 255, 255)');
+        expect(s.bg).toBe(rgb(set.tint)); // ごく薄い地（OS がダークでも同じ）
+        expect(s.color).toBe('rgb(41, 59, 53)'); // 墨の文字
+        expect(await strip.evaluate((el) => { const b = getComputedStyle(el, '::before'); return [b.width, b.height, b.backgroundColor]; })).toEqual(['2.5px', '10px', rgb(set.mark)]);
         }
         expect(s.to).toBe('clip');
         expect(s.ws).toBe('nowrap');
@@ -84,7 +88,7 @@ test('レーンは日付行 18 の下から16px刻み、チップ14px＋隙間2p
 
 // 帯・+N の見た目は従来の月（開いた横）。閉じた・縦の月を引く画面の帯と +n は tests/month-pull.spec.js で確かめる。
 for (const [name, size, fs] of POSTURES.filter(([, sz]) => !isPull(sz))) {
-  test(`${name}: 帯は塗らず線＋中央の題名（2px・top+12.5・列境界から内1px）、+N は 8px（V-04）・押す的でない（V-03）`, async ({ page }) => {
+  test(`${name}: 帯は時刻つきと同じ形（ごく薄い地＋左の線 2.5×10＋墨の題名・左寄せ・高さ 14・両端は内 1.5。第19.4版 design/36 §15.3）、+N は 8px（V-04）・押す的でない（V-03）`, async ({ page }) => {
     await openApp(page, size);
     await seed(page, [
       ev('pay', '給与振込み', '2026-11-13T00:00', '2026-11-14T23:59', { all: true }),
@@ -97,32 +101,34 @@ for (const [name, size, fs] of POSTURES.filter(([, sz]) => !isPull(sz))) {
     const bar = page.locator('.calendar .bar', { hasText: '給与振込み' });
     await expect(bar).toHaveCount(1);
     const info = await bar.evaluate((el) => {
-      const s = getComputedStyle(el), a = getComputedStyle(el, '::after'), r = el.getBoundingClientRect();
+      const s = getComputedStyle(el), a = getComputedStyle(el, '::before'), r = el.getBoundingClientRect();
       const d13 = document.querySelector('[data-date="2026-11-13"]').getBoundingClientRect(), d14 = document.querySelector('[data-date="2026-11-14"]').getBoundingClientRect();
       const week = el.closest('.week').getBoundingClientRect(), t = el.querySelector('.bt').getBoundingClientRect();
       return {
         bg: s.backgroundColor, bl: s.borderLeftWidth, h: r.height, color: s.color, fs: parseFloat(s.fontSize), fw: Number(s.fontWeight),
-        lineH: parseFloat(a.height), lineTop: parseFloat(a.top), lineL: parseFloat(a.left), lineR: parseFloat(a.right),
+        lineH: parseFloat(a.height), lineW: parseFloat(a.width), lineL: parseFloat(a.left), lineBg: a.backgroundColor, after: getComputedStyle(el, '::after').content, ta: s.textAlign, btL: t.left - r.left, radius: s.borderRadius,
         left: r.left - d13.left, right: d14.right - r.right, top: r.top - week.top, textMid: (t.left + t.right) / 2, barMid: (r.left + r.right) / 2,
         content: el.textContent, to: s.textOverflow,
       };
     });
-    expect(info.bg).toBe('rgba(0, 0, 0, 0)');
+    const work = colorSet('#2f5f8a');
+    expect(info.bg).toBe(rgb(work.tint)); // 前: 地なし＋本色の下線と中央の題名 → 36 §15.3: 薄い地＋左の線＋墨の題名
+    expect(info.color).toBe('rgb(41, 59, 53)');
     expect(info.bl).toBe('0px');
     expect(info.fs).toBe(fs);
     expect(info.fw).toBeGreaterThanOrEqual(600);
-    expect(info.lineH).toBe(2);
-    expect(info.lineTop).toBe(12.5);
-    expect(info.lineL).toBe(1);
-    expect(info.lineR).toBe(1);
-    expect(Math.abs(info.left)).toBeLessThanOrEqual(0.5);
-    expect(Math.abs(info.right)).toBeLessThanOrEqual(0.5);
-    expect(Math.abs(info.textMid - info.barMid)).toBeLessThanOrEqual(1); // 題名は帯の中央
+    expect(info.h).toBe(14);
+    expect([info.lineW, info.lineH, info.lineL, info.lineBg]).toEqual([2.5, 10, 2, rgb(work.mark)]);
+    expect(info.after).toBe('none'); // 下線はやめた
+    expect(info.radius).toBe('3px');
+    expect(Math.abs(info.left - 1.5)).toBeLessThanOrEqual(0.5); // 始まりと終わりの側は、時刻つきのチップと同じ 1.5 の内寄せ
+    expect(Math.abs(info.right - 1.5)).toBeLessThanOrEqual(0.5);
+    expect(info.ta).toBe('left'); expect(info.btL).toBe(0); // 題名は左から（.bt の padding-left 7）
     expect(info.content).toBe('給与振込み'); // 矢印・アイコンなし
     // 単日終日も同形（線＋題名）。段は日付行の下
     const one = page.locator('.calendar .bar', { hasText: '群馬いく！' });
     await expect(one).toHaveCount(1);
-    expect((await cs(one)).bg).toBe('rgba(0, 0, 0, 0)');
+    expect((await cs(one)).bg).toBe(rgb(work.tint));
     // +N
     const plus = page.locator('.week .plus[data-plus="2026-11-12"]');
     await expect(plus).toHaveCount(1);

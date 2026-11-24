@@ -70,25 +70,25 @@ test('「全部」ボタンは月以外（週・日）の見出しには出な�
   await expect(allBtn(page)).toHaveCount(0);
 });
 
-// ---- 追加1: ダークでも塗りは本色・文字は白 ----
+// ---- 追加1: OS がダークでも見た目は同じ（アプリはライト固定）。第19.4版（design/36）で仕様変更: 前「保存の本色の塗り＋白文字」→ ごく薄い地＋左の線＋墨の文字。保存の色は元のまま ----
 for (const [name, size, kind] of POSTURES) {
-  test(`${name}: ダーク（prefers-color-scheme: dark）でもチップは保存の本色の塗り＋白文字`, async ({ page }) => {
+  test(`${name}: ダーク（prefers-color-scheme: dark）でもチップは ごく薄い地＋左の線＋墨の文字（保存の色は元のまま）`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await openApp(page, size);
     await seed(page, [ev('d1', 'ダーク検査', `${day(12)}T10:00`, `${day(12)}T11:00`)]);
     await toMonth(page, kind);
     await setStyle(page, '予定名');
     const light = await page.evaluate(async (id) => { const c = (await (await import('/js/db.js')).listCategories()).find((x) => x.id === id); return c?.color; }, CAT_IDS.work);
-    const s = await chip(page, day(12)).evaluate((el) => { const c = getComputedStyle(el); return { bg: c.backgroundColor, color: c.color }; });
-    const rgb = light ? `rgb(${[1, 3, 5].map((i) => parseInt(light.slice(i, i + 2), 16)).join(', ')})` : null;
-    if (kind === 'closed') { // 第19.2版 S11b（34 §7）: 閉じた7段の時刻つきは地を塗らず、左の線がカレンダーの本色
+    expect(light).toBe('#2f5f8a'); // 保存の色は変えない
+    const s = await chip(page, day(12)).evaluate((el) => { const c = getComputedStyle(el); return { bg: c.backgroundColor, color: c.color, line: getComputedStyle(el, '::before').backgroundColor }; });
+    expect(s.color).toBe('rgb(41, 59, 53)');
+    if (kind === 'closed') { // 閉じた7段の時刻つきは地を塗らず、左の線（くすませた線の色 #526B90）
       expect(s.bg).toBe('rgba(0, 0, 0, 0)');
-      if (rgb) expect(await chip(page, day(12)).locator('.cline').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe(rgb);
+      expect(await chip(page, day(12)).locator('.cline').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(82, 107, 144)');
       return;
     }
-    if (rgb) expect(s.bg).toBe(rgb);
-    expect(s.color).toBe('rgb(255, 255, 255)');
-    expect(s.bg).not.toBe('rgba(0, 0, 0, 0)');
+    expect(s.bg).toBe('rgb(212, 221, 235)'); // 薄い地 #D4DDEB
+    expect(s.line).toBe('rgb(82, 107, 144)');
   });
 }
 

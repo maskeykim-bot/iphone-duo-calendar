@@ -15,14 +15,15 @@ test.describe('CSS の決まり', () => {
     for (const m of CSS.matchAll(/border-radius:\s*([^;}!]+)/g)) for (const v of m[1].trim().split(/\s+/)) {
       if (v === 'inherit' || v === '50%') continue;
       // 1px は S9 設計の直し（design/review/2026-11-20-v191-fc56bc9-visual-review.md L-01）：ノートの印＝白 8×1.5・角丸1（.mline だけ）
-      if (!['0', '1px', '1.5px', '2px', '3px', '4px', '8px', '10px', '12px', '14px', '16px', '20px', '24px', '999px'].includes(v)) bad.push(v);
+      // 1.25px は第19.4版（design/36 §15.3）: チップ・帯の左の線 2.5×10 の角丸
+      if (!['0', '1px', '1.25px', '1.5px', '2px', '3px', '4px', '8px', '10px', '12px', '14px', '16px', '20px', '24px', '999px'].includes(v)) bad.push(v);
     }
     expect(bad).toEqual([]);
   });
   test(':active の規則がある（灰の点滅は消す）', () => {
     expect(CSS).toMatch(/-webkit-tap-highlight-color:transparent/);
     expect(CSS).toMatch(/:where\(button:not\(\[role=switch\]\)\):active/);
-    expect(CSS).toMatch(/#EFECE4/i);
+    expect(CSS).toMatch(/#EFECE4/i); // 第19.4版: 値は :root の --capsule に 1 か所（使う所は var(--capsule)）
   });
 });
 

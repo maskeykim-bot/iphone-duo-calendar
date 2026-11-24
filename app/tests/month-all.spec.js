@@ -233,7 +233,7 @@ test.describe('月「全部」表示', () => {
     // 帯のボタンは列の境目に合う（線は内側1px）
     const grid = await page.locator('.week.all').first().boundingBox();
     const cw = grid.width / 7;
-    expect(Math.abs((trip.x - grid.x) / cw - Math.round((trip.x - grid.x) / cw))).toBeLessThan(0.02);
+    expect(Math.abs((trip.x - grid.x) / cw - Math.round((trip.x - grid.x) / cw))).toBeLessThan(0.04); // 第19.4版（design/36 §15.3）: 帯は薄い地を持つので、始まりの側は時刻つきのチップと同じ 1.5 の内寄せ（前は列の境にぴったり＝0.02 未満）
     expect(Math.abs(trip.w / cw - 4)).toBeLessThan(0.1); // 19(木)〜22(日) の4日。23(月)は次の週の帯
     expect(bars.filter((b) => b.t.includes('出張帯')).length).toBe(2);
     expect(await findTextOverlaps(page)).toEqual([]);
