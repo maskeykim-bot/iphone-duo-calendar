@@ -327,3 +327,120 @@ test.describe('必須6・望ましい12 色の帯と繰り返しの注記', () =
     expect(await page.locator('#color-pop .crep').count()).toBe(0);
   });
 });
+
+// ---- 直し3: 連携 M-1＝品質 Q-1（下書きを戻すと色が消える）、品質 Q-2（薄い文字の実測）・Q-5（現在時刻の札）
+// 文字の色（計算済みスタイル）と、その文字のすぐ横に実際に描かれている地の画素から比を出す
+const measured = async (page, sel, side = 'left') => {
+  const els = await page.evaluate(([sel]) => [...document.querySelectorAll(sel)].filter((e) => e.getClientRects().length && e.getBoundingClientRect().width > 0 && !e.hidden).map((e) => { const q = e.getBoundingClientRect(), d = e.closest('.day') || (e.dataset.plus ? document.querySelector(`.week .day[data-date="${e.dataset.plus}"]`) : null); return { text: e.textContent.trim(), color: getComputedStyle(e).color, weight: getComputedStyle(e).fontWeight, l: q.left, r: q.right, t: q.top, b: q.bottom, out: !!d?.classList.contains('out'), sat: !!d?.classList.contains('sat') || e.classList.contains('sat'), selected: !!d?.classList.contains('selected'), today: !!d?.classList.contains('today') }; }), [sel]);
+  const out = [];
+  for (const e of els) {
+    const plus = side === 'plus'; // 開いた画面の +N は 44×44 の箱の右上に字がある: 字の右の余白（3）の中、日付の段の高さで測る
+    const x = plus ? Math.floor(e.r) - 2 : side === 'left' ? Math.floor(e.l) - 1 : side === 'right' ? Math.ceil(e.r) + 1 : Math.floor(e.l) + 1, y = plus ? Math.round(e.t + 9) : Math.round((e.t + e.b) / 2);
+    const bg = await pixel(page, x, y), color = toHex(e.color);
+    out.push({ ...e, color, bg, ratio: ratio(color, bg) });
+  }
+  return out;
+};
+const MANY = [...EVENTS, ...[0, 1, 2, 3, 4, 5].map((i) => ev(`p${i}`, `前の月の多い日${i}`, `2026-10-31T1${i}:00`, `2026-10-31T1${i}:30`, { categoryId: W })), allDay('ad', '終日の予定', '2026-11-12', '2026-11-12', { categoryId: P }), ev('tt', '時刻の予定', '2026-11-12T13:00', '2026-11-12T14:00', { categoryId: F })];
+
+for (const [name, size] of SCREENS) {
+  test(`+N の実測（${name}）: #5D6963。当月・土の列・前後の月のどの地の上でも 4.5 以上（文字の色と、実際に描かれている地の画素から）`, async ({ page }) => {
+    await boot(page, { size, events: MANY, sel: '2026-11-12' });
+    const got = (await measured(page, '.week .plus', name === '閉じた縦' ? 'right' : 'plus')).filter((g) => /^\+\d/.test(g.text) && !g.selected);
+    expect(got.length).toBeGreaterThanOrEqual(3);
+    expect(got.some((g) => g.sat && !g.out), '土の列の +N').toBe(true); expect(got.some((g) => g.out), '前後の月の +N').toBe(true);
+    for (const g of got) { expect(g.color, g.text).toBe(OUTC); expect(g.ratio, `${g.text} ${g.color}×${g.bg}${g.sat ? ' 土' : ''}${g.out ? ' 前後の月' : ''}`).toBeGreaterThanOrEqual(g.out || g.sat ? 4.8 : 4.5); }
+    if (name === '開いた横') expect(new Set(got.filter((g) => !g.sat && !g.today).map((g) => g.bg))).toEqual(new Set([LEFT_PAGE])); // 左ページの地の上で測っている
+  });
+}
+for (const [name, size] of SCREENS.slice(1)) {
+  test(`品質 Q-2・設計 望ましい8 の実測（${name}）: 六曜と曜日は #5D6963。前後の月・土の列の上で 4.8 以上、当月で 4.5 以上`, async ({ page }) => {
+    await boot(page, { size, events: MANY, sel: '2026-11-12' });
+    const rk = (await measured(page, '.week .day .rk')).filter((g) => !g.selected);
+    const pick = [...rk.filter((g) => g.out), ...rk.filter((g) => g.sat && !g.out), ...rk.filter((g) => !g.out && !g.sat).slice(0, 4)];
+    expect(pick.filter((g) => g.out).length).toBeGreaterThanOrEqual(10); expect(pick.filter((g) => g.sat && !g.out).length).toBeGreaterThanOrEqual(4);
+    for (const g of pick) {
+      expect(g.color, g.text).toBe(OUTC);
+      expect(g.ratio, `六曜 ${g.text} ${g.color}×${g.bg}${g.sat ? ' 土' : ''}${g.out ? ' 前後の月' : ''}`).toBeGreaterThanOrEqual(g.out || g.sat ? 4.8 : 4.5);
+      if (g.out) expect(g.weight).toBe('400');
+    }
+    expect(pick.some((g) => g.sat && g.bg === SAT_BG), '土の列の地の上で測っている').toBe(true);
+    if (name === '開いた横') expect(pick.some((g) => g.bg === LEFT_PAGE), '左ページの地の上で測っている').toBe(true);
+    const wd = await measured(page, '.weekdays span', 'inside'); expect(wd.length).toBe(7);
+    for (const g of wd) { expect(g.ratio, `曜日 ${g.text} ${g.color}×${g.bg}`).toBeGreaterThanOrEqual(4.5); if (!/[土日]/.test(g.text)) expect(g.color).toBe(OUTC); }
+    if (name === '開いた横') expect(wd.some((g) => g.bg === LEFT_PAGE)).toBe(true);
+  });
+}
+test('品質 Q-2 の実測（開いた縦の月＋一覧）: 日の一覧の「終日」と時刻（.mdt）は #5D6963 で 4.5 以上', async ({ page }) => {
+  await boot(page, { size: SIZES.openPortrait, events: MANY, sel: '2026-11-12' });
+  await expect(page.locator('.shell.open.portrait .mday .mdev .mdt').first()).toBeVisible();
+  const got = await measured(page, '.mdev .mdt', 'right');
+  expect(got.length).toBeGreaterThanOrEqual(2); expect(got.some((g) => g.text === '終日')).toBe(true); expect(got.some((g) => /^\d+:\d\d$/.test(g.text))).toBe(true);
+  for (const g of got) { expect(g.color).toBe(OUTC); expect(g.ratio, `${g.text} ${g.color}×${g.bg}`).toBeGreaterThanOrEqual(4.5); }
+  expect(ratio('#8C918A', '#F7F4ED')).toBeLessThan(3); // 直す前
+});
+
+test('品質 Q-5: 現在時刻の札の地は #CF3F3B（白の文字 4.5 以上。実際の画素でも）', async ({ page }) => {
+  await boot(page, { size: SIZES.openLandscape951, events: MANY, sel: '2026-11-12' });
+  const now = page.locator('.nowt').first(); await expect(now).toBeVisible();
+  const s = await now.evaluate((e) => { const c = getComputedStyle(e), q = e.getBoundingClientRect(); return { bg: c.backgroundColor, color: c.color, x: q.left + 4, y: q.top + q.height / 2, line: getComputedStyle(e.closest('.nowl'), '::before').backgroundColor }; });
+  expect(toHex(s.bg)).toBe('#CF3F3B'); expect(toHex(s.color)).toBe('#FFFFFF'); expect(toHex(s.line)).toBe('#CF3F3B');
+  expect(await pixel(page, Math.round(s.x), Math.round(s.y))).toBe('#CF3F3B');
+  expect(ratio('#FFFFFF', '#CF3F3B')).toBeGreaterThanOrEqual(4.5); expect(ratio('#FFFFFF', '#D64541')).toBeLessThan(4.5);
+});
+
+test.describe('連携 M-1・品質 Q-1 下書きを戻しても、選んだ色が戻る（保存しても消えない）', () => {
+  const RP = [ev('rp', '定例', '2026-11-03T10:00', '2026-11-03T11:00', { categoryId: W, colorId: 'sage', recurrence: { freq: 'weekly', interval: 1 } }), ev('e1', '歯医者', '2026-11-12T15:00', '2026-11-12T16:00', { categoryId: P })];
+  const draftOf = (page) => page.evaluate(() => JSON.parse(sessionStorage.getItem('duo.draft.v1') || 'null'));
+  const marksOf = (page, id) => page.locator(`.mgrid .chip[data-event^="${id}"]`).evaluateAll((l) => l.map((e) => getComputedStyle(e).getPropertyValue('--cat-mark').trim()));
+  for (const scope of ['only', 'all']) {
+    test(`繰り返しの予定（色＝セージ）を編集中に再起動 → 色の行はセージのまま → ${scope === 'only' ? '保存（選べるなら「この予定のみ」）' : '「すべて」で保存'}しても全部の回がセージ`, async ({ page }) => {
+      await boot(page, { events: RP, sel: '2026-11-17' });
+      expect(new Set(await marksOf(page, 'rp'))).toEqual(new Set(['#65785B']));
+      await openCard(page, '定例');
+      await page.locator('#f-title').fill('定例（改題中）'); await page.waitForTimeout(400);
+      expect((await draftOf(page)).colorId).toBe('sage');
+      await reloadKeep(page); // 再起動（WebView の作り直し）
+      await expect(page.locator('#editor')).toBeVisible(); await page.waitForTimeout(350);
+      await expect(page.locator('#f-title')).toHaveValue('定例（改題中）');
+      expect(await page.locator('#color-name').textContent(), '色の行は下書きの色').toBe('セージ');
+      expect(await page.locator('#color-sw').evaluate((e) => getComputedStyle(e).getPropertyValue('--cat-tint').trim())).toBe('#DDE3D8');
+      await page.locator('#editor button[type=submit]').click(); await expect(page.locator('[data-scope="all"]')).toBeVisible();
+      const only = page.locator('[data-scope="only"]:not([disabled])'); // 戻した下書きでは「この予定のみ」が選べないことがある（回の手がかりが下書きにないとき）。選べるほうで保存する
+      await (scope === 'only' && (await only.count()) ? only : page.locator('[data-scope="all"]')).click(); await expect(page.locator('#editor')).toBeHidden();
+      const p = (await dbEvs(page)).find((e) => e.id === 'rp');
+      expect(p.colorId, '本体の colorId が残る').toBe('sage');
+      const m = await marksOf(page, 'rp'); expect(m.length).toBeGreaterThanOrEqual(4); expect(new Set(m), '全部の回がセージ').toEqual(new Set(['#65785B']));
+    });
+  }
+  test('下書きの中で選び直した色も戻る（色を選ぶ → 再起動 → 色が戻る → 保存しても残る）。「カテゴリの色」に戻した下書きは、戻したまま', async ({ page }) => {
+    await boot(page, { events: RP, sel: '2026-11-12' });
+    await openCard(page, '歯医者');
+    await page.locator('#f-color').click(); await page.locator('#color-pop .dopt', { hasText: 'テラコッタ' }).click(); await expect(page.locator('#color-pop')).toBeHidden(); await page.waitForTimeout(400);
+    expect((await draftOf(page)).colorId).toBe('terracotta');
+    expect((await dbEvs(page)).find((e) => e.id === 'e1').colorId).toBeUndefined();
+    await reloadKeep(page);
+    await expect(page.locator('#editor')).toBeVisible(); await page.waitForTimeout(350);
+    expect(await page.locator('#color-name').textContent()).toBe('テラコッタ');
+    await page.locator('#editor button[type=submit]').click(); await expect(page.locator('#editor')).toBeHidden();
+    expect((await dbEvs(page)).find((e) => e.id === 'e1').colorId).toBe('terracotta');
+    expect(new Set(await marksOf(page, 'e1'))).toEqual(new Set(['#A56148']));
+    // 色を外した下書き（colorId: null）は、外したまま戻る
+    await openCard(page, '歯医者');
+    await page.locator('#f-color').click(); await page.locator('#color-pop .dopt').first().click(); await expect(page.locator('#color-pop')).toBeHidden(); await page.waitForTimeout(400);
+    expect((await draftOf(page)).colorId).toBeNull();
+    await reloadKeep(page);
+    await expect(page.locator('#editor')).toBeVisible(); await page.waitForTimeout(350);
+    expect(await page.locator('#color-name').textContent()).toBe('カテゴリの色（プライベート）');
+    await page.locator('#editor button[type=submit]').click(); await expect(page.locator('#editor')).toBeHidden();
+    expect('colorId' in (await dbEvs(page)).find((e) => e.id === 'e1')).toBe(false);
+  });
+  test('下書きの colorId が壊れていても落ちない（文字列でない・41 字以上はカテゴリの色として戻す）', async ({ page }) => {
+    await boot(page, { events: RP, sel: '2026-11-12' });
+    await openCard(page, '歯医者'); await page.locator('#f-title').fill('歯医者2'); await page.waitForTimeout(400);
+    await page.evaluate(() => { const d = JSON.parse(sessionStorage.getItem('duo.draft.v1')); d.colorId = 'x'.repeat(41); sessionStorage.setItem('duo.draft.v1', JSON.stringify(d)); });
+    await page.reload(); await page.waitForSelector('html[data-ready]');
+    await expect(page.locator('#editor')).toBeVisible(); await page.waitForTimeout(350);
+    expect(await page.locator('#color-name').textContent()).toBe('カテゴリの色（プライベート）');
+  });
+});

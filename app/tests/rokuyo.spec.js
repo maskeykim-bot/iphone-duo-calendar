@@ -32,11 +32,11 @@ for (const [name, size] of POSTURES) {
     await expect(cell('2026-11-01').locator('.num')).toHaveText('11/1');
     await expect(cell('2026-11-16')).toHaveAttribute('aria-label', /^11月16日（月）、大安、予定0件/);
     await expect(rk(page, '2026-11-16')).toHaveAttribute('aria-hidden', 'true');
-    // 第19.1版 M-19: 当月は注の色 #68716A・W6・8px、前後の月は薄色 #8C918A
+    // 第19.4版 レビュー直し（品質 Q-2・設計 望ましい8）: 当月も前後の月も #5D6963・8px（前後の月は W4）。前は 当月 #68716A・前後の月 #8C918A（2.93 で基準を割っていた）
     const css = (loc) => loc.evaluate((e) => { const s = getComputedStyle(e); return [s.color, s.fontSize]; });
-    expect(await css(rk(page, '2026-11-16'))).toEqual(['rgb(104, 113, 106)', '8px']);
+    expect(await css(rk(page, '2026-11-16'))).toEqual(['rgb(93, 105, 99)', '8px']);
     const out = page.locator('.day.out .rk').first();
-    expect(await css(out)).toEqual(['rgb(140, 145, 138)', '8px']);
+    expect(await css(out)).toEqual(['rgb(93, 105, 99)', '8px']);
     expect(await rk(page, '2026-11-16').evaluate((e) => Number(getComputedStyle(e).fontWeight))).toBeGreaterThanOrEqual(600);
     // 第19.1版 H-06: 日付の行 18 に 日付（左）→ 六曜（右、閉じた画面 x+21 / 開いた縦 x+26・開いた横 x+21＝V-04 で閉じた画面と同じ寸法）と並べ、重ならない
     for (const d of ['2026-11-01', '2026-11-16', '2026-11-30']) {

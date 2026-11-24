@@ -627,7 +627,7 @@ function xcMirror(events) {
 // 読み込みが成功したあとだけ「消えたかどうか」を見る（連携の回答 5 の 4 つの条件は event-colors.js の xcSweep）
 function xcSweepNow() {
   if (!XC.map.size || X.status !== 'ok' || !X.cache) return;
-  const r = xcSweep(XC.map, { status: X.status, range: X.cache.range, calIds: X.cache.ids ? X.cache.ids.split(',') : [], events: X.cache.events });
+  const r = xcSweep(XC.map, { status: X.status, range: X.cache.range, calIds: X.cache.ids ? X.cache.ids.split(',').filter(Boolean) : [], events: X.cache.events }); // 連携 L-1: オンのカレンダーが 0 件なら空の配列（＝判断しない）
   if (r.changed) xcPut(r.table).catch(() => {});
 }
 const xcAfterLoad = () => { xcMirror(state.events).then(xcSweepNow); };
@@ -7942,6 +7942,7 @@ async function boot() {
       title: draft.title || '', categoryId: draftCat(draft), all: !!draft.all, start: draft.start || '', end: draft.end || '', place: draft.place || '', notes: draft.notes || '',
       rfreq: draft.rfreq, rbyday: Array.isArray(draft.rbyday) ? draft.rbyday : [], rend: draft.rend, rcount: draft.rcount, runtil: draft.runtil, ropen: !!draft.ropen, autoDays: draft.autoDays, dest: id ? draftEditDest(draft, id) : draftDest(draft),
       alarms: Array.isArray(draft.alarms) ? draft.alarms : id ? undefined : defaultAlarms(!!draft.all, loadNotify()),
+      colorId: validColorId(draft.colorId) ? draft.colorId : null, // 連携 M-1・品質 Q-1: 下書きで選んでいた色も戻す（渡さないと、保存で本体の colorId が消え、繰り返しは全部の回の色が消える）
     }, id, false);
     edBase = null; // 復元した下書きは未保存の変更として扱う
   }

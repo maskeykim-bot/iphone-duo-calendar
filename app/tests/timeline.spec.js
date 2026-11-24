@@ -221,9 +221,9 @@ test.describe('見開き: 右ページの時間軸', () => {
       const [pill, line] = await Promise.all([now.boundingBox(), page.locator('.nowl').evaluate((e) => { const c = getComputedStyle(e, '::before'); return { h: parseFloat(c.height), bg: c.backgroundColor }; })]);
       expect(Math.round(pill.height)).toBe(22);
       expect(line.h).toBeCloseTo(1.5, 1);
-      expect(line.bg).toBe('rgb(214, 69, 65)');
+      expect(line.bg).toBe('rgb(207, 63, 59)');
       const pr = await now.evaluate((e) => ({ bg: getComputedStyle(e).backgroundColor, c: getComputedStyle(e).color, r: getComputedStyle(e).borderRadius }));
-      expect(pr).toEqual({ bg: 'rgb(214, 69, 65)', c: 'rgb(255, 255, 255)', r: '999px' });
+      expect(pr).toEqual({ bg: 'rgb(207, 63, 59)', c: 'rgb(255, 255, 255)', r: '999px' });
       // 時刻列 44px・線は a+50 から
       const rp = await page.locator('.page.rp').boundingBox();
       const l0 = await page.locator('.tl .hl').first().boundingBox();

@@ -99,12 +99,12 @@ test('P-8: 4 つのどれにも当たらず見つからない行だけ missingSi
   assert.equal(xcSweep(r2.table, view({ range: { from: '2027-01-01', to: '2027-03-31' } }), NOW + 99 * DAY).table.has('K'), true);
 });
 test('P-8: 繰り返しは範囲の中の回が 1 つでもあれば「ある」。何も変わらなければ書き直さない', () => {
-  const t = table({ key: 'K', colorId: 'sage', title: 'tK', lastStart: '2026-11-17T10:00' });
+  const t = table({ key: 'K', colorId: 'sage', title: 'tK', lastStart: '2026-11-17T10:00', seenAt: NOW - 1000 }); // 最後に見てから 1 日たっていない（1 日たてば seenAt だけ新しくする。連携 L-2）
   const r = xcSweep(t, view({ events: [X('K', '2026-11-10T10:00'), X('K', '2026-11-17T10:00'), X('Z', '2026-11-11T10:00')] }), NOW);
   assert.equal(r.changed, false); assert.equal(r.table, t);
   const r2 = xcSweep(t, view({ events: [X('Z', '2026-11-11T10:00')] }), NOW); assert.equal(r2.table.get('K').missingSince, NOW);
   // itemId だけの予定（externalId が空）も同じキーで見つかる
-  const t4 = table({ key: 'ITEM9', colorId: 'sage' });
+  const t4 = table({ key: 'ITEM9', colorId: 'sage', seenAt: NOW - 1000 });
   assert.equal(xcSweep(t4, view({ events: [{ externalId: '', itemId: 'ITEM9', calId: 'C1', title: 't', start: '2026-11-12T10:00' }] }), NOW).changed, false);
 });
 
@@ -273,4 +273,31 @@ test('36 §8.2: Swift の hexColor は r・g・b を 0〜1 に収めてから変
   const hb = (v) => Math.round((Number.isNaN(v) ? 0 : Math.min(Math.max(v, 0), 1)) * 255), hex = (r, g, b) => '#' + [r, g, b].map((v) => hb(v).toString(16).padStart(2, '0')).join('');
   for (const c of [[1.09, -0.23, 0.5], [2, 2, 2], [-1, -1, -1], [NaN, 0.5, 1.0000001]]) assert.match(hex(...c), /^#[0-9a-f]{6}$/);
   assert.equal(hex(1.09, -0.23, 0.5), '#ff0080');
+});
+
+// ---- レビュー直し（data/連携_V194_レビュー.md の低）
+test('連携 L-1: オンのカレンダーが 0 件のときの ids（\'\'.split(\',\') の [\'\']）は「ids が空」と同じで、判断しない（calId が空の行にも missingSince を入れない）', async () => {
+  const { XC_SEEN_MS } = await import('../js/event-colors.js');
+  assert.equal(XC_SEEN_MS, 24 * 60 * 60 * 1000);
+  const now = 1_800_000_000_000;
+  let t = xcSet(new Map(), 'k-empty', 'sage', { calId: '', title: 'カレンダー不明', lastStart: '2026-11-12T10:00' }, now);
+  t = xcSet(t, 'k-cal', 'sage', { calId: 'cal-1', title: 'あり', lastStart: '2026-11-12T10:00' }, now);
+  const view = { status: 'ok', range: { from: '2026-11-01', to: '2026-11-30' }, events: [] };
+  for (const calIds of [[''], ['', ''], []]) { const r = xcSweep(t, { ...view, calIds }, now + 1000); assert.equal(r.changed, false, JSON.stringify(calIds)); assert.equal(r.table, t); }
+  // 実際の経路の作り方（app.js の xcSweepNow）: ids が '' なら空の配列
+  const idsOf = (s) => (s ? s.split(',').filter(Boolean) : []);
+  assert.deepEqual(idsOf(''), []); assert.deepEqual(idsOf('a,b'), ['a', 'b']);
+  // ふつうの ids では今までどおり判断する
+  const r = xcSweep(t, { ...view, calIds: ['cal-1'] }, now + 1000);
+  assert.equal(r.changed, true); assert.equal(r.table.get('k-cal').missingSince, now + 1000); assert.equal(r.table.get('k-empty').missingSince, undefined);
+});
+test('連携 L-2: 見つかった行の seenAt は、変わりがなくても 1 日たてば新しくなる（1 日のうちは書き込まない）。3000 件を超えたとき、毎日見ている予定が先に消されない', async () => {
+  const { XC_SEEN_MS } = await import('../js/event-colors.js');
+  const t0 = 1_800_000_000_000;
+  const t = xcSet(new Map(), 'k1', 'sage', { calId: 'cal-1', title: '定例', lastStart: '2026-11-12T10:00' }, t0);
+  const view = { status: 'ok', range: { from: '2026-11-01', to: '2026-11-30' }, calIds: ['cal-1'], events: [{ externalId: 'k1', itemId: 'i1', calId: 'cal-1', title: '定例', start: '2026-11-12T10:00' }] };
+  const a = xcSweep(t, view, t0 + XC_SEEN_MS - 1);
+  assert.equal(a.changed, false); assert.equal(a.table.get('k1').seenAt, t0); // 1 日のうちは書き込まない
+  const b = xcSweep(t, view, t0 + XC_SEEN_MS);
+  assert.equal(b.changed, true); assert.equal(b.table.get('k1').seenAt, t0 + XC_SEEN_MS); assert.equal(b.table.get('k1').colorId, 'sage');
 });
