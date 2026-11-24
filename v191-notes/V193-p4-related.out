@@ -1,0 +1,968 @@
+
+Running 941 tests using 3 workers
+
+(node:844086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+(node:844093) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+(node:844087) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1/941] [chromium] › tests/focus-tasks.spec.js:27:3 › 集中タスク › 四つの見方: 今日／予定／すべて／完了。重複も漏れもない
+[2/941] [chromium] › tests/home.spec.js:35:1 › 閉じたホーム: 次の予定・今日の予定3件＋ほか・タスク3件・明日（今日のメモカードはノート切替で廃止）。次の予定は二重掲載しない
+[3/941] [chromium] › tests/home-list.spec.js:18:1 › 保存済みの timeMode.list は値を保ち、表示名はリスト。ホームは時間に混ざらない
+[4/941] [chromium] › tests/focus-tasks.spec.js:42:3 › 集中タスク › 見方は保存され、選んだ日では今日がずれない
+[5/941] [chromium] › tests/home-list.spec.js:30:1 › 予定リスト: 選択日以降だけ、日見出し32・行40、予定のない日は飛ばす
+[6/941] [chromium] › tests/home.spec.js:60:1 › 閉じたホーム: 全体がスクロールし、「‹ カレンダー」は固定（タブは 34 で廃止）
+[7/941] [chromium] › tests/home-list.spec.js:45:1 › 予定リスト: 端までスクロールすると先の日が追加で読み込まれる。選択日を変えると起点も変わる
+[8/941] [chromium] › tests/focus-tasks.spec.js:53:3 › 集中タスク › 未選択は期限なし一覧。選ぶと詳細が出て、編集は即反映・保存される
+[9/941] [chromium] › tests/home.spec.js:76:1 › 20時以降は明日が今日の予定の上。選択日と独立して今日固定
+[10/941] [chromium] › tests/home.spec.js:88:1 › 0件案内と次の予定なし
+[11/941] [chromium] › tests/focus-tasks.spec.js:74:3 › 集中タスク › 空の題名は保存せず理由を出す
+[12/941] [chromium] › tests/home.spec.js:98:1 › 今日の予定のあと次の予定なし（今日が終わった）は明日以降を次に出す
+[13/941] [chromium] › tests/focus-tasks.spec.js:82:3 › 集中タスク › 追加欄は作り直されず、続けて追加できる。期限チップは今日／明日／日付なし
+[14/941] [chromium] › tests/home-list.spec.js:59:1 › ホームは独立ページ: 切替にホームがあり、右でも選べる。開いた縦の下の段にもホーム
+[15/941] [chromium] › tests/home.spec.js:106:1 › タスクの完了: ✓と打消線は即、1.5秒後に1回だけ保存して行が消え、6秒の「元に戻す」で戻る
+[16/941] [chromium] › tests/focus-tasks.spec.js:98:3 › 集中タスク › 完了の押下と削除。削除は選択を解く
+[17/941] [chromium] › tests/home-list.spec.js:75:1 › 閉じた画面: 下のタブはない。保存済みの表示が 週・ホーム でも、開いたときはカレンダーから始まる（design/34 §9.1-9・§9.2 で置き換え）
+[18/941] [chromium] › tests/move-to-day.spec.js:64:3 › 開いた横（月＋その日） › 短い押下（350ms 未満）ではつかまず、動かすと日は変わらない
+[19/941] [chromium] › tests/move-to-day.spec.js:73:3 › 開いた横（月＋その日） › 長押し 0.35 秒でつかむ。落とすと日だけ変わり時刻は同じ
+[20/941] [chromium] › tests/home.spec.js:128:1 › タスクの完了: 1.5秒内の押し直しは保存0回で未完了のまま
+[21/941] [chromium] › tests/move-to-day.spec.js:85:3 › 開いた横（月＋その日） › 複数日（終日）は長さを保つ。元に戻すで元の日へ。6 秒を過ぎると戻せない
+[22/941] [chromium] › tests/home.spec.js:139:1 › 導線: タイムライン›は日表示の今日、明日は明日、すべて›はタスク
+[23/941] [chromium] › tests/home.spec.js:155:1 › 旧メモがあってもホームに今日のメモカードは出ない
+[24/941] [chromium] › tests/home.spec.js:164:1 › 開いた横: ホームは9〜19時の小さな時間軸。予定をたたくと反対側の時間へ
+[25/941] [chromium] › tests/note-ime-r70.spec.js:65:5 › R-70 ノートの変換（模型、Chromium と WebKit） › 本文: ふつう → 途中の行が残らず、変換中に行を作り直さない
+[26/941] [chromium] › tests/home.spec.js:179:1 › 開いた縦の下段: 次の予定・タスクの2列（今日のメモ列は廃止）
+[27/941] [chromium] › tests/note-sheet.spec.js:30:3 › ノートのシート（開いた横） › 今日（左）を書く: シート x8〜465.5・y64〜669、帯 y72〜116（戻す x20〜116、道具 x128〜、完了 x412〜456）、本文 x24〜449.5
+[28/941] [chromium] › tests/note-sheet.spec.js:47:3 › ノートのシート（開いた横） › 明日（右）を書く: シート x485.5〜951、戻す x497.5〜593.5、完了 x895〜939、本文 x501.5〜835。キーボードがあっても帯は動かず、窓は kbTop−8 まで
+[29/941] [chromium] › tests/note-ime-r70.spec.js:65:5 › R-70 ノートの変換（模型、Chromium と WebKit） › 本文: 変換中の文字を span で包む（連携の見立て） → 途中の行が残らず、変換中に行を作り直さない
+[30/941] [chromium] › tests/move-to-day.spec.js:104:3 › 開いた横（月＋その日） › 繰り返しはその回だけ（親の日は変わらず、その回の上書きができる）
+[31/941] [chromium] › tests/note-sheet.spec.js:60:3 › ノートのシート（開いた横） › シートが出ている間はめくれない（右の端 x827〜851）。完了で閉じたあとは戻る
+[32/941] [chromium] › tests/move-to-day.spec.js:115:3 › 開いた横（月＋その日） › 時間軸の中で上下に引くと 15 分刻みで時刻が動き、月の日へ落とすとその時刻で移る
+[33/941] [chromium] › tests/note-sheet.spec.js:74:3 › ノートのシート（開いた縦・閉じた画面） › 開いた縦: シート y130〜溝の上、帯 y138〜182（戻す x16〜112、完了 x609〜653）、本文 x28〜641
+[34/941] [chromium] › tests/note-ime-r70.spec.js:65:5 › R-70 ノートの変換（模型、Chromium と WebKit） › 本文: 確定後にキャレットが行の外 → 途中の行が残らず、変換中に行を作り直さない
+[35/941] [chromium] › tests/note-sheet.spec.js:88:3 › ノートのシート（開いた縦・閉じた画面） › 閉じた画面: シート y152〜、帯 y160〜204（戻す x12〜108、完了 x410〜454）、本文 x20〜362
+[36/941] [chromium] › tests/move-to-day.spec.js:127:3 › 開いた横（月＋その日） › 月でない所で離したら取りやめ（変わらない）
+[37/941] [chromium] › tests/note-sheet.spec.js:113:3 › 戻す・やり直す・完了・紙 › 文字・書式が戻る/やり直せる。保存される本文は行頭の印の形
+[38/941] [chromium] › tests/move-to-day.spec.js:136:3 › 開いた横（月＋その日） › 月のチップの長押しは今のメニューのまま
+[39/941] [chromium] › tests/note-ime-r70.spec.js:65:5 › R-70 ノートの変換（模型、Chromium と WebKit） › 本文: 行の外に空の文字ノード → 途中の行が残らず、変換中に行を作り直さない
+[40/941] [chromium] › tests/move-to-day.spec.js:145:3 › iPhone の予定 › 読み取り専用の予定はつかめず書き込み 0。書ける予定は start/end だけを送る
+[41/941] [chromium] › tests/note-sheet.spec.js:128:3 › 戻す・やり直す・完了・紙 › 字のシート: 見出し・小見出し・本文・箇条書き・チェック
+[42/941] [chromium] › tests/move-to-day.spec.js:164:3 › 開いた縦（月タブ） › 下の面の予定を上の月の日へ落とせる
+[43/941] [chromium] › tests/note-ime-r70.spec.js:82:3 › R-70 ノートの変換（模型、Chromium と WebKit） › 連携の案: 変換中の行に span を差し込み isComposing の input → 行の数だけでなく、変換中のノードとキャレットが行の中に残ること
+[44/941] [chromium] › tests/note-sheet.spec.js:142:3 › 戻す・やり直す・完了・紙 › 戻す履歴は50回まで。完了で捨てる
+[45/941] [chromium] › tests/move-to-day.spec.js:177:3 › 開いた縦（月タブ・日の部分が時間軸） › 時間軸の枠を長押しで引き、上の月の日へ落とすと日だけ変わり時刻は同じ
+[46/941] [chromium] › tests/move-to-day.spec.js:193:3 › 開いた縦（月タブ・日の部分が時間軸） › 時間軸からの落とし：繰り返しはその回だけ（例外）
+[47/941] [chromium] › tests/note-ime-r70.spec.js:95:3 › R-70 ノートの変換（模型、Chromium と WebKit） › 本文直下の span の文字は、変換中の読み取りでも、確定後の作り直しでも消えない（flat が span を捨てていた件）
+[48/941] [chromium] › tests/move-to-day.spec.js:207:3 › つかめない画面 › 閉じた画面では予定を長押ししてもつかまない
+[49/941] [chromium] › tests/move-to-day.spec.js:220:5 › ニューヨークの夏時間（R-49） › 2026-03-07 10:00 の予定を 2026-03-08 へ移しても 10:00 のまま
+[50/941] [chromium] › tests/move-to-day.spec.js:220:5 › ニューヨークの夏時間（R-49） › 2026-10-31 10:00 の予定を 2026-11-01 へ移しても 10:00 のまま
+[51/941] [chromium] › tests/note-ime-r70.spec.js:122:3 › R-70 ノートの変換（模型、Chromium と WebKit） › 本文: 変換の取り消し（空で確定）で、途中の文字が画面にも保存にも残らない（キャレットが行の外の状態から）
+[52/941] [chromium] › tests/notes-checklist.spec.js:22:3 › ノートのチェック欄と書式 › 開いただけでは本文を変換・保存しない。書式ボタンで明示した行だけ変わる
+[53/941] [chromium] › tests/note-sheet.spec.js:157:3 › 戻す・やり直す・完了・紙 › 紙: 100行書いても下に 90 の空き。末尾の空きをたたくと次の行にカーソル
+[54/941] [chromium] › tests/notes-checklist.spec.js:33:3 › ノートのチェック欄と書式 › Return で次の項目、空項目の Return で通常行へ。Return は1回だけ
+[55/941] [chromium] › tests/note-sheet.spec.js:180:3 › 古い手書き（表示だけ） › 点の列: 本文の下に線。倍率 s=min(1, 幅/refW)、左寄せ。編集して保存しても ink は1バイトも変わらない
+[56/941] [chromium] › tests/notes-checklist.spec.js:46:3 › ノートのチェック欄と書式 › 日本語変換中の Return は項目を増やさない
+[57/941] [chromium] › tests/notes-checklist.spec.js:57:3 › ノートのチェック欄と書式 › チェック欄: 20pt の四角（第19.1版 H-14）・44pt の当たり、押すと済みがブロック末尾へ、取り消しで戻る
+[58/941] [chromium] › tests/note-ime-r70.spec.js:133:3 › R-70 ノートの変換（模型、Chromium と WebKit） › 本文: 変換中に「完了」で閉じても、途中の行は1つも保存されない
+[59/941] [chromium] › tests/notes-checklist.spec.js:78:3 › ノートのチェック欄と書式 › 題名は本文1行目と同期し、保存して再読込しても同じ形で戻る。HTML 文字は文字のまま
+[60/941] [chromium] › tests/notes-editor.spec.js:31:3 › ノートの編集部品 › 保存ボタンなし。入力→自動保存→再読込で残り、保存後は下書きが消える。1行目が題名
+[61/941] [chromium] › tests/notes-editor.spec.js:53:3 › ノートの編集部品 › 保存前に終了しても、再開で最後の文字が戻る（古い下書きでDBを上書きしない）
+[62/941] [chromium] › tests/note-sheet.spec.js:194:3 › 古い手書き（表示だけ） › refW なし: max(点の x の最大, 342) を基準にする
+[63/941] [chromium] › tests/notes-editor.spec.js:69:3 › ノートの編集部品 › ノートを切り替える前に flush され、戻ると最後の文字がある
+[64/941] [chromium] › tests/note-sheet.spec.js:200:3 › 古い手書き（表示だけ） › data:image: 画像として出る。ink は変わらない
+[65/941] [chromium] › tests/notes-editor.spec.js:83:3 › ノートの編集部品 › 変換中に強制 pagehide / 非表示になっても入力済みの文字を書く
+[66/941] [chromium] › tests/note-ime-r70.spec.js:148:3 › R-70 ノートの変換（Chromium の本物の IME） › 本文（新しいその日のノート）: 1行「これは今日のノート」、題名は日付
+[67/941] [chromium] › tests/notes-editor.spec.js:92:3 › ノートの編集部品 › 空の作成途中は離れると破棄、既存ノートは空にしても勝手に消えない
+[68/941] [chromium] › tests/notes-folders.spec.js:27:1 › 初期フォルダはなし。作成→チップ選択→ノートを移動→フォルダ内だけ表示→再読込でも残る
+[69/941] [chromium] › tests/notes-editor.spec.js:103:3 › ノートの編集部品 › DB 保存の失敗は欄の近くに出て、下書きが残り、再試行で保存される
+[70/941] [chromium] › tests/notes-editor.spec.js:117:3 › ノートの編集部品 › 端末の下書き領域が一杯でも DB には保存され、欄の近くに知らせる
+[71/941] [chromium] › tests/notes-editor.spec.js:125:3 › ノートの編集部品 › 削除は最近削除に入り、30日以内は元に戻せる（44pt の当たり）
+[72/941] [chromium] › tests/notes-folders.spec.js:52:1 › フォルダの改名・並べ替え・削除（確認文。ノートはフォルダなしへ、本文と更新日時は保つ）。長い名前・同名
+[73/941] [chromium] › tests/notes-editor.spec.js:142:3 › ノートの編集部品 › 題名と本文は1つの本文として保存され、CRLF と末尾の改行を保つ
+[74/941] [chromium] › tests/notes-editor.spec.js:166:3 › ノートの日付 › 日付を付ける→見出しと一覧に出る→外す。ノートは消えない
+[75/941] [chromium] › tests/note-ime-r70.spec.js:157:3 › R-70 ノートの変換（Chromium の本物の IME） › 本文: 行の外に文字ノードが1つある状態でも、途中の「き」が残らない
+[76/941] [chromium] › tests/notes-editor.spec.js:186:3 › ノートの日付 › 衝突: そのノートを開く／付け替える（相手は消えない）
+[77/941] [chromium] › tests/notes-folders.spec.js:97:1 › ピン留め: メニュー・左スワイプ・本文見出しのボタン。2群に分かれ、pin時刻→更新順。再読込でも残る。外すと戻る
+[78/941] [chromium] › tests/notes-editor.spec.js:211:3 › ノートの日付 › 明示 null のあとも sourceDate は残る（日付を外しても元の日付は消えない）
+[79/941] [chromium] › tests/note-ime-r70.spec.js:167:3 › R-70 ノートの変換（Chromium の本物の IME） › 本文: Esc（空で取り消し）で「これは」だけに戻る
+[80/941] [chromium] › tests/notes-folders.spec.js:137:1 › 44pt当たり・チップは横スクロール・フォルダを開いて新規作成するとその中に入る
+[81/941] [chromium] › tests/notes-editor.spec.js:225:3 › ノートの日付 › 複数件ある日の「そのノートを開く」は、その日に絞った一覧
+[82/941] [chromium] › tests/notes-rich-s3.spec.js:28:3 › ノートの本文: 記号は画面に出さず、保存の文字は変えない › 開いても本文を書き換えない（updatedAt 不変）。画面に記号が1つも出ない。値は保存の文字のまま
+[83/941] [chromium] › tests/notes-rich-s3.spec.js:40:3 › ノートの本文: 記号は画面に出さず、保存の文字は変えない › 保存の往復: 書式バーの操作で保存の文字が note-lines と同じ形になる（見出し・箇条書き・チェック・トグルで戻る）
+[84/941] [chromium] › tests/notes-rich-s3.spec.js:62:3 › ノートの本文: 記号は画面に出さず、保存の文字は変えない › 「- 」「# 」「- [ ] 」と打つとその行が箇条書き・見出し・チェックになり、記号は画面から消えて保存の文字に残る
+[85/941] [chromium] › tests/note-ime-r70.spec.js:176:3 › R-70 ノートの変換（Chromium の本物の IME） › 題名: 1行の「今日のノート」、途中の文字は残らない
+[86/941] [chromium] › tests/notes-folders.spec.js:154:1 › 削除したノートは30日は戻せる。期限後の整理は削除済みだけ
+[87/941] [chromium] › tests/notes-rich-s3.spec.js:79:3 › ノートの本文: 記号は画面に出さず、保存の文字は変えない › Backspace: 記号の行の頭ではふつうの行に戻り、ふつうの行の頭では前の行とつながる。Delete: 行末で次の行をつなげ、次の行の記号は捨てる
+[88/941] [chromium] › tests/notes-search-large.spec.js:13:1 › 1500件: DOMは一括で作らず、末尾まで届き、末尾を開ける
+[89/941] [chromium] › tests/notes-rich-s3.spec.js:96:3 › ノートの本文: 記号は画面に出さず、保存の文字は変えない › Return: 文字の途中で分けると後ろが次の行へ。見出しの途中は後ろがふつうの行。箇条書きの頭の Return は今までどおり
+[90/941] [chromium] › tests/notes-rich-s3.spec.js:109:3 › ノートの本文: 記号は画面に出さず、保存の文字は変えない › 行をまたぐ選択: 全選択して打つ・消す・Return で置き換わる。保存の文字に消えた行の記号が残らない
+[chromium] › tests/notes-search-large.spec.js:13:1 › 1500件: DOMは一括で作らず、末尾まで届き、末尾を開ける
+# 記録 {"search":0,"count":1500,"hits":1500,"list":1,"window":0,"rendered":19}
+
+[91/941] [chromium] › tests/notes-search-large.spec.js:31:1 › フォルダ内にいても検索は全ノート。ピン留め→更新順。語を消すとフォルダ表示に戻る
+[92/941] [chromium] › tests/notes-rich-s3.spec.js:125:3 › ノートの本文: 記号は画面に出さず、保存の文字は変えない › 複数行の挿入（貼り付けの insertText 経路）: 記号つきの行は書式の行になり、保存の文字はそのまま
+[93/941] [chromium] › tests/notes-rich-s3.spec.js:134:3 › ノートの本文: 記号は画面に出さず、保存の文字は変えない › 貼り付け（paste イベント）: プレーンテキストだけを入れ、HTML は文字として扱う
+[94/941] [chromium] › tests/note-ime-r70.spec.js:184:3 › R-70 ノートの変換（Chromium の本物の IME） › 変換中に画面を開く（466×678 → 669×951）: 確定後は1行
+[95/941] [chromium] › tests/notes-search-large.spec.js:48:1 › 削除済みは通常の一覧・全体検索に出ない
+[96/941] [chromium] › tests/notes-rich-s3.spec.js:144:3 › ノートの本文: 記号は画面に出さず、保存の文字は変えない › 元に戻す・やり直す: 画面の ↩ とキーボード（Ctrl+Z）の両方が、保存の文字を戻す
+[97/941] [chromium] › tests/open-portrait-s2.spec.js:20:3 › 開いた縦のホーム（案A） › 寸法: 上の面 y82〜459・下の面 y500〜847、帯 y459〜492 に何も置かない
+[98/941] [chromium] › tests/open-portrait-s2.spec.js:45:3 › 開いた縦のホーム（案A） › 今日の予定 8件: 5行＋「ほか n件 ›」。カードの高さは 201 のまま
+[99/941] [chromium] › tests/open-portrait-s2.spec.js:57:3 › 開いた縦のホーム（案A） › 今週の帯: 7マス 92.1・日付の行 18・チップ 14＋間 2・最大3段、あふれは日付の行右の +N
+[100/941] [chromium] › tests/open-portrait-s2.spec.js:82:3 › 開いた縦のホーム（案A） › 今週のマスをたたくと日タブのその日。「月 ›」で月タブ
+[101/941] [chromium] › tests/open-portrait-s2.spec.js:93:3 › 開いた縦のホーム（案A） › 今週のマスの長押しで期間選択・メニューは出ない
+[102/941] [chromium] › tests/note-ime-r70.spec.js:194:3 › R-70 ノートの変換（Chromium の本物の IME） › 既にある途中の行（ゴミ行）を勝手に消さない: 開いただけでは1文字も変えず、書き足しても前の行は残る
+[103/941] [chromium] › tests/notes-rich-s3.spec.js:158:3 › ノートの本文: 記号は画面に出さず、保存の文字は変えない › 日本語入力（変換中）: 変換中は DOM を触らず、確定で保存の文字になる。記号の行の中でも同じ
+[104/941] [chromium] › tests/notes-rich-s3.spec.js:182:3 › ノートの本文: 記号は画面に出さず、保存の文字は変えない › カーソル移動: 矢印キーで行をまたいでも位置（保存の文字のオフセット）が記号を飛ばして進む
+[105/941] [chromium] › tests/open-portrait-s2.spec.js:99:3 › 開いた縦のホーム（案A） › 「すべて ›」「ノート」は集中モード、タイムライン › は日タブ
+[106/941] [chromium] › tests/notes-rich-s3.spec.js:194:3 › ノートの本文: 記号は画面に出さず、保存の文字は変えない › チェックの四角: 押すと完了（文字は #68716A＋取り消し線）、保存の文字は「- [x] 」
+[107/941] [chromium] › tests/notes-rich-s3.spec.js:205:3 › ノートの寸法（開いた横 951×669、右の帯 84） › 題と本文の頭が同じ x（513.5）。チェックの行だけ四角 20 が頭に、文字は +28。四角の押せる範囲は 44×44
+[108/941] [chromium] › tests/open-portrait-s2.spec.js:108:3 › 開いた縦のホーム（案A） › 設定 x20〜64・検索 x605〜649（y19〜63・44×44）。切替は上の帯の真ん中 x208.5〜460.5・y23〜59（V-01: 252×36）、下の段にはない
+[109/941] [chromium] › tests/notes-rich-s3.spec.js:235:3 › 見るだけの表示にも記号を出さない（M-06） › 1日ページのノート欄: 空の日は「この日のノートを書く」15pt #A8ABA4 が1行目。ノートがある日は記号なしで行の種類を描く
+[110/941] [chromium] › tests/open-portrait-s2.spec.js:133:3 › 開いた縦のホーム（案A） › 文字を大きくしたとき: 上の面・下の面が窓になり、窓の中だけスクロール（帯にかからない）
+[111/941] [chromium] › tests/notes-rich-s3.spec.js:254:3 › 時間ページの見出し（M-07） › 日付と六曜が切れない。ノートの札は見出しの行から外れ、終日の行の右に押せる 44
+[112/941] [chromium] › tests/open-portrait-s2.spec.js:148:3 › 開いた縦の月「全部」（1枚の紙・2つの窓） › 上の窓 y146〜458・下の窓 y500〜。帯 y459〜492 に文字も行も出ない。2つの窓は同じ位置で動く
+[113/941] [chromium] › tests/note-ime-r70.spec.js:221:3 › R-70 の直しで戻ってはいけないもの（S8 の決まり・貼り付け） › 空にした題名は記号を残さない（「# 」だけの行にしない）
+[114/941] [chromium] › tests/open-portrait.spec.js:14:5 › 開いた縦 626×890: 月 › 全幅の月。下部の予定一覧はなく、上の設定・検索と下の今日／タブ／＋が重ならない
+[115/941] [chromium] › tests/open-portrait-s2.spec.js:188:3 › 設定シート（H-22） › 開いた縦: 帯 y459〜492 にかかる行は y500（溝 y467〜484 の下 16。V-08）から下の面へ送る
+[116/941] [chromium] › tests/open-portrait.spec.js:72:7 › 開いた縦 626×890: 月 › 2026年12月（月曜始まり5週）: 月の型は6行を均等に、最後の行まで溝の上に収まる
+[117/941] [chromium] › tests/note-ime-r70.spec.js:226:3 › R-70 の直しで戻ってはいけないもの（S8 の決まり・貼り付け） › 題名に自分で「# x」と打つと、保存は「# x」（「# # x」にしない）
+[118/941] [chromium] › tests/open-portrait.spec.js:72:7 › 開いた縦 626×890: 月 › 2027年2月（4週）: 月の型は6行を均等に、最後の行まで溝の上に収まる
+[119/941] [chromium] › tests/pages.spec.js:11:1 › 新規の既定は 左=ホーム 右=月。pages が保存され、旧 home/view も残る
+[120/941] [chromium] › tests/open-portrait.spec.js:72:7 › 開いた縦 626×890: 月 › 2026年11月（6週）: 月の型は6行を均等に、最後の行まで溝の上に収まる
+[121/941] [chromium] › tests/pages.spec.js:22:1 › 保存済みの有効な 左=月 右=時間 は尊重される（既存の端末は動かない）
+[122/941] [chromium] › tests/open-portrait.spec.js:72:7 › 開いた縦 626×890: 月 › 2026年8月（6週）: 月の型は6行を均等に、最後の行まで溝の上に収まる
+[123/941] [chromium] › tests/pages.spec.js:31:1 › 壊れた pages は既定へ。重複は別種類にする
+[124/941] [chromium] › tests/open-portrait.spec.js:87:5 › 開いた縦 626×890: 月 › 日曜始まり: 2027年2月は列が日曜から。月送りで下の面・タブは動かない
+[125/941] [chromium] › tests/pages.spec.js:41:1 › 左を時間・右を月にしても描ける。時間軸は左ペイン単位
+[126/941] [chromium] › tests/note-ime-r70.spec.js:231:3 › R-70 の直しで戻ってはいけないもの（S8 の決まり・貼り付け） › 題名への複数行の貼り付け: 1行目が題名（記号は出さない）、残りは本文の先頭
+[127/941] [chromium] › tests/open-portrait.spec.js:102:5 › 開いた縦 626×890: 月 › 2週の型で 11/13 の5件が全部出て、日をたたくと下の日の部分が変わる（日表示へは進まない）
+[128/941] [chromium] › tests/pages.spec.js:53:1 › タスクは説明のみ、ノートは一覧と新規。入力前は localStorage にノート・メモの下書きを作らない
+[129/941] [chromium] › tests/open-portrait.spec.js:114:5 › 開いた縦 626×890: 月 › simple を保存したまま縦は予定名で表示し、閉じた画面へ戻すと手帳
+[130/941] [chromium] › tests/pages.spec.js:69:1 › 切替は左右に1つずつ。幅320・高40・各64（S5 M-03）、折り目から10以上離れる
+[131/941] [chromium] › tests/pages.spec.js:88:1 › 左右の全12組合せ。同じ種類は交換し、再読込でも保たれる
+[132/941] [chromium] › tests/reminder-add.spec.js:13:3 › タスクの続けて追加 › 許可なし・Web でなくても日英3件が未完了で入り、再起動後も残る。native 呼出0
+[133/941] [chromium] › tests/reminder-add.spec.js:30:3 › タスクの続けて追加 › × で期限なし。もう一度たたくと日付の部品が開き、日をたたくと期限が付く
+[134/941] [chromium] › tests/open-portrait.spec.js:127:5 › 開いた縦 626×890: 月 › 2週の型は6段: 帯＋チップは6段まで、収まらない日は +N（日付の行）にする（帯も1件に数える）
+[135/941] [chromium] › tests/reminder-add.spec.js:45:3 › タスクの続けて追加 › 期限の部品で日付と時刻を選んで追加できる。通知は既定でなし
+[136/941] [chromium] › tests/pages.spec.js:105:1 › 左の時間を押すと 左=時間・右=月 に交換される
+[137/941] [chromium] › tests/reminder-add.spec.js:62:3 › タスクの続けて追加 › 連打は1件だけ（保存中は排他）／保存中は入力欄が readonly
+[138/941] [chromium] › tests/pages.spec.js:114:1 › 時間のカプセル: 1日・3日・週・リスト（幅120・行44）。週とリストもそのペインで描く
+[139/941] [chromium] › tests/reminder-add.spec.js:75:3 › タスクの続けて追加 › IME 変換中の Enter は保存しない（確定後の Enter で保存）
+[140/941] [chromium] › tests/reminder-add.spec.js:89:3 › タスクの続けて追加 › 変換中に再描画が来ても入力欄は作り直されない
+[141/941] [chromium] › tests/pages.spec.js:138:1 › カプセルの一覧は外をたたくと閉じる（外の操作はしない）。Escape でも閉じる
+[142/941] [chromium] › tests/reminder-add.spec.js:99:3 › タスクの続けて追加 › 保存失敗では本文を残し理由を出す。再試行で1件だけ入る（同じ id）
+[143/941] [chromium] › tests/pages.spec.js:150:1 › 左を時間・右を月にしても、右の月は月の見出しと前後を持ち、左の時間は日で動く
+[144/941] [chromium] › tests/pages.spec.js:163:1 › ＋の行き先は最後に触ったページ。タスクは入力欄へ、メモ・タスクは予定を開かない
+[145/941] [chromium] › tests/reminder-add.spec.js:117:3 › タスクの続けて追加 › 追加ボタンでも失敗の再試行ができる。ボタンは入力欄からフォーカスを奪わない
+[146/941] [chromium] › tests/pages.spec.js:176:1 › 下の余白64・折り目の描画なし。時間と一覧の末尾が切替の裏まで続く
+[147/941] [chromium] › tests/pages.spec.js:185:1 › 壊れた timeMode は1日へ。保存値の週は残る
+[148/941] [chromium] › tests/reminder-add.spec.js:130:3 › タスクの続けて追加 › 追加直後の再読込（300ms 後）でも追加済みの行は消えず二重にもならない
+[149/941] [chromium] › tests/pages.spec.js:194:1 › safe R84／非対称 safe でも、右の切替は右ページの利用幅 [f+10, W-R-16] の中央で、帯・折り目と重ならない
+[150/941] [chromium] › tests/reminder-add.spec.js:138:3 › タスクの続けて追加 › PR5: 日英3連続・同じ入力ノード・229 でも実変換中でなければ保存・連打は1件
+[151/941] [chromium] › tests/pages.spec.js:220:5 › AE-4 951: 左=month 右=time で「全」を入れても月でないページは寸法・スクロールが変わらない
+[152/941] [chromium] › tests/reminder-add.spec.js:151:3 › タスクの続けて追加 › PR5: 変換確定前に追加ボタン→確定後に1回だけ保存。blur 後の再入力もできる
+[153/941] [chromium] › tests/pages.spec.js:220:5 › AE-4 951: 左=month 右=task で「全」を入れても月でないページは寸法・スクロールが変わらない
+[154/941] [chromium] › tests/reminder-add.spec.js:168:3 › タスクの続けて追加 › ページの＋で入力欄にフォーカス。予定・outbox・書き出しへタスク名が混ざらない
+[155/941] [chromium] › tests/pages.spec.js:220:5 › AE-4 951: 左=month 右=memo で「全」を入れても月でないページは寸法・スクロールが変わらない
+[156/941] [chromium] › tests/reminder-delete.spec.js:19:3 › タスクの削除 › 左スワイプで即非表示、4秒内は保存したまま、4秒後に Duo 内から消える
+[157/941] [chromium] › tests/pages.spec.js:220:5 › AE-4 951: 左=time 右=month で「全」を入れても月でないページは寸法・スクロールが変わらない
+[158/941] [chromium] › tests/open-portrait.spec.js:153:5 › 開いた縦 626×890: 月 › 全部: 週は伸びて内部スクロール、末尾まで下段の上に出せる
+[159/941] [chromium] › tests/pages.spec.js:220:5 › AE-4 951: 左=memo 右=month で「全」を入れても月でないページは寸法・スクロールが変わらない
+[160/941] [chromium] › tests/pages.spec.js:220:5 › AE-4 951: 左=task 右=month で「全」を入れても月でないページは寸法・スクロールが変わらない
+[161/941] [chromium] › tests/open-portrait.spec.js:14:5 › 開いた縦 669×951: 月 › 全幅の月。下部の予定一覧はなく、上の設定・検索と下の今日／タブ／＋が重ならない
+[162/941] [chromium] › tests/pages.spec.js:220:5 › AE-4 890: 左=month 右=time で「全」を入れても月でないページは寸法・スクロールが変わらない
+[163/941] [chromium] › tests/pages.spec.js:220:5 › AE-4 890: 左=month 右=task で「全」を入れても月でないページは寸法・スクロールが変わらない
+[164/941] [chromium] › tests/open-portrait.spec.js:72:7 › 開いた縦 669×951: 月 › 2026年12月（月曜始まり5週）: 月の型は6行を均等に、最後の行まで溝の上に収まる
+[165/941] [chromium] › tests/open-portrait.spec.js:72:7 › 開いた縦 669×951: 月 › 2027年2月（4週）: 月の型は6行を均等に、最後の行まで溝の上に収まる
+[166/941] [chromium] › tests/pages.spec.js:220:5 › AE-4 890: 左=month 右=memo で「全」を入れても月でないページは寸法・スクロールが変わらない
+[167/941] [chromium] › tests/open-portrait.spec.js:72:7 › 開いた縦 669×951: 月 › 2026年11月（6週）: 月の型は6行を均等に、最後の行まで溝の上に収まる
+[168/941] [chromium] › tests/open-portrait.spec.js:72:7 › 開いた縦 669×951: 月 › 2026年8月（6週）: 月の型は6行を均等に、最後の行まで溝の上に収まる
+[169/941] [chromium] › tests/pages.spec.js:220:5 › AE-4 890: 左=time 右=month で「全」を入れても月でないページは寸法・スクロールが変わらない
+[170/941] [chromium] › tests/open-portrait.spec.js:87:5 › 開いた縦 669×951: 月 › 日曜始まり: 2027年2月は列が日曜から。月送りで下の面・タブは動かない
+[171/941] [chromium] › tests/pages.spec.js:220:5 › AE-4 890: 左=memo 右=month で「全」を入れても月でないページは寸法・スクロールが変わらない
+[172/941] [chromium] › tests/open-portrait.spec.js:102:5 › 開いた縦 669×951: 月 › 2週の型で 11/13 の5件が全部出て、日をたたくと下の日の部分が変わる（日表示へは進まない）
+[173/941] [chromium] › tests/pages.spec.js:220:5 › AE-4 890: 左=task 右=month で「全」を入れても月でないページは寸法・スクロールが変わらない
+[174/941] [chromium] › tests/open-portrait.spec.js:114:5 › 開いた縦 669×951: 月 › simple を保存したまま縦は予定名で表示し、閉じた画面へ戻すと手帳
+[175/941] [chromium] › tests/reminder-delete.spec.js:34:3 › タスクの削除 › 取り消すと保存を変えず元へ戻り、再読込後も残る
+[176/941] [chromium] › tests/reminder-edit.spec.js:11:3 › タスクの編集と完了 › 完了は表示だけ即、1.5秒は同じ段で完了表示（保存はその後1回）、その後完了段へ。native 呼出0
+[177/941] [chromium] › tests/open-portrait.spec.js:127:5 › 開いた縦 669×951: 月 › 2週の型は6段: 帯＋チップは6段まで、収まらない日は +N（日付の行）にする（帯も1件に数える）
+[178/941] [chromium] › tests/reminder-edit.spec.js:25:3 › タスクの編集と完了 › 素早い完了戻しは最後の状態（未完了）で保存され、移動しない
+[179/941] [chromium] › tests/reminder-edit.spec.js:36:3 › タスクの編集と完了 › 保存失敗は表示を戻してお知らせ
+[180/941] [chromium] › tests/reminder-delete.spec.js:45:3 › タスクの削除 › 短いスワイプでは消さない（縦はスクロール扱い）
+[181/941] [chromium] › tests/reminder-delete.spec.js:55:3 › タスクの削除 › 画面が裏に回ったら待っている削除を即保存へ反映する
+[182/941] [chromium] › tests/reminder-delete.spec.js:63:3 › タスクの削除 › 保存失敗は表示へ戻してお知らせ（行は消えず、データも残る）
+[183/941] [chromium] › tests/reminder-edit.spec.js:45:3 › タスクの編集と完了 › 編集は題名だけ変える。期限・メモ・通知など他の項目は保つ
+[184/941] [chromium] › tests/reminder-edit.spec.js:61:3 › タスクの編集と完了 › 期限をなしにする。変更なしは保存しない（updatedAt 不変）
+[185/941] [chromium] › tests/open-portrait.spec.js:153:5 › 開いた縦 669×951: 月 › 全部: 週は伸びて内部スクロール、末尾まで下段の上に出せる
+[186/941] [chromium] › tests/reminder-edit.spec.js:75:3 › タスクの編集と完了 › 保存失敗は理由を出して閉じない。削除済みは作り直さず案内
+[187/941] [chromium] › tests/open-portrait.spec.js:173:5 › 開いた縦: safe area・キーボード・下書き › 626×890: safe 上47・下34 でも操作は安全矩形の内側で、見出し・月・下段が重ならない
+[188/941] [chromium] › tests/reminder-edit.spec.js:95:3 › タスクの編集と完了 › 未保存の変更は破棄の確認、閉じると行へフォーカスが戻る
+[189/941] [chromium] › tests/open-portrait.spec.js:173:5 › 開いた縦: safe area・キーボード・下書き › 669×951: safe 上47・下34 でも操作は安全矩形の内側で、見出し・月・下段が重ならない
+[190/941] [chromium] › tests/open-portrait.spec.js:193:3 › 開いた縦: safe area・キーボード・下書き › 入力中のキーボード相当の高さ縮小でも DOM は変わらず、下書きが残る
+[191/941] [chromium] › tests/reminder-delete.spec.js:72:3 › タスクの削除 › 連続削除は各自のタイマーで1件ずつ確定する
+[192/941] [chromium] › tests/reminder-edit.spec.js:112:57 › タスクの編集と完了 › openPortrait でも完了できる
+[193/941] [chromium] › tests/open-portrait.spec.js:210:3 › 開いた縦 626×890: 週 › 7列の時間軸。長いタイトルは窓の中で折り返さず1行、日付の行は 月〜日、本文は窓の中だけでスクロール
+[194/941] [chromium] › tests/open-portrait.spec.js:228:3 › 開いた縦 626×890: 週 › 複数日予定は該当日それぞれの終日の段に載り、日付から日表示へ進める
+[195/941] [chromium] › tests/reminder-gate.spec.js:10:3 › 許可なしでタスクを使える › iPhone アプリ: 許可の案内・ボタンは出ず、追加欄と一覧が出る。許可要求・一覧取得は0
+[196/941] [chromium] › tests/reminder-gate.spec.js:19:3 › 許可なしでタスクを使える › Web（native なし）でも同じ。「iPhone のアプリで使えます」は出ない
+[197/941] [chromium] › tests/reminder-edit.spec.js:112:57 › タスクの編集と完了 › openLandscape951 でも完了できる
+[198/941] [chromium] › tests/reminder-gate.spec.js:25:3 › 許可なしでタスクを使える › 前面復帰・calendarChanged でも許可確認や取得をしない
+[199/941] [chromium] › tests/reminder-gate.spec.js:33:3 › 許可なしでタスクを使える › 設定›カレンダーにリマインダーの許可・同期・リスト段は出ない
+[200/941] [chromium] › tests/reminder-gate.spec.js:44:3 › 縦の下パネル › 下パネルのタスクにも追加欄（許可なし）
+[201/941] [chromium] › tests/reminder-edit.spec.js:132:3 › タスクの期限の共通部品 › 日付のみ・10:07・期限なし・通知付きは、開いて保存しても何も書き換えない
+[202/941] [chromium] › tests/reminder-notify-ui.spec.js:12:3 › タスクの通知の選択 › 開いて保存しても通知は変わらない（通知なしに既定を足さない）
+[203/941] [chromium] › tests/reminder-notify-ui.spec.js:22:3 › タスクの通知の選択 › 時刻変更だけでは通知を変えない。日付のみは 8:00 の説明
+[204/941] [chromium] › tests/reminder-delete.spec.js:80:3 › タスクの削除 › 編集シートの削除ボタンで同じく4秒猶予
+[205/941] [chromium] › tests/reminder-notify-ui.spec.js:34:3 › タスクの通知の選択 › 通知を外すと notify:false で保存される
+[206/941] [chromium] › tests/reminder-edit.spec.js:143:3 › タスクの期限の共通部品 › 10:07 は表示のまま、時だけ押しても 07 分を保ち、分は押さなければ変えない
+[207/941] [chromium] › tests/reminder-notify-ui.spec.js:43:3 › タスクの通知の選択 › 期限なしでは通知不可。期限を戻すと操作した状態を反映し、期限なしで保存すると notify:false
+[208/941] [chromium] › tests/reminder-edit.spec.js:154:3 › タスクの期限の共通部品 › 期限だけ変えても通知はオンにならない。時刻を外すと日付のみ
+[209/941] [chromium] › tests/reminder-notify-ui.spec.js:59:3 › タスクの通知の選択 › 保存失敗では保存シートに残りお知らせを出す（通知の選択も保持）。native 呼出0
+[210/941] [chromium] › tests/reminder-edit.spec.js:169:3 › タスクの期限の共通部品 › 期限なしでは「時刻を入れる」は使えない。日付を選ぶと使える
+[211/941] [chromium] › tests/reminder-notify-ui.spec.js:71:3 › タスクの通知の選択 › 追加: 既定は通知なし、オンにしたときだけ true、期限なしでは false
+[212/941] [chromium] › tests/reminder-notify.spec.js:37:3 › タスクの local 通知 › notify・未完了・期限ありだけ予約。時刻は期限ちょうど、日付だけは8時。旧リマインダー API は0
+[213/941] [chromium] › tests/reminder-removed.spec.js:13:1 › 静的: Info.plist に NSReminders* の 2 キーが無く、Swift にリマインダーの許可・一覧・書き込みの登録も実装も無い。JS のどこからも呼ばない。カレンダーの文言は残る
+[214/941] [chromium] › tests/reminder-removed.spec.js:32:1 › native.js: リマインダーの橋（reminderPermission・requestReminderPermission・listReminderLists・remNative・reminderErrText）は無い。予定・通知の橋は残る
+[215/941] [chromium] › tests/reminder-removed.spec.js:42:1 › 実行: 旧リマインダー集合が端末にあっても、起動・追加・完了・削除でリマインダー系の呼出は0、許可画面なし
+[216/941] [chromium] › tests/reminder-settings.spec.js:29:3 › 月にタスクを表示 › 初期は off（件数なし）。オンにすると開いた画面にだけ ✓N、タスク名は出ない
+[217/941] [chromium] › tests/reminder-notify.spec.js:47:3 › タスクの local 通知 › 予定とタスクの混在 61 件以上: 近い順の59件＋refresh で60件以内。予定の通知は残る
+[218/941] [chromium] › tests/reminder-settings.spec.js:45:3 › 月にタスクを表示 › 旧 monthTasks:true は新設定へ一度だけ継承。以後は新設定が正で、旧設定は変わらない
+[219/941] [chromium] › tests/reminder-tasks.spec.js:20:3 › タスクの分類と完了履歴 › 分類の順・行の高さ・完了は閉じている。native の一覧取得は0
+[220/941] [chromium] › tests/reminder-settings.spec.js:58:3 › 月にタスクを表示 › 閉じた画面では出さない
+[221/941] [chromium] › tests/reminder-tasks.spec.js:31:3 › タスクの分類と完了履歴 › 完了を開く: 30日以内だけ。古い完了は表示窓の外
+[222/941] [chromium] › tests/reminder-notify.spec.js:60:3 › タスクの local 通知 › 完了で消え、元に戻すと再予約。重複なし
+[223/941] [chromium] › tests/reminder-settings.spec.js:64:5 › 月にタスクを表示 › 位置: 日付の行で六曜の右・8pt、+N と重ならない 626x890
+[224/941] [chromium] › tests/reminder-tasks.spec.js:39:3 › タスクの分類と完了履歴 › 選択日を変えると分類だけ変わる。右ページでも同じ分類
+[225/941] [chromium] › tests/reminder-settings.spec.js:64:5 › 月にタスクを表示 › 位置: 日付の行で六曜の右・8pt、+N と重ならない 669x951
+[226/941] [chromium] › tests/reminder-tasks.spec.js:50:3 › タスクの分類と完了履歴 › 外部変更の通知（calendarChanged）では取り直さない。旧リマインダー集合は混ざらない
+[227/941] [chromium] › tests/reminder-settings.spec.js:64:5 › 月にタスクを表示 › 位置: 日付の行で六曜の右・8pt、+N と重ならない 890x626
+[228/941] [chromium] › tests/reminder-settings.spec.js:64:5 › 月にタスクを表示 › 位置: 日付の行で六曜の右・8pt、+N と重ならない 951x669
+[229/941] [chromium] › tests/reminder-settings.spec.js:94:3 › 月にタスクを表示 › 完了で件数が減り、戻すと増える。保存の変更（期限）後の再読込でも更新
+[230/941] [chromium] › tests/reminder-tasks.spec.js:58:3 › タスクの分類と完了履歴 › 0件は案内。保存したタスクは再起動後も同じ
+[231/941] [chromium] › tests/reminder-tasks.spec.js:65:3 › タスクの分類と完了履歴 › 開いた縦の下パネルでも同じ分類
+[232/941] [chromium] › tests/rokuyo-setting.spec.js:8:1 › 既定はオン。切ると false を保存し、再起動・回転後も保つ。月時刻・大文字設定は落とさない
+[233/941] [chromium] › tests/rokuyo-setting.spec.js:34:1 › 未保存・破損・欠落・boolean 以外は true
+[234/941] [chromium] › tests/reminder-settings.spec.js:111:3 › 廃止した設定（同期・リスト・追加先・許可） › 設定›カレンダーのリマインダー段は空。許可・同期・リストの操作は無い。native 呼出0
+[235/941] [chromium] › tests/reminder-settings.spec.js:118:3 › 廃止した設定（同期・リスト・追加先・許可） › 旧設定（lists・addTo・enabled:false）は消さず、読まない: タスクは隠れず追加もできる
+[236/941] [chromium] › tests/reminder-notify.spec.js:73:3 › タスクの local 通知 › 全体 OFF は notifyClear。タスクの予約は残らない
+[237/941] [chromium] › tests/rokuyo.spec.js:15:3 › 月のマス（closed）: 2026-11 の六曜・11/1 短縮・数字と重ならない・aria
+[238/941] [chromium] › tests/s11b-design-m.spec.js:38:3 › S11b 設計レビュー 必須（M1〜M9） › M1 行の上の線は高さを取らない: 行の上端から 日付の中心 11・チップ 22＋16k・最後のチップの下のあき 2（段1〜3、線のある行）
+[239/941] [chromium] › tests/rokuyo.spec.js:15:3 › 月のマス（closedL）: 2026-11 の六曜・11/1 短縮・数字と重ならない・aria
+[240/941] [chromium] › tests/rokuyo.spec.js:15:3 › 月のマス（openP）: 2026-11 の六曜・11/1 短縮・数字と重ならない・aria
+[241/941] [chromium] › tests/reminder-notify.spec.js:83:3 › タスクの local 通知 › 通知タップ: 存在するタスクは詳細へ。消えたタスクは一覧へ（詳細は開かない）
+[242/941] [chromium] › tests/rokuyo.spec.js:15:3 › 月のマス（openP626）: 2026-11 の六曜・11/1 短縮・数字と重ならない・aria
+[243/941] [chromium] › tests/rokuyo.spec.js:15:3 › 月のマス（openL）: 2026-11 の六曜・11/1 短縮・数字と重ならない・aria
+[244/941] [chromium] › tests/s11b-design-m.spec.js:57:3 › S11b 設計レビュー 必須（M1〜M9） › M2 選んだ日の枠: ::after・内側 1・太さ 2・角丸 4・#294E42・z-index 4・box-shadow なし
+[245/941] [chromium] › tests/s11d-design-14-15.spec.js:30:1 › §14 帯あり横: 格子 x8〜374 y64〜424・行60×6・2件、日の欄 x382〜594・つまみ（上）なし（つまみ（下）は §17-3 で使う）
+[246/941] [chromium] › tests/rokuyo.spec.js:15:3 › 月のマス（openL890）: 2026-11 の六曜・11/1 短縮・数字と重ならない・aria
+[247/941] [chromium] › tests/s11b-design-m.spec.js:70:3 › S11b 設計レビュー 必須（M1〜M9） › M3 時刻つきチップを押している間（:active）も地は塗らない・暗くしない（マスの地だけ #E2DDD2）
+[248/941] [chromium] › tests/rokuyo.spec.js:54:1 › 「+N」・チップと六曜が重ならない（開いた縦・開いた横）
+[249/941] [chromium] › tests/s11b-design-m.spec.js:82:3 › S11b 設計レビュー 必須（M1〜M9） › M3b 長押しでつかんでいる間、元のチップは破線の枠だけ（ベタ塗りにしない）
+[250/941] [chromium] › tests/s11d-design-14-15.spec.js:40:1 › §14 帯あり横: 右の列と「…」メニュー・ノートのシート
+[251/941] [chromium] › tests/s11b-design-m.spec.js:93:3 › S11b 設計レビュー 必須（M1〜M9） › M4 チップのない所を長押ししても何も出ない（期間の札・メニューなし）
+[252/941] [chromium] › tests/rokuyo.spec.js:72:1 › 六曜オフでは要素が出ず、1日は「11月1日」、aria に六曜が入らない
+[253/941] [chromium] › tests/rokuyo.spec.js:80:1 › 範囲の端: 1999年12月・2000年1月・2050年12月・2051年1月、pageerror 0
+[254/941] [chromium] › tests/s11d-design-14-15.spec.js:47:1 › §14.5 帯なし横: 格子と日の欄は左右、…・タスクは見出し右、＋56・下余白105
+[255/941] [chromium] › tests/s11b-design-m.spec.js:107:3 › S11b 設計レビュー 必須（M1〜M9） › M5 日を選ぶと日の欄の中身が 0.15 秒で入れ替わる（消す 0.06・出す 0.09、2つを同時に見せない、終わりは新しい日の一番上）
+[256/941] [chromium] › tests/rokuyo.spec.js:99:1 › 日の見出し: 時間ページ・日表示・範囲外、日付の右8px・13px #68716A
+[257/941] [chromium] › tests/rokuyo.spec.js:117:1 › 閉じた画面・開いた縦の日表示の見出しに六曜（切ると消える）
+[258/941] [chromium] › tests/s11b-design-m.spec.js:144:3 › S11b 設計レビュー 必須（M1〜M9） › M5 視差効果を減らす設定では入れ替えは即時
+[259/941] [chromium] › tests/s11d-design-14-15.spec.js:55:1 › S11e 横では stage を書き換えず保存しない。横→縦で元の段5へ戻る
+[260/941] [chromium] › tests/s11b-design-m.spec.js:153:3 › S11b 設計レビュー 必須（M1〜M9） › M6 日の見出し h3 は行 44（段1で日付の中心 y626）
+[261/941] [chromium] › tests/s11b-design-m.spec.js:162:3 › S11b 設計レビュー 必須（M1〜M9） › M7（v19.3）カードにつまみ（下）は無い。最後のカードのすぐ下が「ノート ›」で、上端をたたくと「ノート ›」
+[262/941] [chromium] › tests/rokuyo.spec.js:134:1 › 週の表示: 日付の下に 9px の六曜
+[263/941] [chromium] › tests/rokuyo.spec.js:142:1 › 小さな月・検索・通知文には出さない／ニューヨークでも同じ日に同じ六曜
+[264/941] [chromium] › tests/rokuyo.spec.js:153:3 › オフライン › オフラインで再起動しても六曜が出る
+[265/941] [chromium] › tests/s11d.spec.js:30:3 › S11d M1・M2 の足し › M1 週の間の線は、土曜（地のあるマス）の上にも出る: 行の上の層（::before）に inset 0 .5px 0 #E4E0D6。1行目には線がない
+[266/941] [chromium] › tests/s11b-design-m.spec.js:180:3 › S11b 設計レビュー 必須（M1〜M9） › M8 日の欄のつまみの段（カード／時間軸）を覚える: 日を選び直しても、開き直しても同じ
+[267/941] [chromium] › tests/s11d-design-14-15.spec.js:66:1 › §15① 帯あり縦のシート x0〜382 y152〜678・完了 x326〜370
+[268/941] [chromium] › tests/s11d.spec.js:40:3 › S11d M1・M2 の足し › M2 選んだ日の枠は、帯（終日・複数日）より上の層
+[269/941] [chromium] › tests/s11d.spec.js:50:3 › S11d M5 の足し › 日の欄（.mday）は入れ替えの間もいつも1つ。見出しは入れ替えのあとその日になり、日の欄は一番上
+[270/941] [chromium] › tests/s11d-design-14-15.spec.js:71:1 › §15② 帯ありノートは右の列だけに戻す/やり直す、シートの戻す群なし、＋非表示
+[271/941] [chromium] › tests/s11b-design-m.spec.js:192:5 › S11b 設計レビュー 必須（M1〜M9） › M8 保存値 dayGrip=3 で起動するとカード（A）
+[272/941] [chromium] › tests/s11d.spec.js:63:3 › S11d M5 の足し › 視差効果を減らす: 入れ替えは即時（暗くなるコマがない）
+[273/941] [chromium] › tests/s11b-design-m.spec.js:192:5 › S11b 設計レビュー 必須（M1〜M9） › M8 保存値 dayGrip=-1 で起動するとカード（A）
+[274/941] [chromium] › tests/s11b-design-m.spec.js:192:5 › S11b 設計レビュー 必須（M1〜M9） › M8 保存値 dayGrip=1.5 で起動するとカード（A）
+[275/941] [chromium] › tests/s11d-design-14-15.spec.js:80:1 › §15② 戻す/やり直す: 空履歴の記号 #C9C5BA、使えないとき何もしない、本文焦点保持
+[276/941] [chromium] › tests/s11b-design-m.spec.js:192:5 › S11b 設計レビュー 必須（M1〜M9） › M8 保存値 dayGrip="x" で起動するとカード（A）
+[277/941] [chromium] › tests/s11d.spec.js:75:3 › S11d M9 の足し（格子・日の欄の縦の引き） › 格子を上へ 150 引いても段は変わらない（v19.3）。つまみ（上）を上へ 150 引く: 段1→段3、触覚ログは境をまたいだ 2 件（段2・段3）。引いたあとの click で日は選ばれない
+[278/941] [chromium] › tests/s11b-design-m.spec.js:192:5 › S11b 設計レビュー 必須（M1〜M9） › M8 保存値 dayGrip=null で起動するとカード（A）
+[279/941] [chromium] › tests/s11b-design-m.spec.js:192:5 › S11b 設計レビュー 必須（M1〜M9） › M8 保存値 dayGrip="1" で起動するとカード（A）
+[280/941] [chromium] › tests/s11b-design-m.spec.js:192:5 › S11b 設計レビュー 必須（M1〜M9） › M8 保存値 dayGrip=true で起動するとカード（A）
+[281/941] [chromium] › tests/s11b-design-m.spec.js:201:5 › S11b 設計レビュー 必須（M1〜M9） › M8 保存値 dayGrip=1 は B で起動し、閉じる⇄開く・読み込み直しのあとも B（保存値も 1 のまま）
+[282/941] [chromium] › tests/s11d.spec.js:92:3 › S11d M9 の足し（格子・日の欄の縦の引き） › つまみ（上）を引いている間、格子の高さは指に 1:1（触れた位置から）。押した地は出さない
+[283/941] [chromium] › tests/s11d-design-14-15.spec.js:90:1 › §15③ 帯なし縦: タスク/…44、今日へ64、見出し中心233、＋は見える48・押せる56
+[284/941] [chromium] › tests/s11d.spec.js:104:3 › S11d M9 の足し（格子・日の欄の縦の引き） › 横の払い（月送り）はそのまま: 格子を左へ払うと次の月。段は変わらない
+[285/941] [chromium] › tests/s11d-design-14-15.spec.js:99:1 › §15③ 帯なし縦: 日の欄の下余白105、送り切ると最後の内容が＋上端581の8上
+[286/941] [chromium] › tests/s11d.spec.js:111:3 › S11d M9 の足し（格子・日の欄の縦の引き） › 動きが 6 以下・たたきでは引かない（その日を選ぶ）
+[287/941] [chromium] › tests/s11b-design-m.spec.js:201:5 › S11b 設計レビュー 必須（M1〜M9） › M8 保存値 dayGrip=2 は C で起動し、閉じる⇄開く・読み込み直しのあとも C（保存値も 2 のまま）
+[288/941] [chromium] › tests/s11d.spec.js:119:3 › S11d M9 の足し（格子・日の欄の縦の引き） › チップの上で長押し 0.35 秒より先に縦へ動いたら、つかまない（段も変わらない）
+[289/941] [chromium] › tests/s11d-design-14-15.spec.js:108:1 › §15④ ホームのタイムライン → 段7・日の欄B（時間・最低限＝1時間28）、別の日の画面を開かない
+[290/941] [chromium] › tests/s11d.spec.js:129:3 › S11d M9 の足し（格子・日の欄の縦の引き） › チップを 0.35 秒つかんでから縦へ動かしたら、チップの移動（段は変わらない）
+[291/941] [chromium] › tests/s11d-design-14-15.spec.js:114:1 › 望ましい: 週の時間軸の見出し中心は x191（帯あり）
+[292/941] [chromium] › tests/s11b-design-m.spec.js:220:3 › S11b 設計レビュー 必須（M1〜M9） › M9（v19.3 でやめた）格子を縦に引いても段は変わらない。つまみ（上）を引くと変わる
+[293/941] [chromium] › tests/s11d.spec.js:139:3 › S11d M9 の足し（格子・日の欄の縦の引き） › 日の欄: 送っている途中（scrollTop > 0）から下へ引いても、上へ引いても、段は変わらない（34 §6.3）
+[294/941] [chromium] › tests/s11d-design-14-15.spec.js:120:1 › S11e ヒントは指定の2行・13/400/18・上下内側8・段1で y520〜572、二度目は出さない
+[295/941] [chromium] › tests/s11b-design-m.spec.js:233:3 › S11b 設計レビュー 必須（M1〜M9） › M9b（v19.3 でやめた）日の欄を一番上から下へ引いても段は変わらない
+[296/941] [chromium] › tests/s11d-design-14-15.spec.js:127:1 › S11e ヒントは横では出さず、初めて縦で開いたら出す
+[297/941] [chromium] › tests/s11d.spec.js:150:3 › S11d M9 の足し（格子・日の欄の縦の引き） › 日の欄: 一番上から下へ 120 引いても段4 のまま、触覚ログは 0 件。カードは開かない
+[298/941] [chromium] › tests/s11b-design-m.spec.js:242:3 › S11b 設計レビュー 必須（M1〜M9） › §13-1 つまみ（上）の押せる範囲は格子の下端から高さ 44（4件目のチップにかからない）
+[299/941] [chromium] › tests/s11d-design-14-15.spec.js:133:1 › S11e フォーカス: 指タップ後は枠なし、キーボードは :focus-visible 太さ2・#2F6B4F・角丸4・内側2
+[300/941] [chromium] › tests/s11d-design-14-15.spec.js:148:3 › S11e(a) 段1（保存は段だけ）: 見えない「次の月」「前の月」は 1か月送る
+[301/941] [chromium] › tests/s11d.spec.js:160:3 › S11d M9 の足し（格子・日の欄の縦の引き） › 段1でつまみ（上）をさらに下へ引くとゴム（最大 24）。離すと段1へ戻り、触覚ログは 0 件
+[302/941] [chromium] › tests/s7a-notes.spec.js:51:5 › S7a ノートの記号 閉じた 466×678（帯84） › 一覧・ピン留めの題名と2行目に記号が出ない（本文の文字は変わらない）
+[303/941] [chromium] › tests/s7a-notes.spec.js:62:5 › S7a ノートの記号 閉じた 466×678（帯84） › 編集画面の題名欄に記号が出ない。開いただけでは保存しない。題名を直しても元の記号を保つ
+[304/941] [chromium] › tests/s11d.spec.js:175:3 › S11d 品質レビュー 7c9fb05 ⑤ 終日の並び › 終日の予定の順は、マスの段（複数日の帯が先）・日の欄の終日チップ・マスの読み上げで同じ
+[305/941] [chromium] › tests/s11d-design-14-15.spec.js:148:3 › S11e(a) 段2（保存は段だけ）: 見えない「次の月」「前の月」は 1か月送る
+[306/941] [chromium] › tests/s11d.spec.js:197:3 › S11d 品質レビュー 7c9fb05 ⑥ → v19.3 予定の多い日の「カード｜時間」 › 予定の多い日（段4）: 見出しの右に「時間軸」（.mdtl）はなく、つまみ（下）もない。「時間」で時間軸、「カード」で戻る
+[307/941] [chromium] › tests/s11d-design-14-15.spec.js:148:3 › S11e(a) 段3（保存は段だけ）: 見えない「次の月」「前の月」は 1か月送る
+[308/941] [chromium] › tests/s11d.spec.js:212:3 › S11d 品質レビュー 7c9fb05 ⑥ → v19.3 予定の多い日の「カード｜時間」 › どの段・どの日にも .mdtl はない。予定1件の日も、最後のカードのすぐ下（間 8）が「ノート ›」
+[309/941] [chromium] › tests/s11d-design-14-15.spec.js:148:3 › S11e(a) 段4（保存は段だけ）: 見えない「次の月」「前の月」は 7日送る
+[310/941] [chromium] › tests/s11d-design-14-15.spec.js:148:3 › S11e(a) 段5（保存は段だけ）: 見えない「次の月」「前の月」は 7日送る
+[311/941] [chromium] › tests/v193-cards.spec.js:17:1 › C-2「＋ ノート」: その日の新しいノートを題名から書ける（1行目に日付の見出しは足さない・空のあいだ「題名」）。閉じるとカードが 1 枚増える。何も書かずに閉じたら何も残らない
+[312/941] [chromium] › tests/s7a-notes.spec.js:78:5 › S7a ノートの記号 閉じた 466×678（帯84） › 「- [ ] 」「## 」で始まる題名も欄には出さず、保存では元のまま
+[313/941] [chromium] › tests/s11d-design-14-15.spec.js:148:3 › S11e(a) 段6（保存は段だけ）: 見えない「次の月」「前の月」は 7日送る
+[314/941] [chromium] › tests/s11d-design-14-15.spec.js:148:3 › S11e(a) 段7（保存は段だけ）: 見えない「次の月」「前の月」は 7日送る
+[315/941] [chromium] › tests/s7a-notes.spec.js:51:5 › S7a ノートの記号 開いた縦 669×951 › 一覧・ピン留めの題名と2行目に記号が出ない（本文の文字は変わらない）
+[316/941] [chromium] › tests/s7a-notes.spec.js:62:5 › S7a ノートの記号 開いた縦 669×951 › 編集画面の題名欄に記号が出ない。開いただけでは保存しない。題名を直しても元の記号を保つ
+[317/941] [chromium] › tests/s11d-design-14-15.spec.js:160:1 › S11e(a) まっさらの初回起動（段1）: detail=0 の「次の月」で見出しの月が1回で変わる
+[318/941] [chromium] › tests/s11d-design-14-15.spec.js:166:1 › a11y: 段を往復して同期した後も detail=0 の「次の月」「前の月」が使える
+[319/941] [chromium] › tests/s11d-design-14-15.spec.js:181:3 › S11e(b) 開いた縦で「day」→ 閉じた画面で起動し日を選ぶ → 開くと元の画面。開いた側の保存値は変わらない
+[320/941] [chromium] › tests/v193-cards.spec.js:41:1 › C-3「＋ タスク」: その日を期限にした新しいタスクを題名から書ける。保存するとカードが増える。四角（左 x0〜52）で完了、ほかをたたくと開く。期限なしのタスクは日の欄に出ない
+[321/941] [chromium] › tests/s7a-notes.spec.js:78:5 › S7a ノートの記号 開いた縦 669×951 › 「- [ ] 」「## 」で始まる題名も欄には出さず、保存では元のまま
+[322/941] [chromium] › tests/v193-cards.spec.js:66:1 › タスクのシートの「ノート「買い物」 ›」（35 §8）: ノートのチェック行からできたタスクは、期限の下の行からそのノートを開ける。ふつうのタスクには出ない
+[323/941] [chromium] › tests/s11d-design-14-15.spec.js:181:3 › S11e(b) 開いた縦で「week」→ 閉じた画面で起動し日を選ぶ → 開くと元の画面。開いた側の保存値は変わらない
+[324/941] [chromium] › tests/s7a-notes.spec.js:51:5 › S7a ノートの記号 開いた横 951×669（帯84） › 一覧・ピン留めの題名と2行目に記号が出ない（本文の文字は変わらない）
+[325/941] [chromium] › tests/v193-cards.spec.js:83:1 › 閉じた横: カードは幅 188・高さ 56 で、切り替えの行（y50〜82）の下 y88 から。題名は 1 行で「…」。区画の見出しと「＋ タスク」「＋ ノート」も入る
+[326/941] [chromium] › tests/s11d-design-14-15.spec.js:181:3 › S11e(b) 開いた縦で「home」→ 閉じた画面で起動し日を選ぶ → 開くと元の画面。開いた側の保存値は変わらない
+[327/941] [chromium] › tests/s7a-notes.spec.js:62:5 › S7a ノートの記号 開いた横 951×669（帯84） › 編集画面の題名欄に記号が出ない。開いただけでは保存しない。題名を直しても元の記号を保つ
+[328/941] [chromium] › tests/v193-cards.spec.js:96:1 › M-15・M-16 終日・複数日の予定は帯のまま。帯を長押しで運ぶと、長さを保って日付だけずれる（終日のまま）。札の印は色の線
+[329/941] [chromium] › tests/s11d-design-14-15.spec.js:218:3 › §16-2 段2（v19.3）: 日の見出し .mdh は貼り付けない（年月と曜日だけが残る）。画面を送ってもカードが日の欄の上 20 に入らない
+[330/941] [chromium] › tests/s11d-design-14-15.spec.js:218:3 › §16-2 段4（v19.3）: 日の見出し .mdh は貼り付けない（年月と曜日だけが残る）。画面を送ってもカードが日の欄の上 20 に入らない
+[331/941] [chromium] › tests/v193-cards.spec.js:112:1 › 「時間」のときも、時間軸の枠・終日の行を長押しで月のマスへ落とせる（時刻は残す）。区画（タスク・ノートのカード）は時間軸の下に同じ形で出る
+[332/941] [chromium] › tests/s11d-design-14-15.spec.js:218:3 › §16-2 段7（v19.3）: 日の見出し .mdh は貼り付けない（年月と曜日だけが残る）。画面を送ってもカードが日の欄の上 20 に入らない
+[333/941] [chromium] › tests/s11d-design-14-15.spec.js:230:1 › §16-2 段1は .mdh を貼り付けない
+[334/941] [chromium] › tests/s7a-notes.spec.js:78:5 › S7a ノートの記号 開いた横 951×669（帯84） › 「- [ ] 」「## 」で始まる題名も欄には出さず、保存では元のまま
+[335/941] [chromium] › tests/s11d-design-14-15.spec.js:234:1 › §16-2 D1: 押して 0.22 秒はマスの地 #E2DDD2、つかんで（0.35 秒）0.10 秒で元の地へ。0.50 秒で元の地
+[336/941] [chromium] › tests/v193-cards.spec.js:126:1 › M-19 同じ日へ落とす: 何もしない（保存しない＝updatedAt も変わらない・札なし・触覚なし）。予定・タスク・ノートとも
+[337/941] [chromium] › tests/s11d-design-14-15.spec.js:277:5 › §16-4 単発（撮影）をその場で離す: 取り消し。IndexedDB 書き込み 0・overrides/updatedAt 不変・知らせ/元に戻す/触覚なし・iPhone へ書かない
+[338/941] [chromium] › tests/s7a-notes.spec.js:94:5 › S7a 検索（記号あり・なしの両方で当たる。抜き出しに記号を出さない） › 閉じた 466×678（帯84）
+[339/941] [chromium] › tests/s11d-design-14-15.spec.js:277:5 › §16-4 単発（撮影）を別の日へ動かしてから元の日へ戻して離す: 取り消し。IndexedDB 書き込み 0・overrides/updatedAt 不変・知らせ/元に戻す/触覚なし・iPhone へ書かない
+[340/941] [chromium] › tests/v193-cards.spec.js:139:1 › M-22 取り合いなし: つかんでいる間は、画面のスクロール・月の段のつまみ・横の払い（月送り）・カード｜時間が動かない。離したあとは今までどおり
+[341/941] [chromium] › tests/s7a-notes.spec.js:94:5 › S7a 検索（記号あり・なしの両方で当たる。抜き出しに記号を出さない） › 開いた縦 669×951
+[342/941] [chromium] › tests/s11d-design-14-15.spec.js:277:5 › §16-4 繰り返しの回（定例）をその場で離す: 取り消し。IndexedDB 書き込み 0・overrides/updatedAt 不変・知らせ/元に戻す/触覚なし・iPhone へ書かない
+[343/941] [chromium] › tests/v193-cards.spec.js:156:1 › D-5 タスクを開いて期限の日を変えて保存: 動かしたのと同じ扱い（札「14日（土）へ移しました｜元に戻す」。時刻はそのまま）。元に戻すで期限だけ戻る
+[344/941] [chromium] › tests/s11d-design-14-15.spec.js:277:5 › §16-4 繰り返しの回（定例）を別の日へ動かしてから元の日へ戻して離す: 取り消し。IndexedDB 書き込み 0・overrides/updatedAt 不変・知らせ/元に戻す/触覚なし・iPhone へ書かない
+[345/941] [chromium] › tests/v193-cards.spec.js:169:1 › D-5 予定を開いて開始の日を変えて保存: 今のシートのまま（終了も同じだけずれる）。カードは先の日へ
+[346/941] [chromium] › tests/s7a-notes.spec.js:94:5 › S7a 検索（記号あり・なしの両方で当たる。抜き出しに記号を出さない） › 開いた横 951×669（帯84）
+[347/941] [chromium] › tests/v193-cards.spec.js:177:1 › ノートのシートの「日付を外す」: その日の日の欄からカードが消える（date: null。sourceDate には戻さない）。6 秒は元に戻せる
+[348/941] [chromium] › tests/s11d-design-14-15.spec.js:277:5 › §16-4 iPhone の予定（歯医者）をその場で離す: 取り消し。IndexedDB 書き込み 0・overrides/updatedAt 不変・知らせ/元に戻す/触覚なし・iPhone へ書かない
+[349/941] [chromium] › tests/v193-cards.spec.js:242:1 › iPhone の予定のカード: 長押しで 14 へ → updateExternalEvent（その回だけ・日付と時刻だけ。題名とメモは送らない）。表示は先に変わり、カレンダー側と同じ日時になる。元に戻すも同じ経路
+[350/941] [chromium] › tests/s7a-notes.spec.js:127:5 › S7a 日のカード・ホームのカードに記号が出ない › 閉じた 466×678（帯84）
+[351/941] [chromium] › tests/s7a-notes.spec.js:127:5 › S7a 日のカード・ホームのカードに記号が出ない › 開いた縦 669×951
+[352/941] [chromium] › tests/s11d-design-14-15.spec.js:277:5 › §16-4 iPhone の予定（歯医者）を別の日へ動かしてから元の日へ戻して離す: 取り消し。IndexedDB 書き込み 0・overrides/updatedAt 不変・知らせ/元に戻す/触覚なし・iPhone へ書かない
+[353/941] [chromium] › tests/s7a-notes.spec.js:127:5 › S7a 日のカード・ホームのカードに記号が出ない › 開いた横 951×669（帯84）
+[354/941] [chromium] › tests/s7a-notes.spec.js:138:5 › S7a 題名欄 44・フォルダの行・右ページのそろい（V-18/19/20） › 閉じた 466×678（帯84）: 題名欄 44（文字と本文の位置は変えない）
+[355/941] [chromium] › tests/s7a-notes.spec.js:138:5 › S7a 題名欄 44・フォルダの行・右ページのそろい（V-18/19/20） › 開いた縦 669×951: 題名欄 44（文字と本文の位置は変えない）
+[356/941] [chromium] › tests/v193-cards.spec.js:264:1 › M-17 読み取り専用の iPhone の予定: 見た目は変えず、長押しで持ち上がらない。理由を出して、書き込み 0
+[357/941] [chromium] › tests/s7a-notes.spec.js:138:5 › S7a 題名欄 44・フォルダの行・右ページのそろい（V-18/19/20） › 開いた横 951×669（帯84）: 題名欄 44（文字と本文の位置は変えない）
+[358/941] [chromium] › tests/s7a-notes.spec.js:145:3 › S7a 題名欄 44・フォルダの行・右ページのそろい（V-18/19/20） › 開いた横: 見出し・一覧・フォルダの行・題と本文の文字が x500（V-19）。札は 28・角丸 14・13pt・間 8（V-20）
+[359/941] [chromium] › tests/s11d-design-14-15.spec.js:340:1 › §17-5 横・帯なしでノートを書いている間、シートの領域に赤い画素がなく、バッジは見えないかシートの奥。閉じると戻る
+[360/941] [chromium] › tests/s7a-notes.spec.js:166:3 › S7a 題名欄 44・フォルダの行・右ページのそろい（V-18/19/20） › フォルダの札: 押すと小さなメニュー。選ぶとフォルダが変わり、札の文字も変わる（選ぶ欄は出さない）
+[361/941] [chromium] › tests/v193-cards.spec.js:274:1 › M-24 iPhone への書き込みが断られた: 先に変えた表示を元へ戻し、「移せませんでした。」。カードは元の日に残る
+[362/941] [chromium] › tests/s7a-notes.spec.js:186:5 › S7a 閉じた月のタスクのチェック欄（V-15・中-3） › 型 one: 閉じた日の欄の下にタスクは出ない（34 で置き換え）。右の列「タスク」の面でチェック欄の押せる範囲 44×44 以上
+[363/941] [chromium] › tests/s7a-notes.spec.js:186:5 › S7a 閉じた月のタスクのチェック欄（V-15・中-3） › 型 two: 閉じた日の欄の下にタスクは出ない（34 で置き換え）。右の列「タスク」の面でチェック欄の押せる範囲 44×44 以上
+[364/941] [chromium] › tests/s11d-design-14-15.spec.js:358:3 › §17-5 縦・帯あり: ふだんはバッジが見える（赤い画素あり）。ノートを閉じたあとも見える
+[365/941] [chromium] › tests/v193-cards.spec.js:282:1 › M-18 iPhone にもつながった Duo の予定: IndexedDB を先に直し、送信待ち経由で updateEvent（日付の部分だけ・時刻はそのまま）
+[366/941] [chromium] › tests/s7a-notes.spec.js:186:5 › S7a 閉じた月のタスクのチェック欄（V-15・中-3） › 型 month: 閉じた日の欄の下にタスクは出ない（34 で置き換え）。右の列「タスク」の面でチェック欄の押せる範囲 44×44 以上
+[367/941] [chromium] › tests/s11d-design-14-15.spec.js:358:3 › §17-5 縦・帯なし: ふだんはバッジが見える（赤い画素あり）。ノートを閉じたあとも見える
+[368/941] [chromium] › tests/s7a-notes.spec.js:210:1 › S7a ✓（完了）を押すと緑の丸が opacity 0.7・scale 0.94 になる（品質 中-2）
+[369/941] [chromium] › tests/s7a-notes.spec.js:225:3 › S7a タスクの日付の見出し（V-24） › 「11月13日（金）」の書き方にそろえる。今日は「今日 · 11月12日（木）」。半角のかっこと「11/13」は出ない
+[370/941] [chromium] › tests/s11d-design-14-15.spec.js:358:3 › §17-5 横・帯あり: ふだんはバッジが見える（赤い画素あり）。ノートを閉じたあとも見える
+[371/941] [chromium] › tests/v193-closed-scroll.spec.js:71:5 › 1・2 つまみ以外のスワイプでは段が変わらない › 1 格子の上を縦にスワイプ（上へ・下へ、マウス）: data-stage も格子の高さも変わらず、触覚ログに積まれない
+[372/941] [chromium] › tests/v193-cards.spec.js:297:1 › 保存の形は変えない: IndexedDB の版 6・ストアの並びは同じ。動かしても、ノートは date だけ・タスクは due と updatedAt だけ・予定は start/end と updatedAt だけが変わる（本文は 1 文字も変わらない・旧メモ由来の sourceDate と id は残る）
+[373/941] [chromium] › tests/s11d-design-14-15.spec.js:371:1 › 連携 低① 閉じた画面で書き出したバックアップの settings.view は開いた側の値（week）
+[374/941] [chromium] › tests/s11d-design-14-15.spec.js:403:3 › 連携 低① 開いた縦（day）で書き出すと settings.view は 'day'
+[375/941] [chromium] › tests/v193-closed-scroll.spec.js:87:5 › 1・2 つまみ以外のスワイプでは段が変わらない › 2 日の欄の上を縦にスワイプ（一番上から下へ・上へ、マウス）: 段は変わらない
+[376/941] [chromium] › tests/s11d-design-14-15.spec.js:403:3 › 連携 低① 開いた縦（week）で書き出すと settings.view は 'week'
+[377/941] [chromium] › tests/v193-cards.spec.js:318:1 › バックアップ・検索: 動かしたあとも、書き出しは版 6（version・schema）で、ノートは新しい date と元の sourceDate を持つ。検索はノート・タスクを先の日で見つける
+[378/941] [chromium] › tests/s11d-design-14-15.spec.js:403:3 › 連携 低① 開いた縦（month）で書き出すと settings.view は 'month'
+[379/941] [chromium] › tests/s11d-design-14-15.spec.js:408:1 › 連携 低① 開いた縦で 週→日 に変えてすぐ（保存前）書き出すと day。閉じて書き出しても day
+[380/941] [chromium] › tests/v193-closed-scroll.spec.js:71:5 › 1・2 つまみ以外のスワイプでは段が変わらない › 1 格子の上を縦にスワイプ（上へ・下へ、指）: data-stage も格子の高さも変わらず、触覚ログに積まれない
+[381/941] [chromium] › tests/s11d-design-14-15.spec.js:422:1 › §18-3 横・帯なし: シートを開いている間 (656,4)・(669,4) をたたいても画面が変わらない。ボタンは inert。閉じたらタスクが押せる
+[382/941] [chromium] › tests/v193-closed-scroll.spec.js:87:5 › 1・2 つまみ以外のスワイプでは段が変わらない › 2 日の欄の上を縦にスワイプ（一番上から下へ・上へ、指）: 段は変わらない
+[383/941] [chromium] › tests/s11d-design-14-15.spec.js:443:1 › §18-3・§18-6 横・帯なし: シートを開いている間 y0〜7 を x0〜678 で走査し、押せる物に当たらない（見出しの帯をすべて inert）
+[384/941] [chromium] › tests/v193-cards.spec.js:335:3 › K-13 月のマスのチップ（閉じた縦）: タスク・ノートの名前のチップを足しても、マスの枠からはみ出さない・文字が隣のマスにかからない。入りきらない分は +N
+[385/941] [chromium] › tests/v193-cards.spec.js:335:3 › K-13 月のマスのチップ（閉じた横）: タスク・ノートの名前のチップを足しても、マスの枠からはみ出さない・文字が隣のマスにかからない。入りきらない分は +N
+[386/941] [chromium] › tests/v193-closed-scroll.spec.js:102:3 › 1・2 つまみ以外のスワイプでは段が変わらない › 1・2・4 本物の指（Chromium）: 格子を上へスワイプすると画面が送られるだけ。日の欄を一番上から下へスワイプしても段は変わらない
+[387/941] [chromium] › tests/s11d-design-14-15.spec.js:452:1 › §18-3・§18-6 横・帯なし: シートの上の端で 今日へ・見えない前の月/次の月 が働かない（閉じたあとの月と選んだ日が同じ）
+[388/941] [chromium] › tests/v193-cards.spec.js:402:3 › 速さ（閉じた縦）: 持ち上げ・落とす・元に戻すの動き始めは 100ms 以内、落としてから先の日に表示され終わるまで 300ms 以内。運んでいる間に長いタスクなし（予定・タスク・ノート）
+[389/941] [chromium] › tests/s11d-design-14-15.spec.js:468:3 › §18-6 横・帯なし: シートを開いている間 今日へ (350,4) をたたいても月が変わらない。閉じたら働く（12月から 11月）
+[390/941] [chromium] › tests/v193-closed-scroll.spec.js:124:5 › 3 つまみ（上）だけが段を変える › 3 つまみ（上）を引く: 段4→段3。触覚ログは境の数だけ [3]
+[391/941] [chromium] › tests/v193-closed-scroll.spec.js:124:5 › 3 つまみ（上）だけが段を変える › 3 つまみ（上）を引く: 段4→段1。触覚ログは境の数だけ [3,2,1]
+[392/941] [chromium] › tests/s11d-design-14-15.spec.js:468:3 › §18-6 横・帯なし: シートを開いている間 見えない前の月 をたたいても月が変わらない。閉じたら働く（12月から 11月）
+[393/941] [chromium] › tests/v193-closed-scroll.spec.js:124:5 › 3 つまみ（上）だけが段を変える › 3 つまみ（上）を引く: 段1→段7。触覚ログは境の数だけ [2,3,4,5,6,7]
+[394/941] [chromium] › tests/v193-closed-scroll.spec.js:133:3 › 3 つまみ（上）だけが段を変える › 3 つまみ（上）を指（pointerType:touch）で引いても段が変わる（段4→段3）
+[395/941] [chromium] › tests/v193-closed-scroll.spec.js:139:3 › 3 つまみ（上）だけが段を変える › 3 キー ↑↓: つまみ（上）に焦点があるとき ↑ で段が進み、↓ で戻る。触覚ログは1件ずつ
+[396/941] [chromium] › tests/s11d-design-14-15.spec.js:468:3 › §18-6 横・帯なし: シートを開いている間 見えない次の月 をたたいても月が変わらない。閉じたら働く（12月から 1月）
+[397/941] [chromium] › tests/v193-closed-scroll.spec.js:147:3 › 3 つまみ（上）だけが段を変える › 7 つまみ（上）の押せる範囲は 44pt 以上（格子の下端から 44。スクロールしても同じ）
+[398/941] [chromium] › tests/v193-day-cardtime.spec.js:9:1 › A-1 保存の形は v19.2 のまま: dayGrip は 0（カード）・1（時間・最低限）・2（時間・詳細）の整数。duo.ui.v1 に足した項目なし
+[399/941] [chromium] › tests/v193-closed-scroll.spec.js:165:3 › 4・5 画面全体が1本でスクロールする › 4 格子の上・日の欄の上のホイールで同じ1本が動く。格子は見出しの下へ流れ、見出しと曜日の y は変わらない。日の欄の中に入れ子の縦スクロールはない
+[400/941] [chromium] › tests/v193-day-cardtime.spec.js:21:1 › A-2 古い保存値: 1 は「時間・最低限」（1時間 28）、2 は「詳細」（88）、0〜2 でない値はカード
+[401/941] [chromium] › tests/v193-closed-scroll.spec.js:186:3 › 4・5 画面全体が1本でスクロールする › 4 スクロール 0 の配置は v19.2 と同じ（段 1〜7: 格子 y64・つまみ・日の欄の上端は spec-values、日の欄の箱は画面の下端まで）
+[402/941] [chromium] › tests/v193-cards.spec.js:402:3 › 速さ（閉じた横）: 持ち上げ・落とす・元に戻すの動き始めは 100ms 以内、落としてから先の日に表示され終わるまで 300ms 以内。運んでいる間に長いタスクなし（予定・タスク・ノート）
+[403/941] [chromium] › tests/v193-day-cardtime.spec.js:32:1 › A-3 「時間」は最後に見ていた幅で開く（この起動の間）。カードに戻すとバーが消える
+[404/941] [chromium] › tests/v193-closed-scroll.spec.js:195:3 › 4・5 画面全体が1本でスクロールする › 5 格子が流れ切ったら見出しの右に選んだ日「12日（木）」が 0.15 秒で出て、戻すと消える。「今日へ」と重ならない
+[405/941] [chromium] › tests/v193-day-cardtime.spec.js:41:1 › A-4 切り替えの動き: 前を消してから次を出す（0.20 秒・見出しと切り替えは動かさない）。動きを減らす設定では 0.15 秒のフェード
+[406/941] [chromium] › tests/v193-day-cardtime.spec.js:55:1 › A-5 バーをたたくと 28 ⇄ 88（0.25 秒）。キー ↑↓ でも。読み上げは「時間の幅」「最低限／詳細」
+[407/941] [chromium] › tests/v193-closed-scroll.spec.js:222:3 › 6・8 スクロールした状態での操作 › 6 スクロールした状態でつまみ（上）を引いても、つまみが指に 1:1 で付いてくる（跳ねない・スクロール位置は動かない）
+[408/941] [chromium] › tests/v193-day-cardtime.spec.js:78:1 › A-6 押せる範囲は全幅×44（区域 24 の上下に 10 ずつ）。上へ引いても 28 より縮まずカードにもならない（ゴム 最大 24 で戻る）
+[409/941] [chromium] › tests/v193-day-cardtime.spec.js:98:1 › A-7 速く払うと払った向きへ: 下へ 30 を速く払うと詳細、詳細から上へ 30 を速く払うと最低限
+[410/941] [chromium] › tests/v193-closed-scroll.spec.js:237:3 › 6・8 スクロールした状態での操作 › 8 横の払い（月送り）は残っている（マウス・指）。段もスクロール位置も変わらない
+[411/941] [chromium] › tests/v193-day-cardtime.spec.js:112:1 › A-8 詳細（88）は題名の下に時刻「9:00〜9:30」。最低限（28）は題名1行だけで、枠から字がはみ出さない
+[412/941] [chromium] › tests/v193-day-cardtime.spec.js:122:1 › A-9 「前の時間」で 0:00 から開く（画面は動かさない）。日を選び直す・カード⇔時間で畳み直す。幅を変えても開いたまま
+[413/941] [chromium] › tests/v193-closed-scroll.spec.js:248:3 › 6・8 スクロールした状態での操作 › 8 マスのタップで日が変わり、スクロール位置は動かない（日の欄は中身だけ替わる）
+[414/941] [chromium] › tests/v193-closed-scroll.spec.js:256:3 › 6・8 スクロールした状態での操作 › 8 チップの長押し移動（R-49）は残っている: 長押しでつかむと段もスクロール位置も変わらず、別の日へ落とせる
+[415/941] [chromium] › tests/v193-day-cardtime.spec.js:142:1 › A-10 その1の決まり: 時間でも画面は1本のスクロール（入れ子の縦スクロールなし）。バーで幅を変えても段と画面の位置は変わらない。つまみ（上）で段だけ変わる
+[416/941] [chromium] › tests/v193-closed-scroll.spec.js:270:3 › 9 変えないもの › 9 閉じた横（678×466）は今までどおり: 段を持たず、画面はスクロールしない。日の欄の中がスクロールし、見出しは貼り付く。縦へ戻すと段はそのまま
+[417/941] [chromium] › tests/v193-day-cardtime.spec.js:161:1 › A-11 帯がない画面（ブラウザ）: 切り替えは右下の＋・右上の「…」「タスク」にかからない。バーの押せる所は＋にかからない
+[418/941] [chromium] › tests/v193-day-cardtime.spec.js:171:1 › A-12 閉じた横: 日の欄の中がスクロール（今までどおり）。時間はバー・終日の行・1時間前からで、バーは流れる。段は使わない
+[419/941] [chromium] › tests/v193-closed-scroll.spec.js:287:5 › 9 変えないもの › 9 開いた縦 669×951・月 は 5bc8af6 の基準と同じ（要素の位置 0.5 以内・見えるボタンの並び）。日の欄に .mdin・畳み・1本スクロールは持ち込まない
+[420/941] [chromium] › tests/v193-closed-scroll.spec.js:287:5 › 9 変えないもの › 9 開いた横 951×669 は 5bc8af6 の基準と同じ（要素の位置 0.5 以内・見えるボタンの並び）。日の欄に .mdin・畳み・1本スクロールは持ち込まない
+[421/941] [chromium] › tests/v193-closed-scroll.spec.js:303:5 › 10 どの段・どの日でも格子を流し切れる › 10 帯あり・予定のない日: 段 1〜7 で格子を見出しの下まで流し切れ、選んだ日が出る。送り切ると最後のノートが下の端・右下の＋に隠れずに見える
+[422/941] [chromium] › tests/v193-day-cardtime.spec.js:194:1 › A-13 初めて「時間」にした1回だけ、札「バーを下へ引くと、時間が広がります」。触れると消え、2回目は出ない
+[423/941] [chromium] › tests/v193-cards.spec.js:424:1 › 速さ（CPU を 4 倍に落とした Chromium）: 落としてから先の日に表示され終わるまで 300ms 以内、動き始めは 100ms 以内（閉じた縦・予定・タスク・ノート）
+[424/941] [chromium] › tests/v193-day-cardtime.spec.js:209:1 › A-14 予定のない日: カードは「予定はありません」、時間は 8:00（9:00 の1時間前）から。切り替えとバーは同じ位置
+[425/941] [chromium] › tests/v193-day-cardtime.spec.js:220:1 › A-15 祝日名・六曜で見出しが長い日でも、日付と切り替えが重ならない（曜日の側を省く）
+[426/941] [chromium] › tests/v193-day-cardtime.spec.js:230:3 › A-16 縦・帯あり: 捨てた貼り付き（34 §16-1・§17・§18）— カード・時間のどの段でも、日の欄の下端に貼り付くつまみ・埋めた面が無い。最後のカードの下はすぐ「ノート ›」
+[427/941] [chromium] › tests/v193-closed-scroll.spec.js:303:5 › 10 どの段・どの日でも格子を流し切れる › 10 帯あり・予定のある日: 段 1〜7 で格子を見出しの下まで流し切れ、選んだ日が出る。送り切ると最後のノートが下の端・右下の＋に隠れずに見える
+[428/941] [chromium] › tests/v193-closed-scroll.spec.js:303:5 › 10 どの段・どの日でも格子を流し切れる › 10 帯なし・予定のない日: 段 1〜7 で格子を見出しの下まで流し切れ、選んだ日が出る。送り切ると最後のノートが下の端・右下の＋に隠れずに見える
+[429/941] [chromium] › tests/v193-day-cardtime.spec.js:230:3 › A-16 縦・帯なし: 捨てた貼り付き（34 §16-1・§17・§18）— カード・時間のどの段でも、日の欄の下端に貼り付くつまみ・埋めた面が無い。最後のカードの下はすぐ「ノート ›」
+[430/941] [chromium] › tests/v193-design35-s9.spec.js:14:1 › 35 §9 S-1 切り替え: 日の見出しの右に「カード｜時間」132×32・角丸 8・地 #E4E0D6、1つの押せる範囲 66×44、帯ありで右端 x370
+[431/941] [chromium] › tests/v193-design35-s9.spec.js:35:1 › 35 §9 S-2 カードにつまみなし: つまみ（下）の要素が無い。日の欄を上下に引いても dayGrip が変わらない
+[432/941] [chromium] › tests/v193-closed-scroll.spec.js:303:5 › 10 どの段・どの日でも格子を流し切れる › 10 帯なし・予定のある日: 段 1〜7 で格子を見出しの下まで流し切れ、選んだ日が出る。送り切ると最後のノートが下の端・右下の＋に隠れずに見える
+[433/941] [chromium] › tests/v193-design35-s9.spec.js:49:1 › 35 §9 S-3 時間・最低限: 1時間の線の間が 28。終日の行がバーの下に見える。最初に見える時刻＝最初の予定の1時間前
+[434/941] [chromium] › tests/v193-design35-s9.spec.js:69:1 › 35 §9 S-4 バーで広げる: バーを下へ 60 引いて止めると 1時間 58。バーのすぐ下の時刻の線の y は引く前と同じ
+[435/941] [chromium] › tests/v193-design35-s9.spec.js:91:1 › 35 §9 S-5 バーで寄せる: 下へ 70 で離すと 0.25 秒後に 88、50 で離すと 28。58 をまたいだとき触覚ログ 1 件
+[436/941] [chromium] › tests/v193-design35-s9.spec.js:112:1 › 35 §9 S-6 ゴム: 88 からさらに下へ 100 引くと、88＋最大 24 の見かけで止まり、離すと 88
+[437/941] [chromium] › tests/v193-keyboard.spec.js:55:3 › D-1 予定のメモ欄 閉じた縦・vv: メモ欄と打っている行がいつもキーボードの上。行が増えても隠れない。キーボードを閉じると元のシートに戻る
+[438/941] [chromium] › tests/v193-design35-s9.spec.js:129:1 › 35 §9 S-7 バーは貼り付かない: 時間で下へ 300 送ると、バーも日の見出しと一緒に流れて画面の外へ。上に残るのは年月と曜日（y0〜64）だけ。戻すと見出しのすぐ下にあり、引けば幅が変わる
+[439/941] [chromium] › tests/v193-keyboard.spec.js:55:3 › D-1 予定のメモ欄 閉じた縦・native: メモ欄と打っている行がいつもキーボードの上。行が増えても隠れない。キーボードを閉じると元のシートに戻る
+[440/941] [chromium] › tests/v193-day-cardtime.spec.js:230:3 › A-16 横・帯あり: 捨てた貼り付き（34 §16-1・§17・§18）— カード・時間のどの段でも、日の欄の下端に貼り付くつまみ・埋めた面が無い。最後のカードの下はすぐ「ノート ›」
+[441/941] [chromium] › tests/v193-design35-s9.spec.js:153:1 › 35 §9 S-8 バー以外では変わらない: 時間軸・格子・日の欄を縦に引いても、1時間の高さも段も変わらない（触覚ログも増えない）
+[442/941] [chromium] › tests/v193-keyboard.spec.js:55:3 › D-1 予定のメモ欄 閉じた横・vv: メモ欄と打っている行がいつもキーボードの上。行が増えても隠れない。キーボードを閉じると元のシートに戻る
+[443/941] [chromium] › tests/v193-day-cardtime.spec.js:230:3 › A-16 横・帯なし: 捨てた貼り付き（34 §16-1・§17・§18）— カード・時間のどの段でも、日の欄の下端に貼り付くつまみ・埋めた面が無い。最後のカードの下はすぐ「ノート ›」
+[444/941] [chromium] › tests/v193-keyboard.spec.js:55:3 › D-1 予定のメモ欄 閉じた横・native: メモ欄と打っている行がいつもキーボードの上。行が増えても隠れない。キーボードを閉じると元のシートに戻る
+[445/941] [chromium] › tests/v193-design35-s9.spec.js:169:1 › 35 §9 S-9 覚える: 時間・詳細にして 閉じる⇄開く・読み込み直しのあとも dayGrip 2 のまま、1時間 88
+[446/941] [chromium] › tests/v193-keyboard.spec.js:55:3 › D-1 予定のメモ欄 開いた縦・vv: メモ欄と打っている行がいつもキーボードの上。行が増えても隠れない。キーボードを閉じると元のシートに戻る
+[447/941] [chromium] › tests/v193-note-marks.spec.js:73:5 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › bullet: 上の帯で選ぶ → 英字を打つ → 記号つきの行のまま（改行で次の行も同じ記号）
+[448/941] [chromium] › tests/v193-design35-s9.spec.js:187:1 › 35 §9 L-1 閉じた横の切り替え: 見出し 44 の下に「カード｜時間」188×32（y50〜82、1つ 94、押せる 94×44）。カード 188×56 は y88 より下
+[449/941] [chromium] › tests/v193-keyboard.spec.js:55:3 › D-1 予定のメモ欄 開いた縦・native: メモ欄と打っている行がいつもキーボードの上。行が増えても隠れない。キーボードを閉じると元のシートに戻る
+[450/941] [chromium] › tests/v193-note-marks.spec.js:84:5 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › bullet: 書式のシートで選ぶ → 閉じて英字を打つ → 記号つきの行のまま
+[451/941] [chromium] › tests/v193-design35-s9.spec.js:212:3 › 35 §9 O-1 開いた縦は変わらない: 「カード｜時間」・時間のバー・カード 56 が無い（その2 の分。open-baseline との比べは v193-closed-scroll の 9 と closed-pull-v20 の I）
+[452/941] [chromium] › tests/v193-keyboard.spec.js:55:3 › D-1 予定のメモ欄 開いた横・vv: メモ欄と打っている行がいつもキーボードの上。行が増えても隠れない。キーボードを閉じると元のシートに戻る
+[453/941] [chromium] › tests/v193-note-marks.spec.js:92:5 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › bullet: 選んだあとキャレットが行の外（本文の頭）へ外れていても、英字は記号の行に入る
+[454/941] [chromium] › tests/v193-design35-s9.spec.js:212:3 › 35 §9 O-2 開いた横は変わらない: 「カード｜時間」・時間のバー・カード 56 が無い（その2 の分。open-baseline との比べは v193-closed-scroll の 9 と closed-pull-v20 の I）
+[455/941] [chromium] › tests/v193-design35-s9.spec.js:227:3 › 35 §9 K-14 タスクのページの四角（閉じた縦）: 20×20・角丸 4・線 1.75。押せる範囲は 44 のまま
+[456/941] [chromium] › tests/v193-design35-s9.spec.js:227:3 › 35 §9 K-14 タスクのページの四角（開いた横）: 20×20・角丸 4・線 1.75。押せる範囲は 44 のまま
+[457/941] [chromium] › tests/v193-design35-s9.spec.js:246:1 › 35 §9 R-20 リマインダー停止の知らせ: 同期をオンにしていた端末で版を上げて起動すると、閉じた縦でシート y378〜678・後ろが暗い・見出しに焦点。OK で閉じ、2 回目の起動では出ない。一度もオンにしていない端末では出ない
+[458/941] [chromium] › tests/v193-note-marks.spec.js:103:7 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › bullet: 日本語の変換（模型・ふつう）→ 確定しても記号つきの行のまま、途中の行は残らない
+[459/941] [chromium] › tests/v193-keyboard.spec.js:55:3 › D-1 予定のメモ欄 開いた横・native: メモ欄と打っている行がいつもキーボードの上。行が増えても隠れない。キーボードを閉じると元のシートに戻る
+[460/941] [chromium] › tests/v193-design35-s9.spec.js:267:1 › 35 §9 N-1 ノート→タスク: 日付のノートで「- [ ] 牛乳」→ 状態の行に「タスクに足しました（期限 11月12日）」（シートで最初の 1 件だけ）。閉じるとタスクに「牛乳」（期限 11/12）。日の欄のカードと副題「ノート「…」から」は その3
+[461/941] [chromium] › tests/v193-note-marks.spec.js:103:7 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › bullet: 日本語の変換（模型・変換中の文字を span で包む）→ 確定しても記号つきの行のまま、途中の行は残らない
+[462/941] [chromium] › tests/v193-keyboard.spec.js:100:3 › D-2 ノートの本文 閉じた縦・vv: 打っている行がいつもキーボードの上（20 行打っても）。本文の窓の下端はキーボードの上。閉じると元に戻る
+[463/941] [chromium] › tests/v193-note-marks.spec.js:103:7 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › bullet: 日本語の変換（模型・選んだあとキャレットが行の外）→ 確定しても記号つきの行のまま、途中の行は残らない
+[464/941] [chromium] › tests/v193-keyboard.spec.js:124:3 › D-3 書式のシート（文字の書式）閉じた縦・vv: キーボードが出ているときに開くと、キーボードを下げてその場所に出る。書式を変えてもキーボードを出し直さない。キーボードが残っていたらその上へ出る
+[465/941] [chromium] › tests/v193-note-marks.spec.js:103:7 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › bullet: 日本語の変換（模型・確定で行が消えて裸の文字が入る）→ 確定しても記号つきの行のまま、途中の行は残らない
+[466/941] [chromium] › tests/v193-keyboard.spec.js:100:3 › D-2 ノートの本文 閉じた縦・native: 打っている行がいつもキーボードの上（20 行打っても）。本文の窓の下端はキーボードの上。閉じると元に戻る
+[467/941] [chromium] › tests/v193-note-marks.spec.js:103:7 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › bullet: 日本語の変換（模型・確定で行が書式のない div に替わる）→ 確定しても記号つきの行のまま、途中の行は残らない
+[468/941] [chromium] › tests/v193-design35-s9.spec.js:281:1 › 35 §9 N-2 両方向: タスクの四角をたたく → ノートの行が「- [x] 」。ノートで四角をたたく → タスクが完了
+[469/941] [chromium] › tests/v193-keyboard.spec.js:124:3 › D-3 書式のシート（文字の書式）閉じた縦・native: キーボードが出ているときに開くと、キーボードを下げてその場所に出る。書式を変えてもキーボードを出し直さない。キーボードが残っていたらその上へ出る
+[470/941] [chromium] › tests/v193-note-marks.spec.js:122:5 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › bullet: 変換の取り消し（空で確定）でも、空の記号の行はそのまま残る
+[471/941] [chromium] › tests/v193-note-marks.spec.js:130:5 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › bullet: 日本語の変換（Chromium の本物の IME）→ 記号つきの行のまま
+[472/941] [chromium] › tests/v193-note-marks.spec.js:73:5 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › check: 上の帯で選ぶ → 英字を打つ → 記号つきの行のまま（改行で次の行も同じ記号）
+[473/941] [chromium] › tests/v193-keyboard.spec.js:100:3 › D-2 ノートの本文 閉じた横・vv: 打っている行がいつもキーボードの上（20 行打っても）。本文の窓の下端はキーボードの上。閉じると元に戻る
+[474/941] [chromium] › tests/v193-design35-s9.spec.js:306:1 › 35 §9 K-1 3種類の箱: 高さ 56・角丸 14・地 #FFFFFF・幅 358、カードの間 8
+[475/941] [chromium] › tests/v193-note-marks.spec.js:84:5 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › check: 書式のシートで選ぶ → 閉じて英字を打つ → 記号つきの行のまま
+[476/941] [chromium] › tests/v193-keyboard.spec.js:124:3 › D-3 書式のシート（文字の書式）閉じた横・vv: キーボードが出ているときに開くと、キーボードを下げてその場所に出る。書式を変えてもキーボードを出し直さない。キーボードが残っていたらその上へ出る
+[477/941] [chromium] › tests/v193-design35-s9.spec.js:320:1 › 35 §9 K-2・K-3 題名（左 68・上 8・15/600/20、3つの左端が同じ）と副題（左 68・上 30・11/400 #68716A）
+[478/941] [chromium] › tests/v193-design35-s9.spec.js:339:1 › 35 §9 K-4 種類の印: 予定＝時刻2つ（上 9・29）と色の線（左 56、3×40）／タスク＝四角 20×20・角丸 4・線 1.75（色の線なし）／ノート＝紙 16×20（色の線なし）
+[479/941] [chromium] › tests/v193-note-marks.spec.js:92:5 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › check: 選んだあとキャレットが行の外（本文の頭）へ外れていても、英字は記号の行に入る
+[480/941] [chromium] › tests/v193-design35-s9.spec.js:359:1 › 35 §9 K-5・V-3 色に頼らない: 白黒（filter:grayscale(1)）でも、印の形（数字と線・四角・紙）と区画の見出しの文字で分かる
+[481/941] [chromium] › tests/v193-keyboard.spec.js:100:3 › D-2 ノートの本文 閉じた横・native: 打っている行がいつもキーボードの上（20 行打っても）。本文の窓の下端はキーボードの上。閉じると元に戻る
+[482/941] [chromium] › tests/v193-note-marks.spec.js:103:7 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › check: 日本語の変換（模型・ふつう）→ 確定しても記号つきの行のまま、途中の行は残らない
+[483/941] [chromium] › tests/v193-design35-s9.spec.js:370:1 › 35 §9 K-6 題名なし: 「（題名なし）」「（題名なし）」「新規ノート」が #A8ABA4・400
+[484/941] [chromium] › tests/v193-design35-s9.spec.js:382:1 › 35 §9 K-7 長い題名（100 字・絵文字・改行）: 1 行で、右 12 の手前に「…」。カードは 56 のまま
+[485/941] [chromium] › tests/v193-note-marks.spec.js:103:7 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › check: 日本語の変換（模型・変換中の文字を span で包む）→ 確定しても記号つきの行のまま、途中の行は残らない
+[486/941] [chromium] › tests/v193-keyboard.spec.js:124:3 › D-3 書式のシート（文字の書式）閉じた横・native: キーボードが出ているときに開くと、キーボードを下げてその場所に出る。書式を変えてもキーボードを出し直さない。キーボードが残っていたらその上へ出る
+[487/941] [chromium] › tests/v193-design35-s9.spec.js:396:1 › 35 §9 K-8 完了・期限切れ: 完了＝四角 #294E42 の塗り・題名 #A8ABA4 取り消し線・1.5 秒後に区画の一番下へ。期限切れ＝四角の線と「期限切れ」が #B43C3C
+[488/941] [chromium] › tests/v193-note-marks.spec.js:103:7 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › check: 日本語の変換（模型・選んだあとキャレットが行の外）→ 確定しても記号つきの行のまま、途中の行は残らない
+[489/941] [chromium] › tests/v193-keyboard.spec.js:100:3 › D-2 ノートの本文 開いた縦・vv: 打っている行がいつもキーボードの上（20 行打っても）。本文の窓の下端はキーボードの上。閉じると元に戻る
+[490/941] [chromium] › tests/v193-note-marks.spec.js:103:7 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › check: 日本語の変換（模型・確定で行が消えて裸の文字が入る）→ 確定しても記号つきの行のまま、途中の行は残らない
+[491/941] [chromium] › tests/v193-design35-s9.spec.js:420:1 › 35 §9 K-9 押した色: カードを押したまま 0.2 秒で地 #F5F3EC
+[492/941] [chromium] › tests/v193-keyboard.spec.js:124:3 › D-3 書式のシート（文字の書式）開いた縦・vv: キーボードが出ているときに開くと、キーボードを下げてその場所に出る。書式を変えてもキーボードを出し直さない。キーボードが残っていたらその上へ出る
+[493/941] [chromium] › tests/v193-note-marks.spec.js:103:7 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › check: 日本語の変換（模型・確定で行が書式のない div に替わる）→ 確定しても記号つきの行のまま、途中の行は残らない
+[494/941] [chromium] › tests/v193-design35-s9.spec.js:431:1 › 35 §9 K-10 並び: 終日 → 予定（時刻順）→「タスク ›」→ タスク →「ノート ›」→ ノート →「＋ タスク」「＋ ノート」
+[495/941] [chromium] › tests/v193-design35-s9.spec.js:448:1 › 35 §9 K-11 区画の見出し: 中身のない区画は見出しごと出ない。ある区画は高さ 32・13/600 #68716A・押せる高さ 44。「タスク ›」はタスクのページ、「ノート ›」はノートの一覧
+[496/941] [chromium] › tests/v193-note-marks.spec.js:122:5 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › check: 変換の取り消し（空で確定）でも、空の記号の行はそのまま残る
+[497/941] [chromium] › tests/v193-keyboard.spec.js:100:3 › D-2 ノートの本文 開いた縦・native: 打っている行がいつもキーボードの上（20 行打っても）。本文の窓の下端はキーボードの上。閉じると元に戻る
+[498/941] [chromium] › tests/v193-note-marks.spec.js:130:5 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › check: 日本語の変換（Chromium の本物の IME）→ 記号つきの行のまま
+[499/941] [chromium] › tests/v193-design35-s9.spec.js:467:1 › 35 §9 K-12 月のマスの名前: 閉じた縦・横のマスにタスク（□ 8×8・角丸 2）とノート（紙 8×10）の名前のチップ。.tkn と緑の線は出ない。開いた縦・横の月は今のまま
+[500/941] [chromium] › tests/v193-note-marks.spec.js:149:3 › B: 文字の入っている行でも、記号を付ける・替える・外す › 1行: 本文 → 箇条書き → チェック → 本文。文字はそのまま、キャレットは文字の位置のまま
+[501/941] [chromium] › tests/v193-keyboard.spec.js:124:3 › D-3 書式のシート（文字の書式）開いた縦・native: キーボードが出ているときに開くと、キーボードを下げてその場所に出る。書式を変えてもキーボードを出し直さない。キーボードが残っていたらその上へ出る
+[502/941] [chromium] › tests/v193-design35-s9.spec.js:486:1 › 35 §9 V-1 読み上げ（カード）: 種類 → 状態 → 時刻・期限 → 題名 → 添え。頭の語は「予定」「タスク」「ノート」
+[503/941] [chromium] › tests/v193-note-marks.spec.js:170:3 › B: 文字の入っている行でも、記号を付ける・替える・外す › 上の帯: 同じ記号をもう一度で外れる。チェック済みの行を箇条書きに替えても文字は変わらない
+[504/941] [chromium] › tests/v193-note-marks.spec.js:180:3 › B: 文字の入っている行でも、記号を付ける・替える・外す › 複数行を選んで: チェック → 箇条書き → 本文（シート）。全部の行に効き、文字は変わらない
+[505/941] [chromium] › tests/v193-keyboard.spec.js:100:3 › D-2 ノートの本文 開いた横・vv: 打っている行がいつもキーボードの上（20 行打っても）。本文の窓の下端はキーボードの上。閉じると元に戻る
+[506/941] [chromium] › tests/v193-design35-s9.spec.js:499:1 › 35 §9 V-2 読み上げ（四角・マス）: 「完了にする、見積もりを送る」。マスは「11月12日 木曜日、予定2件、タスク1件、ノート1件」（0 件の種類は言わない）
+[507/941] [chromium] › tests/v193-design35-s9.spec.js:510:1 › 35 §9 D-1 カードに日付なし: 3種類のカードの文字に「11月」「日（」を含まない（予定の時刻は出る）。旧メモ由来（1行目が日付の見出し）のノートも
+[508/941] [chromium] › tests/v193-note-marks.spec.js:196:3 › B: 文字の入っている行でも、記号を付ける・替える・外す › 字下げのある行の記号を替えても、字下げ（行頭の空白）はそのまま
+[509/941] [chromium] › tests/v193-keyboard.spec.js:124:3 › D-3 書式のシート（文字の書式）開いた横・vv: キーボードが出ているときに開くと、キーボードを下げてその場所に出る。書式を変えてもキーボードを出し直さない。キーボードが残っていたらその上へ出る
+[510/941] [chromium] › tests/v193-design35-s9.spec.js:522:1 › 35 §9 D-2 開くと日付: シートの一番上の行に「11月12日（木）」のカプセル（高さ 32・角丸 8）。上の帯はその下（閉じた縦 y196〜240）。六曜は出ない。2027 年の日は「2027年1月5日（火）」
+[511/941] [chromium] › tests/v193-note-marks.spec.js:207:3 › 保存済みの行（IME のごみの行）は消さない・直さない › 開いて閉じるだけでは1文字も変わらない。別の行に記号を付けて打っても、ごみの行はそのまま
+[512/941] [chromium] › tests/v193-keyboard.spec.js:100:3 › D-2 ノートの本文 開いた横・native: 打っている行がいつもキーボードの上（20 行打っても）。本文の窓の下端はキーボードの上。閉じると元に戻る
+[513/941] [chromium] › tests/v193-note-marks.spec.js:239:3 › C: 外部キーボードの Tab／Shift+Tab で字下げ › 箇条書きの行: Tab＝1段下げ（行頭に空白 2 つ・見た目 20 ずつ右へ）、Shift+Tab＝1段上げ。キャレットは文字の位置のまま
+[514/941] [chromium] › tests/v193-design35-s9.spec.js:539:1 › 35 §9 D-2 閉じた横・開いた縦・開いた横のシートにも日付の行 44（閉じた横: 日付の行 y8〜52、上の帯 y60〜104。R2）
+[515/941] [chromium] › tests/v193-keyboard.spec.js:124:3 › D-3 書式のシート（文字の書式）開いた横・native: キーボードが出ているときに開くと、キーボードを下げてその場所に出る。書式を変えてもキーボードを出し直さない。キーボードが残っていたらその上へ出る
+[516/941] [chromium] › tests/v193-note-marks.spec.js:257:3 › C: 外部キーボードの Tab／Shift+Tab で字下げ › チェックの行: 四角（押せる範囲）も段のぶん右へ。チェックの状態と文字は変わらない。最大 4 段で止まる
+[517/941] [chromium] › tests/v193-note-marks.spec.js:274:3 › C: 外部キーボードの Tab／Shift+Tab で字下げ › 記号のない行・見出しの行では、Tab は今までの動きのまま（字下げしない・既定の動きを止めない）
+[518/941] [chromium] › tests/v193-note-marks.spec.js:285:3 › C: 外部キーボードの Tab／Shift+Tab で字下げ › 複数行を選んで Tab: 記号の行だけ動く。戻す・やり直すに乗る
+[519/941] [chromium] › tests/v193-keyboard.spec.js:180:3 › D-4 タスクのメモ欄 閉じた縦・vv: メモ欄と打っている行がキーボードの上。行が増えても隠れない。閉じると元に戻る
+[520/941] [chromium] › tests/v193-note-marks.spec.js:301:3 › C: 外部キーボードの Tab／Shift+Tab で字下げ › 字下げした行で改行すると、次の行も同じ段・同じ記号で続く
+[521/941] [chromium] › tests/v193-design35-s9.spec.js:558:1 › 35 §9 D-3 開いて日付を変える: カプセル→小さな月→14。シートはそのまま、12 のカードが消え、14 のマスにチップ。札「14日（土）へ移しました｜元に戻す」が 6 秒
+[522/941] [chromium] › tests/v193-note-marks.spec.js:313:3 › C: iPhone は行を右へ払うと1段下げ、左へ払うと1段上げ › 右へ 40 払う → 1段下げ。左へ 40 払う → 1段上げ。払っている間は指に少し追う（1/3）。保存は行頭の空白 2 つ
+[523/941] [chromium] › tests/v193-keyboard.spec.js:180:3 › D-4 タスクのメモ欄 閉じた縦・native: メモ欄と打っている行がキーボードの上。行が増えても隠れない。閉じると元に戻る
+[524/941] [chromium] › tests/v193-keyboard.spec.js:180:3 › D-4 タスクのメモ欄 閉じた横・vv: メモ欄と打っている行がキーボードの上。行が増えても隠れない。閉じると元に戻る
+[525/941] [chromium] › tests/v193-note-marks.spec.js:334:3 › C: iPhone は行を右へ払うと1段下げ、左へ払うと1段上げ › 動かないもの: 24 未満・縦が勝つ動き（横が縦の 1.5 倍以下）・長押しからの動き（文字の選択）・マウス・途中で取り消し・記号のない行
+[526/941] [chromium] › tests/v193-keyboard.spec.js:180:3 › D-4 タスクのメモ欄 閉じた横・native: メモ欄と打っている行がキーボードの上。行が増えても隠れない。閉じると元に戻る
+[527/941] [chromium] › tests/v193-note-marks.spec.js:354:3 › C: iPhone は行を右へ払うと1段下げ、左へ払うと1段上げ › 端では動かない: 0 段を左へ・最大 4 段を右へ（指にはわずかに追うだけ）。戻す・やり直すに乗る
+[528/941] [chromium] › tests/v193-note-marks.spec.js:369:3 › C: iPhone は行を右へ払うと1段下げ、左へ払うと1段上げ › 本文にフォーカスが無いまま払っても字下げでき、フォーカス（キーボード）は出さない。編集中ならキャレットは文字の位置のまま
+[529/941] [chromium] › tests/v193-keyboard.spec.js:180:3 › D-4 タスクのメモ欄 開いた縦・vv: メモ欄と打っている行がキーボードの上。行が増えても隠れない。閉じると元に戻る
+[530/941] [chromium] › tests/v193-note-marks.spec.js:381:3 › C: iPhone は行を右へ払うと1段下げ、左へ払うと1段上げ › 視差効果を減らす: 寄せる動きなしで、すぐ段に付く
+[531/941] [chromium] › tests/v193-note-marks.spec.js:391:3 › C: 見るだけの欄（日のノート）にも段が出る・保存の形 › 字下げしたノートを閉じると、日の欄のノートの行も段のぶん右へ。開き直しても同じ段
+[532/941] [chromium] › tests/v193-design35-s9.spec.js:581:3 › 35 §9 M-1・M-11（会議）つかむまで: 0.30 秒で離すと開く。0.35 秒押すと 1.03 倍・影 0 4 12・触覚 medium・元の場所に破線 1.5 #A8ABA4
+[533/941] [chromium] › tests/v193-keyboard.spec.js:180:3 › D-4 タスクのメモ欄 開いた縦・native: メモ欄と打っている行がキーボードの上。行が増えても隠れない。閉じると元に戻る
+[534/941] [chromium] › tests/v193-note-marks.spec.js:408:3 › 自分の目で確かめる絵（実機寸法 466×678・右の帯 84） › p2-note-mark-typed / p2-note-mark-changed / p2-note-indent
+[535/941] [chromium] › tests/v193-keyboard.spec.js:180:3 › D-4 タスクのメモ欄 開いた横・vv: メモ欄と打っている行がキーボードの上。行が増えても隠れない。閉じると元に戻る
+[536/941] [chromium] › tests/v193-design35-s9.spec.js:581:3 › 35 §9 M-1・M-11（見積もりを送る）つかむまで: 0.30 秒で離すと開く。0.35 秒押すと 1.03 倍・影 0 4 12・触覚 medium・元の場所に破線 1.5 #A8ABA4
+[537/941] [chromium] › tests/v193-note-tasks.spec.js:9:1 › N-1 日付のあるノートでチェック行に文字を入れる → 同じ題名・期限＝ノートの日付（時刻なし）のタスクが 1 件。状態の行に「タスクに足しました（期限 11月12日）」が 2 秒（シートで最初の 1 件だけ）。本文には何も足さない
+[538/941] [chromium] › tests/v193-keyboard.spec.js:180:3 › D-4 タスクのメモ欄 開いた横・native: メモ欄と打っている行がキーボードの上。行が増えても隠れない。閉じると元に戻る
+[539/941] [chromium] › tests/v193-keyboard.spec.js:208:1 › D-5 プラグインの出来事と visualViewport の両方が来たら、上にある方（小さい kbTop）で決める。片方だけ消えても、もう片方が残っていればキーボードありのまま
+[540/941] [chromium] › tests/v193-design35-s9.spec.js:581:3 › 35 §9 M-1・M-11（買い物）つかむまで: 0.30 秒で離すと開く。0.35 秒押すと 1.03 倍・影 0 4 12・触覚 medium・元の場所に破線 1.5 #A8ABA4
+[541/941] [chromium] › tests/v193-tasks-local.spec.js:66:1 › 35 §9 R-20／品質 R-7・R-10 静的: Info.plist に NSReminders* が無い。Swift・JS・HTML・sw にリマインダー API の参照が無い。予定用の EventKit と PrivacyInfo の UserDefaults は残る
+[542/941] [chromium] › tests/v193-tasks-local.spec.js:100:1 › 品質 R-1: 設定 › タスクに同期スイッチ・リスト選び・最初の取り込み・許可の経路が無い。常設の一文（13/400 #68716A）と、同期と関係ない設定は残る（native・同期オンだった端末）
+[543/941] [chromium] › tests/v193-tasks-local.spec.js:127:1 › 品質 R-2・R-4・R-6・R-8: 同期オンだった端末で、起動・前面復帰・calendarChanged・追加・完了・編集・削除のどれでも、リマインダーのメソッドは 1 回も呼ばれない。同期の設定値は消さない・書き換えない
+[544/941] [chromium] › tests/v193-note-tasks.spec.js:35:1 › N-2 両方向: ノートでチェック → タスクが完了。タスクを完了・戻す → ノートの行が「- [x] 」「- [ ] 」
+[545/941] [chromium] › tests/v193-design35-s9.spec.js:607:1 › 35 §9 M-1 タスクの四角の上で長押ししても同じようにつかむ（たたいたときだけ完了）
+[546/941] [chromium] › tests/v193-design35-s9.spec.js:617:1 › 35 §9 M-2 8 より先に動いたら: 押して 0.2 秒で 10 下へ → つかまない（ページの送りに任せる）
+[547/941] [chromium] › tests/v193-design35-s9.spec.js:633:1 › 35 §9 M-3 札: つかんで 30 動かすと 高さ 32・角丸 8・白。下の端＝指の y−24、横の中心＝指の x（画面の端 8 内に収まる）
+[548/941] [chromium] › tests/v193-tasks-local.spec.js:160:1 › 品質 R-3・R-12: 版を上げた最初の起動で、生きているタスクのつながりだけが外れる（題名・期限・完了・メモ・notify・並び・時刻はそのまま）。墓標は片づく。リマインダー側には触れない
+[549/941] [chromium] › tests/v193-note-tasks.spec.js:61:1 › N-3 二重に足されない: 開き直し・ほかの行の編集・完了の往復・読み込み直しのあとも 1 行 1 件
+[550/941] [chromium] › tests/v193-tasks-local.spec.js:180:1 › 品質 R-13・R-14: つながっていたタスクを移行すると、通知オンの件にアプリの通知が付く。同じタスクの予約は 1 つ（二重に鳴らない）。墓標・通知オフ・完了は鳴らない
+[551/941] [chromium] › tests/v193-tasks-local.spec.js:200:1 › 35 §9 M-36（その2の分）／品質 R-13: つながっていたタスクの期限を 12 日 → 14 日に変えると、14 日 18:00／日付だけは 14 日 8:00 にアプリの通知が 1 回だけ。12 日には残らない。リマインダーは呼ばれない
+[552/941] [chromium] › tests/v193-tasks-local.spec.js:222:1 › 35 §9 R-20／品質 R-11・R-15: 同期をオンにしていた端末で版を上げて起動すると、閉じた縦でシート y378〜678・後ろが暗い・見出しに焦点・文は設計どおり。OK で閉じ、2 回目の起動では出ない。権限の API は呼ばない
+[553/941] [chromium] › tests/v193-design35-s9.spec.js:657:1 › 35 §9 M-4 行き先: 14 のマスの上で、マスの地 #E5EEE9・枠 2 #294E42・角丸 4。札に「→ 14日（土）」。マスが変わるたびに触覚 light 1 件。元の日は光らせない
+[554/941] [chromium] › tests/v193-tasks-local.spec.js:267:3 › 35 §9 R-20／連携 §3 (e) 出す条件: enabled だけ true → 1 回だけ出る
+[555/941] [chromium] › tests/v193-tasks-local.spec.js:267:3 › 35 §9 R-20／連携 §3 (e) 出す条件: everEnabled だけ true（今はオフ） → 1 回だけ出る
+[556/941] [chromium] › tests/v193-design35-s9.spec.js:679:3 › 35 §9 M-5・M-6・M-8・M-11（会議）着地と元に戻す: 14 で離すと札が 0.15 秒で消え、14 にチップ、元の枠が 0.25 秒で閉じる。選んだ日は 12 のまま。6 秒以内の「元に戻す」で 12 に戻る
+[557/941] [chromium] › tests/v193-tasks-local.spec.js:267:3 › 35 §9 R-20／連携 §3 (e) 出す条件: 設定値は無いが、つながったタスクがある → 1 回だけ出る
+[558/941] [chromium] › tests/v193-tasks-local.spec.js:267:3 › 35 §9 R-20／連携 §3 (e) 出す条件: 設定値は無いが、墓標がある → 1 回だけ出る
+[559/941] [chromium] › tests/v193-tasks-local.spec.js:278:1 › 35 §9 R-20／品質 R-15: 同期を一度もオンにしていない端末（設定値なし／enabled も everEnabled も false、つながりなし）では出ない
+[560/941] [chromium] › tests/v193-design35-s9.spec.js:707:3 › 35 §9 M-7・M-11（会議）やめる: 格子の外・元の日（12）で離すと 0.22 秒で元へ。保存なし・札なし・触覚なし
+[561/941] [chromium] › tests/v193-note-tasks.spec.js:76:1 › N-3 変換の確定（Chromium の IME）: 変換の途中で保存が走っても、確定のあと 1 行 1 件で題名は確定した文字
+[562/941] [chromium] › tests/v193-tasks-local.spec.js:290:1 › 35 §9 R-20／設計 §8.1 閉じ方: 後ろをたたく・下へ払う・Esc のどれでも閉じて「出した」印が残る。小さく引いただけでは閉じない
+[563/941] [chromium] › tests/v193-design35-s9.spec.js:679:3 › 35 §9 M-5・M-6・M-8・M-11（見積もりを送る）着地と元に戻す: 14 で離すと札が 0.15 秒で消え、14 にチップ、元の枠が 0.25 秒で閉じる。選んだ日は 12 のまま。6 秒以内の「元に戻す」で 12 に戻る
+[564/941] [chromium] › tests/v193-tasks-local.spec.js:311:1 › 35 §9 R-20: 裏で起動したときは出さず、最初に前面になったときに出す
+[565/941] [chromium] › tests/v193-tasks-local.spec.js:322:3 › 35 §9 R-20／設計 §8.1 姿勢: 閉じた縦 466×678 のシートの矩形（切れ・重なりなし）
+[566/941] [chromium] › tests/v193-note-tasks.spec.js:91:1 › N-4 同じ題名・似た題名の行が 2 本: タスクも 2 件。片方だけチェックすると片方だけ完了
+[567/941] [chromium] › tests/v193-tasks-local.spec.js:322:3 › 35 §9 R-20／設計 §8.1 姿勢: 閉じた横 678×466 のシートの矩形（切れ・重なりなし）
+[568/941] [chromium] › tests/v193-design35-s9.spec.js:707:3 › 35 §9 M-7・M-11（見積もりを送る）やめる: 格子の外・元の日（12）で離すと 0.22 秒で元へ。保存なし・札なし・触覚なし
+[569/941] [chromium] › tests/v193-tasks-local.spec.js:322:3 › 35 §9 R-20／設計 §8.1 姿勢: 開いた縦 669×951 のシートの矩形（切れ・重なりなし）
+[570/941] [chromium] › tests/v193-tasks-local.spec.js:322:3 › 35 §9 R-20／設計 §8.1 姿勢: 開いた横 951×669 のシートの矩形（切れ・重なりなし）
+[571/941] [chromium] › tests/v193-tasks-local.spec.js:350:5 › K-14 › 35 §9 K-14: 閉じた縦 466×678 のタスクの四角は 20×20・角丸 4・線 1.75。押せる範囲は 44 のまま（タスクのページ・ホーム）
+[572/941] [chromium] › tests/v193-note-tasks.spec.js:105:1 › N-5 日付のないノートでは作らない。あとから別のノートに書いた行は、そのノートの日付が期限
+[573/941] [chromium] › tests/v193-tasks-local.spec.js:350:5 › K-14 › 35 §9 K-14: 閉じた横 678×466 のタスクの四角は 20×20・角丸 4・線 1.75。押せる範囲は 44 のまま（タスクのページ・ホーム）
+[574/941] [chromium] › tests/v193-design35-s9.spec.js:679:3 › 35 §9 M-5・M-6・M-8・M-11（買い物）着地と元に戻す: 14 で離すと札が 0.15 秒で消え、14 にチップ、元の枠が 0.25 秒で閉じる。選んだ日は 12 のまま。6 秒以内の「元に戻す」で 12 に戻る
+[575/941] [chromium] › tests/v193-tasks-local.spec.js:350:5 › K-14 › 35 §9 K-14: 開いた縦 669×951 のタスクの四角は 20×20・角丸 4・線 1.75。押せる範囲は 44 のまま（タスクのページ）
+[576/941] [chromium] › tests/v193-tasks-local.spec.js:350:5 › K-14 › 35 §9 K-14: 開いた横 951×669 のタスクの四角は 20×20・角丸 4・線 1.75。押せる範囲は 44 のまま（タスクのページ）
+[577/941] [chromium] › tests/v193-tasks-local.spec.js:388:1 › 品質 R-5: 閉じた画面のタスクで、追加・完了・編集・削除ができる（native のリマインダーは 0 回）
+[578/941] [chromium] › tests/v193-note-tasks.spec.js:118:1 › N-6 行の文字を直すと、タスクの題名も直る（タスクは同じ 1 件のまま）
+[579/941] [chromium] › tests/v193-design35-s9.spec.js:707:3 › 35 §9 M-7・M-11（買い物）やめる: 格子の外・元の日（12）で離すと 0.22 秒で元へ。保存なし・札なし・触覚なし
+[580/941] [chromium] › tests/v193-note-tasks.spec.js:130:1 › N-7 行を消す／普通の行に戻す → タスクは残り、つながりだけ外れる。あとの完了はノートに戻さない
+[581/941] [chromium] › tests/v193-design35-s9.spec.js:724:1 › 35 §9 M-8 元に戻すは 6 秒: 6 秒を過ぎると札が消える
+[582/941] [chromium] › tests/v193-tasks-local.spec.js:411:1 › 品質 R-5: 閉じた画面のホームで、追加（＋ → タスクの入力欄）と完了ができる
+[583/941] [chromium] › tests/v193-tasks-local.spec.js:428:3 › 品質 R-5: 開いた縦のタスクのページで、追加・完了・編集・削除ができる
+[584/941] [chromium] › tests/v193-note-tasks.spec.js:154:1 › N-8 保存済みの行（IME のごみの行を含む）は、起動しても・開いても・ほかの行を直してもタスクにしない。足した行だけタスクになる。保存済みの行の文字は 1 文字も変えない
+[585/941] [chromium] › tests/v193-design35-s9.spec.js:732:1 › 35 §9 M-9 月が外にあるとき: 段1で下まで送り、カードをつかんで y64〜104 の帯へ → ページが上へ送られ、スクロール位置 0 で止まる。帯の上端に近い方が速い
+[586/941] [chromium] › tests/v193-design35-s9.spec.js:750:1 › 35 §9 M-10 開閉・回転: つかんだまま閉じる⇄開く・回す → 何も保存されない。新しい画面に札も破線も残らない
+[587/941] [chromium] › tests/v193-tasks-local.spec.js:428:3 › 品質 R-5: 開いた横のタスクのページで、追加・完了・編集・削除ができる
+[588/941] [chromium] › tests/v193-note-tasks.spec.js:174:1 › ノートの日付を付け替えると、期限がまだ元の日付と同じ、つながったタスクだけ一緒に動く（design/35 §8・決定 7。その3 のカードの移動でも同じ関数を使う）
+[589/941] [chromium] › tests/v193-note-tasks.spec.js:196:3 › 閉じた横でも: 日付のあるノートのチェック行がタスクになり、チェックがタスクの完了にそろう
+[590/941] [chromium] › tests/v193-design35-s9.spec.js:764:1 › 35 §9 M-12 読み上げの道: 操作「日付を移す」→14、「1日後へ」。長押しと同じ結果・同じ札。読み上げ「〈題名〉を11月14日土曜日へ移しました」
+[591/941] [chromium] › tests/v193-tasks-local.spec.js:453:1 › 品質 B-6: v19.2 のバックアップ（rem*・syncState・墓標入り、版 6）を読み戻しても、つながりは復活しない。墓標は生き返らない。通知オンの件にはアプリの通知が付く。書き出しにも rem* は出ない
+(node:878263) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[592/941] [webkit] › tests/note-ime-r70.spec.js:65:5 › R-70 ノートの変換（模型、Chromium と WebKit） › 本文: ふつう → 途中の行が残らず、変換中に行を作り直さない
+[593/941] [chromium] › tests/v193-note-tasks.spec.js:196:3 › 開いた縦でも: 日付のあるノートのチェック行がタスクになり、チェックがタスクの完了にそろう
+[594/941] [webkit] › tests/note-ime-r70.spec.js:65:5 › R-70 ノートの変換（模型、Chromium と WebKit） › 本文: 変換中の文字を span で包む（連携の見立て） → 途中の行が残らず、変換中に行を作り直さない
+[595/941] [chromium] › tests/v193-design35-s9.spec.js:790:1 › 35 §9 M-13 視差効果を減らす: 拡大・吸い込み・戻りの移動なし、0.15 秒のフェードだけ（影は付ける）
+[596/941] [chromium] › tests/v193-note-tasks.spec.js:196:3 › 開いた横でも: 日付のあるノートのチェック行がタスクになり、チェックがタスクの完了にそろう
+[597/941] [webkit] › tests/note-ime-r70.spec.js:65:5 › R-70 ノートの変換（模型、Chromium と WebKit） › 本文: 確定後にキャレットが行の外 → 途中の行が残らず、変換中に行を作り直さない
+[598/941] [chromium] › tests/v193-design35-s9.spec.js:811:1 › 35 §9 M-30 繰り返しの回: 毎週の予定の 12 日の回を 13 へ。札に「この回だけ」（高さ 20・角丸 8・#EFECE4）。落とした札「13日（金）へ移しました（この回だけ）」。13 日だけ動き、他の週の回は動かない。系列か回かを聞く画面は出ない
+[599/941] [webkit] › tests/note-ime-r70.spec.js:65:5 › R-70 ノートの変換（模型、Chromium と WebKit） › 本文: 行の外に空の文字ノード → 途中の行が残らず、変換中に行を作り直さない
+[600/941] [chromium] › tests/v193-note-tasks.spec.js:222:1 › B-1・B-3・B-4 バックアップ: 版は 6 のまま。つながり（source）はタスクの任意の項目として書き出し、読み戻すとつながりも戻る。ノートの本文に id は無い
+[601/941] [chromium] › tests/v193-design35-s9.spec.js:839:1 › 35 §9 M-31 旧メモ: id memo-2026-11-12 のノートを 14 へ → 動く。id と sourceDate は元のまま、date だけ 2026-11-14、本文は 1 文字も変わらない。保存を失敗させると「移せませんでした。」3 秒・0.22 秒で元へ・date は元のまま
+[602/941] [webkit] › tests/note-ime-r70.spec.js:82:3 › R-70 ノートの変換（模型、Chromium と WebKit） › 連携の案: 変換中の行に span を差し込み isComposing の input → 行の数だけでなく、変換中のノードとキャレットが行の中に残ること
+(node:879221) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[603/941] [webkit] › tests/s11b-design-m.spec.js:38:3 › S11b 設計レビュー 必須（M1〜M9） › M1 行の上の線は高さを取らない: 行の上端から 日付の中心 11・チップ 22＋16k・最後のチップの下のあき 2（段1〜3、線のある行）
+[604/941] [webkit] › tests/note-ime-r70.spec.js:95:3 › R-70 ノートの変換（模型、Chromium と WebKit） › 本文直下の span の文字は、変換中の読み取りでも、確定後の作り直しでも消えない（flat が span を捨てていた件）
+[605/941] [webkit] › tests/s11b-design-m.spec.js:57:3 › S11b 設計レビュー 必須（M1〜M9） › M2 選んだ日の枠: ::after・内側 1・太さ 2・角丸 4・#294E42・z-index 4・box-shadow なし
+[606/941] [chromium] › tests/v193-design35-s9.spec.js:860:1 › 35 §9 M-32 移せなかった: 計画が作れない予定（試験用に null を返す）→「移せませんでした。」3 秒、触覚 warning、カードは元の場所
+[607/941] [webkit] › tests/s11b-design-m.spec.js:70:3 › S11b 設計レビュー 必須（M1〜M9） › M3 時刻つきチップを押している間（:active）も地は塗らない・暗くしない（マスの地だけ #E2DDD2）
+[608/941] [webkit] › tests/s11b-design-m.spec.js:82:3 › S11b 設計レビュー 必須（M1〜M9） › M3b 長押しでつかんでいる間、元のチップは破線の枠だけ（ベタ塗りにしない）
+[609/941] [webkit] › tests/note-ime-r70.spec.js:122:3 › R-70 ノートの変換（模型、Chromium と WebKit） › 本文: 変換の取り消し（空で確定）で、途中の文字が画面にも保存にも残らない（キャレットが行の外の状態から）
+[610/941] [webkit] › tests/s11b-design-m.spec.js:93:3 › S11b 設計レビュー 必須（M1〜M9） › M4 チップのない所を長押ししても何も出ない（期間の札・メニューなし）
+[611/941] [chromium] › tests/v193-design35-s9.spec.js:879:1 › 35 §9 M-33 閉じた横: 持ち上げ・札・着地・やめる・元に戻すが同じ秒数・同じ札。落とせるのは左の格子のマス。札は画面の端 8 内
+[612/941] [webkit] › tests/s11b-design-m.spec.js:107:3 › S11b 設計レビュー 必須（M1〜M9） › M5 日を選ぶと日の欄の中身が 0.15 秒で入れ替わる（消す 0.06・出す 0.09、2つを同時に見せない、終わりは新しい日の一番上）
+[613/941] [webkit] › tests/note-ime-r70.spec.js:133:3 › R-70 ノートの変換（模型、Chromium と WebKit） › 本文: 変換中に「完了」で閉じても、途中の行は1つも保存されない
+[614/941] [webkit] › tests/s11b-design-m.spec.js:144:3 › S11b 設計レビュー 必須（M1〜M9） › M5 視差効果を減らす設定では入れ替えは即時
+[615/941] [webkit] › tests/s11b-design-m.spec.js:153:3 › S11b 設計レビュー 必須（M1〜M9） › M6 日の見出し h3 は行 44（段1で日付の中心 y626）
+[616/941] [webkit] › tests/note-ime-r70.spec.js:148:3 › R-70 ノートの変換（Chromium の本物の IME） › 本文（新しいその日のノート）: 1行「これは今日のノート」、題名は日付
+[617/941] [webkit] › tests/note-ime-r70.spec.js:157:3 › R-70 ノートの変換（Chromium の本物の IME） › 本文: 行の外に文字ノードが1つある状態でも、途中の「き」が残らない
+[618/941] [webkit] › tests/note-ime-r70.spec.js:167:3 › R-70 ノートの変換（Chromium の本物の IME） › 本文: Esc（空で取り消し）で「これは」だけに戻る
+[619/941] [webkit] › tests/note-ime-r70.spec.js:176:3 › R-70 ノートの変換（Chromium の本物の IME） › 題名: 1行の「今日のノート」、途中の文字は残らない
+[620/941] [webkit] › tests/note-ime-r70.spec.js:184:3 › R-70 ノートの変換（Chromium の本物の IME） › 変換中に画面を開く（466×678 → 669×951）: 確定後は1行
+[621/941] [webkit] › tests/note-ime-r70.spec.js:194:3 › R-70 ノートの変換（Chromium の本物の IME） › 既にある途中の行（ゴミ行）を勝手に消さない: 開いただけでは1文字も変えず、書き足しても前の行は残る
+[622/941] [webkit] › tests/note-ime-r70.spec.js:221:3 › R-70 の直しで戻ってはいけないもの（S8 の決まり・貼り付け） › 空にした題名は記号を残さない（「# 」だけの行にしない）
+[623/941] [webkit] › tests/s11b-design-m.spec.js:162:3 › S11b 設計レビュー 必須（M1〜M9） › M7（v19.3）カードにつまみ（下）は無い。最後のカードのすぐ下が「ノート ›」で、上端をたたくと「ノート ›」
+[624/941] [webkit] › tests/note-ime-r70.spec.js:226:3 › R-70 の直しで戻ってはいけないもの（S8 の決まり・貼り付け） › 題名に自分で「# x」と打つと、保存は「# x」（「# # x」にしない）
+[625/941] [webkit] › tests/s11b-design-m.spec.js:180:3 › S11b 設計レビュー 必須（M1〜M9） › M8 日の欄のつまみの段（カード／時間軸）を覚える: 日を選び直しても、開き直しても同じ
+[626/941] [webkit] › tests/note-ime-r70.spec.js:231:3 › R-70 の直しで戻ってはいけないもの（S8 の決まり・貼り付け） › 題名への複数行の貼り付け: 1行目が題名（記号は出さない）、残りは本文の先頭
+[627/941] [webkit] › tests/s11b-design-m.spec.js:192:5 › S11b 設計レビュー 必須（M1〜M9） › M8 保存値 dayGrip=3 で起動するとカード（A）
+[628/941] [chromium] › tests/v193-design35-s9.spec.js:902:1 › 35 §9 M-34 マスのチップから: 閉じた画面で、マスのタスク □・ノートの紙のチップを長押しすると 0.35 秒で札になり、落とすと移る。+N で隠れた物はつかめない
+[629/941] [webkit] › tests/s11b-design-m.spec.js:192:5 › S11b 設計レビュー 必須（M1〜M9） › M8 保存値 dayGrip=-1 で起動するとカード（A）
+[630/941] [webkit] › tests/s11d-design-14-15.spec.js:30:1 › §14 帯あり横: 格子 x8〜374 y64〜424・行60×6・2件、日の欄 x382〜594・つまみ（上）なし（つまみ（下）は §17-3 で使う）
+[631/941] [webkit] › tests/s11b-design-m.spec.js:192:5 › S11b 設計レビュー 必須（M1〜M9） › M8 保存値 dayGrip=1.5 で起動するとカード（A）
+[632/941] [webkit] › tests/s11b-design-m.spec.js:192:5 › S11b 設計レビュー 必須（M1〜M9） › M8 保存値 dayGrip="x" で起動するとカード（A）
+[633/941] [webkit] › tests/s11d-design-14-15.spec.js:40:1 › §14 帯あり横: 右の列と「…」メニュー・ノートのシート
+[634/941] [webkit] › tests/s11b-design-m.spec.js:192:5 › S11b 設計レビュー 必須（M1〜M9） › M8 保存値 dayGrip=null で起動するとカード（A）
+[635/941] [chromium] › tests/v193-design35-s9.spec.js:918:1 › 35 §9 M-34 +N で隠れた物はつかめない（段 3＝1マス 2 件。マスに出ていない物は日の欄のカードから）
+[636/941] [webkit] › tests/s11b-design-m.spec.js:192:5 › S11b 設計レビュー 必須（M1〜M9） › M8 保存値 dayGrip="1" で起動するとカード（A）
+[637/941] [webkit] › tests/s11b-design-m.spec.js:192:5 › S11b 設計レビュー 必須（M1〜M9） › M8 保存値 dayGrip=true で起動するとカード（A）
+[638/941] [webkit] › tests/s11d-design-14-15.spec.js:47:1 › §14.5 帯なし横: 格子と日の欄は左右、…・タスクは見出し右、＋56・下余白105
+[639/941] [webkit] › tests/s11b-design-m.spec.js:201:5 › S11b 設計レビュー 必須（M1〜M9） › M8 保存値 dayGrip=1 は B で起動し、閉じる⇄開く・読み込み直しのあとも B（保存値も 1 のまま）
+[640/941] [chromium] › tests/v193-design35-s9.spec.js:930:1 › 35 §9 M-35 ノートの衝突なし: ノートのある 14 日へ別のノートを落とす → 確認は出ない。14 日のノートの区画が 2 枚になる
+[641/941] [webkit] › tests/s11d-design-14-15.spec.js:55:1 › S11e 横では stage を書き換えず保存しない。横→縦で元の段5へ戻る
+[642/941] [chromium] › tests/v193-design35-s9.spec.js:956:1 › 35 §9 M-36 タスクの通知: 通知オン・期限 12 日 18:00 のタスクを 14 へ／日付だけのタスクを 14 へ → 14 日 18:00／14 日 8:00 にアプリの通知が 1 回だけ。12 日には鳴らない。リマインダーは呼ばない
+[643/941] [webkit] › tests/s11b-design-m.spec.js:201:5 › S11b 設計レビュー 必須（M1〜M9） › M8 保存値 dayGrip=2 は C で起動し、閉じる⇄開く・読み込み直しのあとも C（保存値も 2 のまま）
+[644/941] [webkit] › tests/s11d-design-14-15.spec.js:66:1 › §15① 帯あり縦のシート x0〜382 y152〜678・完了 x326〜370
+[645/941] [webkit] › tests/s11b-design-m.spec.js:220:3 › S11b 設計レビュー 必須（M1〜M9） › M9（v19.3 でやめた）格子を縦に引いても段は変わらない。つまみ（上）を引くと変わる
+[646/941] [webkit] › tests/s11d-design-14-15.spec.js:71:1 › §15② 帯ありノートは右の列だけに戻す/やり直す、シートの戻す群なし、＋非表示
+[647/941] [chromium] › tests/v193-design35-s9.spec.js:978:1 › 35 §9 M-37 開いた縦のメモ・タスク（R7）: 日の欄のタスクの行・ノートの題名の行を長押し→月の 14 へ（行が 1.03 倍・破線・札）。ノートの本文の長押しはつかまない
+[648/941] [webkit] › tests/s11b-design-m.spec.js:233:3 › S11b 設計レビュー 必須（M1〜M9） › M9b（v19.3 でやめた）日の欄を一番上から下へ引いても段は変わらない
+[649/941] [webkit] › tests/s11d-design-14-15.spec.js:80:1 › §15② 戻す/やり直す: 空履歴の記号 #C9C5BA、使えないとき何もしない、本文焦点保持
+[650/941] [webkit] › tests/s11b-design-m.spec.js:242:3 › S11b 設計レビュー 必須（M1〜M9） › §13-1 つまみ（上）の押せる範囲は格子の下端から高さ 44（4件目のチップにかからない）
+[651/941] [webkit] › tests/s11d-design-14-15.spec.js:90:1 › §15③ 帯なし縦: タスク/…44、今日へ64、見出し中心233、＋は見える48・押せる56
+[652/941] [webkit] › tests/v193-cards.spec.js:17:1 › C-2「＋ ノート」: その日の新しいノートを題名から書ける（1行目に日付の見出しは足さない・空のあいだ「題名」）。閉じるとカードが 1 枚増える。何も書かずに閉じたら何も残らない
+[653/941] [webkit] › tests/s11d-design-14-15.spec.js:99:1 › §15③ 帯なし縦: 日の欄の下余白105、送り切ると最後の内容が＋上端581の8上
+[654/941] [chromium] › tests/v193-design35-s9.spec.js:1023:1 › 35 §9 M-37 開いた横のノート（R7）: ノートのページの題名の行を長押し→左の月の 14 へ。タスクのページ・ノートの一覧の行はつかめない
+[655/941] [webkit] › tests/s11d-design-14-15.spec.js:108:1 › §15④ ホームのタイムライン → 段7・日の欄B（時間・最低限＝1時間28）、別の日の画面を開かない
+[656/941] [webkit] › tests/s11d-design-14-15.spec.js:114:1 › 望ましい: 週の時間軸の見出し中心は x191（帯あり）
+[657/941] [chromium] › tests/v193-design35-s9.spec.js:1053:1 › 35 §9 M-38 開いた画面の予定の札（R1）: 開いた縦・横で予定を長押しで運ぶ → 札は白地・印つき、行き先の枠は角丸 4、やめたら 0.22 秒。配置と落とし先は今のまま
+[658/941] [webkit] › tests/s11d-design-14-15.spec.js:120:1 › S11e ヒントは指定の2行・13/400/18・上下内側8・段1で y520〜572、二度目は出さない
+[659/941] [webkit] › tests/s11d-design-14-15.spec.js:127:1 › S11e ヒントは横では出さず、初めて縦で開いたら出す
+[660/941] [webkit] › tests/v193-cards.spec.js:41:1 › C-3「＋ タスク」: その日を期限にした新しいタスクを題名から書ける。保存するとカードが増える。四角（左 x0〜52）で完了、ほかをたたくと開く。期限なしのタスクは日の欄に出ない
+[661/941] [webkit] › tests/s11d-design-14-15.spec.js:133:1 › S11e フォーカス: 指タップ後は枠なし、キーボードは :focus-visible 太さ2・#2F6B4F・角丸4・内側2
+[662/941] [webkit] › tests/s11d-design-14-15.spec.js:148:3 › S11e(a) 段1（保存は段だけ）: 見えない「次の月」「前の月」は 1か月送る
+[663/941] [webkit] › tests/v193-cards.spec.js:66:1 › タスクのシートの「ノート「買い物」 ›」（35 §8）: ノートのチェック行からできたタスクは、期限の下の行からそのノートを開ける。ふつうのタスクには出ない
+[664/941] [webkit] › tests/s11d-design-14-15.spec.js:148:3 › S11e(a) 段2（保存は段だけ）: 見えない「次の月」「前の月」は 1か月送る
+[665/941] [chromium] › tests/v193-design35-s9.spec.js:1088:1 › 35 §9 N-20 ノートを動かす（決定 7）: チェック 2 行のノート（12 日）を 16 へ。うち 1 件は期限を 20 日に変えてある → 期限 12 日のままのタスクだけ 16 日へ。札「ノートとタスク 1 件を移しました」。元に戻すで両方 12 日へ
+[666/941] [webkit] › tests/v193-cards.spec.js:83:1 › 閉じた横: カードは幅 188・高さ 56 で、切り替えの行（y50〜82）の下 y88 から。題名は 1 行で「…」。区画の見出しと「＋ タスク」「＋ ノート」も入る
+[667/941] [webkit] › tests/s11d-design-14-15.spec.js:148:3 › S11e(a) 段3（保存は段だけ）: 見えない「次の月」「前の月」は 1か月送る
+[668/941] [webkit] › tests/v193-cards.spec.js:96:1 › M-15・M-16 終日・複数日の予定は帯のまま。帯を長押しで運ぶと、長さを保って日付だけずれる（終日のまま）。札の印は色の線
+[669/941] [webkit] › tests/s11d-design-14-15.spec.js:148:3 › S11e(a) 段4（保存は段だけ）: 見えない「次の月」「前の月」は 7日送る
+[670/941] [chromium] › tests/v193-design35-s9.spec.js:1100:1 › 35 §9 N-21・N-22 タスクだけ動かす → そのあとノートを動かす: 札は 1 行「14日（土）へ移しました｜元に戻す」。ノートの日付と行は 12 日のまま、副題は残り、チェックは両方向でそろう。ノートを 16 へ動かすと、期限 12 日のままの「卵」だけ付いていく
+[671/941] [webkit] › tests/s11d-design-14-15.spec.js:148:3 › S11e(a) 段5（保存は段だけ）: 見えない「次の月」「前の月」は 7日送る
+[672/941] [webkit] › tests/v193-cards.spec.js:112:1 › 「時間」のときも、時間軸の枠・終日の行を長押しで月のマスへ落とせる（時刻は残す）。区画（タスク・ノートのカード）は時間軸の下に同じ形で出る
+[673/941] [webkit] › tests/s11d-design-14-15.spec.js:148:3 › S11e(a) 段6（保存は段だけ）: 見えない「次の月」「前の月」は 7日送る
+[674/941] [webkit] › tests/s11d-design-14-15.spec.js:148:3 › S11e(a) 段7（保存は段だけ）: 見えない「次の月」「前の月」は 7日送る
+[675/941] [webkit] › tests/v193-cards.spec.js:126:1 › M-19 同じ日へ落とす: 何もしない（保存しない＝updatedAt も変わらない・札なし・触覚なし）。予定・タスク・ノートとも
+[676/941] [webkit] › tests/s11d-design-14-15.spec.js:160:1 › S11e(a) まっさらの初回起動（段1）: detail=0 の「次の月」で見出しの月が1回で変わる
+[677/941] [webkit] › tests/s11d-design-14-15.spec.js:166:1 › a11y: 段を往復して同期した後も detail=0 の「次の月」「前の月」が使える
+[678/941] [webkit] › tests/s11d-design-14-15.spec.js:181:3 › S11e(b) 開いた縦で「day」→ 閉じた画面で起動し日を選ぶ → 開くと元の画面。開いた側の保存値は変わらない
+[679/941] [webkit] › tests/v193-cards.spec.js:139:1 › M-22 取り合いなし: つかんでいる間は、画面のスクロール・月の段のつまみ・横の払い（月送り）・カード｜時間が動かない。離したあとは今までどおり
+[680/941] [webkit] › tests/v193-cards.spec.js:156:1 › D-5 タスクを開いて期限の日を変えて保存: 動かしたのと同じ扱い（札「14日（土）へ移しました｜元に戻す」。時刻はそのまま）。元に戻すで期限だけ戻る
+[681/941] [webkit] › tests/s11d-design-14-15.spec.js:181:3 › S11e(b) 開いた縦で「week」→ 閉じた画面で起動し日を選ぶ → 開くと元の画面。開いた側の保存値は変わらない
+[682/941] [webkit] › tests/v193-cards.spec.js:169:1 › D-5 予定を開いて開始の日を変えて保存: 今のシートのまま（終了も同じだけずれる）。カードは先の日へ
+[683/941] [webkit] › tests/s11d-design-14-15.spec.js:181:3 › S11e(b) 開いた縦で「home」→ 閉じた画面で起動し日を選ぶ → 開くと元の画面。開いた側の保存値は変わらない
+[684/941] [webkit] › tests/v193-cards.spec.js:177:1 › ノートのシートの「日付を外す」: その日の日の欄からカードが消える（date: null。sourceDate には戻さない）。6 秒は元に戻せる
+[685/941] [webkit] › tests/s11d-design-14-15.spec.js:218:3 › §16-2 段2（v19.3）: 日の見出し .mdh は貼り付けない（年月と曜日だけが残る）。画面を送ってもカードが日の欄の上 20 に入らない
+[686/941] [webkit] › tests/v193-cards.spec.js:242:1 › iPhone の予定のカード: 長押しで 14 へ → updateExternalEvent（その回だけ・日付と時刻だけ。題名とメモは送らない）。表示は先に変わり、カレンダー側と同じ日時になる。元に戻すも同じ経路
+(node:884861) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[687/941] [webkit] › tests/v193-closed-scroll.spec.js:71:5 › 1・2 つまみ以外のスワイプでは段が変わらない › 1 格子の上を縦にスワイプ（上へ・下へ、マウス）: data-stage も格子の高さも変わらず、触覚ログに積まれない
+[688/941] [webkit] › tests/s11d-design-14-15.spec.js:218:3 › §16-2 段4（v19.3）: 日の見出し .mdh は貼り付けない（年月と曜日だけが残る）。画面を送ってもカードが日の欄の上 20 に入らない
+[689/941] [webkit] › tests/s11d-design-14-15.spec.js:218:3 › §16-2 段7（v19.3）: 日の見出し .mdh は貼り付けない（年月と曜日だけが残る）。画面を送ってもカードが日の欄の上 20 に入らない
+[690/941] [webkit] › tests/v193-cards.spec.js:264:1 › M-17 読み取り専用の iPhone の予定: 見た目は変えず、長押しで持ち上がらない。理由を出して、書き込み 0
+[691/941] [webkit] › tests/s11d-design-14-15.spec.js:230:1 › §16-2 段1は .mdh を貼り付けない
+[692/941] [webkit] › tests/v193-closed-scroll.spec.js:87:5 › 1・2 つまみ以外のスワイプでは段が変わらない › 2 日の欄の上を縦にスワイプ（一番上から下へ・上へ、マウス）: 段は変わらない
+[693/941] [webkit] › tests/s11d-design-14-15.spec.js:234:1 › §16-2 D1: 押して 0.22 秒はマスの地 #E2DDD2、つかんで（0.35 秒）0.10 秒で元の地へ。0.50 秒で元の地
+[694/941] [webkit] › tests/v193-cards.spec.js:274:1 › M-24 iPhone への書き込みが断られた: 先に変えた表示を元へ戻し、「移せませんでした。」。カードは元の日に残る
+[695/941] [webkit] › tests/s11d-design-14-15.spec.js:277:5 › §16-4 単発（撮影）をその場で離す: 取り消し。IndexedDB 書き込み 0・overrides/updatedAt 不変・知らせ/元に戻す/触覚なし・iPhone へ書かない
+[696/941] [webkit] › tests/v193-closed-scroll.spec.js:71:5 › 1・2 つまみ以外のスワイプでは段が変わらない › 1 格子の上を縦にスワイプ（上へ・下へ、指）: data-stage も格子の高さも変わらず、触覚ログに積まれない
+[697/941] [webkit] › tests/v193-cards.spec.js:282:1 › M-18 iPhone にもつながった Duo の予定: IndexedDB を先に直し、送信待ち経由で updateEvent（日付の部分だけ・時刻はそのまま）
+[698/941] [webkit] › tests/s11d-design-14-15.spec.js:277:5 › §16-4 単発（撮影）を別の日へ動かしてから元の日へ戻して離す: 取り消し。IndexedDB 書き込み 0・overrides/updatedAt 不変・知らせ/元に戻す/触覚なし・iPhone へ書かない
+[699/941] [webkit] › tests/v193-closed-scroll.spec.js:87:5 › 1・2 つまみ以外のスワイプでは段が変わらない › 2 日の欄の上を縦にスワイプ（一番上から下へ・上へ、指）: 段は変わらない
+[700/941] [webkit] › tests/v193-cards.spec.js:297:1 › 保存の形は変えない: IndexedDB の版 6・ストアの並びは同じ。動かしても、ノートは date だけ・タスクは due と updatedAt だけ・予定は start/end と updatedAt だけが変わる（本文は 1 文字も変わらない・旧メモ由来の sourceDate と id は残る）
+[701/941] [webkit] › tests/s11d-design-14-15.spec.js:277:5 › §16-4 繰り返しの回（定例）をその場で離す: 取り消し。IndexedDB 書き込み 0・overrides/updatedAt 不変・知らせ/元に戻す/触覚なし・iPhone へ書かない
+[702/941] [webkit] › tests/s11d-design-14-15.spec.js:277:5 › §16-4 繰り返しの回（定例）を別の日へ動かしてから元の日へ戻して離す: 取り消し。IndexedDB 書き込み 0・overrides/updatedAt 不変・知らせ/元に戻す/触覚なし・iPhone へ書かない
+[703/941] [webkit] › tests/v193-closed-scroll.spec.js:102:3 › 1・2 つまみ以外のスワイプでは段が変わらない › 1・2・4 本物の指（Chromium）: 格子を上へスワイプすると画面が送られるだけ。日の欄を一番上から下へスワイプしても段は変わらない
+[704/941] [webkit] › tests/v193-closed-scroll.spec.js:124:5 › 3 つまみ（上）だけが段を変える › 3 つまみ（上）を引く: 段4→段3。触覚ログは境の数だけ [3]
+[705/941] [webkit] › tests/v193-cards.spec.js:318:1 › バックアップ・検索: 動かしたあとも、書き出しは版 6（version・schema）で、ノートは新しい date と元の sourceDate を持つ。検索はノート・タスクを先の日で見つける
+[706/941] [webkit] › tests/v193-closed-scroll.spec.js:124:5 › 3 つまみ（上）だけが段を変える › 3 つまみ（上）を引く: 段4→段1。触覚ログは境の数だけ [3,2,1]
+[707/941] [webkit] › tests/s11d-design-14-15.spec.js:277:5 › §16-4 iPhone の予定（歯医者）をその場で離す: 取り消し。IndexedDB 書き込み 0・overrides/updatedAt 不変・知らせ/元に戻す/触覚なし・iPhone へ書かない
+[708/941] [webkit] › tests/v193-closed-scroll.spec.js:124:5 › 3 つまみ（上）だけが段を変える › 3 つまみ（上）を引く: 段1→段7。触覚ログは境の数だけ [2,3,4,5,6,7]
+[709/941] [webkit] › tests/v193-closed-scroll.spec.js:133:3 › 3 つまみ（上）だけが段を変える › 3 つまみ（上）を指（pointerType:touch）で引いても段が変わる（段4→段3）
+[710/941] [webkit] › tests/s11d-design-14-15.spec.js:277:5 › §16-4 iPhone の予定（歯医者）を別の日へ動かしてから元の日へ戻して離す: 取り消し。IndexedDB 書き込み 0・overrides/updatedAt 不変・知らせ/元に戻す/触覚なし・iPhone へ書かない
+[711/941] [webkit] › tests/v193-closed-scroll.spec.js:139:3 › 3 つまみ（上）だけが段を変える › 3 キー ↑↓: つまみ（上）に焦点があるとき ↑ で段が進み、↓ で戻る。触覚ログは1件ずつ
+[712/941] [webkit] › tests/s11d-design-14-15.spec.js:340:1 › §17-5 横・帯なしでノートを書いている間、シートの領域に赤い画素がなく、バッジは見えないかシートの奥。閉じると戻る
+[713/941] [webkit] › tests/v193-closed-scroll.spec.js:147:3 › 3 つまみ（上）だけが段を変える › 7 つまみ（上）の押せる範囲は 44pt 以上（格子の下端から 44。スクロールしても同じ）
+[714/941] [webkit] › tests/v193-cards.spec.js:335:3 › K-13 月のマスのチップ（閉じた縦）: タスク・ノートの名前のチップを足しても、マスの枠からはみ出さない・文字が隣のマスにかからない。入りきらない分は +N
+[715/941] [webkit] › tests/v193-cards.spec.js:335:3 › K-13 月のマスのチップ（閉じた横）: タスク・ノートの名前のチップを足しても、マスの枠からはみ出さない・文字が隣のマスにかからない。入りきらない分は +N
+[716/941] [webkit] › tests/v193-closed-scroll.spec.js:165:3 › 4・5 画面全体が1本でスクロールする › 4 格子の上・日の欄の上のホイールで同じ1本が動く。格子は見出しの下へ流れ、見出しと曜日の y は変わらない。日の欄の中に入れ子の縦スクロールはない
+[717/941] [webkit] › tests/s11d-design-14-15.spec.js:358:3 › §17-5 縦・帯あり: ふだんはバッジが見える（赤い画素あり）。ノートを閉じたあとも見える
+[718/941] [webkit] › tests/v193-cards.spec.js:402:3 › 速さ（閉じた縦）: 持ち上げ・落とす・元に戻すの動き始めは 100ms 以内、落としてから先の日に表示され終わるまで 300ms 以内。運んでいる間に長いタスクなし（予定・タスク・ノート）
+[719/941] [webkit] › tests/v193-closed-scroll.spec.js:186:3 › 4・5 画面全体が1本でスクロールする › 4 スクロール 0 の配置は v19.2 と同じ（段 1〜7: 格子 y64・つまみ・日の欄の上端は spec-values、日の欄の箱は画面の下端まで）
+[720/941] [webkit] › tests/s11d-design-14-15.spec.js:358:3 › §17-5 縦・帯なし: ふだんはバッジが見える（赤い画素あり）。ノートを閉じたあとも見える
+[721/941] [webkit] › tests/s11d-design-14-15.spec.js:358:3 › §17-5 横・帯あり: ふだんはバッジが見える（赤い画素あり）。ノートを閉じたあとも見える
+[722/941] [webkit] › tests/v193-closed-scroll.spec.js:195:3 › 4・5 画面全体が1本でスクロールする › 5 格子が流れ切ったら見出しの右に選んだ日「12日（木）」が 0.15 秒で出て、戻すと消える。「今日へ」と重ならない
+[723/941] [webkit] › tests/s11d-design-14-15.spec.js:371:1 › 連携 低① 閉じた画面で書き出したバックアップの settings.view は開いた側の値（week）
+[724/941] [webkit] › tests/v193-closed-scroll.spec.js:222:3 › 6・8 スクロールした状態での操作 › 6 スクロールした状態でつまみ（上）を引いても、つまみが指に 1:1 で付いてくる（跳ねない・スクロール位置は動かない）
+[725/941] [webkit] › tests/s11d-design-14-15.spec.js:403:3 › 連携 低① 開いた縦（day）で書き出すと settings.view は 'day'
+[726/941] [webkit] › tests/s11d-design-14-15.spec.js:403:3 › 連携 低① 開いた縦（week）で書き出すと settings.view は 'week'
+[727/941] [webkit] › tests/v193-closed-scroll.spec.js:237:3 › 6・8 スクロールした状態での操作 › 8 横の払い（月送り）は残っている（マウス・指）。段もスクロール位置も変わらない
+[728/941] [webkit] › tests/s11d-design-14-15.spec.js:403:3 › 連携 低① 開いた縦（month）で書き出すと settings.view は 'month'
+[729/941] [webkit] › tests/s11d-design-14-15.spec.js:408:1 › 連携 低① 開いた縦で 週→日 に変えてすぐ（保存前）書き出すと day。閉じて書き出しても day
+[730/941] [webkit] › tests/v193-closed-scroll.spec.js:248:3 › 6・8 スクロールした状態での操作 › 8 マスのタップで日が変わり、スクロール位置は動かない（日の欄は中身だけ替わる）
+[731/941] [webkit] › tests/s11d-design-14-15.spec.js:422:1 › §18-3 横・帯なし: シートを開いている間 (656,4)・(669,4) をたたいても画面が変わらない。ボタンは inert。閉じたらタスクが押せる
+[732/941] [webkit] › tests/v193-cards.spec.js:402:3 › 速さ（閉じた横）: 持ち上げ・落とす・元に戻すの動き始めは 100ms 以内、落としてから先の日に表示され終わるまで 300ms 以内。運んでいる間に長いタスクなし（予定・タスク・ノート）
+[733/941] [webkit] › tests/v193-closed-scroll.spec.js:256:3 › 6・8 スクロールした状態での操作 › 8 チップの長押し移動（R-49）は残っている: 長押しでつかむと段もスクロール位置も変わらず、別の日へ落とせる
+[734/941] [webkit] › tests/v193-closed-scroll.spec.js:270:3 › 9 変えないもの › 9 閉じた横（678×466）は今までどおり: 段を持たず、画面はスクロールしない。日の欄の中がスクロールし、見出しは貼り付く。縦へ戻すと段はそのまま
+[735/941] [webkit] › tests/s11d-design-14-15.spec.js:443:1 › §18-3・§18-6 横・帯なし: シートを開いている間 y0〜7 を x0〜678 で走査し、押せる物に当たらない（見出しの帯をすべて inert）
+[736/941] [webkit] › tests/v193-closed-scroll.spec.js:287:5 › 9 変えないもの › 9 開いた縦 669×951・月 は 5bc8af6 の基準と同じ（要素の位置 0.5 以内・見えるボタンの並び）。日の欄に .mdin・畳み・1本スクロールは持ち込まない
+[737/941] [webkit] › tests/v193-closed-scroll.spec.js:287:5 › 9 変えないもの › 9 開いた横 951×669 は 5bc8af6 の基準と同じ（要素の位置 0.5 以内・見えるボタンの並び）。日の欄に .mdin・畳み・1本スクロールは持ち込まない
+[738/941] [webkit] › tests/v193-closed-scroll.spec.js:303:5 › 10 どの段・どの日でも格子を流し切れる › 10 帯あり・予定のない日: 段 1〜7 で格子を見出しの下まで流し切れ、選んだ日が出る。送り切ると最後のノートが下の端・右下の＋に隠れずに見える
+[739/941] [webkit] › tests/s11d-design-14-15.spec.js:452:1 › §18-3・§18-6 横・帯なし: シートの上の端で 今日へ・見えない前の月/次の月 が働かない（閉じたあとの月と選んだ日が同じ）
+[740/941] [webkit] › tests/s11d-design-14-15.spec.js:468:3 › §18-6 横・帯なし: シートを開いている間 今日へ (350,4) をたたいても月が変わらない。閉じたら働く（12月から 11月）
+[741/941] [webkit] › tests/v193-closed-scroll.spec.js:303:5 › 10 どの段・どの日でも格子を流し切れる › 10 帯あり・予定のある日: 段 1〜7 で格子を見出しの下まで流し切れ、選んだ日が出る。送り切ると最後のノートが下の端・右下の＋に隠れずに見える
+[742/941] [webkit] › tests/s11d-design-14-15.spec.js:468:3 › §18-6 横・帯なし: シートを開いている間 見えない前の月 をたたいても月が変わらない。閉じたら働く（12月から 11月）
+[743/941] [webkit] › tests/v193-cards.spec.js:424:1 › 速さ（CPU を 4 倍に落とした Chromium）: 落としてから先の日に表示され終わるまで 300ms 以内、動き始めは 100ms 以内（閉じた縦・予定・タスク・ノート）
+[744/941] [webkit] › tests/v193-day-cardtime.spec.js:9:1 › A-1 保存の形は v19.2 のまま: dayGrip は 0（カード）・1（時間・最低限）・2（時間・詳細）の整数。duo.ui.v1 に足した項目なし
+[745/941] [webkit] › tests/s11d-design-14-15.spec.js:468:3 › §18-6 横・帯なし: シートを開いている間 見えない次の月 をたたいても月が変わらない。閉じたら働く（12月から 1月）
+[746/941] [webkit] › tests/v193-day-cardtime.spec.js:21:1 › A-2 古い保存値: 1 は「時間・最低限」（1時間 28）、2 は「詳細」（88）、0〜2 でない値はカード
+[747/941] [webkit] › tests/v193-day-cardtime.spec.js:32:1 › A-3 「時間」は最後に見ていた幅で開く（この起動の間）。カードに戻すとバーが消える
+[748/941] [webkit] › tests/v193-design35-s9.spec.js:14:1 › 35 §9 S-1 切り替え: 日の見出しの右に「カード｜時間」132×32・角丸 8・地 #E4E0D6、1つの押せる範囲 66×44、帯ありで右端 x370
+[749/941] [webkit] › tests/v193-closed-scroll.spec.js:303:5 › 10 どの段・どの日でも格子を流し切れる › 10 帯なし・予定のない日: 段 1〜7 で格子を見出しの下まで流し切れ、選んだ日が出る。送り切ると最後のノートが下の端・右下の＋に隠れずに見える
+[750/941] [webkit] › tests/v193-day-cardtime.spec.js:41:1 › A-4 切り替えの動き: 前を消してから次を出す（0.20 秒・見出しと切り替えは動かさない）。動きを減らす設定では 0.15 秒のフェード
+[751/941] [webkit] › tests/v193-design35-s9.spec.js:35:1 › 35 §9 S-2 カードにつまみなし: つまみ（下）の要素が無い。日の欄を上下に引いても dayGrip が変わらない
+[752/941] [webkit] › tests/v193-day-cardtime.spec.js:55:1 › A-5 バーをたたくと 28 ⇄ 88（0.25 秒）。キー ↑↓ でも。読み上げは「時間の幅」「最低限／詳細」
+[753/941] [webkit] › tests/v193-day-cardtime.spec.js:78:1 › A-6 押せる範囲は全幅×44（区域 24 の上下に 10 ずつ）。上へ引いても 28 より縮まずカードにもならない（ゴム 最大 24 で戻る）
+[754/941] [webkit] › tests/v193-design35-s9.spec.js:49:1 › 35 §9 S-3 時間・最低限: 1時間の線の間が 28。終日の行がバーの下に見える。最初に見える時刻＝最初の予定の1時間前
+[755/941] [webkit] › tests/v193-design35-s9.spec.js:69:1 › 35 §9 S-4 バーで広げる: バーを下へ 60 引いて止めると 1時間 58。バーのすぐ下の時刻の線の y は引く前と同じ
+[756/941] [webkit] › tests/v193-day-cardtime.spec.js:98:1 › A-7 速く払うと払った向きへ: 下へ 30 を速く払うと詳細、詳細から上へ 30 を速く払うと最低限
+[757/941] [webkit] › tests/v193-design35-s9.spec.js:91:1 › 35 §9 S-5 バーで寄せる: 下へ 70 で離すと 0.25 秒後に 88、50 で離すと 28。58 をまたいだとき触覚ログ 1 件
+[758/941] [webkit] › tests/v193-closed-scroll.spec.js:303:5 › 10 どの段・どの日でも格子を流し切れる › 10 帯なし・予定のある日: 段 1〜7 で格子を見出しの下まで流し切れ、選んだ日が出る。送り切ると最後のノートが下の端・右下の＋に隠れずに見える
+[759/941] [webkit] › tests/v193-day-cardtime.spec.js:112:1 › A-8 詳細（88）は題名の下に時刻「9:00〜9:30」。最低限（28）は題名1行だけで、枠から字がはみ出さない
+[760/941] [webkit] › tests/v193-day-cardtime.spec.js:122:1 › A-9 「前の時間」で 0:00 から開く（画面は動かさない）。日を選び直す・カード⇔時間で畳み直す。幅を変えても開いたまま
+[761/941] [webkit] › tests/v193-design35-s9.spec.js:112:1 › 35 §9 S-6 ゴム: 88 からさらに下へ 100 引くと、88＋最大 24 の見かけで止まり、離すと 88
+[762/941] [webkit] › tests/v193-design35-s9.spec.js:129:1 › 35 §9 S-7 バーは貼り付かない: 時間で下へ 300 送ると、バーも日の見出しと一緒に流れて画面の外へ。上に残るのは年月と曜日（y0〜64）だけ。戻すと見出しのすぐ下にあり、引けば幅が変わる
+[763/941] [webkit] › tests/v193-day-cardtime.spec.js:142:1 › A-10 その1の決まり: 時間でも画面は1本のスクロール（入れ子の縦スクロールなし）。バーで幅を変えても段と画面の位置は変わらない。つまみ（上）で段だけ変わる
+[764/941] [webkit] › tests/v193-design35-s9.spec.js:153:1 › 35 §9 S-8 バー以外では変わらない: 時間軸・格子・日の欄を縦に引いても、1時間の高さも段も変わらない（触覚ログも増えない）
+[765/941] [webkit] › tests/v193-day-cardtime.spec.js:161:1 › A-11 帯がない画面（ブラウザ）: 切り替えは右下の＋・右上の「…」「タスク」にかからない。バーの押せる所は＋にかからない
+[766/941] [webkit] › tests/v193-day-cardtime.spec.js:171:1 › A-12 閉じた横: 日の欄の中がスクロール（今までどおり）。時間はバー・終日の行・1時間前からで、バーは流れる。段は使わない
+[767/941] [webkit] › tests/v193-keyboard.spec.js:55:3 › D-1 予定のメモ欄 閉じた縦・vv: メモ欄と打っている行がいつもキーボードの上。行が増えても隠れない。キーボードを閉じると元のシートに戻る
+[768/941] [webkit] › tests/v193-design35-s9.spec.js:169:1 › 35 §9 S-9 覚える: 時間・詳細にして 閉じる⇄開く・読み込み直しのあとも dayGrip 2 のまま、1時間 88
+[769/941] [webkit] › tests/v193-day-cardtime.spec.js:194:1 › A-13 初めて「時間」にした1回だけ、札「バーを下へ引くと、時間が広がります」。触れると消え、2回目は出ない
+[770/941] [webkit] › tests/v193-keyboard.spec.js:55:3 › D-1 予定のメモ欄 閉じた縦・native: メモ欄と打っている行がいつもキーボードの上。行が増えても隠れない。キーボードを閉じると元のシートに戻る
+[771/941] [webkit] › tests/v193-design35-s9.spec.js:187:1 › 35 §9 L-1 閉じた横の切り替え: 見出し 44 の下に「カード｜時間」188×32（y50〜82、1つ 94、押せる 94×44）。カード 188×56 は y88 より下
+[772/941] [webkit] › tests/v193-day-cardtime.spec.js:209:1 › A-14 予定のない日: カードは「予定はありません」、時間は 8:00（9:00 の1時間前）から。切り替えとバーは同じ位置
+[773/941] [webkit] › tests/v193-keyboard.spec.js:55:3 › D-1 予定のメモ欄 閉じた横・vv: メモ欄と打っている行がいつもキーボードの上。行が増えても隠れない。キーボードを閉じると元のシートに戻る
+[774/941] [webkit] › tests/v193-day-cardtime.spec.js:220:1 › A-15 祝日名・六曜で見出しが長い日でも、日付と切り替えが重ならない（曜日の側を省く）
+[775/941] [webkit] › tests/v193-design35-s9.spec.js:212:3 › 35 §9 O-1 開いた縦は変わらない: 「カード｜時間」・時間のバー・カード 56 が無い（その2 の分。open-baseline との比べは v193-closed-scroll の 9 と closed-pull-v20 の I）
+[776/941] [webkit] › tests/v193-day-cardtime.spec.js:230:3 › A-16 縦・帯あり: 捨てた貼り付き（34 §16-1・§17・§18）— カード・時間のどの段でも、日の欄の下端に貼り付くつまみ・埋めた面が無い。最後のカードの下はすぐ「ノート ›」
+[777/941] [webkit] › tests/v193-design35-s9.spec.js:212:3 › 35 §9 O-2 開いた横は変わらない: 「カード｜時間」・時間のバー・カード 56 が無い（その2 の分。open-baseline との比べは v193-closed-scroll の 9 と closed-pull-v20 の I）
+[778/941] [webkit] › tests/v193-keyboard.spec.js:55:3 › D-1 予定のメモ欄 閉じた横・native: メモ欄と打っている行がいつもキーボードの上。行が増えても隠れない。キーボードを閉じると元のシートに戻る
+[779/941] [webkit] › tests/v193-design35-s9.spec.js:227:3 › 35 §9 K-14 タスクのページの四角（閉じた縦）: 20×20・角丸 4・線 1.75。押せる範囲は 44 のまま
+[780/941] [webkit] › tests/v193-design35-s9.spec.js:227:3 › 35 §9 K-14 タスクのページの四角（開いた横）: 20×20・角丸 4・線 1.75。押せる範囲は 44 のまま
+[781/941] [webkit] › tests/v193-design35-s9.spec.js:246:1 › 35 §9 R-20 リマインダー停止の知らせ: 同期をオンにしていた端末で版を上げて起動すると、閉じた縦でシート y378〜678・後ろが暗い・見出しに焦点。OK で閉じ、2 回目の起動では出ない。一度もオンにしていない端末では出ない
+[782/941] [webkit] › tests/v193-keyboard.spec.js:55:3 › D-1 予定のメモ欄 開いた縦・vv: メモ欄と打っている行がいつもキーボードの上。行が増えても隠れない。キーボードを閉じると元のシートに戻る
+[783/941] [webkit] › tests/v193-design35-s9.spec.js:267:1 › 35 §9 N-1 ノート→タスク: 日付のノートで「- [ ] 牛乳」→ 状態の行に「タスクに足しました（期限 11月12日）」（シートで最初の 1 件だけ）。閉じるとタスクに「牛乳」（期限 11/12）。日の欄のカードと副題「ノート「…」から」は その3
+[784/941] [webkit] › tests/v193-keyboard.spec.js:55:3 › D-1 予定のメモ欄 開いた縦・native: メモ欄と打っている行がいつもキーボードの上。行が増えても隠れない。キーボードを閉じると元のシートに戻る
+[785/941] [webkit] › tests/v193-keyboard.spec.js:55:3 › D-1 予定のメモ欄 開いた横・vv: メモ欄と打っている行がいつもキーボードの上。行が増えても隠れない。キーボードを閉じると元のシートに戻る
+[786/941] [webkit] › tests/v193-keyboard.spec.js:55:3 › D-1 予定のメモ欄 開いた横・native: メモ欄と打っている行がいつもキーボードの上。行が増えても隠れない。キーボードを閉じると元のシートに戻る
+[787/941] [webkit] › tests/v193-design35-s9.spec.js:281:1 › 35 §9 N-2 両方向: タスクの四角をたたく → ノートの行が「- [x] 」。ノートで四角をたたく → タスクが完了
+[788/941] [webkit] › tests/v193-keyboard.spec.js:100:3 › D-2 ノートの本文 閉じた縦・vv: 打っている行がいつもキーボードの上（20 行打っても）。本文の窓の下端はキーボードの上。閉じると元に戻る
+[789/941] [webkit] › tests/v193-keyboard.spec.js:124:3 › D-3 書式のシート（文字の書式）閉じた縦・vv: キーボードが出ているときに開くと、キーボードを下げてその場所に出る。書式を変えてもキーボードを出し直さない。キーボードが残っていたらその上へ出る
+[790/941] [webkit] › tests/v193-day-cardtime.spec.js:230:3 › A-16 縦・帯なし: 捨てた貼り付き（34 §16-1・§17・§18）— カード・時間のどの段でも、日の欄の下端に貼り付くつまみ・埋めた面が無い。最後のカードの下はすぐ「ノート ›」
+[791/941] [webkit] › tests/v193-design35-s9.spec.js:306:1 › 35 §9 K-1 3種類の箱: 高さ 56・角丸 14・地 #FFFFFF・幅 358、カードの間 8
+[792/941] [webkit] › tests/v193-keyboard.spec.js:100:3 › D-2 ノートの本文 閉じた縦・native: 打っている行がいつもキーボードの上（20 行打っても）。本文の窓の下端はキーボードの上。閉じると元に戻る
+[793/941] [webkit] › tests/v193-design35-s9.spec.js:320:1 › 35 §9 K-2・K-3 題名（左 68・上 8・15/600/20、3つの左端が同じ）と副題（左 68・上 30・11/400 #68716A）
+[794/941] [webkit] › tests/v193-design35-s9.spec.js:339:1 › 35 §9 K-4 種類の印: 予定＝時刻2つ（上 9・29）と色の線（左 56、3×40）／タスク＝四角 20×20・角丸 4・線 1.75（色の線なし）／ノート＝紙 16×20（色の線なし）
+[795/941] [webkit] › tests/v193-keyboard.spec.js:124:3 › D-3 書式のシート（文字の書式）閉じた縦・native: キーボードが出ているときに開くと、キーボードを下げてその場所に出る。書式を変えてもキーボードを出し直さない。キーボードが残っていたらその上へ出る
+[796/941] [webkit] › tests/v193-design35-s9.spec.js:359:1 › 35 §9 K-5・V-3 色に頼らない: 白黒（filter:grayscale(1)）でも、印の形（数字と線・四角・紙）と区画の見出しの文字で分かる
+[797/941] [webkit] › tests/v193-design35-s9.spec.js:370:1 › 35 §9 K-6 題名なし: 「（題名なし）」「（題名なし）」「新規ノート」が #A8ABA4・400
+[798/941] [webkit] › tests/v193-keyboard.spec.js:100:3 › D-2 ノートの本文 閉じた横・vv: 打っている行がいつもキーボードの上（20 行打っても）。本文の窓の下端はキーボードの上。閉じると元に戻る
+[799/941] [webkit] › tests/v193-design35-s9.spec.js:382:1 › 35 §9 K-7 長い題名（100 字・絵文字・改行）: 1 行で、右 12 の手前に「…」。カードは 56 のまま
+[800/941] [webkit] › tests/v193-design35-s9.spec.js:396:1 › 35 §9 K-8 完了・期限切れ: 完了＝四角 #294E42 の塗り・題名 #A8ABA4 取り消し線・1.5 秒後に区画の一番下へ。期限切れ＝四角の線と「期限切れ」が #B43C3C
+[801/941] [webkit] › tests/v193-keyboard.spec.js:124:3 › D-3 書式のシート（文字の書式）閉じた横・vv: キーボードが出ているときに開くと、キーボードを下げてその場所に出る。書式を変えてもキーボードを出し直さない。キーボードが残っていたらその上へ出る
+[802/941] [webkit] › tests/v193-design35-s9.spec.js:420:1 › 35 §9 K-9 押した色: カードを押したまま 0.2 秒で地 #F5F3EC
+[803/941] [webkit] › tests/v193-keyboard.spec.js:100:3 › D-2 ノートの本文 閉じた横・native: 打っている行がいつもキーボードの上（20 行打っても）。本文の窓の下端はキーボードの上。閉じると元に戻る
+[804/941] [webkit] › tests/v193-design35-s9.spec.js:431:1 › 35 §9 K-10 並び: 終日 → 予定（時刻順）→「タスク ›」→ タスク →「ノート ›」→ ノート →「＋ タスク」「＋ ノート」
+[805/941] [webkit] › tests/v193-day-cardtime.spec.js:230:3 › A-16 横・帯あり: 捨てた貼り付き（34 §16-1・§17・§18）— カード・時間のどの段でも、日の欄の下端に貼り付くつまみ・埋めた面が無い。最後のカードの下はすぐ「ノート ›」
+[806/941] [webkit] › tests/v193-keyboard.spec.js:124:3 › D-3 書式のシート（文字の書式）閉じた横・native: キーボードが出ているときに開くと、キーボードを下げてその場所に出る。書式を変えてもキーボードを出し直さない。キーボードが残っていたらその上へ出る
+[807/941] [webkit] › tests/v193-design35-s9.spec.js:448:1 › 35 §9 K-11 区画の見出し: 中身のない区画は見出しごと出ない。ある区画は高さ 32・13/600 #68716A・押せる高さ 44。「タスク ›」はタスクのページ、「ノート ›」はノートの一覧
+[808/941] [webkit] › tests/v193-design35-s9.spec.js:467:1 › 35 §9 K-12 月のマスの名前: 閉じた縦・横のマスにタスク（□ 8×8・角丸 2）とノート（紙 8×10）の名前のチップ。.tkn と緑の線は出ない。開いた縦・横の月は今のまま
+[809/941] [webkit] › tests/v193-day-cardtime.spec.js:230:3 › A-16 横・帯なし: 捨てた貼り付き（34 §16-1・§17・§18）— カード・時間のどの段でも、日の欄の下端に貼り付くつまみ・埋めた面が無い。最後のカードの下はすぐ「ノート ›」
+[810/941] [webkit] › tests/v193-keyboard.spec.js:100:3 › D-2 ノートの本文 開いた縦・vv: 打っている行がいつもキーボードの上（20 行打っても）。本文の窓の下端はキーボードの上。閉じると元に戻る
+[811/941] [webkit] › tests/v193-keyboard.spec.js:124:3 › D-3 書式のシート（文字の書式）開いた縦・vv: キーボードが出ているときに開くと、キーボードを下げてその場所に出る。書式を変えてもキーボードを出し直さない。キーボードが残っていたらその上へ出る
+[812/941] [webkit] › tests/v193-design35-s9.spec.js:486:1 › 35 §9 V-1 読み上げ（カード）: 種類 → 状態 → 時刻・期限 → 題名 → 添え。頭の語は「予定」「タスク」「ノート」
+[813/941] [webkit] › tests/v193-note-marks.spec.js:73:5 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › bullet: 上の帯で選ぶ → 英字を打つ → 記号つきの行のまま（改行で次の行も同じ記号）
+[814/941] [webkit] › tests/v193-design35-s9.spec.js:499:1 › 35 §9 V-2 読み上げ（四角・マス）: 「完了にする、見積もりを送る」。マスは「11月12日 木曜日、予定2件、タスク1件、ノート1件」（0 件の種類は言わない）
+[815/941] [webkit] › tests/v193-note-marks.spec.js:84:5 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › bullet: 書式のシートで選ぶ → 閉じて英字を打つ → 記号つきの行のまま
+[816/941] [webkit] › tests/v193-keyboard.spec.js:100:3 › D-2 ノートの本文 開いた縦・native: 打っている行がいつもキーボードの上（20 行打っても）。本文の窓の下端はキーボードの上。閉じると元に戻る
+[817/941] [webkit] › tests/v193-design35-s9.spec.js:510:1 › 35 §9 D-1 カードに日付なし: 3種類のカードの文字に「11月」「日（」を含まない（予定の時刻は出る）。旧メモ由来（1行目が日付の見出し）のノートも
+[818/941] [webkit] › tests/v193-design35-s9.spec.js:522:1 › 35 §9 D-2 開くと日付: シートの一番上の行に「11月12日（木）」のカプセル（高さ 32・角丸 8）。上の帯はその下（閉じた縦 y196〜240）。六曜は出ない。2027 年の日は「2027年1月5日（火）」
+[819/941] [webkit] › tests/v193-note-marks.spec.js:92:5 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › bullet: 選んだあとキャレットが行の外（本文の頭）へ外れていても、英字は記号の行に入る
+[820/941] [webkit] › tests/v193-keyboard.spec.js:124:3 › D-3 書式のシート（文字の書式）開いた縦・native: キーボードが出ているときに開くと、キーボードを下げてその場所に出る。書式を変えてもキーボードを出し直さない。キーボードが残っていたらその上へ出る
+[821/941] [webkit] › tests/v193-note-marks.spec.js:103:7 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › bullet: 日本語の変換（模型・ふつう）→ 確定しても記号つきの行のまま、途中の行は残らない
+[822/941] [webkit] › tests/v193-design35-s9.spec.js:539:1 › 35 §9 D-2 閉じた横・開いた縦・開いた横のシートにも日付の行 44（閉じた横: 日付の行 y8〜52、上の帯 y60〜104。R2）
+[823/941] [webkit] › tests/v193-keyboard.spec.js:100:3 › D-2 ノートの本文 開いた横・vv: 打っている行がいつもキーボードの上（20 行打っても）。本文の窓の下端はキーボードの上。閉じると元に戻る
+[824/941] [webkit] › tests/v193-note-marks.spec.js:103:7 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › bullet: 日本語の変換（模型・変換中の文字を span で包む）→ 確定しても記号つきの行のまま、途中の行は残らない
+[825/941] [webkit] › tests/v193-note-marks.spec.js:103:7 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › bullet: 日本語の変換（模型・選んだあとキャレットが行の外）→ 確定しても記号つきの行のまま、途中の行は残らない
+[826/941] [webkit] › tests/v193-keyboard.spec.js:124:3 › D-3 書式のシート（文字の書式）開いた横・vv: キーボードが出ているときに開くと、キーボードを下げてその場所に出る。書式を変えてもキーボードを出し直さない。キーボードが残っていたらその上へ出る
+[827/941] [webkit] › tests/v193-note-marks.spec.js:103:7 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › bullet: 日本語の変換（模型・確定で行が消えて裸の文字が入る）→ 確定しても記号つきの行のまま、途中の行は残らない
+[828/941] [webkit] › tests/v193-keyboard.spec.js:100:3 › D-2 ノートの本文 開いた横・native: 打っている行がいつもキーボードの上（20 行打っても）。本文の窓の下端はキーボードの上。閉じると元に戻る
+[829/941] [webkit] › tests/v193-design35-s9.spec.js:558:1 › 35 §9 D-3 開いて日付を変える: カプセル→小さな月→14。シートはそのまま、12 のカードが消え、14 のマスにチップ。札「14日（土）へ移しました｜元に戻す」が 6 秒
+[830/941] [webkit] › tests/v193-note-marks.spec.js:103:7 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › bullet: 日本語の変換（模型・確定で行が書式のない div に替わる）→ 確定しても記号つきの行のまま、途中の行は残らない
+[831/941] [webkit] › tests/v193-keyboard.spec.js:124:3 › D-3 書式のシート（文字の書式）開いた横・native: キーボードが出ているときに開くと、キーボードを下げてその場所に出る。書式を変えてもキーボードを出し直さない。キーボードが残っていたらその上へ出る
+[832/941] [webkit] › tests/v193-note-marks.spec.js:122:5 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › bullet: 変換の取り消し（空で確定）でも、空の記号の行はそのまま残る
+[833/941] [webkit] › tests/v193-note-marks.spec.js:130:5 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › bullet: 日本語の変換（Chromium の本物の IME）→ 記号つきの行のまま
+[834/941] [webkit] › tests/v193-note-marks.spec.js:73:5 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › check: 上の帯で選ぶ → 英字を打つ → 記号つきの行のまま（改行で次の行も同じ記号）
+[835/941] [webkit] › tests/v193-keyboard.spec.js:180:3 › D-4 タスクのメモ欄 閉じた縦・vv: メモ欄と打っている行がキーボードの上。行が増えても隠れない。閉じると元に戻る
+[836/941] [webkit] › tests/v193-note-marks.spec.js:84:5 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › check: 書式のシートで選ぶ → 閉じて英字を打つ → 記号つきの行のまま
+[837/941] [webkit] › tests/v193-keyboard.spec.js:180:3 › D-4 タスクのメモ欄 閉じた縦・native: メモ欄と打っている行がキーボードの上。行が増えても隠れない。閉じると元に戻る
+[838/941] [webkit] › tests/v193-note-marks.spec.js:92:5 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › check: 選んだあとキャレットが行の外（本文の頭）へ外れていても、英字は記号の行に入る
+[839/941] [webkit] › tests/v193-design35-s9.spec.js:581:3 › 35 §9 M-1・M-11（会議）つかむまで: 0.30 秒で離すと開く。0.35 秒押すと 1.03 倍・影 0 4 12・触覚 medium・元の場所に破線 1.5 #A8ABA4
+[840/941] [webkit] › tests/v193-keyboard.spec.js:180:3 › D-4 タスクのメモ欄 閉じた横・vv: メモ欄と打っている行がキーボードの上。行が増えても隠れない。閉じると元に戻る
+[841/941] [webkit] › tests/v193-note-marks.spec.js:103:7 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › check: 日本語の変換（模型・ふつう）→ 確定しても記号つきの行のまま、途中の行は残らない
+[842/941] [webkit] › tests/v193-design35-s9.spec.js:581:3 › 35 §9 M-1・M-11（見積もりを送る）つかむまで: 0.30 秒で離すと開く。0.35 秒押すと 1.03 倍・影 0 4 12・触覚 medium・元の場所に破線 1.5 #A8ABA4
+[843/941] [webkit] › tests/v193-keyboard.spec.js:180:3 › D-4 タスクのメモ欄 閉じた横・native: メモ欄と打っている行がキーボードの上。行が増えても隠れない。閉じると元に戻る
+[844/941] [webkit] › tests/v193-note-marks.spec.js:103:7 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › check: 日本語の変換（模型・変換中の文字を span で包む）→ 確定しても記号つきの行のまま、途中の行は残らない
+[845/941] [webkit] › tests/v193-keyboard.spec.js:180:3 › D-4 タスクのメモ欄 開いた縦・vv: メモ欄と打っている行がキーボードの上。行が増えても隠れない。閉じると元に戻る
+[846/941] [webkit] › tests/v193-note-marks.spec.js:103:7 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › check: 日本語の変換（模型・選んだあとキャレットが行の外）→ 確定しても記号つきの行のまま、途中の行は残らない
+[847/941] [webkit] › tests/v193-design35-s9.spec.js:581:3 › 35 §9 M-1・M-11（買い物）つかむまで: 0.30 秒で離すと開く。0.35 秒押すと 1.03 倍・影 0 4 12・触覚 medium・元の場所に破線 1.5 #A8ABA4
+[848/941] [webkit] › tests/v193-keyboard.spec.js:180:3 › D-4 タスクのメモ欄 開いた縦・native: メモ欄と打っている行がキーボードの上。行が増えても隠れない。閉じると元に戻る
+[849/941] [webkit] › tests/v193-note-marks.spec.js:103:7 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › check: 日本語の変換（模型・確定で行が消えて裸の文字が入る）→ 確定しても記号つきの行のまま、途中の行は残らない
+[850/941] [webkit] › tests/v193-note-marks.spec.js:103:7 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › check: 日本語の変換（模型・確定で行が書式のない div に替わる）→ 確定しても記号つきの行のまま、途中の行は残らない
+[851/941] [webkit] › tests/v193-keyboard.spec.js:180:3 › D-4 タスクのメモ欄 開いた横・vv: メモ欄と打っている行がキーボードの上。行が増えても隠れない。閉じると元に戻る
+[852/941] [webkit] › tests/v193-design35-s9.spec.js:607:1 › 35 §9 M-1 タスクの四角の上で長押ししても同じようにつかむ（たたいたときだけ完了）
+[853/941] [webkit] › tests/v193-note-marks.spec.js:122:5 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › check: 変換の取り消し（空で確定）でも、空の記号の行はそのまま残る
+[854/941] [webkit] › tests/v193-keyboard.spec.js:180:3 › D-4 タスクのメモ欄 開いた横・native: メモ欄と打っている行がキーボードの上。行が増えても隠れない。閉じると元に戻る
+[855/941] [webkit] › tests/v193-design35-s9.spec.js:617:1 › 35 §9 M-2 8 より先に動いたら: 押して 0.2 秒で 10 下へ → つかまない（ページの送りに任せる）
+[856/941] [webkit] › tests/v193-note-marks.spec.js:130:5 › B: 空の行で記号を選んでから文字を打っても、行頭記号が残る › check: 日本語の変換（Chromium の本物の IME）→ 記号つきの行のまま
+[857/941] [webkit] › tests/v193-note-marks.spec.js:149:3 › B: 文字の入っている行でも、記号を付ける・替える・外す › 1行: 本文 → 箇条書き → チェック → 本文。文字はそのまま、キャレットは文字の位置のまま
+[858/941] [webkit] › tests/v193-keyboard.spec.js:208:1 › D-5 プラグインの出来事と visualViewport の両方が来たら、上にある方（小さい kbTop）で決める。片方だけ消えても、もう片方が残っていればキーボードありのまま
+[859/941] [webkit] › tests/v193-note-marks.spec.js:170:3 › B: 文字の入っている行でも、記号を付ける・替える・外す › 上の帯: 同じ記号をもう一度で外れる。チェック済みの行を箇条書きに替えても文字は変わらない
+[860/941] [webkit] › tests/v193-note-tasks.spec.js:9:1 › N-1 日付のあるノートでチェック行に文字を入れる → 同じ題名・期限＝ノートの日付（時刻なし）のタスクが 1 件。状態の行に「タスクに足しました（期限 11月12日）」が 2 秒（シートで最初の 1 件だけ）。本文には何も足さない
+[861/941] [webkit] › tests/v193-design35-s9.spec.js:633:1 › 35 §9 M-3 札: つかんで 30 動かすと 高さ 32・角丸 8・白。下の端＝指の y−24、横の中心＝指の x（画面の端 8 内に収まる）
+[862/941] [webkit] › tests/v193-note-marks.spec.js:180:3 › B: 文字の入っている行でも、記号を付ける・替える・外す › 複数行を選んで: チェック → 箇条書き → 本文（シート）。全部の行に効き、文字は変わらない
+[863/941] [webkit] › tests/v193-note-marks.spec.js:196:3 › B: 文字の入っている行でも、記号を付ける・替える・外す › 字下げのある行の記号を替えても、字下げ（行頭の空白）はそのまま
+[864/941] [webkit] › tests/v193-note-marks.spec.js:207:3 › 保存済みの行（IME のごみの行）は消さない・直さない › 開いて閉じるだけでは1文字も変わらない。別の行に記号を付けて打っても、ごみの行はそのまま
+[865/941] [webkit] › tests/v193-design35-s9.spec.js:657:1 › 35 §9 M-4 行き先: 14 のマスの上で、マスの地 #E5EEE9・枠 2 #294E42・角丸 4。札に「→ 14日（土）」。マスが変わるたびに触覚 light 1 件。元の日は光らせない
+[866/941] [webkit] › tests/v193-note-tasks.spec.js:35:1 › N-2 両方向: ノートでチェック → タスクが完了。タスクを完了・戻す → ノートの行が「- [x] 」「- [ ] 」
+[867/941] [webkit] › tests/v193-design35-s9.spec.js:679:3 › 35 §9 M-5・M-6・M-8・M-11（会議）着地と元に戻す: 14 で離すと札が 0.15 秒で消え、14 にチップ、元の枠が 0.25 秒で閉じる。選んだ日は 12 のまま。6 秒以内の「元に戻す」で 12 に戻る
+[868/941] [webkit] › tests/v193-note-marks.spec.js:239:3 › C: 外部キーボードの Tab／Shift+Tab で字下げ › 箇条書きの行: Tab＝1段下げ（行頭に空白 2 つ・見た目 20 ずつ右へ）、Shift+Tab＝1段上げ。キャレットは文字の位置のまま
+[869/941] [webkit] › tests/v193-note-marks.spec.js:257:3 › C: 外部キーボードの Tab／Shift+Tab で字下げ › チェックの行: 四角（押せる範囲）も段のぶん右へ。チェックの状態と文字は変わらない。最大 4 段で止まる
+[870/941] [webkit] › tests/v193-design35-s9.spec.js:707:3 › 35 §9 M-7・M-11（会議）やめる: 格子の外・元の日（12）で離すと 0.22 秒で元へ。保存なし・札なし・触覚なし
+[871/941] [webkit] › tests/v193-note-marks.spec.js:274:3 › C: 外部キーボードの Tab／Shift+Tab で字下げ › 記号のない行・見出しの行では、Tab は今までの動きのまま（字下げしない・既定の動きを止めない）
+[872/941] [webkit] › tests/v193-note-marks.spec.js:285:3 › C: 外部キーボードの Tab／Shift+Tab で字下げ › 複数行を選んで Tab: 記号の行だけ動く。戻す・やり直すに乗る
+[873/941] [webkit] › tests/v193-note-tasks.spec.js:61:1 › N-3 二重に足されない: 開き直し・ほかの行の編集・完了の往復・読み込み直しのあとも 1 行 1 件
+[874/941] [webkit] › tests/v193-design35-s9.spec.js:679:3 › 35 §9 M-5・M-6・M-8・M-11（見積もりを送る）着地と元に戻す: 14 で離すと札が 0.15 秒で消え、14 にチップ、元の枠が 0.25 秒で閉じる。選んだ日は 12 のまま。6 秒以内の「元に戻す」で 12 に戻る
+[875/941] [webkit] › tests/v193-note-marks.spec.js:301:3 › C: 外部キーボードの Tab／Shift+Tab で字下げ › 字下げした行で改行すると、次の行も同じ段・同じ記号で続く
+[876/941] [webkit] › tests/v193-note-marks.spec.js:313:3 › C: iPhone は行を右へ払うと1段下げ、左へ払うと1段上げ › 右へ 40 払う → 1段下げ。左へ 40 払う → 1段上げ。払っている間は指に少し追う（1/3）。保存は行頭の空白 2 つ
+[877/941] [webkit] › tests/v193-design35-s9.spec.js:707:3 › 35 §9 M-7・M-11（見積もりを送る）やめる: 格子の外・元の日（12）で離すと 0.22 秒で元へ。保存なし・札なし・触覚なし
+[878/941] [webkit] › tests/v193-note-marks.spec.js:334:3 › C: iPhone は行を右へ払うと1段下げ、左へ払うと1段上げ › 動かないもの: 24 未満・縦が勝つ動き（横が縦の 1.5 倍以下）・長押しからの動き（文字の選択）・マウス・途中で取り消し・記号のない行
+[879/941] [webkit] › tests/v193-design35-s9.spec.js:679:3 › 35 §9 M-5・M-6・M-8・M-11（買い物）着地と元に戻す: 14 で離すと札が 0.15 秒で消え、14 にチップ、元の枠が 0.25 秒で閉じる。選んだ日は 12 のまま。6 秒以内の「元に戻す」で 12 に戻る
+[880/941] [webkit] › tests/v193-note-marks.spec.js:354:3 › C: iPhone は行を右へ払うと1段下げ、左へ払うと1段上げ › 端では動かない: 0 段を左へ・最大 4 段を右へ（指にはわずかに追うだけ）。戻す・やり直すに乗る
+[881/941] [webkit] › tests/v193-design35-s9.spec.js:707:3 › 35 §9 M-7・M-11（買い物）やめる: 格子の外・元の日（12）で離すと 0.22 秒で元へ。保存なし・札なし・触覚なし
+[882/941] [webkit] › tests/v193-note-marks.spec.js:369:3 › C: iPhone は行を右へ払うと1段下げ、左へ払うと1段上げ › 本文にフォーカスが無いまま払っても字下げでき、フォーカス（キーボード）は出さない。編集中ならキャレットは文字の位置のまま
+[883/941] [webkit] › tests/v193-note-marks.spec.js:381:3 › C: iPhone は行を右へ払うと1段下げ、左へ払うと1段上げ › 視差効果を減らす: 寄せる動きなしで、すぐ段に付く
+[884/941] [webkit] › tests/v193-note-tasks.spec.js:76:1 › N-3 変換の確定（Chromium の IME）: 変換の途中で保存が走っても、確定のあと 1 行 1 件で題名は確定した文字
+[885/941] [webkit] › tests/v193-note-tasks.spec.js:91:1 › N-4 同じ題名・似た題名の行が 2 本: タスクも 2 件。片方だけチェックすると片方だけ完了
+[886/941] [webkit] › tests/v193-note-marks.spec.js:391:3 › C: 見るだけの欄（日のノート）にも段が出る・保存の形 › 字下げしたノートを閉じると、日の欄のノートの行も段のぶん右へ。開き直しても同じ段
+[887/941] [webkit] › tests/v193-design35-s9.spec.js:724:1 › 35 §9 M-8 元に戻すは 6 秒: 6 秒を過ぎると札が消える
+[888/941] [webkit] › tests/v193-note-marks.spec.js:408:3 › 自分の目で確かめる絵（実機寸法 466×678・右の帯 84） › p2-note-mark-typed / p2-note-mark-changed / p2-note-indent
+[889/941] [webkit] › tests/v193-tasks-local.spec.js:66:1 › 35 §9 R-20／品質 R-7・R-10 静的: Info.plist に NSReminders* が無い。Swift・JS・HTML・sw にリマインダー API の参照が無い。予定用の EventKit と PrivacyInfo の UserDefaults は残る
+[890/941] [webkit] › tests/v193-tasks-local.spec.js:100:1 › 品質 R-1: 設定 › タスクに同期スイッチ・リスト選び・最初の取り込み・許可の経路が無い。常設の一文（13/400 #68716A）と、同期と関係ない設定は残る（native・同期オンだった端末）
+[891/941] [webkit] › tests/v193-note-tasks.spec.js:105:1 › N-5 日付のないノートでは作らない。あとから別のノートに書いた行は、そのノートの日付が期限
+[892/941] [webkit] › tests/v193-tasks-local.spec.js:127:1 › 品質 R-2・R-4・R-6・R-8: 同期オンだった端末で、起動・前面復帰・calendarChanged・追加・完了・編集・削除のどれでも、リマインダーのメソッドは 1 回も呼ばれない。同期の設定値は消さない・書き換えない
+[893/941] [webkit] › tests/v193-note-tasks.spec.js:118:1 › N-6 行の文字を直すと、タスクの題名も直る（タスクは同じ 1 件のまま）
+[894/941] [webkit] › tests/v193-design35-s9.spec.js:732:1 › 35 §9 M-9 月が外にあるとき: 段1で下まで送り、カードをつかんで y64〜104 の帯へ → ページが上へ送られ、スクロール位置 0 で止まる。帯の上端に近い方が速い
+[895/941] [webkit] › tests/v193-note-tasks.spec.js:130:1 › N-7 行を消す／普通の行に戻す → タスクは残り、つながりだけ外れる。あとの完了はノートに戻さない
+[896/941] [webkit] › tests/v193-tasks-local.spec.js:160:1 › 品質 R-3・R-12: 版を上げた最初の起動で、生きているタスクのつながりだけが外れる（題名・期限・完了・メモ・notify・並び・時刻はそのまま）。墓標は片づく。リマインダー側には触れない
+[897/941] [webkit] › tests/v193-tasks-local.spec.js:180:1 › 品質 R-13・R-14: つながっていたタスクを移行すると、通知オンの件にアプリの通知が付く。同じタスクの予約は 1 つ（二重に鳴らない）。墓標・通知オフ・完了は鳴らない
+[898/941] [webkit] › tests/v193-design35-s9.spec.js:750:1 › 35 §9 M-10 開閉・回転: つかんだまま閉じる⇄開く・回す → 何も保存されない。新しい画面に札も破線も残らない
+[899/941] [webkit] › tests/v193-tasks-local.spec.js:200:1 › 35 §9 M-36（その2の分）／品質 R-13: つながっていたタスクの期限を 12 日 → 14 日に変えると、14 日 18:00／日付だけは 14 日 8:00 にアプリの通知が 1 回だけ。12 日には残らない。リマインダーは呼ばれない
+[900/941] [webkit] › tests/v193-tasks-local.spec.js:222:1 › 35 §9 R-20／品質 R-11・R-15: 同期をオンにしていた端末で版を上げて起動すると、閉じた縦でシート y378〜678・後ろが暗い・見出しに焦点・文は設計どおり。OK で閉じ、2 回目の起動では出ない。権限の API は呼ばない
+[901/941] [webkit] › tests/v193-note-tasks.spec.js:154:1 › N-8 保存済みの行（IME のごみの行を含む）は、起動しても・開いても・ほかの行を直してもタスクにしない。足した行だけタスクになる。保存済みの行の文字は 1 文字も変えない
+[902/941] [webkit] › tests/v193-tasks-local.spec.js:267:3 › 35 §9 R-20／連携 §3 (e) 出す条件: enabled だけ true → 1 回だけ出る
+[903/941] [webkit] › tests/v193-design35-s9.spec.js:764:1 › 35 §9 M-12 読み上げの道: 操作「日付を移す」→14、「1日後へ」。長押しと同じ結果・同じ札。読み上げ「〈題名〉を11月14日土曜日へ移しました」
+[904/941] [webkit] › tests/v193-tasks-local.spec.js:267:3 › 35 §9 R-20／連携 §3 (e) 出す条件: everEnabled だけ true（今はオフ） → 1 回だけ出る
+[905/941] [webkit] › tests/v193-tasks-local.spec.js:267:3 › 35 §9 R-20／連携 §3 (e) 出す条件: 設定値は無いが、つながったタスクがある → 1 回だけ出る
+[906/941] [webkit] › tests/v193-tasks-local.spec.js:267:3 › 35 §9 R-20／連携 §3 (e) 出す条件: 設定値は無いが、墓標がある → 1 回だけ出る
+[907/941] [webkit] › tests/v193-tasks-local.spec.js:278:1 › 35 §9 R-20／品質 R-15: 同期を一度もオンにしていない端末（設定値なし／enabled も everEnabled も false、つながりなし）では出ない
+[908/941] [webkit] › tests/v193-note-tasks.spec.js:174:1 › ノートの日付を付け替えると、期限がまだ元の日付と同じ、つながったタスクだけ一緒に動く（design/35 §8・決定 7。その3 のカードの移動でも同じ関数を使う）
+[909/941] [webkit] › tests/v193-design35-s9.spec.js:790:1 › 35 §9 M-13 視差効果を減らす: 拡大・吸い込み・戻りの移動なし、0.15 秒のフェードだけ（影は付ける）
+[910/941] [webkit] › tests/v193-tasks-local.spec.js:290:1 › 35 §9 R-20／設計 §8.1 閉じ方: 後ろをたたく・下へ払う・Esc のどれでも閉じて「出した」印が残る。小さく引いただけでは閉じない
+[911/941] [webkit] › tests/v193-note-tasks.spec.js:196:3 › 閉じた横でも: 日付のあるノートのチェック行がタスクになり、チェックがタスクの完了にそろう
+[912/941] [webkit] › tests/v193-tasks-local.spec.js:311:1 › 35 §9 R-20: 裏で起動したときは出さず、最初に前面になったときに出す
+[913/941] [webkit] › tests/v193-design35-s9.spec.js:811:1 › 35 §9 M-30 繰り返しの回: 毎週の予定の 12 日の回を 13 へ。札に「この回だけ」（高さ 20・角丸 8・#EFECE4）。落とした札「13日（金）へ移しました（この回だけ）」。13 日だけ動き、他の週の回は動かない。系列か回かを聞く画面は出ない
+[914/941] [webkit] › tests/v193-tasks-local.spec.js:322:3 › 35 §9 R-20／設計 §8.1 姿勢: 閉じた縦 466×678 のシートの矩形（切れ・重なりなし）
+[915/941] [webkit] › tests/v193-tasks-local.spec.js:322:3 › 35 §9 R-20／設計 §8.1 姿勢: 閉じた横 678×466 のシートの矩形（切れ・重なりなし）
+[916/941] [webkit] › tests/v193-design35-s9.spec.js:839:1 › 35 §9 M-31 旧メモ: id memo-2026-11-12 のノートを 14 へ → 動く。id と sourceDate は元のまま、date だけ 2026-11-14、本文は 1 文字も変わらない。保存を失敗させると「移せませんでした。」3 秒・0.22 秒で元へ・date は元のまま
+[917/941] [webkit] › tests/v193-tasks-local.spec.js:322:3 › 35 §9 R-20／設計 §8.1 姿勢: 開いた縦 669×951 のシートの矩形（切れ・重なりなし）
+[918/941] [webkit] › tests/v193-note-tasks.spec.js:196:3 › 開いた縦でも: 日付のあるノートのチェック行がタスクになり、チェックがタスクの完了にそろう
+[919/941] [webkit] › tests/v193-tasks-local.spec.js:322:3 › 35 §9 R-20／設計 §8.1 姿勢: 開いた横 951×669 のシートの矩形（切れ・重なりなし）
+[920/941] [webkit] › tests/v193-tasks-local.spec.js:350:5 › K-14 › 35 §9 K-14: 閉じた縦 466×678 のタスクの四角は 20×20・角丸 4・線 1.75。押せる範囲は 44 のまま（タスクのページ・ホーム）
+[921/941] [webkit] › tests/v193-tasks-local.spec.js:350:5 › K-14 › 35 §9 K-14: 閉じた横 678×466 のタスクの四角は 20×20・角丸 4・線 1.75。押せる範囲は 44 のまま（タスクのページ・ホーム）
+[922/941] [webkit] › tests/v193-tasks-local.spec.js:350:5 › K-14 › 35 §9 K-14: 開いた縦 669×951 のタスクの四角は 20×20・角丸 4・線 1.75。押せる範囲は 44 のまま（タスクのページ）
+[923/941] [webkit] › tests/v193-tasks-local.spec.js:350:5 › K-14 › 35 §9 K-14: 開いた横 951×669 のタスクの四角は 20×20・角丸 4・線 1.75。押せる範囲は 44 のまま（タスクのページ）
+[924/941] [webkit] › tests/v193-design35-s9.spec.js:860:1 › 35 §9 M-32 移せなかった: 計画が作れない予定（試験用に null を返す）→「移せませんでした。」3 秒、触覚 warning、カードは元の場所
+[925/941] [webkit] › tests/v193-note-tasks.spec.js:196:3 › 開いた横でも: 日付のあるノートのチェック行がタスクになり、チェックがタスクの完了にそろう
+[926/941] [webkit] › tests/v193-tasks-local.spec.js:388:1 › 品質 R-5: 閉じた画面のタスクで、追加・完了・編集・削除ができる（native のリマインダーは 0 回）
+[927/941] [webkit] › tests/v193-design35-s9.spec.js:879:1 › 35 §9 M-33 閉じた横: 持ち上げ・札・着地・やめる・元に戻すが同じ秒数・同じ札。落とせるのは左の格子のマス。札は画面の端 8 内
+[928/941] [webkit] › tests/v193-note-tasks.spec.js:222:1 › B-1・B-3・B-4 バックアップ: 版は 6 のまま。つながり（source）はタスクの任意の項目として書き出し、読み戻すとつながりも戻る。ノートの本文に id は無い
+[929/941] [webkit] › tests/v193-tasks-local.spec.js:411:1 › 品質 R-5: 閉じた画面のホームで、追加（＋ → タスクの入力欄）と完了ができる
+[930/941] [webkit] › tests/v193-tasks-local.spec.js:428:3 › 品質 R-5: 開いた縦のタスクのページで、追加・完了・編集・削除ができる
+[931/941] [webkit] › tests/v193-design35-s9.spec.js:902:1 › 35 §9 M-34 マスのチップから: 閉じた画面で、マスのタスク □・ノートの紙のチップを長押しすると 0.35 秒で札になり、落とすと移る。+N で隠れた物はつかめない
+[932/941] [webkit] › tests/v193-design35-s9.spec.js:918:1 › 35 §9 M-34 +N で隠れた物はつかめない（段 3＝1マス 2 件。マスに出ていない物は日の欄のカードから）
+[933/941] [webkit] › tests/v193-design35-s9.spec.js:930:1 › 35 §9 M-35 ノートの衝突なし: ノートのある 14 日へ別のノートを落とす → 確認は出ない。14 日のノートの区画が 2 枚になる
+[934/941] [webkit] › tests/v193-tasks-local.spec.js:428:3 › 品質 R-5: 開いた横のタスクのページで、追加・完了・編集・削除ができる
+[935/941] [webkit] › tests/v193-design35-s9.spec.js:956:1 › 35 §9 M-36 タスクの通知: 通知オン・期限 12 日 18:00 のタスクを 14 へ／日付だけのタスクを 14 へ → 14 日 18:00／14 日 8:00 にアプリの通知が 1 回だけ。12 日には鳴らない。リマインダーは呼ばない
+[936/941] [webkit] › tests/v193-design35-s9.spec.js:978:1 › 35 §9 M-37 開いた縦のメモ・タスク（R7）: 日の欄のタスクの行・ノートの題名の行を長押し→月の 14 へ（行が 1.03 倍・破線・札）。ノートの本文の長押しはつかまない
+[937/941] [webkit] › tests/v193-tasks-local.spec.js:453:1 › 品質 B-6: v19.2 のバックアップ（rem*・syncState・墓標入り、版 6）を読み戻しても、つながりは復活しない。墓標は生き返らない。通知オンの件にはアプリの通知が付く。書き出しにも rem* は出ない
+[938/941] [webkit] › tests/v193-design35-s9.spec.js:1023:1 › 35 §9 M-37 開いた横のノート（R7）: ノートのページの題名の行を長押し→左の月の 14 へ。タスクのページ・ノートの一覧の行はつかめない
+[939/941] [webkit] › tests/v193-design35-s9.spec.js:1053:1 › 35 §9 M-38 開いた画面の予定の札（R1）: 開いた縦・横で予定を長押しで運ぶ → 札は白地・印つき、行き先の枠は角丸 4、やめたら 0.22 秒。配置と落とし先は今のまま
+[940/941] [webkit] › tests/v193-design35-s9.spec.js:1088:1 › 35 §9 N-20 ノートを動かす（決定 7）: チェック 2 行のノート（12 日）を 16 へ。うち 1 件は期限を 20 日に変えてある → 期限 12 日のままのタスクだけ 16 日へ。札「ノートとタスク 1 件を移しました」。元に戻すで両方 12 日へ
+[941/941] [webkit] › tests/v193-design35-s9.spec.js:1100:1 › 35 §9 N-21・N-22 タスクだけ動かす → そのあとノートを動かす: 札は 1 行「14日（土）へ移しました｜元に戻す」。ノートの日付と行は 12 日のまま、副題は残り、チェックは両方向でそろう。ノートを 16 へ動かすと、期限 12 日のままの「卵」だけ付いていく
+  12 skipped
+  929 passed (14.0m)
+EXIT 0
