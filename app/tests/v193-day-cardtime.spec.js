@@ -2,7 +2,7 @@
 // Chromium と WebKit の両方。design/35 §9 の S-1〜S-9・L-1 は tests/v193-design35-s9.spec.js。ここはそのほかの決まり（保存・たたく・キー・払い・帯なし・閉じた横・ヒント・動きを減らす・その1の決まり）。
 import { test, expect } from '@playwright/test';
 import { SIZES, seed, ev } from './helpers.js';
-import { boot, DAY, EMPTY, SEC, stageOf, haptics, ui, scTop, setScroll, rect, hourGap, lineY, toTime, toCard, barPt, mouseDrag, touchDrag, near } from './v193-p2-lib.js';
+import { boot, DAY, EMPTY, SEC, stageOf, haptics, ui, scTop, setScroll, rect, hourGap, lineY, toTime, toCard, barPt, mouseDrag, touchDrag, near, hhAfter } from './v193-p2-lib.js';
 // v19.5（征希さん「時間で表示した時は本家仕様にする」）で仕様変更: 1時間の高さは 28／88 → 14（詰めた形）／56（広げた形）、寄る境は 58 → 35。つまみ（バー）は見出しの下 → 時間軸の下で、引いた量だけ時間軸が伸びる（指に 1:1）。
 // 畳むのは「最初の予定の1時間前より上」→「9:00（早い予定があればその時刻）より前と、18:00（遅い予定があればその終わり）の1時間後より後」。開く文言は「前の時間」→「すべての時間」。
 // v19.5 その2（征希さん「設定で決めた1日（8:00-22:00）で表示」「好きな位置で止められるように」）で仕様変更: 見せるのは 8:00〜22:00（外に予定がある日はその予定まで）。つまみは離した所で止まる（14〜56 の好きな高さ。寄せ・払いはやめた）。dayGrip は 35 を境に 1／2 を書く（保存の形は同じ）。高さそのものは duo.ui.v1 の dayHh
@@ -125,7 +125,11 @@ test('A-8 予定は白いカード（始まり・終わり・色の線・題名�
   await page.locator('.mday .mdgrab').focus(); await page.keyboard.press('ArrowDown'); await page.waitForTimeout(150);
   const d = await read();
   expect(near(d[0].h, 54) && near(d[1].h, 82)).toBe(true); // 56×1時間−2、56×1.5時間−2
-  for (const x of d) expect(x.in).toBe(true);
+  // v19.6（征希さん「つまみで両方」）で仕様変更: 広げた側は色の地の枠（題名の下に「13:00〜14:00」）。白いカードの時刻 2 行と色の線は出さない
+  const w = await page.evaluate(() => [...document.querySelectorAll('.mday .tlev[data-event]')].map((b) => { const r = b.getBoundingClientRect(), q = (s) => b.querySelector(s), t = q('.ftr').getBoundingClientRect(); return { bg: getComputedStyle(b).backgroundColor, tr: q('.ftr').textContent, in: t.bottom <= r.bottom + 0.5, ft1: getComputedStyle(q('.ft1')).display }; }));
+  expect(w.map((x) => x.tr)).toEqual(['13:00〜14:00', '15:00〜16:30']);
+  for (const x of w) { expect(x.bg).not.toBe('rgb(255, 255, 255)'); expect(x.in).toBe(true); expect(x.ft1).toBe('none'); }
+  expect(await page.evaluate(() => [...document.querySelectorAll('.mday .hlab')].filter((e) => !e.hidden).slice(3, 6).map((e) => e.querySelector('.l1').textContent))).toEqual(['11:00', '12:00', '13:00']); // 今の時刻（9:41）の札の近くの目盛りは隠れるので、離れた 11:00 から
 });
 
 test('A-9 「すべての時間」で 0:00 から開く（画面は動かさない）。日を選び直す・カード⇔時間で畳み直す。幅を変えても開いたまま', async ({ page }) => {
@@ -165,7 +169,7 @@ test('A-10 その1の決まり: 時間でも画面は1本のスクロール（�
   // つまみ（上）を 86 上へ → 段が進む（小さい月へ）。時間の幅（dayGrip 2）はそのまま
   const g = await rect(page, '.mgrab');
   await mouseDrag(page, g.x + g.w / 2, g.y + 12, g.x + g.w / 2, g.y + 12 - 86, { hold: 150, settle: 550 });
-  expect(await stageOf(page)).toBeGreaterThan(4); expect((await ui(page)).dayGrip).toBe(2); expect(near(await hourGap(page), 14 + 300 / 11.5, 0.5)).toBe(true);
+  expect(await stageOf(page)).toBeGreaterThan(4); expect((await ui(page)).dayGrip).toBe(2); expect(near(await hourGap(page), hhAfter(300), 0.5)).toBe(true);
 });
 
 test('A-11 帯がない画面（ブラウザ）: 切り替えは右下の＋・右上の「…」「タスク」にかからない。バーの押せる所は＋にかからない', async ({ page }) => {
@@ -199,7 +203,7 @@ test('A-12 閉じた横: 日の欄の中がスクロール（今までどおり�
   expect((await ui(page)).dayGrip).toBe(1);
   p = await barPt(page);
   await touchDrag(page, p.x, p.y, p.x, p.y + 300, { steps: 8, hold: 150 });
-  expect((await ui(page)).dayGrip).toBe(2); const hhL = await hourGap(page); expect(near(hhL, 14 + 340 / 11.5, 0.6)).toBe(true);
+  expect((await ui(page)).dayGrip).toBe(2); const hhL = await hourGap(page); expect(near(hhL, hhAfter(340), 0.6)).toBe(true);
   // 縦へ戻しても同じ段
   await page.setViewportSize(SIZES.closedPortrait); await page.waitForTimeout(600);
   expect(await dg(page)).toBe('C'); expect(near(await hourGap(page), hhL, 0.5)).toBe(true);

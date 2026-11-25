@@ -2663,8 +2663,8 @@ html:not([data-theme=dark]) .shell.spread .page.lp .week .strip.outm,html:not([d
 .mpull.browse .mday .tl[data-fs] .fsev.nar .ft2,.mpull.browse .mday .tl[data-fs] .fsev.nar .fmemo{display:none}
 .mpull.browse .mday .tl[data-fs] .fsev.nar .tn{top:23px;left:10px}
 .mpull.browse .mday .tl[data-fs] .fsev.nar .fln{left:auto;right:0;top:0;bottom:0;border-radius:0}
-.mpull.browse .mday .tl[data-fs] .tlev.fsev:active{background-color:#F5F3EC!important;filter:none}
-@media (hover:hover){.mpull.browse .mday .tl[data-fs] .tlev.fsev:hover{background-color:#fff!important;filter:none}}
+.mpull.browse .mday .tl[data-fs]:not(.fsprop) .tlev.fsev:active{background-color:#F5F3EC!important;filter:none}
+@media (hover:hover){.mpull.browse .mday .tl[data-fs]:not(.fsprop) .tlev.fsev:hover{background-color:#fff!important;filter:none}}
 .mpull.browse .mday[data-dg="B"] .mdad,.mpull.browse .mday[data-dg="C"] .mdad{margin-bottom:0}
 .mpull.browse .mday .tl[data-fs] + .mdfold button{top:0;height:24px;min-height:24px;line-height:24px;color:var(--muted)}
 .mpull.browse .mday .tl[data-fs] + .mdfold button::after{content:"";position:absolute;left:0;right:0;top:-10px;bottom:-10px}
@@ -2730,3 +2730,20 @@ html[data-grabtime] .gchip{opacity:0!important}
 /* 第19.6版: ネイティブの閉じた画面では、ノートは標準の入力欄で書く。今までの編集画面の操作の行は出さず、ページは読む・たたいて書き始める場所になる */
 html.nne .ned-top{display:none}
 html.nne.nne-crlf .ned-top{display:flex}
+/* ---- 第19.6版（征希さん「つまみで両方」）: 閉じた画面の「時間」。広げた側（1時間 35 以上＝.tl.fsprop）は、時刻に比例した時間軸: 1時間ごとの「9:00」と線、予定は色の地の枠（左に色の線 3・題名・時刻） ---- */
+.mpull.browse .mday .tl[data-fs] .hlab b{font:inherit;font-weight:400}
+.mpull.browse .mday .tl[data-fs] .hlab .l1{display:none}
+.mpull.browse .mday .tl[data-fs].fsprop{--lw:46px}
+.mpull.browse .mday .tl[data-fs].fsprop .hlab{width:38px}
+.mpull.browse .mday .tl[data-fs].fsprop .hlab .l3{display:none}
+.mpull.browse .mday .tl[data-fs].fsprop .hlab .l1{display:inline}
+.mpull.browse .mday .tl[data-fs].fsprop .hlab.dot::before{display:none}
+.mpull.browse .mday .tl[data-fs].fsprop .hl{display:block;border-top:.5px solid var(--line2)}
+.mpull.browse .mday .tl[data-fs] .tlev.fsev{height:max(var(--fsmin,44px),calc(var(--d) * var(--hh) / 60 - 2px));min-height:var(--fsmin,44px)}
+.mpull.browse .mday .tl[data-fs] .fsev .ftr{display:none}
+.mpull.browse .mday .tl[data-fs].fsprop .tlev.fsev{border-radius:6px;background:var(--cat-tint);box-shadow:inset 3px 0 0 var(--cat-mark)}
+.mpull.browse .mday .tl[data-fs].fsprop .fsev :is(.ft1,.ft2,.fln,.fmemo){display:none}
+.mpull.browse .mday .tl[data-fs].fsprop .fsev .tn{left:11px;right:8px;top:2px;font:600 13px/16px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink)}
+.mpull.browse .mday .tl[data-fs].fsprop .fsev .ftr{display:block;position:absolute;left:11px;right:8px;top:19px;font:400 11px/14px -apple-system,'Hiragino Sans',sans-serif;color:var(--ink);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis}
+.mpull.browse .mday .tl[data-fs].fsprop .tlev.fsev:active{background-color:var(--cat-tint)!important;filter:brightness(.94)}
+@media (hover:hover){.mpull.browse .mday .tl[data-fs].fsprop .tlev.fsev:hover{background-color:var(--cat-tint)!important;filter:brightness(.96)}}

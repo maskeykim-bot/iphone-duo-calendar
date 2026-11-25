@@ -1581,6 +1581,9 @@ function dayFoldMin() { return fsRange(state.selected).from; }
 // 第19.5版: 伸び縮みする時間軸（閉じた画面の日の欄「時間」だけ。.tl[data-fs]）。分→位置は FSC.map（js/elastic.js）。
 // 今までの CSS（top = 12 + --m × --hh / 60）をそのまま使うため、要素の --m・--d には「位置から逆算した分」を入れる（本当の分は data-rm・data-rd）
 const FSC = { min: 44, map: null, hh: 0, from: 0, to: 1440 };
+// 第19.6版（征希さん「つまみで両方」）: 詰めた側（1時間 28 まで）は予定のカードを 44 より低くしない（予定のない時間を詰める形）。そこから広げるほど下限を下げ、いちばん広い 56 では 20（＝ほぼ時刻に比例。空きと長さがそのまま見える）。
+// 見た目は 1時間 35 を境に切り替える: 詰めた側＝白いカード・3時間ごとの数字、広げた側＝色の地の枠・1時間ごとの「9:00」と線（.tl.fsprop）
+const fsMin = (hh) => (hh <= 28 ? 44 : hh >= DAYBAR.max ? 20 : 44 - (hh - 28) * 24 / (DAYBAR.max - 28));
 function fsRange(k) {
   const bs = dayBlocks(k, 1);
   const first = bs.length ? Math.min(...bs.map((b) => b.s)) : 1440, last = bs.length ? Math.max(...bs.map((b) => b.en)) : 0;
@@ -1591,11 +1594,11 @@ const fsTl = () => root.querySelector('.mpull.browse .mday .tl[data-fs]');
 const FS_TAP = 28; // 1時間がこれより低いと、指で時刻を選べない（15分が 7 未満）
 const fsCompact = (col) => !!col?.closest?.('.tl[data-fs]') && DG.hh < FS_TAP;
 const fsOn = (pane) => pane === 'mday' && !!FSC.map && !!fsTl();
-function fsVis(hh) { const { bs } = fsRange(state.selected), m = elasticMap(elasticHours(bs, hh, FSC.min)); return m.y(FSC.to) - m.y(FSC.from); }
+function fsVis(hh) { const { bs } = fsRange(state.selected), m = elasticMap(elasticHours(bs, hh, fsMin(hh))); return m.y(FSC.to) - m.y(FSC.from); }
 function fsLayout(tl = fsTl(), hh = DG.hh) {
   if (!tl) { FSC.map = null; return; }
   const { bs, from, to } = fsRange(state.selected);
-  const map = elasticMap(elasticHours(bs, hh, FSC.min)), f = DG.unfold ? 0 : from, t = DG.unfold ? 1440 : to;
+  const map = elasticMap(elasticHours(bs, hh, fsMin(hh))), f = DG.unfold ? 0 : from, t = DG.unfold ? 1440 : to;
   Object.assign(FSC, { map, hh, from: f, to: t });
   const eff = (m) => map.y(m) * 60 / hh;
   for (const el of tl.querySelectorAll('[data-rm]')) {
@@ -1607,6 +1610,7 @@ function fsLayout(tl = fsTl(), hh = DG.hh) {
   tl.querySelector('.tlin').style.height = `${map.y(t) + 24}px`;
   tl.style.setProperty('--foldm', String(eff(f)));
   tl.classList.toggle('fsdots', hh >= DAYBAR.dots);
+  tl.classList.toggle('fsprop', hh >= DAYBAR.snap); tl.style.setProperty('--fsmin', `${fsMin(hh)}px`);
 }
 // 第19.3版（閉じた画面の「時間」）: 画面は1本のスクロールで、スクロール 0 では月が見えている。日の欄の中を送って合わせる代わりに、時間軸の「最初の予定の1時間前」より上を畳んで、バー・終日の行のすぐ下から始める
 //（時間軸の中身 .tlin を --foldm 分だけ上へずらし、.tl の上端で切る。1時間の高さ --hh が変わっても同じ時刻で切れる＝バーで幅を変えている間、バーのすぐ下の時刻の線は動かない。35 §5.3「伸ばす中心」）。
@@ -1732,7 +1736,7 @@ window.addEventListener('pointermove', (ev) => {
   d.moved = true;
   // 第19.5版: つまみは時間軸の下。見えている時間軸の高さ＝始めの高さ＋引いた量（指に 1:1 でついてくる）になる 1時間の高さを探す
   const target = d.vis0 + dy, lo = fsVis(DAYBAR.min), hi = fsVis(DAYBAR.max);
-  const hh = solveHh(fsRange(state.selected).bs, FSC.min, FSC.from, FSC.to, target, DAYBAR.min, DAYBAR.max);
+  const hh = solveHh(fsRange(state.selected).bs, fsMin, FSC.from, FSC.to, target, DAYBAR.min, DAYBAR.max);
   const over = target < lo ? target - lo : target > hi ? target - hi : 0; // 端を超えた引き（指の量）
   dayBarApply(hh, Math.sign(over) * Math.min(DAYBAR.rubberMax, Math.abs(over) * DAYBAR.rubber));
 });
@@ -2295,7 +2299,7 @@ function tlBlock({ e, s, en, col, n }, k, cw = false) {
 // 第19.5版: 閉じた画面の日の欄「時間」の予定＝白いカード（始まり・終わり・色の線・題名・メモ。カードの表示と同じ並び）。読み上げは今までの時間軸の枠と同じ
 function fsBlock({ e, s, en, col, n }, k) {
   const t = e.title, memo = (e.notes || '').split('\n').find((x) => x.trim()) || '';
-  return `<button type="button" class="tlev fsev${n > 1 ? ' nar' : ''} ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" data-rm="${s}" data-rd="${en - s}" style="${catVar(e)}--m:${s};--d:${en - s};left:calc(${col} * 100% / ${n} + 1px);width:calc(100% / ${n} - 2px)" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${t}${e.recurring ? ' 繰り返し' : ''}${isX(e) ? '' : `、${tagText(e)}`}${e.nativeLink?.state === 'linked' ? '、iPhoneにも追加済み' : ''}${alLabel(e)}`)}"><span class="ft1">${dayOf(e.start) < k ? '0:00' : t0(e.start.slice(11, 16))}</span><span class="ft2">${dayEndText(e, k)}</span><i class="fln" aria-hidden="true"></i><span class="tn${t ? '' : ' mdnt'}">${xi(e)}${rep(e)}${t ? esc(t) : '（題名なし）'}${bell(e)}</span>${memo ? `<small class="fmemo">${esc(memo)}</small>` : ''}</button>`;
+  return `<button type="button" class="tlev fsev${n > 1 ? ' nar' : ''} ${catCls(e)}" data-event="${esc(e.id)}" data-sday="${k}" data-rm="${s}" data-rd="${en - s}" style="${catVar(e)}--m:${s};--d:${en - s};left:calc(${col} * 100% / ${n} + 1px);width:calc(100% / ${n} - 2px)" aria-label="${esc(`${xname(e)}${dayLabel(k)} ${timeLabel(e)} ${t}${e.recurring ? ' 繰り返し' : ''}${isX(e) ? '' : `、${tagText(e)}`}${e.nativeLink?.state === 'linked' ? '、iPhoneにも追加済み' : ''}${alLabel(e)}`)}"><span class="ft1">${dayOf(e.start) < k ? '0:00' : t0(e.start.slice(11, 16))}</span><span class="ft2">${dayEndText(e, k)}</span><i class="fln" aria-hidden="true"></i><span class="ftr">${dayOf(e.start) < k ? '0:00' : t0(e.start.slice(11, 16))}〜${dayEndText(e, k)}</span><span class="tn${t ? '' : ' mdnt'}">${xi(e)}${rep(e)}${t ? esc(t) : '（題名なし）'}${bell(e)}</span>${memo ? `<small class="fmemo">${esc(memo)}</small>` : ''}</button>`;
 }
 // 終日段: 11px「終日」＋カテゴリの淡色地・本色12px太字のピル。最大3件（3日表示は各日1件）、幅不足なら減らして +N（その日の一覧へ）。
 // 第19.1版 S3（M-07）: ノートの札は見出しの行から外して、終日の行の右へ（押せる 44）。札の分の幅は終日のピルから引く。
@@ -2338,7 +2342,7 @@ function timelineHtml(ks, avail, pane = 'right', fixedHh = 0, chip = false, fs =
   const heads = ks.length > 1 ? `<div class="tlheads"><span class="tlh0"></span>${ks.map((k) => { const d = parseKey(k); return `<button type="button" class="tlhd${k === state.selected ? ' sel' : ''}${k === todayKey() ? ' today' : ''}" data-tlday="${k}" aria-pressed="${k === state.selected}" aria-label="${dayLabel(k)}を選ぶ">${cwk ? `<span class="dw">${DOW[d.getDay()]}</span><span class="dd">${d.getDate()}</span>` : `${d.getDate()}（${DOW[d.getDay()]}）`}${rkSpan(k, 'wrk')}</button>`; }).join('')}</div>` : '';
   let lines = '';
   for (let h = 0; h <= 24; h++) {
-    if (fs) { lines += `<i class="hl${h % 3 ? '' : ' h3'}" style="--m:${h * 60}" data-rm="${h * 60}"></i>${h < 24 ? `<span class="hlab hour${h % 3 ? ' dot' : ''}" style="--m:${h * 60}" data-rm="${h * 60}">${h % 3 ? '' : h}</span>` : ''}`; continue; } // 第19.5版: 数字は 3 時間ごと、間の時間は点
+    if (fs) { lines += `<i class="hl${h % 3 ? '' : ' h3'}" style="--m:${h * 60}" data-rm="${h * 60}"></i>${h < 24 ? `<span class="hlab hour${h % 3 ? ' dot' : ''}" style="--m:${h * 60}" data-rm="${h * 60}"><b class="l3">${h % 3 ? '' : h}</b><b class="l1">${h}:00</b></span>` : ''}`; continue; } // 第19.5版: 数字は 3 時間ごと、間の時間は点
     lines += `<i class="hl" style="--m:${h * 60}"></i>`;
     if (h < 24) lines += `<span class="hlab${pane === 'mday' ? ' hour' : ''}" style="--m:${h * 60}">${h}:00</span><i class="hl half" style="--m:${h * 60 + 30}"></i>`;
   }

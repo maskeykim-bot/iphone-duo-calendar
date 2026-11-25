@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test';
 import { SIZES, openApp, reloadKeep, notifyOn } from './helpers.js';
 import { T, seedTasks } from './task-helpers.js';
 import { boot as bootNote, openDayNote, typeList, saved, closeSheet, tasks as dbTasks } from './v193-note-lib.js';
-import { boot, DAY, SEC, stageOf, haptics, ui, scTop, setScroll, rect, hourGap, lineY, toTime, toCard, barPt, mouseDrag, touchDrag, near } from './v193-p2-lib.js';
+import { boot, DAY, SEC, stageOf, haptics, ui, scTop, setScroll, rect, hourGap, lineY, toTime, toCard, barPt, mouseDrag, touchDrag, near, hhAfter } from './v193-p2-lib.js';
 
 const css = (page, sel, prop) => page.evaluate(([s, p]) => getComputedStyle(document.querySelector(s))[p], [sel, prop]);
 
@@ -67,7 +67,7 @@ test('35 §9 S-3 時間・最低限: 予定のない時間は 1時間 14。終�
   expect(await scTop(page)).toBe(0); // 画面は送っていない（月が見えたまま）
   // 8:00 の線が、時間軸の上端のすぐ下（上の余白 12）。7:00 より前と 23:00 より後の目盛りは出さない
   expect(near(await lineY(page, 480), tl.y + 12)).toBe(true);
-  const labs = await page.evaluate(() => [...document.querySelectorAll('.mday .hlab')].map((e) => ({ h: Number(e.dataset.rm) / 60, hid: e.hidden, t: e.textContent, dot: e.classList.contains('dot') })));
+  const labs = await page.evaluate(() => [...document.querySelectorAll('.mday .hlab')].map((e) => ({ h: Number(e.dataset.rm) / 60, hid: e.hidden, t: e.querySelector('.l3').textContent, dot: e.classList.contains('dot') })));
   expect(labs.filter((l) => !l.hid).map((l) => l.h)).toEqual([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]);
   expect(labs.filter((l) => !l.hid && !l.dot).map((l) => l.t)).toEqual(['9', '12', '15', '18', '21']); // 数字は 3 時間ごと。間は点
   expect(near(tl.h, 12 + 220 + 11.5 * 14 + 12)).toBe(true);
@@ -101,21 +101,21 @@ test('35 §9 S-5 バーは離した所で止まる: 下へ 300 で離すと 1時
   await boot(page, { dg: 1 });
   let p = await barPt(page);
   await mouseDrag(page, p.x, p.y, p.x, p.y + 300, { hold: 150 });
-  expect(near(await hourGap(page), 14 + 300 / 11.5, 0.5)).toBe(true);
+  expect(near(await hourGap(page), hhAfter(300), 0.5)).toBe(true);
   expect((await ui(page)).dayGrip).toBe(2);
   expect(await page.locator('.mday').getAttribute('data-dg')).toBe('C');
   expect(await haptics(page)).toEqual([{ dayBar: 2, t: 0 }]); // 35 をまたいだ先（詳細）を 1 件だけ
   await page.evaluate(() => { window.__duoHapticLog.length = 0; });
   p = await barPt(page);
   await mouseDrag(page, p.x, p.y, p.x, p.y - 150, { hold: 150 });
-  expect(near(await hourGap(page), 14 + 150 / 11.5, 0.5)).toBe(true);
+  expect(near(await hourGap(page), hhAfter(-150, hhAfter(300)), 0.5)).toBe(true);
   expect((await ui(page)).dayGrip).toBe(1);
   expect(await haptics(page)).toEqual([{ dayBar: 1, t: 0 }]);
   // 35 をまたがない引き（下へ 40）は触覚なし
   await page.evaluate(() => { window.__duoHapticLog.length = 0; });
   p = await barPt(page);
   await mouseDrag(page, p.x, p.y, p.x, p.y + 40, { hold: 150 });
-  expect(near(await hourGap(page), 14 + 190 / 11.5, 0.5)).toBe(true);
+  expect(near(await hourGap(page), hhAfter(-150 + 40, hhAfter(300)), 0.5)).toBe(true);
   expect(await haptics(page)).toEqual([]);
 });
 
@@ -186,10 +186,10 @@ test('35 §9 S-9 覚える: 時間を 1時間 40.1 まで広げて 閉じる⇄�
   expect((await ui(page)).dayGrip).toBe(2);
   await page.setViewportSize(SIZES.closedPortrait); await page.waitForTimeout(500);
   expect(await page.locator('.mday').getAttribute('data-dg')).toBe('C');
-  expect(near(await hourGap(page), 14 + 300 / 11.5, 0.5)).toBe(true);
+  expect(near(await hourGap(page), hhAfter(300), 0.5)).toBe(true);
   await page.reload(); await page.waitForSelector('html[data-ready]'); await page.waitForTimeout(300);
   expect(await page.locator('.mday').getAttribute('data-dg')).toBe('C');
-  expect(near(await hourGap(page), 14 + 300 / 11.5, 0.5)).toBe(true);
+  expect(near(await hourGap(page), hhAfter(300), 0.5)).toBe(true);
   expect((await ui(page)).dayGrip).toBe(2);
   await expect(page.locator('.mday .mdct [data-dg="time"]')).toHaveAttribute('aria-pressed', 'true');
 });
@@ -212,7 +212,7 @@ test('35 §9 L-1 閉じた横の切り替え: 見出し 44 の下に「カード
   expect(near(await hourGap(page), 14, 0.5)).toBe(true);
   const p = await barPt(page);
   await touchDrag(page, p.x, p.y, p.x, p.y + 300, { steps: 8, hold: 150 }); // 閉じた横は高さ 466。指の出来事で画面の下の端より先まで引く
-  expect(near(await hourGap(page), 14 + 300 / 11.5, 0.5)).toBe(true);
+  expect(near(await hourGap(page), hhAfter(300), 0.5)).toBe(true);
   expect((await ui(page)).dayGrip).toBe(2);
   await toCard(page);
   await expect(page.locator('.mday .mdgrab')).toHaveCount(0);

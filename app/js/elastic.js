@@ -31,7 +31,8 @@ export function elasticMap(H) {
 
 // 見えている範囲（from〜to 分）の高さが target になる hh を、lo〜hi の間で探す（高さは hh について単調）
 export function solveHh(blocks, minCard, from, to, target, lo, hi) {
-  const hOf = (hh) => { const m = elasticMap(elasticHours(blocks, hh, minCard)); return m.y(to) - m.y(from); };
+  const mc = (hh) => (typeof minCard === 'function' ? minCard(hh) : minCard); // minCard は数か、1時間の高さから決める関数
+  const hOf = (hh) => { const m = elasticMap(elasticHours(blocks, hh, mc(hh))); return m.y(to) - m.y(from); };
   if (target <= hOf(lo)) return lo;
   if (target >= hOf(hi)) return hi;
   let a = lo, b = hi;

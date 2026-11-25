@@ -29,13 +29,16 @@ test('T-2 詰めた形で空きを長押ししても、枠は作らず広げる�
 
 test('T-3 見せる範囲: 早い予定（7:30）がある日は 7:00 から。終わりは設定の 22:00（予定は 21:20 まで）。数字は 9・12・15・18・21、間は点（広げた形だけ見える）', async ({ page }) => {
   await boot(page, { dg: 1, data: [ev('a', '朝', `${DAY}T07:30`, `${DAY}T08:00`), ev('b', '夜', `${DAY}T20:00`, `${DAY}T21:20`)] });
-  const labs = () => page.evaluate(() => [...document.querySelectorAll('.mday .hlab')].filter((e) => !e.hidden).map((e) => ({ h: Number(e.dataset.rm) / 60, t: e.textContent, dot: e.classList.contains('dot') ? getComputedStyle(e, '::before').opacity : null })));
+  const labs = () => page.evaluate(() => [...document.querySelectorAll('.mday .hlab')].filter((e) => !e.hidden).map((e) => ({ h: Number(e.dataset.rm) / 60, t: e.querySelector('.l3').textContent, dot: e.classList.contains('dot') ? getComputedStyle(e, '::before').opacity : null })));
   let l = await labs();
   expect(l.map((x) => x.h)).toEqual([7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]);
   expect(l.filter((x) => x.t).map((x) => x.t)).toEqual(['9', '12', '15', '18', '21']);
   expect(l.filter((x) => x.dot !== null).every((x) => x.dot === '0')).toBe(true); // 詰めた形は点を出さない
   const tl = await rect(page, '.mday .tl'); expect(near(await lineY(page, 420), tl.y + 12)).toBe(true);
   await page.locator('.mday .mdgrab').focus(); await page.keyboard.press('ArrowDown'); await page.waitForTimeout(400);
+  // v19.6（征希さん「つまみで両方」）で仕様変更: 広げた側（1時間 35 以上）は点でなく、1時間ごとの「8:00」。点が見えるのは 22〜35 の間
+  expect(await page.evaluate(() => [...document.querySelectorAll('.mday .hlab')].filter((e) => !e.hidden).slice(0, 2).map((e) => e.innerText.trim()))).toEqual(['7:00', '8:00']);
+  await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('duo.ui.v1')); s.dayHh = 30; s.dayGrip = 1; localStorage.setItem('duo.ui.v1', JSON.stringify(s)); }); await page.reload(); await page.waitForSelector('html[data-ready]'); await page.waitForTimeout(300);
   l = await labs();
   expect(l.filter((x) => x.dot !== null).every((x) => x.dot === '1')).toBe(true);
 });

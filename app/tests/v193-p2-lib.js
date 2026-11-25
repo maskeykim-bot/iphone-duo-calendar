@@ -32,6 +32,8 @@ export const rect = (page, sel) => page.evaluate((s) => { const e = document.que
 // v19.5（征希さん「時間で表示した時は本家仕様にする」）で仕様変更: 時間軸は伸び縮みする（予定のある時間だけ広がる）。線は 3 時間ごとだけなので、時刻の目盛り（.hlab。本当の分は data-rm、位置は線の 7 上）で測る。
 // 1時間の高さ＝予定のない 15:00〜16:00 の間（DATA の予定は 9:00〜13:30）。詰めた形 14・広げた形 56、寄る境は 35
 export const HH = { min: 14, max: 56, snap: 35 };
+// v19.6（征希さん「つまみで両方」）で仕様変更: 予定のカードの下限は、1時間 28 までは 44、そこから 56 に向けて 20 まで下がる（広げた側は時刻に比例）。DATA（30分の予定 5 本・8:00〜22:00 を表示）の見えている時間軸の高さから 1時間の高さを出す
+export const hhAfter = (pull, from = 14) => { const vis = (h) => { const mc = h <= 28 ? 44 : h >= 56 ? 20 : 44 - (h - 28) * 24 / 28; return 5 * Math.max(h / 2, mc) + 11.5 * h; }; const t = vis(from) + pull; let a = 14, b = 56; if (t <= vis(a)) return a; if (t >= vis(b)) return b; for (let i = 0; i < 40; i++) { const c = (a + b) / 2; if (vis(c) < t) a = c; else b = c; } return (a + b) / 2; };
 const labY = (mm) => { const e = document.querySelector(`.mpull.browse .mday .hlab[data-rm="${mm}"]`); return e.getBoundingClientRect().top + 7; };
 export const hourGap = (page) => page.evaluate(`(${labY})(960) - (${labY})(900)`);
 // 時間軸の m 分（1時間ごと）の線の y
