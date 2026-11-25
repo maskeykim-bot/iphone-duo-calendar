@@ -30,6 +30,7 @@ import { liveTasks as liveTasksOf, isTombstone as isTaskTombstone, TASK_TITLE_MA
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
 import { call, hideKeyboardAccessoryBar, errCode, errReason, errText, haptic, listen, nativeAvailable } from './native.js';
 import { createDestPage, destRowsHtml } from './destination-ui.js';
+import { normEventRef, duoRefKey, extRefKey } from './event-ref.js';
 import { xcKeyOf, xcLoad, xcItems, xcSet, xcSweep, xcExport, xcImport } from './event-colors.js';
 import { KB_METRICS_ENABLED as KB_METRICS_BUILD, kbMetrics, kbText, screenText } from './kbmetrics.js';
 // 開発用の表示（画面寸法・キーボード計測・タッチ確認）は審査版・征希さんの版では出さない。確かめるときだけ ?dev=1 で出す（第19.1版 S5 H-16）。
@@ -2560,7 +2561,7 @@ function noteEditor() {
 }
 function noteBody(where) {
   if (NB.blocked) return '<div class="memopage padb"><p class="smsg" role="alert">ノートを準備できませんでした。アプリを閉じて、もう一度開いてください。（予定と元のメモは変わっていません）</p></div>';
-  if (NB.cur) return noteOthers(where) + `<div class="ntools mtools"><button type="button" class="mback" data-act="noteback" aria-label="ノートの一覧に戻る">一覧</button><button type="button" class="mback" data-act="notenew" aria-label="新しいノート">＋ 新規</button></div><div class="memopage notepage padb" data-note-wrap="${where}"><div class="nmeta" data-nmeta="${where}"></div><div class="nhost" data-nhost="${where}"></div></div><div data-nmenu="${where}"></div>`;
+  if (NB.cur) return noteOthers(where) + `<div class="ntools mtools"><button type="button" class="mback" data-act="noteback" aria-label="ノートの一覧に戻る">一覧</button>${evNoteBtn(NB.cur)}<button type="button" class="mback" data-act="notenew" aria-label="新しいノート">＋ 新規</button></div><div class="memopage notepage padb" data-note-wrap="${where}"><div class="nmeta" data-nmeta="${where}"></div><div class="nhost" data-nhost="${where}"></div></div><div data-nmenu="${where}"></div>`;
   return `<div class="ntools mtools"><span class="ntitle">ノート</span><button type="button" class="mback" data-act="notenew" aria-label="新しいノート">＋ 新規</button></div><div class="memopage mlist padb" data-mlist-wrap="${where}">${NB.day ? `<div class="nday"><span>${esc(dayLabel(NB.day))}のノート</span><button type="button" data-act="ndayplus" aria-label="この日のノートを開く・作る">＋</button><button type="button" data-act="ndayclear" aria-label="日の絞りを外す">✕</button></div>` : ''}<div class="mlsb"><input type="search" class="mlq" data-mlq="${where}" placeholder="ノートを検索" aria-label="ノートを検索" value="${esc(NB.q[where])}" autocomplete="off" spellcheck="false"></div><div class="nchips" data-nchips="${where}" role="toolbar" aria-label="フォルダ">${noteChipsHtml()}</div><div class="mlrows" data-mlist="${where}">${noteRowsHtml(where)}</div><div data-nmenu="${where}">${noteMenuHtml()}</div></div>`;
 }
 const noteDayText = (ms) => { const d = new Date(ms), t = new Date(); return `${d.getFullYear() === t.getFullYear() ? '' : `${d.getFullYear()}/`}${d.getMonth() + 1}/${d.getDate()}`; };
@@ -2575,17 +2576,18 @@ function noteRowsHtml(where) {
   const t0 = nowMs(), idx0 = noteIndexSize();
   const q = NB.q[where], hasQ = !!terms(q).length;
   // 検索中はフォルダを見ず全ノートが対象。検索語なしのときだけフォルダで絞る。
-  const base = NB.day ? NB.rows.filter((n) => noteDateOf(n) === NB.day) : hasQ ? NB.rows : filterByFolder(NB.rows, NB.sel, NB.folders || []); // 日で絞っているときはフォルダを見ない
+  const base = NB.day ? NB.rows.filter((n) => noteDateOf(n) === NB.day) : hasQ ? NB.rows : NB.sel === 'ev' ? NB.rows.filter((n) => n.eventRef) : filterByFolder(NB.rows, NB.sel, NB.folders || []); // 'ev'（v19.6）: 予定ノートだけ // 日で絞っているときはフォルダを見ない
   const res = searchNotes(base, q, { limit: null }), ts = res.ts, rows = res.items;
   const t1 = nowMs();
   NB.perf.search = Math.round((t1 - t0) * 10) / 10; if (noteIndexSize() !== idx0) NB.perf.index = NB.perf.search; NB.perf.count = NB.rows.length; NB.perf.hits = rows.length;
-  if (!rows.length) return `<p class="smsg">${q.trim() ? '該当するノートはありません。' : (NB.sel === 'all' ? 'ノートはまだありません。「＋ 新規」から書けます。' : 'このフォルダにノートはありません。')}</p>`;
+  if (!rows.length) return `<p class="smsg">${q.trim() ? '該当するノートはありません。' : (NB.sel === 'all' ? 'ノートはまだありません。「＋ 新規」から書けます。' : NB.sel === 'ev' ? '予定ノートはまだありません。予定のシートの「予定ノート」から書けます。' : 'このフォルダにノートはありません。')}</p>`;
   const { pinned, others } = groupNotes(rows);
   const rowHtml = (n) => {
-    const title = titleOf(n.body), second = n.body.split('\n').slice(1).map(displayLine).find(Boolean) || ''; // 一覧の2行目にも記号は出さない（S3）
+    const t0 = titleOf(n.body), title = t0 === EMPTY_TITLE && n.eventRef?.title ? n.eventRef.title : t0, second = n.body.split('\n').slice(1).map(displayLine).find(Boolean) || ''; // 一覧の2行目にも記号は出さない（S3）。予定ノートで題名が空なら予定の題名
     const nd = noteDateOf(n), fname = (NB.folders || []).find((x) => x.id === n.folderId)?.name || '';
     const dshort = nd ? `${nd.slice(5, 7).replace(/^0/, '')}/${nd.slice(8, 10).replace(/^0/, '')}` : '';
-    const line2 = [noteDayText(n.updatedAt), fname, dshort].filter(Boolean).join(' ・ ');
+    const evd = n.eventRef ? `予定${n.eventRef.day ? ` ${n.eventRef.day.slice(5, 7).replace(/^0/, '')}/${n.eventRef.day.slice(8, 10).replace(/^0/, '')}` : ''}` : '';
+    const line2 = [noteDayText(n.updatedAt), evd, fname, dshort].filter(Boolean).join(' ・ ');
     return `<div class="nrw${n.pinned ? ' pinned' : ''}" data-nrw="${esc(n.id)}"><button type="button" class="mrow" data-nrow="${esc(n.id)}" aria-label="${esc(title)}"><b>${n.pinned ? '<i class="npin" aria-hidden="true">📌</i>' : ''}${ts.length ? highlight(title, ts, esc) : esc(title)}</b><span>${esc(line2)}${second ? ` ${esc(second)}` : ''}</span></button>${nd ? `<button type="button" class="nsrc" data-nsrc="${nd}" aria-label="日付 ${esc(dayLabel(nd))}を開く">${dshort}</button>` : ''}<button type="button" class="nmore" data-nf="rowmenu" data-id="${esc(n.id)}" aria-label="${esc(title)}の操作">⋯</button></div>`;
   };
   const items = []; let top = 0;
@@ -2644,7 +2646,7 @@ const nfBtn = (act, id, text, cls = '', extra = '') => `<button type="button" cl
 function noteChipsHtml() {
   const f = NB.folders || [], on = (v) => (NB.sel === v ? ' on' : '');
   const chip = (id, name) => `<button type="button" class="nchip${on(id)}" data-nf="sel" data-id="${esc(id)}" aria-pressed="${NB.sel === id}">${esc(name)}</button>`;
-  return `${chip('all', 'すべて')}${f.map((x) => chip(x.id, x.name)).join('')}${chip('none', 'フォルダなし')}${nfBtn('newf', null, '＋', 'nchip nadd', ' aria-label="フォルダを作る"')}${f.some((x) => x.id === NB.sel) ? nfBtn('chipmenu', NB.sel, '管理', 'nchip nmanage', ' aria-label="このフォルダの管理"') : ''}`;
+  return `${chip('all', 'すべて')}${chip('ev', '予定ノート')}${f.map((x) => chip(x.id, x.name)).join('')}${chip('none', 'フォルダなし')}${nfBtn('newf', null, '＋', 'nchip nadd', ' aria-label="フォルダを作る"')}${f.some((x) => x.id === NB.sel) ? nfBtn('chipmenu', NB.sel, '管理', 'nchip nmanage', ' aria-label="このフォルダの管理"') : ''}`;
 }
 function noteMenuHtml() {
   const m = NB.menu; if (!m) return '';
@@ -2701,9 +2703,10 @@ let marksSeq = 0;
 async function refreshNoteMarks() {
   const seq = ++marksSeq;
   try {
-    const m = new Map(), fb = new Map(), best = new Map(), cards = new Map(), bodies = new Map();
+    const m = new Map(), fb = new Map(), best = new Map(), cards = new Map(), bodies = new Map(), evn = new Map();
     for (const n of await db.listNotes()) {
       if (n.deletedAt != null) continue;
+      if (n.eventRef?.k) { evn.set(n.eventRef.k, n.id); EVREF.ofNote.set(n.id, n.eventRef); } // v19.6: 予定ノート（日付は持たない）
       const k = noteDateOf(n); if (!k) continue;
       m.set(k, (m.get(k) || 0) + 1);
       const b = best.get(k); if (!b || n.updatedAt > b.updatedAt) { best.set(k, n); fb.set(k, String(n.body ?? '').slice(0, 800)); } // 1日ページのノート欄に出す「1件目」（いちばん新しいもの）
@@ -2711,6 +2714,7 @@ async function refreshNoteMarks() {
       cards.get(k).push(noteCardOf(n)); bodies.set(n.id, String(n.body ?? '').slice(0, 800));
     }
     if (seq !== marksSeq) return;
+    EVREF.byKey = evn;
     for (const l of cards.values()) l.sort(noteCardCmp);
     const sig = JSON.stringify([...cards].sort((a, b) => (a[0] < b[0] ? -1 : 1)));
     const same = m.size === NB.marks.size && [...m].every(([k, v]) => NB.marks.get(k) === v) && fb.size === NB.first.size && [...fb].every(([k, v]) => NB.first.get(k) === v) && sig === NB.cardSig;
@@ -2735,6 +2739,95 @@ async function createDayNote(day, plain = false) { // plain＝日の欄の「＋
   if (!plain) noteStore.setText(id, `${dailyHeading(day)}\n`);
   return id;
 }
+// ---- 第19.6版（征希さん 2026-11-26「予定ノート」）: 予定ごとのノート。1 予定に 1 ノート、初めて書いた時に作る（何も書かずに閉じたら残らない）。
+// 予定を動かしても印は変わらない（鍵に日付を入れない）。予定を消してもノートは残る。繰り返しの予定は開催回ごと。予定のメモ欄には書かない（二重に持たない）
+const EVREF = { byKey: new Map(), ofNote: new Map(), fresh: new Map() }; // byKey: 鍵→ノート（保存済み）、ofNote: ノート→印、fresh: 鍵→まだ保存していない新しいノート
+// 鍵の決まり（征希さん 2026-11-26「定例のID＋その回の変更前の日時で紐付ける。予定名や変更後の日時では紐付けない」）:
+//   Duo の繰り返し＝親の id＋回の鍵（occKey＝その回の元の開始。この回だけ動かしても変わらない）。iPhone の繰り返し＝externalId（無ければ itemId）＋occurrenceDate（EventKit の「その回の元の日時」。動かしても変わらない）
+//   題名と日は控えとして持つだけで、探すときには使わない
+function evRefOf(evId) {
+  const x = visExt().find((v) => v.id === evId);
+  if (x) { const key = xcKeyOf(x); return key ? normEventRef({ k: extRefKey(key, x.recurring ? (x.occurrenceDate || x.start) : null), title: x.title || '', day: dayOf(x.start) }) : null; }
+  const cur = resolve(evId); if (!cur) return null;
+  return normEventRef({ k: duoRefKey(cur.p.id, cur.occKey), title: cur.occ.title || '', day: dayOf(cur.occ.start) });
+}
+// 印から、いま見えている予定の id（Duo の予定は鍵そのものから。iPhone の予定は読み込んである範囲から）
+function evIdOfRef(ref) {
+  if (!ref) return null;
+  if (ref.k.startsWith('d:')) { const id = ref.k.slice(2); return resolve(id) ? id : null; }
+  return visExt().find((x) => evRefOf(x.id)?.k === ref.k)?.id || null;
+}
+const noteRefOf = (id) => (id ? EVREF.ofNote.get(id) || null : null);
+// 開く場所: 開いた横はノートのページ（押した予定の反対側。無ければ右）、それ以外はノートのシート
+async function openEventNote(evId, side = null) {
+  if (NB.blocked) return;
+  const ref = evRefOf(evId); if (!ref) { notice('この予定は見つかりません。', null, 3000); return; }
+  let id = EVREF.byKey.get(ref.k) || null;
+  if (!id) { const f = EVREF.fresh.get(ref.k); if (f && noteStore.get(f)) id = f; }
+  if (!id) { try { id = (await db.listNotes()).find((n) => n.eventRef?.k === ref.k)?.id || null; } catch { /* 表だけで探す */ } }
+  if (id) { const old = noteRefOf(id); if (!old || old.title !== ref.title || old.day !== ref.day) noteStore.setMeta(id, { eventRef: ref }).catch(() => {}); } // 控えの題名・日を新しくする
+  else { id = noteStore.newNote(); await noteStore.setMeta(id, { eventRef: ref }); EVREF.fresh.set(ref.k, id); }
+  EVREF.ofNote.set(id, ref);
+  const ph = () => { const ed = noteEditor(); if (ed?.titleEl) ed.titleEl.placeholder = ref.title || EMPTY_TITLE; };
+  if (layoutKind() === 'spread' && !ttOn()) {
+    const s = side || (PG().right === 'memo' ? 'right' : PG().left === 'memo' ? 'left' : 'right');
+    if (PG()[s] !== 'memo') set({ pages: selectPage(state.pages, s, 'memo'), lastSide: s, strip: null });
+    await noteOpen(id);
+  } else { await openNoteSheet(id, null, 'right'); ph(); sheetEvRow(); }
+  say(`「${ref.title || '（題名なし）'}」の予定ノートを開きました。`);
+}
+// 予定ノートから、元の予定へ戻る（その日を選んで、予定のシートを開く）
+async function gotoEventOfNote(noteId, from) {
+  const ref = noteRefOf(noteId); if (!ref) return;
+  const evId = evIdOfRef(ref);
+  if (!evId) { openRelink(noteId, from); return; } // 同じ予定だと確かめられない: ノートは残し、手でつなぎ直せる
+  if (NB.sheet) { if (await closeNoteSheet() === false) return; }
+  const x = visExt().find((v) => v.id === evId), day = dayOf(x ? x.start : resolve(evId).occ.start);
+  set({ selected: day });
+  openEditor(evId, from);
+}
+// ---- 予定が見つからない予定ノートの「つなぎ直し」（征希さん「別カレンダーへ移すと予定のIDが変わることもある。同じ予定だと確認できないときは、ノートは残して手動で紐付け直せる設計に」）
+// その日の予定から選ぶ（日付は変えられる）・つながりを外す（ふつうのノートにする）・閉じる。すでに予定ノートがある予定は選べない（1予定に1ノート）
+let relinkEl = null;
+function closeRelink(focus = null) { if (!relinkEl) return; relinkEl.remove(); relinkEl = null; focus?.focus?.({ preventScroll: true }); }
+function relinkTo(noteId, ref) {
+  const old = noteRefOf(noteId);
+  if (old && EVREF.byKey.get(old.k) === noteId) EVREF.byKey.delete(old.k);
+  if (old) EVREF.fresh.delete(old.k);
+  if (ref) { EVREF.byKey.set(ref.k, noteId); EVREF.ofNote.set(noteId, ref); } else EVREF.ofNote.delete(noteId);
+  noteStore.setMeta(noteId, { eventRef: ref }).then(() => { invalidateNoteList(); render(); sheetEvRow(); }).catch(() => notice('保存できませんでした。', null, 3000));
+  render(); sheetEvRow();
+}
+function openRelink(noteId, from) {
+  closeRelink();
+  const ref = noteRefOf(noteId); if (!ref) return;
+  const st = { day: ref.day || state.selected };
+  const el = document.createElement('div'); el.className = 'cmv cmv2 relink'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', '予定が見つかりません');
+  el.innerHTML = `<div class="cmvin"><h3 tabindex="-1">予定が見つかりません</h3><p class="rlwhy">「${esc(ref.title || '（題名なし）')}」${ref.day ? `（${esc(dayLabel(ref.day))}）` : ''}の予定は、削除されたか、別のカレンダーへ移った可能性があります。ノートはそのまま残っています。</p><p class="rlh">つなぎ直す予定を選ぶ</p><div class="cmvrow"><button type="button" class="dcap" aria-haspopup="true" aria-expanded="false"></button></div><div class="rllist" role="list"></div><button type="button" class="cmvx rlunlink">つながりを外す（ふつうのノートにする）</button><button type="button" class="cmvx rlclose">閉じる</button></div>`;
+  document.body.append(el); relinkEl = el;
+  const list = el.querySelector('.rllist');
+  const paint = () => {
+    const evs = eventsOnDay(occIn(st.day, st.day), st.day).slice().sort((a, b) => (a.all === b.all ? String(a.start).localeCompare(String(b.start)) : a.all ? -1 : 1));
+    list.innerHTML = evs.length ? evs.map((e) => { const r = evRefOf(e.id), has = r && EVREF.byKey.has(r.k) && EVREF.byKey.get(r.k) !== noteId; return `<button type="button" class="rlev" role="listitem" data-id="${esc(e.id)}"${!r || has ? ' disabled' : ''}><b>${esc(e.title || '（題名なし）')}</b><small>${esc(e.all ? '終日' : `${t0(e.start.slice(11, 16))}〜${t0(e.end.slice(11, 16))}`)}${has ? '・予定ノートあり' : ''}</small></button>`; }).join('') : '<p class="rlnone">この日の予定はありません</p>';
+  };
+  const ui = createDateField(el.querySelector('.dcap'), { after: el.querySelector('.cmvrow'), scope: el, label: '予定を探す日', holiday: holidayMemo, get: () => st.day, set: (k) => { st.day = k; if (k !== state.selected) set({ selected: k }); paint(); setTimeout(() => relinkEl === el && paint(), 600); } });
+  ui.render(); paint();
+  list.addEventListener('click', (ev) => { const b = ev.target.closest('.rlev'); if (!b || b.disabled) return; const r = evRefOf(b.dataset.id); if (!r) return; closeRelink(from); relinkTo(noteId, r); notice(`「${r.title || '（題名なし）'}」につなぎ直しました`, null, 3000); say(`ノートを「${r.title || '題名なし'}」の予定につなぎ直しました。`); });
+  el.querySelector('.rlunlink').addEventListener('click', () => { closeRelink(from); relinkTo(noteId, null); notice('予定とのつながりを外しました（ノートは残っています）', null, 3000); });
+  el.querySelector('.rlclose').addEventListener('click', () => closeRelink(from));
+  el.addEventListener('pointerdown', (ev) => { if (ev.target === el) closeRelink(from); });
+  el.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !ev.target.closest('.dpop')) { ev.preventDefault(); closeRelink(from); } });
+  el.querySelector('h3').focus({ preventScroll: true });
+  say('予定が見つかりません。つなぎ直す予定を選べます。');
+}
+// 開いた横で、押した予定の反対側のページがノートなら、予定ノートを開く側を返す（征希さん「左の予定をタップしたら右にその予定ノートが開く」）
+function evNoteSideFor(el) {
+  if (layoutKind() !== 'spread' || ttOn() || !el) return null;
+  const own = el.closest('.page.lp') ? 'left' : el.closest('.page.rp') ? 'right' : null; if (!own) return null;
+  const other = own === 'left' ? 'right' : 'left';
+  return PG()[other] === 'memo' ? other : null;
+}
+const evNoteBtn = (noteId, cls = 'mback nevent') => { const ref = noteRefOf(noteId); return ref ? `<button type="button" class="${cls}" data-act="nevent" data-note="${esc(noteId)}" aria-label="元の予定を開く: ${esc(ref.title || '（題名なし）')}"><span>予定: ${esc(ref.title || '（題名なし）')}</span><i aria-hidden="true">›</i></button>` : ''; };
 async function openDayNote(day) {
   if (!day || NB.blocked || dayNoteBusy) return;
   if (NB.sheet) { if (await closeNoteSheet() === false) return; }
@@ -2760,7 +2853,9 @@ async function noteDayJump(day) { showNotePage(); await filterNotesByDay(day); }
 async function noteOpen(id) {
   if (NB.sheet) { if (await closeNoteSheet() === false) return; }
   if (NB.ed && NB.cur && NB.cur !== id) { const ok = await NB.ed.leave(); if (ok === false) return; }
-  NB.cur = id; NB.dp = null; render();
+  NB.cur = id; NB.dp = null;
+  { const ed = noteEditor(); if (ed?.titleEl) ed.titleEl.placeholder = noteRefOf(id)?.title || EMPTY_TITLE; } // v19.6: 予定ノートは、題名が空のあいだ予定の題名を薄く出す
+  render();
 }
 async function noteBack() {
   if (NB.sheet) { if (await closeNoteSheet() === false) return; }
@@ -3749,7 +3844,7 @@ async function openNoteSheet(id, day, side, { plain = false } = {}) {
     placeNoteSheet();
     render(); // 週の帯・ノート欄の描き直し（シートの外はそのまま見える）
     await ed.open(id);
-    ccPaintBtn(SHEET_DATE.cc, null); noteStore.getMeta(id).then((m) => { if (NB.sheet?.id === id) { NB.sheet.date = m?.date ?? null; SHEET_DATE.ui?.render(); ccPaintBtn(SHEET_DATE.cc, m?.colorId); } }).catch(() => {});
+    ccPaintBtn(SHEET_DATE.cc, null); sheetEvRow(); noteStore.getMeta(id).then((m) => { if (NB.sheet?.id === id) { NB.sheet.date = m?.date ?? null; SHEET_DATE.ui?.render(); ccPaintBtn(SHEET_DATE.cc, m?.colorId); } }).catch(() => {});
     if (fresh && plain) ed.titleEl.focus({ preventScroll: true });
     else if (fresh) { ed.bodyEl.focus({ preventScroll: true }); const n = ed.bodyEl.value.length; ed.bodyEl.setSelectionRange(n, n); }
     say('ノートを開きました。');
@@ -3757,7 +3852,10 @@ async function openNoteSheet(id, day, side, { plain = false } = {}) {
 }
 // ---- 第19.3版 その3（design/35 §4.3・決定 4・R2）: ノートのシートの一番上に「日付の行」44。カプセル「11月12日（木）」（今年でない日だけ年つき。六曜は出さない）をたたくと小さな月（予定・タスクの日付と同じ部品）。
 // 日をたたくと、その日へ移す（長押しで落としたときと同じ扱い＝同じ札・同じ読み上げ・元に戻す。ノートがある日でも確かめない）。「日付を外す」は小さな月の下
-const SHEET_DATE = { row: null, cap: null, ui: null, cc: null };
+const SHEET_DATE = { row: null, cap: null, ui: null, cc: null, ev: null };
+// v19.6: 予定ノートのときだけ、日付の行に「予定: 〈題名〉 ›」（押すと元の予定）
+document.addEventListener('click', (ev) => { const b = ev.target.closest?.('.nsheet [data-act="nevent"]'); if (b) gotoEventOfNote(b.dataset.note, b); }); // シートは root の外にあるので、ここで受ける
+function sheetEvRow() { const b = SHEET_DATE.ev; if (!b) return; const id = NB.sheet?.id, ref = noteRefOf(id); b.hidden = !ref; b.dataset.note = id || ''; if (ref) { b.querySelector('span').textContent = `予定: ${ref.title || '（題名なし）'}`; b.setAttribute('aria-label', `元の予定を開く: ${ref.title || '（題名なし）'}`); } }
 function sheetDateRow() {
   if (!SHEET_DATE.row) {
     const row = document.createElement('div'); row.className = 'nsdate';
@@ -3765,7 +3863,8 @@ function sheetDateRow() {
     // v19.6: 日付の右に「色」（カードの色。押すと色の帯）
     const cc = document.createElement('button'); cc.type = 'button'; cc.className = 'ccbtn nscc'; /* 寸法は日付のカプセルと同じ。クラスは分ける（.nsdcap は日付だけ） */ cc.dataset.act = 'ncolor'; cc.setAttribute('aria-haspopup', 'true'); cc.setAttribute('aria-label', 'カードの色を選ぶ');
     cc.innerHTML = '<i class="ccdot ccnone" aria-hidden="true"></i><span class="ccname">色なし</span>';
-    row.append(cap, cc); SHEET_DATE.row = row; SHEET_DATE.cap = cap; SHEET_DATE.cc = cc;
+    const ev = document.createElement('button'); ev.type = 'button'; ev.className = 'nsev'; ev.dataset.act = 'nevent'; ev.hidden = true; ev.innerHTML = '<span></span><i aria-hidden="true">›</i>';
+    row.append(cap, cc, ev); SHEET_DATE.row = row; SHEET_DATE.cap = cap; SHEET_DATE.cc = cc; SHEET_DATE.ev = ev;
     SHEET_EL.prepend(row);
     SHEET_DATE.ui = createDateField(cap, {
       after: row, scope: SHEET_EL, label: 'ノートの日付', empty: '日付なし', holiday: holidayMemo, buzz: () => { haptic('light').catch(() => {}); },
@@ -3906,7 +4005,7 @@ root.addEventListener('click', (ev) => {
   const d = b.dataset;
   if (b.matches('.week .day[data-date]') && ev.detail > 0 && !b.closest('.mpull.browse')) { // 閉じた7段は、チップの上でもその日を選ぶ（R-75）。 // 月のチップ・帯は押す的でない（pointer-events:none）。押した位置にあれば、その予定を開く（第19版と同じ）。なければその日を選ぶ
     const chip = chipAtPoint(b, ev);
-    if (chip && !PS.on) { openEditor(chip.dataset.event, b); return; } // 貼る日の選択中は、チップの上でもその日を選ぶ
+    if (chip && !PS.on) { const s = evNoteSideFor(b); if (s) openEventNote(chip.dataset.event, s); else openEditor(chip.dataset.event, b); return; } // 貼る日の選択中は、チップの上でもその日を選ぶ
   }
   if (PS.on && pasteClick(b)) return;
   const pg = layoutKind() === 'spread' && d.act !== 'add' ? b.closest('.page') : null;
@@ -3958,7 +4057,8 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'dayunfold') dayUnfold();
   else if (d.dg === 'card' || d.dg === 'time') dayTab(d.dg);
   else if (d.mday) { set({ monthDay: d.mday }); root.querySelector(`[data-mday="${d.mday}"]`)?.focus({ preventScroll: true }); }
-  else if (d.event) openEditor(d.event, b);
+  else if (d.act === 'nevent') gotoEventOfNote(d.note, b);
+  else if (d.event) { const s = evNoteSideFor(b); if (s) openEventNote(d.event, s); else openEditor(d.event, b); }
   else if (d.new) openEditor(null, b, d.new);
   else if (d.act === 'add') addFromHere(b);
   else if (d.act === 'pnltoggle') setPanel(!state.pages.portraitShown);
@@ -4057,6 +4157,13 @@ async function loadSample() {
 // ---------- パネル共通（編集・範囲・確認・メニュー・検索・バックアップ） ----------
 const dlg = $('#editor'), confirmDlg = $('#confirm'), scopeDlg = $('#scope'), menuDlg = $('#menu'), searchDlg = $('#search'), backupDlg = $('#backup'), form = $('#form');
 const discardDlg = $('#discard'), scrim = $('#scrim');
+// v19.6: 予定のシート・iPhone の予定のシートの「予定ノート ›」（シートの中のボタンなので、ここで受ける）
+for (const sel of ['#evnote', '#xd-evnote']) document.querySelector(sel)?.addEventListener('click', (ev) => {
+  const id = ev.currentTarget.dataset.id; if (!id) return;
+  if (dlg.open && editorDirty()) { openDiscard(dlg); return; }
+  if (dlg.open) closeEditor(); if (xdDlg.open) closeXd();
+  whenFree(() => openEventNote(id));
+});
 const xdDlg = $('#xdetail'), xrDlg = $('#xretry'), catsDlg = $('#cats'), notifyDlg = $('#notify'), taskDlg = $('#taskdlg');
 const panels = [dlg, confirmDlg, scopeDlg, discardDlg, menuDlg, searchDlg, backupDlg, xdDlg, xrDlg, catsDlg, notifyDlg, taskDlg];
 const anyPanel = () => panels.some((d) => d.open && !d._slide); // 閉じる動きの最中のシートは、もう下の画面を止めない
@@ -4288,6 +4395,7 @@ function showEditor(values, id, focus = true) {
   rsel = (values.rbyday || []).map(Number).filter((n) => n >= 0 && n <= 6);
   autoDays = values.autoDays !== false && !id;
   $('#delete').hidden = !id || !!extEd;
+  { const b = $('#evnote'); b.hidden = !id || !!extEd; b.dataset.id = id || ''; b.querySelector('small').textContent = id && EVREF.byKey.has(evRefOf(id)?.k || '') ? '書いたものがあります' : ''; } // v19.6: 予定ノート
   $('#copyrow').hidden = !(PASTE_ENTRY && id && !extEd);
   $('#error').textContent = '';
   applyExtUi();
@@ -6065,6 +6173,7 @@ function openExtDetail(id, from) {
   xdState = { gen, status: 'loading', cal, pre: preReason(cal) };
   xdBody(e);
   xdFoot();
+  { const b = $('#xd-evnote'); b.dataset.id = e.id; b.hidden = !evRefOf(e.id); } // v19.6: 予定ノート
   openPanel(xdDlg, from);
   $('#xd-close').focus({ preventScroll: true });
   const live = () => gen === xdGen && xdDlg.open && xdCur === e; // 別の予定・閉じたあとの遅い応答は捨てる

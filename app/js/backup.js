@@ -8,6 +8,7 @@ import { validateTask, liveTasks } from './tasks.js';
 import { noteCharLimit, titleOf, noteFromMemo, memoTextOf, ensureDailyFolder, noteDateOf } from './notes-model.js';
 import { CAT_IDS, DEFAULTS_NEW, LEGACY, UNCATEGORIZED, legacyToId, validateCategory } from './categories.js';
 import { validColorId, isFlickId } from './colors.js';
+import { normEventRef } from './event-ref.js';
 import { checkEventColors } from './event-colors.js';
 export { checkEventColors };
 
@@ -89,6 +90,7 @@ const exportNote = (n) => {
   if (typeof n.sourceOriginalFirstLine === 'string') o.sourceOriginalFirstLine = n.sourceOriginalFirstLine;
   if (n.ink != null) o.ink = deepClean(n.ink);
   if (isFlickId(n.colorId)) o.colorId = n.colorId; // v19.6: カードの色（任意の項目。あるときだけ書く。版は 6 のまま）
+  { const er = normEventRef(n.eventRef); if (er) o.eventRef = er; } // v19.6: 予定ノートの印（任意の項目。正しい形のときだけ書く。読み戻しも同じ関数を通る）
   return o; // title は書かない（読込時に本文から作り直す）
 };
 const exportFolder = (f) => ({ id: f.id, name: f.name, order: f.order, createdAt: f.createdAt, updatedAt: f.updatedAt });

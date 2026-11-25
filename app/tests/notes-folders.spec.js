@@ -29,7 +29,8 @@ test('初期フォルダはなし。作成→チップ選択→ノートを移�
   expect(await folders(page)).toEqual([]);
   await seed(page);
   await page.reload(); await page.waitForSelector('html[data-ready]'); await pagePick(page, 'right', 'ノート').click();
-  await expect(page.locator('[data-nchips]').first().locator('.nchip')).toHaveText(['すべて', 'フォルダなし', '＋']);
+  // v19.6（征希さん 2026-11-26「ノート一覧からも『予定ノート』で絞り込めて」）で仕様変更: 「すべて」の次に「予定ノート」の札
+  await expect(page.locator('[data-nchips]').first().locator('.nchip')).toHaveText(['すべて', '予定ノート', 'フォルダなし', '＋']);
   await newFolder(page, '家');
   await expect(chip(page, '家')).toHaveClass(/on/);
   await expect(list(page)).toContainText('このフォルダにノートはありません');

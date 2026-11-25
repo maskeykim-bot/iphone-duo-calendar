@@ -1,6 +1,7 @@
 // IndexedDB データ層。schema を変えるときは SCHEMA_VERSION を上げ、MIGRATIONS に追記する。
 import { withDefaults, isKey } from './util.js';
 import { validateTask, newTaskId, isCardColorId } from './tasks.js';
+import { normEventRef } from './event-ref.js';
 import { noteFromMemo, ensureDailyFolder, titleOf, noteCharLimit, noteDateOf } from './notes-model.js';
 import { CAT_IDS, DEFAULTS_NEW, LEGACY, UNCATEGORIZED, legacyToId, planCategoryRetarget, sortCategories } from './categories.js';
 
@@ -434,6 +435,7 @@ export function validateNote(n) {
   const num = (v, d) => (Number.isFinite(v) ? v : d);
   const now = Date.now();
   const { colorId: _cc, ...rest } = n; n = isCardColorId(_cc) ? { ...rest, colorId: _cc } : rest; // v19.6: カードの色（任意の項目）。フリックの色の id でなければ持たない
+  { const { eventRef: _er, ...r2 } = n, er = normEventRef(_er); n = er ? { ...r2, eventRef: er } : r2; } // v19.6: 予定ノートの印（任意の項目。正しい形でなければ持たない）
   return { ...n, date: noteDateOf(n), title: titleOf(n.body), folderId: typeof n.folderId === 'string' ? n.folderId : null, pinned: !!n.pinned,
     pinnedAt: n.pinned ? num(n.pinnedAt, now) : null, createdAt: num(n.createdAt, now), updatedAt: num(n.updatedAt, now), deletedAt: Number.isFinite(n.deletedAt) ? n.deletedAt : null };
 }
@@ -505,7 +507,8 @@ export const patchNote = (id, patch) => run(NOTE, 'readwrite', ({ notes }, set) 
     if ('folderId' in patch) t.folderId = typeof patch.folderId === 'string' ? patch.folderId : null;
     if ('date' in patch) t.date = noteDateOf({ date: patch.date });
     if ('pinned' in patch) { t.pinned = !!patch.pinned; t.pinnedAt = t.pinned ? (Number.isFinite(patch.pinnedAt) ? patch.pinnedAt : Date.now()) : null; }
-    if ('colorId' in patch) { if (isCardColorId(patch.colorId)) t.colorId = patch.colorId; else delete t.colorId; } // v19.6: カードの色（外すときは項目ごと消す。updatedAt は変えない＝並びを動かさない）
+    if ('colorId' in patch) { if (isCardColorId(patch.colorId)) t.colorId = patch.colorId; else delete t.colorId; }
+    if ('eventRef' in patch) { const er = normEventRef(patch.eventRef); if (er) t.eventRef = er; else delete t.eventRef; } // v19.6: 予定ノートの印（控えの題名・日を新しくするとき。updatedAt は変えない） // v19.6: カードの色（外すときは項目ごと消す。updatedAt は変えない＝並びを動かさない）
     notes.put(t); set(t);
   };
 });

@@ -2832,3 +2832,25 @@ html.nne.nne-crlf .ned-top{display:flex}
 .pgcfgm .pcrow button{border-bottom:0}
 .pgcfgm .pcrow [data-pc=use]{flex:1;min-width:0}.pgcfgm .pcrow [data-pc=use][aria-current=true]{font-weight:600}
 .pgcfgm .pcrow .pcdel{flex:none;width:44px;padding:0;text-align:center;color:var(--muted)}
+
+/* v19.6 予定ノート: 予定のシートの「予定ノート ›」、ノートの上の「予定: 〈題名〉 ›」 */
+#editor .evnote{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:0 4px;border:0;background:transparent;font:400 16px/22px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink2);text-align:left}
+#editor .evnote[hidden],#xdetail .evnote[hidden]{display:none}
+#editor .evnote span{flex:1}#editor .evnote small{font-size:13px;color:var(--muted)}#editor .evnote i,#xdetail .evnote i{font-style:normal;color:var(--muted)}
+#xdetail .evnote{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:8px}
+.ntools .nevent{display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:50%;margin-right:auto;overflow:hidden}
+.ntools .nevent span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ntools .nevent i{font-style:normal;color:var(--muted)}
+.nsheet .nsev{position:relative;flex:0 1 auto;display:inline-flex;align-items:center;gap:4px;min-width:0;height:32px;min-height:32px;padding:0 10px;border:0;border-radius:8px;background:var(--capsule);font:400 14px/32px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink);overflow:hidden}
+.nsheet .nsev[hidden]{display:none}
+.nsheet .nsev::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+.nsheet .nsev span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nsheet .nsev i{font-style:normal;color:var(--muted)}
+
+/* v19.6 予定ノートのつなぎ直し */
+.relink .rlwhy{margin:0 0 12px;font:400 14px/21px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink)}
+.relink .rlh{margin:0 0 4px;font:600 13px/18px -apple-system,'Hiragino Sans',sans-serif;color:var(--muted)}
+.relink .rllist{display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:220px;overflow-y:auto}
+.relink .rlev{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-height:48px;padding:6px 12px;border:0;border-radius:12px;background:var(--capsule);text-align:left}
+.relink .rlev b{font:600 15px/20px -apple-system,'Hiragino Sans',sans-serif;color:var(--ink2)}.relink .rlev small{font-size:12px;color:var(--muted)}
+.relink .rlev:disabled{opacity:.45}
+.relink .rlnone{margin:8px 0;font-size:13px;color:var(--muted)}
+.relink .rlunlink{margin-top:12px;background:var(--capsule)}

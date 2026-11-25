@@ -58,7 +58,7 @@ export function createNoteStore({ db = realDb, storage = globalThis.localStorage
           const base = await db.getNote(id); // 他の変更（フォルダ・固定・削除印）を失わないよう毎回読む
           const stamp = now();
           const m = e.meta || {};
-          const rec = base ? { ...base, body: t, updatedAt: stamp } : { id, body: t, createdAt: e.createdAt ?? stamp, updatedAt: stamp, folderId: m.folderId ?? null, pinned: !!m.pinned, pinnedAt: m.pinned ? (m.pinnedAt ?? stamp) : null, date: normDay(m.date), ...(m.colorId ? { colorId: m.colorId } : {}), deletedAt: null };
+          const rec = base ? { ...base, body: t, updatedAt: stamp } : { id, body: t, createdAt: e.createdAt ?? stamp, updatedAt: stamp, folderId: m.folderId ?? null, pinned: !!m.pinned, pinnedAt: m.pinned ? (m.pinnedAt ?? stamp) : null, date: normDay(m.date), ...(m.colorId ? { colorId: m.colorId } : {}), ...(m.eventRef ? { eventRef: m.eventRef } : {}), deletedAt: null };
           await db.putNote(rec);
           if (!base) e.meta = null;
           e.saved = Math.max(e.saved, g); e.failed = false; e.fresh = false;
@@ -153,9 +153,9 @@ export function createNoteStore({ db = realDb, storage = globalThis.localStorage
   }
   async function getMeta(id) {
     const e = E.get(id);
-    if (e && e.fresh) return { folderId: e.meta?.folderId ?? null, pinned: !!e.meta?.pinned, date: e.meta && 'date' in e.meta ? (e.meta.date ?? null) : null, colorId: e.meta?.colorId ?? null };
+    if (e && e.fresh) return { folderId: e.meta?.folderId ?? null, pinned: !!e.meta?.pinned, date: e.meta && 'date' in e.meta ? (e.meta.date ?? null) : null, colorId: e.meta?.colorId ?? null, eventRef: e.meta?.eventRef ?? null };
     const n = await db.getNote(id);
-    return n ? { folderId: n.folderId ?? null, pinned: !!n.pinned, date: noteDateOf(n), colorId: n.colorId ?? null } : null;
+    return n ? { folderId: n.folderId ?? null, pinned: !!n.pinned, date: noteDateOf(n), colorId: n.colorId ?? null, eventRef: n.eventRef ?? null } : null;
   }
 
   const failedIds = () => [...E.entries()].filter(([, e]) => e.failed && dirty(e)).map(([i]) => i);
