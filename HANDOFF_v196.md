@@ -1,6 +1,11 @@
 # 引き継ぎメモ（2026-11-25 夕方の時点。HANDOFF.md の続き）
 
-守ること・ビルドと実機への入れ方は HANDOFF.md のまま（バンドル ID、DB v6／バックアップ v6、git stash 禁止、force push 禁止、署名の期限 2026-11-27 10:32 JST）。
+守ること・ビルドと実機への入れ方は HANDOFF.md のまま（バンドル ID、DB v6／バックアップ v6、git stash 禁止、force push 禁止、署名の期限は下の「署名」を見る）。
+
+## 署名（2026-11-26 に延長）
+- いま実機に入っている版（8c0c57b）の期限は **2026-12-03 5:41（日本時間）**。
+- 延ばし方: Xcode に Apple ID でサインインしてある状態で（Settings → Accounts。入っていないと「No Accounts」で失敗する）、`~/Library/Developer/Xcode/UserData/Provisioning Profiles/` の `com.maskeykim.duocalendar` 用のプロファイルを別の場所へ退避 → `-allowProvisioningUpdates` でビルド → 新しいプロファイル（7 日）が作られる。退避しないと、古いプロファイルを使い回して期限が延びない。
+- 退避した古いプロファイルは `~/Developer/duo-logs/profile-backup/`（もう要らない）。DuoFlick 用の 2 つには触らない。
 
 ## ブランチ
 - `main`（d9f5d53）: v19.4。まだ何も push していない（push は、征希さんがシミュレーターのスクショを見て OK した版だけ）。
@@ -57,7 +62,7 @@
 3. カード表示の作り直し（改訂案 08）。
 4. ノートのチェック行をタスク一覧で見やすく、「…」の中の整理。ネイティブの開いた画面では、ノートの札の行（フォルダ・日付・ピン・色）が出ないので、ノートの色は閉じた画面のシートから付ける（開いた画面の入口は未対応）。
 5. 保存の形に触れるもの（予定ノート・タスクの作業枠）は、実装の前に設計を書いて確認をもらう。
-6. 返事待ち: 署名の延長（期限 11/27 10:32）、天気の取得元、iOS のタスク同期を v19.3 でやめた理由、設計資料（design/25・33〜37）の受け取り。
+6. 返事待ち: 天気の取得元、iOS のタスク同期を v19.3 でやめた理由、設計資料（design/25・33〜37）の受け取り。
 
 ## テスト（この Mac）
 - `cd app && export CHROME_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" && npx playwright test --workers=3`（30〜40 分）。開発サーバーを先に `node server.mjs 4199` で立て、`PW_PORT=4199` を付けると使い回せる。
