@@ -94,7 +94,7 @@ test.describe('月にタスクを表示', () => {
   test('完了で件数が減り、戻すと増える。保存の変更（期限）後の再読込でも更新', async ({ page }) => {
     await boot(page, OPEN, { store: ON });
     await expect(cnt(page, D0)).toHaveText('✓3');
-    await page.locator('.pgr [data-pick="task"]').first().click();
+    await page.locator('.pgname.pgr').click(); await page.locator('.pgr [data-pick="task"]').first().click();
     const rp = page.locator('.page.rp');
     await rp.locator('[data-key="rm:a1"] [data-act="remck"]').click();
     await expect(cnt(page, D0)).toHaveText('✓2');
@@ -118,7 +118,7 @@ test.describe('廃止した設定（同期・リスト・追加先・許可）',
   test('旧設定（lists・addTo・enabled:false）は消さず、読まない: タスクは隠れず追加もできる', async ({ page }) => {
     const old = { enabled: false, lists: [], addTo: 'L9', monthTasks: false };
     await boot(page, OPEN, { store: old });
-    await page.locator('.pgl [data-pick="task"]').first().click();
+    await page.locator('.pgname.pgl').click(); await page.locator('.pgl [data-pick="task"]').first().click();
     const lp = page.locator('.page.lp');
     await expect(lp.locator('[data-key="rm:a1"]')).toBeVisible();
     await expect(lp.locator('.remgate')).toHaveCount(0);

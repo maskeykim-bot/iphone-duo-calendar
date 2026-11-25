@@ -309,16 +309,11 @@ test.describe('V-09 下のバーの上のぼかし 24', () => {
     await setUi(page, LEGACY);
     await openApp(page, L); await band(page, 84);
     await seed(page, MANY);
-    const l = await rect(page.locator('.tabfade.tfl')), r = await rect(page.locator('.tabfade.tfr'));
-    near(l.y, 599); near(l.h, 12); near(r.y, 599); near(r.h, 12);
-    const lp = await rect(page.locator('.lp')), rp = await rect(page.locator('.rp'));
-    near(l.x, lp.x); near(l.w, lp.w); near(r.x, rp.x); near(r.w, rp.w);
-    expect(await page.locator('.tabfade.tfl').evaluate((e) => getComputedStyle(e).backgroundImage)).toContain('rgb(240, 237, 229)');
-    expect(await page.locator('.tabfade.tfr').evaluate((e) => getComputedStyle(e).backgroundImage)).toContain('rgb(255, 253, 250)');
+    // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 開いた横に下のバーは無い。バーの上のぼかしも出さない。最後の行は、ページの下の端の目印（--tabs-y）の 8 上までに出る
+    await expect(page.locator('.tabfade')).toHaveCount(0);
     for (const side of ['left', 'right']) for (const kind of ['時間', 'タスク', 'ノート', '月']) {
       await pagePick(page, side, kind).click(); await page.waitForTimeout(350);
-      const tb = await rect(page.locator(`.pgsw.${side === 'left' ? 'pgl' : 'pgr'}`));
-      near(tb.y, 611);
+      const tb = { y: await page.evaluate(() => parseFloat(document.documentElement.style.getPropertyValue('--tabs-y'))) };
       await endCheck(page, tb.y, `${side} ${kind}`);
     }
   });

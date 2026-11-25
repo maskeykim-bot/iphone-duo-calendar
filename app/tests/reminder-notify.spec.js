@@ -62,7 +62,7 @@ test.describe('タスクの local 通知', () => {
     await openApp(page, OPEN, '?nosw');
     await seedTasks(page, SEED);
     await expect.poll(() => ids(page)).toEqual(['duo.task.a', 'duo.task.b']);
-    await page.locator('.pgl [data-pick="task"]').first().click();
+    await page.locator('.pgname.pgl').click(); await page.locator('.pgl [data-pick="task"]').first().click();
     await page.locator('.page.lp [data-act="remck"][data-id="a"]').click();
     await expect.poll(() => ids(page), { timeout: 10000 }).toEqual(['duo.task.b']);
     await page.locator('#native-toast [data-act], #native-toast button').first().click();

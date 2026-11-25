@@ -69,18 +69,22 @@ const box = async (loc) => (await loc.boundingBox());
 test('切替は左右に1つずつ。幅320・高40・各64（S5 M-03）、折り目から10以上離れる', async ({ page }) => {
   for (const size of [SIZES.openLandscape951, SIZES.openLandscape]) {
     await openApp(page, size);
-    const l = await box(page.locator('.pgsw.pgl')), r = await box(page.locator('.pgsw.pgr')), W = size.width, f = W / 2;
+    // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 切り替えの帯は、ページ名を押した側にだけ出る（ページ名のすぐ下・左そろえ）。寸法は今までどおり
+    const W = size.width, f = W / 2;
+    await page.locator('.pgname.pgr').click(); const r = await box(page.locator('.pgsw.pgr')); const nr = await box(page.locator('.pgname.pgr'));
+    await page.locator('.pgname.pgl').click(); const l = await box(page.locator('.pgsw.pgl')); const nl = await box(page.locator('.pgname.pgl'));
+    await expect(page.locator('.pgsw')).toHaveCount(1);
     for (const b of [l, r]) { expect(b.width).toBeCloseTo(320, 0); expect(b.height).toBeCloseTo(40, 0); }
     expect(l.x + l.width).toBeLessThanOrEqual(f - 10 + 0.5);
     expect(r.x).toBeGreaterThanOrEqual(f + 10 - 0.5);
-    expect(l.y).toBeCloseTo(r.y, 0);
+    expect(l.y).toBeCloseTo(r.y, 0); expect(l.x).toBeCloseTo(nl.x, 0); expect(r.x).toBeCloseTo(nr.x, 0); expect(l.y).toBeCloseTo(nl.y + 40, 0);
     const bs = await page.locator('.pgsw.pgl button').evaluateAll((l2) => l2.map((e) => e.getBoundingClientRect().width));
     expect(bs).toHaveLength(5); bs.forEach((w) => expect(w).toBeCloseTo(64, 0)); // 5項目（ホーム・月・時間・タスク・メモ）
     const pill = await box(page.locator('.pgsw.pgl button[aria-pressed="true"] .pill'));
     const tw = await page.locator('.pgsw.pgl button[aria-pressed="true"] .pill').evaluate((e) => { const r = document.createRange(); r.selectNodeContents(e); return r.getBoundingClientRect().width; });
     expect(pill.width).toBeCloseTo(tw + 24, 0); expect(pill.height).toBeCloseTo(40, 0); // M-03: 選んだ札は文字の左右 12
-    // 左ページの中央（利用幅 [Ls+8, f-10] の中央）
-    expect(l.x + l.width / 2).toBeCloseTo((8 + f - 10) / 2, 0);
+    expect(nl.x).toBeCloseTo(8 + 8, 0); expect(nr.x).toBeCloseTo(f + 10 + 8, 0); // ページ名は各ページの左端から 8
+    await page.locator('.pgname.pgl').click();
     await expect(page.locator('.tabs')).toHaveCount(0);
   }
 });
@@ -93,8 +97,7 @@ test('左右の全12組合せ。同じ種類は交換し、再読込でも保た
       await pagePick(page, 'left', lname).click();
       await pagePick(page, 'right', rname).click();
       expect(await kinds(page)).toEqual([IDS[lname], IDS[rname]]);
-      await expect(pagePick(page, 'left', lname)).toHaveAttribute('aria-pressed', 'true');
-      await expect(pagePick(page, 'right', rname)).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.locator('.pgname.pgl span')).toHaveText(lname); await expect(page.locator('.pgname.pgr span')).toHaveText(rname); // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: いまのページはページ名に出る
     }
   }
   await pagePick(page, 'left', 'タスク').click(); await pagePick(page, 'right', 'ノート').click();
@@ -197,16 +200,20 @@ test('safe R84／非対称 safe でも、右の切替は右ページの利用幅
     await page.evaluate(({ t = 0, r = 0, b = 0, l = 0 }) => { const s = document.documentElement.style; s.setProperty('--sat', `${t}px`); s.setProperty('--sar', `${r}px`); s.setProperty('--sab', `${b}px`); s.setProperty('--sal', `${l}px`); }, safe);
     await page.waitForTimeout(80);
     const W = size.width, f = W / 2, R = safe.r || 0, Ls = safe.l || 0;
-    const l = await box(page.locator('.pgsw.pgl')), r = await box(page.locator('.pgsw.pgr'));
+    // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 帯はページ名のすぐ下・左そろえ（左ページ＝左端＋8＋8、右ページ＝折り目＋10＋8）
+    await page.locator('.pgname.pgl').click(); const l = await box(page.locator('.pgsw.pgl'));
+    await page.locator('.pgname.pgr').click(); const r = await box(page.locator('.pgsw.pgr'));
     expect(r.width).toBeCloseTo(320, 0);
-    expect(r.x + r.width / 2).toBeCloseTo((f + 10 + W - R - 16) / 2, 0);
-    expect(l.x + l.width / 2).toBeCloseTo((Ls + 8 + f - 10) / 2, 0);
+    expect(r.x).toBeCloseTo(f + 10 + 8, 0);
+    expect(l.x).toBeCloseTo(Ls + 8 + 8, 0);
     expect(l.x + l.width).toBeLessThanOrEqual(f - 10 + 0.5);
     expect(r.x).toBeGreaterThanOrEqual(f + 10 - 0.5);
     expect(r.x + r.width).toBeLessThanOrEqual(W - R + 0.5);
     // 実タップ: 右の「メモ」で右ページが替わる
+    { const hit0 = await page.locator('.pgsw.pgr button').first().evaluate((e) => { const q = e.getBoundingClientRect(); return document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2).closest('button') === e; }); expect(hit0).toBe(true); }
     await pagePick(page, 'right', 'ノート').click();
     await expect(page.locator('.page.rp')).toHaveAttribute('data-page', 'memo');
+    await page.locator('.pgname.pgr').click();
     const hit = await page.locator('.pgsw.pgr button').first().evaluate((e) => { const q = e.getBoundingClientRect(); return document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2).closest('button') === e; });
     expect(hit).toBe(true);
   }
@@ -233,7 +240,7 @@ for (const size of [SIZES.openLandscape951, SIZES.openLandscape]) {
       expect(after.rects).toEqual(before.rects); // ページの枠は不変
       expect(after.inner).toEqual(before.inner); // 反対ページの寸法・スクロール位置は不変
       // 月の拡張領域は自分のページ内、折り目（中心±10）と下の切替より上
-      const f = size.width / 2, sw = await page.locator('.pgsw').first().boundingBox();
+      const f = size.width / 2, sw = { y: await page.evaluate(() => parseFloat(document.documentElement.style.getPropertyValue('--tabs-y'))) }; // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 下の切替は無い。下の端の目印（--tabs-y）より上
       for (const b of await page.locator('.scroll.all').evaluateAll((es) => es.map((e) => e.getBoundingClientRect().toJSON()))) {
         expect(b.right <= f - 9.5 || b.left >= f + 9.5).toBe(true);
         expect(b.bottom).toBeLessThanOrEqual(sw.y + 0.5);

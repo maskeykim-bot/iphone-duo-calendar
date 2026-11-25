@@ -165,7 +165,7 @@ for (const [name, key, size, kbTop] of POST) for (const how of ['vv', 'native'])
 async function openTaskEdit(page) {
   const closed = Math.min(page.viewportSize().width, page.viewportSize().height) < 600;
   if (closed) await page.locator('.cb.ctask').click();
-  else if (await page.locator('.pgl [data-pick="task"]:visible').count()) await page.locator('.pgl [data-pick="task"]:visible').first().click(); // 開いた横: 左ページをタスクに
+  else if (await page.locator('.pgname.pgl:visible').count()) { await page.locator('.pgname.pgl').click(); await page.locator('.pgl [data-pick="task"]:visible').first().click(); } // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: ページ名を押してから選ぶ。 // 開いた横: 左ページをタスクに
   else { // 開いた縦: 「タスク」の画面（上が一覧、下が詳細）
     await page.locator('[data-fmode="task"]:visible').first().click();
     await page.locator('.ftlist .rmrow .rmbody').first().click();

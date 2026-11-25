@@ -128,7 +128,7 @@ test.describe('N-02 閉じた日・週の送り切り：24:00 の線がバーの
 test.describe('N-03 開いた横：シートを開いている間、右ページの見出しと両方の .pgsw を 0.25s で消す', () => {
   test('予定の編集（ダイヤルの面も）で opacity 0・押せない、閉じたら戻る', async ({ page }) => {
     await openApp(page, L, '', { motion: true }); await band(page, 84);
-    const st = () => page.evaluate(() => { const g = (s) => [...document.querySelectorAll(s)].map((e) => { const c = getComputedStyle(e); return { o: c.opacity, v: c.visibility, d: c.transitionDuration, f: c.transitionTimingFunction }; }); return { head: g('.page.rp .rhead')[0], sw: g('.pgsw') }; });
+    const st = () => page.evaluate(() => { const g = (s) => [...document.querySelectorAll(s)].map((e) => { const c = getComputedStyle(e); return { o: c.opacity, v: c.visibility, d: c.transitionDuration, f: c.transitionTimingFunction }; }); return { head: g('.page.rp .rhead')[0], sw: g('.pgname') }; }); // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 下のタブ（.pgsw）の代わりに、上のページ名（.pgname）を同じ決まりで消す
     const s0 = await st(); expect(s0.head.o).toBe('1'); expect(s0.sw.length).toBe(2);
     await page.locator('[data-act="add"]:visible').first().click(); await page.locator('#editor').waitFor(); await page.waitForTimeout(450);
     const s1 = await st();
@@ -136,7 +136,7 @@ test.describe('N-03 開いた横：シートを開いている間、右ページ
     for (const s of s1.sw) { expect(s.o).toBe('0'); expect(s.v).toBe('hidden'); }
     expect(s1.head.d.split(',')[0].trim()).toBe('0.25s'); expect(s1.head.f).toContain('cubic-bezier(0.16, 1, 0.3, 1)');
     // 押せない：右ページの見出しの上を押しても何も起きず、読み上げツリーにも出ない（visibility:hidden）
-    expect(await page.evaluate(() => document.querySelectorAll('.pgsw button').length && [...document.querySelectorAll('.pgsw button')].every((b) => getComputedStyle(b).visibility === 'hidden'))).toBe(true);
+    expect(await page.evaluate(() => document.querySelectorAll('.pgname').length && [...document.querySelectorAll('.pgname')].every((b) => getComputedStyle(b).visibility === 'hidden'))).toBe(true);
     // ダイヤルの面を開いても消えたまま
     await page.locator('#f-stime').click(); await page.waitForTimeout(450);
     expect((await st()).sw.every((s) => s.o === '0')).toBe(true);
@@ -150,7 +150,7 @@ test.describe('N-03 開いた横：シートを開いている間、右ページ
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await openApp(page, L, '', { motion: true }); await band(page, 84);
     await page.locator('[data-act="add"]:visible').first().click(); await page.locator('#editor').waitFor(); await page.waitForTimeout(300);
-    const d = await page.evaluate(() => { const e = document.querySelector('.pgsw'); const c = getComputedStyle(e); return [c.transitionDuration, c.opacity]; });
+    const d = await page.evaluate(() => { const e = document.querySelector('.pgname'); const c = getComputedStyle(e); return [c.transitionDuration, c.opacity]; });
     expect(d[0].split(',')[0].trim()).toBe('0.15s'); expect(d[1]).toBe('0');
   });
 });

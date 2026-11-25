@@ -237,7 +237,7 @@ for (const [name, size] of [['閉じた縦', SIZES.closedPortrait], ['開いた�
   test(`35 §9 K-14 タスクのページの四角（${name}）: 20×20・角丸 4・線 1.75。押せる範囲は 44 のまま`, async ({ page }) => {
     await openApp(page, size, '', { home: false });
     await seedTasks(page, [T('a', { title: '未完了' }), T('c', { title: '完了', done: true, doneAt: '2026-11-12T09:00', order: 3 })]);
-    if (size.width < 600) await page.locator('.cb.ctask').click(); else await page.locator('.pgl [data-pick="task"]').first().click();
+    if (size.width < 600) await page.locator('.cb.ctask').click(); else { await page.locator('.pgname.pgl').click(); await page.locator('.pgl [data-pick="task"]').first().click(); }
     await expect(page.locator('.rmck:visible').first()).toBeVisible();
     const list = await page.locator('.rmck').evaluateAll((l) => l.filter((e) => e.getBoundingClientRect().width > 0).map((e) => {
       const r = e.getBoundingClientRect(), c = getComputedStyle(e), b = e.closest('.rmckb').getBoundingClientRect();
@@ -1059,7 +1059,7 @@ test('35 §9 M-37 開いた横のノート（R7）: ノートのページの題�
   expect((await p3Notes(page))[0].date).toBe(D14); expect((await p3Notes(page))[0].body).toBe('買い物\n牛乳・卵');
   await expect(toast(page).locator('span')).toHaveText('14日（土）へ移しました');
   // タスクのページの行: つかめない（月が見えていても）
-  await page.locator('.pgr [data-pick="task"]').first().click(); await page.waitForTimeout(400);
+  await page.locator('.pgname.pgr').click(); await page.locator('.pgr [data-pick="task"]').first().click(); await page.waitForTimeout(400);
   await hold(page, await P3.center(page, '.page.rp .rmrow, .page.rp .rmbody'), 570); await expect(page.locator('.gchip, .lifted')).toHaveCount(0);
   await page.mouse.move(3, 3); await page.mouse.up();
 });

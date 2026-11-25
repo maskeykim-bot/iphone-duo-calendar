@@ -39,7 +39,7 @@ test.describe('タスクの分類と完了履歴', () => {
   test('選択日を変えると分類だけ変わる。右ページでも同じ分類', async ({ page }) => {
     await openApp(page, OPEN);
     await seedTasks(page, SEED);
-    await page.locator('.pgr [data-pick="task"]').first().click();
+    await page.locator('.pgname.pgr').click(); await page.locator('.pgr [data-pick="task"]').first().click();
     const rp = page.locator('.page.rp');
     await expect(rp.locator('[data-key="rm:today"]')).toBeVisible();
     expect(await rp.locator('[data-sec]').evaluateAll((e) => e.map((x) => x.dataset.sec))).toEqual(SECS);
@@ -59,7 +59,7 @@ test.describe('タスクの分類と完了履歴', () => {
     await openTasks(page, OPEN);
     await expect(lp(page).locator('.rmempty')).toContainText('未完了のタスクはありません。');
     await seedTasks(page, SEED);
-    await page.locator('.pgl [data-pick="task"]').first().click();
+    await page.locator('.pgname.pgl').click(); await page.locator('.pgl [data-pick="task"]').first().click();
     await expect(lp(page).locator('[data-key="rm:late"]')).toBeVisible();
   });
   test('開いた縦の下パネルでも同じ分類', async ({ page }) => {

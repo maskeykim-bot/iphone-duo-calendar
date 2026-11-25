@@ -60,6 +60,6 @@ export const releaseTasks = (page) => page.evaluate(() => window.__release());
 export async function openTasks(page, size, { seed = null, query = '' } = {}) {
   await openApp(page, size, query);
   if (seed) await seedTasks(page, seed);
-  await page.locator('.pgl [data-pick="task"]').first().click();
+  await page.locator('.pgname.pgl').click(); await page.locator('.pgl [data-pick="task"]').first().click();
   await expect(page.locator('.page.lp input.remin')).toBeVisible();
 }

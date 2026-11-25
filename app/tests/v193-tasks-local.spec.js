@@ -135,7 +135,7 @@ test('品質 R-2・R-4・R-6・R-8: 同期オンだった端末で、起動・�
   // リマインダー側の変更の知らせ（予定用にも使う calendarChanged）
   await page.evaluate(() => window.__m.cbs.calendarChanged?.({}));
   await page.waitForTimeout(700); // 昔の間引き 300ms より長く待つ
-  await page.locator('.pgl [data-pick="task"]').first().click();
+  await page.locator('.pgname.pgl').click(); await page.locator('.pgl [data-pick="task"]').first().click();
   const lp = page.locator('.page.lp');
   await lp.locator('input.remin').fill('Duo だけで足す'); await lp.locator('input.remin').press('Enter');
   await expect(lp).toContainText('Duo だけで足す');
@@ -203,7 +203,7 @@ test('35 §9 M-36（その2の分）／品質 R-13: つながっていたタス�
   await upgrade(page, { tasks: [linked('m', { title: '時刻つき', due: { date: '2026-11-12', time: '18:00' }, notify: true }), linked('n', { title: '日付だけ', due: { date: '2026-11-12' }, notify: true, order: 2 })] });
   await sheet(page).locator('#remend-ok').click(); await expect(sheet(page)).toBeHidden();
   await expect.poll(() => taskPending(page)).toEqual([['duo.task.m', '2026-11-12T18:00']]); // 日付だけの 12 日 8:00 はもう過ぎている（今は 12 日 9:41）
-  await page.locator('.pgl [data-pick="task"]').first().click();
+  await page.locator('.pgname.pgl').click(); await page.locator('.pgl [data-pick="task"]').first().click();
   for (const id of ['m', 'n']) {
     await page.locator(`.page.lp [data-key="rm:${id}"] [data-act="remedit"]`).click();
     await expect(page.locator('#taskdlg')).toBeVisible();
@@ -371,7 +371,7 @@ test.describe('K-14', () => {
         await page.locator('.htasks [data-act="homego"][data-to="task"]').click();
       } else {
         const pick = page.locator('.pgl [data-pick="task"]').first();
-        if (await pick.count()) await pick.click(); else await page.getByRole('button', { name: 'タスク', exact: true }).first().click();
+        if (await page.locator('.pgname.pgl').count()) { await page.locator('.pgname.pgl').click(); await pick.click(); } else await page.getByRole('button', { name: 'タスク', exact: true }).first().click(); // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: ページ名を押してから選ぶ
       }
       await expect(page.locator('input.remin').first()).toBeVisible();
       const doneBtn = page.locator('[data-act="remdone"]').first();
@@ -430,7 +430,7 @@ for (const [name, size] of [['開いた縦', POSTURES[2][1]], ['開いた横', P
     await openApp(page, size, '?nosw');
     await seedTasks(page, [T('a', { title: 'もとの題名' }), T('b', { title: '消す件', order: 2 })]);
     const pick = page.locator('.pgl [data-pick="task"]').first();
-    if (await pick.count()) await pick.click(); else await page.getByRole('button', { name: 'タスク', exact: true }).first().click();
+    if (await page.locator('.pgname.pgl').count()) { await page.locator('.pgname.pgl').click(); await pick.click(); } else await page.getByRole('button', { name: 'タスク', exact: true }).first().click(); // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: ページ名を押してから選ぶ
     const inp = page.locator('input.remin').first();
     await expect(inp).toBeVisible();
     await inp.fill('開いた画面で足す'); await inp.press('Enter');

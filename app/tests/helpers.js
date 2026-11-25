@@ -411,14 +411,20 @@ export async function toggleDesk(page) {
 }
 
 // 第14版 PR5: 開いた横の左右ページの切替と時間の表示。side は 'left' | 'right'、name は 月/時間/タスク/メモ。
-export const pagePick = (page, side, name) => page.locator(`.pgsw.${side === 'left' ? 'pgl' : 'pgr'}`).getByRole('button', { name, exact: true });
+// v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 下のタブは無くなり、各ページの上のページ名（.pgname）を押すと切り替えの帯（.pgsw）が出る。
+// ここで返す物は今までどおり帯の中のボタン。click() だけ、帯が閉じていれば先にページ名を押して開く
+export const openPageMenu = async (page, side) => { const sc = side === 'left' ? 'pgl' : 'pgr'; if (!(await page.locator(`.pgsw.${sc}`).count())) await page.locator(`.pgname.${sc}`).click(); };
+export const pagePick = (page, side, name) => {
+  const loc = page.locator(`.pgsw.${side === 'left' ? 'pgl' : 'pgr'}`).getByRole('button', { name, exact: true });
+  return new Proxy(loc, { get(t, k) { if (k === 'click') return async (...args) => { await openPageMenu(page, side); return t.click(...args); }; const v = Reflect.get(t, k, t); return typeof v === 'function' ? v.bind(t) : v; } });
+};
 export async function setTimeMode(page, side, label) {
   await page.locator(`.page.${side === 'left' ? 'lp' : 'rp'} [data-act="tlmenu"]`).click();
   await page.locator(`.tlmenu [data-tlmode]`).filter({ hasText: new RegExp(`^${label}$`) }).click();
 }
 // 閉じた・縦は従来のタブ、開いた横は左右ページへ読み替える（月=左月・右時間／日=右の時間1日／週=右の時間・週／リスト=右の時間・リスト）。ホームは独立ページ（pagePick 'ホーム'）。
 export async function showView(page, name) {
-  if (!(await page.locator('.pgsw').count())) { await tab(page, name).click(); return; }
+  if (!(await page.locator('.pgname').count())) { await tab(page, name).click(); return; }
   const lp = page.locator('.page.lp'), isMonth = (await lp.getAttribute('data-page')) === 'month';
   if (name === '月') { if (!isMonth) await pagePick(page, 'left', '月').click(); if ((await page.locator('.page.rp').getAttribute('data-page')) !== 'time') await pagePick(page, 'right', '時間').click(); return; }
   if ((await page.locator('.page.rp').getAttribute('data-page')) !== 'time') await pagePick(page, 'right', '時間').click();

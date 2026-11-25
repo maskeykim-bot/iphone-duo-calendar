@@ -177,7 +177,7 @@ test.describe('開いた横の帯', () => {
       await sb(page, 'task').click();
       await expect(page.locator('.page.rp')).toHaveAttribute('data-page', 'task');
       await expect(page.locator('.page.lp')).toHaveAttribute('data-page', 'month');
-      await expect(page.locator('.pgr [aria-pressed="true"]')).toHaveText('タスク');
+      await expect(page.locator('.pgname.pgr span')).toHaveText('タスク'); // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: いまのページはページ名に出る
       expect(await savedPages()).toBe(pages0);
       await sb(page, 'memo').click();
       await expect(page.locator('.page.rp')).toHaveAttribute('data-page', 'memo');
@@ -190,7 +190,7 @@ test.describe('開いた横の帯', () => {
     await mock(page);
     await band(page, SIZES.openLandscape);
     await sb(page, 'task').click();
-    await page.locator('.pgr').getByRole('button', { name: '時間', exact: true }).click();
+    await page.locator('.pgname.pgr').click(); await page.locator('.pgsw.pgr').getByRole('button', { name: '時間', exact: true }).click(); // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: ページ名を押してから選ぶ
     await expect(page.locator('.page.rp')).toHaveAttribute('data-page', 'time');
     await sb(page, 'memo').click();
     await expect(sb(page, 'memo')).toHaveAttribute('aria-pressed', 'true');
@@ -201,7 +201,7 @@ test.describe('開いた横の帯', () => {
   test('左ページがすでにタスクなら強調（0.2秒）だけで右は変わらない', async ({ page }) => {
     await mock(page);
     await band(page, SIZES.openLandscape);
-    await page.locator('.pgl').getByRole('button', { name: 'タスク', exact: true }).click();
+    await page.locator('.pgname.pgl').click(); await page.locator('.pgsw.pgl').getByRole('button', { name: 'タスク', exact: true }).click(); // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: ページ名を押してから選ぶ
     await expect(page.locator('.page.lp')).toHaveAttribute('data-page', 'task');
     await sb(page, 'task').click();
     await expect(page.locator('.page.lp')).toHaveClass(/flash/);

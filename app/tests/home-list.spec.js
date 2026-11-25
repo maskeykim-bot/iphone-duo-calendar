@@ -60,7 +60,8 @@ test('ホームは独立ページ: 切替にホームがあり、右でも選べ
   await legacyPanelInit(page);
   await openApp(page, SIZES.openLandscape951);
   await seed(page, EVS);
-  await expect(page.locator('.pgsw.pgl button')).toHaveText(['ホーム', '月', '時間', 'タスク', 'ノート']);
+  await page.locator('.pgname.pgl').click(); // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 切り替えの帯は、ページ名を押すと出る
+  await expect(page.locator('.pgsw.pgl button')).toHaveText(['ホーム', '月', '時間', 'タスク', 'ノート']); await page.locator('.pgname.pgl').click();
   await pagePick(page, 'right', 'ホーム').click();
   await expect(page.locator('.page.rp')).toHaveAttribute('data-page', 'home');
   await expect(page.locator('.page.rp .hero')).toBeVisible();

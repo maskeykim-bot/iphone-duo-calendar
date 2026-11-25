@@ -385,8 +385,8 @@ test.describe('開いた横の「全」は1日5件', () => {
       expect(m.sh).toBeGreaterThan(m.ch);
       const last = await page.locator('.week.all').last().boundingBox();
       expect(last.y + last.height).toBeLessThanOrEqual(m.bottom + 1);
-      const tabs = await page.locator('[data-pick="month"][data-side="left"]').boundingBox();
-      if (tabs) expect(m.bottom).toBeLessThanOrEqual(tabs.y + 0.5);
+      // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 下のタブは無い。月の下の端の目印は --tabs-y（ページの下の端）
+      expect(m.bottom).toBeLessThanOrEqual(await page.evaluate(() => parseFloat(document.documentElement.style.getPropertyValue('--tabs-y'))) + 0.5);
       await setStyle(page, '予定名');
       await expect(page.locator('.scroll.all')).toHaveCount(0);
       expect(await offStrips()).toBe(before);

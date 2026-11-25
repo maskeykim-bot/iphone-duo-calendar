@@ -9,7 +9,7 @@ const setSafe = (page, { t = 0, r = 0, b = 0, l = 0 }) => page.evaluate(([t, r, 
 const cssVar = (page, n) => page.evaluate((n) => parseFloat(document.documentElement.style.getPropertyValue(`--${n}`)), n);
 const geom = (page) => page.evaluate(() => {
   const sc = document.querySelector('.spread .scroll.msc, .spread .scroll.all').getBoundingClientRect();
-  const tabs = document.querySelector('.pgsw.pgl').getBoundingClientRect();
+  const tabs = { top: parseFloat(document.documentElement.style.getPropertyValue('--tabs-y')) }; // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 下のタブは無い。「タブの上端」は、ページの下の端の目印（--tabs-y）に読み替える
   const wks = [...document.querySelectorAll('.spread .week')].map((w) => w.getBoundingClientRect());
   const s = document.querySelector('.spread .scroll.msc, .spread .scroll.all');
   return { top: sc.top, bottom: sc.bottom, tabsTop: tabs.top, rows: wks.map((r) => r.height), lastBottom: wks[wks.length - 1].bottom, scrollable: s.scrollHeight - s.clientHeight, ratio: 0 };
@@ -33,13 +33,14 @@ for (const [name, size, safe] of CASES) {
     await setSafe(page, safe);
     await setStyle(page, '予定名');
     const T = safe.t ?? 0, B = safe.b ?? 0, H = size.height;
-    const q = (H - T - B) / 669, tabsTop = Math.min(T + 611 * q, H - B - 46);
+    // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 上にページ名の行 48。月は 48 下から始まり、下のタブが無いので「下の端の目印」は min(T＋48＋611q, H−B)（旧: タブの上端 min(T＋611q, H−B−46)）
+    const PN = 48, q = (H - T - B) / 669, tabsTop = Math.min(T + PN + 611 * q, H - B);
     await expect.poll(() => cssVar(page, 'grid-h')).toBeGreaterThan(0);
     const g = await geom(page);
     near(g.tabsTop, tabsTop);
     near(g.bottom, tabsTop - 8 * q);
     expect(g.rows.length).toBe(6);
-    const G = tabsTop - 8 * q - (T + 96 * q);
+    const G = tabsTop - 8 * q - (T + PN + 96 * q);
     for (const h of g.rows) near(h, G / 6, 1);
     expect(g.lastBottom).toBeLessThanOrEqual(g.tabsTop + 0.5);
     expect(g.scrollable).toBeLessThanOrEqual(1);
@@ -71,7 +72,8 @@ test('951×669: 6週は4段（+1）、5週・4週は5段、月切替でも線が
   const expectN = async (n, cap, day) => {
     await expect.poll(async () => (await geom(page)).rows.length).toBe(n);
     const g = await geom(page);
-    near(g.bottom, 603, 0.6); near(g.tabsTop, 611, 0.6);
+    near(g.bottom, 48 + 603, 0.6); // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: ページ名の行 48 の分だけ下（月の高さ 507 は同じ）
+    near(g.tabsTop, 48 + 611, 0.6);
     for (const h of g.rows) near(h, 507 / n, 0.6);
     expect(g.scrollable).toBeLessThanOrEqual(1);
     await expect(page.locator(`.spread .strip[data-sday="${day}"]`)).toHaveCount(cap);
@@ -91,7 +93,7 @@ test('「全部」「手帳」でも最下段はタブの上、全予定へ到�
   await setSafe(page, { r: 84 });
   await setStyle(page, '全部');
   let g = await geom(page);
-  near(g.bottom, 603, 0.6);
+  near(g.bottom, 48 + 603, 0.6); // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: ページ名の行 48 の分だけ下（月の高さ 507 は同じ）
   const sc = page.locator('.spread .scroll.all');
   await sc.evaluate((e) => { e.scrollTop = e.scrollHeight; });
   await expect(page.locator('.spread .week.all [data-date="2026-11-30"]')).toBeVisible();
@@ -99,7 +101,7 @@ test('「全部」「手帳」でも最下段はタブの上、全予定へ到�
   expect(b.y + b.height).toBeLessThanOrEqual(g.tabsTop + 0.5);
   await setStyle(page, '手帳');
   g = await geom(page);
-  near(g.bottom, 603, 0.6);
+  near(g.bottom, 48 + 603, 0.6); // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: ページ名の行 48 の分だけ下（月の高さ 507 は同じ）
   await expect(page.locator('.spread [data-date="2026-11-30"] .dot')).toHaveCount(4);
   await setStyle(page, '予定名');
   // 回転（閉じた幅 → 横へ戻す）
@@ -108,7 +110,7 @@ test('「全部」「手帳」でも最下段はタブの上、全予定へ到�
   await expect(page.locator('.spread .scroll.msc, .spread .scroll.all').first()).toBeVisible(); // 回転後の再描画を待つ
   await expect.poll(async () => (await geom(page)).bottom).toBeGreaterThan(0);
   g = await geom(page);
-  near(g.bottom, 603, 0.6);
+  near(g.bottom, 48 + 603, 0.6); // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: ページ名の行 48 の分だけ下（月の高さ 507 は同じ）
   const ov = await page.evaluate(() => ({ x: document.scrollingElement.scrollWidth - document.scrollingElement.clientWidth, y: document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight }));
   expect(ov.x).toBeLessThanOrEqual(0); expect(ov.y).toBeLessThanOrEqual(0);
 });

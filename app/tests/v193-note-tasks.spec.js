@@ -203,7 +203,7 @@ for (const [name, size] of [['閉じた横', SIZES.closedLandscape], ['開いた
     if (await dn.count()) await dn.click();
     else { // 開いた横: 初めの画面にノートの欄が無いので、右のページをノートにして一覧の行から開く（品質 L-8。とばさない）
       const pick = page.locator('.pgr [data-pick="memo"]:visible').first();
-      if (await pick.count()) { await pick.click(); await page.waitForTimeout(400); }
+      if (await page.locator('.pgname.pgr:visible').count()) { await page.locator('.pgname.pgr').click(); await pick.click(); await page.waitForTimeout(400); } // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: ページ名を押してから選ぶ
       await page.locator('.page.rp .mrow', { hasText: '買い物' }).first().click();
     }
     const body = page.locator('.ned-body:visible').first();

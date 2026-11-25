@@ -227,7 +227,9 @@ for (const size of OPEN_SIZES) {
     await openApp(page, size);
     if (size.width > size.height) { // 開いた横は左右ページの切替（第14版 PR5。pages.spec で詳細を検査）
       await expect(page.locator('.tabs')).toHaveCount(0);
-      await expect(page.locator('.pgsw button')).toHaveText(['ホーム', '月', '時間', 'タスク', 'ノート', 'ホーム', '月', '時間', 'タスク', 'ノート']);
+      // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 下のタブは無く、各ページの上にページ名が 1 つずつ。押すと切り替えの帯（5つ）が出る
+      await expect(page.locator('.pgname')).toHaveCount(2); await page.locator('.pgname.pgl').click();
+      await expect(page.locator('.pgsw button')).toHaveText(['ホーム', '月', '時間', 'タスク', 'ノート']); await page.locator('.pgname.pgl').click(); await expect(page.locator('.pgsw')).toHaveCount(0);
       return;
     }
     await expect(tabsGroup(page).getByRole('button')).toHaveText(['ホーム', '日', '週', '月']);

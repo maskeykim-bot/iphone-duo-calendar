@@ -206,7 +206,7 @@ test.describe('必須4・望ましい7・8・14 開いた画面の薄い文字�
   test('開いた横: 下のバーの上のぼかしは 12（時間軸の枠が 2 つに切れて見えない）。開いた縦は 24 のまま', async ({ page }) => {
     await boot(page, { size: SIZES.openLandscape951, events: EVENTS, sel: '2026-11-12' });
     const f = await page.evaluate(() => { const y = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tabs-y')); return [...document.querySelectorAll('.tabfade')].map((e) => { const q = e.getBoundingClientRect(); return [q.height, q.bottom - y]; }); });
-    expect(f).toEqual([[12, 0], [12, 0]]);
+    expect(f).toEqual([]); // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 開いた横に下のバーは無いので、ぼかしも出さない（旧: 12 が 2 つ）
     await page.setViewportSize(SIZES.openPortrait669); await page.waitForTimeout(500);
     expect(await page.locator('.shell.open.portrait .tabfade').evaluate((e) => e.getBoundingClientRect().height)).toBe(24);
   });

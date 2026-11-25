@@ -18,7 +18,7 @@ const SEED = [
 async function withSafe(page, S = SAFE) {
   await page.addStyleTag({ content: `:root{--sat:${S.top}px;--sar:${S.right}px;--sab:${S.bottom}px;--sal:${S.left}px}` });
   await page.evaluate(() => window.dispatchEvent(new Event('resize')));
-  await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--content-y'))).toBe(`${S.top}px`);
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--content-y'))).toBe(`${S.top + (await page.locator('.pgname').count() ? 48 : 0)}px`); // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 見開きのページは、上のページ名の行（48）の分だけ下から始まる
 }
 const hh = (page) => page.evaluate(() => { const l = [...document.querySelectorAll('.tl .hl:not(.half)')]; return l[1].getBoundingClientRect().top - l[0].getBoundingClientRect().top; });
 const blocks = (page) => page.locator('.tl .tlev');
@@ -124,6 +124,7 @@ test.describe('見開き: 判定・背景・操作列', () => {
         expect(a.x + a.width <= b.x + 0.5 || b.x + b.width <= a.x + 0.5 || a.y + a.height <= b.y + 0.5 || b.y + b.height <= a.y + 0.5).toBe(true);
       }
       for (const n of ['前の月', '次の月', '設定']) { const r = await page.getByRole('button', { name: n }).first().boundingBox(); expect(r.width).toBeGreaterThanOrEqual(44); expect(r.height).toBeGreaterThanOrEqual(44); expect(r.x + r.width).toBeLessThanOrEqual(f - 10 + 0.5); }
+      await page.locator('.pgname.pgl').click(); // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 切り替えの帯（64×40 が 5 つ）は、ページ名を押すと出る
       const tabs = await page.locator('.pgsw.pgl').boundingBox();
       expect(tabs.x + tabs.width).toBeLessThanOrEqual(f - 10 + 0.5);
       for (const b of await page.locator('.pgsw button').all()) { const r = await b.boundingBox(); expect(r.width).toBeGreaterThanOrEqual(44); expect(r.height).toBeGreaterThanOrEqual(40 - 0.5);
@@ -147,8 +148,7 @@ test.describe('見開き: 判定・背景・操作列', () => {
     expect(rp.y + rp.height).toBeLessThanOrEqual(H - SAFE.bottom + 0.5);
     expect(rp.x + rp.width).toBeCloseTo(W - SAFE.right - 16, 0); // E = W-R-16
     for (const n of ['今日に戻る', '予定を追加']) { const r = await page.locator('.rhead').getByRole('button', { name: n }).boundingBox(); expect(r.y + r.height).toBeLessThanOrEqual(H - SAFE.bottom + 0.5); expect(r.x + r.width).toBeLessThanOrEqual(W - SAFE.right + 0.5); }
-    const tabs = await page.locator('.pgsw.pgr').boundingBox();
-    expect(tabs.y + tabs.height).toBeLessThanOrEqual(H - SAFE.bottom + 0.5);
+    { const pn = await page.locator('.pgname.pgr').boundingBox(); expect(pn.y).toBeGreaterThanOrEqual(SAFE.top - 0.5); expect(pn.x + pn.width).toBeLessThanOrEqual(W - SAFE.right + 0.5); } // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 下のタブは無い。ページ名は安全矩形の内側
     await expect(page.locator('.srail')).toHaveCount(0);
     expect(await foldHits(page)).toEqual([]);
   });
@@ -208,7 +208,8 @@ test.describe('見開き: 折り目の保護域（文字・罫線・チップ・
 
 // PR6: 帯なしの右見出しが ‹ › で2段になり、時間軸が約44px（0.7時間）減るので下限を下げた
 test.describe('見開き: 右ページの時間軸', () => {
-  for (const [size, minHours] of [[SIZES.openLandscape, 8.1], [SIZES.openLandscape951, 8.8]]) {
+  // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 上にページ名の行 48 が入り、時間軸は 48（0.8 時間）低くなる。下限 8.1→7.3、8.8→8.0
+  for (const [size, minHours] of [[SIZES.openLandscape, 7.3], [SIZES.openLandscape951, 8.0]]) {
     test(`${size.width}×${size.height}: 60px/時・${minHours}時間以上が見える・現在札と赤線・今の1時間前から`, async ({ page }) => {
       await openApp(page, size);
       await seed(page, SEED_LIGHT);

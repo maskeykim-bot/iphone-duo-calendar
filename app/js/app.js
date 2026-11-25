@@ -357,6 +357,7 @@ const CL_LAND_GRID = 382; // 閉じた横の格子の列の幅（閉じた縦の
 // 閉じた横の帯の仮の値（CSS の :root の --cl-land-rail・--cl-land-home の1か所。実機で測って置き換える）
 function closedLandVals() { const c = getComputedStyle(de); return { rail: parseFloat(c.getPropertyValue('--cl-land-rail')) || 84, home: parseFloat(c.getPropertyValue('--cl-land-home')) || 33 }; }
 const POS = { land: null, post: 'closed', band: false, bg: null, hbar: false, set: null, search: null, all: null, task: null, more: null, memo: null, today: null, add: null, pnl: null, fm: null, tt: null, home: null, pin: null, rail: null, undo: null, redo: null, fmode: 'calendar', ux: 1 };
+const PGN_H = 48; // 見開きの各ページの上の「ページ名」の行の高さ
 let ttPageH = 603; // 開いた横の1日ページの高さ（y0〜603。updateLayoutMetrics が決める）
 function updateLayoutMetrics() {
   const S = safe(); lastSafe = safeKey(S);
@@ -370,7 +371,7 @@ function updateLayoutMetrics() {
   portraitWeekH = 0;
   for (const k of ['pnl-top', 'pnl-h', 'pnl-up-h']) de.style.removeProperty(`--${k}`);
   const box = (x, y, s, vs) => ({ x, y, s, v: vs });
-  let left, right, c, headH, gridTop, G, tabsCx, tabsY, ctrlY, rightStart = 0, swRx = 0, tabsW = 270, q = V / 678, hc = 0;
+  let left, right, c, headH, gridTop, G, tabsCx, tabsY, ctrlY, rightStart = 0, swRx = 0, tabsW = 270, q = V / 678, hc = 0, yp = y0, pgBottom = null;
   const bandOk = R >= HIT_BAND;
   if (post === 'closed') {
     // 閉じた画面: 本文 [Ls, W-R]（safe の外側＝帯の中に旧 rail を足さない）。q は safe を除いた高さ / 678。
@@ -445,10 +446,15 @@ function updateLayoutMetrics() {
     q = V / 669;
     const f = W / 2, E = W - R - 16;
     // 月の最下段はタブの上へ: 実際のタブ上端 − 8q が月の下端（基準 q=1 で y96〜603、G=507）。機種別の固定値は持たない。
-    const tabsTop = Math.min(y0 + 611 * q, H - B - 46);
-    left = x0 + 8; right = f - 10; c = (right - left) / 7; headH = 76 * q; gridTop = y0 + 96 * q; G = Math.max(0, tabsTop - 8 * q - gridTop); rightStart = f + 10;
+    // v19.6（設計「見開き｜残す機能とボタン配置」・征希さん「各ページの上（設計どおり）」）: 下の二重のタブをやめ、各ページの上にページ名の行（高さ PGN_H）を置く。ページはその分だけ下げ、タブのあった所まで伸ばす。
+    // 「今日＋明日」の型はページ名の行を出さない（今までの位置のまま）
+    const pn = ttOn() ? 0 : PGN_H; yp = y0 + pn;
+    const tabsTop = pn ? Math.min(yp + 611 * q, H - B) : Math.min(y0 + 611 * q, H - B - 46);
+    left = x0 + 8; right = f - 10; c = (right - left) / 7; headH = 76 * q; gridTop = yp + 96 * q; G = Math.max(0, tabsTop - 8 * q - gridTop); rightStart = f + 10;
+    if (pn) { v['content-y'] = yp; v['content-h'] = V - pn; pgBottom = tabsTop; } // タブが無いので、各ページの中身は下の端（ホームバーの上）の 8 上まで使う
+    v['pgn-y'] = y0 + 8; v['pgn-rx'] = f + 10;
     spreadWeekH = G / n;
-    hc = y0 + 40 * q;
+    hc = yp + 40 * q;
     swRx = (f + 10 + E) / 2; // 右ページの切替の中心（右ページの利用幅 [f+10, E] の中央）
     tabsY = y0 + 611 * q; ctrlY = tabsY; tabsCx = (left + right) / 2;
     const tops = [124, 184].map((t) => y0 + t * q).concat([H - B - 249 * q, H - B - 189 * q, H - B - 129 * q, H - B - 69 * q]); // 設定・検索・タスク・メモ・今日・＋
@@ -464,7 +470,7 @@ function updateLayoutMetrics() {
       const gTop = tops[1] + VIS_BAND + m, gBot = tops[2] - m;
       if (gBot - gTop >= HIT_BAND) pos.tt = box(bx, gTop + (gBot - gTop - HIT_BAND) / 2, HIT_BAND, VIS_BAND);
     }
-    ttPageH = Math.max(0, tabsTop - 8 * q - y0); v['tt-h'] = ttPageH;
+    ttPageH = Math.max(0, tabsTop - 8 * q - yp); v['tt-h'] = ttPageH;
     Object.assign(v, { 'left-start': left, 'right-end': E });
   }
   Object.assign(POS, pos);
@@ -475,9 +481,10 @@ function updateLayoutMetrics() {
   Object.assign(v, {
     'left-end': right, 'right-start': rightStart, 'grid-top': gridTop, 'grid-h': G, 'week-h': G / n, 'month-col-w': c,
     'tabs-x': tabsCx - tabsW / 2, 'sw-r-x': swRx - tabsW / 2, 'tabs-y': Math.min(tabsY, maxY - 46), 'tabs-w': tabsW, 'controls-y': Math.min(ctrlY, maxY - 48),
-    'head-h': headH, 'wd-h': post === 'portrait' ? 20 : gridTop - y0 - headH, 'hc': hc,
+    'head-h': headH, 'wd-h': post === 'portrait' ? 20 : gridTop - yp - headH, 'hc': hc,
   });
   if (post === 'landscape') v['hpt'] = Math.max(0, 40 * q - 22);
+  if (pgBottom !== null) v['tabs-y'] = pgBottom; // 見開き（ページ名の行あり）: 「タブの上端」を目印にしている中身（時間軸・タスク・ノート）は、下の端まで伸びる
   if (post === 'closed') v['tabs-y'] = maxY - 41; // 閉じた画面に下のタブはない（design/34 §9.1-9）。下の余白 41 の上端を「下の帯の上端」として使う
   // 閉じた画面: 月のスクロール末尾は、最終週をタブの上へ出せるだけ（安全矩形の下端 − タブ上端）、最低56
   de.style.setProperty('--end-pad-closed', '41px'); // 第19.2版 S11c: タブがなくなったので下の余白は 41（design/34 §10「33 全体」）
@@ -3253,7 +3260,15 @@ function renderPage(side, id) {
 }
 // 各ページの下の切替「月｜時間｜タスク｜メモ」（幅 240・高 46）。選んでいるページを押すと何も変えない。
 const PAGE_LABELS = { home: 'ホーム', month: '月', time: '時間', task: 'タスク', memo: 'ノート' };
+const PGN = { open: '' }; // 開いている側（'left'・'right'・''）
 function pageSwitch(side) {
+  if (ttOn()) return '';
+  const sc = side === 'left' ? 'pgl' : 'pgr', on = PGN.open === side, cur = PG()[side];
+  const name = `<button type="button" class="pgname ${sc}" data-act="pgname" data-side="${side}" aria-haspopup="true" aria-expanded="${on}" aria-label="${side === 'left' ? '左' : '右'}ページ: ${PAGE_LABELS[cur]}。ページを切り替える"><span>${PAGE_LABELS[cur]}</span><i aria-hidden="true">▾</i></button>`;
+  if (!on) return name;
+  return `${name}<div class="pgsw ${sc}" role="group" aria-label="${side === 'left' ? '左' : '右'}ページの種類">${PAGE_IDS.map((id, i) => `<button type="button" data-pick="${id}" data-side="${side}" aria-pressed="${id === cur}" aria-description="${PAGE_IDS.length}個中${i + 1}番目"><span class="pill">${PAGE_LABELS[id]}</span></button>`).join('')}</div>`;
+}
+function pageSwitchOld(side) {
   if (ttOn()) return ''; // 「今日＋明日」の間は左右のタブを出さない（M-04）。型の切り替えは右の帯の見開きのボタン
   return `<div class="pgsw ${side === 'left' ? 'pgl' : 'pgr'}" role="group" aria-label="${side === 'left' ? '左' : '右'}ページの種類">${PAGE_IDS.map((id, i) => `<button type="button" data-pick="${id}" data-side="${side}" aria-pressed="${!ttOn() && id === PG()[side]}" aria-description="${PAGE_IDS.length}個中${i + 1}番目"><span class="pill">${PAGE_LABELS[id]}</span></button>`).join('')}</div>`;
 }
@@ -3299,8 +3314,10 @@ window.__duoPainter = { get: ttPainter };
 const ttStyle = () => ` style="--tt-split:${ttSplitNow()}px"`;
 function spread() {
   if (ttOn()) return `<div class="shell spread tt${POS.band ? ' band' : ' fb'}"${ttStyle()}>${dayPage('left', state.selected)}${dayPage('right', addDays(state.selected, 1))}${ctl()}${pageSwitch('left')}${pageSwitch('right')}</div>`;
-  return `<div class="shell spread${POS.band ? ' band' : ' fb'}">${renderPage('left', PG().left)}${renderPage('right', PG().right)}<div class="tabfade tfl" aria-hidden="true"></div><div class="tabfade tfr" aria-hidden="true"></div>${ctl()}${pageSwitch('left')}${pageSwitch('right')}</div>`;
+  return `<div class="shell spread${POS.band ? ' band' : ' fb'}">${renderPage('left', PG().left)}${renderPage('right', PG().right)}${ctl()}${pageSwitch('left')}${pageSwitch('right')}</div>`; // v19.6: 下のタブが無くなったので、タブの上のぼかし（.tabfade）も出さない
 }
+// ページ名の切り替えの帯は、外を押すと閉じる
+document.addEventListener('pointerdown', (ev) => { if (PGN.open && !ev.target.closest?.('.pgsw, .pgname')) { PGN.open = ''; render(); } }, true);
 // 時間軸: 初回／選択日の変更で「今の1時間前」へ。現在時刻の線は毎分更新。
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 function updateNow(scope = root) {
@@ -3950,7 +3967,8 @@ root.addEventListener('click', (ev) => {
   else if (d.mmnav) { MM.ym = addMonths(MM.ym || state.selected, Number(d.mmnav)); render(); root.querySelector(`[data-mmnav="${d.mmnav}"]`)?.focus({ preventScroll: true }); }
   else if (d.mmday) { const sd = d.pane; MM.open = null; set({ selected: d.mmday, lastSide: sd }); root.querySelector(`[data-act="mini"][data-pane="${sd}"]`)?.focus({ preventScroll: true }); say(`${dayLabel(d.mmday)}を選びました。`); }
   else if (d.tlmode) { TLM.open = null; AGL[d.pane] = 60; set({ timeMode: { ...state.timeMode, [d.pane]: d.tlmode }, lastSide: d.pane }); root.querySelector('[data-act="tlmenu"]')?.focus({ preventScroll: true }); say(`時間の表示を${TIME_LABELS[d.tlmode]}にしました。`); }
-  else if (d.pick) pickPage(d.side, d.pick);
+  else if (d.pick) { PGN.open = ''; pickPage(d.side, d.pick); render(); }
+  else if (d.act === 'pgname') { PGN.open = PGN.open === d.side ? '' : d.side; render(); requestAnimationFrame(() => root.querySelector(`.pgsw.${d.side === 'left' ? 'pgl' : 'pgr'} [aria-pressed=true]`)?.focus({ preventScroll: true })); }
   else if (d.tlday) set({ selected: d.tlday });
 });
 

@@ -68,7 +68,7 @@ test.describe('永続化', () => {
     await page.setViewportSize(SIZES.openLandscape);
     await expect.poll(() => layout(page)).toBe('spread');
     // 開いた横は左右ページが表示を決める（第14版 PR5）。閉じに戻すと、閉じた画面で見ていた週の時間軸のまま（この起動の間）
-    await expect(page.locator('.pgsw')).toHaveCount(2);
+    await expect(page.locator('.pgname')).toHaveCount(2); // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 各ページの上のページ名
     await page.setViewportSize(SIZES.closedPortrait);
     await expect.poll(() => layout(page)).toBe('browse');
     await expectShown(page, '週');

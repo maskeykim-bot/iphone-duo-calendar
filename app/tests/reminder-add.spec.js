@@ -21,7 +21,7 @@ test.describe('タスクの続けて追加', () => {
     expect(d.every((t) => t.done === false && t.notify === false && t.due.date === '2026-11-12')).toBe(true);
     expect(d.map((t) => t.order)).toEqual([1, 2, 3]);
     await page.reload(); await page.waitForSelector('html[data-ready]');
-    await page.locator('.pgl [data-pick="task"]').first().click();
+    await page.locator('.pgname.pgl').click(); await page.locator('.pgl [data-pick="task"]').first().click();
     for (const t of d) await expect(lp(page).locator(`[data-key="rm:${t.id}"]`)).toHaveCount(1);
     expect(await reminderCalls(page)).toEqual([]);
     await expect(page.locator('body')).not.toContainText('旧リマインダー');

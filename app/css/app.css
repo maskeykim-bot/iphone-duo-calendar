@@ -2026,7 +2026,7 @@ span.rmchip>button{position:relative;z-index:1}
 .menurows .swrow[aria-pressed=true] .rkswitch{background:var(--green)}
 .menurows .swrow[aria-pressed=true] .rkswitch::after{transform:translateX(20px)}
 /* ノートの下のシート（新しいフォルダ・移動など）が開いている間は、下のタブを出さない（タブがシートのボタンを覆っていた。タブが 320 幅になって届いた） */
-body:has(.nmenu) :is(.pgsw,.tabs){visibility:hidden}
+body:has(.nmenu) :is(.pgsw,.pgname,.tabs){visibility:hidden}
 /* M-16: 帯のタスク・ノートを開いている間の丸も、地を緑・アイコン白（大きさは変えない） */
 .cb.cstrip.on .bi{background:var(--green);color:#fff;box-shadow:none}
 @media (hover:hover){.cb.cstrip.on:hover .bi{background:var(--green)}}
@@ -2198,11 +2198,11 @@ body:not([data-layout=spread]):not([data-layout=desk]) :is(dialog#cats,dialog#no
 .shell.closed .mpull .mdbody .tl[data-pane=closed]{padding-bottom:0}
 /* N-03（設計 2026-11-20）: 開いた横で予定の編集・iPhone の予定・タスクのシート（時刻のダイヤルの面も編集シートの中）を開いている間、右ページの見出しの行と両方の .pgsw（下のタブ）を
    シートと同じ 0.25s・--sheet-ease で消し、閉じたら同じ秒数で戻す。消えている間は visibility:hidden で押せない・読み上げにも出ない。reduced motion は 0.15s のフェード */
-.spread .rp .rhead,.spread .dpage.rp .dph,.spread .pgsw{transition:opacity .25s var(--sheet-ease),visibility 0s linear 0s}
-body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#taskdlg[open]) :is(.spread .rp .rhead,.spread .dpage.rp .dph,.spread .pgsw){opacity:0;visibility:hidden;transition:opacity .25s var(--sheet-ease),visibility 0s linear .25s}
+.spread .rp .rhead,.spread .dpage.rp .dph,.spread .pgsw,.spread .pgname{transition:opacity .25s var(--sheet-ease),visibility 0s linear 0s}
+body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#taskdlg[open]) :is(.spread .rp .rhead,.spread .dpage.rp .dph,.spread .pgsw,.spread .pgname){opacity:0;visibility:hidden;transition:opacity .25s var(--sheet-ease),visibility 0s linear .25s}
 @media (prefers-reduced-motion:reduce){
-  .spread .rp .rhead,.spread .dpage.rp .dph,.spread .pgsw{transition:opacity .15s ease-out,visibility 0s linear 0s}
-  body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#taskdlg[open]) :is(.spread .rp .rhead,.spread .dpage.rp .dph,.spread .pgsw){transition:opacity .15s ease-out,visibility 0s linear .15s}
+  .spread .rp .rhead,.spread .dpage.rp .dph,.spread .pgsw,.spread .pgname{transition:opacity .15s ease-out,visibility 0s linear 0s}
+  body[data-layout=spread]:has(dialog#editor[open],dialog#xdetail[open],dialog#taskdlg[open]) :is(.spread .rp .rhead,.spread .dpage.rp .dph,.spread .pgsw,.spread .pgname){transition:opacity .15s ease-out,visibility 0s linear .15s}
 }
 /* N-04（設計 2026-11-20・1:20 の決め）: 月の日の一覧の予定名は 15/400（タスク .htt・ホームの行と同じ） */
 .mdev strong,.portrait .mdev strong{font-weight:400}
@@ -2815,3 +2815,12 @@ html.nne.nne-crlf .ned-top{display:flex}
 .panel .edkindrow .edkind button[aria-pressed=true]{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.15)}
 /* 開いた横でキーボードが出ている間はシートが低い（約 352）ので、「予定｜タスク」は畳む（題名〜終日を全部見せる決まりを守る） */
 @media (min-width:700px) and (max-height:700px){html[data-kb] .edkindrow{display:none}}
+
+/* v19.6 見開き: 各ページの上のページ名（「月 ▾」。高さ 32・押せる 44）。押すと、すぐ下に切り替えの帯（今までの5つ）が出る */
+.pgname{position:fixed;z-index:7;left:calc(var(--left-start) + 8px);top:var(--pgn-y);display:inline-flex;align-items:center;gap:6px;height:32px;min-height:32px;min-width:72px;padding:0 14px;border:0;border-radius:10px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line);font:600 15px/32px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink2)}
+.pgname.pgr{left:calc(var(--pgn-rx) + 8px)}
+.pgname::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+.pgname i{font-style:normal;font-size:11px;color:var(--muted)}
+.pgname[aria-expanded=true]{background:#294E42;color:#fff;box-shadow:none}.pgname[aria-expanded=true] i{color:#fff}
+.shell.spread .pgsw{top:calc(var(--pgn-y) + 40px);left:calc(var(--left-start) + 8px);z-index:8;background:var(--card);-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:0 0 0 1px var(--line),0 4px 12px rgba(0,0,0,.10)}
+.shell.spread .pgsw.pgr{left:calc(var(--pgn-rx) + 8px)}

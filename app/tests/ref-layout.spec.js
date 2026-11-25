@@ -100,7 +100,7 @@ for (const [name, size, kind] of POSTURES) {
     expect(await page.evaluate(() => [innerWidth, innerHeight])).toEqual([size.width, size.height]);
     await toMonth(page, kind);
     await setStyle(page, '予定名');
-    if (kind === 'spread') expect(await page.locator('.pgsw button').allTextContents()).toEqual(['ホーム', '月', '時間', 'タスク', 'ノート', 'ホーム', '月', '時間', 'タスク', 'ノート']); // 第14版 PR5: 左右ページの切替
+    if (kind === 'spread') expect(await page.locator('.pgname span').allTextContents()).toEqual(['月', '時間']); // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 各ページの上にページ名（左＝月、右＝時間） // 第14版 PR5: 左右ページの切替
     else if (kind === 'closed') { await expect(page.locator('.tabs')).toHaveCount(0); expect(await page.locator('.ctl').getByRole('button').evaluateAll((bs) => bs.map((b) => b.getAttribute('aria-label')))).toEqual(['タスク', 'その他', '予定を追加']); } // 閉じた画面: 下のタブはなく、右の列は タスク・…・＋（design/34 §9.1）
     else expect(await page.locator('.tabs button').allTextContents()).toEqual(['ホーム', '日', '週', '月']);
     const shown = (k) => chip(page, day(k)).count();

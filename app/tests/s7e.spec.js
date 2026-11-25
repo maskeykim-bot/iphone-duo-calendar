@@ -142,9 +142,7 @@ test.describe('1:20-2 タブの下 20: ぼかし 24 が全部の面に出て、�
     await seedTasks(page, Array.from({ length: 14 }, (_, i) => T(`k${i}`, { title: `タスク${i}`, due: { date: '2026-11-12' } })));
     for (const side of ['left', 'right']) for (const kind of ['月', '時間', 'タスク', 'ノート']) {
       await pagePick(page, side, kind).click(); await page.waitForTimeout(350);
-      const f = await fadeOk(page); expect(f.length, `${side} ${kind}`).toBe(2);
-      for (const x of f) { near(x.h, 12); /* 第19.4版 レビュー直し（設計 望ましい14）: 開いた横だけ 12 */ expect(x.bg).toBe(true); expect(x.pe).toBe('none'); }
-      const tb = await rect(page.locator(`.pgsw.${side === 'left' ? 'pgl' : 'pgr'}`)); near(f[side === 'left' ? 0 : 1].bottom, tb.y);
+      const f = await fadeOk(page); expect(f.length, `${side} ${kind}`).toBe(0); // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 開いた横に下のバーは無いので、ぼかしも出さない
       await endState(page); expect(await lowestTextGap(page), `横 ${side} ${kind}`).toBeGreaterThanOrEqual(8 - 0.5);
     }
   });

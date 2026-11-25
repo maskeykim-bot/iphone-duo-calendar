@@ -116,7 +116,7 @@ test.describe('タスクの編集と完了', () => {
     const { seedTasks } = await import('./task-helpers.js');
     await seedTasks(page, [T('a')]);
     if (k === 'openPortrait') { await page.locator('[data-act="pnltoggle"]').first().click().catch(() => {}); await page.locator('[data-pnl="task"]').first().click().catch(() => {}); }
-    else { await page.locator('.pgl [data-pick="task"]').first().click(); }
+    else { await page.locator('.pgname.pgl').click(); await page.locator('.pgl [data-pick="task"]').first().click(); }
     const row = page.locator('[data-key="rm:a"]').first();
     await expect(row).toBeVisible();
     await row.locator('[data-act="remck"]').click();

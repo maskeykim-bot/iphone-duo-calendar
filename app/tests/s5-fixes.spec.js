@@ -223,6 +223,7 @@ test.describe('時間軸（H-08・H-20・M-05・M-09）', () => {
 test.describe('帯・月・ほか（M-03/04/11/12/15/16/17/20、L-07）', () => {
   test('開いた横の下のタブ: 1つ 64×40、5つで 320、角丸 20、文字 13 W6', async ({ page }) => {
     await openApp(page, SIZES.openLandscape951);
+    await page.locator('.pgname.pgl').click(); // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 切り替えの帯（寸法は今までどおり）は、ページ名を押すと出る
     const g = page.locator('.pgsw.pgl'), b = await box(g);
     near(b.w, 320); near(b.h, 40);
     expect(await g.evaluate((e) => getComputedStyle(e).borderRadius)).toBe('20px');

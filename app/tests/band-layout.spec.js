@@ -228,14 +228,14 @@ test.describe('開いた横 + 右 safe（帯あり）', () => {
       const hs = [];
       for (const s of ['.shead [data-act="allmonth"]', '.shead [data-act="prev"]', '.shead [data-act="next"]']) { const r = await bx(page.locator(s)); near(r.width, 44); near(r.height, 44); expect(r.x + r.width).toBeLessThanOrEqual(lp.x + lp.width + 0.5); hs.push(r); }
       near(hs[0].x + hs[0].width, hs[1].x); near(hs[1].x + hs[1].width, hs[2].x);
-      const tabs = await bx(page.locator('.pgsw.pgl'));
-      near(tabs.y, tabTop, 0.2);
+      // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 下のタブは無い。上にページ名（高さ 32・y は上のよけ＋8、左ページは左端＋8、右ページは折り目＋10＋8）
+      { const pl = await bx(page.locator('.pgname.pgl')), pr = await bx(page.locator('.pgname.pgr')); near(pl.height, 32); near(pl.y, pr.y); near(pl.x, lp.x + 8); expect(pr.x).toBeGreaterThanOrEqual(f + 10 - 0.5); }
       const span = await bx(page.locator('.rhead .spanbtn'));
       near(span.x + span.width, E - 96); // PR6: 右端 E は ‹ ›（各44）、その左8pt
       { const nx = await bx(page.locator(".rhead [data-act=\"next\"]")); near(nx.x + nx.width, E); near(nx.width, 44); } near(span.width, 60); expect(span.height).toBeGreaterThanOrEqual(44 - 0.5);
       const vis = await bx(page.locator('.rhead .spanbtn span'));
       near(vis.width, 60); near(vis.height, 32);
-      near(span.y + span.height / 2, 40 * q, 0.8);
+      near(span.y + span.height / 2, 48 + 40 * q, 0.8); // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 見出しはページ名の行 48 の下
       expect(await findTextOverlaps(page)).toEqual([]);
       // 全は月だけ: 左が時間のときは左見出しに出ない（右が月になるので右に出る）
       await pagePick(page, 'left', 'タスク');
@@ -259,7 +259,7 @@ test.describe('開いた横 + 右 safe（帯あり）', () => {
     const q = (800 - 47 - 34) / 669;
     near((await bx(btn(page, '設定'))).y, 47 + 124 * q - 4, 0.8);
     near((await bx(btn(page, '予定を追加'))).y, 800 - 34 - 69 * q - 4, 0.8);
-    near((await bx(page.locator('.pgsw.pgl'))).y, 47 + 611 * q, 0.5);
+    near((await bx(page.locator('.pgname.pgl'))).y, 47 + 8, 0.5); // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 下のタブは無い。ページ名は上のよけ＋8
   });
 
   test('R=84 で設定を押すとメニューは左ページの内側に出る', async ({ page }) => {

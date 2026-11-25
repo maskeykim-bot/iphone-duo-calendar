@@ -283,6 +283,7 @@ test.describe('9 変えないもの', () => {
   const KEYS = ['.mph', '#ctitle', '.weekdays', '.mgrid', '.mgrab', '.mday', '.tabs', '.ctl', '.pgsw', '.fmodes', '.dpage', '.home', '.rail'];
   const snapOpen = (page) => page.evaluate((keys) => ({ rects: Object.fromEntries(keys.map((k) => { const e = [...document.querySelectorAll(k)].find((x) => x.offsetParent || getComputedStyle(x).position === 'fixed'); if (!e) return [k, null]; const r = e.getBoundingClientRect(); return [k, [r.x, r.y, r.width, r.height].map((v) => Math.round(v * 2) / 2)]; })), buttons: [...document.querySelectorAll('button')].filter((b) => b.offsetParent && !b.closest('[inert],[hidden]')).map((b) => (b.getAttribute('aria-label') || b.textContent).trim().replace(/\d+/g, '#')).sort() }), KEYS);
   const SEED = OPEN_SEED;
+  // v19.6（設計「見開き」・征希さん「各ページの上（設計どおり）」）で仕様変更: 「開いた横 951×669」の基準だけ、v19.6 の画面（上にページ名の行 48・下のタブなし）で作り直した（2026-11-26。V20_WRITE_BASELINE=1）。開いた縦の基準は 5bc8af6 のまま
   for (const [name, size, tabName] of [['開いた縦 669×951・月', SIZES.openPortrait669, '月'], ['開いた横 951×669', SIZES.openLandscape951, null]]) {
     test(`9 ${name} は 5bc8af6 の基準と同じ（要素の位置 0.5 以内・見えるボタンの並び）。日の欄に .mdin・畳み・1本スクロールは持ち込まない`, async ({ page, browserName }) => {
       await openApp(page, size); await seed(page, SEED);
