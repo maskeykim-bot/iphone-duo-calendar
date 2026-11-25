@@ -1,6 +1,6 @@
 import UIKit
 
-// 試作（proto/note-uitextview）: ノート本文を iOS 標準の入力欄（UITextView）で書く。ダミーデータだけを扱い、アプリの保存には触れない。
+// 第19.6版: 閉じた画面のノートの本文を iOS 標準の入力欄（UITextView）で書く。保存は JS の今までの仕組み（noteStore）を通す。ここは文字を JS へ知らせるだけで、DB には触れない。
 // 本文の正本は今までと同じ文字列（行頭の「- [ ] 」「- [x] 」「- 」「# 」「## 」、字下げは空白 2 つで 1 段。app/js/note-lines.js と同じ決まり）。
 // 入力欄の中身（textStorage の文字）は、その文字列そのもの。行頭の記号は消さずに「見えなくする」だけで、チェックの四角・箇条書きの点は絵で描く。
 // だから 入力欄の文字 ＝ 保存の文字 で、変換の往復で形式が変わることがない。
@@ -54,7 +54,7 @@ final class NoteLayoutManager: NSLayoutManager {
             let level = (storage.attribute(.duoLevel, at: range.location, effectiveRange: nil) as? Int) ?? 0
             let g = self.glyphIndexForCharacter(at: range.location)
             let frag = self.lineFragmentRect(forGlyphAt: g, effectiveRange: nil)
-            let x = origin.x + NoteProtoMetrics.gutterX(level: level), cy = origin.y + frag.midY
+            let x = origin.x + NoteMetrics.gutterX(level: level), cy = origin.y + frag.midY
             ctx.saveGState()
             switch kind {
             case .check, .checked:
@@ -77,17 +77,25 @@ final class NoteLayoutManager: NSLayoutManager {
     }
 }
 
-enum NoteProtoMetrics {
+enum NoteMetrics {
     static let step: CGFloat = 20      // 字下げ 1 段
     static let mark: CGFloat = 30      // 印の幅（四角 20 ＋ 間 10）
     static func gutterX(level: Int) -> CGFloat { CGFloat(level) * step }
     static func textX(level: Int) -> CGFloat { CGFloat(level) * step + mark }
 }
 
-final class NoteProtoViewController: UIViewController, UITextViewDelegate, UITextFieldDelegate, UIGestureRecognizerDelegate {
+final class NoteEditorViewController: UIViewController, UITextViewDelegate, UITextFieldDelegate, UIGestureRecognizerDelegate {
     var initialTitle = ""
     var initialBody = ""
+    var focusTitle = false
+    var maxLength = 100_000
     var onClose: ((_ title: String, _ body: String, _ saved: Bool) -> Void)?
+    /// 文字が変わった（題名・本文）。少し待ってまとめて知らせる。閉じる・アプリが裏へ回るときはすぐ
+    var onChange: ((_ title: String, _ body: String) -> Void)?
+    /// チェックの四角をたたいた。並べ替え（済みは下へ）は JS の今までの決まりで計算して setBody で返す
+    var onCheck: ((_ body: String, _ line: Int, _ selStart: Int, _ selEnd: Int) -> Void)?
+    private var changeTimer: Timer?
+    private var lastSent = ""
 
     private let paper = UIColor(red: 0xF7 / 255, green: 0xF4 / 255, blue: 0xED / 255, alpha: 1)
     private let ink = UIColor(red: 0x1C / 255, green: 0x1F / 255, blue: 0x1D / 255, alpha: 1)
@@ -101,14 +109,17 @@ final class NoteProtoViewController: UIViewController, UITextViewDelegate, UITex
     private var lastCaret = 0
     private var restyling = false
     private var bottom: NSLayoutConstraint!
+    private var contentTrailing: NSLayoutConstraint!
+    private var railCenter: NSLayoutConstraint!
+    private var fmtButtons: [UIButton] = []
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = paper
         view.tintColor = tint
-        title = "試作ノート"
-        navigationItem.leftBarButtonItem = UIBarButtonItem(title: "閉じる", style: .plain, target: self, action: #selector(closeTapped))
-        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "完了", style: .done, target: self, action: #selector(doneTapped))
+        // 征希さん「本家のボタン配置。これいいね」: 上に書式のまとまり（1 つの丸い帯）、右の列に「元に戻す・やり直す」のまとまりと、丸い「完了」。上のバーは出さない
+        navigationController?.setNavigationBarHidden(true, animated: false)
+        NotificationCenter.default.addObserver(self, selector: #selector(flushNow), name: UIApplication.willResignActiveNotification, object: nil)
 
         titleField.font = .systemFont(ofSize: 22, weight: .semibold)
         titleField.textColor = ink
@@ -116,6 +127,7 @@ final class NoteProtoViewController: UIViewController, UITextViewDelegate, UITex
         titleField.text = initialTitle
         titleField.returnKeyType = .next
         titleField.delegate = self
+        titleField.addTarget(self, action: #selector(titleChanged), for: .editingChanged)
         titleField.accessibilityLabel = "題名"
         titleField.translatesAutoresizingMaskIntoConstraints = false
 
@@ -133,71 +145,149 @@ final class NoteProtoViewController: UIViewController, UITextViewDelegate, UITex
         textView.accessibilityLabel = "本文"
         textView.translatesAutoresizingMaskIntoConstraints = false
         textView.text = initialBody
-        textView.inputAccessoryView = makeBar()   // 書式は本文を書いている間だけ、キーボードのすぐ上（題名の入力中は出ない）
         let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
         tap.delegate = self
         textView.addGestureRecognizer(tap)
 
+        status.isHidden = true
         status.font = .systemFont(ofSize: 11)
         status.textColor = muted
         status.numberOfLines = 1; status.adjustsFontSizeToFitWidth = true; status.minimumScaleFactor = 0.7
         status.translatesAutoresizingMaskIntoConstraints = false
 
         let line = UIView(); line.backgroundColor = UIColor(white: 0, alpha: 0.10); line.translatesAutoresizingMaskIntoConstraints = false
-        [titleField, line, textView, status].forEach(view.addSubview)
+        let fmt = makeFormatBar(), hist = makeHistoryPill(), done = makeDoneButton()
+        [fmt, titleField, line, textView, status, hist, done].forEach(view.addSubview)
         let g = view.safeAreaLayoutGuide
         bottom = status.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor, constant: -6)
+        // 右の列: 画面の右の帯（カメラと時刻の列。閉じた画面は 84）の中央。帯がない画面では、右に 64 の列を作る
+        contentTrailing = textView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -84)
+        railCenter = hist.centerXAnchor.constraint(equalTo: view.trailingAnchor, constant: -42)
         NSLayoutConstraint.activate([
-            titleField.topAnchor.constraint(equalTo: g.topAnchor, constant: 8),
+            fmt.topAnchor.constraint(equalTo: g.topAnchor, constant: 8),
+            fmt.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 12),
+            fmt.trailingAnchor.constraint(equalTo: textView.trailingAnchor, constant: -12),
+            fmt.heightAnchor.constraint(equalToConstant: 44),
+            titleField.topAnchor.constraint(equalTo: fmt.bottomAnchor, constant: 10),
             titleField.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 16),
-            titleField.trailingAnchor.constraint(equalTo: g.trailingAnchor, constant: -16),
+            titleField.trailingAnchor.constraint(equalTo: textView.trailingAnchor, constant: -16),
             titleField.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             line.topAnchor.constraint(equalTo: titleField.bottomAnchor, constant: 2),
             line.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 16),
-            line.trailingAnchor.constraint(equalTo: g.trailingAnchor, constant: -16),
+            line.trailingAnchor.constraint(equalTo: textView.trailingAnchor, constant: -16),
             line.heightAnchor.constraint(equalToConstant: 0.5),
             textView.topAnchor.constraint(equalTo: line.bottomAnchor),
             textView.leadingAnchor.constraint(equalTo: g.leadingAnchor),
-            textView.trailingAnchor.constraint(equalTo: g.trailingAnchor),
+            contentTrailing,
             textView.bottomAnchor.constraint(equalTo: status.topAnchor, constant: -4),
             status.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 16),
-            status.trailingAnchor.constraint(equalTo: g.trailingAnchor, constant: -16),
+            status.trailingAnchor.constraint(equalTo: textView.trailingAnchor, constant: -16),
             bottom,
+            railCenter,
+            hist.topAnchor.constraint(equalTo: g.topAnchor, constant: 160),   // カレンダーの右の列の上のまとまりと同じ高さから
+            hist.widthAnchor.constraint(equalToConstant: 52), hist.heightAnchor.constraint(equalToConstant: 104),
+            done.centerXAnchor.constraint(equalTo: hist.centerXAnchor),
+            done.topAnchor.constraint(equalTo: hist.bottomAnchor, constant: 12),
+            done.widthAnchor.constraint(equalToConstant: 52), done.heightAnchor.constraint(equalToConstant: 52),
         ])
         restyle()
+        lastSent = joined()
     }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        let r = max(view.safeAreaInsets.right, 64)
+        contentTrailing?.constant = -r; railCenter?.constant = -r / 2
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if focusTitle { titleField.becomeFirstResponder() } else { textView.becomeFirstResponder(); let n = (textView.text as NSString).length; textView.selectedRange = NSRange(location: n, length: 0) }
+    }
+
+    // MARK: JS との受け渡し
+
+    private func joined() -> String { (titleField.text ?? "") + "\u{1}" + (textView.text ?? "") }
+    private func scheduleChange() {
+        changeTimer?.invalidate()
+        changeTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { [weak self] _ in self?.flushNow() }
+    }
+    @objc func flushNow() {
+        changeTimer?.invalidate(); changeTimer = nil
+        guard textView.markedTextRange == nil, titleField.markedTextRange == nil else { scheduleChange(); return }   // かな変換の途中の文字は知らせない（確定してから）
+        let j = joined(); if j == lastSent { return }
+        lastSent = j
+        onChange?(titleField.text ?? "", textView.text ?? "")
+    }
+    /// JS が計算した本文（チェックの並べ替えのあと）に差し替える。取り消しに載る
+    func setBody(_ text: String, selStart: Int) {
+        guard textView.markedTextRange == nil else { return }
+        let n = (textView.text as NSString).length
+        replace(NSRange(location: 0, length: n), with: text, caret: min(selStart, (text as NSString).length))
+        flushNow()
+    }
+    @objc private func titleChanged() { scheduleChange() }
 
     // MARK: 書式の帯（Aa・チェックリスト・箇条書き・字下げ・戻す）
 
-    private func makeBar() -> UIView {
-        let bar = UIToolbar(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
-        bar.tintColor = tint
-        let aa = UIBarButtonItem(title: "Aa", menu: UIMenu(title: "段落", children: [
+    private func glass(_ v: UIView, radius: CGFloat) {
+        v.backgroundColor = UIColor.white.withAlphaComponent(0.78)
+        v.layer.cornerRadius = radius; v.layer.cornerCurve = .continuous
+        v.layer.borderWidth = 0.5; v.layer.borderColor = UIColor(white: 0, alpha: 0.10).cgColor
+        v.layer.shadowColor = UIColor(red: 0x1C / 255, green: 0x1F / 255, blue: 0x1D / 255, alpha: 1).cgColor
+        v.layer.shadowOpacity = 0.10; v.layer.shadowRadius = 9; v.layer.shadowOffset = CGSize(width: 0, height: 6)
+        v.translatesAutoresizingMaskIntoConstraints = false
+    }
+    private func iconButton(_ symbol: String, _ label: String, _ action: UIAction?, menu: UIMenu? = nil, size: CGFloat = 19, color: UIColor? = nil) -> UIButton {
+        var cfg = UIButton.Configuration.plain()
+        cfg.image = UIImage(systemName: symbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: size, weight: .medium))
+        cfg.baseForegroundColor = color ?? ink
+        cfg.contentInsets = .zero
+        let b = UIButton(configuration: cfg, primaryAction: action)
+        b.accessibilityLabel = label
+        if let m = menu { b.menu = m; b.showsMenuAsPrimaryAction = true }
+        return b
+    }
+    /// 書式のまとまり（上）: 同じ幅のボタンを 1 つの丸い帯に等間隔で並べる。本文を書いているときだけ押せる（題名の間は薄くする）
+    private func makeFormatBar() -> UIView {
+        let aa = iconButton("textformat.size", "段落の種類", nil, menu: UIMenu(title: "段落", children: [
             UIAction(title: "本文") { [weak self] _ in self?.format(.plain) },
             UIAction(title: "見出し") { [weak self] _ in self?.format(.h1) },
             UIAction(title: "小見出し") { [weak self] _ in self?.format(.h2) },
-            UIMenu(title: "", options: .displayInline, children: [
-                UIAction(title: "字下げ", image: UIImage(systemName: "increase.indent")) { [weak self] _ in self?.indent(+1) },
-                UIAction(title: "字下げを戻す", image: UIImage(systemName: "decrease.indent")) { [weak self] _ in self?.indent(-1) },
-            ]),
         ]))
-        aa.accessibilityLabel = "段落の種類"
-        let chk = UIBarButtonItem(image: UIImage(systemName: "checklist"), style: .plain, target: self, action: #selector(checkTapped))
-        chk.accessibilityLabel = "チェックリスト"
-        let bul = UIBarButtonItem(image: UIImage(systemName: "list.bullet"), style: .plain, target: self, action: #selector(bulletTapped))
-        bul.accessibilityLabel = "箇条書き"
-        let undo = UIBarButtonItem(title: "戻す", image: nil, primaryAction: UIAction { [weak self] _ in self?.undoTapped() }, menu: UIMenu(children: [
-            UIAction(title: "元に戻す", image: UIImage(systemName: "arrow.uturn.backward")) { [weak self] _ in self?.undoTapped() },
-            UIAction(title: "やり直す", image: UIImage(systemName: "arrow.uturn.forward")) { [weak self] _ in self?.redoTapped() },
-        ]))
-        undo.accessibilityLabel = "元に戻す。長押しでやり直す"
-        let flex = UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil)
-        bar.items = [aa, flex, chk, flex, bul, flex, undo]   // 狭い画面でも 4 つが全部見える数にする（字下げは Aa の中）
-        return bar
+        let chk = iconButton("checklist", "チェックリスト", UIAction { [weak self] _ in self?.format(.check) })
+        let bul = iconButton("list.bullet", "箇条書き", UIAction { [weak self] _ in self?.format(.bullet) })
+        let outd = iconButton("decrease.indent", "字下げを戻す", UIAction { [weak self] _ in self?.indent(-1) })
+        let ind = iconButton("increase.indent", "字下げ", UIAction { [weak self] _ in self?.indent(+1) })
+        fmtButtons = [aa, chk, bul, outd, ind]
+        let stack = UIStackView(arrangedSubviews: fmtButtons)
+        stack.axis = .horizontal; stack.distribution = .fillEqually; stack.alignment = .fill
+        glass(stack, radius: 22)
+        return stack
     }
+    /// 右の列: 「元に戻す」「やり直す」を縦に並べた丸いまとまり
+    private func makeHistoryPill() -> UIView {
+        let u = iconButton("arrow.uturn.backward", "元に戻す", UIAction { [weak self] _ in self?.undoTapped() })
+        let r = iconButton("arrow.uturn.forward", "やり直す", UIAction { [weak self] _ in self?.redoTapped() })
+        let stack = UIStackView(arrangedSubviews: [u, r])
+        stack.axis = .vertical; stack.distribution = .fillEqually
+        glass(stack, radius: 26)
+        return stack
+    }
+    /// 右の列: 丸い「完了」（編集を終えて、ノートのページへ戻る）
+    private func makeDoneButton() -> UIView {
+        let b = iconButton("checkmark", "完了", UIAction { [weak self] _ in self?.closeTapped() }, size: 20, color: .white)
+        var cfg = b.configuration ?? .plain()
+        cfg.background.backgroundColor = tint; cfg.background.cornerRadius = 26; cfg.cornerStyle = .fixed
+        b.configuration = cfg
+        b.layer.shadowColor = tint.cgColor; b.layer.shadowOpacity = 0.30; b.layer.shadowRadius = 8; b.layer.shadowOffset = CGSize(width: 0, height: 6)
+        b.translatesAutoresizingMaskIntoConstraints = false
+        return b
+    }
+    private func paintFormatEnabled() { let on = !titleField.isFirstResponder; fmtButtons.forEach { $0.isEnabled = on; $0.alpha = on ? 1 : 0.35 } }
+    func textFieldDidBeginEditing(_ tf: UITextField) { paintFormatEnabled() }
+    func textFieldDidEndEditing(_ tf: UITextField) { paintFormatEnabled() }
 
-    @objc private func checkTapped() { format(.check) }
-    @objc private func bulletTapped() { format(.bullet) }
     private func undoTapped() { guard textView.markedTextRange == nil else { return }; textView.undoManager?.undo(); restyle() }
     private func redoTapped() { guard textView.markedTextRange == nil else { return }; textView.undoManager?.redo(); restyle() }
 
@@ -269,7 +359,7 @@ final class NoteProtoViewController: UIViewController, UITextViewDelegate, UITex
             var font = UIFont.systemFont(ofSize: 17), color = ink
             switch p.kind {
             case .check, .checked, .bullet:
-                let x = NoteProtoMetrics.textX(level: p.level)
+                let x = NoteMetrics.textX(level: p.level)
                 para.firstLineHeadIndent = x; para.headIndent = x
                 if p.kind == .checked { color = muted }
             case .h1: font = .systemFont(ofSize: 22, weight: .bold); para.paragraphSpacingBefore = 6
@@ -297,7 +387,7 @@ final class NoteProtoViewController: UIViewController, UITextViewDelegate, UITex
         if p.kind == .h2 { typing[.font] = UIFont.systemFont(ofSize: 18, weight: .semibold) }
         if p.kind == .checked { typing[.foregroundColor] = muted }
         let para = NSMutableParagraphStyle(); para.lineSpacing = 3; para.paragraphSpacing = 4
-        if p.kind == .check || p.kind == .checked || p.kind == .bullet { let x = NoteProtoMetrics.textX(level: p.level); para.firstLineHeadIndent = x; para.headIndent = x }
+        if p.kind == .check || p.kind == .checked || p.kind == .bullet { let x = NoteMetrics.textX(level: p.level); para.firstLineHeadIndent = x; para.headIndent = x }
         para.minimumLineHeight = ((typing[.font] as? UIFont) ?? UIFont.systemFont(ofSize: 17)).lineHeight
         typing[.paragraphStyle] = para
         textView.typingAttributes = typing
@@ -307,12 +397,13 @@ final class NoteProtoViewController: UIViewController, UITextViewDelegate, UITex
 
     private func updateStatus() {
         let n = (textView.text as NSString).length
-        status.text = "保存の文字 \(n) 字（入力欄の文字＝保存の文字。記号は見えなくしているだけ）" + (textView.markedTextRange != nil ? "　変換中" : "")
+        status.text = "\(n)"
     }
 
     // MARK: UITextViewDelegate
 
     func textView(_ tv: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+        if (tv.text as NSString).length - range.length + (text as NSString).length + ((titleField.text ?? "") as NSString).length + 1 > maxLength { return false }   // 字数の上限（今までと同じ 10 万字。UTF-16 で数えるので少し手前で止まる）
         if tv.markedTextRange != nil { return true }   // かな変換中は標準の動きに任せる
         let lr = lineRange(at: range.location), line = lineText(lr), p = NoteFormat.parse(line)
         if text == "\n", range.length == 0, p.kind == .check || p.kind == .checked || p.kind == .bullet {
@@ -334,7 +425,7 @@ final class NoteProtoViewController: UIViewController, UITextViewDelegate, UITex
         return true
     }
 
-    func textViewDidChange(_ tv: UITextView) { restyle() }
+    func textViewDidChange(_ tv: UITextView) { restyle(); scheduleChange() }
 
     func textViewDidChangeSelection(_ tv: UITextView) {
         guard !restyling, tv.markedTextRange == nil else { return }
@@ -373,8 +464,8 @@ final class NoteProtoViewController: UIViewController, UITextViewDelegate, UITex
         let ch = layout.characterIndexForGlyph(at: glyph)
         let lr = lineRange(at: ch), line = lineText(lr), p = NoteFormat.parse(line)
         guard p.kind == .check || p.kind == .checked else { return nil }
-        let x0 = NoteProtoMetrics.gutterX(level: p.level)
-        guard pt.x >= x0 - 12, pt.x <= x0 + NoteProtoMetrics.mark + 2 else { return nil }   // 押せる範囲は四角の左右に広げる
+        let x0 = NoteMetrics.gutterX(level: p.level)
+        guard pt.x >= x0 - 12, pt.x <= x0 + NoteMetrics.mark + 2 else { return nil }   // 押せる範囲は四角の左右に広げる
         let frag = layout.lineFragmentRect(forGlyphAt: layout.glyphIndexForCharacter(at: lr.location), effectiveRange: nil)
         guard pt.y >= frag.minY - 8, pt.y <= frag.maxY + 8 else { return nil }
         return (lr, line, p)
@@ -382,12 +473,17 @@ final class NoteProtoViewController: UIViewController, UITextViewDelegate, UITex
 
     @objc private func tapped(_ g: UITapGestureRecognizer) {
         guard textView.markedTextRange == nil, let (lr, line, p) = checkLine(at: g.location(in: textView)) else { return }
+        UISelectionFeedbackGenerator().selectionChanged()
+        let ns = textView.text as NSString, sel = textView.selectedRange
+        if let ask = onCheck {   // 並べ替え（済みは同じまとまりの下へ）は JS の今までの決まりで
+            let idx = ns.substring(to: lr.location).components(separatedBy: "\n").count - 1
+            ask(textView.text, idx, sel.location, sel.location + sel.length)
+            return
+        }
         let open = (line as NSString).range(of: "[")
         guard open.location != NSNotFound else { return }
-        let sel = textView.selectedRange
         replace(NSRange(location: lr.location + open.location + 1, length: 1), with: p.kind == .check ? "x" : " ")
         textView.selectedRange = sel
-        UISelectionFeedbackGenerator().selectionChanged()
     }
 
     // MARK: 題名
@@ -396,16 +492,12 @@ final class NoteProtoViewController: UIViewController, UITextViewDelegate, UITex
 
     // MARK: 完了・閉じる
 
-    @objc private func doneTapped() {
-        // 「完了」＝編集を終える（かな変換は確定してから）。閉じるのは「閉じる」
-        if let r = textView.markedTextRange { _ = r; textView.unmarkText() }
-        view.endEditing(true)
-        restyle()
-    }
-
-    @objc private func closeTapped() {
+    @objc func closeTapped() {
         if textView.markedTextRange != nil { textView.unmarkText() }
+        if titleField.markedTextRange != nil { titleField.unmarkText() }
         view.endEditing(true)
+        flushNow()
+        NotificationCenter.default.removeObserver(self)
         let t = titleField.text ?? "", b = textView.text ?? ""
         dismiss(animated: true) { [onClose] in onClose?(t, b, true) }
     }

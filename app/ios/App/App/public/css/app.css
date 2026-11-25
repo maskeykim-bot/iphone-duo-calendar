@@ -2727,3 +2727,5 @@ html[data-grabtime] .gchip{opacity:0!important}
 .shell.closed .home.hm-cards .hrow.hxc:active{background:#F5F3EC}
 .shell.closed .home.hm-cards .date .hrk{margin-left:8px;font-weight:400;color:#5D6963}
 .shell.closed .home.hm-cards .hevents .hempty{padding:0 4px}
+/* 第19.6版: ネイティブの閉じた画面では、ノートは標準の入力欄で書く。今までの編集画面の操作の行は出さず、ページは読む・たたいて書き始める場所になる */
+html.nne .shell.closed .ned-top{display:none}

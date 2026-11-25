@@ -44,8 +44,9 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         CAPPluginMethod(name: "webReady", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "cancelCurl", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "curlPerf", returnType: CAPPluginReturnPromise),
-        // 試作（proto/note-uitextview）: ノート本文を iOS 標準の入力欄で書く。ダミーデータだけ
-        CAPPluginMethod(name: "openNoteProto", returnType: CAPPluginReturnPromise)
+        // 第19.6版: 閉じた画面のノートを iOS 標準の入力欄で書く（保存は JS の noteStore）
+        CAPPluginMethod(name: "openNoteEditor", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "noteEditorSet", returnType: CAPPluginReturnPromise)
     ]
 
     private let store = EKEventStore()
@@ -2070,14 +2071,19 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
     }
 
     // 触覚（第14版 PR27）。kind は 'light'（UISelectionFeedbackGenerator）/ 'warning'（UINotificationFeedbackGenerator）。main で実行する。
-    /// 試作: 渡された題名・本文（ダミー）を標準の入力欄で開き、閉じたときの文字をそのまま返す。アプリの保存には触れない。
-    @objc func openNoteProto(_ call: CAPPluginCall) {
+    /// ノートの題名（1 行目）と本文（2 行目から）を標準の入力欄で開く。文字が変わるたびに noteEditorChange、チェックの四角で noteEditorCheck を知らせ、閉じたときの文字を返す。DB には触れない（保存は JS）。
+    private weak var noteEditorVC: NoteEditorViewController?
+    @objc func openNoteEditor(_ call: CAPPluginCall) {
         let title = call.getString("title") ?? "", body = call.getString("body") ?? ""
+        let focusTitle = call.getBool("focusTitle") ?? false, maxLen = call.getInt("maxLength") ?? 100_000
         DispatchQueue.main.async { [weak self] in
-            guard let host = self?.bridge?.viewController else { call.reject("no view", "UNAVAILABLE"); return }
-            let vc = NoteProtoViewController()
-            vc.initialTitle = title; vc.initialBody = body
+            guard let self = self, let host = self.bridge?.viewController, self.noteEditorVC == nil else { call.reject("unavailable", "UNAVAILABLE"); return }
+            let vc = NoteEditorViewController()
+            vc.initialTitle = title; vc.initialBody = body; vc.focusTitle = focusTitle; vc.maxLength = maxLen
+            vc.onChange = { [weak self] t, b in self?.notifyListeners("noteEditorChange", data: ["title": t, "body": b]) }
+            vc.onCheck = { [weak self] b, line, s, e in self?.notifyListeners("noteEditorCheck", data: ["body": b, "line": line, "selStart": s, "selEnd": e]) }
             vc.onClose = { t, b, _ in call.resolve(["title": t, "body": b]) }
+            self.noteEditorVC = vc
             let nav = UINavigationController(rootViewController: vc)
             nav.modalPresentationStyle = .fullScreen
             let ap = UINavigationBarAppearance(); ap.configureWithOpaqueBackground(); ap.backgroundColor = UIColor(red: 0xF7 / 255, green: 0xF4 / 255, blue: 0xED / 255, alpha: 1)
@@ -2085,6 +2091,11 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             nav.navigationBar.tintColor = UIColor(red: 0x29 / 255, green: 0x4E / 255, blue: 0x42 / 255, alpha: 1)
             host.present(nav, animated: true)
         }
+    }
+    @objc func noteEditorSet(_ call: CAPPluginCall) {
+        guard let body = call.getString("body") else { call.reject("invalid arguments", "INVALID_ARGUMENT"); return }
+        let sel = call.getInt("selStart") ?? 0
+        DispatchQueue.main.async { [weak self] in self?.noteEditorVC?.setBody(body, selStart: sel); call.resolve() }
     }
 
     @objc func selectionHaptic(_ call: CAPPluginCall) {

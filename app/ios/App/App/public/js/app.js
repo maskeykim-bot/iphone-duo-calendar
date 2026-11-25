@@ -21,10 +21,10 @@ import { holidayOf } from './holidays.js';
 import { splitEvents, eveningFirst, homeTasks, dueText, tomorrowSummary, axisBars } from './home.js';
 import { PAGE_IDS, normalizePages, selectPage, normTimeMode, TIME_MODES, TIME_LABELS, FOCUS_MODES, FOCUS_LABELS, normFocusMode, normSpreadType, normTtSplit } from './pages.js';
 import { noteStore, setNoteHook, recoverNoteDrafts, importLegacyMemoDrafts, folderOps, groupNotes, filterByFolder, FOLDER_NAME_MAX } from './notes.js';
-import { mountNoteEditor } from './notes-ui.js';
+import { mountNoteEditor, splitBody, joinBody } from './notes-ui.js';
 import { richLines, viewOf, levelOfPre, toggleCheck } from './note-lines.js';
 import { isNoteTask, planNoteSync, lineOfSource, baselineOf, tasksFollowingNote } from './note-tasks.js';
-import { titleOf, displayLine, displayText, noteDateOf, dateOccupants, dailyHeading, ensureDailyFolder, EMPTY_TITLE, cardTextOf } from './notes-model.js';
+import { MAX_NOTE_CHARS, titleOf, displayLine, displayText, noteDateOf, dateOccupants, dailyHeading, ensureDailyFolder, EMPTY_TITLE, cardTextOf } from './notes-model.js';
 import { DELETE_UNDO_MS, tasksHtml, focusTasksHtml, HIST_DAYS, openTaskEditor, taskEditorHtml, taskDirty, saveTask, hasNotify, NOTE_NEED_DUE, createDeleteController, TASK_DELETED } from './reminders.js';
 import { liveTasks as liveTasksOf, isTombstone as isTaskTombstone, TASK_TITLE_MAX, dropOldLinks, LOCAL_LIST, TASK_STORE_TEXT, createTaskStore, createLocalCall, createLocalAddController, rowOf, createTaskDoneController, DONE_UNDO_MS, TASK_VIEWS, TASK_VIEW_LABELS, normTaskView, dueCounts, todayTasks, inheritTaskSettings, normTaskSettings } from './tasks.js';
 import { PASTE_MAX, addDaysCapped, bandLabel, clipTitle, daysBetween, pasteLabel, planPaste, spanOf, toggleDay } from './paste.js';
@@ -2069,7 +2069,7 @@ function closed(kind) {
   return `<div class="shell closed ${kind}${tv}${kind === 'browse' && pullOn() ? ' pull' : ''}${POS.band ? ' band' : ' fb'}${state.strip ? ' strp' : ''}${cal ? ' cal' : ' sub'}${noteEditing ? ' noteedit' : ''}${closedLand() ? ' land' : ''}"><div class="mpane">${body}</div>${back}${ctl()}${moreHtml()}</div>`;
 }
 // ---- 閉じた画面の「…」（design/34 §9.2・§12 Q-10）。幅 224・行 44・上下のあき 8・行の間の線 0.5。上から ホーム・週の時間軸・検索・月の表現・設定 ----
-const MORE_ITEMS = [['home', () => 'ホーム（今日・次の予定）'], ['week', () => '週の時間軸'], ['search', () => '検索'], ['mode', () => `月の表現（${{ simple: '手帳', named: '予定名', all: '全部' }[monthMode('browse')]}）`], ['settings', () => '設定'], ...(nativeAvailable() ? [['noteproto', () => '試作: ノートを純正の入力欄で']] : [])]; // 試作（proto/note-uitextview）: ネイティブのときだけ出す
+const MORE_ITEMS = [['home', () => 'ホーム（今日・次の予定）'], ['week', () => '週の時間軸'], ['search', () => '検索'], ['mode', () => `月の表現（${{ simple: '手帳', named: '予定名', all: '全部' }[monthMode('browse')]}）`], ['settings', () => '設定']];
 function moreHtml() {
   if (!MORE.open || !POS.more) return '';
   const S = safe(), W = L.w, H = L.h, w = Math.min(224, W - S.left - S.right - 16), h = 16 + 44 * MORE_ITEMS.length;
@@ -2096,23 +2096,43 @@ function closeMore(focus = true) {
   const b = root.querySelector('.cmore');
   if (b) { b.setAttribute('aria-expanded', 'false'); b.classList.remove('on'); if (focus) b.focus({ preventScroll: true }); }
 }
-// 試作（proto/note-uitextview）: ダミーのノートを iOS 標準の入力欄（UITextView）で開く。アプリのノート・DB には読み書きしない。
-// 閉じたときに返ってきた文字を、今の決まり（note-lines.js の parseLine）で読み直して、行の種類が保たれているかを知らせる。
-const NOTE_PROTO = { title: '打ち合わせメモ', body: ['# 議題', '- 価格表の確認', '- 次回の日程', '  - 候補は来週', '## 準備すること', '- [ ] サンプルを用意', '- [x] 価格表を確認', '- [ ] 先方に聞くことを整理', 'ふつうの行。かな変換をここで試してください。', ''].join('\n'), last: null };
-async function openNoteProto() {
-  const src = NOTE_PROTO.last || NOTE_PROTO;
+// ---- 第19.6版（征希さん「動きはこっちの方がいいな」）: 閉じた画面のノートは、題名・本文に触れたら iOS 標準の入力欄（ネイティブの全画面）で書く。
+// 保存の形は今までどおり（1 行目＝題名、行頭の記号つきの文字列）。文字は今までの編集画面（notes-ui）の replaceBody へ流し、保存・下書き・タスクとのつながりは今までの仕組みがそのまま働く。
+// 改行が CRLF のノート（取り込んだ物など）は、形を変えないよう今までの編集画面のまま書く。ブラウザ・開いた画面も今までどおり。
+const NNE = { on: false, id: null };
+const nativeNoteOk = () => NATIVE && closedSize();
+async function openNativeNote(which) {
+  const ed = NB.ed, id = ed?.id; if (!ed || !id || NNE.on) return;
+  const e = noteStore.get(id); if (!e?.loaded || /\r/.test(e.text)) return;
+  ed.sync();
+  const sp = splitBody(noteStore.get(id).text);
+  const put = (t, b) => { if (NB.ed?.id !== id) return; const text = joinBody({ title: String(t ?? '').replace(/[\r\n]/g, ' '), rest: String(b ?? ''), nl: sp.nl, eol: '\n', crlf: false }); ed.replaceBody(text); };
+  NNE.on = true; NNE.id = id;
   try {
-    const r = await call('openNoteProto', { title: src.title, body: src.body });
-    NOTE_PROTO.last = { title: r.title, body: r.body }; // 開き直したら続きから（この起動の間だけ。保存しない）
-    const kinds = richLines(r.body).reduce((m, v) => { m[v.kind] = (m[v.kind] || 0) + 1; return m; }, {});
-    try { window.__duoNoteProtoResult = { ...r, kinds }; } catch { /* */ }
-    notice(`試作を閉じました。${Array.from(r.body).length} 字（チェック ${kinds.check || 0}・箇条書き ${kinds.bullet || 0}・見出し ${(kinds.h1 || 0) + (kinds.h2 || 0)}）。アプリのノートには保存していません。`, null, 6000);
-  } catch { notice('試作を開けませんでした。', null, 3000); }
+    const r = await call('openNoteEditor', { title: sp.title, body: sp.rest, focusTitle: which === 'title', maxLength: MAX_NOTE_CHARS });
+    put(r.title, r.body);
+    await ed.flushNow?.();
+  } catch { notice('ノートを開けませんでした。', null, 3000); }
+  finally { NNE.on = false; NNE.id = null; invalidateNoteList?.(); render(); }
 }
-try { window.__duoNoteProto = openNoteProto; } catch { /* */ }
+if (NATIVE) {
+  document.documentElement.classList.add('nne'); // 閉じた画面では、今までの編集画面の操作の行（戻す・書式・完了）は出さない（標準の入力欄の側にある）
+  listen('noteEditorChange', (d) => { if (!NNE.on || NB.ed?.id !== NNE.id) return; const sp = splitBody(noteStore.get(NNE.id)?.text ?? ''); NB.ed.replaceBody(joinBody({ title: String(d?.title ?? '').replace(/[\r\n]/g, ' '), rest: String(d?.body ?? ''), nl: sp.nl || String(d?.body ?? '') !== '', eol: '\n', crlf: false })); });
+  listen('noteEditorCheck', (d) => { // チェックの四角: 並べ替え（済みは同じまとまりの下へ）は今までの決まり（note-lines の toggleCheck）で計算して返す
+    if (!NNE.on) return;
+    const r = toggleCheck(String(d?.body ?? ''), Number(d?.line), Number(d?.selStart) || 0, Number(d?.selEnd) || 0);
+    if (r) call('noteEditorSet', { body: r.text, selStart: r.selStart }).catch(() => {});
+  });
+  document.addEventListener('focusin', (ev) => { // 題名・本文に触れたら、今までの欄は使わず標準の入力欄を開く
+    const ed = NB.ed; if (!ed || !nativeNoteOk() || NNE.on) return;
+    const which = ev.target === ed.titleEl ? 'title' : ev.target === ed.bodyEl || ed.bodyEl.contains(ev.target) ? 'body' : null; if (!which) return;
+    const e = noteStore.get(ed.id); if (!e?.loaded || /\r/.test(e.text)) return;
+    ev.target.blur?.(); document.activeElement?.blur?.();
+    openNativeNote(which);
+  }, true);
+}
 function moreGo(k) {
   closeMore(false);
-  if (k === 'noteproto') { openNoteProto(); return; }
   const b = root.querySelector('.cmore');
   if (k === 'home') { set({ home: true, strip: null }); say('ホームを開きました。'); root.querySelector('.cback')?.focus({ preventScroll: true }); }
   else if (k === 'week') { set({ view: 'week', home: false, strip: null }); say('週の時間軸を開きました。'); root.querySelector('.cback')?.focus({ preventScroll: true }); }
