@@ -111,6 +111,7 @@ final class NoteEditorViewController: UIViewController, UITextViewDelegate, UITe
     private var bottom: NSLayoutConstraint!
     private var contentTrailing: NSLayoutConstraint!
     private var railCenter: NSLayoutConstraint!
+    private var fmtTop: NSLayoutConstraint!
     private var fmtButtons: [UIButton] = []
 
     override func viewDidLoad() {
@@ -160,12 +161,13 @@ final class NoteEditorViewController: UIViewController, UITextViewDelegate, UITe
         [fmt, titleField, line, textView, status, hist, done].forEach(view.addSubview)
         let g = view.safeAreaLayoutGuide
         let fmtWide = fmt.widthAnchor.constraint(equalToConstant: 360); fmtWide.priority = .defaultHigh
+        fmtTop = fmt.topAnchor.constraint(equalTo: view.topAnchor, constant: 8)
         bottom = status.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor, constant: -6)
         // 右の列: 画面の右の帯（カメラと時刻の列。閉じた画面は 84）の中央。帯がない画面では、右に 64 の列を作る
         contentTrailing = textView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -84)
         railCenter = hist.centerXAnchor.constraint(equalTo: view.trailingAnchor, constant: -42)
         NSLayoutConstraint.activate([
-            fmt.topAnchor.constraint(equalTo: g.topAnchor, constant: 8),
+            fmtTop,
             // 征希さん「広げた時は中央にまとめようかな（横に広がりすぎるから）」: 幅は最大 360。狭い画面では左右 12 まで、広い画面では中央に寄せる
             fmt.centerXAnchor.constraint(equalTo: textView.centerXAnchor),
             fmt.leadingAnchor.constraint(greaterThanOrEqualTo: g.leadingAnchor, constant: 12),
@@ -202,6 +204,18 @@ final class NoteEditorViewController: UIViewController, UITextViewDelegate, UITe
         super.viewSafeAreaInsetsDidChange()
         let r = max(view.safeAreaInsets.right, 64)
         contentTrailing?.constant = -r; railCenter?.constant = -r / 2
+        layoutFormatTop()
+    }
+    override func viewDidLayoutSubviews() { super.viewDidLayoutSubviews(); layoutFormatTop() }
+    /// 征希さん「上げよう」: 上に時刻の行がある画面（開いた縦など）では、書式のまとまりを時刻と同じ高さへ上げる。
+    /// 時刻は右上の角だけなので、まとまりの右端が時刻の表示（右から 150）にかからないときだけ上げる。かかる幅なら、今までどおり時刻の行の下
+    private func layoutFormatTop() {
+        guard let c = fmtTop else { return }
+        let top = view.safeAreaInsets.top, w = view.bounds.width, rail = max(view.safeAreaInsets.right, 64)
+        let contentW = w - rail - view.safeAreaInsets.left, bw = min(360, contentW - 24)
+        let right = view.safeAreaInsets.left + contentW / 2 + bw / 2
+        let v: CGFloat = top < 30 ? top + 8 : (right <= w - 150 ? max(8, top * 0.58 - 22) : top + 8)
+        if abs(c.constant - v) > 0.5 { c.constant = v }
     }
 
     override func viewDidAppear(_ animated: Bool) {
