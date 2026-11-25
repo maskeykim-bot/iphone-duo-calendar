@@ -319,7 +319,8 @@ test('35 §9 K-1 3種類の箱: 高さ 56・角丸 14・地 #FFFFFF・幅 358、
   for (const [k, id] of KINDS) {
     const sel = cardSel(k, id), r = await r3(page, sel); rs.push(r);
     expect(near(r.h, 56) && near(r.w, 358) && near(r.x, 12)).toBe(true);
-    expect(await c3(page, sel, 'backgroundColor')).toBe('rgb(255, 255, 255)');
+    if (k === 'event') expect(await c3(page, sel, 'backgroundColor')).toBe(await page.locator(sel).evaluate((e) => { const d = document.createElement('i'); d.style.color = getComputedStyle(e).getPropertyValue('--cat-tint'); e.append(d); const c = getComputedStyle(d).color; d.remove(); return c; })); // v19.6（征希さん「両方 地の色で」）で仕様変更: 予定のカードは予定の色の薄い地（タスク・ノートは白のまま）
+    else expect(await c3(page, sel, 'backgroundColor')).toBe('rgb(255, 255, 255)');
     expect(parseFloat(await c3(page, sel, 'borderTopLeftRadius'))).toBe(14);
     expect(await c3(page, sel, 'boxShadow')).toBe('none');
   }
@@ -335,7 +336,7 @@ test('35 §9 K-2・K-3 題名（左 68・上 8・15/600/20、3つの左端が同
     expect(near(t.x - r.x, 68) && near(t.y - r.y, 8)).toBe(true); xs.push(t.x);
     expect(await c3(page, `${sel} strong`, 'fontSize')).toBe('15px'); expect(await c3(page, `${sel} strong`, 'fontWeight')).toBe('600'); expect(await c3(page, `${sel} strong`, 'lineHeight')).toBe('20px');
     expect(near(sub.x - r.x, 68) && near(sub.y - r.y, 30)).toBe(true);
-    expect(await c3(page, `${sel} small`, 'fontSize')).toBe('11px'); expect(await c3(page, `${sel} small`, 'fontWeight')).toBe('400'); expect(await c3(page, `${sel} small`, 'color')).toBe('rgb(104, 113, 106)');
+    expect(await c3(page, `${sel} small`, 'fontSize')).toBe('11px'); expect(await c3(page, `${sel} small`, 'fontWeight')).toBe('400'); expect(await c3(page, `${sel} small`, 'color')).toBe(k === 'event' ? 'rgb(41, 59, 53)' : 'rgb(104, 113, 106)'); // v19.6: 予定は色の地の上なので、副題も墨（コントラスト 4.5 以上）
   }
   expect(near(xs[0], xs[1], 0.5) && near(xs[1], xs[2], 0.5)).toBe(true);
   expect(await page.locator(`${cardSel('event', 'e1')} small`).textContent()).toBe('資料を印刷して持参');
@@ -433,7 +434,8 @@ test('35 §9 K-9 押した色: カードを押したまま 0.2 秒で地 #F5F3EC
     const sel = cardSel(k, id); await scrollTo(page, sel);
     const r = await r3(page, sel);
     await page.mouse.move(r.x + 200, r.cy); await page.mouse.down(); await page.waitForTimeout(200);
-    expect(await c3(page, sel, 'backgroundColor')).toBe('rgb(245, 243, 236)');
+    if (k === 'event') expect(await c3(page, sel, 'filter')).toBe('brightness(0.94)'); // v19.6（征希さん「両方 地の色で」）で仕様変更: 予定のカードは予定の色の薄い地（タスク・ノートは白のまま）。押した色は、地を少し暗くする
+    else expect(await c3(page, sel, 'backgroundColor')).toBe('rgb(245, 243, 236)');
     await page.mouse.move(r.x + 200, r.cy + 30, { steps: 3 }); await page.mouse.up(); await page.waitForTimeout(150); // 8 より先に動かして離す（開かない）
   }
 });
@@ -601,7 +603,7 @@ for (const [k, id, title] of KINDS) {
     await hold(page, p2, 350 + 220); // 0.35 秒で持ち上がり、0.15 秒で大きくなり切る
     await expect.poll(() => c3(page, sel, 'transform'), { timeout: 2000 }).toBe(LIFT);
     expect(await c3(page, sel, 'boxShadow')).toBe('rgba(0, 0, 0, 0.1) 0px 4px 12px 0px');
-    expect(await c3(page, sel, 'backgroundColor')).toBe('rgb(255, 255, 255)'); // 地は白に戻す
+    expect(await c3(page, sel, 'backgroundColor')).not.toBe('rgb(245, 243, 236)'); expect(await c3(page, sel, 'filter')).toBe('none'); // 押した色から元の地へ戻す（v19.6: 予定は色の地、タスク・ノートは白）
     expect(await page.locator(sel).evaluate((e) => getComputedStyle(e).transitionDuration.split(',')[0].trim())).toBe('0.15s');
     expect(await haps(page)).toEqual(['medium']);
     const hole = await page.evaluate(() => { const h = document.querySelector('.ghole'), r = h.getBoundingClientRect(), c = getComputedStyle(h); return { x: r.left, y: r.top, w: r.width, h: r.height, style: c.borderTopStyle, color: c.borderTopColor, rad: c.borderTopLeftRadius, decl: h.matches('.ghole') }; });

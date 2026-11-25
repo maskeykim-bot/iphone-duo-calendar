@@ -1611,6 +1611,7 @@ function fsLayout(tl = fsTl(), hh = DG.hh) {
   tl.style.setProperty('--foldm', String(eff(f)));
   tl.classList.toggle('fsdots', hh >= DAYBAR.dots);
   tl.classList.toggle('fsprop', hh >= DAYBAR.snap); tl.style.setProperty('--fsmin', `${fsMin(hh)}px`);
+  for (const el of tl.querySelectorAll('.fsev[data-rd]')) { const m = Number(el.dataset.rm); el.classList.toggle('fshort', Math.max(fsMin(hh), map.y(m + Number(el.dataset.rd)) - map.y(m) - 2) < 34); } // 低い枠（広げた側で 34 未満）は、時刻と題名を 1 行に並べる
 }
 // 第19.3版（閉じた画面の「時間」）: 画面は1本のスクロールで、スクロール 0 では月が見えている。日の欄の中を送って合わせる代わりに、時間軸の「最初の予定の1時間前」より上を畳んで、バー・終日の行のすぐ下から始める
 //（時間軸の中身 .tlin を --foldm 分だけ上へずらし、.tl の上端で切る。1時間の高さ --hh が変わっても同じ時刻で切れる＝バーで幅を変えている間、バーのすぐ下の時刻の線は動かない。35 §5.3「伸ばす中心」）。

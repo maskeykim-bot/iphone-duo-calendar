@@ -112,13 +112,13 @@ test('A-7 速く払っても離した所で止まる: 下へ 30 を速く払う�
   expect((await ui(page)).dayGrip).toBe(1); expect(near(await hourGap(page), 14, 0.5)).toBe(true);
 });
 
-test('A-8 予定は白いカード（始まり・終わり・色の線・題名）。詰めた形（14）でもカードは 44 より低くならず、字がはみ出さない。広げた形（56）は長さどおり', async ({ page }) => {
+test('A-8 予定は色の地のカード（始まり・終わり・色の線・題名）。詰めた形（14）でもカードは 44 より低くならず、字がはみ出さない。広げた形（56）は長さどおり', async ({ page }) => {
   // v19.5（征希さん「時間で表示した時は本家仕様にする」）で仕様変更: 枠は「色の地＋題名1行（詳細は題名の下に時刻）」→ 白いカード（始まり・終わりの時刻は左に2行。カードの表示と同じ並び）。カードが 44 より低くなる時間だけ、その時間を広げる
   await boot(page, { dg: 1, data: [ev('h1', '一時間の予定', `${DAY}T13:00`, `${DAY}T14:00`), ev('h2', '打ち合わせ', `${DAY}T15:00`, `${DAY}T16:30`)] });
   const read = () => page.evaluate(() => [...document.querySelectorAll('.mday .tlev[data-event]')].map((b) => { const r = b.getBoundingClientRect(), q = (s) => b.querySelector(s), ins = (e) => { const t = e.getBoundingClientRect(); return t.top >= r.top - 0.5 && t.bottom <= r.bottom + 0.5 && t.left >= r.left - 0.5 && t.right <= r.right + 0.5; }; return { h: r.height, y: r.top, b: r.bottom, t1: q('.ft1').textContent, t2: q('.ft2').textContent, in: ['.ft1', '.ft2', '.fln', '.tn'].every((s) => ins(q(s))), bg: getComputedStyle(b).backgroundColor, tr: !!q('.tr'), lw: q('.fln').getBoundingClientRect().width }; }));
   const m = await read();
   expect(m.map((x) => [x.t1, x.t2])).toEqual([['13:00', '14:00'], ['15:00', '16:30']]);
-  for (const x of m) { expect(near(x.h, 44)).toBe(true); expect(x.in).toBe(true); expect(x.bg).toBe('rgb(255, 255, 255)'); expect(x.tr).toBe(false); expect(x.lw).toBe(3); }
+  for (const x of m) { expect(near(x.h, 44)).toBe(true); expect(x.in).toBe(true); expect(x.bg).not.toBe('rgb(255, 255, 255)'); /* v19.6（征希さん「両方 地の色で」）: 詰めた側のカードも予定の色の薄い地 */ expect(x.tr).toBe(false); expect(x.lw).toBe(3); }
   expect(m[1].y >= m[0].b + 13).toBe(true); // 14:00〜15:00（予定なし）は 14 のまま詰まり、カードは重ならない
   expect(near(await lineY(page, 900) - await lineY(page, 840), 14, 0.5)).toBe(true);
   expect(near(await lineY(page, 840) - await lineY(page, 780), 44, 0.5)).toBe(true); // 13:00〜14:00 は予定のカードの分だけ広がる

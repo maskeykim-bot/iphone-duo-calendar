@@ -70,10 +70,10 @@ for (const [label, dark] of MODES) {
       const [h] = await texts(page, '.mday .mdh .hdw'); expect(h.color).toBe(OUT_TEXT[mode]); expect(h.bg).toBe(capsule); expect(h.ratio).toBeGreaterThanOrEqual(dark ? 4.5 : 4.85);
       if (!dark) { expect(h.color).toBe('#5D6963'); expect(Math.floor(h.ratio * 100) / 100).toBe(4.85); }
       // 時間の型: v19.5（征希さん「時間で表示した時は本家仕様にする」）で仕様変更。枠は「薄い地＋左 3 の線＋墨・角丸 4」→ カードと同じ「白いカード（角丸 10）＋色の線 3＋墨」。色は表示だけ（線はカードと同じ mark）
-      const [cardBg] = await bgs(page, '.mday .mdcard.mdk-event');
+      const cardBgs = await bgs(page, '.mday .mdcard.mdk-event'); // v19.6（征希さん「両方 地の色で」）: カードも時間の枠も、その予定の薄い地
       await page.locator('.mday .mdct button', { hasText: '時間' }).click(); await page.waitForTimeout(400);
       const blocks = await bgs(page, '.mday .tlev'); expect(blocks.length).toBe(3);
-      for (const b of blocks) { expect(b.bg).toBe(cardBg.bg); expect(b.radius).toBe('10px'); }
+      for (const [i, e] of [EVENTS[2], EVENTS[3], EVENTS[4]].entries()) { expect(blocks[i].bg).toBe(setOf(e, mode).tint); expect(cardBgs[i].bg).toBe(setOf(e, mode).tint); expect(blocks[i].radius).toBe('10px'); }
       const tls = await marks(page, '.mday .tlev .fln'); expect(tls.length).toBe(3);
       for (const [i, e] of [EVENTS[2], EVENTS[3], EVENTS[4]].entries()) { expect(tls[i].color).toBe(setOf(e, mode).mark); expect(tls[i].ratio).toBeGreaterThanOrEqual(3); expect(tls[i].w).toBe(3); }
       for (const t of await texts(page, '.mday .tlev .tn, .mday .tlev .ft1, .mday .tlev .ft2')) expect(t.ratio, `${t.text} ${t.color}×${t.bg}`).toBeGreaterThanOrEqual(4.5);

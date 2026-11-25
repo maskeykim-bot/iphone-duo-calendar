@@ -2747,3 +2747,19 @@ html.nne.nne-crlf .ned-top{display:flex}
 .mpull.browse .mday .tl[data-fs].fsprop .fsev .ftr{display:block;position:absolute;left:11px;right:8px;top:19px;font:400 11px/14px -apple-system,'Hiragino Sans',sans-serif;color:var(--ink);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis}
 .mpull.browse .mday .tl[data-fs].fsprop .tlev.fsev:active{background-color:var(--cat-tint)!important;filter:brightness(.94)}
 @media (hover:hover){.mpull.browse .mday .tl[data-fs].fsprop .tlev.fsev:hover{background-color:var(--cat-tint)!important;filter:brightness(.96)}}
+/* ---- 第19.6版（征希さん「両方 地の色で」）: 予定のカードは、どの表示でも予定の色の薄い地（「時間」の詰めた側・「カード」表示・ホームの今日の予定）。タスクとノートのカードは今は白のまま ---- */
+.mpull.browse .mday .tl[data-fs] .tlev.fsev{background:var(--cat-tint)}
+.mpull.browse .mday .tl[data-fs]:not(.fsprop) .tlev.fsev:active{background-color:var(--cat-tint)!important;filter:brightness(.94)}
+@media (hover:hover){.mpull.browse .mday .tl[data-fs]:not(.fsprop) .tlev.fsev:hover{background-color:var(--cat-tint)!important;filter:brightness(.97)}}
+.mpull.browse .mday .tl[data-fs] .fsev :is(.ft2,.fmemo){color:var(--ink)}
+.mpull.browse .mdcard.mdk-event{background:var(--cat-tint)}
+.mpull.browse .mdcard.mdk-event :is(.mdt2,small){color:var(--ink)}
+.mpull.browse button.mdcard.mdk-event:active:not(:disabled){background-color:var(--cat-tint)!important;filter:brightness(.94)}
+@media (hover:hover){.mpull.browse button.mdcard.mdk-event:hover{background-color:var(--cat-tint)}}
+.mpull.browse .mdcard.mdk-event.lifted,.mpull.browse button.mdcard.mdk-event.lifted:active:not(:disabled){background-color:var(--cat-tint)!important;filter:none}
+.shell.closed .home.hm-cards .hrow.hxc{background:var(--cat-tint)}
+.shell.closed .home.hm-cards .hxc :is(.ht2,.hxm){color:var(--ink)}
+.shell.closed .home.hm-cards .hrow.hxc:active{background:var(--cat-tint);filter:brightness(.94)}
+/* 征希さん「一番広げると30分の予定は時間が見えづらい」: 広げた側の低い枠（34 未満）は、時刻と題名を 1 行に並べる（「12:30〜13:00 ランチ」） */
+.mpull.browse .mday .tl[data-fs].fsprop .fsev.fshort .ftr{top:3px;right:auto;font-weight:600}
+.mpull.browse .mday .tl[data-fs].fsprop .fsev.fshort .tn{left:96px;top:2px}
