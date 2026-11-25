@@ -2096,11 +2096,11 @@ function closeMore(focus = true) {
   const b = root.querySelector('.cmore');
   if (b) { b.setAttribute('aria-expanded', 'false'); b.classList.remove('on'); if (focus) b.focus({ preventScroll: true }); }
 }
-// ---- 第19.6版（征希さん「動きはこっちの方がいいな」）: 閉じた画面のノートは、題名・本文に触れたら iOS 標準の入力欄（ネイティブの全画面）で書く。
+// ---- 第19.6版（征希さん「動きはこっちの方がいいな」）: ネイティブのノートは、題名・本文に触れたら iOS 標準の入力欄（ネイティブの全画面）で書く。
 // 保存の形は今までどおり（1 行目＝題名、行頭の記号つきの文字列）。文字は今までの編集画面（notes-ui）の replaceBody へ流し、保存・下書き・タスクとのつながりは今までの仕組みがそのまま働く。
-// 改行が CRLF のノート（取り込んだ物など）は、形を変えないよう今までの編集画面のまま書く。ブラウザ・開いた画面も今までどおり。
+// 改行が CRLF のノート（取り込んだ物など）は、形を変えないよう今までの編集画面のまま書く（そのノートだけ、操作の行も出す）。ブラウザは今までどおり。
 const NNE = { on: false, id: null };
-const nativeNoteOk = () => NATIVE && closedSize();
+const nativeNoteOk = () => NATIVE; // 征希さん「いままでの操作の行は全て無くして大丈夫そう」: 開いた画面でも、題名・本文に触れたら標準の入力欄（全画面）で書く
 async function openNativeNote(which) {
   const ed = NB.ed, id = ed?.id; if (!ed || !id || NNE.on) return;
   const e = noteStore.get(id); if (!e?.loaded || /\r/.test(e.text)) return;
@@ -2116,7 +2116,7 @@ async function openNativeNote(which) {
   finally { NNE.on = false; NNE.id = null; invalidateNoteList?.(); render(); }
 }
 if (NATIVE) {
-  document.documentElement.classList.add('nne'); // 閉じた画面では、今までの編集画面の操作の行（戻す・書式・完了）は出さない（標準の入力欄の側にある）
+  document.documentElement.classList.add('nne'); // ネイティブでは、今までの編集画面の操作の行（戻す・書式・完了）は出さない（標準の入力欄の側にある）
   listen('noteEditorChange', (d) => { if (!NNE.on || NB.ed?.id !== NNE.id) return; const sp = splitBody(noteStore.get(NNE.id)?.text ?? ''); NB.ed.replaceBody(joinBody({ title: String(d?.title ?? '').replace(/[\r\n]/g, ' '), rest: String(d?.body ?? ''), nl: sp.nl || String(d?.body ?? '') !== '', eol: '\n', crlf: false })); });
   listen('noteEditorCheck', (d) => { // チェックの四角: 並べ替え（済みは同じまとまりの下へ）は今までの決まり（note-lines の toggleCheck）で計算して返す
     if (!NNE.on) return;
@@ -2126,7 +2126,7 @@ if (NATIVE) {
   document.addEventListener('focusin', (ev) => { // 題名・本文に触れたら、今までの欄は使わず標準の入力欄を開く
     const ed = NB.ed; if (!ed || !nativeNoteOk() || NNE.on) return;
     const which = ev.target === ed.titleEl ? 'title' : ev.target === ed.bodyEl || ed.bodyEl.contains(ev.target) ? 'body' : null; if (!which) return;
-    const e = noteStore.get(ed.id); if (!e?.loaded || /\r/.test(e.text)) return;
+    const e = noteStore.get(ed.id); const crlf = !!e?.loaded && /\r/.test(e.text); document.documentElement.classList.toggle('nne-crlf', crlf); if (!e?.loaded || crlf) return;
     ev.target.blur?.(); document.activeElement?.blur?.();
     openNativeNote(which);
   }, true);

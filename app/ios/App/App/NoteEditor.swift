@@ -159,14 +159,18 @@ final class NoteEditorViewController: UIViewController, UITextViewDelegate, UITe
         let fmt = makeFormatBar(), hist = makeHistoryPill(), done = makeDoneButton()
         [fmt, titleField, line, textView, status, hist, done].forEach(view.addSubview)
         let g = view.safeAreaLayoutGuide
+        let fmtWide = fmt.widthAnchor.constraint(equalToConstant: 360); fmtWide.priority = .defaultHigh
         bottom = status.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor, constant: -6)
         // 右の列: 画面の右の帯（カメラと時刻の列。閉じた画面は 84）の中央。帯がない画面では、右に 64 の列を作る
         contentTrailing = textView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -84)
         railCenter = hist.centerXAnchor.constraint(equalTo: view.trailingAnchor, constant: -42)
         NSLayoutConstraint.activate([
             fmt.topAnchor.constraint(equalTo: g.topAnchor, constant: 8),
-            fmt.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 12),
-            fmt.trailingAnchor.constraint(equalTo: textView.trailingAnchor, constant: -12),
+            // 征希さん「広げた時は中央にまとめようかな（横に広がりすぎるから）」: 幅は最大 360。狭い画面では左右 12 まで、広い画面では中央に寄せる
+            fmt.centerXAnchor.constraint(equalTo: textView.centerXAnchor),
+            fmt.leadingAnchor.constraint(greaterThanOrEqualTo: g.leadingAnchor, constant: 12),
+            fmt.widthAnchor.constraint(lessThanOrEqualToConstant: 360),
+            fmtWide,
             fmt.heightAnchor.constraint(equalToConstant: 44),
             titleField.topAnchor.constraint(equalTo: fmt.bottomAnchor, constant: 10),
             titleField.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 16),
