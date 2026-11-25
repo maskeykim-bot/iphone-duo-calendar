@@ -4232,6 +4232,7 @@ function updateRepeatUi() {
 function showEditor(values, id, focus = true) {
   editing = id;
   $('#edtitle').textContent = id || extEd ? '予定を編集' : '予定を追加';
+  edKindRow(dlg, $('#error'), !(id || extEd), 'event');
   F.title.value = values.title; F.all.checked = values.all;
   F.start.value = values.start; F.end.value = values.end; F.place.value = values.place; F.notes.value = values.notes || '';
   F.rfreq.value = ['daily', 'weekly', 'monthly', 'yearly'].includes(values.rfreq) ? values.rfreq : 'none';
@@ -4767,7 +4768,7 @@ function openTask(id, from) {
   if (!r || anyPanel()) return;
   if (fmode() === 'task') { FT.sel = id; render(); return; } // 集中タスクは下面の詳細で編集する（シートは開かない）
   TK = { ed: openTaskEditor(r, RM.data.lists), busy: false, gone: false, notify: undefined }; tkKey = r.itemId;
-  $('#tk-body').innerHTML = taskEditorHtml(TK.ed); ccPaintBtn($('#tk-color'), TK.ed?.orig?.colorId);
+  $('#tk-body').innerHTML = taskEditorHtml(TK.ed); ccPaintBtn($('#tk-color'), TK.ed?.orig?.colorId); edKindRow(taskDlg, $('#tk-body'), !!TK.fresh, 'task', true);
   tkFields();
   tkSourceRow(r);
   tkUi();
@@ -4775,11 +4776,31 @@ function openTask(id, from) {
   const t = $('#tk-title'); (t.disabled ? $('#tk-close') : t).focus({ preventScroll: true });
 }
 // 第19.3版 その3（design/35 §3）: 日の欄の「＋ タスク」。その日を期限にした新しいタスクを、同じシートで題名から書く（保存を押すまで何も作らない）
-function openNewTask(day, from) {
+// ---- v19.6（征希さん「予定の新規登録時、タスクの登録もできるように」）: 新しい予定・新しいタスクのシートの上に「予定｜タスク」。押すと、書きかけの題名・日付・時刻を持って もう一方のシートへ移る（保存するまで何も作らない）。
+// タスクは Duo の中のタスク（iPhone のリマインダーとの同期は、やめた理由の確認待ちなので入れていない）
+function edKindRow(d, anchor, show, cur, before = false) {
+  let row = d.querySelector('.edkindrow');
+  if (!row) { row = document.createElement('div'); row.className = 'edkindrow'; if (before) anchor.before(row); else anchor.after(row); }
+  row.hidden = !show;
+  row.innerHTML = show ? `<div class="mdsw edkind" role="group" aria-label="作るもの">${[['event', '予定'], ['task', 'タスク']].map(([v, l]) => `<button type="button" data-edkind="${v}" aria-pressed="${v === cur}">${l}</button>`).join('')}</div>` : '';
+}
+const whenFree = (fn, n = 0) => { if (!anyPanel()) fn(); else if (n < 30) setTimeout(() => whenFree(fn, n + 1), 30); };
+document.addEventListener('click', (ev) => {
+  const b = ev.target.closest?.('[data-edkind]'); if (!b || b.getAttribute('aria-pressed') === 'true') return;
+  if (b.dataset.edkind === 'task' && dlg.open && !editing && !extEd) {
+    if (!RM.data) { say('タスクを読み込んでいます。'); return; }
+    const s0 = fullStart(), day = s0.slice(0, 10).replaceAll('/', '-'), pre = { title: F.title.value.trim(), time: F.all.checked ? '' : s0.slice(11, 16) }, from = origins.get(dlg);
+    closeEditor(); whenFree(() => openNewTask(isKey(day) ? day : state.selected, from, pre));
+  } else if (b.dataset.edkind === 'event' && taskDlg.open && TK?.fresh) {
+    const title = $('#tk-title').value.trim(), day = $('#tk-date').value, tm = $('#tk-time').value, from = origins.get(taskDlg);
+    closeTask(); whenFree(() => { openEditor(null, from, isKey(day) ? day : state.selected, /^\d\d:\d\d$/.test(tm) ? Number(tm.slice(0, 2)) * 60 + Number(tm.slice(3)) : null); if (title) { F.title.value = title; saveDraft(); } });
+  }
+});
+function openNewTask(day, from, pre = {}) {
   if (!RM.data || anyPanel()) { if (!RM.data) say('タスクを読み込んでいます。'); return; }
-  const r = { itemId: '', listId: LOCAL_LIST.id, title: '', notes: '', due: day ? { date: day } : null, done: false, alarms: [], readOnly: false, recurring: false };
+  const r = { itemId: '', listId: LOCAL_LIST.id, title: pre.title || '', notes: '', due: day ? (pre.time ? { date: day, time: pre.time } : { date: day }) : null, done: false, alarms: [], readOnly: false, recurring: false };
   TK = { ed: openTaskEditor(r, RM.data.lists), busy: false, gone: false, notify: undefined, fresh: true }; tkKey = '';
-  $('#tk-body').innerHTML = taskEditorHtml(TK.ed); ccPaintBtn($('#tk-color'), TK.ed?.orig?.colorId);
+  $('#tk-body').innerHTML = taskEditorHtml(TK.ed); ccPaintBtn($('#tk-color'), TK.ed?.orig?.colorId); edKindRow(taskDlg, $('#tk-body'), !!TK.fresh, 'task', true);
   tkFields(); tkUi();
   openPanel(taskDlg, from);
   $('#tk-title').focus({ preventScroll: true });

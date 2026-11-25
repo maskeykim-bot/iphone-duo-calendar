@@ -2804,3 +2804,14 @@ html.nne.nne-crlf .ned-top{display:flex}
 .cmv2 .cmvgo{display:block;width:100%;height:48px;margin-top:8px;border:0;border-radius:14px;background:#294E42;font:600 16px/48px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#fff}
 .cmv2 .cmvgo:disabled{background:var(--capsule);color:var(--muted)}
 .cmv2 .cmvx{margin-top:8px;background:transparent}
+/* シートは右の帯（閉じた画面のカメラ・時計の列）と上のよけにかけない */
+.cmv2{box-sizing:border-box;padding:var(--sat,0px) var(--sar,0px) 0 var(--sal,0px)}
+/* v19.6: 新しい予定・タスクのシートの「予定｜タスク」 */
+.edkindrow{display:flex;justify-content:center;padding:8px 16px 4px}
+.edkindrow[hidden]{display:none}
+.edkindrow .edkind{width:200px}
+.panel .edkindrow .edkind{height:36px;border-radius:10px;padding:2px}
+.panel .edkindrow .edkind button{height:32px;min-height:32px;min-width:0;padding:0;margin:0;border:0;border-radius:8px;background:transparent;box-shadow:none;font-size:14px;font-weight:600;color:var(--ink)}
+.panel .edkindrow .edkind button[aria-pressed=true]{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.15)}
+/* 開いた横でキーボードが出ている間はシートが低い（約 352）ので、「予定｜タスク」は畳む（題名〜終日を全部見せる決まりを守る） */
+@media (min-width:700px) and (max-height:700px){html[data-kb] .edkindrow{display:none}}
