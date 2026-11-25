@@ -174,6 +174,7 @@ export function taskEditorHtml(ed) {
     + `<div class="dtrow tkrow" id="tk-timerow"><label class="tkck tkton"><input id="tk-timeon" type="checkbox" role="switch"${dis}> 時刻を入れる</label><button type="button" id="tk-time" class="tcap" aria-haspopup="true" aria-expanded="false" value="${escH(f.time)}"${dis}${f.time ? '' : ' hidden'}></button></div>`
     + `<div class="tknote"><label class="tkck"><input id="tk-notify" type="checkbox"${dis}> 通知する</label><p class="small" id="tk-notewhy" role="note"></p>`
     + `</div>`
+    + (r?.itemId ? `<div class="dtrow tkrow" id="tk-colorrow"><span class="dtk">色</span><button type="button" id="tk-color" class="dcap ccbtn" aria-haspopup="true" aria-label="カードの色を選ぶ"${dis}><i class="ccdot" aria-hidden="true"></i><span class="ccname"></span></button></div>` : '')
     + `<label>メモ<textarea id="tk-notes"${dis}>${escH(f.notes)}</textarea></label>`
     + (meta ? `<p class="small tkmeta">${meta}</p>` : '') + why + '</div>';
 }

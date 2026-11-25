@@ -2059,14 +2059,14 @@ body :is(.dchip)[aria-pressed=true]:active:not(:disabled){filter:brightness(.92)
 .nsheet .ned .ned-title{margin:-7px var(--ns-bmr,8px) -7px var(--ns-bml,8px)}
 /* V-20: フォルダの行は高さ 28・角丸 14・13pt の札を3つ（フォルダ・日付・ピン留め、間 8）。ボタンは高さ 44（押せる範囲）で、見える札（.nfp）が 28。行の高さは前のまま（以下の位置は動かさない） */
 .nmeta{align-items:center;min-height:44px;box-sizing:content-box;flex-wrap:wrap;row-gap:0}
-.nmeta .nfpill,.nmeta .ndate,.nmeta .nmpin{flex:none;height:44px;min-height:44px;min-width:44px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;color:inherit;display:inline-flex;align-items:center;font-size:13px;font-weight:400}
+.nmeta .nfpill,.nmeta .ndate,.nmeta .nmpin,.nmeta .nccbtn{flex:none;height:44px;min-height:44px;min-width:44px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;color:inherit;display:inline-flex;align-items:center;font-size:13px;font-weight:400}
 .nmeta .nfpill{flex:0 1 auto;max-width:60%;min-width:0}
 .nmeta .nfp{display:inline-flex;align-items:center;gap:3px;box-sizing:border-box;height:28px;max-width:100%;padding:0 10px;border-radius:14px;box-shadow:inset 0 0 0 1px var(--line);font-size:13px;line-height:28px;white-space:nowrap;transition:background-color .15s ease-out}
 .nmeta .nfp>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .nmeta .nfp i{font-style:normal;font-size:11px;color:var(--muted)}
 .nmeta .ndate.on .nfp,.nmeta .nmpin.on .nfp{box-shadow:inset 0 0 0 2px #294E42;color:#294E42}
-.nmeta :is(.nfpill,.ndate,.nmpin):active:not(:disabled){background-color:transparent!important}
-.nmeta :is(.nfpill,.ndate,.nmpin):active:not(:disabled) .nfp{background-color:var(--capsule);transition-duration:.10s}
+.nmeta :is(.nfpill,.ndate,.nmpin,.nccbtn):active:not(:disabled){background-color:transparent!important}
+.nmeta :is(.nfpill,.ndate,.nmpin,.nccbtn):active:not(:disabled) .nfp{background-color:var(--capsule);transition-duration:.10s}
 /* V-19: 開いた横・右ページのノートは、見出し・一覧・フォルダの行・題と本文の文字を x500（ページの端から 16）にそろえる */
 .spread .page[data-page=memo] .ntools{padding-left:0}
 .spread .page[data-page=memo] .ntools .ntitle{padding-left:8px}
@@ -2763,3 +2763,17 @@ html.nne.nne-crlf .ned-top{display:flex}
 /* 征希さん「一番広げると30分の予定は時間が見えづらい」: 広げた側の低い枠（34 未満）は、時刻と題名を 1 行に並べる（「12:30〜13:00 ランチ」） */
 .mpull.browse .mday .tl[data-fs].fsprop .fsev.fshort .ftr{top:3px;right:auto;font-weight:600}
 .mpull.browse .mday .tl[data-fs].fsprop .fsev.fshort .tn{left:96px;top:2px}
+/* ---- v19.6（征希さん「タスクとノートも色を選べるようにする」）: 色を付けたタスク・ノートのカードは、その色の薄い地 ---- */
+.mpull.browse .mdcard.cc{background:var(--cat-tint)}
+.mpull.browse .mdcard.cc small{color:var(--ink)}
+.mpull.browse button.mdcard.cc:active:not(:disabled),.mpull.browse .mdk-task.cc:has(.mdopen:active){background-color:var(--cat-tint)!important;filter:brightness(.94)}
+@media (hover:hover){.mpull.browse button.mdcard.cc:hover{background-color:var(--cat-tint)}}
+.mpull.browse .mdcard.cc.lifted,.mpull.browse button.mdcard.cc.lifted:active:not(:disabled),.mpull.browse .mdk-task.cc.lifted:has(.mdopen:active){background-color:var(--cat-tint)!important;filter:none}
+.ccdot{display:inline-block;box-sizing:border-box;width:14px;height:14px;border-radius:50%;background:var(--cat-tint);box-shadow:inset 0 0 0 1.5px var(--cat-mark);vertical-align:-2px;margin-right:6px}
+.ccdot.ccnone,.csw.ccnone{background:#fff;box-shadow:inset 0 0 0 1.5px #C9C6BC}
+.csw.ccnone::before{display:none}
+.ccbtn{display:inline-flex;align-items:center}
+
+/* v19.6: ノートのシートの日付の行の「色」 */
+.nsheet .nsdate{gap:8px}
+.nsheet .nscc{display:inline-flex;align-items:center}

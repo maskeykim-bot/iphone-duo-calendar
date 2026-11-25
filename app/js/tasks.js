@@ -1,6 +1,9 @@
 // タスク（Duo 内保存）の型・検証・分類。DB には触れない（保存操作は db.js）。
 // Task = { id, title, due: {date:'YYYY-MM-DD', time?:'HH:mm'} | null, done, doneAt: Stamp|null, createdAt, updatedAt: ms, order, note, notify }
 import { isKey } from './util.js';
+import { isFlickId } from './colors.js';
+// v19.6: カード（タスク・ノート）の色の id か。db.js は色の決まり（colors.js）を直接読み込まない決まりなので、ここを通す
+export const isCardColorId = (id) => isFlickId(id);
 import { validSource } from './note-tasks.js';
 
 export const TASK_NOTE_MAX = 10000;
@@ -41,6 +44,8 @@ export function validateTask(t) {
   // v19.3 その2 F: ノートのチェック行とのつながり（任意の項目 source。無いタスクは今までの形のまま。形が合わなければ写さない＝つながりなし）
   const source = validSource(t.source);
   if (source) task.source = source;
+  // v19.6（征希さん「タスクとノートも色を選べるようにする」・2026-11-25 承認）: カードの色（任意の項目 colorId。フリックの 7 色の id。無いタスクは今までの形のまま。版は 6 のまま）
+  if (isFlickId(t.colorId)) task.colorId = t.colorId;
   return { ok: true, task };
 }
 
@@ -90,7 +95,7 @@ export function classifyTasks(list) {
 export const LOCAL_LIST = { id: 'duo', title: 'タスク', color: '#68716A', allowsModify: true, isDefault: true, source: 'Duo' };
 const pad2 = (n) => String(n).padStart(2, '0');
 export const stampNow = (d = new Date()) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-export const rowOf = (t) => ({ itemId: t.id, listId: LOCAL_LIST.id, title: t.title, notes: t.note, due: t.due, done: t.done, doneAt: t.doneAt, alarms: t.notify ? [{}] : [], alarmsExtra: 0, priority: 0, recurring: false, createdAt: t.createdAt, modifiedAt: t.updatedAt, readOnly: false, ...(t.source ? { source: t.source } : {}) }); // source＝ノートのチェック行とのつながり（v19.3。日の欄のカードの副題「ノート「…」から」に使う）
+export const rowOf = (t) => ({ itemId: t.id, listId: LOCAL_LIST.id, title: t.title, notes: t.note, due: t.due, done: t.done, doneAt: t.doneAt, alarms: t.notify ? [{}] : [], alarmsExtra: 0, priority: 0, recurring: false, createdAt: t.createdAt, modifiedAt: t.updatedAt, readOnly: false, ...(t.colorId ? { colorId: t.colorId } : {}), ...(t.source ? { source: t.source } : {}) }); // source＝ノートのチェック行とのつながり（v19.3。日の欄のカードの副題「ノート「…」から」に使う）
 const fail = (code, e) => Object.assign(new Error(e?.message || code), { code });
 // 保存の失敗は理由を分けて表示できるよう code にする（容量超過は STORAGE_FULL、それ以外は STORE_FAILED）。
 const storeErr = (e) => (e && (e.code === 'INVALID_ARGUMENT' || e.code === 'NOT_FOUND') ? e : fail(/quota/i.test(`${e?.name} ${e?.message}`) ? 'STORAGE_FULL' : /^(タスク|題名)/.test(e?.message || '') ? 'INVALID_ARGUMENT' : 'STORE_FAILED', e));
@@ -111,11 +116,12 @@ export function validateTaskPatch(p) {
   if (!p || typeof p !== 'object' || Array.isArray(p)) return { ok: false, error: 'タスクの変更内容が不正です。' };
   const out = {};
   for (const k of Object.keys(p)) {
-    if (!['title', 'note', 'due', 'notify'].includes(k)) return { ok: false, error: 'タスクの変更内容が不正です。' };
+    if (!['title', 'note', 'due', 'notify', 'colorId'].includes(k)) return { ok: false, error: 'タスクの変更内容が不正です。' };
     out[k] = p[k];
   }
   if ('title' in out) { if (typeof out.title !== 'string' || !out.title.trim()) return { ok: false, error: 'タスク名を入力してください。' }; out.title = out.title.trim(); }
   if ('note' in out && typeof out.note !== 'string') return { ok: false, error: 'タスクのメモが不正です。' };
+  if ('colorId' in out && out.colorId !== null && !isFlickId(out.colorId)) return { ok: false, error: 'タスクの色が不正です。' };
   if ('notify' in out && typeof out.notify !== 'boolean') return { ok: false, error: 'タスクの通知設定が不正です。' };
   if ('due' in out && out.due !== null) {
     const d = out.due;
@@ -145,7 +151,7 @@ export function createTaskStore(db) {
         if (!cur || isTombstone(cur)) throw fail('NOT_FOUND');
         const p = v.patch, due = 'due' in p ? p.due : cur.due;
         // 期限なしは通知なし。期限だけの変更では通知を ON にしない（notify は触らない）。
-        return await db.putTask({ ...cur, ...('title' in p ? { title: p.title } : {}), ...('note' in p ? { note: p.note } : {}), due, ...('notify' in p ? { notify: p.notify } : {}), updatedAt: now });
+        return await db.putTask({ ...cur, ...('title' in p ? { title: p.title } : {}), ...('note' in p ? { note: p.note } : {}), due, ...('notify' in p ? { notify: p.notify } : {}), ...('colorId' in p ? { colorId: p.colorId } : {}), updatedAt: now });
       } catch (e) { throw storeErr(e); }
     },
     async setDone(id, done, now = Date.now()) {

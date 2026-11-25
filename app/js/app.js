@@ -1494,6 +1494,56 @@ const noteCardById = (id) => { for (const [day, l] of NB.cards) { const c = l.fi
 const taskSrcText = (r) => { if (!r.source) return ''; const c = noteCardById(r.source.noteId); return c ? `ノート「${c.title || EMPTY_TITLE}」から` : ''; };
 // 読み上げだけの操作（35 §6.8。VoiceOver のカスタムアクションの代わりに、カードのすぐ後ろへ隠したボタン 3 つ）
 const cardActs = (kind, id, k, rec = false) => `<span class="mdacts">${[['pick', rec ? 'この回の日付を移す' : '日付を移す'], ['prev', rec ? 'この回を1日前へ' : '1日前へ'], ['next', rec ? 'この回を1日後へ' : '1日後へ']].map(([h, l]) => `<button type="button" class="vh" data-act="cardmv" data-how="${h}" data-kind="${kind}" data-id="${esc(id)}" data-day="${k}">${l}</button>`).join('')}</span>`;
+// v19.6（征希さん「タスクとノートも色を選べるようにする」）: カードの色。保存するのはフリックの色の id（colorId）だけで、薄い地・線の色は表示のときに作る
+const ccCls = (cid) => (isFlickId(cid) ? ' cc' : '');
+const ccSty = (cid) => (isFlickId(cid) ? ` style="${setVars(flickSet(cid, MODE))}"` : '');
+let ccMenu = null;
+function closeCc() { ccMenu?.remove(); ccMenu = null; document.removeEventListener('pointerdown', ccOutside, true); }
+function ccOutside(ev) { if (ccMenu && !ccMenu.contains(ev.target)) closeCc(); }
+// 色を選ぶ帯（「色なし」＋フリックの 7 色）。anchor のすぐ下（入らなければ上）。選ぶと onPick(id か null)
+function openCc(anchor, cur, onPick) {
+  closeCc(); closeChipMenu();
+  const m = document.createElement('div'); m.className = 'cmenu colorstrip ccstrip'; m.setAttribute('role', 'group'); m.setAttribute('aria-label', 'カードの色');
+  const sw = (cid, name) => `<button type="button" class="cso" data-cc="${cid}" aria-pressed="${(cur || '') === cid}" aria-label="${esc(name)}${(cur || '') === cid ? '、選択中' : ''}"><i class="csw lg${cid ? '' : ' ccnone'}"${cid ? ` style="${setVars(flickSet(cid, MODE))}"` : ''} aria-hidden="true"></i></button>`;
+  m.innerHTML = `<p class="csn" aria-live="polite">${esc(cur ? flickName(cur) : '色なし')}</p><div class="csr">${sw('', '色なし')}<i class="csdiv" aria-hidden="true"></i>${FLICK.map((f) => sw(f.id, f.name)).join('')}</div>`;
+  const box = anchor.closest('dialog[open]')?.getBoundingClientRect(), lo = (box ? box.left : 0) + 8, hi = (box ? box.right : window.innerWidth - safe().right) - 8; // シートの中から出すときは、シートの幅に収める
+  const r = anchor.getBoundingClientRect(), H = 78, W = Math.min(336, hi - lo);
+  m.style.width = `${W}px`; m.style.left = `${Math.round(Math.max(lo, Math.min(r.left, hi - W)))}px`;
+  m.style.top = `${Math.round(r.bottom + 4 + H <= window.innerHeight - 8 ? r.bottom + 4 : Math.max(8, r.top - H - 4))}px`; m.style.zIndex = '100000';
+  m.addEventListener('click', (ev) => { const b = ev.target.closest('[data-cc]'); if (!b) return; const id = b.dataset.cc || null; closeCc(); onPick(id); });
+  m.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); closeCc(); anchor.focus?.({ preventScroll: true }); return; }
+    if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return;
+    const o = [...m.querySelectorAll('.cso')], i = o.indexOf(document.activeElement); if (i < 0) return;
+    ev.preventDefault(); o[(i + (ev.key === 'ArrowRight' ? 1 : o.length - 1)) % o.length].focus({ preventScroll: true });
+  });
+  // 開いているシート（dialog）の中から出すときは、その dialog の中に置く（外に置くと、シートが出ている間は押せない）。置いたあと位置のずれを直す（予定の色の帯と同じ）
+  (anchor.closest('dialog[open]') || document.body).append(m); ccMenu = m;
+  { const want = { x: parseFloat(m.style.left), y: parseFloat(m.style.top) }, got = m.getBoundingClientRect(); if (Math.abs(got.left - want.x) > 0.5 || Math.abs(got.top - want.y) > 0.5) { m.style.left = `${Math.round(want.x - (got.left - want.x))}px`; m.style.top = `${Math.round(want.y - (got.top - want.y))}px`; } }
+  setTimeout(() => document.addEventListener('pointerdown', ccOutside, true), 0);
+  m.querySelector('[aria-pressed=true]')?.focus({ preventScroll: true });
+}
+const ccPaintBtn = (btn, cid) => { if (!btn) return; btn.dataset.cc = cid || ''; const d = btn.querySelector('.ccdot'), n = btn.querySelector('.ccname'); if (d) { d.setAttribute('style', isFlickId(cid) ? setVars(flickSet(cid, MODE)) : ''); d.classList.toggle('ccnone', !isFlickId(cid)); } if (n) n.textContent = isFlickId(cid) ? flickName(cid) : '色なし'; };
+// タスクの編集シートの「色」: 選んだらすぐ保存する（ほかの欄の保存とは別。題名などの書きかけはそのまま）
+document.addEventListener('click', async (ev) => {
+  const tb = ev.target.closest?.('#tk-color');
+  if (tb) {
+    const id = TK.ed?.orig?.itemId; if (!id) return;
+    openCc(tb, tb.dataset.cc || '', async (cid) => {
+      try { const tsk = await taskStore.update(id, { colorId: cid }); taskRowPatch(id, rowOf(tsk)); if (TK.ed?.orig?.itemId === id) TK.ed.orig = { ...TK.ed.orig, colorId: cid || undefined }; ccPaintBtn(document.querySelector('#tk-color'), cid); render(); say(cid ? `色を${flickName(cid)}にしました。` : '色を外しました。'); }
+      catch (e) { console.warn('cc', e); notice('色を保存できませんでした。', null, 3000); }
+    });
+    return;
+  }
+  const nb = ev.target.closest?.('[data-act="ncolor"]');
+  if (nb) {
+    const id = nb.closest('.nsheet') ? NB.sheet?.id : NB.cur; if (!id) return;
+    openCc(nb, nb.dataset.cc || '', async (cid) => {
+      try { await noteStore.setMeta(id, { colorId: cid }); invalidateNoteList(); await refreshNoteMarks(); if (NB.sheet?.id === id) ccPaintBtn(SHEET_DATE.cc, cid); await paintNoteMeta(); render(); say(cid ? `色を${flickName(cid)}にしました。` : '色を外しました。'); }
+      catch (e) { console.warn('cc', e); notice('色を保存できませんでした。', null, 3000); }
+    });
+  }
+});
 function dayTaskCards(k) {
   const rows = dayTaskRows(k); if (!rows.length) return '';
   const pend = doneCtl.pending(), today = todayKey();
@@ -1503,13 +1553,13 @@ function dayTaskCards(k) {
     const sub = [r.due.time ? `${t0(r.due.time)} まで` : '', src].filter(Boolean).join('・') || memo.trim();
     const lab = ['タスク', done ? '完了' : '未完了', over ? '期限切れ' : '', r.title || '題名なし', r.due.time ? `${hmSpoken(t0(r.due.time))}まで` : '', src].filter(Boolean).join('、');
     const id = esc(r.itemId);
-    return `<div class="mdcard mdk-task${done ? ' done' : ''}${over ? ' over' : ''}" role="listitem" data-task="${id}" data-sday="${k}"><button type="button" class="mdopen" data-act="remedit" data-id="${id}" aria-label="${esc(lab)}"><strong${r.title ? '' : ' class="mdnt"'}>${r.title ? esc(r.title) : '（題名なし）'}${r.alarms?.length ? BELL : ''}</strong>${sub || over ? `<small>${over ? `<b class="mdover">期限切れ</b>${sub ? ' ' : ''}` : ''}${esc(sub)}</small>` : ''}</button><button type="button" class="mdck rmckb" data-act="remck" data-id="${id}" role="checkbox" aria-checked="${done}" aria-label="${done ? '未完了に戻す' : '完了にする'}、${esc(r.title || '題名なし')}"><span class="rmck" aria-hidden="true"></span></button></div>${cardActs('task', r.itemId, k)}`;
+    return `<div class="mdcard mdk-task${done ? ' done' : ''}${over ? ' over' : ''}${ccCls(r.colorId)}"${ccSty(r.colorId)} role="listitem" data-task="${id}" data-sday="${k}"><button type="button" class="mdopen" data-act="remedit" data-id="${id}" aria-label="${esc(lab)}"><strong${r.title ? '' : ' class="mdnt"'}>${r.title ? esc(r.title) : '（題名なし）'}${r.alarms?.length ? BELL : ''}</strong>${sub || over ? `<small>${over ? `<b class="mdover">期限切れ</b>${sub ? ' ' : ''}` : ''}${esc(sub)}</small>` : ''}</button><button type="button" class="mdck rmckb" data-act="remck" data-id="${id}" role="checkbox" aria-checked="${done}" aria-label="${done ? '未完了に戻す' : '完了にする'}、${esc(r.title || '題名なし')}"><span class="rmck" aria-hidden="true"></span></button></div>${cardActs('task', r.itemId, k)}`;
   }).join('');
   return `<button type="button" class="mdsh mdtsh" data-act="tasklist" aria-label="タスクのページを開く"><span aria-hidden="true">タスク ›</span></button><div class="mdcards mdtasks" role="list" aria-label="タスク">${cs}</div>`;
 }
 function dayNoteCards(k) {
   const list = NB.cards.get(k) || []; if (!list.length) return '';
-  const cs = list.map((c) => `<button type="button" class="mdcard mdk-note" role="listitem" data-act="cardnote" data-note="${esc(c.id)}" data-sday="${k}" aria-label="${esc(['ノート', c.title || EMPTY_TITLE, c.sub].filter(Boolean).join('、'))}">${PAPER_SVG}<strong${c.title ? '' : ' class="mdnt"'}>${esc(c.title || EMPTY_TITLE)}</strong>${c.sub ? `<small>${esc(c.sub)}</small>` : ''}</button>${cardActs('note', c.id, k)}`).join('');
+  const cs = list.map((c) => `<button type="button" class="mdcard mdk-note${ccCls(c.colorId)}"${ccSty(c.colorId)} role="listitem" data-act="cardnote" data-note="${esc(c.id)}" data-sday="${k}" aria-label="${esc(['ノート', c.title || EMPTY_TITLE, c.sub].filter(Boolean).join('、'))}">${PAPER_SVG}<strong${c.title ? '' : ' class="mdnt"'}>${esc(c.title || EMPTY_TITLE)}</strong>${c.sub ? `<small>${esc(c.sub)}</small>` : ''}</button>${cardActs('note', c.id, k)}`).join('');
   return `<button type="button" class="mdsh mdnl" data-act="notelist" aria-label="ノートの一覧"><span aria-hidden="true">ノート ›</span></button><div class="mdcards mdnotes2" role="list" aria-label="ノート">${cs}</div>`;
 }
 function stageDayHtml() {
@@ -2634,7 +2684,7 @@ root.addEventListener('input', (ev) => {
 // 月の印: 日付のあるノート（削除済みを除く）の件数。1日に複数あっても線は1本。保存の変更のたびに取り直す。
 // 第19.3版 その3（design/35 §1.2・§1.3）: 日ごとのノートの「カード」（id・題名・副題）も一緒に作る（NB.cards）。並びは作った順（動かしたカードは、その日の作った順の位置に入る）。
 // カードの題名と副題の決まりは notes-model.js の cardTextOf（1行目が日付の見出しのノートは、その行を飛ばす）。
-const noteCardOf = (n) => ({ id: n.id, ...cardTextOf(n.body), c: n.createdAt || 0, u: n.updatedAt || 0 });
+const noteCardOf = (n) => ({ id: n.id, ...cardTextOf(n.body), c: n.createdAt || 0, u: n.updatedAt || 0, ...(isFlickId(n.colorId) ? { colorId: n.colorId } : {}) });
 const noteCardCmp = (a, b) => a.c - b.c || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 let marksSeq = 0;
 async function refreshNoteMarks() {
@@ -2748,11 +2798,11 @@ async function paintNoteMeta() {
   let m = null, f = NB.folders;
   try { if (!f) { await loadFolders(); f = NB.folders; } m = await noteStore.getMeta(id); } catch { m = null; }
   if (NB.cur !== id) return;
-  const cur = m?.folderId || '', date = m?.date || null;
+  const cur = m?.folderId || '', date = m?.date || null, ncc = isFlickId(m?.colorId) ? m.colorId : '';
   for (const h of root.querySelectorAll('[data-nmeta]')) {
     const fname = cur ? (f || []).find((x) => x.id === cur)?.name || 'なし' : 'なし';
     // V-20（S7）: 高さ 28・角丸 14・13pt の札を3つ（フォルダ・日付・ピン留め、間 8）。フォルダは押すと小さなメニュー（iOS の選ぶ欄は使わない）。
-    h.innerHTML = `<button type="button" class="nfpill" data-nf="curmv" aria-haspopup="dialog" aria-label="フォルダ: ${esc(fname)}"><span class="nfp"><span>フォルダ：${esc(fname)}</span><i aria-hidden="true">▾</i></span></button><button type="button" class="ndate${date ? ' on' : ''}" data-act="ndate" aria-haspopup="dialog" aria-expanded="${!!NB.dp}" aria-label="日付${date ? `: ${esc(dayLabel(date))}` : 'を付ける'}"><span class="nfp">${date ? `${esc(dayLabel(date))} ›` : '日付 ›'}</span></button><button type="button" class="nmpin${m?.pinned ? ' on' : ''}" data-nf="pin" aria-pressed="${!!m?.pinned}"><span class="nfp">${m?.pinned ? '📌 ピン留め' : 'ピン留め'}</span></button>${noteDatePopHtml(date)}`;
+    h.innerHTML = `<button type="button" class="nfpill" data-nf="curmv" aria-haspopup="dialog" aria-label="フォルダ: ${esc(fname)}"><span class="nfp"><span>フォルダ：${esc(fname)}</span><i aria-hidden="true">▾</i></span></button><button type="button" class="ndate${date ? ' on' : ''}" data-act="ndate" aria-haspopup="dialog" aria-expanded="${!!NB.dp}" aria-label="日付${date ? `: ${esc(dayLabel(date))}` : 'を付ける'}"><span class="nfp">${date ? `${esc(dayLabel(date))} ›` : '日付 ›'}</span></button><button type="button" class="nmpin${m?.pinned ? ' on' : ''}" data-nf="pin" aria-pressed="${!!m?.pinned}"><span class="nfp">${m?.pinned ? '📌 ピン留め' : 'ピン留め'}</span></button>${noteDatePopHtml(date)}<button type="button" class="nccbtn" data-act="ncolor" data-cc="${ncc}" aria-haspopup="true" aria-label="カードの色: ${ncc ? esc(flickName(ncc)) : '色なし'}"><span class="nfp"><i class="ccdot${ncc ? '' : ' ccnone'}"${ncc ? ` style="${setVars(flickSet(ncc, MODE))}"` : ''} aria-hidden="true"></i>色</span></button>`;
   }
 }
 // ノートの日付: 小さな月で日を選ぶ。月の下に「日付を外す」。選んだ日に別のノートがあれば、開くか付け替えるかを確認する。
@@ -3653,7 +3703,7 @@ async function openNoteSheet(id, day, side, { plain = false } = {}) {
     placeNoteSheet();
     render(); // 週の帯・ノート欄の描き直し（シートの外はそのまま見える）
     await ed.open(id);
-    noteStore.getMeta(id).then((m) => { if (NB.sheet?.id === id) { NB.sheet.date = m?.date ?? null; SHEET_DATE.ui?.render(); } }).catch(() => {});
+    ccPaintBtn(SHEET_DATE.cc, null); noteStore.getMeta(id).then((m) => { if (NB.sheet?.id === id) { NB.sheet.date = m?.date ?? null; SHEET_DATE.ui?.render(); ccPaintBtn(SHEET_DATE.cc, m?.colorId); } }).catch(() => {});
     if (fresh && plain) ed.titleEl.focus({ preventScroll: true });
     else if (fresh) { ed.bodyEl.focus({ preventScroll: true }); const n = ed.bodyEl.value.length; ed.bodyEl.setSelectionRange(n, n); }
     say('ノートを開きました。');
@@ -3661,12 +3711,15 @@ async function openNoteSheet(id, day, side, { plain = false } = {}) {
 }
 // ---- 第19.3版 その3（design/35 §4.3・決定 4・R2）: ノートのシートの一番上に「日付の行」44。カプセル「11月12日（木）」（今年でない日だけ年つき。六曜は出さない）をたたくと小さな月（予定・タスクの日付と同じ部品）。
 // 日をたたくと、その日へ移す（長押しで落としたときと同じ扱い＝同じ札・同じ読み上げ・元に戻す。ノートがある日でも確かめない）。「日付を外す」は小さな月の下
-const SHEET_DATE = { row: null, cap: null, ui: null };
+const SHEET_DATE = { row: null, cap: null, ui: null, cc: null };
 function sheetDateRow() {
   if (!SHEET_DATE.row) {
     const row = document.createElement('div'); row.className = 'nsdate';
     const cap = document.createElement('button'); cap.type = 'button'; cap.className = 'dcap nsdcap'; cap.setAttribute('aria-haspopup', 'true'); cap.setAttribute('aria-expanded', 'false');
-    row.append(cap); SHEET_DATE.row = row; SHEET_DATE.cap = cap;
+    // v19.6: 日付の右に「色」（カードの色。押すと色の帯）
+    const cc = document.createElement('button'); cc.type = 'button'; cc.className = 'dcap nsdcap ccbtn nscc'; cc.dataset.act = 'ncolor'; cc.setAttribute('aria-haspopup', 'true'); cc.setAttribute('aria-label', 'カードの色を選ぶ');
+    cc.innerHTML = '<i class="ccdot ccnone" aria-hidden="true"></i><span class="ccname">色なし</span>';
+    row.append(cap, cc); SHEET_DATE.row = row; SHEET_DATE.cap = cap; SHEET_DATE.cc = cc;
     SHEET_EL.prepend(row);
     SHEET_DATE.ui = createDateField(cap, {
       after: row, scope: SHEET_EL, label: 'ノートの日付', empty: '日付なし', holiday: holidayMemo, buzz: () => { haptic('light').catch(() => {}); },
@@ -4712,7 +4765,7 @@ function openTask(id, from) {
   if (!r || anyPanel()) return;
   if (fmode() === 'task') { FT.sel = id; render(); return; } // 集中タスクは下面の詳細で編集する（シートは開かない）
   TK = { ed: openTaskEditor(r, RM.data.lists), busy: false, gone: false, notify: undefined }; tkKey = r.itemId;
-  $('#tk-body').innerHTML = taskEditorHtml(TK.ed);
+  $('#tk-body').innerHTML = taskEditorHtml(TK.ed); ccPaintBtn($('#tk-color'), TK.ed?.orig?.colorId);
   tkFields();
   tkSourceRow(r);
   tkUi();
@@ -4724,7 +4777,7 @@ function openNewTask(day, from) {
   if (!RM.data || anyPanel()) { if (!RM.data) say('タスクを読み込んでいます。'); return; }
   const r = { itemId: '', listId: LOCAL_LIST.id, title: '', notes: '', due: day ? { date: day } : null, done: false, alarms: [], readOnly: false, recurring: false };
   TK = { ed: openTaskEditor(r, RM.data.lists), busy: false, gone: false, notify: undefined, fresh: true }; tkKey = '';
-  $('#tk-body').innerHTML = taskEditorHtml(TK.ed);
+  $('#tk-body').innerHTML = taskEditorHtml(TK.ed); ccPaintBtn($('#tk-color'), TK.ed?.orig?.colorId);
   tkFields(); tkUi();
   openPanel(taskDlg, from);
   $('#tk-title').focus({ preventScroll: true });

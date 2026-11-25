@@ -156,7 +156,8 @@ test.describe('S7a 題名欄 44・フォルダの行・右ページのそろい�
       body: textX(nl), pills };
     });
     for (const k of ['head', 'list', 'folder', 'pill0', 'title', 'body']) near(m[k], 501.5); // S8 N-01: x501.5
-    expect(m.pills.map((p) => p.cls.split(' ')[0])).toEqual(['nfpill', 'ndate', 'nmpin']);
+    // v19.6（征希さん「タスクとノートも色を選べるようにする」）で仕様変更: 札は 4 つ（フォルダ・日付・ピン留め・色）。「色」も同じ寸法（高さ 28・角丸 14・13pt・押せる範囲 44・間 8）
+    expect(m.pills.map((p) => p.cls.split(' ')[0])).toEqual(['nfpill', 'ndate', 'nmpin', 'nccbtn']); near(m.pills[3].x - (m.pills[2].x + m.pills[2].w), 8, 0.5);
     for (const p of m.pills) { near(p.h, 28, 0.5); near(p.bh, 44, 0.5); expect(p.rad).toBe('14px'); expect(p.fs).toBe('13px'); }
     near(m.pills[1].x - (m.pills[0].x + m.pills[0].w), 8, 0.5); near(m.pills[2].x - (m.pills[1].x + m.pills[1].w), 8, 0.5);
     // 押せる範囲は 44（札の上下 8）
