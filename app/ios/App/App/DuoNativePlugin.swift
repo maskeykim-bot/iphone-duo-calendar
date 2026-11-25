@@ -43,7 +43,9 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
         CAPPluginMethod(name: "backReady", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "webReady", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "cancelCurl", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "curlPerf", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "curlPerf", returnType: CAPPluginReturnPromise),
+        // 試作（proto/note-uitextview）: ノート本文を iOS 標準の入力欄で書く。ダミーデータだけ
+        CAPPluginMethod(name: "openNoteProto", returnType: CAPPluginReturnPromise)
     ]
 
     private let store = EKEventStore()
@@ -2068,6 +2070,23 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
     }
 
     // 触覚（第14版 PR27）。kind は 'light'（UISelectionFeedbackGenerator）/ 'warning'（UINotificationFeedbackGenerator）。main で実行する。
+    /// 試作: 渡された題名・本文（ダミー）を標準の入力欄で開き、閉じたときの文字をそのまま返す。アプリの保存には触れない。
+    @objc func openNoteProto(_ call: CAPPluginCall) {
+        let title = call.getString("title") ?? "", body = call.getString("body") ?? ""
+        DispatchQueue.main.async { [weak self] in
+            guard let host = self?.bridge?.viewController else { call.reject("no view", "UNAVAILABLE"); return }
+            let vc = NoteProtoViewController()
+            vc.initialTitle = title; vc.initialBody = body
+            vc.onClose = { t, b, _ in call.resolve(["title": t, "body": b]) }
+            let nav = UINavigationController(rootViewController: vc)
+            nav.modalPresentationStyle = .fullScreen
+            let ap = UINavigationBarAppearance(); ap.configureWithOpaqueBackground(); ap.backgroundColor = UIColor(red: 0xF7 / 255, green: 0xF4 / 255, blue: 0xED / 255, alpha: 1)
+            nav.navigationBar.standardAppearance = ap; nav.navigationBar.scrollEdgeAppearance = ap
+            nav.navigationBar.tintColor = UIColor(red: 0x29 / 255, green: 0x4E / 255, blue: 0x42 / 255, alpha: 1)
+            host.present(nav, animated: true)
+        }
+    }
+
     @objc func selectionHaptic(_ call: CAPPluginCall) {
         guard let kind = call.getString("kind"), kind == "light" || kind == "warning" else {
             call.reject("invalid arguments", "INVALID_ARGUMENT")

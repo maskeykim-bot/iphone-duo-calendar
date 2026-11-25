@@ -2069,7 +2069,7 @@ function closed(kind) {
   return `<div class="shell closed ${kind}${tv}${kind === 'browse' && pullOn() ? ' pull' : ''}${POS.band ? ' band' : ' fb'}${state.strip ? ' strp' : ''}${cal ? ' cal' : ' sub'}${noteEditing ? ' noteedit' : ''}${closedLand() ? ' land' : ''}"><div class="mpane">${body}</div>${back}${ctl()}${moreHtml()}</div>`;
 }
 // ---- 閉じた画面の「…」（design/34 §9.2・§12 Q-10）。幅 224・行 44・上下のあき 8・行の間の線 0.5。上から ホーム・週の時間軸・検索・月の表現・設定 ----
-const MORE_ITEMS = [['home', () => 'ホーム（今日・次の予定）'], ['week', () => '週の時間軸'], ['search', () => '検索'], ['mode', () => `月の表現（${{ simple: '手帳', named: '予定名', all: '全部' }[monthMode('browse')]}）`], ['settings', () => '設定']];
+const MORE_ITEMS = [['home', () => 'ホーム（今日・次の予定）'], ['week', () => '週の時間軸'], ['search', () => '検索'], ['mode', () => `月の表現（${{ simple: '手帳', named: '予定名', all: '全部' }[monthMode('browse')]}）`], ['settings', () => '設定'], ...(nativeAvailable() ? [['noteproto', () => '試作: ノートを純正の入力欄で']] : [])]; // 試作（proto/note-uitextview）: ネイティブのときだけ出す
 function moreHtml() {
   if (!MORE.open || !POS.more) return '';
   const S = safe(), W = L.w, H = L.h, w = Math.min(224, W - S.left - S.right - 16), h = 16 + 44 * MORE_ITEMS.length;
@@ -2096,8 +2096,23 @@ function closeMore(focus = true) {
   const b = root.querySelector('.cmore');
   if (b) { b.setAttribute('aria-expanded', 'false'); b.classList.remove('on'); if (focus) b.focus({ preventScroll: true }); }
 }
+// 試作（proto/note-uitextview）: ダミーのノートを iOS 標準の入力欄（UITextView）で開く。アプリのノート・DB には読み書きしない。
+// 閉じたときに返ってきた文字を、今の決まり（note-lines.js の parseLine）で読み直して、行の種類が保たれているかを知らせる。
+const NOTE_PROTO = { title: '打ち合わせメモ', body: ['# 議題', '- 価格表の確認', '- 次回の日程', '  - 候補は来週', '## 準備すること', '- [ ] サンプルを用意', '- [x] 価格表を確認', '- [ ] 先方に聞くことを整理', 'ふつうの行。かな変換をここで試してください。', ''].join('\n'), last: null };
+async function openNoteProto() {
+  const src = NOTE_PROTO.last || NOTE_PROTO;
+  try {
+    const r = await call('openNoteProto', { title: src.title, body: src.body });
+    NOTE_PROTO.last = { title: r.title, body: r.body }; // 開き直したら続きから（この起動の間だけ。保存しない）
+    const kinds = richLines(r.body).reduce((m, v) => { m[v.kind] = (m[v.kind] || 0) + 1; return m; }, {});
+    try { window.__duoNoteProtoResult = { ...r, kinds }; } catch { /* */ }
+    notice(`試作を閉じました。${Array.from(r.body).length} 字（チェック ${kinds.check || 0}・箇条書き ${kinds.bullet || 0}・見出し ${(kinds.h1 || 0) + (kinds.h2 || 0)}）。アプリのノートには保存していません。`, null, 6000);
+  } catch { notice('試作を開けませんでした。', null, 3000); }
+}
+try { window.__duoNoteProto = openNoteProto; } catch { /* */ }
 function moreGo(k) {
   closeMore(false);
+  if (k === 'noteproto') { openNoteProto(); return; }
   const b = root.querySelector('.cmore');
   if (k === 'home') { set({ home: true, strip: null }); say('ホームを開きました。'); root.querySelector('.cback')?.focus({ preventScroll: true }); }
   else if (k === 'week') { set({ view: 'week', home: false, strip: null }); say('週の時間軸を開きました。'); root.querySelector('.cback')?.focus({ preventScroll: true }); }
