@@ -90,6 +90,7 @@ function loadUi() {
     holidayRed: s.holidayRed !== false, // 祝日を赤で表示（既定オン。boolean の false だけが切。日曜の赤は常に出す）
     dayHours: normDayHours(s.dayHours), // 第19.5版: 閉じた画面の「時間」に出す1日の範囲（時。既定 8〜22）。この端末の表示の設定（バックアップには入れない）
     dayHh: Number.isFinite(s.dayHh) ? Math.min(56, Math.max(14, s.dayHh)) : null, // 第19.5版: 閉じた画面の「時間」の1時間の高さ（14〜56。つまみを離した所）。無ければ dayGrip から（1＝14、2＝56）
+    pageSets: normPageSets(s.pageSets), // v19.6: 見開きの「配置」で保存した左右の組み合わせ（最大 4。表示の設定＝duo.ui.v1 だけ。DB・バックアップには入れない）
     monthPin: s.monthPin !== false, // 第19.5版: 閉じた画面で月を固定する（既定オン。固定＝月は上に残り、日の欄だけが送られる。解除＝月ごと下まで送れる）
     rokuyo: s.rokuyo !== false, // 六曜を表示（既定オン。boolean の false だけが切。未保存・破損・欠落はオン）
   };
@@ -149,14 +150,15 @@ async function applyNotifyPolicy() {
   } catch { notifyMem = next; }
 }
 const chipTime = (iso) => iso.slice(11).replace(/^0/, ''); // 月チップの時刻は先頭の0なし（3:00 / 10:00）
+function normPageSets(v) { const out = []; for (const x of Array.isArray(v) ? v : []) { if (x && PAGE_IDS.includes(x.left) && PAGE_IDS.includes(x.right) && x.left !== x.right && !out.some((o) => o.left === x.left && o.right === x.right)) out.push({ left: x.left, right: x.right }); if (out.length >= 4) break; } return out; }
 function saveUi() {
   // 閉じている間は 段・選んだ日・日の欄のつまみの段 だけが変わる（開いた画面の 表示・ホーム は前のまま戻す）。段は開いた縦の月の型と共有（design/34 §10）
   if (!closedSize()) { OPENUI.view = state.view; OPENUI.home = state.home; }
   const { view, home } = OPENUI, { selected, dayGrip } = state;
   // 閉じた横（34 §14）は段を使わない。横の間の保存には stage を書かず（S11e 指示10）、縦に戻ったとき・横のまま起動し直したときのために控え（stageHeld）だけを残す
   const stage = closedLand() ? undefined : state.stage, stageHeld = closedLand() ? state.stage : undefined;
-  const { style, desk, monthExpand, monthForm, monthDay, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView, spreadType, ttSplit, dayHours, dayHh, monthPin } = state;
-  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, monthForm, stage, stageHeld, dayGrip, monthDay, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTimeV: 11, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView, spreadType, ttSplit, dayHours, monthPin, ...(dayHh == null ? {} : { dayHh }) })); } catch { /* 保存不可でも動作は続ける */ }
+  const { style, desk, monthExpand, monthForm, monthDay, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView, spreadType, ttSplit, dayHours, dayHh, monthPin, pageSets } = state;
+  try { localStorage.setItem(UI_KEY, JSON.stringify({ selected, view, style, desk, home, monthExpand, monthForm, stage, stageHeld, dayGrip, monthDay, weekStart: ws, monthTimeClosed, monthTimeOpen, monthTimeV: 11, monthTextSize, rokuyo, holidayRed, pages, timeMode, lastSide, focusMode, taskView, spreadType, ttSplit, dayHours, pageSets, monthPin, ...(dayHh == null ? {} : { dayHh }) })); } catch { /* 保存不可でも動作は続ける */ }
 }
 // 左右（または縦の下パネル）のページを選ぶ。同じ種類が左右に並ぶ場合は交換。
 function setPage(side, id) { set({ pages: selectPage(state.pages, side, id) }); }
@@ -3260,11 +3262,36 @@ function renderPage(side, id) {
 }
 // 各ページの下の切替「月｜時間｜タスク｜メモ」（幅 240・高 46）。選んでいるページを押すと何も変えない。
 const PAGE_LABELS = { home: 'ホーム', month: '月', time: '時間', task: 'タスク', memo: 'ノート' };
+// 「配置」（設計 01: 入れ替え・組み合わせの保存）。日付連動の切り替えはまだ無い（左右はいつも同じ日を見る）
+function openPgCfg(anchor) {
+  closeChipMenu();
+  const p = PG(), cur = `${PAGE_LABELS[p.left]}｜${PAGE_LABELS[p.right]}`, sets = state.pageSets, has = sets.some((x) => x.left === p.left && x.right === p.right);
+  const m = document.createElement('div'); m.className = 'cmenu pgcfgm'; m.setAttribute('role', 'menu'); m.setAttribute('aria-label', '配置');
+  m.innerHTML = '<button type="button" role="menuitem" data-pc="swap">左右を入れ替える</button>'
+    + `<button type="button" role="menuitem" data-pc="save"${has || sets.length >= 4 ? ' disabled' : ''}>${has ? `「${esc(cur)}」は保存済み` : sets.length >= 4 ? '保存は 4 つまで' : `「${esc(cur)}」を保存`}</button>`
+    + sets.map((x, i) => `<div class="pcrow"><button type="button" role="menuitem" data-pc="use" data-i="${i}"${x.left === p.left && x.right === p.right ? ' aria-current="true"' : ''}>${PAGE_LABELS[x.left]}｜${PAGE_LABELS[x.right]}</button><button type="button" class="pcdel" data-pc="del" data-i="${i}" aria-label="${PAGE_LABELS[x.left]}｜${PAGE_LABELS[x.right]} を消す">×</button></div>`).join('');
+  const r = anchor.getBoundingClientRect(), W = 220;
+  m.style.width = `${W}px`; m.style.left = `${Math.round(Math.max(8, r.right - W))}px`; m.style.top = `${Math.round(r.bottom + 4)}px`;
+  m.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-pc]'); if (!b || b.disabled) return;
+    const k = b.dataset.pc, i = Number(b.dataset.i), now = PG();
+    closeChipMenu();
+    if (k === 'swap') { TLM.open = null; MM.open = null; set({ pages: { ...state.pages, left: now.right, right: now.left }, strip: null }); say(`左右を入れ替えました。左は${PAGE_LABELS[now.right]}、右は${PAGE_LABELS[now.left]}。`); }
+    else if (k === 'save') { set({ pageSets: normPageSets([...state.pageSets, { left: now.left, right: now.right }]) }); notice(`「${PAGE_LABELS[now.left]}｜${PAGE_LABELS[now.right]}」を保存しました`, null, 3000); }
+    else if (k === 'use' && state.pageSets[i]) { const x = state.pageSets[i]; TLM.open = null; MM.open = null; set({ pages: { ...state.pages, left: x.left, right: x.right }, strip: null }); say(`左は${PAGE_LABELS[x.left]}、右は${PAGE_LABELS[x.right]}にしました。`); }
+    else if (k === 'del') { set({ pageSets: state.pageSets.filter((_, j) => j !== i) }); requestAnimationFrame(() => { const a = root.querySelector('.pgcfg'); if (a) openPgCfg(a); }); }
+  });
+  m.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); closeChipMenu(); root.querySelector('.pgcfg')?.focus({ preventScroll: true }); } });
+  document.body.append(m); chipMenu = m;
+  document.addEventListener('pointerdown', chipMenuOutside, true);
+  m.querySelector('button')?.focus({ preventScroll: true });
+}
 const PGN = { open: '' }; // 開いている側（'left'・'right'・''）
 function pageSwitch(side) {
   if (ttOn()) return '';
   const sc = side === 'left' ? 'pgl' : 'pgr', on = PGN.open === side, cur = PG()[side];
-  const name = `<button type="button" class="pgname ${sc}" data-act="pgname" data-side="${side}" aria-haspopup="true" aria-expanded="${on}" aria-label="${side === 'left' ? '左' : '右'}ページ: ${PAGE_LABELS[cur]}。ページを切り替える"><span>${PAGE_LABELS[cur]}</span><i aria-hidden="true">▾</i></button>`;
+  const cfg = side === 'right' ? `<button type="button" class="pgcfg" data-act="pgcfg" aria-haspopup="true" aria-label="配置"><span>配置</span></button>` : '';
+  const name = cfg + `<button type="button" class="pgname ${sc}" data-act="pgname" data-side="${side}" aria-haspopup="true" aria-expanded="${on}" aria-label="${side === 'left' ? '左' : '右'}ページ: ${PAGE_LABELS[cur]}。ページを切り替える"><span>${PAGE_LABELS[cur]}</span><i aria-hidden="true">▾</i></button>`;
   if (!on) return name;
   return `${name}<div class="pgsw ${sc}" role="group" aria-label="${side === 'left' ? '左' : '右'}ページの種類">${PAGE_IDS.map((id, i) => `<button type="button" data-pick="${id}" data-side="${side}" aria-pressed="${id === cur}" aria-description="${PAGE_IDS.length}個中${i + 1}番目"><span class="pill">${PAGE_LABELS[id]}</span></button>`).join('')}</div>`;
 }
@@ -3968,6 +3995,7 @@ root.addEventListener('click', (ev) => {
   else if (d.mmday) { const sd = d.pane; MM.open = null; set({ selected: d.mmday, lastSide: sd }); root.querySelector(`[data-act="mini"][data-pane="${sd}"]`)?.focus({ preventScroll: true }); say(`${dayLabel(d.mmday)}を選びました。`); }
   else if (d.tlmode) { TLM.open = null; AGL[d.pane] = 60; set({ timeMode: { ...state.timeMode, [d.pane]: d.tlmode }, lastSide: d.pane }); root.querySelector('[data-act="tlmenu"]')?.focus({ preventScroll: true }); say(`時間の表示を${TIME_LABELS[d.tlmode]}にしました。`); }
   else if (d.pick) { PGN.open = ''; pickPage(d.side, d.pick); render(); }
+  else if (d.act === 'pgcfg') { PGN.open = ''; openPgCfg(b); }
   else if (d.act === 'pgname') { PGN.open = PGN.open === d.side ? '' : d.side; render(); requestAnimationFrame(() => root.querySelector(`.pgsw.${d.side === 'left' ? 'pgl' : 'pgr'} [aria-pressed=true]`)?.focus({ preventScroll: true })); }
   else if (d.tlday) set({ selected: d.tlday });
 });
