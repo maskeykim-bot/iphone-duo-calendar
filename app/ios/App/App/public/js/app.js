@@ -1493,7 +1493,9 @@ function dayTaskRows(k) {
 const noteCardById = (id) => { for (const [day, l] of NB.cards) { const c = l.find((x) => x.id === id); if (c) return { ...c, day }; } return null; };
 const taskSrcText = (r) => { if (!r.source) return ''; const c = noteCardById(r.source.noteId); return c ? `ノート「${c.title || EMPTY_TITLE}」から` : ''; };
 // 読み上げだけの操作（35 §6.8。VoiceOver のカスタムアクションの代わりに、カードのすぐ後ろへ隠したボタン 3 つ）
-const cardActs = (kind, id, k, rec = false) => `<span class="mdacts">${[['pick', rec ? 'この回の日付を移す' : '日付を移す'], ['prev', rec ? 'この回を1日前へ' : '1日前へ'], ['next', rec ? 'この回を1日後へ' : '1日後へ']].map(([h, l]) => `<button type="button" class="vh" data-act="cardmv" data-how="${h}" data-kind="${kind}" data-id="${esc(id)}" data-day="${k}">${l}</button>`).join('')}</span>`;
+// v19.6（征希さん「カードの移動はボタンとドラッグの両方」・設計 02「別日に移動｜日付選択 → プレビュー → 確定」）: カードの右に見えるボタン（44×44）。押すと「別日に移動」のシート
+const MV_SVG = '<svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="15" height="13.5" rx="3"/><path d="M3.5 9h15M7.5 3v3.5M14.5 3v3.5"/><path d="M7.5 13.8h6.5m-2.3-2.3 2.3 2.3-2.3 2.3"/></svg>';
+const cardActs = (kind, id, k, rec = false) => `<span class="mdacts">${[['pick', rec ? 'この回の日付を移す' : '日付を移す'], ['prev', rec ? 'この回を1日前へ' : '1日前へ'], ['next', rec ? 'この回を1日後へ' : '1日後へ']].map(([h, l]) => `<button type="button" class="vh" data-act="cardmv" data-how="${h}" data-kind="${kind}" data-id="${esc(id)}" data-day="${k}">${l}</button>`).join('')}</span><span class="mdmvw"><button type="button" class="mdmv" data-act="cardmv" data-how="sheet" data-kind="${kind}" data-id="${esc(id)}" data-day="${k}" aria-haspopup="dialog" aria-label="${rec ? 'この回を別日に移動' : '別日に移動'}">${MV_SVG}</button></span>`;
 // v19.6（征希さん「タスクとノートも色を選べるようにする」）: カードの色。保存するのはフリックの色の id（colorId）だけで、薄い地・線の色は表示のときに作る
 const ccCls = (cid) => (isFlickId(cid) ? ' cc' : '');
 const ccSty = (cid) => (isFlickId(cid) ? ` style="${setVars(flickSet(cid, MODE))}"` : '');
@@ -2155,7 +2157,7 @@ function closeMore(focus = true) {
 // 保存の形は今までどおり（1 行目＝題名、行頭の記号つきの文字列）。文字は今までの編集画面（notes-ui）の replaceBody へ流し、保存・下書き・タスクとのつながりは今までの仕組みがそのまま働く。
 // 改行が CRLF のノート（取り込んだ物など）は、形を変えないよう今までの編集画面のまま書く（そのノートだけ、操作の行も出す）。ブラウザは今までどおり。
 const NNE = { on: false, id: null };
-const nativeNoteOk = () => NATIVE; // 征希さん「いままでの操作の行は全て無くして大丈夫そう」: 開いた画面でも、題名・本文に触れたら標準の入力欄（全画面）で書く
+const nativeNoteOk = () => NATIVE && !window.__duoWebNote; // __duoWebNote＝試験用（ネイティブでも今までの編集画面で書く口。CRLF のノートが通る道＝集中ノートとキーボードの決まりを試すため） // 征希さん「いままでの操作の行は全て無くして大丈夫そう」: 開いた画面でも、題名・本文に触れたら標準の入力欄（全画面）で書く
 async function openNativeNote(which) {
   const ed = NB.ed, id = ed?.id; if (!ed || !id || NNE.on) return;
   const e = noteStore.get(id); if (!e?.loaded || /\r/.test(e.text)) return;
@@ -2171,7 +2173,7 @@ async function openNativeNote(which) {
   finally { NNE.on = false; NNE.id = null; invalidateNoteList?.(); render(); }
 }
 if (NATIVE) {
-  document.documentElement.classList.add('nne'); // ネイティブでは、今までの編集画面の操作の行（戻す・書式・完了）は出さない（標準の入力欄の側にある）
+  if (!window.__duoWebNote) document.documentElement.classList.add('nne'); // ネイティブでは、今までの編集画面の操作の行（戻す・書式・完了）は出さない（標準の入力欄の側にある）
   listen('noteEditorChange', (d) => { if (!NNE.on || NB.ed?.id !== NNE.id) return; const sp = splitBody(noteStore.get(NNE.id)?.text ?? ''); NB.ed.replaceBody(joinBody({ title: String(d?.title ?? '').replace(/[\r\n]/g, ' '), rest: String(d?.body ?? ''), nl: sp.nl || String(d?.body ?? '') !== '', eol: '\n', crlf: false })); });
   listen('noteEditorCheck', (d) => { // チェックの四角: 並べ替え（済みは同じまとまりの下へ）は今までの決まり（note-lines の toggleCheck）で計算して返す
     if (!NNE.on) return;
@@ -3717,7 +3719,7 @@ function sheetDateRow() {
     const row = document.createElement('div'); row.className = 'nsdate';
     const cap = document.createElement('button'); cap.type = 'button'; cap.className = 'dcap nsdcap'; cap.setAttribute('aria-haspopup', 'true'); cap.setAttribute('aria-expanded', 'false');
     // v19.6: 日付の右に「色」（カードの色。押すと色の帯）
-    const cc = document.createElement('button'); cc.type = 'button'; cc.className = 'dcap nsdcap ccbtn nscc'; cc.dataset.act = 'ncolor'; cc.setAttribute('aria-haspopup', 'true'); cc.setAttribute('aria-label', 'カードの色を選ぶ');
+    const cc = document.createElement('button'); cc.type = 'button'; cc.className = 'ccbtn nscc'; /* 寸法は日付のカプセルと同じ。クラスは分ける（.nsdcap は日付だけ） */ cc.dataset.act = 'ncolor'; cc.setAttribute('aria-haspopup', 'true'); cc.setAttribute('aria-label', 'カードの色を選ぶ');
     cc.innerHTML = '<i class="ccdot ccnone" aria-hidden="true"></i><span class="ccname">色なし</span>';
     row.append(cap, cc); SHEET_DATE.row = row; SHEET_DATE.cap = cap; SHEET_DATE.cc = cc;
     SHEET_EL.prepend(row);
@@ -3908,7 +3910,7 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'cardnote') openCardNote(d.note, d.sday, b);
   else if (d.act === 'addnote') openCardNote(null, d.day, b);
   else if (d.act === 'addtask') openNewTask(d.day, b);
-  else if (d.act === 'cardmv') { if (d.how === 'pick') openCardDate(d.kind, d.id, d.day, b); else cardMoveById(d.kind, d.id, d.day, addDays(d.day, d.how === 'prev' ? -1 : 1)); }
+  else if (d.act === 'cardmv') { if (d.how === 'sheet') openCardMove(d.kind, d.id, d.day, b); else if (d.how === 'pick') openCardDate(d.kind, d.id, d.day, b); else cardMoveById(d.kind, d.id, d.day, addDays(d.day, d.how === 'prev' ? -1 : 1)); }
   else if (d.act === 'dayunfold') dayUnfold();
   else if (d.dg === 'card' || d.dg === 'time') dayTab(d.dg);
   else if (d.mday) { set({ monthDay: d.mday }); root.querySelector(`[data-mday="${d.mday}"]`)?.focus({ preventScroll: true }); }
@@ -7533,6 +7535,52 @@ function openCardDate(ck, id, day, from) {
   el.querySelector('.cmvx').addEventListener('click', () => closeCardDate(from));
   el.addEventListener('pointerdown', (ev) => { if (ev.target === el) closeCardDate(from); });
   document.addEventListener('keydown', cardDateKey, true);
+}
+// ---- v19.6「別日に移動」のシート: 日付を選ぶ → 移動前と移動先・時刻・重なりを見せる → 「移動する」で確定（落としたときと同じ扱い＝同じ札・読み上げ・元に戻す）
+const durText = (min) => (min >= 60 ? `${Math.floor(min / 60)}時間${min % 60 ? `${min % 60}分` : ''}` : `${min}分`);
+function cardMoveFacts(ck, g, day) {
+  if (ck === 'task') { const t = g.task.due?.time; return { when: t ? `${t0(t)} まで` : '時刻なし', keep: t ? `時刻（${t0(t)}）はそのまま` : '' }; }
+  if (ck === 'note') { const n = (RM.data?.reminders || []).filter((x) => x.source?.noteId === g.note.id && x.due?.date === day).length; return { when: '', keep: n ? `つながったタスク ${n} 件も一緒に移します` : '' }; }
+  const o = g.ext || g.cur.occ;
+  if (o.all) { const n = dayDiffKeys(dayOf(o.end), dayOf(o.start)) + 1; return { when: n > 1 ? `終日（${n}日間）` : '終日', keep: n > 1 ? `${n}日間のまま移します` : '', o }; }
+  const multi = dayOf(o.start) !== dayOf(o.end), min = Math.round((new Date(o.end) - new Date(o.start)) / 60000), tm = `${t0(o.start.slice(11, 16))}〜${multi ? `${dayText(dayOf(o.end))} ` : ''}${t0(o.end.slice(11, 16))}`;
+  return { when: `${tm}（${durText(min)}）`, keep: `時刻（${t0(o.start.slice(11, 16))}〜）と長さ（${durText(min)}）はそのまま`, o, timed: !multi };
+}
+// 移動先の日で、同じ時間に重なる予定（自分は除く）
+function cardMoveClash(g, f, day, to) {
+  if (!f.o || !f.timed) return [];
+  const n = dayDiffKeys(to, dayOf(f.o.start)), a = `${addDays(dayOf(f.o.start), n)}${f.o.start.slice(10)}`, b = `${addDays(dayOf(f.o.end), n)}${f.o.end.slice(10)}`, self = g.ext ? g.ext.id : g.cur.p.id;
+  return eventsOnDay(occIn(to, to), to).filter((e) => !e.all && e.id !== self && !(g.cur?.occKey && String(e.id).startsWith(g.cur.p.id)) && e.start < b && e.end > a);
+}
+let cardMoveEl = null;
+function closeCardMove(focus = null) { if (!cardMoveEl) return; const el = cardMoveEl; cardMoveEl = null; el.remove(); document.removeEventListener('keydown', cardMoveKey, true); focus?.focus?.({ preventScroll: true }); }
+function cardMoveKey(ev) { if (ev.key === 'Escape' && cardMoveEl && !ev.target.closest?.('.dpop')) { ev.preventDefault(); ev.stopPropagation(); closeCardMove(cardMoveEl._from); } }
+function openCardMove(ck, id, day, from) {
+  closeCardMove(); closeCardDate();
+  const g = grabInfoOf(ck, id); if (!g) return;
+  if (g.ext) { const cal = X.calendars.find((c) => c.id === g.ext.calId), pre = preReason(cal); if (pre) { grabRefuse(REASON_TEXT[pre]); return; } } // 移せない予定は、理由を知らせて開かない
+  const f = cardMoveFacts(ck, g, day), st = { to: '' };
+  const el = document.createElement('div'); el.className = 'cmv cmv2'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', `${g.title}を別日に移動`); el._from = from;
+  el.innerHTML = `<div class="cmvin"><h3 tabindex="-1">別日に移動</h3>`
+    + `<dl class="cmvpv"><div><dt>${ck === 'task' ? 'タスク' : ck === 'note' ? 'ノート' : '予定'}</dt><dd><span class="cmvt">${esc(g.title)}</span><small>${esc(dayLabel(day))}${f.when ? `　${esc(f.when)}` : ''}${g.rec ? '　この回だけ' : ''}</small></dd></div><div class="cmvto"><dt>移動先</dt><dd><button type="button" class="dcap" aria-haspopup="true" aria-expanded="false"></button></dd></div></dl>`
+    + '<div class="cmvnote" aria-live="polite"></div><button type="button" class="cmvgo" disabled>移動する</button><button type="button" class="cmvx">やめる</button></div>';
+  document.body.append(el); cardMoveEl = el;
+  const cap = el.querySelector('.dcap'), go = el.querySelector('.cmvgo'), note = el.querySelector('.cmvnote');
+  const paint = () => {
+    go.disabled = !st.to;
+    if (!st.to) { note.innerHTML = st.same ? '<p class="cmvw">いまと同じ日です。別の日を選んでください。</p>' : ''; return; }
+    const clash = cardMoveClash(g, f, day, st.to), lines = [];
+    if (g.rec) lines.push('<p>繰り返しの予定です。この回だけ移します。</p>');
+    if (f.keep) lines.push(`<p>${esc(f.keep)}</p>`);
+    if (clash.length) lines.push(`<p class="cmvw">この時間に「${esc(clash[0].title || '（題名なし）')}」${clash.length > 1 ? `ほか ${clash.length - 1} 件` : ''}があります（重なります）。</p>`);
+    note.innerHTML = lines.join('');
+  };
+  const ui = createDateField(cap, { after: el.querySelector('.cmvpv'), scope: el, label: '移動先の日付', empty: '日付を選ぶ', holiday: holidayMemo, get: () => st.to, set: (k) => { st.same = k === day; st.to = st.same ? '' : k; paint(); if (st.to) go.focus({ preventScroll: true }); } });
+  ui.render(); paint(); cap.focus({ preventScroll: true }); cap.click(); // 小さな月を開いた形で出す（「今日」「明日」の札つき）
+  go.addEventListener('click', () => { const to = st.to; if (!to) return; closeCardMove(); cardMoveById(ck, id, day, to); });
+  el.querySelector('.cmvx').addEventListener('click', () => closeCardMove(from));
+  el.addEventListener('pointerdown', (ev) => { if (ev.target === el) closeCardMove(from); });
+  document.addEventListener('keydown', cardMoveKey, true);
 }
 async function undoMove() {
   const rec = MV.rec; if (!rec) return;

@@ -2741,7 +2741,7 @@ html.nne.nne-crlf .ned-top{display:flex}
 .mpull.browse .mday .tl[data-fs].fsprop .hl{display:block;border-top:.5px solid var(--line2)}
 .mpull.browse .mday .tl[data-fs] .tlev.fsev{height:max(var(--fsmin,44px),calc(var(--d) * var(--hh) / 60 - 2px));min-height:var(--fsmin,44px)}
 .mpull.browse .mday .tl[data-fs] .fsev .ftr{display:none}
-.mpull.browse .mday .tl[data-fs].fsprop .tlev.fsev{border-radius:6px;background:var(--cat-tint);box-shadow:inset 3px 0 0 var(--cat-mark)}
+.mpull.browse .mday .tl[data-fs].fsprop .tlev.fsev{border-radius:4px;background:var(--cat-tint);box-shadow:inset 3px 0 0 var(--cat-mark)}
 .mpull.browse .mday .tl[data-fs].fsprop .fsev :is(.ft1,.ft2,.fln,.fmemo){display:none}
 .mpull.browse .mday .tl[data-fs].fsprop .fsev .tn{left:11px;right:8px;top:2px;font:600 13px/16px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink)}
 .mpull.browse .mday .tl[data-fs].fsprop .fsev .ftr{display:block;position:absolute;left:11px;right:8px;top:19px;font:400 11px/14px -apple-system,'Hiragino Sans',sans-serif;color:var(--ink);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis}
@@ -2776,4 +2776,31 @@ html.nne.nne-crlf .ned-top{display:flex}
 
 /* v19.6: ノートのシートの日付の行の「色」 */
 .nsheet .nsdate{gap:8px}
-.nsheet .nscc{display:inline-flex;align-items:center}
+.nsheet .nscc{position:relative;flex:none;display:inline-flex;align-items:center;width:auto;min-width:0;height:32px;min-height:32px;padding:0 8px;border:0;border-radius:8px;background:var(--capsule);font:400 14px/32px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink)}
+.nsheet .nscc::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+
+/* v19.6「別日に移動」: カードの右のボタン（44×44。カードは button なので、すぐ後ろの高さ 0 の枠から重ねる）。題名・メモはボタンの手前で切る */
+.mdmvw{display:none}
+.mpull.browse .mday .mdmvw{display:block;position:relative;height:0}
+.mpull.browse .mday .mdmv{position:absolute;right:4px;top:-58px;display:grid;place-items:center;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border:0;border-radius:12px;background:transparent;color:var(--ink2);opacity:.72}
+.mpull.browse .mday .mdmv:active{background:rgba(28,31,29,.08);opacity:1}
+.mpull.browse .mday .mdcard strong,.mpull.browse .mday .mdcard small{right:52px}
+.mpull.browse .mday .mdcard:is(.lifted,.grabbed)+.mdacts+.mdmvw{visibility:hidden}
+/* シート */
+.cmv2 .cmvt{display:block;padding-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cmv2 .cmvpv{margin:0;border-radius:14px;background:var(--capsule)}
+.cmv2 .cmvpv>div{display:flex;align-items:center;min-height:48px;padding:0 12px}
+.cmv2 .cmvpv>div+div{box-shadow:inset 0 1px 0 var(--line)}
+.cmv2 .cmvpv dt{flex:none;width:64px;font:400 13px/18px -apple-system,'Hiragino Sans',sans-serif;color:var(--muted)}
+.cmv2 .cmvpv dd{flex:1;min-width:0;margin:0;font:400 15px/22px -apple-system,'Hiragino Sans',sans-serif;color:var(--ink2)}
+.cmv2 .cmvpv dd small{display:block;font-size:12px;line-height:16px;color:var(--muted);padding-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cmv2 .cmvpv .dcap{width:auto;min-width:130px;background:var(--card)}
+.cmv2 .cmvpv .dcap.open{background:#294E42;color:#fff}
+/* 小さな月が開いている間は「移動する」と説明を畳む（閉じた画面の高さに収める） */
+.cmv2:has(.dpop:not([hidden])) :is(.cmvgo,.cmvnote){display:none}
+.cmv2 .cmvnote{min-height:8px;padding:8px 4px 0}
+.cmv2 .cmvnote p{margin:0 0 4px;font:400 13px/20px -apple-system,'Hiragino Sans',sans-serif;color:var(--ink)}
+.cmv2 .cmvnote .cmvw{color:#B43C3C}
+.cmv2 .cmvgo{display:block;width:100%;height:48px;margin-top:8px;border:0;border-radius:14px;background:#294E42;font:600 16px/48px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:#fff}
+.cmv2 .cmvgo:disabled{background:var(--capsule);color:var(--muted)}
+.cmv2 .cmvx{margin-top:8px;background:transparent}

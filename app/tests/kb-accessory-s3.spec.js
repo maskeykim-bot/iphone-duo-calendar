@@ -8,6 +8,8 @@ import { T, seedTasks } from './task-helpers.js';
 const withMode = (page, mode) => page.addInitScript(([k, m]) => { const s = JSON.parse(localStorage.getItem(k) || '{}'); localStorage.setItem(k, JSON.stringify({ ...s, focusMode: m })); }, ['duo.ui.v1', mode]);
 async function fakeEnv(page, { keyboard = 'plugin' } = {}) {
   await page.addInitScript((kbMode) => {
+    // v19.6（征希さん「開いた画面でも標準の入力欄で書く」）で仕様変更: ネイティブでは題名・本文に触れると iOS 標準の入力欄が開く。この試験が見ているのは今までの編集画面（改行が CRLF のノートは今もこちらで書く）とキーボードの決まりなので、今までの編集画面で書く口を使う
+    window.__duoWebNote = true;
     const vv = new EventTarget(); vv.height = window.innerHeight; vv.offsetTop = 0; vv.scale = 1; vv.width = window.innerWidth;
     Object.defineProperty(window, 'visualViewport', { value: vv, configurable: true });
     const M = window.__mock = { listeners: {}, kb: [], posture: { available: true, folded: false, regionRect: null, axis: null, angle: null, status: 'fullyOpen', source: 'reservedRegions', at: 1 } };

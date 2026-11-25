@@ -395,7 +395,8 @@ test('35 §9 K-7 長い題名（100 字・絵文字・改行）: 1 行で、右 
   await P3.boot(page, { events: [P3.ev('x1', long, `${D12}T09:00`, `${D12}T10:00`)], tasks: [mkTask('t0', long, { date: D12 })], notes: [mkNote('n0', `${long}つづき\n2行目`, D12)] });
   for (const sel of [cardSel('event', 'x1'), cardSel('task', 't0'), cardSel('note', 'n0')]) {
     const r = await r3(page, sel), t = await r3(page, `${sel} strong`);
-    expect(near(r.h, 56)).toBe(true); expect(near(t.h, 20)).toBe(true); expect(near(r.r - t.r, 12)).toBe(true);
+    // v19.6（征希さん「カードの移動はボタンとドラッグの両方」）で仕様変更: カードの右に「別日に移動」のボタン 44 が入ったので、題名は右 52 の手前で切る（今までは右 12）
+    expect(near(r.h, 56)).toBe(true); expect(near(t.h, 20)).toBe(true); expect(near(r.r - t.r, 52)).toBe(true);
     expect(await c3(page, `${sel} strong`, 'textOverflow')).toBe('ellipsis'); expect(await c3(page, `${sel} strong`, 'whiteSpace')).toBe('nowrap');
     expect(await page.locator(`${sel} strong`).evaluate((e) => e.scrollWidth > e.clientWidth)).toBe(true);
   }
