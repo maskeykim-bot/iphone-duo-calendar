@@ -28,6 +28,8 @@
     <div class="fbody">
       <p id="ext-gone" class="gonebar" hidden>この予定は見つかりません。カレンダーで確認してください。</p>
       <input id="f-title" class="erow etitle" name="title" maxlength="80" placeholder="タイトル" aria-label="予定名" enterkeyhint="next" required>
+      <!-- v19.6（征希さん「予定ノート」の入口の改善 C）: 予定名のすぐ下（スクロールしなくても見える） -->
+      <button type="button" id="evnote" class="erow evnote" data-act="evnote" hidden><span>予定ノート</span><small></small><i aria-hidden="true">›</i></button>
       <div id="dest-l" class="destrow erow">
         <button type="button" id="f-dest" class="destbtn" aria-haspopup="true" aria-expanded="false" aria-controls="dest-pop"><span class="dlbl">カレンダー</span><span class="dval"><i id="dest-dot" class="cdot big" aria-hidden="true"></i><span id="dest-name"></span><span aria-hidden="true">›</span></span></button>
       </div>
@@ -94,7 +96,6 @@
         <button type="button" id="xlinked-open" class="ghost">カレンダーで開く</button>
       </div>
       <div class="ebottom">
-        <button type="button" id="evnote" class="erow evnote" data-act="evnote" hidden><span>予定ノート</span><small></small><i aria-hidden="true">›</i></button>
         <button type="button" id="delete" class="danger erow">予定を削除</button>
         <div id="copyrow" class="copyrow erow" hidden><button type="button" id="copy">コピー</button></div>
       </div>
@@ -225,12 +226,12 @@
 </dialog>
 <dialog id="xdetail" class="panel" aria-labelledby="xd-title">
   <div class="phead"><h2 id="xd-title">iPhoneの予定</h2><button type="button" id="xd-close" class="xclose" aria-label="閉じる"><svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l12 12M17 5L5 17"/></svg></button></div>
+  <button type="button" class="wide evnote" id="xd-evnote" data-act="evnote" hidden><span>予定ノート</span><i aria-hidden="true">›</i></button><!-- v19.6: 見出しのすぐ下 -->
   <div id="xd-body" class="pbody"></div>
   <div class="pfoot">
     <p id="xd-err" class="error" role="alert"></p>
     <p id="xd-note" class="small" role="note"></p>
     <div id="xd-act" class="xdact" hidden><button type="button" id="xd-del" class="danger">削除</button><button type="button" id="xd-edit" class="primary">編集</button></div>
-    <button type="button" class="wide evnote" id="xd-evnote" data-act="evnote" hidden><span>予定ノート</span><i aria-hidden="true">›</i></button>
     <button type="button" class="primary wide" id="xd-open">カレンダーで開く</button>
     <div id="xd-copyrow" class="copyrow" hidden><button type="button" id="xd-copy">コピー</button></div>
   </div>

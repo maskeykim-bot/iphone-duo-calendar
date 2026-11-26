@@ -396,7 +396,8 @@ test('35 §9 K-7 長い題名（100 字・絵文字・改行）: 1 行で、右 
   for (const sel of [cardSel('event', 'x1'), cardSel('task', 't0'), cardSel('note', 'n0')]) {
     const r = await r3(page, sel), t = await r3(page, `${sel} strong`);
     // v19.6（征希さん「カードの移動はボタンとドラッグの両方」）で仕様変更: カードの右に「別日に移動」のボタン 44 が入ったので、題名は右 52 の手前で切る（今までは右 12）
-    expect(near(r.h, 56)).toBe(true); expect(near(t.h, 20)).toBe(true); expect(near(r.r - t.r, 52)).toBe(true);
+    // v19.6（征希さん「予定ノート」の入口 A「3つとも作る」）で仕様変更: 予定のカードは「別日に移動」の左に「予定ノート」のボタン 44 も入ったので、予定の題名は右 100 の手前で切る（タスク・ノートは右 52 のまま）
+    expect(near(r.h, 56)).toBe(true); expect(near(t.h, 20)).toBe(true); expect(near(r.r - t.r, sel.includes('event') ? 100 : 52)).toBe(true);
     expect(await c3(page, `${sel} strong`, 'textOverflow')).toBe('ellipsis'); expect(await c3(page, `${sel} strong`, 'whiteSpace')).toBe('nowrap');
     expect(await page.locator(`${sel} strong`).evaluate((e) => e.scrollWidth > e.clientWidth)).toBe(true);
   }

@@ -1505,7 +1505,13 @@ const taskSrcText = (r) => { if (!r.source) return ''; const c = noteCardById(r.
 // 読み上げだけの操作（35 §6.8。VoiceOver のカスタムアクションの代わりに、カードのすぐ後ろへ隠したボタン 3 つ）
 // v19.6（征希さん「カードの移動はボタンとドラッグの両方」・設計 02「別日に移動｜日付選択 → プレビュー → 確定」）: カードの右に見えるボタン（44×44）。押すと「別日に移動」のシート
 const MV_SVG = '<svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="15" height="13.5" rx="3"/><path d="M3.5 9h15M7.5 3v3.5M14.5 3v3.5"/><path d="M7.5 13.8h6.5m-2.3-2.3 2.3 2.3-2.3 2.3"/></svg>';
-const cardActs = (kind, id, k, rec = false) => `<span class="mdacts">${[['pick', rec ? 'この回の日付を移す' : '日付を移す'], ['prev', rec ? 'この回を1日前へ' : '1日前へ'], ['next', rec ? 'この回を1日後へ' : '1日後へ']].map(([h, l]) => `<button type="button" class="vh" data-act="cardmv" data-how="${h}" data-kind="${kind}" data-id="${esc(id)}" data-day="${k}">${l}</button>`).join('')}</span><span class="mdmvw"><button type="button" class="mdmv" data-act="cardmv" data-how="sheet" data-kind="${kind}" data-id="${esc(id)}" data-day="${k}" aria-haspopup="dialog" aria-label="${rec ? 'この回を別日に移動' : '別日に移動'}">${MV_SVG}</button></span>`;
+// v19.6（征希さん「予定ノート」の入口の改善 A）: 予定のカードの右に「予定ノート」（44×44。「別日に移動」の左）。書いたものがある予定は印（点）つき
+const NB_SVG = '<svg viewBox="0 0 22 22" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h7l3.5 3.5v11.5H6z"/><path d="M13 3.5V7h3.5M8.8 11h5M8.8 14.5h5"/></svg>';
+function cardNoteBtn(id) {
+  let ref = null, has = false; try { ref = evRefOf(id); has = !!ref && EVREF.byKey.has(ref.k); } catch { return ''; } if (!ref) return ''; // 起動の途中（表がまだ無い）なら出さない
+  return `<button type="button" class="mdnb${has ? ' has' : ''}" data-act="cardevnote" data-id="${esc(id)}" aria-label="予定ノート${has ? '（書いたものがあります）' : ''}">${NB_SVG}${has ? '<i class="mdnbdot" aria-hidden="true"></i>' : ''}</button>`;
+}
+const cardActs = (kind, id, k, rec = false) => `<span class="mdacts">${[['pick', rec ? 'この回の日付を移す' : '日付を移す'], ['prev', rec ? 'この回を1日前へ' : '1日前へ'], ['next', rec ? 'この回を1日後へ' : '1日後へ']].map(([h, l]) => `<button type="button" class="vh" data-act="cardmv" data-how="${h}" data-kind="${kind}" data-id="${esc(id)}" data-day="${k}">${l}</button>`).join('')}</span><span class="mdmvw"><button type="button" class="mdmv" data-act="cardmv" data-how="sheet" data-kind="${kind}" data-id="${esc(id)}" data-day="${k}" aria-haspopup="dialog" aria-label="${rec ? 'この回を別日に移動' : '別日に移動'}">${MV_SVG}</button>${kind === 'event' ? cardNoteBtn(id) : ''}</span>`;
 // v19.6（征希さん「タスクとノートも色を選べるようにする」）: カードの色。保存するのはフリックの色の id（colorId）だけで、薄い地・線の色は表示のときに作る
 const ccCls = (cid) => (isFlickId(cid) ? ' cc' : '');
 const ccSty = (cid) => (isFlickId(cid) ? ` style="${setVars(flickSet(cid, MODE))}"` : '');
@@ -2560,10 +2566,19 @@ function noteEditor() {
   });
   return NB.ed;
 }
+// v19.6（征希さん「予定ノート」の入口の改善 B）: 見開きのノートのページの一覧の上に、選んでいる日の予定を札で並べる。押すとその予定ノート（左の小さい予定に触らなくてよい）
+function noteEvRowHtml(where) {
+  if (where !== 'left' && where !== 'right' || NB.day) return '';
+  const k = state.selected;
+  let evs = []; try { evs = eventsOnDay(occIn(k, k), k).slice().sort((a, b) => (a.all === b.all ? String(a.start).localeCompare(String(b.start)) : a.all ? -1 : 1)); } catch { return ''; }
+  const chips = evs.map((e) => { let ref = null; try { ref = evRefOf(e.id); } catch { ref = null; } if (!ref) return ''; const has = EVREF.byKey.has(ref.k); return `<button type="button" class="nevc${has ? ' has' : ''}" role="listitem" data-act="pgevnote" data-id="${esc(e.id)}" style="${catVar(e)}" aria-label="${esc(e.title || '（題名なし）')}の予定ノート${has ? '（書いたものがあります）' : ''}"><i class="nevln" aria-hidden="true"></i><small>${e.all ? '終日' : t0(e.start.slice(11, 16))}</small><span>${esc(e.title || '（題名なし）')}</span>${has ? '<i class="nevdot" aria-hidden="true"></i>' : ''}</button>`; }).join('');
+  if (!chips) return '';
+  return `<div class="nevs"><p class="nevh">${esc(dayLabel(k))}の予定ノート</p><div class="nevl" role="list">${chips}</div></div>`;
+}
 function noteBody(where) {
   if (NB.blocked) return '<div class="memopage padb"><p class="smsg" role="alert">ノートを準備できませんでした。アプリを閉じて、もう一度開いてください。（予定と元のメモは変わっていません）</p></div>';
   if (NB.cur) return noteOthers(where) + `<div class="ntools mtools"><button type="button" class="mback" data-act="noteback" aria-label="ノートの一覧に戻る">一覧</button>${evNoteBtn(NB.cur)}<button type="button" class="mback" data-act="notenew" aria-label="新しいノート">＋ 新規</button></div><div class="memopage notepage padb" data-note-wrap="${where}"><div class="nmeta" data-nmeta="${where}"></div><div class="nhost" data-nhost="${where}"></div></div><div data-nmenu="${where}"></div>`;
-  return `<div class="ntools mtools"><span class="ntitle">ノート</span><button type="button" class="mback" data-act="notenew" aria-label="新しいノート">＋ 新規</button></div><div class="memopage mlist padb" data-mlist-wrap="${where}">${NB.day ? `<div class="nday"><span>${esc(dayLabel(NB.day))}のノート</span><button type="button" data-act="ndayplus" aria-label="この日のノートを開く・作る">＋</button><button type="button" data-act="ndayclear" aria-label="日の絞りを外す">✕</button></div>` : ''}<div class="mlsb"><input type="search" class="mlq" data-mlq="${where}" placeholder="ノートを検索" aria-label="ノートを検索" value="${esc(NB.q[where])}" autocomplete="off" spellcheck="false"></div><div class="nchips" data-nchips="${where}" role="toolbar" aria-label="フォルダ">${noteChipsHtml()}</div><div class="mlrows" data-mlist="${where}">${noteRowsHtml(where)}</div><div data-nmenu="${where}">${noteMenuHtml()}</div></div>`;
+  return `<div class="ntools mtools"><span class="ntitle">ノート</span><button type="button" class="mback" data-act="notenew" aria-label="新しいノート">＋ 新規</button></div><div class="memopage mlist padb" data-mlist-wrap="${where}">${NB.day ? `<div class="nday"><span>${esc(dayLabel(NB.day))}のノート</span><button type="button" data-act="ndayplus" aria-label="この日のノートを開く・作る">＋</button><button type="button" data-act="ndayclear" aria-label="日の絞りを外す">✕</button></div>` : ''}${noteEvRowHtml(where)}<div class="mlsb"><input type="search" class="mlq" data-mlq="${where}" placeholder="ノートを検索" aria-label="ノートを検索" value="${esc(NB.q[where])}" autocomplete="off" spellcheck="false"></div><div class="nchips" data-nchips="${where}" role="toolbar" aria-label="フォルダ">${noteChipsHtml()}</div><div class="mlrows" data-mlist="${where}">${noteRowsHtml(where)}</div><div data-nmenu="${where}">${noteMenuHtml()}</div></div>`;
 }
 const noteDayText = (ms) => { const d = new Date(ms), t = new Date(); return `${d.getFullYear() === t.getFullYear() ? '' : `${d.getFullYear()}/`}${d.getMonth() + 1}/${d.getDate()}`; };
 // 一覧は固定の行高で仮想表示する（40000件でも描くのは見える範囲＋前後だけ）。件数の行・見出し・ノート行を縦に並べた平らな表を持つ。
@@ -4057,6 +4072,8 @@ root.addEventListener('click', (ev) => {
   else if (d.act === 'cardnote') openCardNote(d.note, d.sday, b);
   else if (d.act === 'addnote') openCardNote(null, d.day, b);
   else if (d.act === 'addtask') openNewTask(d.day, b);
+  else if (d.act === 'cardevnote') openEventNote(d.id);
+  else if (d.act === 'pgevnote') openEventNote(d.id, b.closest('.page.lp') ? 'left' : b.closest('.page.rp') ? 'right' : null);
   else if (d.act === 'cardmv') { if (d.how === 'sheet') openCardMove(d.kind, d.id, d.day, b); else if (d.how === 'pick') openCardDate(d.kind, d.id, d.day, b); else cardMoveById(d.kind, d.id, d.day, addDays(d.day, d.how === 'prev' ? -1 : 1)); }
   else if (d.act === 'dayunfold') dayUnfold();
   else if (d.dg === 'card' || d.dg === 'time') dayTab(d.dg);

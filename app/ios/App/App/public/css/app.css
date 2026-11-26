@@ -2786,6 +2786,13 @@ html.nne.nne-crlf .ned-top{display:flex}
 .mpull.browse .mday .mdmv:active{background:rgba(28,31,29,.08);opacity:1}
 .mpull.browse .mday .mdcard strong,.mpull.browse .mday .mdcard small{right:52px}
 .mpull.browse .mday .mdcard:is(.lifted,.grabbed)+.mdacts+.mdmvw{visibility:hidden}
+.mpull.browse .mday .mdnb{position:absolute;right:52px;top:-58px;display:grid;place-items:center;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border:0;border-radius:12px;background:transparent;color:var(--ink2);opacity:.72}
+.mpull.browse .mday .mdnb.has{opacity:1;color:var(--green)}
+.mpull.browse .mday .mdnb:active{background:rgba(28,31,29,.08);opacity:1}
+.mpull.browse .mday .mdnbdot{position:absolute;right:9px;top:9px;width:7px;height:7px;border-radius:4px;background:var(--green)}
+.mpull.browse .mday .mdk-event strong,.mpull.browse .mday .mdk-event small{right:100px} /* 予定のカードは右にボタンが 2 つ */
+.shell.land .mpull.browse .mday .mdnb{display:none} /* 閉じた横はカードが狭い（幅 188）ので出さない（真ん中の長押しがボタンに当たる・題名が入らない）。予定のシートの「予定ノート」から開く */
+.shell.land .mpull.browse .mday .mdk-event strong,.shell.land .mpull.browse .mday .mdk-event small{right:52px}
 /* シート */
 .cmv2 .cmvt{display:block;padding-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cmv2 .cmvpv{margin:0;border-radius:14px;background:var(--capsule)}
@@ -2834,10 +2841,10 @@ html.nne.nne-crlf .ned-top{display:flex}
 .pgcfgm .pcrow .pcdel{flex:none;width:44px;padding:0;text-align:center;color:var(--muted)}
 
 /* v19.6 予定ノート: 予定のシートの「予定ノート ›」、ノートの上の「予定: 〈題名〉 ›」 */
-#editor .evnote{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:0 4px;border:0;background:transparent;font:400 16px/22px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink2);text-align:left}
+#editor .evnote{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;margin:6px 0 2px;padding:0 12px;border:0;border-radius:10px;background:var(--capsule);font:400 16px/22px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink2);text-align:left}
 #editor .evnote[hidden],#xdetail .evnote[hidden]{display:none}
 #editor .evnote span{flex:1}#editor .evnote small{font-size:13px;color:var(--muted)}#editor .evnote i,#xdetail .evnote i{font-style:normal;color:var(--muted)}
-#xdetail .evnote{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:8px}
+#xdetail .evnote{display:flex;align-items:center;gap:8px;box-sizing:border-box;width:calc(100% - 32px);min-height:44px;margin:4px 16px 8px;padding:0 12px;border:0;border-radius:10px;background:var(--capsule);font:400 16px/22px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink2);text-align:left}#xdetail .evnote span{flex:1}
 .ntools .nevent{display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:50%;margin-right:auto;overflow:hidden}
 .ntools .nevent span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ntools .nevent i{font-style:normal;color:var(--muted)}
 .nsheet .nsev{position:relative;flex:0 1 auto;display:inline-flex;align-items:center;gap:4px;min-width:0;height:32px;min-height:32px;padding:0 10px;border:0;border-radius:8px;background:var(--capsule);font:400 14px/32px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink);overflow:hidden}
@@ -2858,3 +2865,14 @@ html.nne:not(.nne-crlf) .nsheet .nsdone::after{content:"";position:absolute;left
 .relink .rlev:disabled{opacity:.45}
 .relink .rlnone{margin:8px 0;font-size:13px;color:var(--muted)}
 .relink .rlunlink{margin-top:12px;background:var(--capsule)}
+
+/* v19.6 予定ノートの入口 B: 見開きのノートのページの一覧の上に、その日の予定の札 */
+.nevs{padding:4px 16px 8px}
+.nevh{margin:0 0 6px;font:400 13px/18px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--muted)}
+.nevl{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.nevl::-webkit-scrollbar{display:none}
+.nevc{position:relative;flex:none;display:inline-flex;align-items:center;gap:6px;max-width:220px;height:44px;min-height:44px;padding:0 12px 0 10px;border:0;border-radius:10px;background:var(--cat-tint,var(--capsule));font:600 15px/20px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink2)}
+.nevc .nevln{flex:none;width:3px;height:20px;border-radius:1.5px;background:var(--cat-mark,var(--green))}
+.nevc small{flex:none;font:400 13px/18px -apple-system,'Hiragino Sans',sans-serif;color:var(--muted)}
+.nevc span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nevc .nevdot{flex:none;width:7px;height:7px;border-radius:4px;background:var(--green)}
