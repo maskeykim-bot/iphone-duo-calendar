@@ -89,6 +89,7 @@ final class NoteEditorViewController: UIViewController, UITextViewDelegate, UITe
     var initialBody = ""
     var focusTitle = false
     var maxLength = 100_000
+    var placeholder = "新規ノート"   // v19.6: 予定ノートは、題名が空のあいだ予定の題名を薄く出す
     var onClose: ((_ title: String, _ body: String, _ saved: Bool) -> Void)?
     /// 文字が変わった（題名・本文）。少し待ってまとめて知らせる。閉じる・アプリが裏へ回るときはすぐ
     var onChange: ((_ title: String, _ body: String) -> Void)?
@@ -124,7 +125,7 @@ final class NoteEditorViewController: UIViewController, UITextViewDelegate, UITe
 
         titleField.font = .systemFont(ofSize: 22, weight: .semibold)
         titleField.textColor = ink
-        titleField.placeholder = "新規ノート"
+        titleField.placeholder = placeholder
         titleField.text = initialTitle
         titleField.returnKeyType = .next
         titleField.delegate = self

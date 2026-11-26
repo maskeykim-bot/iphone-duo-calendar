@@ -2844,6 +2844,10 @@ html.nne.nne-crlf .ned-top{display:flex}
 .nsheet .nsev[hidden]{display:none}
 .nsheet .nsev::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
 .nsheet .nsev span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nsheet .nsev i{font-style:normal;color:var(--muted)}
+/* v19.6: ネイティブで書くときのシートの「完了」（日付の行の右端。押せる範囲は 44 の高さ） */
+.nsheet .nsdone{display:none}
+html.nne:not(.nne-crlf) .nsheet .nsdone{position:relative;flex:none;display:inline-flex;align-items:center;justify-content:center;height:32px;min-height:32px;margin-left:auto;padding:0 14px;border:0;border-radius:16px;background:var(--green);color:#fff;font:600 14px/32px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif}
+html.nne:not(.nne-crlf) .nsheet .nsdone::after{content:"";position:absolute;left:-4px;right:-4px;top:-6px;bottom:-6px}
 
 /* v19.6 予定ノートのつなぎ直し */
 .relink .rlwhy{margin:0 0 12px;font:400 14px/21px -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;color:var(--ink)}

@@ -2176,7 +2176,8 @@ async function openNativeNote(which) {
   const put = (t, b) => { if (NB.ed?.id !== id) return; const text = joinBody({ title: String(t ?? '').replace(/[\r\n]/g, ' '), rest: String(b ?? ''), nl: sp.nl, eol: '\n', crlf: false }); ed.replaceBody(text); };
   NNE.on = true; NNE.id = id;
   try {
-    const r = await call('openNoteEditor', { title: sp.title, body: sp.rest, focusTitle: which === 'title', maxLength: MAX_NOTE_CHARS });
+    const ph = noteRefOf(id)?.title || ''; // v19.6: 予定ノートは、題名が空のあいだ予定の題名を薄く出す
+    const r = await call('openNoteEditor', { title: sp.title, body: sp.rest, focusTitle: which === 'title', maxLength: MAX_NOTE_CHARS, ...(ph ? { placeholder: ph } : {}) });
     put(r.title, r.body);
     await ed.flushNow?.();
   } catch { notice('ノートを開けませんでした。', null, 3000); }
@@ -3864,7 +3865,10 @@ function sheetDateRow() {
     const cc = document.createElement('button'); cc.type = 'button'; cc.className = 'ccbtn nscc'; /* 寸法は日付のカプセルと同じ。クラスは分ける（.nsdcap は日付だけ） */ cc.dataset.act = 'ncolor'; cc.setAttribute('aria-haspopup', 'true'); cc.setAttribute('aria-label', 'カードの色を選ぶ');
     cc.innerHTML = '<i class="ccdot ccnone" aria-hidden="true"></i><span class="ccname">色なし</span>';
     const ev = document.createElement('button'); ev.type = 'button'; ev.className = 'nsev'; ev.dataset.act = 'nevent'; ev.hidden = true; ev.innerHTML = '<span></span><i aria-hidden="true">›</i>';
-    row.append(cap, cc, ev); SHEET_DATE.row = row; SHEET_DATE.cap = cap; SHEET_DATE.cc = cc; SHEET_DATE.ev = ev;
+    // v19.6: ネイティブの入力欄で書くときは、今までの操作の行（完了を含む）を出さないので、シートを閉じる「完了」をこの行の右端に置く（征希さん「閉じた時はノート開くと閉じなくなる」）
+    const done = document.createElement('button'); done.type = 'button'; done.className = 'nsdone'; done.textContent = '完了'; done.setAttribute('aria-label', 'ノートを閉じる');
+    done.addEventListener('click', () => { if (NB.sheet) closeNoteSheet(); });
+    row.append(cap, cc, ev, done); SHEET_DATE.row = row; SHEET_DATE.cap = cap; SHEET_DATE.cc = cc; SHEET_DATE.ev = ev;
     SHEET_EL.prepend(row);
     SHEET_DATE.ui = createDateField(cap, {
       after: row, scope: SHEET_EL, label: 'ノートの日付', empty: '日付なし', holiday: holidayMemo, buzz: () => { haptic('light').catch(() => {}); },

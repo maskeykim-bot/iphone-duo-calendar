@@ -395,7 +395,7 @@ export function mountNoteEditor(host, { store = noteStore, onOpen = () => {}, on
   function replaceBody(text) { // text は保存の文字（1 行目＝題名の行を含む全文）。本文の欄（2 行目から）だけを差し替える。題名の行まで違うときは全部を出し直す
     const t = String(text ?? ''), cur = value(); if (t === cur) return false;
     const i = t.indexOf('\n'), ci = cur.indexOf('\n');
-    if (i < 0 || ci < 0 || t.slice(0, i) !== cur.slice(0, ci) || /\r/.test(t)) { show(t); sync(); paintUndo(); return true; }
+    if (i < 0 || ci < 0 || t.slice(0, i) !== cur.slice(0, ci) || /\r/.test(t)) { show(t); lastSynced = null; sync(); paintStatus(); paintUndo(); return true; } // show() は「開いただけ」の印（lastSynced）を今の文字にするので、外から差し替えたときは消してから保存へ流す（v19.6: ネイティブの入力欄で新しいノートに書いた文字が保存されなかった）
     const rest = t.slice(i + 1), n = rest.length;
     return applyEdit({ text: rest, selStart: Math.min(body.selectionStart, n), selEnd: Math.min(body.selectionEnd, n) }, true, document.activeElement !== body);
   }

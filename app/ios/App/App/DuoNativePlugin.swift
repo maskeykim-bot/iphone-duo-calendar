@@ -2080,6 +2080,7 @@ public class DuoNativePlugin: CAPPlugin, CAPBridgedPlugin, NotificationHandlerPr
             guard let self = self, let host = self.bridge?.viewController, self.noteEditorVC == nil else { call.reject("unavailable", "UNAVAILABLE"); return }
             let vc = NoteEditorViewController()
             vc.initialTitle = title; vc.initialBody = body; vc.focusTitle = focusTitle; vc.maxLength = maxLen
+            if let ph = call.getString("placeholder"), !ph.isEmpty { vc.placeholder = String(ph.prefix(200)) }
             vc.onChange = { [weak self] t, b in self?.notifyListeners("noteEditorChange", data: ["title": t, "body": b]) }
             vc.onCheck = { [weak self] b, line, s, e in self?.notifyListeners("noteEditorCheck", data: ["body": b, "line": line, "selStart": s, "selEnd": e]) }
             vc.onClose = { t, b, _ in call.resolve(["title": t, "body": b]) }
