@@ -7,6 +7,13 @@
 - 延ばし方: Xcode に Apple ID でサインインしてある状態で（Settings → Accounts。入っていないと「No Accounts」で失敗する）、`~/Library/Developer/Xcode/UserData/Provisioning Profiles/` の `com.maskeykim.duocalendar` 用のプロファイルを別の場所へ退避 → `-allowProvisioningUpdates` でビルド → 新しいプロファイル（7 日）が作られる。退避しないと、古いプロファイルを使い回して期限が延びない。
 - 退避した古いプロファイルは `~/Developer/duo-logs/profile-backup/`（もう要らない）。DuoFlick 用の 2 つには触らない。
 
+## Mac mini への移行（2026-11-26）
+- 作業ブランチは GitHub に push 済み（`v196-native-note`・`v195-day-firstseed`・`proto/note-uitextview`）。`main` は v19.4 のまま（main へは、征希さんがシミュレーターのスクショを見て OK した版だけ）。
+- Mac mini で: `git clone https://github.com/maskeykim-bot/iphone-duo-calendar.git ~/Developer/iphone-duo-calendar` → `git switch v196-native-note` → `cd app && npm install` → `npx playwright install`（テスト用）。
+- Xcode に Apple ID でサインイン（Settings → Accounts）→ iPhone をつないで信頼 → 下の「署名」のやり方でビルド（初回は新しいプロファイル＝7 日）。チーム ID は HANDOFF.md のビルドの手順にある。
+- リポジトリの外のもの: `~/Developer/duo-logs/`（テストの基準の一覧 `mac-baseline-fail43.txt`・`base.txt`）は手で移す。DuoFlick のプロジェクトも別。
+- Claude Code のセッションは Mac ごと（同期されない）。新しい Mac では、このメモと HANDOFF.md・`v195-notes/NEXT-DESIGN.md` を読ませて続きから。
+
 ## ブランチ
 - `main`（d9f5d53）: v19.4。まだ何も push していない（push は、征希さんがシミュレーターのスクショを見て OK した版だけ）。
 - `v195-day-firstseed`: 閉じた画面の「時間」（設定の1日 8:00〜22:00・好きな位置で止まるつまみ・時刻のドラッグと落とす先の枠）、右の列のボタン、月の固定、ホーム。
