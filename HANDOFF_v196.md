@@ -9,7 +9,7 @@
 
 ## Mac mini への移行（2026-11-26）
 - 作業ブランチは GitHub に push 済み（`v196-native-note`・`v195-day-firstseed`・`proto/note-uitextview`）。`main` は v19.4 のまま（main へは、征希さんがシミュレーターのスクショを見て OK した版だけ）。
-- Mac mini で: `git clone https://github.com/maskeykim-bot/iphone-duo-calendar.git ~/Developer/iphone-duo-calendar` → `git switch v196-native-note` → `cd app && npm install` → `npx playwright install`（テスト用）。
+- Mac mini で: `git clone https://github.com/maskeykim-bot/iphone-duo-calendar.git ~/Developer/iphone-duo-calendar` → `git switch v196-native-note` → `cd app && npm install` → `npx playwright install webkit chromium`（テスト用。Firefox は使わないので入れない）。
 - Xcode に Apple ID でサインイン（Settings → Accounts）→ iPhone をつないで信頼 → 下の「署名」のやり方でビルド（初回は新しいプロファイル＝7 日）。チーム ID は HANDOFF.md のビルドの手順にある。
 - リポジトリの外のもの: `~/Developer/duo-logs/`（テストの基準の一覧 `mac-baseline-fail43.txt`・`base.txt`）は手で移す。DuoFlick のプロジェクトも別。
 - Claude Code のセッションは Mac ごと（同期されない）。新しい Mac では、このメモと HANDOFF.md・`v195-notes/NEXT-DESIGN.md` を読ませて続きから。
