@@ -2893,6 +2893,7 @@ function fillNotes(keep) {
   if (host && NB.cur && root.querySelector('[data-nup]') && !NB.rows && !NB.failed) loadNoteList();
   if (!host || !NB.cur) { if (noteListUsed()) { if (!NB.rows && !NB.failed) loadNoteList(); else root.querySelectorAll('[data-mlist]').forEach(paintNoteWindow); } return; }
   const ed = noteEditor(), id = NB.cur;
+  if (ed.titleEl) ed.titleEl.placeholder = noteRefOf(id)?.title || EMPTY_TITLE; // v19.6: 予定ノートは、起動で戻ったときも予定の題名を薄く
   host.append(ed.el); paintNoteMeta();
   if (ed.id !== id && NB.opening !== id) {
     NB.opening = id;
